@@ -2,8 +2,8 @@
 node_modules
 
 # output
-out
-dist
+/out
+/dist
 *.tgz
 
 # code coverage
@@ -27,9 +27,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .cache
 *.tsbuildinfo
 
-# IntelliJ based IDEs
-.idea
-
 # Finder (MacOS) folder config
 .DS_Store
+
 .upstream/
