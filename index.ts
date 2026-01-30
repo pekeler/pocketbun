@@ -1,1 +1,1 @@
-console.log("Hello via Bun!");
+export { PocketBase } from "./src/pocketbase.ts";

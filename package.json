@@ -1,11 +1,13 @@
 {
   "name": "pocketbun",
-  "version": "0.0.0",
+  "version": "0.36.1-pocketbun.0",
   "private": true,
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "upstream:sync": "bash scripts/sync_upstream_pocketbase.sh"
+    "upstream:sync": "bash scripts/sync_upstream_pocketbase.sh",
+    "test": "bun test",
+    "start": "bun run index.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"

@@ -12,8 +12,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
-- [ ] Align repository versioning and scaffolding with the pinned PocketBase tag.
-- [ ] Implement the first compatibility slice (router + health + static UI) and add tests.
+- [x] (2026-01-30 16:57Z) Align repository versioning and scaffolding with the pinned PocketBase tag.
+- [x] (2026-01-30 17:04Z) Implement the first compatibility slice (router + health + static UI) and add tests.
 - [ ] Add persistence, settings, and bootstrap behavior to support auth-aware health responses and system defaults.
 - [ ] Implement collections/records and auth flows, then realtime and hooks.
 
@@ -22,7 +22,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - Observation: package.json version is 0.0.0 but pocketbase_tag.txt is v0.36.1, so SemVer compatibility is not yet encoded.
   Evidence: package.json and pocketbase_tag.txt in the repo root.
 - Observation: vendor/pocketbase-admin-ui/dist exists but there is no adjacent license file in vendor/pocketbase-admin-ui/.
-  Evidence: vendor/pocketbase-admin-ui contains only dist/.
+  Evidence: vendor/pocketbase-admin-ui initially contained only dist/; added vendor/pocketbase-admin-ui/LICENSE.md.
+- Observation: binding to a local TCP port from tests failed in the sandbox, so tests were switched to exercise the request handler directly.
+  Evidence: bun test initially failed with EPERM on listen; handler-based tests now pass without sockets.
 
 ## Decision Log
 
@@ -68,6 +70,7 @@ Milestone 1 steps. First align versioning and repo hygiene, then add the minimal
 
 - Update package.json version to 0.36.1-pocketbun.0 and add scripts for bun test and bun run.
 - Add pb_data/, pb_migrations/, and pb_hooks/ to .gitignore.
+- Copy PocketBase’s MIT license text to vendor/pocketbase-admin-ui/LICENSE.md.
 - Replace index.ts with a library entry that exports PocketBase from src/pocketbase.ts.
 - Create src/ directory structure mirroring upstream: src/apis, src/core, src/tools/router, src/internal/compat, src/ui, src/tests.
 - Port apis/health.go to src/apis/health.ts with a header comment linking to upstream.
@@ -187,3 +190,6 @@ In src/core/app.ts, define the minimal App interface used by Milestone 1 and exp
 Dependencies must prefer Bun built-ins: Bun.serve for HTTP and bun:sqlite for SQLite. Any new dependency must be justified and small; if JWT is needed before WebCrypto helpers are mature, prefer a single well-maintained library and record the decision in the Decision Log.
 
 Plan change note: 2026-01-30, created initial ExecPlan based on AGENTS.md and the .upstream/pocketbase tree to guide the first full porting effort.
+Plan change note: 2026-01-30, marked versioning/scaffolding complete and added the Admin UI license copy step after addressing the missing license file.
+Plan change note: 2026-01-30, completed the initial router/health/admin UI slice and updated progress to reflect the new tests and server scaffolding.
+Plan change note: 2026-01-30, recorded the sandbox socket restriction and updated tests to use the handler directly.
