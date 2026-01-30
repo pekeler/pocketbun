@@ -51,6 +51,9 @@ function decodeToken(token: string): {
   }
 
   const [headerPart, payloadPart, signaturePart] = parts;
+  if (!headerPart || !payloadPart || !signaturePart) {
+    throw new Error("invalid jwt format");
+  }
   const header = parseJson(headerPart);
   const payload = parseJson(payloadPart);
   const signature = base64UrlDecode(signaturePart);

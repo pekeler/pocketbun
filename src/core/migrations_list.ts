@@ -13,7 +13,7 @@ export type Migration = {
 export class MigrationsList {
   #list: Migration[] = [];
 
-  item(index: number): Migration {
+  item(index: number): Migration | undefined {
     return this.#list[index];
   }
 

@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import type { Settings } from "./settings.ts";
 import type { Store } from "./store.ts";
-import type { Record } from "./record.ts";
+import type { Record as RecordModel } from "./record.ts";
 
 export interface App {
   dataDir(): string;
@@ -18,5 +18,5 @@ export interface App {
   runSystemMigrations(): void;
   runAppMigrations(): void;
   runAllMigrations(): void;
-  findAuthRecordByToken(token: string, validTypes?: string[]): Record;
+  findAuthRecordByToken(token: string, validTypes?: string[]): RecordModel;
 }

@@ -2,9 +2,11 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { startTestServer } from "./helpers.ts";
 
 describe("health api", () => {
-  let server: ReturnType<typeof startTestServer>["server"];
+  type StartedServer = Awaited<ReturnType<typeof startTestServer>>;
+  type HealthResponse = { code: number; message: string; data: Record<string, unknown> };
+  let server: StartedServer["server"];
   let baseUrl = "";
-  let cleanup: (() => Promise<void>) | null = null;
+  let cleanup: StartedServer["cleanup"] | null = null;
 
   beforeAll(async () => {
     const started = await startTestServer();
@@ -20,7 +22,7 @@ describe("health api", () => {
 
   it("returns the guest health response", async () => {
     const response = await fetch(`${baseUrl}/api/health`);
-    const body = await response.json();
+    const body = (await response.json()) as HealthResponse;
 
     expect(response.status).toBe(200);
     expect(body).toEqual({
@@ -37,7 +39,7 @@ describe("health api", () => {
           "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoiX3BiX3VzZXJzX2F1dGhfIiwiZXhwIjoyNTI0NjA0NDYxLCJyZWZyZXNoYWJsZSI6dHJ1ZX0.ZT3F0Z3iM-xbGgSG3LEKiEzHrPHr8t8IuHLZGGNuxLo",
       },
     });
-    const body = await response.json();
+    const body = (await response.json()) as HealthResponse;
 
     expect(response.status).toBe(200);
     expect(body).toEqual({
@@ -54,7 +56,7 @@ describe("health api", () => {
           "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6InN5d2JoZWNuaDQ2cmhtMCIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoicGJjXzMxNDI2MzU4MjMiLCJleHAiOjI1MjQ2MDQ0NjEsInJlZnJlc2hhYmxlIjp0cnVlfQ.UXgO3j-0BumcugrFjbd7j0M4MQvbrLggLlcu_YNGjoY",
       },
     });
-    const body = await response.json();
+    const body = (await response.json()) as HealthResponse;
 
     expect(response.status).toBe(200);
     expect(body.code).toBe(200);

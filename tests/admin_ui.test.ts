@@ -2,9 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { startTestServer } from "./helpers.ts";
 
 describe("admin ui", () => {
-  let server: ReturnType<typeof startTestServer>["server"];
+  type StartedServer = Awaited<ReturnType<typeof startTestServer>>;
+  let server: StartedServer["server"];
   let baseUrl = "";
-  let cleanup: (() => Promise<void>) | null = null;
+  let cleanup: StartedServer["cleanup"] | null = null;
 
   beforeAll(async () => {
     const started = await startTestServer();

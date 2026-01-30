@@ -1,6 +1,6 @@
 import { Event } from "../tools/router/event.ts";
 import type { App } from "./app.ts";
-import { Record } from "./record.ts";
+import { Record as RecordModel } from "./record.ts";
 
 export const RequestInfoContextDefault = "default";
 export const RequestInfoContextExpand = "expand";
@@ -15,14 +15,14 @@ export type RequestInfo = {
   query: Record<string, string>;
   headers: Record<string, string>;
   body: Record<string, unknown>;
-  auth: Record | null;
+  auth: RecordModel | null;
   method: string;
   context: string;
 };
 
 export class RequestEvent extends Event {
   app: App;
-  auth: Record | null;
+  auth: RecordModel | null;
   #cachedRequestInfo: RequestInfo | null = null;
 
   constructor(options: {
@@ -63,6 +63,9 @@ export class RequestEvent extends Event {
       } else {
         for (let i = ips.length - 1; i >= 0; i -= 1) {
           const ip = ips[i];
+          if (!ip) {
+            continue;
+          }
           if (isValidIP(ip)) {
             return ip;
           }
@@ -103,7 +106,10 @@ export class RequestEvent extends Event {
 
     for (const [key, value] of this.request.headers.entries()) {
       if (value) {
-        info.headers[snakecase(key)] = value;
+        const normalizedKey = snakecase(key ?? "");
+        if (normalizedKey) {
+          info.headers[normalizedKey] = value;
+        }
       }
     }
 

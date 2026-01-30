@@ -19,7 +19,7 @@ import {
   TokenTypePasswordReset,
   TokenTypeVerification,
 } from "./record_tokens.ts";
-import { Record } from "./record.ts";
+import { Record as RecordModel, type RecordData } from "./record.ts";
 import { Settings } from "./settings.ts";
 import { Store } from "./store.ts";
 import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
@@ -144,7 +144,7 @@ export class BaseApp implements App {
     }
   }
 
-  findAuthRecordByToken(token: string, validTypes: string[] = []): Record {
+  findAuthRecordByToken(token: string, validTypes: string[] = []): RecordModel {
     if (token === "") {
       throw new Error("missing token");
     }
@@ -210,7 +210,7 @@ export class BaseApp implements App {
     });
   }
 
-  private findRecordById(collection: Collection, id: string): Record | null {
+  private findRecordById(collection: Collection, id: string): RecordModel | null {
     const table = collection.name;
     if (!isSafeIdentifier(table)) {
       throw new Error(`unsafe table name ${table}`);
@@ -221,7 +221,7 @@ export class BaseApp implements App {
       return null;
     }
 
-    return new Record(collection, row as Record<string, unknown>);
+    return new RecordModel(collection, row as RecordData);
   }
 }
 

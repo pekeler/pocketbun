@@ -56,6 +56,9 @@ export class Route<E> {
     for (let i = 0, j = 0; i < this.#segments.length; i += 1, j += 1) {
       const segment = this.#segments[i];
       const part = parts[j];
+      if (!segment) {
+        return null;
+      }
 
       if (segment.type === "wildcard") {
         const remaining = parts.slice(j).join("/");
