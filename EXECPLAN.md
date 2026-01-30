@@ -23,8 +23,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Evidence: package.json and pocketbase_tag.txt in the repo root.
 - Observation: vendor/pocketbase-admin-ui/dist exists but there is no adjacent license file in vendor/pocketbase-admin-ui/.
   Evidence: vendor/pocketbase-admin-ui initially contained only dist/; added vendor/pocketbase-admin-ui/LICENSE.md.
-- Observation: binding to a local TCP port from tests failed in the sandbox, so tests were switched to exercise the request handler directly.
-  Evidence: bun test initially failed with EPERM on listen; handler-based tests now pass without sockets.
+- Observation: binding to a local TCP port from tests failed in the sandbox without escalation.
+  Evidence: bun test initially failed with EPERM on listen; with escalated permissions, TCP-based tests pass.
 
 ## Decision Log
 
@@ -192,4 +192,4 @@ Dependencies must prefer Bun built-ins: Bun.serve for HTTP and bun:sqlite for SQ
 Plan change note: 2026-01-30, created initial ExecPlan based on AGENTS.md and the .upstream/pocketbase tree to guide the first full porting effort.
 Plan change note: 2026-01-30, marked versioning/scaffolding complete and added the Admin UI license copy step after addressing the missing license file.
 Plan change note: 2026-01-30, completed the initial router/health/admin UI slice and updated progress to reflect the new tests and server scaffolding.
-Plan change note: 2026-01-30, recorded the sandbox socket restriction and updated tests to use the handler directly.
+Plan change note: 2026-01-30, recorded the sandbox socket restriction and retained TCP-based tests with escalated test runs.

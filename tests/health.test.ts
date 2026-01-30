@@ -1,12 +1,22 @@
-import { describe, expect, it } from "bun:test";
-import { BaseApp } from "../src/core/base_app.ts";
-import { buildServeHandler } from "../src/apis/serve.ts";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { startTestServer } from "./helpers.ts";
 
 describe("health api", () => {
+  let server: ReturnType<typeof startTestServer>["server"];
+  let baseUrl = "";
+
+  beforeAll(async () => {
+    const started = await startTestServer();
+    server = started.server;
+    baseUrl = started.baseUrl;
+  });
+
+  afterAll(() => {
+    server?.stop();
+  });
+
   it("returns the guest health response", async () => {
-    const app = new BaseApp();
-    const handler = buildServeHandler(app);
-    const response = await handler(new Request("http://localhost/api/health"));
+    const response = await fetch(`${baseUrl}/api/health`);
     const body = await response.json();
 
     expect(response.status).toBe(200);
