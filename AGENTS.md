@@ -48,6 +48,9 @@ Goal: maximize long-term maintainability and upstream-syncability by keeping Poc
   - Avoid adding dependencies for trivial utilities—write small local helpers instead.
 - **Regression tests required:** For each ported subsystem or endpoint, add/adjust tests so behavior is pinned. If you discover an upstream edge case, add a regression test immediately.
 
+## ExecPlans
+When writing complex features or significant refactors, use an ExecPlan (as described in .agent/PLANS.md) from design to implementation.
+
 ## Default routes/dirs to match PocketBase
 Keep these defaults unless we intentionally document a deviation:
 - REST API base path: `/api/`
