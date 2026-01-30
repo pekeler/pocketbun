@@ -14,7 +14,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
 - [x] (2026-01-30 16:57Z) Align repository versioning and scaffolding with the pinned PocketBase tag.
 - [x] (2026-01-30 17:04Z) Implement the first compatibility slice (router + health + static UI) and add tests.
-- [ ] Add persistence, settings, and bootstrap behavior to support auth-aware health responses and system defaults.
+- [x] (2026-01-30 18:46Z) Add SQLite bootstrap, auth token verification, and test data cloning for auth-aware health responses.
+- [ ] Add settings load and migrations runner to complete the persistence/bootstrap milestone.
 - [ ] Implement collections/records and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -25,6 +26,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Evidence: vendor/pocketbase-admin-ui initially contained only dist/; added vendor/pocketbase-admin-ui/LICENSE.md.
 - Observation: binding to a local TCP port from tests failed in the sandbox without escalation.
   Evidence: bun test initially failed with EPERM on listen; with escalated permissions, TCP-based tests pass.
+- Observation: upstream test tokens map to auth collections stored in the seeded test data database.
+  Evidence: regular user token claims collectionId _pb_users_auth_ (users table), superuser token claims pbc_3142635823 (_superusers table).
 
 ## Decision Log
 
@@ -36,6 +39,12 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Date/Author: 2026-01-30 / Codex
 - Decision: Use Bun built-ins (Bun.serve, bun:sqlite, WebCrypto) as defaults and only add dependencies when a direct Bun/Web API is insufficient.
   Rationale: Bun-first approach is required and reduces maintenance.
+  Date/Author: 2026-01-30 / Codex
+- Decision: Clone upstream tests/data into a temporary directory for TCP-based tests.
+  Rationale: Matches PocketBase testing behavior and keeps seeded auth tokens valid without re-seeding logic.
+  Date/Author: 2026-01-30 / Codex
+- Decision: Use node:crypto HMAC verification for JWT parsing to keep auth verification synchronous and dependency-free.
+  Rationale: Bun supports node:crypto and it avoids adding a JWT dependency while preserving HS256 behavior.
   Date/Author: 2026-01-30 / Codex
 
 ## Outcomes & Retrospective
@@ -193,3 +202,4 @@ Plan change note: 2026-01-30, created initial ExecPlan based on AGENTS.md and th
 Plan change note: 2026-01-30, marked versioning/scaffolding complete and added the Admin UI license copy step after addressing the missing license file.
 Plan change note: 2026-01-30, completed the initial router/health/admin UI slice and updated progress to reflect the new tests and server scaffolding.
 Plan change note: 2026-01-30, recorded the sandbox socket restriction and retained TCP-based tests with escalated test runs.
+Plan change note: 2026-01-30, added SQLite-backed auth token verification and test data cloning to support auth-aware health tests.

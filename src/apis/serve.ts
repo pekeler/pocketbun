@@ -4,6 +4,7 @@ import { resolve, sep } from "node:path";
 import type { App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { Router } from "../tools/router/router.ts";
+import { loadAuthFromRequest } from "./auth.ts";
 import { bindHealthApi } from "./health.ts";
 
 export type ServeConfig = {
@@ -17,11 +18,21 @@ export function buildServeHandler(app: App): (req: Request, server?: unknown) =>
   bindAdminUI(router);
 
   return router.buildHandler(({ request, params, remoteAddress }) =>
-    new RequestEvent({ app, request, params, remoteAddress }),
+    {
+      const event = new RequestEvent({ app, request, params, remoteAddress });
+      loadAuthFromRequest(app, event);
+      return event;
+    },
   );
 }
 
 export function serve(app: App, config: ServeConfig = {}): ReturnType<typeof Bun.serve> {
+  if (!app.isBootstrapped()) {
+    app.bootstrap();
+  }
+
+  app.runAllMigrations();
+
   const addr = config.httpAddr ?? "127.0.0.1:8090";
   const { hostname, port } = parseAddr(addr);
   const handler = buildServeHandler(app);
