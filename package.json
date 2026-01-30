@@ -8,10 +8,16 @@
     "upstream:sync": "bash scripts/sync_upstream_pocketbase.sh",
     "test": "bun test",
     "start": "bun run index.ts",
-    "typecheck": "bun x tsc -p tsconfig.json --noEmit"
+    "typecheck": "bun x tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint --type-aware src test",
+    "format": "oxfmt --check src test",
+    "format:fix": "oxfmt --write src test"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "oxfmt": "^0.27.0",
+    "oxlint": "^1.42.0",
+    "oxlint-tsgolint": "^0.11.4"
   },
   "peerDependencies": {
     "typescript": "^5"
