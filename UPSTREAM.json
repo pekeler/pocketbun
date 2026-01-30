@@ -1,0 +1,6 @@
+{
+  "pocketbase": {
+    "repo": "https://github.com/pocketbase/pocketbase",
+    "syncedTag": "v0.36.1"
+  }
+}
