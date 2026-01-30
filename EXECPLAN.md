@@ -17,6 +17,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-30 18:46Z) Add SQLite bootstrap, auth token verification, and test data cloning for auth-aware health responses.
 - [x] (2026-01-30 18:49Z) Load trusted proxy settings from the settings param row during bootstrap.
 - [x] (2026-01-30 18:55Z) Add migrations runner with _migrations table initialization and list-based execution.
+- [x] (2026-01-30 19:13Z) Port the initial system migration and add a migrations test covering table creation and migration history.
 - [ ] Implement collections/records and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -209,3 +210,4 @@ Plan change note: 2026-01-30, recorded the sandbox socket restriction and retain
 Plan change note: 2026-01-30, added SQLite-backed auth token verification and test data cloning to support auth-aware health tests.
 Plan change note: 2026-01-30, added minimal settings load from the settings param row during bootstrap.
 Plan change note: 2026-01-30, added a minimal migrations runner and list registry to track applied migrations.
+Plan change note: 2026-01-30, ported the initial system migration and added tests to verify it applies on a fresh data dir.

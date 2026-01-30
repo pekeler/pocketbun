@@ -1,5 +1,7 @@
 // Ported from pocketbase/core/base_app.go @ v0.36.1 (9b036fb1)
 
+import "../migrations/index.ts";
+
 import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
