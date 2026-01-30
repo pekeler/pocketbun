@@ -38,6 +38,16 @@ describe("migrations", () => {
     expect(names).toContain("_authOrigins");
   });
 
+  it("creates aux logs table", () => {
+    const rows = app
+      .auxDb()
+      .query("select name from sqlite_master where type='table'")
+      .all() as Array<{ name: string }>;
+    const names = rows.map((row) => row.name);
+
+    expect(names).toContain("_logs");
+  });
+
   it("records the init migration", () => {
     const rows = app
       .db()

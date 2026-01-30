@@ -18,6 +18,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-30 18:49Z) Load trusted proxy settings from the settings param row during bootstrap.
 - [x] (2026-01-30 18:55Z) Add migrations runner with _migrations table initialization and list-based execution.
 - [x] (2026-01-30 19:13Z) Port the initial system migration and add a migrations test covering table creation and migration history.
+- [x] (2026-01-30 21:24Z) Port the aux logs migration and extend migrations tests to cover _logs creation.
 - [ ] Implement collections/records and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -211,3 +212,4 @@ Plan change note: 2026-01-30, added SQLite-backed auth token verification and te
 Plan change note: 2026-01-30, added minimal settings load from the settings param row during bootstrap.
 Plan change note: 2026-01-30, added a minimal migrations runner and list registry to track applied migrations.
 Plan change note: 2026-01-30, ported the initial system migration and added tests to verify it applies on a fresh data dir.
+Plan change note: 2026-01-30, ported the aux logs migration and updated tests to assert the aux _logs table exists.

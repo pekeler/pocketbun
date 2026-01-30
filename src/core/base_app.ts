@@ -99,6 +99,13 @@ export class BaseApp implements App {
     return this.#auxDb;
   }
 
+  auxHasTable(name: string): boolean {
+    const row = this.auxDb()
+      .query("select name from sqlite_master where type='table' and name = ?")
+      .get(name) as { name?: string } | undefined;
+    return Boolean(row?.name);
+  }
+
   runAllMigrations(): void {
     const list = new MigrationsList();
     list.copy(SystemMigrations);

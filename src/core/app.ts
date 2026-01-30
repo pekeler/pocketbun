@@ -12,6 +12,7 @@ export interface App {
   resetBootstrapState(): void;
   db(): Database;
   auxDb(): Database;
+  auxHasTable(name: string): boolean;
   reloadSettings(): void;
   runSystemMigrations(): void;
   runAppMigrations(): void;
