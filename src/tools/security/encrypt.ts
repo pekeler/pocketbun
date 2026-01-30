@@ -1,0 +1,39 @@
+// Ported from pocketbase/tools/security/encrypt.go @ v0.36.1 (9b036fb1)
+
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+
+const GCM_NONCE_SIZE = 12;
+const GCM_TAG_SIZE = 16;
+
+function assertKey(key: string): Buffer {
+  const keyBytes = Buffer.from(key);
+  if (keyBytes.length !== 16 && keyBytes.length !== 24 && keyBytes.length !== 32) {
+    throw new Error("invalid encryption key length");
+  }
+  return keyBytes;
+}
+
+export function encrypt(data: Uint8Array, key: string): string {
+  const keyBytes = assertKey(key);
+  const nonce = randomBytes(GCM_NONCE_SIZE);
+  const cipher = createCipheriv("aes-256-gcm", keyBytes, nonce);
+  const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  const combined = Buffer.concat([nonce, encrypted, tag]);
+  return combined.toString("base64");
+}
+
+export function decrypt(cipherText: string, key: string): Uint8Array {
+  const keyBytes = assertKey(key);
+  const data = Buffer.from(cipherText, "base64");
+  if (data.length < GCM_NONCE_SIZE + GCM_TAG_SIZE) {
+    throw new Error("invalid cipher text");
+  }
+  const nonce = data.subarray(0, GCM_NONCE_SIZE);
+  const tag = data.subarray(data.length - GCM_TAG_SIZE);
+  const encrypted = data.subarray(GCM_NONCE_SIZE, data.length - GCM_TAG_SIZE);
+  const decipher = createDecipheriv("aes-256-gcm", keyBytes, nonce);
+  decipher.setAuthTag(tag);
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+  return new Uint8Array(decrypted);
+}

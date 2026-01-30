@@ -26,10 +26,12 @@ import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
 
 export type BaseAppConfig = {
   dataDir?: string;
+  encryptionEnv?: string;
 };
 
 export class BaseApp implements App {
   #dataDir: string;
+  #encryptionEnv: string;
   #settings: Settings;
   #store: Store<string, unknown>;
   #bootstrapped = false;
@@ -38,12 +40,17 @@ export class BaseApp implements App {
 
   constructor(config: BaseAppConfig = {}) {
     this.#dataDir = config.dataDir ?? "pb_data";
+    this.#encryptionEnv = config.encryptionEnv ?? "";
     this.#settings = new Settings();
     this.#store = new Store();
   }
 
   dataDir(): string {
     return this.#dataDir;
+  }
+
+  encryptionEnv(): string {
+    return this.#encryptionEnv;
   }
 
   settings(): Settings {

@@ -5,6 +5,7 @@ import type { Record } from "./record.ts";
 
 export interface App {
   dataDir(): string;
+  encryptionEnv(): string;
   settings(): Settings;
   store(): Store<string, unknown>;
   isBootstrapped(): boolean;

@@ -19,6 +19,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-30 18:55Z) Add migrations runner with _migrations table initialization and list-based execution.
 - [x] (2026-01-30 19:13Z) Port the initial system migration and add a migrations test covering table creation and migration history.
 - [x] (2026-01-30 21:24Z) Port the aux logs migration and extend migrations tests to cover _logs creation.
+- [x] (2026-01-30 23:05Z) Port the v0.23 migration chain and auth alert template update, adding AES-GCM decrypt support for legacy settings.
 - [ ] Implement collections/records and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -31,6 +32,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Evidence: bun test initially failed with EPERM on listen; with escalated permissions, TCP-based tests pass.
 - Observation: upstream test tokens map to auth collections stored in the seeded test data database.
   Evidence: regular user token claims collectionId _pb_users_auth_ (users table), superuser token claims pbc_3142635823 (_superusers table).
+- Observation: legacy settings migration expects AES-256-GCM decryption of encrypted params values.
+  Evidence: upstream migration attempts to decrypt the old settings value before JSON decode.
 
 ## Decision Log
 
@@ -52,10 +55,13 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - Decision: Implement a minimal migrations registry/runner that records applied files in _migrations without porting all migrations yet.
   Rationale: It preserves migration history semantics and unblocks bootstrapping while we port the full migration set incrementally.
   Date/Author: 2026-01-30 / Codex
+- Decision: Port the v0.23 migration chain using raw SQL/JSON manipulation instead of full model APIs.
+  Rationale: The full collection model/validation stack is not yet ported, but we still need to preserve upgrade behavior for pre-v0.23 databases.
+  Date/Author: 2026-01-30 / Codex
 
 ## Outcomes & Retrospective
 
-This plan has been created and no implementation has started yet. The next contributor should begin with Milestone 1 and update Progress, Decision Log, and Surprises as they work.
+Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. The remaining work is to port collections/records/auth APIs, realtime, and hooks while expanding tests to match upstream behavior.
 
 ## Context and Orientation
 
@@ -196,10 +202,11 @@ In src/core/app.ts, define the minimal App interface used by Milestone 1 and exp
 
     export interface App {
       dataDir(): string;
+      encryptionEnv(): string;
       settings(): Settings;
       store(): Store<string, unknown>;
       isBootstrapped(): boolean;
-      bootstrap(): Promise<void>;
+      bootstrap(): void;
     }
 
 Dependencies must prefer Bun built-ins: Bun.serve for HTTP and bun:sqlite for SQLite. Any new dependency must be justified and small; if JWT is needed before WebCrypto helpers are mature, prefer a single well-maintained library and record the decision in the Decision Log.
@@ -213,3 +220,4 @@ Plan change note: 2026-01-30, added minimal settings load from the settings para
 Plan change note: 2026-01-30, added a minimal migrations runner and list registry to track applied migrations.
 Plan change note: 2026-01-30, ported the initial system migration and added tests to verify it applies on a fresh data dir.
 Plan change note: 2026-01-30, ported the aux logs migration and updated tests to assert the aux _logs table exists.
+Plan change note: 2026-01-30, ported the v0.23 system migrations and auth alert template update, adding AES-GCM settings decryption support for legacy databases.
