@@ -114,7 +114,7 @@ PocketBun should make server-side extensibility practical in Bun:
 - Where possible, keep naming/semantics close to PocketBase hook concepts so existing users can migrate.
 
 ## Testing (must exist and grow over time)
-Use `bun test` and keep tests focused on compatibility.
+Use `bun test` and keep tests focused on compatibility. Always run `bun run typecheck` to catch TypeScript errors, and treat any compiler/runtime warnings (including deprecation warnings surfaced during tests or `bun run start`) as issues to fix before committing.
 Minimum expectations:
 - tests for core API endpoints (status + JSON shape)
 - tests for auth flows we implement
@@ -129,7 +129,7 @@ Add tests whenever:
 ## Commands
 - `bun run upstream:sync` — sync `.upstream/pocketbase` to the tag in `pocketbase_tag.txt`
 - `bun test` — run test suite
-- If a typecheck script exists, keep it passing (e.g. `bun run typecheck`)
+- `bun run typecheck` — run TypeScript typecheck (no emit)
 
 ## Change hygiene
 - Make small, focused commits.
