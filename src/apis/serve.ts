@@ -5,6 +5,7 @@ import type { App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { Router } from "../tools/router/router.ts";
 import { loadAuthFromRequest } from "./auth.ts";
+import { bindCollectionApi } from "./collection.ts";
 import { bindHealthApi } from "./health.ts";
 
 export type ServeConfig = {
@@ -14,7 +15,9 @@ export type ServeConfig = {
 
 export function buildServeHandler(app: App): (req: Request, server?: unknown) => Promise<Response> {
   const router = new Router<RequestEvent>();
-  bindHealthApi(app, router.group("/api"));
+  const apiGroup = router.group("/api");
+  bindCollectionApi(app, apiGroup);
+  bindHealthApi(app, apiGroup);
   bindAdminUI(router);
 
   return router.buildHandler(({ request, params, remoteAddress }) => {

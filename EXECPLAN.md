@@ -20,7 +20,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-30 19:13Z) Port the initial system migration and add a migrations test covering table creation and migration history.
 - [x] (2026-01-30 21:24Z) Port the aux logs migration and extend migrations tests to cover _logs creation.
 - [x] (2026-01-30 23:05Z) Port the v0.23 migration chain and auth alert template update, adding AES-GCM decrypt support for legacy settings.
-- [ ] Implement collections/records and auth flows, then realtime and hooks.
+- [x] (2026-01-30 23:58Z) Add read-only collections list/view endpoints with superuser auth, paging, sorting, and basic filter support plus tests.
+- [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
 
@@ -57,6 +58,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Date/Author: 2026-01-30 / Codex
 - Decision: Port the v0.23 migration chain using raw SQL/JSON manipulation instead of full model APIs.
   Rationale: The full collection model/validation stack is not yet ported, but we still need to preserve upgrade behavior for pre-v0.23 databases.
+  Date/Author: 2026-01-30 / Codex
+- Decision: Implement a lightweight, collection-specific search parser (page/perPage/sort/filter) before porting the full search toolkit.
+  Rationale: It unlocks the collections list endpoint with upstream-like behavior while deferring the heavier fexpr-based filter engine port.
   Date/Author: 2026-01-30 / Codex
 
 ## Outcomes & Retrospective
@@ -117,6 +121,7 @@ Milestone 2 steps. Add bootstrapping, settings, and persistence.
 
 Milestone 3 steps. Port collections/records and auth APIs.
 
+- Extend the collections API to support list/view (superuser-only) with paging and filtering; keep error responses JSON-compatible with upstream.
 - Port core record, collection, and DAO equivalents from upstream core/.
 - Implement CRUD endpoints in src/apis/record and src/apis/collection to match response shapes and errors.
 - Port auth endpoints from upstream apis/record_auth and related core token logic.
@@ -221,3 +226,4 @@ Plan change note: 2026-01-30, added a minimal migrations runner and list registr
 Plan change note: 2026-01-30, ported the initial system migration and added tests to verify it applies on a fresh data dir.
 Plan change note: 2026-01-30, ported the aux logs migration and updated tests to assert the aux _logs table exists.
 Plan change note: 2026-01-30, ported the v0.23 system migrations and auth alert template update, adding AES-GCM settings decryption support for legacy databases.
+Plan change note: 2026-01-30, added read-only collections list/view endpoints with superuser auth and a minimal search parser to unlock collections listing before full search tooling is ported.
