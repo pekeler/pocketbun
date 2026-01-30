@@ -9,9 +9,9 @@
     "test": "bun test",
     "start": "bun run index.ts",
     "typecheck": "bun x tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint --type-aware src test",
-    "format": "oxfmt --check src test",
-    "format:fix": "oxfmt --write src test"
+    "lint": "oxlint --type-aware src tests",
+    "format": "oxfmt --check src tests",
+    "format:fix": "oxfmt --write src tests"
   },
   "devDependencies": {
     "@types/bun": "latest",
