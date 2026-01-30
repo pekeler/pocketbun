@@ -5,6 +5,8 @@ import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { App } from "./app.ts";
 import { Collection } from "./collection.ts";
+import { AppMigrations, MigrationsRunner, SystemMigrations } from "./migrations_runner.ts";
+import { MigrationsList } from "./migrations_list.ts";
 import {
   TokenClaimCollectionId,
   TokenClaimId,
@@ -96,7 +98,18 @@ export class BaseApp implements App {
   }
 
   runAllMigrations(): void {
-    // TODO: port migration runner; no-op for now.
+    const list = new MigrationsList();
+    list.copy(SystemMigrations);
+    list.copy(AppMigrations);
+    new MigrationsRunner(this, list).up();
+  }
+
+  runSystemMigrations(): void {
+    new MigrationsRunner(this, SystemMigrations).up();
+  }
+
+  runAppMigrations(): void {
+    new MigrationsRunner(this, AppMigrations).up();
   }
 
   reloadSettings(): void {

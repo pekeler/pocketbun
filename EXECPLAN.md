@@ -16,7 +16,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-30 17:04Z) Implement the first compatibility slice (router + health + static UI) and add tests.
 - [x] (2026-01-30 18:46Z) Add SQLite bootstrap, auth token verification, and test data cloning for auth-aware health responses.
 - [x] (2026-01-30 18:49Z) Load trusted proxy settings from the settings param row during bootstrap.
-- [ ] Add migrations runner to complete the persistence/bootstrap milestone.
+- [x] (2026-01-30 18:55Z) Add migrations runner with _migrations table initialization and list-based execution.
 - [ ] Implement collections/records and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -46,6 +46,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Date/Author: 2026-01-30 / Codex
 - Decision: Use node:crypto HMAC verification for JWT parsing to keep auth verification synchronous and dependency-free.
   Rationale: Bun supports node:crypto and it avoids adding a JWT dependency while preserving HS256 behavior.
+  Date/Author: 2026-01-30 / Codex
+- Decision: Implement a minimal migrations registry/runner that records applied files in _migrations without porting all migrations yet.
+  Rationale: It preserves migration history semantics and unblocks bootstrapping while we port the full migration set incrementally.
   Date/Author: 2026-01-30 / Codex
 
 ## Outcomes & Retrospective
@@ -205,3 +208,4 @@ Plan change note: 2026-01-30, completed the initial router/health/admin UI slice
 Plan change note: 2026-01-30, recorded the sandbox socket restriction and retained TCP-based tests with escalated test runs.
 Plan change note: 2026-01-30, added SQLite-backed auth token verification and test data cloning to support auth-aware health tests.
 Plan change note: 2026-01-30, added minimal settings load from the settings param row during bootstrap.
+Plan change note: 2026-01-30, added a minimal migrations runner and list registry to track applied migrations.

@@ -13,6 +13,8 @@ export interface App {
   db(): Database;
   auxDb(): Database;
   reloadSettings(): void;
+  runSystemMigrations(): void;
+  runAppMigrations(): void;
   runAllMigrations(): void;
   findAuthRecordByToken(token: string, validTypes?: string[]): Record;
 }
