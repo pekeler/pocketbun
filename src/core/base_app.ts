@@ -65,6 +65,7 @@ export class BaseApp implements App {
 
     this.#db = new Database(join(this.#dataDir, "data.db"));
     this.#auxDb = new Database(join(this.#dataDir, "auxiliary.db"));
+    this.reloadSettings();
     this.#bootstrapped = true;
   }
 
@@ -96,6 +97,22 @@ export class BaseApp implements App {
 
   runAllMigrations(): void {
     // TODO: port migration runner; no-op for now.
+  }
+
+  reloadSettings(): void {
+    try {
+      const row = this.db()
+        .query("select value from _params where id = 'settings'")
+        .get() as { value?: string } | undefined;
+      if (!row?.value || typeof row.value !== "string") {
+        return;
+      }
+
+      const parsed = JSON.parse(row.value) as Record<string, unknown>;
+      this.#settings.loadFromJSON(parsed);
+    } catch {
+      // ignore missing settings table or invalid JSON
+    }
   }
 
   findAuthRecordByToken(token: string, validTypes: string[] = []): Record {

@@ -15,7 +15,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-30 16:57Z) Align repository versioning and scaffolding with the pinned PocketBase tag.
 - [x] (2026-01-30 17:04Z) Implement the first compatibility slice (router + health + static UI) and add tests.
 - [x] (2026-01-30 18:46Z) Add SQLite bootstrap, auth token verification, and test data cloning for auth-aware health responses.
-- [ ] Add settings load and migrations runner to complete the persistence/bootstrap milestone.
+- [x] (2026-01-30 18:49Z) Load trusted proxy settings from the settings param row during bootstrap.
+- [ ] Add migrations runner to complete the persistence/bootstrap milestone.
 - [ ] Implement collections/records and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -203,3 +204,4 @@ Plan change note: 2026-01-30, marked versioning/scaffolding complete and added t
 Plan change note: 2026-01-30, completed the initial router/health/admin UI slice and updated progress to reflect the new tests and server scaffolding.
 Plan change note: 2026-01-30, recorded the sandbox socket restriction and retained TCP-based tests with escalated test runs.
 Plan change note: 2026-01-30, added SQLite-backed auth token verification and test data cloning to support auth-aware health tests.
+Plan change note: 2026-01-30, added minimal settings load from the settings param row during bootstrap.

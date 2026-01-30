@@ -12,6 +12,7 @@ export interface App {
   resetBootstrapState(): void;
   db(): Database;
   auxDb(): Database;
+  reloadSettings(): void;
   runAllMigrations(): void;
   findAuthRecordByToken(token: string, validTypes?: string[]): Record;
 }
