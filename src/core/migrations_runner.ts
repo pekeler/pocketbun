@@ -87,7 +87,10 @@ export class MigrationsRunner {
 
     const names = this.#migrationsList.items().map((migration) => migration.file);
     if (names.length === 0) {
-      this.#app.db().query(`delete from ${this.#tableName}`).run();
+      this.#app
+        .db()
+        .query(`delete from ${this.#tableName}`)
+        .run();
       return;
     }
 
@@ -129,7 +132,10 @@ export class MigrationsRunner {
   }
 
   private saveRevertedMigration(file: string): void {
-    this.#app.db().query(`delete from ${this.#tableName} where file = ?`).run(file);
+    this.#app
+      .db()
+      .query(`delete from ${this.#tableName} where file = ?`)
+      .run(file);
   }
 
   private lastAppliedMigrations(limit: number): string[] {

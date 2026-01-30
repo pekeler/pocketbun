@@ -49,7 +49,10 @@ export class RequestEvent extends Event {
         continue;
       }
 
-      const ips = headerValue.split(",").map((ip) => ip.trim()).filter(Boolean);
+      const ips = headerValue
+        .split(",")
+        .map((ip) => ip.trim())
+        .filter(Boolean);
       if (ips.length === 0) {
         continue;
       }

@@ -15,7 +15,9 @@ function up(app: App): void {
   const placeholders = names.map(() => "?").join(",");
 
   const rows = db
-    .query(`select id, name, type, ${fieldsColumn} as fields from _collections where name in (${placeholders})`)
+    .query(
+      `select id, name, type, ${fieldsColumn} as fields from _collections where name in (${placeholders})`,
+    )
     .all(...names) as Array<{ id: string; name: string; type: string; fields: string }>;
 
   for (const row of rows) {
@@ -61,7 +63,10 @@ function up(app: App): void {
       if (!hasTable(db, table)) {
         continue;
       }
-      db.query(`update ${table} set collectionRef = ? where collectionRef = ?`).run(row.id, originalId);
+      db.query(`update ${table} set collectionRef = ? where collectionRef = ?`).run(
+        row.id,
+        originalId,
+      );
     }
   }
 }
@@ -72,9 +77,10 @@ function updateRelationReferences(
   originalId: string,
   newId: string,
 ): void {
-  const rows = db
-    .query(`select id, ${fieldsColumn} as fields from _collections`)
-    .all() as Array<{ id: string; fields: string }>;
+  const rows = db.query(`select id, ${fieldsColumn} as fields from _collections`).all() as Array<{
+    id: string;
+    fields: string;
+  }>;
 
   for (const row of rows) {
     const fields = parseJson<Record<string, unknown>[]>(row.fields, []);
@@ -119,7 +125,7 @@ function crc32(input: string): number {
       crc = (crc >>> 1) ^ (0xedb88320 & mask);
     }
   }
-  return (~crc) >>> 0;
+  return ~crc >>> 0;
 }
 
 function parseJson<T>(value: unknown, fallback: T): T {
@@ -140,10 +146,16 @@ function toString(value: unknown): string {
   if (typeof value === "string") {
     return value;
   }
-  if (value == null) {
-    return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
   }
-  return String(value);
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  return "";
 }
 
 function toBool(value: unknown): boolean {

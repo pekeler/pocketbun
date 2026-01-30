@@ -11,7 +11,7 @@ SystemMigrations.register(up, down, FILE_NAME);
 function up(app: App): void {
   const db = app.db();
 
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS _params (
       id TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(randomblob(7)))) NOT NULL,
       value JSON DEFAULT NULL,
@@ -20,7 +20,7 @@ function up(app: App): void {
     );
   `);
 
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS _collections (
       id TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(randomblob(7)))) NOT NULL,
       system BOOLEAN DEFAULT FALSE NOT NULL,
@@ -41,7 +41,7 @@ function up(app: App): void {
     CREATE INDEX IF NOT EXISTS idx__collections_type ON _collections (type);
   `);
 
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS _mfas (
       collectionRef TEXT DEFAULT '' NOT NULL,
       created TEXT DEFAULT '' NOT NULL,
@@ -105,7 +105,7 @@ function up(app: App): void {
     );
   `);
 
-  db.exec(`
+  db.run(`
     CREATE INDEX IF NOT EXISTS idx_mfas_collectionRef_recordRef ON _mfas (
       collectionRef,
       recordRef
@@ -147,7 +147,7 @@ function up(app: App): void {
       `INSERT OR IGNORE INTO _collections
         (id, system, type, name, fields, indexes, listRule, viewRule, createRule, updateRule, deleteRule, options)
        VALUES
-        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       collection.id,
       collection.system ? 1 : 0,
@@ -167,7 +167,7 @@ function up(app: App): void {
 
 function down(app: App): void {
   const db = app.db();
-  db.exec(`
+  db.run(`
     DROP TABLE IF EXISTS users;
     DROP TABLE IF EXISTS _superusers;
     DROP TABLE IF EXISTS _mfas;
@@ -195,100 +195,237 @@ type CollectionInsert = {
 };
 
 function buildSystemCollections(): CollectionInsert[] {
-  const ownerRule = "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
+  const ownerRule =
+    "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
   const userRule = "id = @request.auth.id";
 
-  const mfas = baseSystemCollection("_mfas", "base", true, [
-    textField("id", { system: true, required: true, primaryKey: true, min: 15, max: 15, pattern: "^[a-z0-9]+$", autogeneratePattern: "[a-z0-9]{15}" }),
-    textField("collectionRef", { system: true, required: true }),
-    textField("recordRef", { system: true, required: true }),
-    textField("method", { system: true, required: true }),
-    autodateField("created", { system: true, onCreate: true, onUpdate: false }),
-    autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
-  ], [
-    buildIndex("idx_mfas_collectionRef_recordRef", false, "_mfas", "collectionRef, recordRef"),
-  ]);
+  const mfas = baseSystemCollection(
+    "_mfas",
+    "base",
+    true,
+    [
+      textField("id", {
+        system: true,
+        required: true,
+        primaryKey: true,
+        min: 15,
+        max: 15,
+        pattern: "^[a-z0-9]+$",
+        autogeneratePattern: "[a-z0-9]{15}",
+      }),
+      textField("collectionRef", { system: true, required: true }),
+      textField("recordRef", { system: true, required: true }),
+      textField("method", { system: true, required: true }),
+      autodateField("created", { system: true, onCreate: true, onUpdate: false }),
+      autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
+    ],
+    [buildIndex("idx_mfas_collectionRef_recordRef", false, "_mfas", "collectionRef, recordRef")],
+  );
   mfas.listRule = ownerRule;
   mfas.viewRule = ownerRule;
 
-  const otps = baseSystemCollection("_otps", "base", true, [
-    textField("id", { system: true, required: true, primaryKey: true, min: 15, max: 15, pattern: "^[a-z0-9]+$", autogeneratePattern: "[a-z0-9]{15}" }),
-    textField("collectionRef", { system: true, required: true }),
-    textField("recordRef", { system: true, required: true }),
-    passwordField("password", { system: true, required: true, hidden: true, min: 0, max: 0, cost: 8 }),
-    autodateField("created", { system: true, onCreate: true, onUpdate: false }),
-    autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
-    textField("sentTo", { system: true, required: false, hidden: true }),
-  ], [
-    buildIndex("idx_otps_collectionRef_recordRef", false, "_otps", "collectionRef, recordRef"),
-  ]);
+  const otps = baseSystemCollection(
+    "_otps",
+    "base",
+    true,
+    [
+      textField("id", {
+        system: true,
+        required: true,
+        primaryKey: true,
+        min: 15,
+        max: 15,
+        pattern: "^[a-z0-9]+$",
+        autogeneratePattern: "[a-z0-9]{15}",
+      }),
+      textField("collectionRef", { system: true, required: true }),
+      textField("recordRef", { system: true, required: true }),
+      passwordField("password", {
+        system: true,
+        required: true,
+        hidden: true,
+        min: 0,
+        max: 0,
+        cost: 8,
+      }),
+      autodateField("created", { system: true, onCreate: true, onUpdate: false }),
+      autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
+      textField("sentTo", { system: true, required: false, hidden: true }),
+    ],
+    [buildIndex("idx_otps_collectionRef_recordRef", false, "_otps", "collectionRef, recordRef")],
+  );
   otps.listRule = ownerRule;
   otps.viewRule = ownerRule;
 
-  const externalAuths = baseSystemCollection("_externalAuths", "base", true, [
-    textField("id", { system: true, required: true, primaryKey: true, min: 15, max: 15, pattern: "^[a-z0-9]+$", autogeneratePattern: "[a-z0-9]{15}" }),
-    textField("collectionRef", { system: true, required: true }),
-    textField("recordRef", { system: true, required: true }),
-    textField("provider", { system: true, required: true }),
-    textField("providerId", { system: true, required: true }),
-    autodateField("created", { system: true, onCreate: true, onUpdate: false }),
-    autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
-  ], [
-    buildIndex("idx_externalAuths_record_provider", true, "_externalAuths", "collectionRef, recordRef, provider"),
-    buildIndex("idx_externalAuths_collection_provider", true, "_externalAuths", "collectionRef, provider, providerId"),
-  ]);
+  const externalAuths = baseSystemCollection(
+    "_externalAuths",
+    "base",
+    true,
+    [
+      textField("id", {
+        system: true,
+        required: true,
+        primaryKey: true,
+        min: 15,
+        max: 15,
+        pattern: "^[a-z0-9]+$",
+        autogeneratePattern: "[a-z0-9]{15}",
+      }),
+      textField("collectionRef", { system: true, required: true }),
+      textField("recordRef", { system: true, required: true }),
+      textField("provider", { system: true, required: true }),
+      textField("providerId", { system: true, required: true }),
+      autodateField("created", { system: true, onCreate: true, onUpdate: false }),
+      autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
+    ],
+    [
+      buildIndex(
+        "idx_externalAuths_record_provider",
+        true,
+        "_externalAuths",
+        "collectionRef, recordRef, provider",
+      ),
+      buildIndex(
+        "idx_externalAuths_collection_provider",
+        true,
+        "_externalAuths",
+        "collectionRef, provider, providerId",
+      ),
+    ],
+  );
   externalAuths.listRule = ownerRule;
   externalAuths.viewRule = ownerRule;
 
-  const authOrigins = baseSystemCollection("_authOrigins", "base", true, [
-    textField("id", { system: true, required: true, primaryKey: true, min: 15, max: 15, pattern: "^[a-z0-9]+$", autogeneratePattern: "[a-z0-9]{15}" }),
-    textField("collectionRef", { system: true, required: true }),
-    textField("recordRef", { system: true, required: true }),
-    textField("fingerprint", { system: true, required: true }),
-    autodateField("created", { system: true, onCreate: true, onUpdate: false }),
-    autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
-  ], [
-    buildIndex("idx_authOrigins_unique_pairs", true, "_authOrigins", "collectionRef, recordRef, fingerprint"),
-  ]);
+  const authOrigins = baseSystemCollection(
+    "_authOrigins",
+    "base",
+    true,
+    [
+      textField("id", {
+        system: true,
+        required: true,
+        primaryKey: true,
+        min: 15,
+        max: 15,
+        pattern: "^[a-z0-9]+$",
+        autogeneratePattern: "[a-z0-9]{15}",
+      }),
+      textField("collectionRef", { system: true, required: true }),
+      textField("recordRef", { system: true, required: true }),
+      textField("fingerprint", { system: true, required: true }),
+      autodateField("created", { system: true, onCreate: true, onUpdate: false }),
+      autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
+    ],
+    [
+      buildIndex(
+        "idx_authOrigins_unique_pairs",
+        true,
+        "_authOrigins",
+        "collectionRef, recordRef, fingerprint",
+      ),
+    ],
+  );
   authOrigins.listRule = ownerRule;
   authOrigins.viewRule = ownerRule;
   authOrigins.deleteRule = ownerRule;
 
-  const superusers = baseSystemCollection("_superusers", "auth", true, [
-    textField("id", { system: true, required: true, primaryKey: true, min: 15, max: 15, pattern: "^[a-z0-9]+$", autogeneratePattern: "[a-z0-9]{15}" }),
-    passwordField("password", { system: true, required: true, hidden: true, min: 8, max: 0, cost: 0 }),
-    textField("tokenKey", { system: true, required: true, hidden: true, min: 30, max: 60, autogeneratePattern: "[a-zA-Z0-9_]{50}" }),
-    emailField("email", { system: true, required: true }),
-    boolField("emailVisibility", { system: true }),
-    boolField("verified", { system: true }),
-    autodateField("created", { system: true, onCreate: true, onUpdate: false }),
-    autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
-  ], [
-    buildIndex(fieldIndexName("tokenKey", "pbc_3142635823"), true, "_superusers", "tokenKey"),
-    buildIndex(fieldIndexName("email", "pbc_3142635823"), true, "_superusers", "email", "email != ''"),
-  ]);
+  const superusers = baseSystemCollection(
+    "_superusers",
+    "auth",
+    true,
+    [
+      textField("id", {
+        system: true,
+        required: true,
+        primaryKey: true,
+        min: 15,
+        max: 15,
+        pattern: "^[a-z0-9]+$",
+        autogeneratePattern: "[a-z0-9]{15}",
+      }),
+      passwordField("password", {
+        system: true,
+        required: true,
+        hidden: true,
+        min: 8,
+        max: 0,
+        cost: 0,
+      }),
+      textField("tokenKey", {
+        system: true,
+        required: true,
+        hidden: true,
+        min: 30,
+        max: 60,
+        autogeneratePattern: "[a-zA-Z0-9_]{50}",
+      }),
+      emailField("email", { system: true, required: true }),
+      boolField("emailVisibility", { system: true }),
+      boolField("verified", { system: true }),
+      autodateField("created", { system: true, onCreate: true, onUpdate: false }),
+      autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
+    ],
+    [
+      buildIndex(fieldIndexName("tokenKey", "pbc_3142635823"), true, "_superusers", "tokenKey"),
+      buildIndex(
+        fieldIndexName("email", "pbc_3142635823"),
+        true,
+        "_superusers",
+        "email",
+        "email != ''",
+      ),
+    ],
+  );
   superusers.options = defaultAuthOptions({ authTokenDuration: 86400 });
 
-  const users = baseSystemCollection("users", "auth", false, [
-    textField("id", { system: true, required: true, primaryKey: true, min: 15, max: 15, pattern: "^[a-z0-9]+$", autogeneratePattern: "[a-z0-9]{15}" }),
-    passwordField("password", { system: true, required: true, hidden: true, min: 8, max: 0, cost: 0 }),
-    textField("tokenKey", { system: true, required: true, hidden: true, min: 30, max: 60, autogeneratePattern: "[a-zA-Z0-9_]{50}" }),
-    emailField("email", { system: true, required: true }),
-    boolField("emailVisibility", { system: true }),
-    boolField("verified", { system: true }),
-    textField("name", { system: false, required: false, max: 255 }),
-    fileField("avatar", {
-      system: false,
-      required: false,
-      maxSelect: 1,
-      mimeTypes: ["image/jpeg", "image/png", "image/svg+xml", "image/gif", "image/webp"],
-    }),
-    autodateField("created", { system: false, onCreate: true, onUpdate: false }),
-    autodateField("updated", { system: false, onCreate: true, onUpdate: true }),
-  ], [
-    buildIndex(fieldIndexName("tokenKey", "_pb_users_auth_"), true, "users", "tokenKey"),
-    buildIndex(fieldIndexName("email", "_pb_users_auth_"), true, "users", "email", "email != ''"),
-  ]);
+  const users = baseSystemCollection(
+    "users",
+    "auth",
+    false,
+    [
+      textField("id", {
+        system: true,
+        required: true,
+        primaryKey: true,
+        min: 15,
+        max: 15,
+        pattern: "^[a-z0-9]+$",
+        autogeneratePattern: "[a-z0-9]{15}",
+      }),
+      passwordField("password", {
+        system: true,
+        required: true,
+        hidden: true,
+        min: 8,
+        max: 0,
+        cost: 0,
+      }),
+      textField("tokenKey", {
+        system: true,
+        required: true,
+        hidden: true,
+        min: 30,
+        max: 60,
+        autogeneratePattern: "[a-zA-Z0-9_]{50}",
+      }),
+      emailField("email", { system: true, required: true }),
+      boolField("emailVisibility", { system: true }),
+      boolField("verified", { system: true }),
+      textField("name", { system: false, required: false, max: 255 }),
+      fileField("avatar", {
+        system: false,
+        required: false,
+        maxSelect: 1,
+        mimeTypes: ["image/jpeg", "image/png", "image/svg+xml", "image/gif", "image/webp"],
+      }),
+      autodateField("created", { system: false, onCreate: true, onUpdate: false }),
+      autodateField("updated", { system: false, onCreate: true, onUpdate: true }),
+    ],
+    [
+      buildIndex(fieldIndexName("tokenKey", "_pb_users_auth_"), true, "users", "tokenKey"),
+      buildIndex(fieldIndexName("email", "_pb_users_auth_"), true, "users", "email", "email != ''"),
+    ],
+  );
   users.id = "_pb_users_auth_";
   users.listRule = userRule;
   users.viewRule = userRule;
@@ -335,7 +472,13 @@ function fieldIndexName(field: string, collectionId: string): string {
   return name.length > 64 ? name.slice(0, 64) : name;
 }
 
-function buildIndex(name: string, unique: boolean, table: string, columns: string, where?: string): string {
+function buildIndex(
+  name: string,
+  unique: boolean,
+  table: string,
+  columns: string,
+  where?: string,
+): string {
   const uniqueClause = unique ? "UNIQUE " : "";
   const whereClause = where ? ` WHERE ${where}` : "";
   return `CREATE ${uniqueClause}INDEX \`${name}\` ON \`${table}\` (${columns})${whereClause}`;
@@ -482,7 +625,7 @@ function crc32(input: string): number {
       crc = (crc >>> 1) ^ (0xedb88320 & mask);
     }
   }
-  return (~crc) >>> 0;
+  return ~crc >>> 0;
 }
 
 function defaultAuthOptions(options: {

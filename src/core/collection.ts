@@ -38,7 +38,9 @@ export class Collection {
   }
 }
 
-function normalizeAuthOptions(options: Partial<CollectionAuthOptions> | null): CollectionAuthOptions {
+function normalizeAuthOptions(
+  options: Partial<CollectionAuthOptions> | null,
+): CollectionAuthOptions {
   return {
     authToken: normalizeTokenConfig(options?.authToken),
     fileToken: normalizeTokenConfig(options?.fileToken),

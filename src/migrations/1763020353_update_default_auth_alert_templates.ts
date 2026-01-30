@@ -36,9 +36,10 @@ function down(app: App): void {
 
 function updateAuthAlertTemplate(app: App, from: string, to: string): void {
   const db = app.db();
-  const rows = db
-    .query("select id, options from _collections where type = 'auth'")
-    .all() as Array<{ id: string; options: string }>;
+  const rows = db.query("select id, options from _collections where type = 'auth'").all() as Array<{
+    id: string;
+    options: string;
+  }>;
 
   for (const row of rows) {
     const options = parseJson<Record<string, unknown>>(row.options, {});
@@ -52,7 +53,10 @@ function updateAuthAlertTemplate(app: App, from: string, to: string): void {
     authAlert.emailTemplate = emailTemplate;
     options.authAlert = authAlert;
 
-    db.query("update _collections set options = ? where id = ?").run(JSON.stringify(options), row.id);
+    db.query("update _collections set options = ? where id = ?").run(
+      JSON.stringify(options),
+      row.id,
+    );
   }
 }
 

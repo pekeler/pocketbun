@@ -9,7 +9,7 @@ SystemMigrations.register(up, undefined, FILE_NAME);
 
 function up(app: App): void {
   const db = app.db();
-  db.exec("CREATE INDEX IF NOT EXISTS idx__collections_type on _collections (type);");
+  db.run("CREATE INDEX IF NOT EXISTS idx__collections_type on _collections (type);");
 
   const collectionNames = ["_mfas", "_otps"];
   for (const name of collectionNames) {

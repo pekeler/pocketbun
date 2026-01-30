@@ -6,7 +6,7 @@ import { SystemMigrations } from "../core/migrations_runner.ts";
 SystemMigrations.add({
   file: "1640988000_aux_init.go",
   up: (app: App) => {
-    app.auxDb().exec(`
+    app.auxDb().run(`
       CREATE TABLE IF NOT EXISTS _logs (
         id TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(randomblob(7)))) NOT NULL,
         level INTEGER DEFAULT 0 NOT NULL,
@@ -21,7 +21,7 @@ SystemMigrations.add({
     `);
   },
   down: (app: App) => {
-    app.auxDb().exec("DROP TABLE IF EXISTS _logs");
+    app.auxDb().run("DROP TABLE IF EXISTS _logs");
   },
   reapplyCondition: (app: App) => !app.auxHasTable("_logs"),
 });

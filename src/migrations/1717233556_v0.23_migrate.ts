@@ -46,9 +46,9 @@ function migrateSuperusers(app: App, oldSettings: Record<string, unknown>): void
   createSuperusersCollection(app);
 
   const db = app.db();
-  const row = db
-    .query("select id, options from _collections where name = ?")
-    .get("_superusers") as { id: string; options: string } | undefined;
+  const row = db.query("select id, options from _collections where name = ?").get("_superusers") as
+    | { id: string; options: string }
+    | undefined;
   if (!row) {
     throw new Error("missing _superusers collection");
   }
@@ -65,7 +65,8 @@ function migrateSuperusers(app: App, oldSettings: Record<string, unknown>): void
   );
   options.authToken = authToken;
 
-  const passwordResetToken = (options.passwordResetToken as Record<string, unknown> | undefined) ?? {};
+  const passwordResetToken =
+    (options.passwordResetToken as Record<string, unknown> | undefined) ?? {};
   passwordResetToken.secret = zeroFallback(
     toString(getMapVal(oldSettings, "adminPasswordResetToken", "secret")),
     toString(passwordResetToken.secret),
@@ -89,32 +90,36 @@ function migrateSuperusers(app: App, oldSettings: Record<string, unknown>): void
 
   db.query("update _collections set options = ? where id = ?").run(JSON.stringify(options), row.id);
 
-  db.exec(`
+  db.run(`
     INSERT INTO _superusers (id, verified, email, password, tokenKey, created, updated)
     SELECT id, 1, email, passwordHash, tokenKey, created, updated FROM _admins;
   `);
 
-  db.exec("DROP TABLE _admins;");
+  db.run("DROP TABLE _admins;");
 }
 
 // -------------------------------------------------------------------
 
 function loadOldSettings(app: App): Record<string, unknown> {
-  const row = app
-    .db()
-    .query("select id, key, value from _params where key = ?")
-    .get("settings") as { value?: unknown } | undefined;
+  const row = app.db().query("select id, key, value from _params where key = ?").get("settings") as
+    | { value?: unknown }
+    | undefined;
   if (!row) {
     throw new Error("missing settings param");
   }
 
-  const rawValue = typeof row.value === "string" ? row.value : String(row.value ?? "");
+  let rawValue = "";
+  if (typeof row.value === "string") {
+    rawValue = row.value;
+  } else if (row.value instanceof Uint8Array) {
+    rawValue = Buffer.from(row.value).toString("utf8");
+  }
 
   try {
     return JSON.parse(rawValue) as Record<string, unknown>;
-  } catch (plainDecodeErr) {
+  } catch (_plainDecodeErr) {
     const envName = app.encryptionEnv();
-    const encryptionKey = envName ? process.env[envName] ?? "" : "";
+    const encryptionKey = envName ? (process.env[envName] ?? "") : "";
     if (!encryptionKey) {
       throw new Error(`invalid settings db data or missing encryption key "${envName}"`);
     }
@@ -127,7 +132,7 @@ function loadOldSettings(app: App): Record<string, unknown> {
 function migrateSettings(app: App, oldSettings: Record<string, unknown>): void {
   const db = app.db();
 
-  db.exec("ALTER TABLE _params RENAME TO _params_old;");
+  db.run("ALTER TABLE _params RENAME TO _params_old;");
   createParamsTable(db);
 
   const newSettings: Record<string, unknown> = {
@@ -177,24 +182,27 @@ function migrateSettings(app: App, oldSettings: Record<string, unknown>): void {
     },
   };
 
-  db.query("insert into _params (id, value) values (?, ?)").run("settings", JSON.stringify(newSettings));
-  db.exec("DROP TABLE _params_old;");
+  db.query("insert into _params (id, value) values (?, ?)").run(
+    "settings",
+    JSON.stringify(newSettings),
+  );
+  db.run("DROP TABLE _params_old;");
 }
 
 // -------------------------------------------------------------------
 
 function migrateExternalAuths(app: App): void {
   const db = app.db();
-  db.exec("ALTER TABLE _externalAuths RENAME TO _externalAuths_old;");
+  db.run("ALTER TABLE _externalAuths RENAME TO _externalAuths_old;");
 
   createExternalAuthsCollection(app);
 
-  db.exec(`
+  db.run(`
     INSERT INTO _externalAuths (id, collectionRef, recordRef, provider, providerId, created, updated)
     SELECT id, collectionId, recordId, provider, providerId, created, updated FROM _externalAuths_old;
   `);
 
-  db.exec("DROP TABLE _externalAuths_old;");
+  db.run("DROP TABLE _externalAuths_old;");
 }
 
 // -------------------------------------------------------------------
@@ -382,7 +390,11 @@ function migrateOldCollections(app: App, oldSettings: Record<string, unknown>): 
           fallback.subject,
         );
         const body = zeroFallback(
-          replaceAll(toString(getMapVal(oldSettings, "meta", name, "body")), "{ACTION_URL}", actionUrl),
+          replaceAll(
+            toString(getMapVal(oldSettings, "meta", name, "body")),
+            "{ACTION_URL}",
+            actionUrl,
+          ),
           fallback.body,
         );
         options[name] = { subject, body };
@@ -570,14 +582,14 @@ function migrateOldCollections(app: App, oldSettings: Record<string, unknown>): 
   }
 
   if (schemaColumn === "schema") {
-    db.exec("ALTER TABLE _collections RENAME COLUMN schema TO fields;");
+    db.run("ALTER TABLE _collections RENAME COLUMN schema TO fields;");
   }
 }
 
 // -------------------------------------------------------------------
 
 function createParamsTable(db: Database): void {
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS _params (
       id TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(randomblob(7)))) NOT NULL,
       value JSON DEFAULT NULL,
@@ -630,7 +642,7 @@ function createSuperusersCollection(app: App): void {
   const db = app.db();
   const collection = buildSuperusersCollection();
   insertCollection(db, collection);
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS _superusers (
       created TEXT DEFAULT '' NOT NULL,
       email TEXT DEFAULT '' NOT NULL,
@@ -642,7 +654,7 @@ function createSuperusersCollection(app: App): void {
       verified BOOLEAN DEFAULT FALSE NOT NULL
     );
   `);
-  db.exec(`
+  db.run(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_tokenKey__pbc_3142635823 ON _superusers (tokenKey);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_email__pbc_3142635823 ON _superusers (email) WHERE email != '';
   `);
@@ -652,7 +664,7 @@ function createMFAsCollection(app: App): void {
   const db = app.db();
   const collection = buildMFAsCollection();
   insertCollection(db, collection);
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS _mfas (
       collectionRef TEXT DEFAULT '' NOT NULL,
       created TEXT DEFAULT '' NOT NULL,
@@ -662,7 +674,7 @@ function createMFAsCollection(app: App): void {
       updated TEXT DEFAULT '' NOT NULL
     );
   `);
-  db.exec(`
+  db.run(`
     CREATE INDEX IF NOT EXISTS idx_mfas_collectionRef_recordRef ON _mfas (collectionRef, recordRef);
   `);
 }
@@ -671,7 +683,7 @@ function createOTPsCollection(app: App): void {
   const db = app.db();
   const collection = buildOTPsCollection();
   insertCollection(db, collection);
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS _otps (
       collectionRef TEXT DEFAULT '' NOT NULL,
       created TEXT DEFAULT '' NOT NULL,
@@ -682,7 +694,7 @@ function createOTPsCollection(app: App): void {
       sentTo TEXT DEFAULT '' NOT NULL
     );
   `);
-  db.exec(`
+  db.run(`
     CREATE INDEX IF NOT EXISTS idx_otps_collectionRef_recordRef ON _otps (collectionRef, recordRef);
   `);
 }
@@ -691,7 +703,7 @@ function createExternalAuthsCollection(app: App): void {
   const db = app.db();
   const collection = buildExternalAuthsCollection();
   insertCollection(db, collection);
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS _externalAuths (
       collectionRef TEXT DEFAULT '' NOT NULL,
       created TEXT DEFAULT '' NOT NULL,
@@ -702,7 +714,7 @@ function createExternalAuthsCollection(app: App): void {
       updated TEXT DEFAULT '' NOT NULL
     );
   `);
-  db.exec(`
+  db.run(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_externalAuths_record_provider ON _externalAuths (collectionRef, recordRef, provider);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_externalAuths_collection_provider ON _externalAuths (collectionRef, provider, providerId);
   `);
@@ -712,7 +724,7 @@ function createAuthOriginsCollection(app: App): void {
   const db = app.db();
   const collection = buildAuthOriginsCollection();
   insertCollection(db, collection);
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS _authOrigins (
       collectionRef TEXT DEFAULT '' NOT NULL,
       created TEXT DEFAULT '' NOT NULL,
@@ -722,7 +734,7 @@ function createAuthOriginsCollection(app: App): void {
       updated TEXT DEFAULT '' NOT NULL
     );
   `);
-  db.exec(`
+  db.run(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_authOrigins_unique_pairs ON _authOrigins (collectionRef, recordRef, fingerprint);
   `);
 }
@@ -731,22 +743,28 @@ function buildMFAsCollection(): CollectionInsert {
   const ownerRule =
     "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
 
-  const mfas = baseSystemCollection("_mfas", "base", true, [
-    textField("id", {
-      system: true,
-      required: true,
-      primaryKey: true,
-      min: 15,
-      max: 15,
-      pattern: "^[a-z0-9]+$",
-      autogeneratePattern: "[a-z0-9]{15}",
-    }),
-    textField("collectionRef", { system: true, required: true }),
-    textField("recordRef", { system: true, required: true }),
-    textField("method", { system: true, required: true }),
-    autodateField("created", { system: true, onCreate: true, onUpdate: false }),
-    autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
-  ], [buildIndex("idx_mfas_collectionRef_recordRef", false, "_mfas", "collectionRef, recordRef")]);
+  const mfas = baseSystemCollection(
+    "_mfas",
+    "base",
+    true,
+    [
+      textField("id", {
+        system: true,
+        required: true,
+        primaryKey: true,
+        min: 15,
+        max: 15,
+        pattern: "^[a-z0-9]+$",
+        autogeneratePattern: "[a-z0-9]{15}",
+      }),
+      textField("collectionRef", { system: true, required: true }),
+      textField("recordRef", { system: true, required: true }),
+      textField("method", { system: true, required: true }),
+      autodateField("created", { system: true, onCreate: true, onUpdate: false }),
+      autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
+    ],
+    [buildIndex("idx_mfas_collectionRef_recordRef", false, "_mfas", "collectionRef, recordRef")],
+  );
   mfas.listRule = ownerRule;
   mfas.viewRule = ownerRule;
 
@@ -757,23 +775,36 @@ function buildOTPsCollection(): CollectionInsert {
   const ownerRule =
     "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
 
-  const otps = baseSystemCollection("_otps", "base", true, [
-    textField("id", {
-      system: true,
-      required: true,
-      primaryKey: true,
-      min: 15,
-      max: 15,
-      pattern: "^[a-z0-9]+$",
-      autogeneratePattern: "[a-z0-9]{15}",
-    }),
-    textField("collectionRef", { system: true, required: true }),
-    textField("recordRef", { system: true, required: true }),
-    passwordField("password", { system: true, required: true, hidden: true, min: 0, max: 0, cost: 8 }),
-    autodateField("created", { system: true, onCreate: true, onUpdate: false }),
-    autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
-    textField("sentTo", { system: true, required: false, hidden: true }),
-  ], [buildIndex("idx_otps_collectionRef_recordRef", false, "_otps", "collectionRef, recordRef")]);
+  const otps = baseSystemCollection(
+    "_otps",
+    "base",
+    true,
+    [
+      textField("id", {
+        system: true,
+        required: true,
+        primaryKey: true,
+        min: 15,
+        max: 15,
+        pattern: "^[a-z0-9]+$",
+        autogeneratePattern: "[a-z0-9]{15}",
+      }),
+      textField("collectionRef", { system: true, required: true }),
+      textField("recordRef", { system: true, required: true }),
+      passwordField("password", {
+        system: true,
+        required: true,
+        hidden: true,
+        min: 0,
+        max: 0,
+        cost: 8,
+      }),
+      autodateField("created", { system: true, onCreate: true, onUpdate: false }),
+      autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
+      textField("sentTo", { system: true, required: false, hidden: true }),
+    ],
+    [buildIndex("idx_otps_collectionRef_recordRef", false, "_otps", "collectionRef, recordRef")],
+  );
   otps.listRule = ownerRule;
   otps.viewRule = ownerRule;
 
@@ -784,26 +815,42 @@ function buildExternalAuthsCollection(): CollectionInsert {
   const ownerRule =
     "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
 
-  const externalAuths = baseSystemCollection("_externalAuths", "base", true, [
-    textField("id", {
-      system: true,
-      required: true,
-      primaryKey: true,
-      min: 15,
-      max: 15,
-      pattern: "^[a-z0-9]+$",
-      autogeneratePattern: "[a-z0-9]{15}",
-    }),
-    textField("collectionRef", { system: true, required: true }),
-    textField("recordRef", { system: true, required: true }),
-    textField("provider", { system: true, required: true }),
-    textField("providerId", { system: true, required: true }),
-    autodateField("created", { system: true, onCreate: true, onUpdate: false }),
-    autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
-  ], [
-    buildIndex("idx_externalAuths_record_provider", true, "_externalAuths", "collectionRef, recordRef, provider"),
-    buildIndex("idx_externalAuths_collection_provider", true, "_externalAuths", "collectionRef, provider, providerId"),
-  ]);
+  const externalAuths = baseSystemCollection(
+    "_externalAuths",
+    "base",
+    true,
+    [
+      textField("id", {
+        system: true,
+        required: true,
+        primaryKey: true,
+        min: 15,
+        max: 15,
+        pattern: "^[a-z0-9]+$",
+        autogeneratePattern: "[a-z0-9]{15}",
+      }),
+      textField("collectionRef", { system: true, required: true }),
+      textField("recordRef", { system: true, required: true }),
+      textField("provider", { system: true, required: true }),
+      textField("providerId", { system: true, required: true }),
+      autodateField("created", { system: true, onCreate: true, onUpdate: false }),
+      autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
+    ],
+    [
+      buildIndex(
+        "idx_externalAuths_record_provider",
+        true,
+        "_externalAuths",
+        "collectionRef, recordRef, provider",
+      ),
+      buildIndex(
+        "idx_externalAuths_collection_provider",
+        true,
+        "_externalAuths",
+        "collectionRef, provider, providerId",
+      ),
+    ],
+  );
   externalAuths.listRule = ownerRule;
   externalAuths.viewRule = ownerRule;
 
@@ -814,22 +861,35 @@ function buildAuthOriginsCollection(): CollectionInsert {
   const ownerRule =
     "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
 
-  const authOrigins = baseSystemCollection("_authOrigins", "base", true, [
-    textField("id", {
-      system: true,
-      required: true,
-      primaryKey: true,
-      min: 15,
-      max: 15,
-      pattern: "^[a-z0-9]+$",
-      autogeneratePattern: "[a-z0-9]{15}",
-    }),
-    textField("collectionRef", { system: true, required: true }),
-    textField("recordRef", { system: true, required: true }),
-    textField("fingerprint", { system: true, required: true }),
-    autodateField("created", { system: true, onCreate: true, onUpdate: false }),
-    autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
-  ], [buildIndex("idx_authOrigins_unique_pairs", true, "_authOrigins", "collectionRef, recordRef, fingerprint")]);
+  const authOrigins = baseSystemCollection(
+    "_authOrigins",
+    "base",
+    true,
+    [
+      textField("id", {
+        system: true,
+        required: true,
+        primaryKey: true,
+        min: 15,
+        max: 15,
+        pattern: "^[a-z0-9]+$",
+        autogeneratePattern: "[a-z0-9]{15}",
+      }),
+      textField("collectionRef", { system: true, required: true }),
+      textField("recordRef", { system: true, required: true }),
+      textField("fingerprint", { system: true, required: true }),
+      autodateField("created", { system: true, onCreate: true, onUpdate: false }),
+      autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
+    ],
+    [
+      buildIndex(
+        "idx_authOrigins_unique_pairs",
+        true,
+        "_authOrigins",
+        "collectionRef, recordRef, fingerprint",
+      ),
+    ],
+  );
   authOrigins.listRule = ownerRule;
   authOrigins.viewRule = ownerRule;
   authOrigins.deleteRule = ownerRule;
@@ -838,34 +898,53 @@ function buildAuthOriginsCollection(): CollectionInsert {
 }
 
 function buildSuperusersCollection(): CollectionInsert {
-  const superusers = baseSystemCollection("_superusers", "auth", true, [
-    textField("id", {
-      system: true,
-      required: true,
-      primaryKey: true,
-      min: 15,
-      max: 15,
-      pattern: "^[a-z0-9]+$",
-      autogeneratePattern: "[a-z0-9]{15}",
-    }),
-    passwordField("password", { system: true, required: true, hidden: true, min: 8, max: 0, cost: 0 }),
-    textField("tokenKey", {
-      system: true,
-      required: true,
-      hidden: true,
-      min: 30,
-      max: 60,
-      autogeneratePattern: "[a-zA-Z0-9_]{50}",
-    }),
-    emailField("email", { system: true, required: true }),
-    boolField("emailVisibility", { system: true }),
-    boolField("verified", { system: true }),
-    autodateField("created", { system: true, onCreate: true, onUpdate: false }),
-    autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
-  ], [
-    buildIndex(fieldIndexName("tokenKey", "pbc_3142635823"), true, "_superusers", "tokenKey"),
-    buildIndex(fieldIndexName("email", "pbc_3142635823"), true, "_superusers", "email", "email != ''"),
-  ]);
+  const superusers = baseSystemCollection(
+    "_superusers",
+    "auth",
+    true,
+    [
+      textField("id", {
+        system: true,
+        required: true,
+        primaryKey: true,
+        min: 15,
+        max: 15,
+        pattern: "^[a-z0-9]+$",
+        autogeneratePattern: "[a-z0-9]{15}",
+      }),
+      passwordField("password", {
+        system: true,
+        required: true,
+        hidden: true,
+        min: 8,
+        max: 0,
+        cost: 0,
+      }),
+      textField("tokenKey", {
+        system: true,
+        required: true,
+        hidden: true,
+        min: 30,
+        max: 60,
+        autogeneratePattern: "[a-zA-Z0-9_]{50}",
+      }),
+      emailField("email", { system: true, required: true }),
+      boolField("emailVisibility", { system: true }),
+      boolField("verified", { system: true }),
+      autodateField("created", { system: true, onCreate: true, onUpdate: false }),
+      autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
+    ],
+    [
+      buildIndex(fieldIndexName("tokenKey", "pbc_3142635823"), true, "_superusers", "tokenKey"),
+      buildIndex(
+        fieldIndexName("email", "pbc_3142635823"),
+        true,
+        "_superusers",
+        "email",
+        "email != ''",
+      ),
+    ],
+  );
   superusers.options = defaultAuthOptions({ authTokenDuration: 86400 });
 
   return superusers;
@@ -903,7 +982,13 @@ function fieldIndexName(field: string, collectionIdValue: string): string {
   return name.length > 64 ? name.slice(0, 64) : name;
 }
 
-function buildIndex(name: string, unique: boolean, table: string, columns: string, where?: string): string {
+function buildIndex(
+  name: string,
+  unique: boolean,
+  table: string,
+  columns: string,
+  where?: string,
+): string {
   const uniqueClause = unique ? "UNIQUE " : "";
   const whereClause = where ? ` WHERE ${where}` : "";
   return `CREATE ${uniqueClause}INDEX \`${name}\` ON \`${table}\` (${columns})${whereClause}`;
@@ -1028,10 +1113,19 @@ function defaultAuthOptions(options: {
   authRule: string;
   manageRule: string | null;
   authAlert: { enabled: boolean; emailTemplate: { subject: string; body: string } };
-  oauth2: { enabled: boolean; providers: null; mappedFields: { id: string; name: string; username: string; avatarURL: string } };
+  oauth2: {
+    enabled: boolean;
+    providers: null;
+    mappedFields: { id: string; name: string; username: string; avatarURL: string };
+  };
   passwordAuth: { enabled: boolean; identityFields: string[] };
   mfa: { enabled: boolean; duration: number; rule: string };
-  otp: { enabled: boolean; duration: number; length: number; emailTemplate: { subject: string; body: string } };
+  otp: {
+    enabled: boolean;
+    duration: number;
+    length: number;
+    emailTemplate: { subject: string; body: string };
+  };
   authToken: { secret: string; duration: number };
   passwordResetToken: { secret: string; duration: number };
   emailChangeToken: { secret: string; duration: number };
@@ -1359,10 +1453,19 @@ function toString(value: unknown): string {
   if (typeof value === "string") {
     return value;
   }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
   if (value == null) {
     return "";
   }
-  return String(value);
+  return "";
 }
 
 function toInt(value: unknown): number {
@@ -1461,7 +1564,7 @@ function renameColumn(db: Database, table: string, from: string, to: string): vo
   if (!isSafeIdentifier(table)) {
     throw new Error(`unsafe table name ${table}`);
   }
-  db.exec(`ALTER TABLE "${table}" RENAME COLUMN "${from}" TO "${to}"`);
+  db.run(`ALTER TABLE "${table}" RENAME COLUMN "${from}" TO "${to}"`);
 }
 
 function dropColumn(db: Database, table: string, column: string): void {
@@ -1469,7 +1572,7 @@ function dropColumn(db: Database, table: string, column: string): void {
     return;
   }
   try {
-    db.exec(`ALTER TABLE "${table}" DROP COLUMN "${column}"`);
+    db.run(`ALTER TABLE "${table}" DROP COLUMN "${column}"`);
   } catch {
     // ignore if unsupported or missing column
   }
@@ -1488,7 +1591,7 @@ function crc32(input: string): number {
       crc = (crc >>> 1) ^ (0xedb88320 & mask);
     }
   }
-  return (~crc) >>> 0;
+  return ~crc >>> 0;
 }
 
 function isSafeIdentifier(value: string): boolean {

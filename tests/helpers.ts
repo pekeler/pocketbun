@@ -23,7 +23,7 @@ export async function startTestServer(): Promise<{
     server,
     baseUrl,
     cleanup: async () => {
-      server.stop();
+      await server.stop();
       app.resetBootstrapState();
       await rm(dataDir, { recursive: true, force: true });
     },

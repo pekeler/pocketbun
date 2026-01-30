@@ -15,8 +15,8 @@ describe("health api", () => {
     cleanup = started.cleanup;
   });
 
-  afterAll(() => {
-    server?.stop();
+  afterAll(async () => {
+    await server?.stop();
     return cleanup?.();
   });
 

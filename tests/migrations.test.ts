@@ -57,10 +57,11 @@ describe("migrations", () => {
   });
 
   it("inserts system collections", () => {
-    const rows = app
-      .db()
-      .query("select name, type, system from _collections")
-      .all() as Array<{ name: string; type: string; system: number }>;
+    const rows = app.db().query("select name, type, system from _collections").all() as Array<{
+      name: string;
+      type: string;
+      system: number;
+    }>;
 
     const names = rows.map((row) => row.name);
     expect(names).toContain("_superusers");

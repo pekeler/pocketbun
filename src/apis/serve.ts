@@ -17,13 +17,11 @@ export function buildServeHandler(app: App): (req: Request, server?: unknown) =>
   bindHealthApi(app, router.group("/api"));
   bindAdminUI(router);
 
-  return router.buildHandler(({ request, params, remoteAddress }) =>
-    {
-      const event = new RequestEvent({ app, request, params, remoteAddress });
-      loadAuthFromRequest(app, event);
-      return event;
-    },
-  );
+  return router.buildHandler(({ request, params, remoteAddress }) => {
+    const event = new RequestEvent({ app, request, params, remoteAddress });
+    loadAuthFromRequest(app, event);
+    return event;
+  });
 }
 
 export function serve(app: App, config: ServeConfig = {}): ReturnType<typeof Bun.serve> {

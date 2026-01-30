@@ -62,7 +62,9 @@ export class Router<E> {
 }
 
 function getRemoteAddress(req: Request, server?: unknown): string | null {
-  const bunServer = server as { requestIP?: (req: Request) => { address: string } | null } | undefined;
+  const bunServer = server as
+    | { requestIP?: (req: Request) => { address: string } | null }
+    | undefined;
   if (bunServer?.requestIP) {
     return bunServer.requestIP(req)?.address ?? null;
   }

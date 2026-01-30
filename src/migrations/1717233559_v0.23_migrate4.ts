@@ -31,10 +31,13 @@ function up(app: App): void {
     }),
   );
 
-  db.query(`update _collections set ${fieldsColumn} = ? where id = ?`).run(JSON.stringify(fields), row.id);
+  db.query(`update _collections set ${fieldsColumn} = ? where id = ?`).run(
+    JSON.stringify(fields),
+    row.id,
+  );
 
   if (!hasColumn(db, "_otps", "sentTo")) {
-    db.exec("ALTER TABLE _otps ADD COLUMN sentTo TEXT DEFAULT '' NOT NULL;");
+    db.run("ALTER TABLE _otps ADD COLUMN sentTo TEXT DEFAULT '' NOT NULL;");
   }
 }
 
@@ -75,7 +78,7 @@ function crc32(input: string): number {
       crc = (crc >>> 1) ^ (0xedb88320 & mask);
     }
   }
-  return (~crc) >>> 0;
+  return ~crc >>> 0;
 }
 
 function parseJson<T>(value: unknown, fallback: T): T {
@@ -96,10 +99,16 @@ function toString(value: unknown): string {
   if (typeof value === "string") {
     return value;
   }
-  if (value == null) {
-    return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
   }
-  return String(value);
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  return "";
 }
 
 function hasColumn(db: Database, table: string, column: string): boolean {

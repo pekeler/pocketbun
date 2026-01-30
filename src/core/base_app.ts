@@ -130,9 +130,9 @@ export class BaseApp implements App {
 
   reloadSettings(): void {
     try {
-      const row = this.db()
-        .query("select value from _params where id = 'settings'")
-        .get() as { value?: string } | undefined;
+      const row = this.db().query("select value from _params where id = 'settings'").get() as
+        | { value?: string }
+        | undefined;
       if (!row?.value || typeof row.value !== "string") {
         return;
       }
@@ -160,7 +160,7 @@ export class BaseApp implements App {
     }
 
     if (validTypes.length > 0 && !validTypes.includes(tokenType)) {
-      throw new Error(`invalid token type \"${tokenType}\"`);
+      throw new Error(`invalid token type "${tokenType}"`);
     }
 
     const collection = this.findCollectionById(collectionId);

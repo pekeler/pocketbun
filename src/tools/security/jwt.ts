@@ -123,11 +123,7 @@ function safeEqual(a: Buffer, b: Buffer): boolean {
 
 function base64UrlEncode(input: string | Buffer): string {
   const buffer = typeof input === "string" ? Buffer.from(input, "utf8") : input;
-  return buffer
-    .toString("base64")
-    .replace(/=/g, "")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_");
+  return buffer.toString("base64").replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 
 function base64UrlDecode(input: string): Buffer {

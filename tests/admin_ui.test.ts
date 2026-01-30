@@ -14,8 +14,8 @@ describe("admin ui", () => {
     cleanup = started.cleanup;
   });
 
-  afterAll(() => {
-    server?.stop();
+  afterAll(async () => {
+    await server?.stop();
     return cleanup?.();
   });
 
