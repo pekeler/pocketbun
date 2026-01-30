@@ -4,6 +4,9 @@
   "private": true,
   "module": "index.ts",
   "type": "module",
+  "scripts": {
+    "upstream:sync": "bash scripts/sync_upstream_pocketbase.sh"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
