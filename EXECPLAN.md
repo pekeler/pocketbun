@@ -23,6 +23,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-30 23:58Z) Add read-only collections list/view endpoints with superuser auth, paging, sorting, and basic filter support plus tests.
 - [x] (2026-01-30 23:45Z) Replace the minimal collections search parsing with a full search toolkit (inflector, filter parser, sort, provider) and integrate it into the collections list endpoint.
 - [x] (2026-01-31 00:38Z) Add dbx-style identifier rewrite support for bun:sqlite and revert search SQL generation to upstream `[[...]]` quoting; add tests for the rewrite.
+- [x] (2026-01-31 01:04Z) Add a DbxDatabase wrapper to apply the rewrite to all SQL queries and ensure the rewriter skips SQL comments.
 - [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -39,6 +40,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Evidence: upstream migration attempts to decrypt the old settings value before JSON decode.
 - Observation: bun:sqlite does not accept PocketBase/dbx-style double-square-bracket identifier quoting (`[[name]]`).
   Evidence: executing `select [[name]] from t` in bun:sqlite raises "unrecognized token: ]", while `[name]` works.
+- Observation: dbx placeholder rewrites should not touch SQL comments to avoid altering commented-out fragments.
+  Evidence: added dbx quoting tests that preserve `[[...]]`/`{{...}}` inside `--` and `/* */` comments.
 
 ## Decision Log
 
@@ -77,6 +80,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Date/Author: 2026-01-30 / Codex
 - Decision: Implement a dbx placeholder rewrite layer (`[[...]]`, `{{...}}`) and return search SQL generation to upstream `[[...]]` quoting.
   Rationale: dbx-style placeholders are part of the PocketBase query surface and must be supported even though bun:sqlite only accepts single-bracket or quoted identifiers.
+  Date/Author: 2026-01-31 / Codex
+- Decision: Centralize dbx placeholder rewriting in a DbxDatabase wrapper and skip comment regions in the rewriter.
+  Rationale: applying the rewrite at the database boundary ensures coverage for all raw queries while preserving comment content.
   Date/Author: 2026-01-31 / Codex
 
 ## Outcomes & Retrospective
@@ -245,3 +251,4 @@ Plan change note: 2026-01-30, ported the v0.23 system migrations and auth alert 
 Plan change note: 2026-01-30, added read-only collections list/view endpoints with superuser auth and a minimal search parser to unlock collections listing before full search tooling is ported.
 Plan change note: 2026-01-30, replaced the minimal collections search parser with the ported search toolkit and adjusted identifier quoting to `[name]` for bun:sqlite compatibility.
 Plan change note: 2026-01-31, added dbx identifier placeholder rewriting so we can keep upstream `[[...]]` quoting while remaining compatible with bun:sqlite.
+Plan change note: 2026-01-31, moved dbx placeholder rewriting into a DbxDatabase wrapper and taught the rewriter to ignore SQL comments.

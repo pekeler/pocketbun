@@ -8,7 +8,39 @@ export function rewriteDbxIdentifiers(sql: string): string {
   while (i < sql.length) {
     const char = sql[i] ?? "";
 
+    if (mode === "line_comment") {
+      result += char;
+      i += 1;
+      if (char === "\n" || char === "\r") {
+        mode = "none";
+      }
+      continue;
+    }
+
+    if (mode === "block_comment") {
+      result += char;
+      i += 1;
+      if (char === "*" && sql[i] === "/") {
+        result += sql[i] ?? "";
+        i += 1;
+        mode = "none";
+      }
+      continue;
+    }
+
     if (mode === "none") {
+      if (char === "-" && sql[i + 1] === "-") {
+        mode = "line_comment";
+        result += "--";
+        i += 2;
+        continue;
+      }
+      if (char === "/" && sql[i + 1] === "*") {
+        mode = "block_comment";
+        result += "/*";
+        i += 2;
+        continue;
+      }
       if (char === "'") {
         mode = "single";
         result += char;
@@ -109,7 +141,14 @@ export function rewriteDbxIdentifiers(sql: string): string {
   return result;
 }
 
-type QuoteMode = "none" | "single" | "double" | "backtick" | "bracket";
+type QuoteMode =
+  | "none"
+  | "single"
+  | "double"
+  | "backtick"
+  | "bracket"
+  | "line_comment"
+  | "block_comment";
 
 function quoteDbxIdentifier(value: string): string {
   const trimmed = value.trim();

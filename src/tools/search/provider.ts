@@ -1,7 +1,6 @@
 // Ported from pocketbase/tools/search/provider.go @ v0.36.1 (9b036fb1)
 
 import type { Database, SQLQueryBindings } from "bun:sqlite";
-import { rewriteDbxIdentifiers } from "../dbx/identifiers.ts";
 import { columnify } from "../inflector/inflector.ts";
 import { buildFilterExpr, type FilterData } from "./filter.ts";
 import type { FieldResolver } from "./field_resolver.ts";
@@ -211,11 +210,8 @@ export class Provider {
     const limit = this.#perPage;
     const offset = this.#perPage * (this.#page - 1);
 
-    const rewrittenSelect = rewriteDbxIdentifiers(selectSql);
-    const rewrittenCount = rewriteDbxIdentifiers(countSql);
-
     const items = db
-      .query(`${rewrittenSelect} limit ? offset ?`)
+      .query(`${selectSql} limit ? offset ?`)
       .all(...([...baseParamsWithFilter, limit, offset] as SQLQueryBindings[])) as T[];
 
     if (this.#skipTotal) {
@@ -228,7 +224,7 @@ export class Provider {
       };
     }
 
-    const countRow = db.query(rewrittenCount).get(...baseParamsWithFilter) as
+    const countRow = db.query(countSql).get(...baseParamsWithFilter) as
       | { total?: number }
       | undefined;
 

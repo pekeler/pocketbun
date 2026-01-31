@@ -2,7 +2,7 @@
 
 import "../migrations/index.ts";
 
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { App } from "./app.ts";
@@ -23,6 +23,7 @@ import { Record as RecordModel, type RecordData } from "./record.ts";
 import { Settings } from "./settings.ts";
 import { Store } from "./store.ts";
 import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
+import { DbxDatabase } from "../tools/dbx/database.ts";
 
 export type BaseAppConfig = {
   dataDir?: string;
@@ -35,8 +36,8 @@ export class BaseApp implements App {
   #settings: Settings;
   #store: Store<string, unknown>;
   #bootstrapped = false;
-  #db: Database | null = null;
-  #auxDb: Database | null = null;
+  #db: DbxDatabase | null = null;
+  #auxDb: DbxDatabase | null = null;
 
   constructor(config: BaseAppConfig = {}) {
     this.#dataDir = config.dataDir ?? "pb_data";
@@ -74,8 +75,8 @@ export class BaseApp implements App {
       mkdirSync(this.#dataDir, { recursive: true });
     }
 
-    this.#db = new Database(join(this.#dataDir, "data.db"));
-    this.#auxDb = new Database(join(this.#dataDir, "auxiliary.db"));
+    this.#db = new DbxDatabase(join(this.#dataDir, "data.db"));
+    this.#auxDb = new DbxDatabase(join(this.#dataDir, "auxiliary.db"));
     this.reloadSettings();
     this.#bootstrapped = true;
   }
