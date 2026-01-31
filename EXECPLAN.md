@@ -34,6 +34,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-31 12:08Z) Extend collection models with indexes and resolve typecheck/lint issues; document migration SQL deviations.
 - [x] (2026-01-31 12:16Z) Align record list count handling with upstream (_rowid_ for non-views) and apply view rule joins.
 - [x] (2026-01-31 12:37Z) Block superuser-only filter/sort fields in list queries for non-superusers and add tests.
+- [x] (2026-01-31 13:00Z) Port core field types/validators and initial field implementations (text, bool, date, email, password, relation, json) plus JSON/Date helpers and regex-based random generator.
+- [x] (2026-01-31 13:58Z) Port upstream validator/field tests and align validation, field helpers, and record/collection utilities to match upstream behavior.
 - [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -126,7 +128,7 @@ Milestone 3 ports collections, records, and auth APIs, enabling CRUD and email/p
 
 Milestone 4 ports realtime (SSE) subscriptions, hook system, and hook loading from pb_hooks/, and completes server features like backups and admin operations needed by the Admin UI. Tests for SSE and hook effects are added.
 
-Each milestone keeps files 1:1 with upstream where possible, adds a header comment linking to the upstream file path and tag/commit, and includes Bun tests that verify behavior against upstream tests.
+Each milestone keeps files 1:1 with upstream where possible, adds a header comment linking to the upstream file path (no version/hash; pocketbase_tag.txt is the source of truth), and includes Bun tests that verify behavior against upstream tests.
 
 ## Concrete Steps
 

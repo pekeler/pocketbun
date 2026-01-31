@@ -1,6 +1,6 @@
 // Ported from pocketbase/core/app.go
 
-import type { Database } from "bun:sqlite";
+import type { Database, SQLQueryBindings } from "bun:sqlite";
 import type { Settings } from "./settings.ts";
 import type { Store } from "./store.ts";
 import type { Record as RecordModel } from "./record.ts";
@@ -26,4 +26,9 @@ export interface App {
   findCollectionById(id: string): Collection | null;
   findCollectionByNameOrId(identifier: string): Collection | null;
   findRecordById(collection: Collection, id: string, rule?: SqlExpr | null): RecordModel | null;
+  findFirstRecordByFilter(
+    collectionOrIdentifier: Collection | string,
+    filter: string,
+    ...params: SQLQueryBindings[]
+  ): RecordModel | null;
 }

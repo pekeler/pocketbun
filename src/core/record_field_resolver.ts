@@ -8,11 +8,7 @@ import type { Collection } from "./collection.ts";
 import type { RequestInfo } from "./event_request.ts";
 import { randomString } from "../tools/security/random.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
-import type {
-  FieldResolver,
-  QueryUpdate,
-  ResolverResult,
-} from "../tools/search/field_resolver.ts";
+import type { FieldResolver, QueryUpdate, ResolverResult } from "../tools/search/field_resolver.ts";
 import type { Join } from "../tools/search/multi_match_subquery.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
 
@@ -207,7 +203,12 @@ export class RecordFieldResolver implements FieldResolver {
     return this.app.findCollectionByNameOrId(collectionNameOrId);
   }
 
-  registerJoin(tableName: string, tableAlias: string, on?: { sql: string; params: unknown[] } | null, params: unknown[] = []): void {
+  registerJoin(
+    tableName: string,
+    tableAlias: string,
+    on?: { sql: string; params: unknown[] } | null,
+    params: unknown[] = [],
+  ): void {
     const join: Join = {
       tableName,
       tableAlias,
@@ -307,7 +308,12 @@ function quoteTableName(name: string): string {
   if (!trimmed) {
     return trimmed;
   }
-  if (trimmed.includes("(") || /\s/.test(trimmed) || trimmed.includes("{{") || trimmed.includes("[[")) {
+  if (
+    trimmed.includes("(") ||
+    /\s/.test(trimmed) ||
+    trimmed.includes("{{") ||
+    trimmed.includes("[[")
+  ) {
     return trimmed;
   }
   return `{{${trimmed}}}`;

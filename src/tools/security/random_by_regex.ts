@@ -1,0 +1,328 @@
+// Ported from pocketbase/tools/security/random_by_regex.go
+// Note: implements a minimal regex parser for the subset used by PocketBase patterns.
+
+import { randomInt } from "node:crypto";
+
+const defaultMaxRepeat = 6;
+
+const anyCharNotNLPairs: Array<[number, number]> = [
+  ["A".charCodeAt(0), "Z".charCodeAt(0)],
+  ["a".charCodeAt(0), "z".charCodeAt(0)],
+  ["0".charCodeAt(0), "9".charCodeAt(0)],
+];
+
+type AstNode =
+  | { type: "literal"; value: string }
+  | { type: "charClass"; ranges: Array<[number, number]> }
+  | { type: "any" }
+  | { type: "concat"; parts: AstNode[] }
+  | { type: "alternate"; options: AstNode[] }
+  | { type: "repeat"; node: AstNode; min: number; max: number };
+
+export function randomStringByRegex(pattern: string): string {
+  const parser = new Parser(pattern);
+  const ast = parser.parseExpression();
+  const writer: string[] = [];
+  writeRandomString(ast, writer);
+  return writer.join("");
+}
+
+function writeRandomString(node: AstNode, out: string[]): void {
+  switch (node.type) {
+    case "literal":
+      out.push(node.value);
+      return;
+    case "charClass":
+      out.push(String.fromCharCode(randomRuneFromPairs(node.ranges)));
+      return;
+    case "any":
+      out.push(String.fromCharCode(randomRuneFromPairs(anyCharNotNLPairs)));
+      return;
+    case "concat":
+      for (const part of node.parts) {
+        writeRandomString(part, out);
+      }
+      return;
+    case "alternate": {
+      const idx = randomNumber(node.options.length);
+      writeRandomString(node.options[idx] ?? { type: "literal", value: "" }, out);
+      return;
+    }
+    case "repeat": {
+      let max = node.max;
+      if (max < 0) {
+        max = defaultMaxRepeat;
+      }
+      if (max < node.min) {
+        max = node.min;
+      }
+      let count = node.min;
+      if (max !== node.min) {
+        count += randomNumber(max - node.min);
+      }
+      for (let i = 0; i < count; i += 1) {
+        writeRandomString(node.node, out);
+      }
+      return;
+    }
+  }
+}
+
+function randomRuneFromPairs(pairs: Array<[number, number]>): number {
+  if (pairs.length === 0) {
+    throw new Error("no runes to choose from");
+  }
+
+  const cumulative: number[] = [];
+  let total = 0;
+  for (const [start, end] of pairs) {
+    if (start > end) {
+      throw new Error("invalid rune range");
+    }
+    total += end - start + 1;
+    cumulative.push(total);
+  }
+
+  const idx = randomNumber(total);
+  for (let i = 0; i < cumulative.length; i += 1) {
+    const boundary = cumulative[i];
+    if (boundary !== undefined && idx < boundary) {
+      const prev = i === 0 ? 0 : (cumulative[i - 1] ?? 0);
+      const offset = idx - prev;
+      const range = pairs[i] ?? [0, 0];
+      return range[0] + offset;
+    }
+  }
+
+  return pairs[0]?.[0] ?? 0;
+}
+
+function randomNumber(maxSoft: number): number {
+  if (maxSoft <= 0) {
+    return 0;
+  }
+  return randomInt(0, maxSoft);
+}
+
+class Parser {
+  #pattern: string;
+  #pos = 0;
+
+  constructor(pattern: string) {
+    this.#pattern = pattern;
+  }
+
+  parseExpression(): AstNode {
+    const terms: AstNode[] = [];
+    terms.push(this.parseTerm());
+    while (this.peek() === "|") {
+      this.consume();
+      terms.push(this.parseTerm());
+    }
+    if (terms.length === 1) {
+      return terms[0] ?? { type: "literal", value: "" };
+    }
+    return { type: "alternate", options: terms };
+  }
+
+  parseTerm(): AstNode {
+    const parts: AstNode[] = [];
+    while (!this.eof()) {
+      const ch = this.peek();
+      if (!ch || ch === ")" || ch === "|") {
+        break;
+      }
+      parts.push(this.parseFactor());
+    }
+    if (parts.length === 1) {
+      return parts[0] ?? { type: "literal", value: "" };
+    }
+    return { type: "concat", parts };
+  }
+
+  parseFactor(): AstNode {
+    let atom = this.parseAtom();
+    const ch = this.peek();
+    if (!ch) {
+      return atom;
+    }
+    if (ch === "*" || ch === "+" || ch === "?" || ch === "{") {
+      const { min, max } = this.parseQuantifier();
+      atom = { type: "repeat", node: atom, min, max };
+    }
+    return atom;
+  }
+
+  parseAtom(): AstNode {
+    const ch = this.peek();
+    if (!ch) {
+      return { type: "literal", value: "" };
+    }
+    if (ch === ".") {
+      this.consume();
+      return { type: "any" };
+    }
+    if (ch === "(") {
+      this.consume();
+      const expr = this.parseExpression();
+      if (this.peek() === ")") {
+        this.consume();
+      }
+      return expr;
+    }
+    if (ch === "[") {
+      return this.parseCharClass();
+    }
+    if (ch === "^" || ch === "$") {
+      this.consume();
+      return { type: "literal", value: "" };
+    }
+    if (ch === "\\") {
+      this.consume();
+      const next = this.consume() ?? "";
+      return this.parseEscape(next);
+    }
+    this.consume();
+    return { type: "literal", value: ch };
+  }
+
+  parseCharClass(): AstNode {
+    this.consume(); // [
+    const ranges: Array<[number, number]> = [];
+    let negate = false;
+    if (this.peek() === "^") {
+      negate = true;
+      this.consume();
+    }
+    while (!this.eof()) {
+      const ch = this.peek();
+      if (!ch) {
+        break;
+      }
+      if (ch === "]") {
+        this.consume();
+        break;
+      }
+      const start = this.readClassChar();
+      if (this.peek() === "-" && this.peek(1) !== "]") {
+        this.consume();
+        const end = this.readClassChar();
+        ranges.push([start.charCodeAt(0), end.charCodeAt(0)]);
+      } else {
+        const code = start.charCodeAt(0);
+        ranges.push([code, code]);
+      }
+    }
+    if (negate) {
+      throw new Error("negated character classes are not supported");
+    }
+    return { type: "charClass", ranges };
+  }
+
+  readClassChar(): string {
+    const ch = this.consume() ?? "";
+    if (ch === "\\") {
+      const next = this.consume() ?? "";
+      const node = this.parseEscape(next);
+      if (node.type === "charClass") {
+        const first = node.ranges[0] ?? [0, 0];
+        return String.fromCharCode(first[0]);
+      }
+      if (node.type === "literal") {
+        return node.value;
+      }
+    }
+    return ch;
+  }
+
+  parseEscape(ch: string): AstNode {
+    switch (ch) {
+      case "d":
+        return { type: "charClass", ranges: [[48, 57]] };
+      case "w":
+        return {
+          type: "charClass",
+          ranges: [
+            [48, 57],
+            [65, 90],
+            [95, 95],
+            [97, 122],
+          ],
+        };
+      case "s":
+        return {
+          type: "charClass",
+          ranges: [
+            [9, 13],
+            [32, 32],
+          ],
+        };
+      default:
+        return { type: "literal", value: ch };
+    }
+  }
+
+  parseQuantifier(): { min: number; max: number } {
+    const ch = this.peek();
+    if (ch === "*") {
+      this.consume();
+      return { min: 0, max: -1 };
+    }
+    if (ch === "+") {
+      this.consume();
+      return { min: 1, max: -1 };
+    }
+    if (ch === "?") {
+      this.consume();
+      return { min: 0, max: 1 };
+    }
+    if (ch === "{") {
+      this.consume();
+      const min = this.readNumber();
+      let max = min;
+      if (this.peek() === ",") {
+        this.consume();
+        if (this.peek() === "}") {
+          max = -1;
+        } else {
+          max = this.readNumber();
+        }
+      }
+      if (this.peek() === "}") {
+        this.consume();
+      }
+      return { min, max };
+    }
+    return { min: 1, max: 1 };
+  }
+
+  readNumber(): number {
+    let num = "";
+    while (!this.eof()) {
+      const ch = this.peek();
+      if (!ch || ch < "0" || ch > "9") {
+        break;
+      }
+      num += ch;
+      this.consume();
+    }
+    return num ? Number(num) : 0;
+  }
+
+  peek(offset = 0): string | null {
+    return this.#pattern[this.#pos + offset] ?? null;
+  }
+
+  consume(): string | null {
+    if (this.eof()) {
+      return null;
+    }
+    const ch = this.#pattern[this.#pos] ?? "";
+    this.#pos += 1;
+    return ch;
+  }
+
+  eof(): boolean {
+    return this.#pos >= this.#pattern.length;
+  }
+}

@@ -99,7 +99,10 @@ export function toUniqueStringSlice(value: unknown): string[] {
     } else {
       result = [value];
     }
-  } else if (typeof value === "object" && typeof (value as { toJSON?: () => unknown }).toJSON === "function") {
+  } else if (
+    typeof value === "object" &&
+    typeof (value as { toJSON?: () => unknown }).toJSON === "function"
+  ) {
     const raw = (value as { toJSON: () => unknown }).toJSON();
     if (Array.isArray(raw)) {
       result = raw.map((item) => coerceToString(item));

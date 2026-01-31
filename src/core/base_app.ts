@@ -214,7 +214,11 @@ export class BaseApp implements App {
     return collectionFromRow(row);
   }
 
-  findRecordById(collection: Collection, id: string, rule: SqlExpr | null = null): RecordModel | null {
+  findRecordById(
+    collection: Collection,
+    id: string,
+    rule: SqlExpr | null = null,
+  ): RecordModel | null {
     const table = collection.name;
     if (!isSafeIdentifier(table)) {
       throw new Error(`unsafe table name ${table}`);
@@ -227,11 +231,40 @@ export class BaseApp implements App {
       params.push(...(rule.params as SQLQueryBindings[]));
     }
 
-    const row = this.db().query(sql).get(...params);
+    const row = this.db()
+      .query(sql)
+      .get(...params);
     if (!row || typeof row !== "object") {
       return null;
     }
 
+    return new RecordModel(collection, row as RecordData);
+  }
+
+  findFirstRecordByFilter(
+    collectionOrIdentifier: Collection | string,
+    filter: string,
+    ...params: SQLQueryBindings[]
+  ): RecordModel | null {
+    const collection =
+      typeof collectionOrIdentifier === "string"
+        ? this.findCollectionByNameOrId(collectionOrIdentifier)
+        : collectionOrIdentifier;
+    if (!collection) {
+      return null;
+    }
+
+    let sql = `select * from {{${collection.name}}}`;
+    if (filter) {
+      sql = appendWhere(sql, filter);
+    }
+
+    const row = this.db()
+      .query(sql)
+      .get(...params);
+    if (!row || typeof row !== "object") {
+      return null;
+    }
     return new RecordModel(collection, row as RecordData);
   }
 }
@@ -295,7 +328,9 @@ function collectionFromRow(row: CollectionRow): Collection {
     system: Boolean(row.system),
     type: row.type,
     fields: parseCollectionFields(fields),
-    indexes: Array.isArray(indexes) ? (indexes.filter((value) => typeof value === "string") as string[]) : [],
+    indexes: Array.isArray(indexes)
+      ? (indexes.filter((value) => typeof value === "string") as string[])
+      : [],
     listRule: row.listRule ?? null,
     viewRule: row.viewRule ?? null,
     createRule: row.createRule ?? null,

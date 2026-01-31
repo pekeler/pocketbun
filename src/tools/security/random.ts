@@ -1,6 +1,7 @@
 // Ported from pocketbase/tools/security/random.go
 
 import { randomInt } from "node:crypto";
+import { randomStringByRegex } from "./random_by_regex.ts";
 
 const defaultAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -12,3 +13,5 @@ export function randomString(length: number, alphabet = defaultAlphabet): string
   }
   return chars.join("");
 }
+
+export { randomStringByRegex };

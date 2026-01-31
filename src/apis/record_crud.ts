@@ -1,5 +1,6 @@
 // Ported from pocketbase/apis/record_crud.go
 
+import type { SQLQueryBindings } from "bun:sqlite";
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import { RecordFieldResolver } from "../core/record_field_resolver.ts";
@@ -105,11 +106,11 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
       const ruleExpr = buildFilterExpr(collection.viewRule, resolver, DefaultFilterExprLimit);
 
       let selectSql = `select * from {{${collection.name}}}`;
-      const params: unknown[] = [recordId];
+      const params: SQLQueryBindings[] = [recordId];
       selectSql = appendWhere(selectSql, `[[${collection.name}.id]] = ?`);
       if (ruleExpr.sql) {
         selectSql = appendWhere(selectSql, ruleExpr.sql);
-        params.push(...ruleExpr.params);
+        params.push(...(ruleExpr.params as SQLQueryBindings[]));
       }
 
       if (resolver.updateQuery) {
@@ -118,10 +119,14 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
           params,
         });
         selectSql = updated.select;
-        params.splice(0, params.length, ...(updated.params ?? []));
+        const updatedParams = (updated.params ?? []) as SQLQueryBindings[];
+        params.splice(0, params.length, ...updatedParams);
       }
 
-      const row = app.db().query(selectSql).get(...params) as Record<string, unknown> | undefined;
+      const row = app
+        .db()
+        .query(selectSql)
+        .get(...params) as Record<string, unknown> | undefined;
       if (!row) {
         return notFound(event, "");
       }

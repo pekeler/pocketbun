@@ -117,6 +117,7 @@ PocketBun should make server-side extensibility practical in Bun:
 
 ## Testing (must exist and grow over time)
 Use `bun test` and keep tests focused on compatibility. Always run `bun run typecheck` to catch TypeScript errors, and treat any compiler/runtime warnings (including deprecation warnings surfaced during tests or `bun run start`) as issues to fix before committing. Run `bun run lint` for oxlint findings and `bun run format` (or `bun run format:fix` for auto-fixes) to keep formatting consistent.
+When porting any upstream code (especially validators/fields), also port the corresponding upstream tests and use them as the primary verification of correctness.
 Minimum expectations:
 - tests for core API endpoints (status + JSON shape)
 - tests for auth flows we implement

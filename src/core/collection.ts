@@ -1,6 +1,13 @@
 // Ported from pocketbase/core/collection_model.go
 
+import { FieldsList, NewFieldsList } from "./fields_list.ts";
+import { TextField, defaultLowercaseRecordIdPattern } from "./field_text.ts";
+import { FieldNameId } from "./field.ts";
+
 export const CollectionNameSuperusers = "_superusers";
+export const CollectionTypeBase = "base";
+export const CollectionTypeAuth = "auth";
+export const CollectionTypeView = "view";
 
 export type CollectionField = {
   name: string;
@@ -29,6 +36,7 @@ export class Collection {
   type: string;
   system: boolean;
   fields: CollectionField[];
+  Fields: FieldsList;
   indexes: string[];
   listRule: string | null;
   viewRule: string | null;
@@ -37,12 +45,15 @@ export class Collection {
   deleteRule: string | null;
   options: CollectionAuthOptions;
 
+  #isNew: boolean;
+
   constructor(values: {
     id: string;
     name: string;
     type: string;
     system?: boolean;
     fields?: CollectionField[];
+    Fields?: FieldsList;
     indexes?: string[];
     listRule?: string | null;
     viewRule?: string | null;
@@ -56,6 +67,7 @@ export class Collection {
     this.type = values.type;
     this.system = Boolean(values.system);
     this.fields = values.fields ?? [];
+    this.Fields = values.Fields ?? new FieldsList();
     this.indexes = values.indexes ?? [];
     this.listRule = values.listRule ?? null;
     this.viewRule = values.viewRule ?? null;
@@ -63,11 +75,71 @@ export class Collection {
     this.updateRule = values.updateRule ?? null;
     this.deleteRule = values.deleteRule ?? null;
     this.options = normalizeAuthOptions(values.options ?? null);
+    this.#isNew = false;
+  }
+
+  get Id(): string {
+    return this.id;
+  }
+
+  set Id(value: string) {
+    this.id = value;
+  }
+
+  get Name(): string {
+    return this.name;
+  }
+
+  set Name(value: string) {
+    this.name = value;
+  }
+
+  get Type(): string {
+    return this.type;
+  }
+
+  set Type(value: string) {
+    this.type = value;
   }
 
   isAuth(): boolean {
-    return this.type === "auth";
+    return this.type === CollectionTypeAuth;
   }
+
+  isView(): boolean {
+    return this.type === CollectionTypeView;
+  }
+
+  isNew(): boolean {
+    return this.#isNew;
+  }
+
+  markNew(value = true): void {
+    this.#isNew = value;
+  }
+}
+
+export function NewBaseCollection(name: string, id = ""): Collection {
+  const collection = new Collection({
+    id,
+    name,
+    type: CollectionTypeBase,
+  });
+  collection.markNew(true);
+  collection.Fields = NewFieldsList();
+
+  const idField = new TextField();
+  idField.Name = FieldNameId;
+  idField.System = true;
+  idField.PrimaryKey = true;
+  idField.Required = true;
+  idField.Min = 15;
+  idField.Max = 15;
+  idField.Pattern = defaultLowercaseRecordIdPattern;
+  idField.AutogeneratePattern = "[a-z0-9]{15}";
+  collection.Fields.Add(idField);
+
+  return collection;
 }
 
 export function parseCollectionFields(raw: unknown): CollectionField[] {

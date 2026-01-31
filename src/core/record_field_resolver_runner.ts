@@ -167,11 +167,10 @@ class Runner {
     this.activeCollectionName = collection.name;
     this.activeTableAlias = `__auth_${columnify(this.activeCollectionName)}${this.resolver.joinAliasSuffix}`;
 
-    this.resolver.registerJoin(
-      columnify(this.activeCollectionName),
-      this.activeTableAlias,
-      { sql: `[[${this.activeTableAlias}.id]] = ?`, params: [info.auth.id] },
-    );
+    this.resolver.registerJoin(columnify(this.activeCollectionName), this.activeTableAlias, {
+      sql: `[[${this.activeTableAlias}.id]] = ?`,
+      params: [info.auth.id],
+    });
 
     this.multiMatchActiveTableAlias = `__mm_${this.activeTableAlias}`;
     this.multiMatch.joins.push({
@@ -285,12 +284,12 @@ class Runner {
   }
 
   processRequestBodyRelationField(bodyField: CollectionField): ResolverResult {
-    const relCollectionId = toStringValue(
-      (bodyField.raw as Record<string, unknown>).collectionId,
-    );
+    const relCollectionId = toStringValue((bodyField.raw as Record<string, unknown>).collectionId);
     const relCollection = this.resolver.loadCollection(relCollectionId);
     if (!relCollection) {
-      throw new Error(`failed to load collection "${relCollectionId}" from data field "${bodyField.name}"`);
+      throw new Error(
+        `failed to load collection "${relCollectionId}" from data field "${bodyField.name}"`,
+      );
     }
 
     const dataRelIds = toUniqueStringSlice(this.resolver.requestInfo?.body[bodyField.name]);
@@ -302,14 +301,10 @@ class Runner {
     this.activeTableAlias =
       columnify(`__data_${relCollection.name}_${bodyField.name}`) + this.resolver.joinAliasSuffix;
 
-    this.resolver.registerJoin(
-      this.activeCollectionName,
-      this.activeTableAlias,
-      {
-        sql: buildInExpr(`[[${this.activeTableAlias}.id]]`, dataRelIds.length),
-        params: dataRelIds,
-      },
-    );
+    this.resolver.registerJoin(this.activeCollectionName, this.activeTableAlias, {
+      sql: buildInExpr(`[[${this.activeTableAlias}.id]]`, dataRelIds.length),
+      params: dataRelIds,
+    });
 
     if (isMultiValuerField(bodyField)) {
       this.withMultiMatch = true;
@@ -418,7 +413,9 @@ class Runner {
           if (this.nullifyMissingField) {
             return { identifier: "NULL", params: [], nullFallback: "auto" };
           }
-          throw new Error(`invalid collection reference of a back relation field "${backField.name}"`);
+          throw new Error(
+            `invalid collection reference of a back relation field "${backField.name}"`,
+          );
         }
 
         const cleanProp = columnify(prop);
@@ -429,26 +426,18 @@ class Runner {
         const isBackRelMultiple = isMultiValuerField(backField);
 
         if (!isBackRelMultiple) {
-          this.resolver.registerJoin(
-            newCollectionName,
-            newTableAlias,
-            {
-              sql: `[[${newTableAlias}.${cleanBackFieldName}]] = [[${this.activeTableAlias}.id]]`,
-              params: [],
-            },
-          );
+          this.resolver.registerJoin(newCollectionName, newTableAlias, {
+            sql: `[[${newTableAlias}.${cleanBackFieldName}]] = [[${this.activeTableAlias}.id]]`,
+            params: [],
+          });
         } else {
           const jeAlias = `__je_${newTableAlias}`;
-          this.resolver.registerJoin(
-            newCollectionName,
-            newTableAlias,
-            {
-              sql: `[[${this.activeTableAlias}.id]] IN (SELECT [[${jeAlias}.value]] FROM ${JSONEach(
-                `${newTableAlias}.${cleanBackFieldName}`,
-              )} {{${jeAlias}}})`,
-              params: [],
-            },
-          );
+          this.resolver.registerJoin(newCollectionName, newTableAlias, {
+            sql: `[[${this.activeTableAlias}.id]] IN (SELECT [[${jeAlias}.value]] FROM ${JSONEach(
+              `${newTableAlias}.${cleanBackFieldName}`,
+            )} {{${jeAlias}}})`,
+            params: [],
+          });
         }
 
         this.activeCollectionName = newCollectionName;
@@ -503,7 +492,11 @@ class Runner {
         throw new Error(`failed to load field "${prop}" collection`);
       }
 
-      if (!isMultiValuerField(field) && i === totalProps - 2 && this.activeProps[i + 1] === FieldNameId) {
+      if (
+        !isMultiValuerField(field) &&
+        i === totalProps - 2 &&
+        this.activeProps[i + 1] === FieldNameId
+      ) {
         return this.finalizeActivePropsProcessing(collection, field.name);
       }
 
@@ -513,25 +506,17 @@ class Runner {
       const newCollectionName = relCollection.name;
 
       if (!isMultiValuerField(field)) {
-        this.resolver.registerJoin(
-          columnify(newCollectionName),
-          newTableAlias,
-          {
-            sql: `[[${newTableAlias}.id]] = [[${prefixedFieldName}]]`,
-            params: [],
-          },
-        );
+        this.resolver.registerJoin(columnify(newCollectionName), newTableAlias, {
+          sql: `[[${newTableAlias}.id]] = [[${prefixedFieldName}]]`,
+          params: [],
+        });
       } else {
         const jeAlias = `__je_${newTableAlias}`;
         this.resolver.registerJoin(JSONEach(prefixedFieldName), jeAlias, null);
-        this.resolver.registerJoin(
-          columnify(newCollectionName),
-          newTableAlias,
-          {
-            sql: `[[${newTableAlias}.id]] = [[${jeAlias}.value]]`,
-            params: [],
-          },
-        );
+        this.resolver.registerJoin(columnify(newCollectionName), newTableAlias, {
+          sql: `[[${newTableAlias}.id]] = [[${jeAlias}.value]]`,
+          params: [],
+        });
       }
 
       this.activeCollectionName = newCollectionName;
@@ -613,7 +598,11 @@ class Runner {
 
     if (modifier === eachModifier && isMultiValuerField(field)) {
       const jeAlias = `__je_${this.activeTableAlias}_${cleanFieldName}${this.resolver.joinAliasSuffix}`;
-      this.resolver.registerJoin(JSONEach(`${this.activeTableAlias}.${cleanFieldName}`), jeAlias, null);
+      this.resolver.registerJoin(
+        JSONEach(`${this.activeTableAlias}.${cleanFieldName}`),
+        jeAlias,
+        null,
+      );
 
       const result: ResolverResult = {
         identifier: `[[${jeAlias}.value]]`,
