@@ -1,5 +1,8 @@
 // Ported from pocketbase/tools/search/filter.go
 
+// Note: upstream relies on fexpr parsing; this port uses a local lexer/parser.
+// Keep behavior aligned with upstream even if the parsing implementation differs.
+
 import type { FieldResolver, ResolverResult } from "./field_resolver.ts";
 import { resolveIdentifierMacro } from "./identifier_macros.ts";
 import { tokenFunctions, type Token } from "./token_functions.ts";

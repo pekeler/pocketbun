@@ -7,6 +7,8 @@ export class Store<K, T> {
   #deleted = 0;
 
   constructor(data: Map<K, T> | Record<string, T> | null = null) {
+    // Note: upstream uses a mutex; Bun's single-threaded JS runtime makes this unnecessary here.
+    // If we introduce worker/shared concurrency, revisit this and add locking.
     this.#data = new Map<K, T>();
     this.reset(data);
   }

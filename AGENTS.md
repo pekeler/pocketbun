@@ -39,6 +39,7 @@ Goal: maximize long-term maintainability and upstream-syncability by keeping Poc
   - Do not rename just for style.
 - **Only deviate when necessary:** Deviations are allowed when required by JS/Bun semantics (async I/O, concurrency model, time/number handling, resource cleanup, etc.).
   - When you deviate, leave a brief comment explaining *why*.
+- **Document significant differences:** If a ported file intentionally diverges from upstream behavior/implementation, document the difference and the rationale in the file.
 - **Compatibility shims:** Prefer small internal helpers (`src/internal/compat/*`) to model Go-like primitives (errors/time/sync/http/sql) so most files remain a straightforward, 1:1 port.
 - **Dependencies:** Prefer **Bun built-ins** first (e.g. `Bun.serve`, `bun:sqlite`, Web APIs).
   - If PocketBase uses a Go third-party library and Bun lacks equivalent functionality, choose an npm dependency that is:

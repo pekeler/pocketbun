@@ -1,23 +1,8 @@
 // PocketBun-only: minimal in-memory store until the upstream store package is ported.
 
-export const StoreKeyActiveBackup = "activeBackup";
+// PocketBun-only: re-export the upstream store and keep core-level constants in one place.
 
-export class Store<K, V> {
-  #data = new Map<K, V>();
+export { Store } from "../tools/store/store.ts";
 
-  has(key: K): boolean {
-    return this.#data.has(key);
-  }
-
-  get(key: K): V | undefined {
-    return this.#data.get(key);
-  }
-
-  set(key: K, value: V): void {
-    this.#data.set(key, value);
-  }
-
-  delete(key: K): void {
-    this.#data.delete(key);
-  }
-}
+// Matches pocketbase/core/base_backup.go
+export const StoreKeyActiveBackup = "@activeBackup";

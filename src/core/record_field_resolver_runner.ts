@@ -1,5 +1,7 @@
 // Ported from pocketbase/core/record_field_resolver_runner.go
 
+// Note: relation joins, multi-match subqueries, and advanced modifiers are not yet ported.
+
 import type { Collection, CollectionField } from "./collection.ts";
 import type { RequestInfo } from "./event_request.ts";
 import type { RecordFieldResolver } from "./record_field_resolver.ts";

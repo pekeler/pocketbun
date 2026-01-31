@@ -1,5 +1,8 @@
 // Ported from pocketbase/tools/search/provider.go
 
+// Note: upstream Provider calls FieldResolver.UpdateQuery to apply joins/aliases.
+// The current port omits UpdateQuery support, so relation-based joins are not yet applied.
+
 import type { Database, SQLQueryBindings } from "bun:sqlite";
 import { columnify } from "../inflector/inflector.ts";
 import { buildFilterExpr, type FilterData } from "./filter.ts";

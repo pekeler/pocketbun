@@ -1,5 +1,7 @@
 // Ported from pocketbase/tools/router/router.go
 
+// Note: this is a minimal router implementation without upstream middleware features yet.
+
 import { Route, type Handler } from "./route.ts";
 import { RouterGroup } from "./group.ts";
 

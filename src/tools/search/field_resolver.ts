@@ -1,5 +1,8 @@
 // Ported from pocketbase/tools/search/simple_field_resolver.go
 
+// Note: upstream FieldResolver also exposes UpdateQuery and richer multi-match behavior.
+// Those are not yet ported; callers should not rely on join-mutation hooks here.
+
 import type { SqlExpr } from "./types.ts";
 
 export type NullFallbackPreference = "auto" | "disabled" | "enforced";

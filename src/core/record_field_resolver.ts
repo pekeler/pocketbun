@@ -1,5 +1,8 @@
 // Ported from pocketbase/core/record_field_resolver.go
 
+// Note: relation joins and multi-match handling are not yet ported; resolver currently covers
+// the list/view rule cases used by our seeded test data.
+
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
 import type { RequestInfo } from "./event_request.ts";
