@@ -37,3 +37,42 @@ export function toBoolValue(value: unknown): boolean {
   }
   return Boolean(value);
 }
+
+export function toNumberValue(value: unknown): number {
+  if (typeof value === "number") {
+    return value;
+  }
+  if (typeof value === "bigint") {
+    return Number(value);
+  }
+  if (typeof value === "boolean") {
+    return value ? 1 : 0;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return 0;
+    }
+    const lowered = trimmed.toLowerCase();
+    if (lowered === "nan") {
+      return Number.NaN;
+    }
+    if (
+      lowered === "inf" ||
+      lowered === "+inf" ||
+      lowered === "infinity" ||
+      lowered === "+infinity"
+    ) {
+      return Number.POSITIVE_INFINITY;
+    }
+    if (lowered === "-inf" || lowered === "-infinity") {
+      return Number.NEGATIVE_INFINITY;
+    }
+    const num = Number(trimmed);
+    return Number.isNaN(num) ? 0 : num;
+  }
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+  return 0;
+}

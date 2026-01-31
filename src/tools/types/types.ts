@@ -3,3 +3,7 @@
 export function pointer<T>(value: T): T {
   return value;
 }
+
+export function Pointer<T>(value: T): T {
+  return value;
+}

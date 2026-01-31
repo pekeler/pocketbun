@@ -37,6 +37,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-31 13:00Z) Port core field types/validators and initial field implementations (text, bool, date, email, password, relation, json) plus JSON/Date helpers and regex-based random generator.
 - [x] (2026-01-31 13:58Z) Port upstream validator/field tests and align validation, field helpers, and record/collection utilities to match upstream behavior.
 - [x] (2026-01-31 14:22Z) Port db/equal validators with upstream tests and export them from the validators barrel.
+- [x] (2026-01-31 14:28Z) Port number field with upstream tests and add numeric casting helpers/pointer alias for parity.
 - [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries

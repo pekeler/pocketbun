@@ -10,4 +10,4 @@ export {
 } from "./datetime.ts";
 export { JSONRaw } from "./json_raw.ts";
 export { JSONArray } from "./json_array.ts";
-export { pointer } from "./types.ts";
+export { pointer, Pointer } from "./types.ts";
