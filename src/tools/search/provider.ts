@@ -194,6 +194,8 @@ export class Provider {
       selectSql = appendOrderBy(selectSql, sortParts.join(", "));
     }
 
+    let baseParamsWithFilter = [...baseParams, ...filterParams] as SQLQueryBindings[];
+
     if (this.#fieldResolver.updateQuery) {
       const updated = this.#fieldResolver.updateQuery({
         select: selectSql,
@@ -218,8 +220,6 @@ export class Provider {
     } else if (this.#perPage > MaxPerPage) {
       this.#perPage = MaxPerPage;
     }
-
-    let baseParamsWithFilter = [...baseParams, ...filterParams] as SQLQueryBindings[];
 
     const limit = this.#perPage;
     const offset = this.#perPage * (this.#page - 1);
