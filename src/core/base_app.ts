@@ -2,7 +2,7 @@
 
 import "../migrations/index.ts";
 
-import type { Database } from "bun:sqlite";
+import type { Database, SQLQueryBindings } from "bun:sqlite";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { App } from "./app.ts";
@@ -189,7 +189,7 @@ export class BaseApp implements App {
   findCollectionById(id: string): Collection | null {
     const row = this.db()
       .query(
-        "select id, name, system, type, fields, listRule, viewRule, createRule, updateRule, deleteRule, options from _collections where id = ?",
+        "select id, name, system, type, fields, indexes, listRule, viewRule, createRule, updateRule, deleteRule, options from _collections where id = ?",
       )
       .get(id) as CollectionRow | undefined;
 
@@ -203,7 +203,7 @@ export class BaseApp implements App {
   findCollectionByNameOrId(identifier: string): Collection | null {
     const row = this.db()
       .query(
-        "select id, name, system, type, fields, listRule, viewRule, createRule, updateRule, deleteRule, options from _collections where id = ? or name = ?",
+        "select id, name, system, type, fields, indexes, listRule, viewRule, createRule, updateRule, deleteRule, options from _collections where id = ? or name = ?",
       )
       .get(identifier, identifier) as CollectionRow | undefined;
 
@@ -221,10 +221,10 @@ export class BaseApp implements App {
     }
 
     let sql = `select * from "${table}" where id = ?`;
-    const params: unknown[] = [id];
+    const params: SQLQueryBindings[] = [id];
     if (rule?.sql) {
       sql = appendWhere(sql, rule.sql);
-      params.push(...rule.params);
+      params.push(...(rule.params as SQLQueryBindings[]));
     }
 
     const row = this.db().query(sql).get(...params);
@@ -252,6 +252,7 @@ type CollectionRow = {
   system: number;
   type: string;
   fields: string;
+  indexes: string;
   listRule: string | null;
   viewRule: string | null;
   createRule: string | null;
@@ -279,12 +280,22 @@ function collectionFromRow(row: CollectionRow): Collection {
     }
   }
 
+  let indexes: unknown = [];
+  if (typeof row.indexes === "string") {
+    try {
+      indexes = JSON.parse(row.indexes);
+    } catch {
+      indexes = [];
+    }
+  }
+
   return new Collection({
     id: row.id,
     name: row.name,
     system: Boolean(row.system),
     type: row.type,
     fields: parseCollectionFields(fields),
+    indexes: Array.isArray(indexes) ? (indexes.filter((value) => typeof value === "string") as string[]) : [],
     listRule: row.listRule ?? null,
     viewRule: row.viewRule ?? null,
     createRule: row.createRule ?? null,

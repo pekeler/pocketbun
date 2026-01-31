@@ -29,6 +29,7 @@ export class Collection {
   type: string;
   system: boolean;
   fields: CollectionField[];
+  indexes: string[];
   listRule: string | null;
   viewRule: string | null;
   createRule: string | null;
@@ -42,6 +43,7 @@ export class Collection {
     type: string;
     system?: boolean;
     fields?: CollectionField[];
+    indexes?: string[];
     listRule?: string | null;
     viewRule?: string | null;
     createRule?: string | null;
@@ -54,6 +56,7 @@ export class Collection {
     this.type = values.type;
     this.system = Boolean(values.system);
     this.fields = values.fields ?? [];
+    this.indexes = values.indexes ?? [];
     this.listRule = values.listRule ?? null;
     this.viewRule = values.viewRule ?? null;
     this.createRule = values.createRule ?? null;

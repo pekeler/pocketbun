@@ -126,7 +126,7 @@ class Runner {
     }
 
     const collectionName = this.activeProps[1] ?? "";
-    const [name, alias] = collectionName.split(":", 2);
+    const [name = "", alias] = collectionName.split(":", 2);
     const collection = this.resolver.loadCollection(name);
     if (!collection) {
       throw new Error(`failed to load collection "${name}" from field path "${this.fieldName}"`);
@@ -758,11 +758,12 @@ export function extractNestedVal(rawData: unknown, ...keys: string[]): unknown {
 }
 
 function mapVal(raw: Record<string, unknown>, keys: string[]): unknown {
-  if (!(keys[0] in raw)) {
-    throw new Error(`invalid key path - missing key "${keys[0] ?? ""}"`);
+  const key = keys[0];
+  if (!key || !(key in raw)) {
+    throw new Error(`invalid key path - missing key "${key ?? ""}"`);
   }
 
-  const result = raw[keys[0] ?? ""];
+  const result = raw[key];
   if (keys.length === 1) {
     return result;
   }
@@ -771,9 +772,13 @@ function mapVal(raw: Record<string, unknown>, keys: string[]): unknown {
 }
 
 function arrVal(raw: unknown[], keys: string[]): unknown {
-  const idx = Number.parseInt(keys[0] ?? "", 10);
+  const key = keys[0];
+  if (!key) {
+    throw new Error('invalid key path - invalid or missing array index ""');
+  }
+  const idx = Number.parseInt(key, 10);
   if (!Number.isFinite(idx) || idx < 0 || idx >= raw.length) {
-    throw new Error(`invalid key path - invalid or missing array index "${keys[0] ?? ""}"`);
+    throw new Error(`invalid key path - invalid or missing array index "${key}"`);
   }
 
   const result = raw[idx];
