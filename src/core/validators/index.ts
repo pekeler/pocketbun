@@ -2,3 +2,5 @@
 
 export { ErrUnsupportedValueType, joinValidationErrors } from "./validators.ts";
 export { isRegex } from "./string.ts";
+export { Equal } from "./equal.ts";
+export { NormalizeUniqueIndexError, UniqueId } from "./db.ts";

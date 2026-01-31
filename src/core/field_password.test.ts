@@ -1,11 +1,7 @@
 // Ported from pocketbase/core/field_password_test.go
 
 import { describe, expect, it } from "bun:test";
-import {
-  PasswordField,
-  FieldTypePassword,
-  PasswordFieldValue,
-} from "./field_password.ts";
+import { PasswordField, FieldTypePassword, PasswordFieldValue } from "./field_password.ts";
 import { NewBaseCollection } from "./collection.ts";
 import { NewRecord } from "./record.ts";
 import { newTestApp } from "../../tests/test_app.ts";
