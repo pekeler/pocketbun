@@ -24,6 +24,7 @@ If you’re unsure about an edge case:
 1) check PocketBase docs
 2) check PocketBase source in the pinned upstream checkout (see below)
 3) if still unclear, run upstream PocketBase at the pinned tag and compare behavior, then encode it in tests.
+If you discover a behavior difference that cannot be avoided, confirm with the repo owner that the incompatibility is acceptable before documenting it. Only then add it to the README’s “Known Differences” list (keep that list very short).
 
 ## Porting Guidelines
 Goal: maximize long-term maintainability and upstream-syncability by keeping PocketBun structurally close to the PocketBase Go codebase, while preserving *observable behavior*.
