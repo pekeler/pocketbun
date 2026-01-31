@@ -1,15 +1,26 @@
 // Ported from pocketbase/core/record_field_resolver_runner.go
 
-// Note: relation joins, multi-match subqueries, and advanced modifiers are not yet ported.
-
 import type { Collection, CollectionField } from "./collection.ts";
 import type { RequestInfo } from "./event_request.ts";
 import type { RecordFieldResolver } from "./record_field_resolver.ts";
-import { FieldNameCollectionId, FieldNameCollectionName, FieldNameEmail, FieldNameEmailVisibility } from "./record.ts";
-import { FieldNameId, FieldNameVerified } from "./record.ts";
+import {
+  FieldNameCollectionId,
+  FieldNameCollectionName,
+  FieldNameEmail,
+  FieldNameEmailVisibility,
+  FieldNameId,
+  FieldNameVerified,
+} from "./record.ts";
 import { columnify } from "../tools/inflector/inflector.ts";
-import { JSONArrayLength, JSONExtract } from "../tools/dbutils/index.ts";
-import { existInSliceWithRegex } from "../tools/list/list.ts";
+import { JSONArrayLength, JSONEach, JSONExtract } from "../tools/dbutils/json.ts";
+import { findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
+import { existInSliceWithRegex, toUniqueStringSlice } from "../tools/list/list.ts";
+import { buildFilterExpr } from "../tools/search/filter.ts";
+import type { ResolverResult } from "../tools/search/field_resolver.ts";
+import { DefaultFilterExprLimit } from "../tools/search/types.ts";
+import { randomString } from "../tools/security/random.ts";
+import { MultiMatchSubquery } from "../tools/search/multi_match_subquery.ts";
+
 export const eachModifier = "each";
 export const issetModifier = "isset";
 export const lengthModifier = "length";
@@ -19,7 +30,10 @@ export const changedModifier = "changed";
 export const FieldTypeRelation = "relation";
 export const FieldTypeSelect = "select";
 export const FieldTypeFile = "file";
-import type { ResolverResult } from "../tools/search/field_resolver.ts";
+export const FieldTypeJSON = "json";
+export const FieldTypeGeoPoint = "geoPoint";
+
+const maxNestedRels = 6;
 
 const plainRequestAuthFields = new Set<string>([
   `@request.auth.${FieldNameId}`,
@@ -29,6 +43,8 @@ const plainRequestAuthFields = new Set<string>([
   `@request.auth.${FieldNameEmailVisibility}`,
   `@request.auth.${FieldNameVerified}`,
 ]);
+
+const viaRegex = /^(\w+)_via_(\w+)$/;
 
 export function parseAndRun(fieldName: string, resolver: RecordFieldResolver): ResolverResult {
   const runner = new Runner(fieldName, resolver);
@@ -43,10 +59,14 @@ class Runner {
   activeCollectionName = "";
   activeTableAlias = "";
   nullifyMissingField = false;
+  withMultiMatch = false;
+  multiMatchActiveTableAlias = "";
+  multiMatch: MultiMatchSubquery;
 
   constructor(fieldName: string, resolver: RecordFieldResolver) {
     this.fieldName = fieldName;
     this.resolver = resolver;
+    this.multiMatch = new MultiMatchSubquery();
   }
 
   run(): ResolverResult {
@@ -93,6 +113,11 @@ class Runner {
     this.activeTableAlias =
       this.resolver.baseCollectionAlias || columnify(this.activeCollectionName);
     this.nullifyMissingField = this.activeProps[0] === "@request";
+
+    this.multiMatch.targetTableAlias = this.activeTableAlias;
+    this.multiMatch.fromTableName = columnify(this.activeCollectionName);
+    this.multiMatch.fromTableAlias = `__mm_${this.activeTableAlias}`;
+    this.multiMatchActiveTableAlias = this.multiMatch.fromTableAlias;
   }
 
   processCollectionField(): ResolverResult {
@@ -101,17 +126,32 @@ class Runner {
     }
 
     const collectionName = this.activeProps[1] ?? "";
-    const [name] = collectionName.split(":", 2);
+    const [name, alias] = collectionName.split(":", 2);
     const collection = this.resolver.loadCollection(name);
     if (!collection) {
       throw new Error(`failed to load collection "${name}" from field path "${this.fieldName}"`);
     }
 
-    // TODO: relation joins will be ported later; for now we only allow direct fields.
     this.activeCollectionName = collection.name;
-    this.activeTableAlias = columnify(collection.name);
-    this.activeProps = this.activeProps.slice(2);
+    if (alias) {
+      this.activeTableAlias =
+        columnify(`__collection_alias_${alias}`) + this.resolver.joinAliasSuffix;
+    } else {
+      this.activeTableAlias =
+        columnify(`__collection_${this.activeCollectionName}`) + this.resolver.joinAliasSuffix;
+    }
 
+    this.withMultiMatch = true;
+
+    this.resolver.registerJoin(columnify(collection.name), this.activeTableAlias, null);
+
+    this.multiMatchActiveTableAlias = `__mm_${this.activeTableAlias}`;
+    this.multiMatch.joins.push({
+      tableName: columnify(collection.name),
+      tableAlias: this.multiMatchActiveTableAlias,
+    });
+
+    this.activeProps = this.activeProps.slice(2);
     return this.processActiveProps();
   }
 
@@ -125,52 +165,423 @@ class Runner {
       return this.resolver.resolveStaticRequestField(...this.activeProps.slice(1));
     }
 
-    return this.resolver.resolveStaticRequestField(...this.activeProps.slice(1));
+    const collection = info.auth.collection();
+    this.activeCollectionName = collection.name;
+    this.activeTableAlias = `__auth_${columnify(this.activeCollectionName)}${this.resolver.joinAliasSuffix}`;
+
+    this.resolver.registerJoin(
+      columnify(this.activeCollectionName),
+      this.activeTableAlias,
+      { sql: `[[${this.activeTableAlias}.id]] = ?`, params: [info.auth.id] },
+    );
+
+    this.multiMatchActiveTableAlias = `__mm_${this.activeTableAlias}`;
+    this.multiMatch.joins.push({
+      tableName: columnify(this.activeCollectionName),
+      tableAlias: this.multiMatchActiveTableAlias,
+      on: { sql: `[[${this.multiMatchActiveTableAlias}.id]] = ?`, params: [info.auth.id] },
+    });
+
+    this.activeProps = this.activeProps.slice(2);
+    return this.processActiveProps();
   }
 
   processRequestBodyField(): ResolverResult {
     const info = this.resolver.requestInfo as RequestInfo;
     const name = this.activeProps[2] ?? "";
     const [fieldName, modifier] = splitModifier(name);
-    const bodyValue = info.body[fieldName];
+    const bodyField = getCollectionField(this.resolver.baseCollection, fieldName);
 
-    if (modifier === lengthModifier) {
-      const items = Array.isArray(bodyValue) ? bodyValue : bodyValue == null ? [] : [bodyValue];
-      return { identifier: "?", params: [items.length], nullFallback: "auto" };
+    if (!bodyField) {
+      return this.resolver.resolveStaticRequestField(...this.activeProps.slice(1));
     }
 
-    if (modifier === lowerModifier) {
-      return {
-        identifier: "LOWER(?)",
-        params: [bodyValue == null ? "" : String(bodyValue)],
-        nullFallback: "auto",
-      };
+    if (bodyField.type === FieldTypeRelation && this.activeProps.length > 3) {
+      return this.processRequestBodyRelationField(bodyField);
     }
 
-    if (modifier === changedModifier) {
-      throw new Error(`modifier "${changedModifier}" is not supported yet`);
-    }
-
-    if (modifier === eachModifier) {
-      throw new Error(`modifier "${eachModifier}" is not supported yet`);
+    if (this.activeProps.length === 3) {
+      if (modifier === eachModifier) {
+        return this.processRequestBodyEachModifier(bodyField);
+      }
+      if (modifier === lengthModifier) {
+        return this.processRequestBodyLengthModifier(bodyField);
+      }
+      if (modifier === lowerModifier) {
+        return this.processRequestBodyLowerModifier(bodyField);
+      }
+      if (modifier === changedModifier) {
+        return this.processRequestBodyChangedModifier(bodyField);
+      }
     }
 
     return this.resolver.resolveStaticRequestField(...this.activeProps.slice(1));
   }
 
+  processRequestBodyChangedModifier(bodyField: CollectionField): ResolverResult {
+    const name = bodyField.name;
+    const expr = buildFilterExpr(
+      `@request.body.${name}:isset = true && @request.body.${name} != ${name}`,
+      this.resolver,
+      DefaultFilterExprLimit,
+    );
+
+    return {
+      identifier: `(${expr.sql})`,
+      params: expr.params,
+      nullFallback: "disabled",
+    };
+  }
+
+  processRequestBodyLowerModifier(bodyField: CollectionField): ResolverResult {
+    const rawValue = String(this.resolver.requestInfo?.body[bodyField.name] ?? "");
+    return {
+      identifier: "LOWER(?)",
+      params: [rawValue],
+      nullFallback: "auto",
+    };
+  }
+
+  processRequestBodyLengthModifier(bodyField: CollectionField): ResolverResult {
+    if (!isMultiValuerField(bodyField)) {
+      throw new Error(`field "${bodyField.name}" doesn't support multivalue operations`);
+    }
+
+    const bodyItems = toSlice(this.resolver.requestInfo?.body[bodyField.name]);
+    return { identifier: String(bodyItems.length), params: [], nullFallback: "auto" };
+  }
+
+  processRequestBodyEachModifier(bodyField: CollectionField): ResolverResult {
+    if (!isMultiValuerField(bodyField)) {
+      throw new Error(`field "${bodyField.name}" doesn't support multivalue operations`);
+    }
+
+    const bodyItems = toSlice(this.resolver.requestInfo?.body[bodyField.name]);
+    const bodyItemsRaw = JSON.stringify(bodyItems);
+
+    const cleanFieldName = columnify(bodyField.name);
+    const jeAlias = `__dataEach_je_${cleanFieldName}${this.resolver.joinAliasSuffix}`;
+    this.resolver.registerJoin(`json_each(?)`, jeAlias, null, [bodyItemsRaw]);
+
+    const result: ResolverResult = {
+      identifier: `[[${jeAlias}.value]]`,
+      params: [],
+      nullFallback: "auto",
+    };
+
+    if (isMultiValuerField(bodyField)) {
+      this.withMultiMatch = true;
+    }
+
+    if (this.withMultiMatch) {
+      const jeAlias2 = `__mm_${jeAlias}`;
+      this.multiMatch.joins.push({
+        tableName: "json_each(?)",
+        tableAlias: jeAlias2,
+        params: [bodyItemsRaw],
+      });
+      this.multiMatch.valueIdentifier = `[[${jeAlias2}.value]]`;
+      result.multiMatchSubquery = this.multiMatch;
+    }
+
+    return result;
+  }
+
+  processRequestBodyRelationField(bodyField: CollectionField): ResolverResult {
+    const relCollectionId = String((bodyField.raw as Record<string, unknown>).collectionId ?? "");
+    const relCollection = this.resolver.loadCollection(relCollectionId);
+    if (!relCollection) {
+      throw new Error(`failed to load collection "${relCollectionId}" from data field "${bodyField.name}"`);
+    }
+
+    const dataRelIds = toUniqueStringSlice(this.resolver.requestInfo?.body[bodyField.name]);
+    if (dataRelIds.length === 0) {
+      return { identifier: "NULL", params: [], nullFallback: "auto" };
+    }
+
+    this.activeCollectionName = relCollection.name;
+    this.activeTableAlias =
+      columnify(`__data_${relCollection.name}_${bodyField.name}`) + this.resolver.joinAliasSuffix;
+
+    this.resolver.registerJoin(
+      this.activeCollectionName,
+      this.activeTableAlias,
+      {
+        sql: buildInExpr(`[[${this.activeTableAlias}.id]]`, dataRelIds.length),
+        params: dataRelIds,
+      },
+    );
+
+    if (isMultiValuerField(bodyField)) {
+      this.withMultiMatch = true;
+    }
+
+    this.multiMatchActiveTableAlias = `__mm_${this.activeTableAlias}`;
+    this.multiMatch.joins.push({
+      tableName: this.activeCollectionName,
+      tableAlias: this.multiMatchActiveTableAlias,
+      on: {
+        sql: buildInExpr(`[[${this.multiMatchActiveTableAlias}.id]]`, dataRelIds.length),
+        params: dataRelIds,
+      },
+    });
+
+    this.activeProps = this.activeProps.slice(3);
+    return this.processActiveProps();
+  }
+
   processActiveProps(): ResolverResult {
-    if (this.activeProps.length === 0) {
+    const totalProps = this.activeProps.length;
+    if (totalProps === 0) {
       throw new Error(`invalid field path "${this.fieldName}"`);
     }
 
-    const [prop] = this.activeProps;
-    if (!prop) {
-      throw new Error(`invalid field path "${this.fieldName}"`);
+    for (let i = 0; i < totalProps; i += 1) {
+      const prop = this.activeProps[i] ?? "";
+      const collection = this.resolver.loadCollection(this.activeCollectionName);
+      if (!collection) {
+        throw new Error(`failed to resolve field "${prop}"`);
+      }
+
+      if (i === totalProps - 1) {
+        return this.finalizeActivePropsProcessing(collection, prop);
+      }
+
+      const field = getCollectionField(collection, prop);
+
+      if (field && field.hidden && !this.resolver.allowHiddenFields) {
+        throw new Error(`non-filterable field "${prop}"`);
+      }
+
+      if (field && (field.type === FieldTypeJSON || field.type === FieldTypeGeoPoint)) {
+        const jsonPath = buildJsonPath(this.activeProps.slice(i + 1));
+        const result: ResolverResult = {
+          nullFallback: "disabled",
+          identifier: JSONExtract(`${this.activeTableAlias}.${columnify(prop)}`, jsonPath),
+          params: [],
+        };
+
+        if (this.withMultiMatch) {
+          this.multiMatch.valueIdentifier = JSONExtract(
+            `${this.multiMatchActiveTableAlias}.${columnify(prop)}`,
+            jsonPath,
+          );
+          result.multiMatchSubquery = this.multiMatch;
+        }
+
+        return result;
+      }
+
+      if (i >= maxNestedRels) {
+        throw new Error(`max nested relations reached for field "${prop}"`);
+      }
+
+      if (!field) {
+        const parts = viaRegex.exec(prop);
+        if (!parts || parts.length !== 3) {
+          if (this.nullifyMissingField) {
+            return { identifier: "NULL", params: [], nullFallback: "auto" };
+          }
+          throw new Error(`failed to resolve field "${prop}"`);
+        }
+
+        const backCollection = this.resolver.loadCollection(parts[1] ?? "");
+        if (!backCollection) {
+          if (this.nullifyMissingField) {
+            return { identifier: "NULL", params: [], nullFallback: "auto" };
+          }
+          throw new Error(`failed to load back relation field "${prop}" collection`);
+        }
+
+        const backField = getCollectionField(backCollection, parts[2] ?? "");
+        if (!backField) {
+          if (this.nullifyMissingField) {
+            return { identifier: "NULL", params: [], nullFallback: "auto" };
+          }
+          throw new Error(`missing back relation field "${parts[2] ?? ""}"`);
+        }
+
+        if (backField.type !== FieldTypeRelation) {
+          if (this.nullifyMissingField) {
+            return { identifier: "NULL", params: [], nullFallback: "auto" };
+          }
+          throw new Error(`invalid back relation field "${parts[2] ?? ""}"`);
+        }
+
+        if (backField.hidden && !this.resolver.allowHiddenFields) {
+          throw new Error(`non-filterable back relation field "${backField.name}"`);
+        }
+
+        const backRelCollectionId = String(
+          (backField.raw as Record<string, unknown>).collectionId ?? "",
+        );
+        if (backRelCollectionId !== collection.id) {
+          if (this.nullifyMissingField) {
+            return { identifier: "NULL", params: [], nullFallback: "auto" };
+          }
+          throw new Error(`invalid collection reference of a back relation field "${backField.name}"`);
+        }
+
+        const cleanProp = columnify(prop);
+        const cleanBackFieldName = columnify(backField.name);
+        const newTableAlias = `${this.activeTableAlias}_${cleanProp}${this.resolver.joinAliasSuffix}`;
+        const newCollectionName = columnify(backCollection.name);
+
+        const isBackRelMultiple = isMultiValuerField(backField);
+
+        if (!isBackRelMultiple) {
+          this.resolver.registerJoin(
+            newCollectionName,
+            newTableAlias,
+            {
+              sql: `[[${newTableAlias}.${cleanBackFieldName}]] = [[${this.activeTableAlias}.id]]`,
+              params: [],
+            },
+          );
+        } else {
+          const jeAlias = `__je_${newTableAlias}`;
+          this.resolver.registerJoin(
+            newCollectionName,
+            newTableAlias,
+            {
+              sql: `[[${this.activeTableAlias}.id]] IN (SELECT [[${jeAlias}.value]] FROM ${JSONEach(
+                `${newTableAlias}.${cleanBackFieldName}`,
+              )} {{${jeAlias}}})`,
+              params: [],
+            },
+          );
+        }
+
+        this.activeCollectionName = newCollectionName;
+        this.activeTableAlias = newTableAlias;
+
+        if (isBackRelMultiple) {
+          this.withMultiMatch = true;
+        } else if (!this.withMultiMatch) {
+          const hasUniqueIndex = findSingleColumnUniqueIndex(
+            backCollection.indexes,
+            backField.name,
+          )[1];
+          this.withMultiMatch = !hasUniqueIndex;
+        }
+
+        const newTableAlias2 = `${this.multiMatchActiveTableAlias}_${cleanProp}${this.resolver.joinAliasSuffix}`;
+
+        if (!isBackRelMultiple) {
+          this.multiMatch.joins.push({
+            tableName: newCollectionName,
+            tableAlias: newTableAlias2,
+            on: {
+              sql: `[[${newTableAlias2}.${cleanBackFieldName}]] = [[${this.multiMatchActiveTableAlias}.id]]`,
+              params: [],
+            },
+          });
+        } else {
+          const jeAlias2 = `__je_${newTableAlias2}`;
+          this.multiMatch.joins.push({
+            tableName: newCollectionName,
+            tableAlias: newTableAlias2,
+            on: {
+              sql: `[[${this.multiMatchActiveTableAlias}.id]] IN (SELECT [[${jeAlias2}.value]] FROM ${JSONEach(
+                `${newTableAlias2}.${cleanBackFieldName}`,
+              )} {{${jeAlias2}}})`,
+              params: [],
+            },
+          });
+        }
+
+        this.multiMatchActiveTableAlias = newTableAlias2;
+        continue;
+      }
+
+      if (field.type !== FieldTypeRelation) {
+        throw new Error(`field "${prop}" is not a valid relation`);
+      }
+
+      const relCollectionId = String((field.raw as Record<string, unknown>).collectionId ?? "");
+      const relCollection = this.resolver.loadCollection(relCollectionId);
+      if (!relCollection) {
+        throw new Error(`failed to load field "${prop}" collection`);
+      }
+
+      if (!isMultiValuerField(field) && i === totalProps - 2 && this.activeProps[i + 1] === FieldNameId) {
+        return this.finalizeActivePropsProcessing(collection, field.name);
+      }
+
+      const cleanFieldName = columnify(field.name);
+      const prefixedFieldName = `${this.activeTableAlias}.${cleanFieldName}`;
+      const newTableAlias = `${this.activeTableAlias}_${cleanFieldName}${this.resolver.joinAliasSuffix}`;
+      const newCollectionName = relCollection.name;
+
+      if (!isMultiValuerField(field)) {
+        this.resolver.registerJoin(
+          columnify(newCollectionName),
+          newTableAlias,
+          {
+            sql: `[[${newTableAlias}.id]] = [[${prefixedFieldName}]]`,
+            params: [],
+          },
+        );
+      } else {
+        const jeAlias = `__je_${newTableAlias}`;
+        this.resolver.registerJoin(JSONEach(prefixedFieldName), jeAlias, null);
+        this.resolver.registerJoin(
+          columnify(newCollectionName),
+          newTableAlias,
+          {
+            sql: `[[${newTableAlias}.id]] = [[${jeAlias}.value]]`,
+            params: [],
+          },
+        );
+      }
+
+      this.activeCollectionName = newCollectionName;
+      this.activeTableAlias = newTableAlias;
+
+      if (isMultiValuerField(field)) {
+        this.withMultiMatch = true;
+      }
+
+      const newTableAlias2 = `${this.multiMatchActiveTableAlias}_${cleanFieldName}`;
+      const prefixedFieldName2 = `${this.multiMatchActiveTableAlias}.${cleanFieldName}`;
+
+      if (!isMultiValuerField(field)) {
+        this.multiMatch.joins.push({
+          tableName: columnify(newCollectionName),
+          tableAlias: newTableAlias2,
+          on: {
+            sql: `[[${newTableAlias2}.id]] = [[${prefixedFieldName2}]]`,
+            params: [],
+          },
+        });
+      } else {
+        const jeAlias2 = `${this.multiMatchActiveTableAlias}_${cleanFieldName}_je`;
+        this.multiMatch.joins.push(
+          {
+            tableName: JSONEach(prefixedFieldName2),
+            tableAlias: jeAlias2,
+          },
+          {
+            tableName: columnify(newCollectionName),
+            tableAlias: newTableAlias2,
+            on: {
+              sql: `[[${newTableAlias2}.id]] = [[${jeAlias2}.value]]`,
+              params: [],
+            },
+          },
+        );
+      }
+
+      this.multiMatchActiveTableAlias = newTableAlias2;
     }
 
+    throw new Error(`failed to resolve field "${this.fieldName}"`);
+  }
+
+  finalizeActivePropsProcessing(collection: Collection, prop: string): ResolverResult {
     const [name, modifier] = splitModifier(prop);
-    const field = getCollectionField(this.resolver.baseCollection, name);
 
+    const field = getCollectionField(collection, name);
     if (!field) {
       if (this.nullifyMissingField) {
         return { identifier: "NULL", params: [], nullFallback: "auto" };
@@ -182,33 +593,93 @@ class Runner {
       throw new Error(`non-filterable field "${name}"`);
     }
 
-    const cleanName = columnify(field.name);
+    const cleanFieldName = columnify(field.name);
 
-    if (modifier === lengthModifier) {
-      if (!isMultiValuerField(field)) {
-        throw new Error(`field "${field.name}" doesn't support multivalue operations`);
-      }
-      return {
-        identifier: JSONArrayLength(`${this.activeTableAlias}.${cleanName}`),
+    if (modifier === lengthModifier && isMultiValuerField(field)) {
+      const result: ResolverResult = {
+        identifier: JSONArrayLength(`${this.activeTableAlias}.${cleanFieldName}`),
         params: [],
         nullFallback: "auto",
       };
+
+      if (this.withMultiMatch) {
+        this.multiMatch.valueIdentifier = JSONArrayLength(
+          `${this.multiMatchActiveTableAlias}.${cleanFieldName}`,
+        );
+        result.multiMatchSubquery = this.multiMatch;
+      }
+
+      return result;
     }
 
-    if (this.activeProps.length > 1) {
-      const jsonPath = buildJsonPath(this.activeProps.slice(1));
-      return {
-        identifier: JSONExtract(`${this.activeTableAlias}.${cleanName}`, jsonPath),
+    if (modifier === eachModifier && isMultiValuerField(field)) {
+      const jeAlias = `__je_${this.activeTableAlias}_${cleanFieldName}${this.resolver.joinAliasSuffix}`;
+      this.resolver.registerJoin(JSONEach(`${this.activeTableAlias}.${cleanFieldName}`), jeAlias, null);
+
+      const result: ResolverResult = {
+        identifier: `[[${jeAlias}.value]]`,
         params: [],
-        nullFallback: "disabled",
+        nullFallback: "auto",
       };
+
+      if (isMultiValuerField(field)) {
+        this.withMultiMatch = true;
+      }
+
+      if (this.withMultiMatch) {
+        const jeAlias2 = `__je_${this.multiMatchActiveTableAlias}_${cleanFieldName}${this.resolver.joinAliasSuffix}`;
+        this.multiMatch.joins.push({
+          tableName: JSONEach(`${this.multiMatchActiveTableAlias}.${cleanFieldName}`),
+          tableAlias: jeAlias2,
+        });
+        this.multiMatch.valueIdentifier = `[[${jeAlias2}.value]]`;
+        result.multiMatchSubquery = this.multiMatch;
+      }
+
+      return result;
     }
 
-    return {
-      identifier: `[[${this.activeTableAlias}.${cleanName}]]`,
+    const result: ResolverResult = {
+      identifier: `[[${this.activeTableAlias}.${cleanFieldName}]]`,
       params: [],
       nullFallback: "auto",
     };
+
+    if (this.withMultiMatch) {
+      this.multiMatch.valueIdentifier = `[[${this.multiMatchActiveTableAlias}.${cleanFieldName}]]`;
+      result.multiMatchSubquery = this.multiMatch;
+    }
+
+    if (
+      field.name === FieldNameEmail &&
+      !this.resolver.allowHiddenFields &&
+      collection.type === "auth"
+    ) {
+      result.afterBuild = (expr) => ({
+        sql: `(${expr.sql} AND [[${this.activeTableAlias}.${FieldNameEmailVisibility}]] = TRUE)`,
+        params: expr.params,
+      });
+    }
+
+    if (field.type === FieldTypeJSON) {
+      result.nullFallback = "disabled";
+      result.identifier = JSONExtract(`${this.activeTableAlias}.${cleanFieldName}`, "");
+      if (this.withMultiMatch) {
+        this.multiMatch.valueIdentifier = JSONExtract(
+          `${this.multiMatchActiveTableAlias}.${cleanFieldName}`,
+          "",
+        );
+      }
+    }
+
+    if (modifier === lowerModifier) {
+      result.identifier = `LOWER(${result.identifier})`;
+      if (this.withMultiMatch) {
+        this.multiMatch.valueIdentifier = `LOWER(${this.multiMatch.valueIdentifier})`;
+      }
+    }
+
+    return result;
   }
 }
 
@@ -227,10 +698,12 @@ function buildJsonPath(parts: string[]): string {
   return jsonPath;
 }
 
-export function getCollectionField(
-  collection: Collection,
-  name: string,
-): CollectionField | null {
+function buildInExpr(column: string, count: number): string {
+  const placeholders = new Array(Math.max(count, 1)).fill("?").join(", ");
+  return `${column} IN (${placeholders})`;
+}
+
+export function getCollectionField(collection: Collection, name: string): CollectionField | null {
   for (const field of collection.fields) {
     if (field.name === name) {
       return field;
@@ -309,4 +782,14 @@ function arrVal(raw: unknown[], keys: string[]): unknown {
   }
 
   return extractNestedVal(result, ...keys.slice(1));
+}
+
+function toSlice(value: unknown): unknown[] {
+  if (value == null) {
+    return [];
+  }
+  if (Array.isArray(value)) {
+    return value;
+  }
+  return [value];
 }

@@ -4,10 +4,12 @@
 // Keep behavior aligned with upstream even if the parsing implementation differs.
 
 import type { FieldResolver, ResolverResult } from "./field_resolver.ts";
+import type { MultiMatchSubquery } from "./multi_match_subquery.ts";
 import { resolveIdentifierMacro } from "./identifier_macros.ts";
 import { tokenFunctions, type Token } from "./token_functions.ts";
 import { ErrFilterExprLimit } from "./types.ts";
 import type { SqlExpr } from "./types.ts";
+import { randomString } from "../security/random.ts";
 
 export type FilterData = string;
 
@@ -165,6 +167,16 @@ function literalToken(value: unknown): ResolverResult {
 }
 
 function buildComparison(op: string, left: ResolverResult, right: ResolverResult): SqlExpr {
+  return buildComparisonInternal(op, left, right, true);
+}
+
+function buildComparisonInternal(
+  op: string,
+  left: ResolverResult,
+  right: ResolverResult,
+  allowMultiMatch: boolean,
+): SqlExpr {
+  const anyMatch = op.startsWith("?");
   const normalized = normalizeOperator(op);
   let expr: SqlExpr;
   switch (normalized) {
@@ -209,6 +221,9 @@ function buildComparison(op: string, left: ResolverResult, right: ResolverResult
   }
   if (right.afterBuild) {
     expr = right.afterBuild(expr);
+  }
+  if (allowMultiMatch && !anyMatch) {
+    expr = applyMultiMatch(expr, normalized, left, right);
   }
   return expr;
 }
@@ -319,6 +334,99 @@ function isEmptyIdentifier(result: ResolverResult): boolean {
 
 function mergeParams(...params: unknown[][]): unknown[] {
   return params.flatMap((item) => item);
+}
+
+function applyMultiMatch(
+  expr: SqlExpr,
+  op: string,
+  left: ResolverResult,
+  right: ResolverResult,
+): SqlExpr {
+  if (left.multiMatchSubquery && right.multiMatchSubquery) {
+    const mm = buildManyVsMany(op, left, right);
+    return andExpr(expr, mm);
+  }
+
+  if (left.multiMatchSubquery) {
+    const mm = buildManyVsOne(op, right, left.multiMatchSubquery, left.nullFallback, false);
+    return andExpr(expr, mm);
+  }
+
+  if (right.multiMatchSubquery) {
+    const mm = buildManyVsOne(op, left, right.multiMatchSubquery, right.nullFallback, true);
+    return andExpr(expr, mm);
+  }
+
+  return expr;
+}
+
+function buildManyVsMany(op: string, left: ResolverResult, right: ResolverResult): SqlExpr {
+  const leftSub = left.multiMatchSubquery?.build() ?? { sql: "0=1", params: [] };
+  const rightSub = right.multiMatchSubquery?.build() ?? { sql: "0=1", params: [] };
+
+  const lAlias = `__ml${randomString(8)}`;
+  const rAlias = `__mr${randomString(8)}`;
+
+  const whereExpr = buildComparisonInternal(
+    op,
+    {
+      nullFallback: left.nullFallback,
+      identifier: `[[${lAlias}.multiMatchValue]]`,
+      params: [],
+    },
+    {
+      nullFallback: right.nullFallback,
+      identifier: `[[${rAlias}.multiMatchValue]]`,
+      params: [],
+      afterBuild: notExpr,
+    },
+    false,
+  );
+
+  const sql = `NOT EXISTS (SELECT 1 FROM (${leftSub.sql}) {{${lAlias}}} LEFT JOIN (${rightSub.sql}) {{${rAlias}}} WHERE ${whereExpr.sql})`;
+  return { sql, params: [...leftSub.params, ...rightSub.params, ...whereExpr.params] };
+}
+
+function buildManyVsOne(
+  op: string,
+  otherOperand: ResolverResult,
+  subQuery: MultiMatchSubquery,
+  nullFallback: ResolverResult["nullFallback"],
+  inverse: boolean,
+): SqlExpr {
+  const alias = `__sm${randomString(8)}`;
+
+  const r1: ResolverResult = {
+    nullFallback,
+    identifier: `[[${alias}.multiMatchValue]]`,
+    params: [],
+    afterBuild: notExpr,
+  };
+
+  const r2: ResolverResult = {
+    identifier: otherOperand.identifier,
+    params: otherOperand.params,
+    nullFallback: otherOperand.nullFallback ?? "auto",
+  };
+
+  const whereExpr = inverse
+    ? buildComparisonInternal(op, r2, r1, false)
+    : buildComparisonInternal(op, r1, r2, false);
+
+  const sub = subQuery.build();
+  const sql = `NOT EXISTS (SELECT 1 FROM (${sub.sql}) {{${alias}}} WHERE ${whereExpr.sql})`;
+  return { sql, params: [...sub.params, ...whereExpr.params] };
+}
+
+function andExpr(left: SqlExpr, right: SqlExpr): SqlExpr {
+  return {
+    sql: `(${left.sql} AND ${right.sql})`,
+    params: [...left.params, ...right.params],
+  };
+}
+
+function notExpr(expr: SqlExpr): SqlExpr {
+  return { sql: `NOT (${expr.sql})`, params: expr.params };
 }
 
 function repeatParams(params: unknown[], times: number): unknown[] {

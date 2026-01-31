@@ -1,7 +1,7 @@
 // Ported from pocketbase/tools/search/provider.go
 
 // Note: upstream Provider calls FieldResolver.UpdateQuery to apply joins/aliases.
-// The current port omits UpdateQuery support, so relation-based joins are not yet applied.
+// This port uses UpdateQuery to inject joins into raw SQL strings.
 
 import type { Database, SQLQueryBindings } from "bun:sqlite";
 import { columnify } from "../inflector/inflector.ts";
@@ -149,7 +149,7 @@ export class Provider {
 
     const baseParams = this.#query.params ?? [];
     let selectSql = this.#query.select;
-    let countSql = this.#query.count;
+    let countSql = this.#query.count ?? "";
 
     const filterParts: string[] = [];
     const filterParams: unknown[] = [];
@@ -194,6 +194,17 @@ export class Provider {
       selectSql = appendOrderBy(selectSql, sortParts.join(", "));
     }
 
+    if (this.#fieldResolver.updateQuery) {
+      const updated = this.#fieldResolver.updateQuery({
+        select: selectSql,
+        count: countSql || undefined,
+        params: baseParamsWithFilter,
+      });
+      selectSql = updated.select;
+      countSql = updated.count ?? "";
+      baseParamsWithFilter = updated.params as SQLQueryBindings[];
+    }
+
     if (!countSql) {
       countSql = buildCountQuery(selectSql, this.#countCol);
     }
@@ -208,7 +219,7 @@ export class Provider {
       this.#perPage = MaxPerPage;
     }
 
-    const baseParamsWithFilter = [...baseParams, ...filterParams] as SQLQueryBindings[];
+    let baseParamsWithFilter = [...baseParams, ...filterParams] as SQLQueryBindings[];
 
     const limit = this.#perPage;
     const offset = this.#perPage * (this.#page - 1);

@@ -1,12 +1,20 @@
 // Ported from pocketbase/core/record_field_resolver.go
 
-// Note: relation joins and multi-match handling are not yet ported; resolver currently covers
-// the list/view rule cases used by our seeded test data.
+// Note: this is a partial port; advanced rule modifiers and multi-match join optimizations
+// are implemented incrementally as related APIs are brought online.
 
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
 import type { RequestInfo } from "./event_request.ts";
-import type { FieldResolver, ResolverResult } from "../tools/search/field_resolver.ts";
+import { randomString } from "../tools/security/random.ts";
+import { buildFilterExpr } from "../tools/search/filter.ts";
+import type {
+  FieldResolver,
+  QueryUpdate,
+  ResolverResult,
+} from "../tools/search/field_resolver.ts";
+import type { Join } from "../tools/search/multi_match_subquery.ts";
+import { DefaultFilterExprLimit } from "../tools/search/types.ts";
 
 export class RecordFieldResolver implements FieldResolver {
   app: App;
@@ -15,7 +23,7 @@ export class RecordFieldResolver implements FieldResolver {
   staticRequestInfo: Record<string, unknown>;
   allowedFields: string[];
   allowHiddenFields: boolean;
-  joins: unknown[];
+  joins: Join[];
   listRuleJoins: Map<string, Collection> | null;
   joinAliasSuffix: string;
   baseCollectionAlias: string;
@@ -72,6 +80,61 @@ export class RecordFieldResolver implements FieldResolver {
 
   resolve(fieldName: string): ResolverResult {
     return parseAndRun(fieldName, this);
+  }
+
+  updateQuery(query: QueryUpdate): QueryUpdate {
+    let selectSql = query.select;
+    let countSql = query.count ?? "";
+    const baseParams = query.params ?? [];
+
+    let joinMap = new Map<string, Join>();
+    for (const join of this.joins) {
+      joinMap.set(join.tableAlias, join);
+    }
+
+    const listRuleParams: unknown[] = [];
+
+    if (this.listRuleJoins && this.listRuleJoins.size > 0) {
+      for (const [alias, collection] of this.listRuleJoins.entries()) {
+        if (!collection.listRule || collection.listRule === "") {
+          continue;
+        }
+
+        const clone = new RecordFieldResolver(this.app, collection, this.requestInfo, true);
+        clone.baseCollectionAlias = alias;
+        clone.joinAliasSuffix = randomString(8);
+
+        const expr = buildFilterExpr(collection.listRule, clone, DefaultFilterExprLimit);
+        if (expr.sql) {
+          selectSql = appendWhere(selectSql, expr.sql);
+          if (countSql) {
+            countSql = appendWhere(countSql, expr.sql);
+          }
+          listRuleParams.push(...expr.params);
+        }
+
+        for (const join of clone.joins) {
+          joinMap.set(join.tableAlias, join);
+        }
+      }
+    }
+
+    const joinList = Array.from(joinMap.values());
+    const joinParams = collectJoinParams(joinList);
+
+    if (joinList.length > 0) {
+      selectSql = ensureDistinct(selectSql);
+      selectSql = injectJoins(selectSql, joinList);
+      if (countSql) {
+        countSql = injectJoins(countSql, joinList);
+      }
+    }
+
+    return {
+      select: selectSql,
+      count: countSql || undefined,
+      params: [...joinParams, ...baseParams, ...listRuleParams],
+    };
   }
 
   resolveStaticRequestField(...path: string[]): ResolverResult {
@@ -144,8 +207,35 @@ export class RecordFieldResolver implements FieldResolver {
     return this.app.findCollectionByNameOrId(collectionNameOrId);
   }
 
-  registerJoin(): void {
-    // TODO: join handling will be added when relation resolution is ported.
+  registerJoin(tableName: string, tableAlias: string, on?: { sql: string; params: unknown[] } | null, params: unknown[] = []): void {
+    const join: Join = {
+      tableName,
+      tableAlias,
+      on: on ?? undefined,
+      params,
+    };
+
+    if (!this.allowHiddenFields) {
+      const collection = this.loadCollection(tableName);
+      if (collection) {
+        if (collection.listRule === null) {
+          throw new Error(
+            `"${collection.name}" fields can be accessed only when allowHiddenFields is enabled or by superusers`,
+          );
+        }
+        if (!this.listRuleJoins) {
+          this.listRuleJoins = new Map();
+        }
+        this.listRuleJoins.set(tableAlias, collection);
+      }
+    }
+
+    const index = this.joins.findIndex((existing) => existing.tableAlias === tableAlias);
+    if (index >= 0) {
+      this.joins[index] = join;
+    } else {
+      this.joins.push(join);
+    }
   }
 }
 // parseAndRun and helpers are implemented in record_field_resolver_runner.ts.
@@ -167,3 +257,79 @@ export {
 };
 
 export const FieldTypeNumber = "number";
+
+function collectJoinParams(joins: Join[]): unknown[] {
+  const params: unknown[] = [];
+  for (const join of joins) {
+    if (join.params && join.params.length > 0) {
+      params.push(...join.params);
+    }
+    if (join.on?.params && join.on.params.length > 0) {
+      params.push(...join.on.params);
+    }
+  }
+  return params;
+}
+
+function injectJoins(sql: string, joins: Join[]): string {
+  if (joins.length === 0) {
+    return sql;
+  }
+
+  const lower = sql.toLowerCase();
+  const fromIndex = lower.indexOf(" from ");
+  if (fromIndex === -1) {
+    return sql;
+  }
+
+  let insertAt = sql.length;
+  const keywords = [" where ", " order by ", " group by ", " having ", " limit "];
+  for (const keyword of keywords) {
+    const idx = lower.indexOf(keyword, fromIndex + 6);
+    if (idx >= 0 && idx < insertAt) {
+      insertAt = idx;
+    }
+  }
+
+  const joinSql = joins.map((join) => buildJoinSql(join)).join(" ");
+  return `${sql.slice(0, insertAt)} ${joinSql}${sql.slice(insertAt)}`;
+}
+
+function buildJoinSql(join: Join): string {
+  const tableSql = quoteTableName(join.tableName);
+  const aliasSql = join.tableAlias ? ` {{${join.tableAlias}}}` : "";
+  const onSql = join.on?.sql ? ` ON ${join.on.sql}` : "";
+  return `LEFT JOIN ${tableSql}${aliasSql}${onSql}`;
+}
+
+function quoteTableName(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+  if (trimmed.includes("(") || /\s/.test(trimmed) || trimmed.includes("{{") || trimmed.includes("[[")) {
+    return trimmed;
+  }
+  return `{{${trimmed}}}`;
+}
+
+function ensureDistinct(sql: string): string {
+  const normalized = sql.trimStart();
+  if (normalized.toLowerCase().startsWith("select distinct")) {
+    return sql;
+  }
+  if (normalized.toLowerCase().startsWith("select ")) {
+    return sql.replace(/select\s+/i, "select distinct ");
+  }
+  return sql;
+}
+
+function appendWhere(baseSql: string, clause: string): string {
+  if (!clause) {
+    return baseSql;
+  }
+  if (/\bwhere\b/i.test(baseSql)) {
+    return `${baseSql} AND ${clause}`;
+  }
+  return `${baseSql} WHERE ${clause}`;
+}

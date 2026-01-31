@@ -12,6 +12,14 @@ export class SimpleFieldResolver implements FieldResolver {
     this.#allowedFields = allowedFields;
   }
 
+  updateQuery(query: { select: string; count?: string; params: unknown[] }): {
+    select: string;
+    count?: string;
+    params: unknown[];
+  } {
+    return query;
+  }
+
   resolve(field: string): ResolverResult {
     if (this.#allowedFields.length > 0 && !matchesAllowedField(field, this.#allowedFields)) {
       throw new Error(`failed to resolve field "${field}"`);

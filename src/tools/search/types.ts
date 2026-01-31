@@ -23,7 +23,7 @@ export type SearchResult<T> = {
 
 export type SearchQuery = {
   select: string;
-  count: string;
+  count?: string;
   params?: unknown[];
 };
 

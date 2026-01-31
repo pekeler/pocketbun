@@ -1,9 +1,10 @@
 // Ported from pocketbase/tools/search/simple_field_resolver.go
 
-// Note: upstream FieldResolver also exposes UpdateQuery and richer multi-match behavior.
-// Those are not yet ported; callers should not rely on join-mutation hooks here.
+// Note: upstream FieldResolver exposes UpdateQuery and multi-match behavior.
+// This port implements UpdateQuery selectively for record field resolver joins.
 
 import type { SqlExpr } from "./types.ts";
+import type { MultiMatchSubquery } from "./multi_match_subquery.ts";
 
 export type NullFallbackPreference = "auto" | "disabled" | "enforced";
 
@@ -15,10 +16,17 @@ export type ResolverResult = {
   identifier: string;
   nullFallback: NullFallbackPreference;
   params: unknown[];
-  multiMatchSubquery?: unknown;
+  multiMatchSubquery?: MultiMatchSubquery;
   afterBuild?: (expr: SqlExpr) => SqlExpr;
+};
+
+export type QueryUpdate = {
+  select: string;
+  count?: string;
+  params: unknown[];
 };
 
 export interface FieldResolver {
   resolve(field: string): ResolverResult;
+  updateQuery?(query: QueryUpdate): QueryUpdate;
 }
