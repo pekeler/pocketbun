@@ -87,12 +87,16 @@ export class URLField implements Field {
     }
 
     const host = new URL(value).host;
+    const onlyDomains = Array.isArray(this.OnlyDomains) ? this.OnlyDomains : [];
+    const exceptDomains = Array.isArray(this.ExceptDomains) ? this.ExceptDomains : [];
+    this.OnlyDomains = onlyDomains;
+    this.ExceptDomains = exceptDomains;
 
-    if (this.OnlyDomains.length > 0 && !this.OnlyDomains.includes(host)) {
+    if (onlyDomains.length > 0 && !onlyDomains.includes(host)) {
       return newError("validation_url_domain_not_allowed", "Url domain is not allowed");
     }
 
-    if (this.ExceptDomains.length > 0 && this.ExceptDomains.includes(host)) {
+    if (exceptDomains.length > 0 && exceptDomains.includes(host)) {
       return newError("validation_url_domain_not_allowed", "Url domain is not allowed");
     }
 
@@ -110,8 +114,13 @@ export class URLField implements Field {
       errors.name = nameErr;
     }
 
-    const hasOnly = this.OnlyDomains.length > 0;
-    const hasExcept = this.ExceptDomains.length > 0;
+    const onlyDomains = Array.isArray(this.OnlyDomains) ? this.OnlyDomains : [];
+    const exceptDomains = Array.isArray(this.ExceptDomains) ? this.ExceptDomains : [];
+    this.OnlyDomains = onlyDomains;
+    this.ExceptDomains = exceptDomains;
+
+    const hasOnly = onlyDomains.length > 0;
+    const hasExcept = exceptDomains.length > 0;
 
     if (hasOnly && hasExcept) {
       errors.onlyDomains = newError("validation_invalid_domains", "OnlyDomains must be empty.");
@@ -119,11 +128,11 @@ export class URLField implements Field {
       return new ValidationErrors(errors);
     }
 
-    if (hasOnly && !areDomainsValid(this.OnlyDomains)) {
+    if (hasOnly && !areDomainsValid(onlyDomains)) {
       errors.onlyDomains = newError("validation_invalid_domains", "Invalid domains.");
     }
 
-    if (hasExcept && !areDomainsValid(this.ExceptDomains)) {
+    if (hasExcept && !areDomainsValid(exceptDomains)) {
       errors.exceptDomains = newError("validation_invalid_domains", "Invalid domains.");
     }
 

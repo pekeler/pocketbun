@@ -103,8 +103,25 @@ export class FieldsList extends Array<Field> {
     const wrapper: Record<string, unknown>[] = [];
     for (const field of this) {
       const raw = JSON.parse(JSON.stringify(field)) as Record<string, unknown>;
-      raw.type = field.Type();
-      wrapper.push(raw);
+      const normalized: Record<string, unknown> = {};
+
+      for (const [key, value] of Object.entries(raw)) {
+        if (!key) {
+          continue;
+        }
+        if (key === "type") {
+          continue;
+        }
+        const lowerKey = key[0]!.toLowerCase() + key.slice(1);
+        if (key[0]!.toLowerCase() !== key[0]!) {
+          normalized[lowerKey] = value;
+        } else if (!(lowerKey in normalized)) {
+          normalized[lowerKey] = value;
+        }
+      }
+
+      normalized.type = field.Type();
+      wrapper.push(normalized);
     }
     return wrapper;
   }

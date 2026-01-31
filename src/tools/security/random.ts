@@ -18,4 +18,23 @@ export function randomStringWithAlphabet(length: number, alphabet: string): stri
   return randomString(length, alphabet);
 }
 
+// PseudorandomString generates a non-crypto random string with the specified length.
+export function pseudorandomString(length: number, alphabet = defaultAlphabet): string {
+  if (length <= 0 || alphabet.length === 0) {
+    return "";
+  }
+  const chars = [] as string[];
+  const max = alphabet.length;
+  for (let i = 0; i < length; i += 1) {
+    const idx = Math.floor(Math.random() * max);
+    chars.push(alphabet[idx] ?? "");
+  }
+  return chars.join("");
+}
+
+// PseudorandomStringWithAlphabet generates a non-crypto random string with the specified length.
+export function pseudorandomStringWithAlphabet(length: number, alphabet: string): string {
+  return pseudorandomString(length, alphabet);
+}
+
 export { randomStringByRegex };

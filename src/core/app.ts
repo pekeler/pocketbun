@@ -5,6 +5,7 @@ import type { Settings } from "./settings.ts";
 import type { Store } from "./store.ts";
 import type { Record as RecordModel } from "./record.ts";
 import type { Collection } from "./collection.ts";
+import type { FieldsList } from "./fields_list.ts";
 import type { SqlExpr } from "../tools/search/types.ts";
 import type { System } from "../tools/filesystem/filesystem.ts";
 import type { Hook } from "../tools/hook/hook.ts";
@@ -13,6 +14,7 @@ import type {
   CollectionsImportRequestEvent,
   CollectionsListRequestEvent,
 } from "./events.ts";
+import type { TableInfoRow } from "./db_table.ts";
 
 export type Logger = {
   Warn: (message: string, ...args: unknown[]) => void;
@@ -36,6 +38,7 @@ export interface App {
   NewFilesystem(): System;
   Save(model: RecordModel | Collection): Error | null;
   Delete(model: RecordModel | Collection): Error | null;
+  Validate(model: RecordModel | Collection): Error | null;
   TruncateCollection(collection: Collection): Error | null;
   ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Error | null;
   RunInTransaction(fn: (txApp: App) => Error | null): Error | null;
@@ -44,6 +47,8 @@ export interface App {
   findAuthRecordByToken(token: string, validTypes?: string[]): RecordModel;
   findCollectionById(id: string): Collection | null;
   findCollectionByNameOrId(identifier: string): Collection | null;
+  HasTable(name: string): boolean;
+  IsCollectionNameUnique(name: string, excludeId?: string): boolean;
   findRecordById(collection: Collection, id: string, rule?: SqlExpr | null): RecordModel | null;
   findFirstRecordByFilter(
     collectionOrIdentifier: Collection | string,
@@ -56,4 +61,9 @@ export interface App {
   OnCollectionUpdateRequest(): Hook<CollectionRequestEvent>;
   OnCollectionDeleteRequest(): Hook<CollectionRequestEvent>;
   OnCollectionsImportRequest(): Hook<CollectionsImportRequestEvent>;
+
+  SaveView(name: string, selectQuery: string): Error | null;
+  DeleteView(name: string): Error | null;
+  CreateViewFields(selectQuery: string): FieldsList;
+  TableInfo(tableName: string): TableInfoRow[];
 }

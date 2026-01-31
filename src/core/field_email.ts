@@ -90,10 +90,14 @@ export class EmailField implements Field {
     }
 
     const domain = value.slice(value.lastIndexOf("@") + 1);
-    if (this.OnlyDomains.length > 0 && !this.OnlyDomains.includes(domain)) {
+    const onlyDomains = Array.isArray(this.OnlyDomains) ? this.OnlyDomains : [];
+    const exceptDomains = Array.isArray(this.ExceptDomains) ? this.ExceptDomains : [];
+    this.OnlyDomains = onlyDomains;
+    this.ExceptDomains = exceptDomains;
+    if (onlyDomains.length > 0 && !onlyDomains.includes(domain)) {
       return newError("validation_email_domain_not_allowed", "Email domain is not allowed");
     }
-    if (this.ExceptDomains.length > 0 && this.ExceptDomains.includes(domain)) {
+    if (exceptDomains.length > 0 && exceptDomains.includes(domain)) {
       return newError("validation_email_domain_not_allowed", "Email domain is not allowed");
     }
 
@@ -112,7 +116,12 @@ export class EmailField implements Field {
       errors.name = nameErr;
     }
 
-    if (this.OnlyDomains.length > 0 && this.ExceptDomains.length > 0) {
+    const onlyDomains = Array.isArray(this.OnlyDomains) ? this.OnlyDomains : [];
+    const exceptDomains = Array.isArray(this.ExceptDomains) ? this.ExceptDomains : [];
+    this.OnlyDomains = onlyDomains;
+    this.ExceptDomains = exceptDomains;
+
+    if (onlyDomains.length > 0 && exceptDomains.length > 0) {
       errors.onlyDomains = newError(
         "validation_email_domain_not_allowed",
         "Only one of onlyDomains/exceptDomains can be set",
@@ -121,15 +130,15 @@ export class EmailField implements Field {
         "validation_email_domain_not_allowed",
         "Only one of onlyDomains/exceptDomains can be set",
       );
-    } else if (this.OnlyDomains.length > 0) {
-      for (const domain of this.OnlyDomains) {
+    } else if (onlyDomains.length > 0) {
+      for (const domain of onlyDomains) {
         if (!isDomain(domain)) {
           errors.onlyDomains = newError("validation_invalid_domain", "Invalid domain");
           break;
         }
       }
-    } else if (this.ExceptDomains.length > 0) {
-      for (const domain of this.ExceptDomains) {
+    } else if (exceptDomains.length > 0) {
+      for (const domain of exceptDomains) {
         if (!isDomain(domain)) {
           errors.exceptDomains = newError("validation_invalid_domain", "Invalid domain");
           break;

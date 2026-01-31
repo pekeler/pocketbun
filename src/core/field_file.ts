@@ -149,8 +149,10 @@ export class FileField
     if (this.MaxSize < 0 || this.MaxSize > maxSafeJSONInt) {
       errors.maxSize = newError("validation_invalid_max", "Invalid maxSize value.");
     }
-    if (this.Thumbs.length > 0) {
-      for (const thumb of this.Thumbs) {
+    const thumbs = Array.isArray(this.Thumbs) ? this.Thumbs : [];
+    this.Thumbs = thumbs;
+    if (thumbs.length > 0) {
+      for (const thumb of thumbs) {
         if (thumb === "0x0" || thumb === "0x0t" || thumb === "0x0b" || thumb === "0x0f") {
           errors.thumbs = newError("validation_invalid_thumb", "Invalid thumb size.");
           break;

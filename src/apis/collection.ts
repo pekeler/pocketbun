@@ -7,10 +7,11 @@ import {
   NewAuthCollection,
   NewBaseCollection,
   NewViewCollection,
+  applyCollectionData,
+  collectionFromRow,
   parseCollectionFields,
 } from "../core/collection.ts";
 import { CollectionRequestEvent, CollectionsImportRequestEvent, CollectionsListRequestEvent } from "../core/events.ts";
-import { FieldsList } from "../core/fields_list.ts";
 import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";
 import type { RouterGroup } from "../tools/router/group.ts";
 import { Provider } from "../tools/search/provider.ts";
@@ -127,12 +128,12 @@ async function collectionView(app: App, event: RequestEvent): Promise<Response> 
 
   const hookEvent = new CollectionRequestEvent(event, collection);
   const out = await app.OnCollectionViewRequest().Trigger(hookEvent, async () =>
-    event.json(200, normalizeCollectionRow(toCollectionRow(hookEvent.Collection))),
+    event.json(200, normalizeCollectionRow(hookEvent.Collection)),
   );
   if (out instanceof Response) {
     return out;
   }
-  return event.json(200, normalizeCollectionRow(toCollectionRow(hookEvent.Collection)));
+  return event.json(200, normalizeCollectionRow(hookEvent.Collection));
 }
 
 async function collectionCreate(app: App, event: RequestEvent): Promise<Response> {
@@ -156,7 +157,7 @@ async function collectionCreate(app: App, event: RequestEvent): Promise<Response
     if (row) {
       return event.json(200, normalizeCollectionRow(row));
     }
-    return event.json(200, normalizeCollectionRow(toCollectionRow(hookEvent.Collection)));
+    return event.json(200, normalizeCollectionRow(hookEvent.Collection));
   });
   if (out instanceof Response) {
     return out;
@@ -190,7 +191,7 @@ async function collectionUpdate(app: App, event: RequestEvent): Promise<Response
     if (row) {
       return event.json(200, normalizeCollectionRow(row));
     }
-    return event.json(200, normalizeCollectionRow(toCollectionRow(hookEvent.Collection)));
+  return event.json(200, normalizeCollectionRow(hookEvent.Collection));
   });
   if (out instanceof Response) {
     return out;
@@ -309,69 +310,22 @@ function collectionScaffolds(app: App, event: RequestEvent): Response {
 }
 
 function normalizeCollectionRow(row: CollectionRow | Collection): CollectionResponse {
-  const source = row instanceof Collection ? toCollectionRow(row) : row;
-  return {
-    id: source.id,
-    created: source.created,
-    updated: source.updated,
-    name: source.name,
-    system: Boolean(source.system),
-    type: source.type,
-    fields: parseJsonArray(source.fields),
-    indexes: parseJsonArray(source.indexes),
-    listRule: source.listRule ?? null,
-    viewRule: source.viewRule ?? null,
-    createRule: source.createRule ?? null,
-    updateRule: source.updateRule ?? null,
-    deleteRule: source.deleteRule ?? null,
-    options: parseJsonObject(source.options),
-  };
-}
-
-function collectionFromRow(row: CollectionRow): Collection {
-  const options = parseJsonObject(row.options);
-  const fieldsRaw = parseJsonArray(row.fields);
-  let fieldsList = new FieldsList();
-  try {
-    fieldsList = FieldsList.fromJSON(row.fields);
-  } catch {
-    fieldsList = new FieldsList();
-  }
-  const indexes = parseJsonArray(row.indexes).filter((value) => typeof value === "string") as string[];
-
-  return new Collection({
-    id: row.id,
-    name: row.name,
-    type: row.type,
-    system: Boolean(row.system),
-    fields: parseCollectionFields(fieldsRaw),
-    Fields: fieldsList,
-    indexes,
-    listRule: row.listRule ?? null,
-    viewRule: row.viewRule ?? null,
-    createRule: row.createRule ?? null,
-    updateRule: row.updateRule ?? null,
-    deleteRule: row.deleteRule ?? null,
-    options,
-  });
-}
-
-function toCollectionRow(collection: Collection): CollectionRow {
+  const collection = row instanceof Collection ? row : collectionFromRow(row);
   return {
     id: collection.id,
-    created: "",
-    updated: "",
+    created: collection.created.toString(),
+    updated: collection.updated.toString(),
     name: collection.name,
-    system: collection.system ? 1 : 0,
+    system: collection.system,
     type: collection.type,
-    fields: JSON.stringify(collection.Fields.toJSON()),
-    indexes: JSON.stringify(collection.indexes ?? []),
+    fields: collection.Fields.toJSON(),
+    indexes: [...collection.indexes],
     listRule: collection.listRule ?? null,
     viewRule: collection.viewRule ?? null,
     createRule: collection.createRule ?? null,
     updateRule: collection.updateRule ?? null,
     deleteRule: collection.deleteRule ?? null,
-    options: JSON.stringify(collection.options ?? {}),
+    options: collection.SafeOptions(),
   };
 }
 
@@ -418,60 +372,8 @@ function collectionFromData(data: Record<string, unknown>): Collection {
   return collection;
 }
 
-function applyCollectionData(collection: Collection, data: Record<string, unknown>): void {
-  if (typeof data.name === "string") {
-    collection.name = data.name;
-  }
-  if (typeof data.type === "string") {
-    collection.type = data.type;
-  }
-  if (typeof data.system === "boolean") {
-    collection.system = data.system;
-  }
-  if (Array.isArray(data.fields)) {
-    try {
-      collection.Fields = FieldsList.fromJSON(JSON.stringify(data.fields));
-    } catch {
-      collection.Fields = new FieldsList();
-    }
-  }
-  if (Array.isArray(data.indexes)) {
-    collection.indexes = data.indexes.filter((value) => typeof value === "string") as string[];
-  }
-  if (typeof data.listRule === "string") {
-    collection.listRule = data.listRule;
-  }
-  if (typeof data.viewRule === "string") {
-    collection.viewRule = data.viewRule;
-  }
-  if (typeof data.createRule === "string") {
-    collection.createRule = data.createRule;
-  }
-  if (typeof data.updateRule === "string") {
-    collection.updateRule = data.updateRule;
-  }
-  if (typeof data.deleteRule === "string") {
-    collection.deleteRule = data.deleteRule;
-  }
-  if (typeof data.options === "object" && data.options) {
-    collection.options = data.options as any;
-  }
-}
-
 function mergeDefaultFields(collection: Collection): void {
-  let defaults: Collection;
-  if (collection.isAuth()) {
-    defaults = NewAuthCollection(collection.name, collection.id);
-  } else if (collection.isView()) {
-    defaults = NewViewCollection(collection.name, collection.id);
-  } else {
-    defaults = NewBaseCollection(collection.name, collection.id);
-  }
-
-  const merged = new FieldsList();
-  merged.Add(...defaults.Fields);
-  merged.Add(...collection.Fields);
-  collection.Fields = merged;
+  collection.initDefaultFields();
   collection.fields = parseCollectionFields(collection.Fields.toJSON());
 }
 
@@ -538,33 +440,6 @@ function resolveSafeErrorItem(err: unknown): Record<string, unknown> {
   }
 
   return data;
-}
-
-function parseJsonArray(value: string): unknown[] {
-  if (!value) {
-    return [];
-  }
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function parseJsonObject(value: string): Record<string, unknown> {
-  if (!value) {
-    return {};
-  }
-  try {
-    const parsed = JSON.parse(value);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
-    }
-  } catch {
-    // fallthrough
-  }
-  return {};
 }
 
 function requireSuperuser(event: RequestEvent): Response | null {

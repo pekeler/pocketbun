@@ -43,6 +43,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-31 17:04Z) Replace thumbnail placeholder with real image resizing using Sharp and align CreateThumb behavior with upstream.
 - [x] (2026-01-31 19:05Z) Add initial record CRUD write endpoints (create/update/delete) with request data parsing, record modifiers/auth helpers, and core record model tests.
 - [x] (2026-01-31 20:25Z) Add initial collection CRUD endpoints (create/update/delete/truncate/import/scaffolds), basic collection persistence, and partial API tests.
+- [x] (2026-01-31 21:15Z) Port collection options/view helpers and validation, add db table info helpers, and wire BaseApp view/table methods.
 - [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -300,3 +301,4 @@ Plan change note: 2026-01-31, documented dbx helper exports and example usage in
 Plan change note: 2026-01-31, added superuser-only record list/view endpoints with basic record export and tests.
 Plan change note: 2026-01-31, reaffirmed mechanical upstream porting and updated Milestone 3 to port record field resolver/rule handling directly.
 Plan change note: 2026-01-31, ported a minimal RecordFieldResolver for list/view rule filtering; relation joins and advanced modifiers remain to be ported.
+Plan change note: 2026-01-31, recorded progress on collection options/view helpers and collection validation plus BaseApp view/table wiring.

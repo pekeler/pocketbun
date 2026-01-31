@@ -12,9 +12,12 @@ import {
   NewAuthCollection,
   NewBaseCollection,
   NewViewCollection,
+  applyCollectionData,
+  collectionFromRow,
   parseCollectionFields,
+  type CollectionRow,
 } from "./collection.ts";
-import { FieldsList } from "./fields_list.ts";
+import { FieldsList, NewFieldsList } from "./fields_list.ts";
 import { AppMigrations, MigrationsRunner, SystemMigrations } from "./migrations_runner.ts";
 import { MigrationsList } from "./migrations_list.ts";
 import {
@@ -50,7 +53,7 @@ import {
   InterceptorActionUpdateExecute,
   InterceptorActionValidate,
 } from "./field.ts";
-import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
+import { ValidationErrors, newError } from "../internal/compat/validation.ts";
 import { DateTime, GeoPoint, JSONRaw, NowDateTime } from "../tools/types/index.ts";
 import { NewLocal } from "../tools/filesystem/filesystem.ts";
 import { randomString } from "../tools/security/random.ts";
@@ -59,6 +62,9 @@ import type {
   CollectionsImportRequestEvent,
   CollectionsListRequestEvent,
 } from "./events.ts";
+import { validateCollection } from "./collection_validate.ts";
+import { TableInfo } from "./db_table.ts";
+import { CreateViewFields, DeleteView, SaveView } from "./view.ts";
 
 export type BaseAppConfig = {
   dataDir?: string;
@@ -195,7 +201,7 @@ export class BaseApp implements App {
 
   auxHasTable(name: string): boolean {
     const row = this.auxDb()
-      .query("select name from sqlite_master where type='table' and name = ?")
+      .query("select name from sqlite_master where type in ('table','view') and lower(name) = lower(?)")
       .get(name) as { name?: string } | undefined;
     return Boolean(row?.name);
   }
@@ -274,7 +280,7 @@ export class BaseApp implements App {
   findCollectionById(id: string): Collection | null {
     const row = this.db()
       .query(
-        "select id, name, system, type, fields, indexes, listRule, viewRule, createRule, updateRule, deleteRule, options from _collections where id = ?",
+        "select id, name, system, type, fields, indexes, listRule, viewRule, createRule, updateRule, deleteRule, options, created, updated from _collections where id = ?",
       )
       .get(id) as CollectionRow | undefined;
 
@@ -288,7 +294,7 @@ export class BaseApp implements App {
   findCollectionByNameOrId(identifier: string): Collection | null {
     const row = this.db()
       .query(
-        "select id, name, system, type, fields, indexes, listRule, viewRule, createRule, updateRule, deleteRule, options from _collections where id = ? or name = ?",
+        "select id, name, system, type, fields, indexes, listRule, viewRule, createRule, updateRule, deleteRule, options, created, updated from _collections where id = ? or name = ?",
       )
       .get(identifier, identifier) as CollectionRow | undefined;
 
@@ -406,6 +412,15 @@ export class BaseApp implements App {
     return this.saveCollection(model);
   }
 
+  Validate(model: RecordModel | Collection): Error | null {
+    if (model instanceof RecordModel) {
+      return this.validateRecord(model);
+    }
+
+    const original = model.IsNew() ? null : this.findCollectionById(model.LastSavedPK());
+    return this.validateCollection(model, original);
+  }
+
   Delete(model: RecordModel | Collection): Error | null {
     if (model instanceof RecordModel) {
       const action = InterceptorActionDelete;
@@ -479,7 +494,7 @@ export class BaseApp implements App {
     if (collection.isView()) {
       return new Error("view collections cannot be truncated");
     }
-    this.db().run(`delete from "{{${collection.name}}}"`);
+    this.db().run(`delete from {{${collection.name}}}`);
     return null;
   }
 
@@ -575,27 +590,37 @@ export class BaseApp implements App {
   }
 
   private saveCollection(collection: Collection): Error | null {
-    const original = collection.isNew() ? null : this.findCollectionById(collection.id);
+    const original = collection.isNew() ? null : this.findCollectionById(collection.LastSavedPK());
+
+    if (!collection.type) {
+      collection.type = "base";
+    }
+
+    if (collection.isNew()) {
+      collection.initDefaultId();
+      collection.created = NowDateTime();
+    }
+    collection.updated = NowDateTime();
+
+    collection.Fields = NewFieldsList(...collection.Fields);
+    collection.initDefaultFields();
+    if (collection.isAuth()) {
+      collection.unsetMissingOAuth2MappedFields();
+    }
+    collection.updateGeneratedIdIfExists(this);
 
     normalizeCollectionFields(collection);
-    ensureDefaultCollectionFields(collection);
 
     const validationErr = this.validateCollection(collection, original);
     if (validationErr) {
       return validationErr;
     }
 
-    if (collection.isNew()) {
-      if (!collection.id) {
-        collection.id = generateCollectionId(collection.type, collection.name);
-      }
-      collection.id = ensureUniqueCollectionId(this.db(), collection.id, collection.type, collection.name);
-    }
-
     const fieldsJson = JSON.stringify(collection.Fields.toJSON());
     const indexesJson = JSON.stringify(collection.indexes ?? []);
     const optionsJson = JSON.stringify(collection.options ?? {});
-    const now = NowDateTime().toString();
+    const now = collection.updated.toString();
+    const created = collection.created.toString();
 
     if (collection.isNew()) {
       this.db().run(
@@ -616,7 +641,7 @@ export class BaseApp implements App {
           collection.updateRule ?? null,
           collection.deleteRule ?? null,
           optionsJson,
-          now,
+          created,
           now,
         ],
       );
@@ -666,7 +691,7 @@ export class BaseApp implements App {
     }
 
     if (!collection.isView()) {
-      this.db().run(`drop table if exists "{{${collection.name}}}"`);
+    this.db().run(`drop table if exists {{${collection.name}}}`);
     }
 
     this.db().run("delete from _collections where id = ?", [collection.id]);
@@ -674,61 +699,7 @@ export class BaseApp implements App {
   }
 
   private validateCollection(collection: Collection, original: Collection | null): Error | null {
-    const errors: Record<string, Error> = {};
-
-    if (required(collection.name)) {
-      errors.name = required(collection.name) ?? newError("validation_required", "Cannot be blank.");
-    } else if (!/^\w+$/.test(collection.name)) {
-      errors.name = newError("validation_invalid_collection_name", "Invalid collection name.");
-    } else if (!this.isCollectionNameUnique(collection.name, original?.id)) {
-      errors.name = newError(
-        "validation_collection_name_exists",
-        "Collection name must be unique (case insensitive).",
-      );
-    }
-
-    if (!collection.type || !["base", "auth", "view"].includes(collection.type)) {
-      errors.type = newError("validation_invalid_collection_type", "Invalid collection type.");
-    }
-
-    const fieldErrors: Record<string, Error> = {};
-    const seenIds = new Set<string>();
-    const seenNames = new Set<string>();
-    collection.Fields.forEach((field, index) => {
-      const id = field.GetId();
-      if (id && seenIds.has(id)) {
-        fieldErrors[String(index)] = new ValidationErrors({
-          id: newError(
-            "validation_duplicated_field_id",
-            `Duplicated or invalid field id "${id}"`,
-          ),
-        });
-        return;
-      }
-      seenIds.add(id);
-
-      const nameLower = field.GetName().toLowerCase();
-      if (nameLower && seenNames.has(nameLower)) {
-        const err = newError(
-          "validation_duplicated_field_name",
-          "Duplicated or invalid field name {{.fieldName}}",
-        ).setParams({ fieldName: field.GetName() });
-        fieldErrors[String(index)] = new ValidationErrors({ name: err });
-        return;
-      }
-      seenNames.add(nameLower);
-
-      const err = field.ValidateSettings(null, this, collection);
-      if (err) {
-        fieldErrors[String(index)] = err;
-      }
-    });
-
-    if (Object.keys(fieldErrors).length > 0) {
-      errors.fields = new ValidationErrors(fieldErrors);
-    }
-
-    return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+    return validateCollection(this, collection, original);
   }
 
   private syncRecordTableSchema(newCollection: Collection, oldCollection: Collection | null): Error | null {
@@ -738,28 +709,42 @@ export class BaseApp implements App {
 
     return this.RunInTransaction((txApp) => {
       const db = (txApp as BaseApp).db();
-      const hasOldTable = oldCollection ? (txApp as BaseApp).hasTable(oldCollection.name) : false;
+      const hasOldTable = oldCollection ? (txApp as BaseApp).HasTable(oldCollection.name) : false;
 
       if (!hasOldTable) {
         const columns = newCollection.Fields.map(
           (field) => `"${field.GetName()}" ${field.ColumnType(txApp)}`,
         );
-        db.run(`create table if not exists "{{${newCollection.name}}}" (${columns.join(", ")})`);
+        db.run(`create table if not exists {{${newCollection.name}}} (${columns.join(", ")})`);
         return (txApp as BaseApp).createCollectionIndexes(newCollection);
       }
 
       const oldTableName = oldCollection?.name ?? newCollection.name;
       const newTableName = newCollection.name;
-      if (oldTableName !== newTableName) {
-        db.run(`alter table "{{${oldTableName}}}" rename to "{{${newTableName}}}"`);
+      const needTableRename = oldTableName.toLowerCase() !== newTableName.toLowerCase();
+      if (needTableRename) {
+        db.run(`alter table {{${oldTableName}}} rename to {{${newTableName}}}`);
       }
 
       const oldFields = oldCollection?.Fields ?? new FieldsList();
       const newFields = newCollection.Fields;
+      const oldIndexesJson = JSON.stringify(oldCollection?.indexes ?? []);
+      const newIndexesJson = JSON.stringify(newCollection.indexes ?? []);
+      const oldFieldsJson = JSON.stringify(oldFields.toJSON());
+      const newFieldsJson = JSON.stringify(newFields.toJSON());
+      const needIndexesUpdate =
+        needTableRename || oldFieldsJson !== newFieldsJson || oldIndexesJson !== newIndexesJson;
+
+      if (needIndexesUpdate && oldCollection) {
+        const dropErr = (txApp as BaseApp).dropCollectionIndexes(oldCollection);
+        if (dropErr) {
+          return dropErr;
+        }
+      }
 
       for (const oldField of oldFields) {
         if (!newFields.GetById(oldField.GetId())) {
-          db.run(`alter table "{{${newTableName}}}" drop column "${oldField.GetName()}"`);
+          db.run(`alter table {{${newTableName}}} drop column "${oldField.GetName()}"`);
         }
       }
 
@@ -770,37 +755,98 @@ export class BaseApp implements App {
           const tempName = `${field.GetName()}${randomString(5)}`;
           toRename[tempName] = field.GetName();
           db.run(
-            `alter table "{{${newTableName}}}" add column "${tempName}" ${field.ColumnType(txApp)}`,
+            `alter table {{${newTableName}}} add column "${tempName}" ${field.ColumnType(txApp)}`,
           );
         } else if (oldField.GetName() !== field.GetName()) {
           const tempName = `${field.GetName()}${randomString(5)}`;
           toRename[tempName] = field.GetName();
           db.run(
-            `alter table "{{${newTableName}}}" rename column "${oldField.GetName()}" to "${tempName}"`,
+            `alter table {{${newTableName}}} rename column "${oldField.GetName()}" to "${tempName}"`,
           );
         }
       }
 
       for (const [tempName, actualName] of Object.entries(toRename)) {
         db.run(
-          `alter table "{{${newTableName}}}" rename column "${tempName}" to "${actualName}"`,
+          `alter table {{${newTableName}}} rename column "${tempName}" to "${actualName}"`,
         );
       }
 
       // Deviation: single vs multiple field migration and view resave are not implemented yet.
 
-      return (txApp as BaseApp).createCollectionIndexes(newCollection);
+      if (needIndexesUpdate) {
+        return (txApp as BaseApp).createCollectionIndexes(newCollection);
+      }
+      return null;
     });
   }
 
   private createCollectionIndexes(collection: Collection): Error | null {
-    for (const index of collection.indexes ?? []) {
+    if (collection.isView()) {
+      return null;
+    }
+
+    const errors: Record<string, Error> = {};
+    const indexes = collection.indexes ?? [];
+
+    for (let i = 0; i < indexes.length; i += 1) {
+      const index = indexes[i];
       if (!index) {
         continue;
       }
-      this.db().run(index);
+
+      const parsed = parseIndex(index);
+      parsed.tableName = collection.name;
+
+      if (!parsed.isValid()) {
+        errors[String(i)] = newError(
+          "validation_invalid_index_expression",
+          "Invalid CREATE INDEX expression.",
+        );
+        continue;
+      }
+
+      const sql = parsed.build();
+      if (!sql) {
+        errors[String(i)] = newError(
+          "validation_invalid_index_expression",
+          "Invalid CREATE INDEX expression.",
+        );
+        continue;
+      }
+
+      try {
+        this.db().run(sql);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        errors[String(i)] = newError(
+          "validation_invalid_index_expression",
+          `Failed to create index ${parsed.indexName} - ${message}.`,
+        );
+      }
     }
+
+    if (Object.keys(errors).length > 0) {
+      return new ValidationErrors({ indexes: new ValidationErrors(errors) });
+    }
+
     return null;
+  }
+
+  SaveView(name: string, selectQuery: string): Error | null {
+    return SaveView(this, name, selectQuery);
+  }
+
+  DeleteView(name: string): Error | null {
+    return DeleteView(this, name);
+  }
+
+  CreateViewFields(selectQuery: string): FieldsList {
+    return CreateViewFields(this, selectQuery);
+  }
+
+  TableInfo(tableName: string) {
+    return TableInfo(this.db(), tableName);
   }
 
   private dropCollectionIndexes(collection: Collection): Error | null {
@@ -814,14 +860,14 @@ export class BaseApp implements App {
     return null;
   }
 
-  private hasTable(name: string): boolean {
+  HasTable(name: string): boolean {
     const row = this.db()
-      .query("select name from sqlite_master where type='table' and name = ?")
+      .query("select name from sqlite_master where type in ('table','view') and lower(name) = lower(?)")
       .get(name) as { name?: string } | undefined;
     return Boolean(row?.name);
   }
 
-  private isCollectionNameUnique(name: string, excludeId?: string): boolean {
+  IsCollectionNameUnique(name: string, excludeId?: string): boolean {
     const row = this.db()
       .query("select id from _collections where lower(name) = lower(?)")
       .get(name) as { id?: string } | undefined;
@@ -845,86 +891,18 @@ function appendWhere(baseSql: string, clause: string): string {
   return `${baseSql} WHERE ${clause}`;
 }
 
-type CollectionRow = {
-  id: string;
-  name: string;
-  system: number;
-  type: string;
-  fields: string;
-  indexes: string;
-  listRule: string | null;
-  viewRule: string | null;
-  createRule: string | null;
-  updateRule: string | null;
-  deleteRule: string | null;
-  options: string;
-};
-
-function collectionFromRow(row: CollectionRow): Collection {
-  let options: unknown = null;
-  if (typeof row.options === "string") {
-    try {
-      options = JSON.parse(row.options);
-    } catch {
-      options = null;
-    }
-  }
-
-  let fields: unknown = [];
-  let fieldsList = new FieldsList();
-  if (typeof row.fields === "string") {
-    try {
-      fields = JSON.parse(row.fields);
-    } catch {
-      fields = [];
-    }
-    try {
-      fieldsList = FieldsList.fromJSON(row.fields);
-    } catch {
-      fieldsList = new FieldsList();
-    }
-  }
-
-  let indexes: unknown = [];
-  if (typeof row.indexes === "string") {
-    try {
-      indexes = JSON.parse(row.indexes);
-    } catch {
-      indexes = [];
-    }
-  }
-
-  return new Collection({
-    id: row.id,
-    name: row.name,
-    system: Boolean(row.system),
-    type: row.type,
-    fields: parseCollectionFields(fields),
-    Fields: fieldsList,
-    indexes: Array.isArray(indexes)
-      ? (indexes.filter((value) => typeof value === "string") as string[])
-      : [],
-    listRule: row.listRule ?? null,
-    viewRule: row.viewRule ?? null,
-    createRule: row.createRule ?? null,
-    updateRule: row.updateRule ?? null,
-    deleteRule: row.deleteRule ?? null,
-    options: typeof options === "object" && options ? (options as Record<string, unknown>) : null,
-  });
-}
-
 function resolveBaseTokenKey(collection: Collection, tokenType: string): string {
   switch (tokenType) {
     case TokenTypeAuth:
-      return collection.options.authToken.secret;
+      return collection.AuthToken.Secret;
     case TokenTypeFile:
-      return collection.options.fileToken.secret;
+      return collection.FileToken.Secret;
     case TokenTypeVerification:
-      return collection.options.verificationToken.secret;
+      return collection.VerificationToken.Secret;
     case TokenTypePasswordReset:
-      return collection.options.passwordResetToken.secret;
+      return collection.PasswordResetToken.Secret;
     case TokenTypeEmailChange:
-      return collection.options.emailChangeToken.secret;
+      return collection.EmailChangeToken.Secret;
     default:
       return "";
   }
@@ -1006,19 +984,7 @@ function normalizeCollectionFields(collection: Collection): void {
 }
 
 function ensureDefaultCollectionFields(collection: Collection): void {
-  let defaults: Collection;
-  if (collection.isAuth()) {
-    defaults = NewAuthCollection(collection.name, collection.id);
-  } else if (collection.isView()) {
-    defaults = NewViewCollection(collection.name, collection.id);
-  } else {
-    defaults = NewBaseCollection(collection.name, collection.id);
-  }
-
-  const merged = new FieldsList();
-  merged.Add(...defaults.Fields);
-  merged.Add(...collection.Fields);
-  collection.Fields = merged;
+  collection.initDefaultFields();
   collection.fields = parseCollectionFields(collection.Fields.toJSON());
 }
 
@@ -1035,135 +1001,9 @@ function collectionFromData(data: Record<string, unknown>): Collection {
     collection = NewBaseCollection(name);
   }
 
-  if (typeof data.id === "string") {
-    collection.id = data.id;
-  }
-  if (typeof data.system === "boolean") {
-    collection.system = data.system;
-  } else if (typeof data.system === "number") {
-    collection.system = Boolean(data.system);
-  }
-
-  if (Array.isArray(data.fields)) {
-    try {
-      collection.Fields = FieldsList.fromJSON(JSON.stringify(data.fields));
-    } catch {
-      collection.Fields = new FieldsList();
-    }
-  }
-
-  if (Array.isArray(data.indexes)) {
-    collection.indexes = data.indexes.filter((item) => typeof item === "string") as string[];
-  }
-
-  collection.listRule = typeof data.listRule === "string" ? data.listRule : collection.listRule;
-  collection.viewRule = typeof data.viewRule === "string" ? data.viewRule : collection.viewRule;
-  collection.createRule =
-    typeof data.createRule === "string" ? data.createRule : collection.createRule;
-  collection.updateRule =
-    typeof data.updateRule === "string" ? data.updateRule : collection.updateRule;
-  collection.deleteRule =
-    typeof data.deleteRule === "string" ? data.deleteRule : collection.deleteRule;
-
-  const options = typeof data.options === "object" && data.options ? (data.options as Record<string, unknown>) : null;
-  if (collection.isAuth() && options) {
-    applyAuthTokenOptions(collection, options);
-  }
-
+  applyCollectionData(collection, data);
   normalizeCollectionFields(collection);
   ensureDefaultCollectionFields(collection);
 
   return collection;
-}
-
-function applyAuthTokenOptions(collection: Collection, options: Record<string, unknown>): void {
-  if (!collection.options) {
-    return;
-  }
-  const authToken = options.authToken as { secret?: unknown; duration?: unknown } | undefined;
-  if (authToken) {
-    if (typeof authToken.secret === "string") {
-      collection.options.authToken.secret = authToken.secret;
-    }
-    if (typeof authToken.duration === "number") {
-      collection.options.authToken.duration = authToken.duration;
-    }
-  }
-  const fileToken = options.fileToken as { secret?: unknown; duration?: unknown } | undefined;
-  if (fileToken) {
-    if (typeof fileToken.secret === "string") {
-      collection.options.fileToken.secret = fileToken.secret;
-    }
-    if (typeof fileToken.duration === "number") {
-      collection.options.fileToken.duration = fileToken.duration;
-    }
-  }
-  const verificationToken = options.verificationToken as
-    | { secret?: unknown; duration?: unknown }
-    | undefined;
-  if (verificationToken) {
-    if (typeof verificationToken.secret === "string") {
-      collection.options.verificationToken.secret = verificationToken.secret;
-    }
-    if (typeof verificationToken.duration === "number") {
-      collection.options.verificationToken.duration = verificationToken.duration;
-    }
-  }
-  const passwordResetToken = options.passwordResetToken as
-    | { secret?: unknown; duration?: unknown }
-    | undefined;
-  if (passwordResetToken) {
-    if (typeof passwordResetToken.secret === "string") {
-      collection.options.passwordResetToken.secret = passwordResetToken.secret;
-    }
-    if (typeof passwordResetToken.duration === "number") {
-      collection.options.passwordResetToken.duration = passwordResetToken.duration;
-    }
-  }
-  const emailChangeToken = options.emailChangeToken as
-    | { secret?: unknown; duration?: unknown }
-    | undefined;
-  if (emailChangeToken) {
-    if (typeof emailChangeToken.secret === "string") {
-      collection.options.emailChangeToken.secret = emailChangeToken.secret;
-    }
-    if (typeof emailChangeToken.duration === "number") {
-      collection.options.emailChangeToken.duration = emailChangeToken.duration;
-    }
-  }
-}
-
-function generateCollectionId(type: string, name: string): string {
-  return `pbc_${crc32(type + name)}`;
-}
-
-function ensureUniqueCollectionId(
-  db: Database,
-  id: string,
-  type: string,
-  name: string,
-): string {
-  let candidate = id;
-  for (let i = 2; i < 1000; i += 1) {
-    const row = db
-      .query("select id from _collections where id = ?")
-      .get(candidate) as { id?: string } | undefined;
-    if (!row?.id) {
-      break;
-    }
-    candidate = `${generateCollectionId(type, name)}${i}`;
-  }
-  return candidate;
-}
-
-function crc32(input: string): number {
-  let crc = 0xffffffff;
-  for (let i = 0; i < input.length; i += 1) {
-    crc ^= input.charCodeAt(i);
-    for (let j = 0; j < 8; j += 1) {
-      const mask = -(crc & 1);
-      crc = (crc >>> 1) ^ (0xedb88320 & mask);
-    }
-  }
-  return ~crc >>> 0;
 }
