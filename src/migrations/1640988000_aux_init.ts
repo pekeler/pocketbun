@@ -1,4 +1,6 @@
 // Ported from pocketbase/migrations/1640988000_aux_init.go
+// Note: uses direct SQL execution instead of upstream dbx helpers to mirror behavior
+// while the helper APIs are not yet ported.
 
 import type { App } from "../core/app.ts";
 import { SystemMigrations } from "../core/migrations_runner.ts";

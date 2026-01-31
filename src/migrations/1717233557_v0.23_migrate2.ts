@@ -1,4 +1,6 @@
 // Ported from pocketbase/migrations/1717233557_v0.23_migrate2.go
+// Note: uses direct SQL/JSON updates instead of upstream core helpers to mirror behavior
+// while those helpers are not yet ported.
 
 import type { App } from "../core/app.ts";
 import { SystemMigrations } from "../core/migrations_runner.ts";
