@@ -21,6 +21,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-30 21:24Z) Port the aux logs migration and extend migrations tests to cover _logs creation.
 - [x] (2026-01-30 23:05Z) Port the v0.23 migration chain and auth alert template update, adding AES-GCM decrypt support for legacy settings.
 - [x] (2026-01-30 23:58Z) Add read-only collections list/view endpoints with superuser auth, paging, sorting, and basic filter support plus tests.
+- [x] (2026-01-30 23:45Z) Replace the minimal collections search parsing with a full search toolkit (inflector, filter parser, sort, provider) and integrate it into the collections list endpoint.
+- [x] (2026-01-31 00:38Z) Add dbx-style identifier rewrite support for bun:sqlite and revert search SQL generation to upstream `[[...]]` quoting; add tests for the rewrite.
 - [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -35,6 +37,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Evidence: regular user token claims collectionId _pb_users_auth_ (users table), superuser token claims pbc_3142635823 (_superusers table).
 - Observation: legacy settings migration expects AES-256-GCM decryption of encrypted params values.
   Evidence: upstream migration attempts to decrypt the old settings value before JSON decode.
+- Observation: bun:sqlite does not accept PocketBase/dbx-style double-square-bracket identifier quoting (`[[name]]`).
+  Evidence: executing `select [[name]] from t` in bun:sqlite raises "unrecognized token: ]", while `[name]` works.
 
 ## Decision Log
 
@@ -62,6 +66,18 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - Decision: Implement a lightweight, collection-specific search parser (page/perPage/sort/filter) before porting the full search toolkit.
   Rationale: It unlocks the collections list endpoint with upstream-like behavior while deferring the heavier fexpr-based filter engine port.
   Date/Author: 2026-01-30 / Codex
+- Decision: Port the full search toolkit (inflector, filter parser, sort, provider) and switch collections list to use it.
+  Rationale: This aligns query parsing with upstream behavior and reduces future refactors as record endpoints come online.
+  Date/Author: 2026-01-30 / Codex
+- Decision: Use single-bracket identifier quoting (`[name]`) in search SQL instead of dbx-style `[[name]]`.
+  Rationale: bun:sqlite rejects the double-bracket syntax, and single brackets preserve SQLite-compatible quoting while keeping behavior aligned.
+  Date/Author: 2026-01-30 / Codex
+- Decision: Defer multi-match subquery handling in the search filter engine until record field resolvers are ported.
+  Rationale: collections list uses only simple fields, so it is safe to stub multi-match while we prioritize core CRUD and auth flows.
+  Date/Author: 2026-01-30 / Codex
+- Decision: Implement a dbx placeholder rewrite layer (`[[...]]`, `{{...}}`) and return search SQL generation to upstream `[[...]]` quoting.
+  Rationale: dbx-style placeholders are part of the PocketBase query surface and must be supported even though bun:sqlite only accepts single-bracket or quoted identifiers.
+  Date/Author: 2026-01-31 / Codex
 
 ## Outcomes & Retrospective
 
@@ -227,3 +243,5 @@ Plan change note: 2026-01-30, ported the initial system migration and added test
 Plan change note: 2026-01-30, ported the aux logs migration and updated tests to assert the aux _logs table exists.
 Plan change note: 2026-01-30, ported the v0.23 system migrations and auth alert template update, adding AES-GCM settings decryption support for legacy databases.
 Plan change note: 2026-01-30, added read-only collections list/view endpoints with superuser auth and a minimal search parser to unlock collections listing before full search tooling is ported.
+Plan change note: 2026-01-30, replaced the minimal collections search parser with the ported search toolkit and adjusted identifier quoting to `[name]` for bun:sqlite compatibility.
+Plan change note: 2026-01-31, added dbx identifier placeholder rewriting so we can keep upstream `[[...]]` quoting while remaining compatible with bun:sqlite.
