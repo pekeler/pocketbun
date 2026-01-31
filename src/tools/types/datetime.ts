@@ -80,8 +80,15 @@ export class DateTime {
     return 0;
   }
 
-  equal(other: DateTime): boolean {
+  equal(other: unknown): boolean {
+    if (!(other instanceof DateTime)) {
+      return false;
+    }
     return this.time().getTime() === other.time().getTime();
+  }
+
+  Equal(other: unknown): boolean {
+    return this.equal(other);
   }
 
   unix(): number {
@@ -90,6 +97,10 @@ export class DateTime {
 
   isZero(): boolean {
     return !this.#date || Number.isNaN(this.#date.getTime()) || this.#date.getTime() === 0;
+  }
+
+  IsZero(): boolean {
+    return this.isZero();
   }
 
   toString(): string {

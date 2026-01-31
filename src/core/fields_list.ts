@@ -239,7 +239,15 @@ function fieldFromRaw(raw: unknown): Field {
   }
   const field = factory();
   const { type: _type, ...rest } = record;
-  Object.assign(field as unknown as Record<string, unknown>, rest);
+  const mapped: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(rest)) {
+    mapped[key] = value;
+    if (key.length > 0) {
+      const upperKey = key[0]?.toUpperCase() + key.slice(1);
+      mapped[upperKey] = value;
+    }
+  }
+  Object.assign(field as unknown as Record<string, unknown>, mapped);
   return field;
 }
 

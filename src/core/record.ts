@@ -2,6 +2,8 @@
 
 import { Collection, CollectionNameSuperusers } from "./collection.ts";
 import { toBoolValue, toStringValue } from "../internal/compat/cast.ts";
+import { toUniqueStringSlice } from "../tools/list/list.ts";
+import { GeoPoint, ParseDateTime } from "../tools/types/index.ts";
 import type { GetterFinder, SetterFinder } from "./field.ts";
 
 export type RecordData = { [key: string]: unknown };
@@ -20,6 +22,8 @@ export const FieldNameVerified = "verified";
 export const FieldNameCollectionId = "collectionId";
 export const FieldNameCollectionName = "collectionName";
 export const FieldNameExpand = "expand";
+
+export const internalCustomFieldKeyPrefix = "@pbInternal";
 
 export class Record {
   id: string;
@@ -115,6 +119,20 @@ export class Record {
     return toStringValue(this.Get(field));
   }
 
+  GetDateTime(field: string) {
+    return ParseDateTime(this.Get(field));
+  }
+
+  GetGeoPoint(field: string): GeoPoint {
+    const point = new GeoPoint();
+    void point.Scan(this.Get(field));
+    return point;
+  }
+
+  GetStringSlice(field: string): string[] {
+    return toUniqueStringSlice(this.Get(field));
+  }
+
   Set(field: string, value: unknown): void {
     if (field === FieldNameExpand) {
       this.SetRaw(field, value);
@@ -139,6 +157,10 @@ export class Record {
   LastSavedPK(): string {
     const pk = this.#originalData.id;
     return typeof pk === "string" ? pk : "";
+  }
+
+  Original(): Record {
+    return new Record(this.#collection, { ...this.#originalData }, false);
   }
 
   TableName(): string {
@@ -178,6 +200,10 @@ export class Record {
       if (raw.name) {
         exportData[raw.name] = this.get(raw.name);
       }
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(exportData, FieldNameId)) {
+      exportData[FieldNameId] = this.id;
     }
 
     if (this.#collection.isAuth()) {

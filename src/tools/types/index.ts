@@ -10,4 +10,5 @@ export {
 } from "./datetime.ts";
 export { JSONRaw } from "./json_raw.ts";
 export { JSONArray } from "./json_array.ts";
+export { GeoPoint } from "./geo_point.ts";
 export { pointer, Pointer } from "./types.ts";

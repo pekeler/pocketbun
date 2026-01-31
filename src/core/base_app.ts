@@ -1,12 +1,14 @@
 // Ported from pocketbase/core/base_app.go
 
 import "../migrations/index.ts";
+import "./fields_register.ts";
 
 import type { Database, SQLQueryBindings } from "bun:sqlite";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { App } from "./app.ts";
 import { Collection, parseCollectionFields } from "./collection.ts";
+import { FieldsList } from "./fields_list.ts";
 import { AppMigrations, MigrationsRunner, SystemMigrations } from "./migrations_runner.ts";
 import { MigrationsList } from "./migrations_list.ts";
 import {
@@ -305,11 +307,17 @@ function collectionFromRow(row: CollectionRow): Collection {
   }
 
   let fields: unknown = [];
+  let fieldsList = new FieldsList();
   if (typeof row.fields === "string") {
     try {
       fields = JSON.parse(row.fields);
     } catch {
       fields = [];
+    }
+    try {
+      fieldsList = FieldsList.fromJSON(row.fields);
+    } catch {
+      fieldsList = new FieldsList();
     }
   }
 
@@ -328,6 +336,7 @@ function collectionFromRow(row: CollectionRow): Collection {
     system: Boolean(row.system),
     type: row.type,
     fields: parseCollectionFields(fields),
+    Fields: fieldsList,
     indexes: Array.isArray(indexes)
       ? (indexes.filter((value) => typeof value === "string") as string[])
       : [],

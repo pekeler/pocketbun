@@ -13,6 +13,26 @@ export function toStringValue(value: unknown): string {
   if (value instanceof Date) {
     return value.toISOString();
   }
+  if (typeof value === "object") {
+    const candidate = value as { valueOf?: () => unknown; toString?: () => string };
+    if (typeof candidate.valueOf === "function") {
+      const raw = candidate.valueOf();
+      if (
+        typeof raw === "string" ||
+        typeof raw === "number" ||
+        typeof raw === "boolean" ||
+        typeof raw === "bigint"
+      ) {
+        return String(raw);
+      }
+    }
+    if (typeof candidate.toString === "function") {
+      const str = candidate.toString();
+      if (str && str !== "[object Object]") {
+        return str;
+      }
+    }
+  }
   return "";
 }
 

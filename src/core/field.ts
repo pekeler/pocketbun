@@ -106,6 +106,8 @@ export type RecordLike = {
   IsNew: () => boolean;
   LastSavedPK: () => string;
   TableName: () => string;
+  GetDateTime?: (field: string) => { IsZero: () => boolean; Equal: (other: unknown) => boolean };
+  Original?: () => RecordLike;
 };
 
 export type CollectionLike = Collection;
@@ -138,3 +140,5 @@ export function defaultFieldNameValidationRule(value: unknown): Error | null {
   }
   return null;
 }
+
+export function noopSetter(_record: RecordLike, _raw: unknown): void {}
