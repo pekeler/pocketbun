@@ -53,6 +53,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - Decision: Structure the port as incremental, end-to-end slices that always end in runnable behavior with tests, starting with /api/health and static Admin UI.
   Rationale: Early behavioral parity and tests reduce drift and make later ports safer.
   Date/Author: 2026-01-30 / Codex
+- Decision: Prefer mechanical 1:1 ports of upstream files and architecture; avoid bespoke abstractions unless Bun/TS requires a shim.
+  Rationale: Keeping structure aligned with upstream maximizes compatibility and lowers long-term maintenance cost.
+  Date/Author: 2026-01-31 / Codex
 - Decision: Keep a 1:1 file mapping with upstream PocketBase wherever reasonable, but introduce src/internal/compat for Go-like primitives.
   Rationale: This matches AGENTS.md guidance and keeps the codebase upstream-syncable.
   Date/Author: 2026-01-30 / Codex
@@ -156,6 +159,7 @@ Milestone 3 steps. Port collections/records and auth APIs.
 
 - Extend the collections API to support list/view (superuser-only) with paging and filtering; keep error responses JSON-compatible with upstream.
 - Port core record, collection, and DAO equivalents from upstream core/.
+- Port record rule evaluation by translating core/record_field_resolver.go + core/record_field_resolver_runner.go (and any helpers) directly, then use them in records list/view instead of ad-hoc rule handling.
 - Implement CRUD endpoints in src/apis/record and src/apis/collection to match response shapes and errors.
 - Port auth endpoints from upstream apis/record_auth and related core token logic.
 - Add file storage helpers for uploads in pb_data/storage.
@@ -268,3 +272,4 @@ Plan change note: 2026-01-31, added a dbx tools index export to surface DbxDatab
 Plan change note: 2026-01-31, exported dbx helpers from the package entrypoint to make them available to external consumers.
 Plan change note: 2026-01-31, documented dbx helper exports and example usage in README for external consumers.
 Plan change note: 2026-01-31, added superuser-only record list/view endpoints with basic record export and tests.
+Plan change note: 2026-01-31, reaffirmed mechanical upstream porting and updated Milestone 3 to port record field resolver/rule handling directly.
