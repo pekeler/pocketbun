@@ -3,16 +3,30 @@
 import { mkdir, writeFile, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import sharp from "sharp";
 
 const tinyPng = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/6X5l0cAAAAASUVORK5CYII=",
   "base64",
 );
 
-const tinyJpeg = Buffer.from(
-  "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABALCwwLCw0MDQ0NDhYREhYUFh8YGBcXGBkZIB0YHCAfHh8fIyAkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJP/2wBDARERERgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGP/wAARCAAQABADASIAAhEBAxEB/8QAFwABAQEBAAAAAAAAAAAAAAAAAAUGB//EABUBAQEAAAAAAAAAAAAAAAAAAAID/8QAFwEBAQEBAAAAAAAAAAAAAAAAAAIDBf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AL8A/9k=",
-  "base64",
-);
+let cachedTinyJpeg: Promise<Uint8Array> | null = null;
+
+async function getTinyJpeg(): Promise<Uint8Array> {
+  if (!cachedTinyJpeg) {
+    cachedTinyJpeg = sharp({
+      create: {
+        width: 1,
+        height: 1,
+        channels: 3,
+        background: { r: 255, g: 255, b: 255 },
+      },
+    })
+      .jpeg()
+      .toBuffer();
+  }
+  return cachedTinyJpeg;
+}
 
 const webpBytes = new Uint8Array([
   82, 73, 70, 70, 36, 0, 0, 0, 87, 69, 66, 80, 86, 80, 56, 32,
@@ -44,6 +58,7 @@ export async function createTestDir(): Promise<string> {
   await writeFile(join(dir, "image.png"), tinyPng);
   await writeAttrs(join(dir, "image.png"), "image/png");
 
+  const tinyJpeg = await getTinyJpeg();
   await writeFile(join(dir, "image.jpg"), tinyJpeg);
   await writeAttrs(join(dir, "image.jpg"), "image/jpeg");
 

@@ -1,5 +1,5 @@
 // Ported from pocketbase/tools/filesystem/filesystem.go
-// Note: thumbnail generation is a minimal placeholder that writes tiny images without resizing.
+// Deviation: CreateThumb is async because Bun image processing relies on async libraries.
 
 import {
   copyFileSync,
@@ -12,6 +12,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, posix } from "node:path";
+import sharp from "sharp";
 import { File, detectMimeTypeFromBytes, normalizeName, openFuncAsReader } from "./file.ts";
 
 export class NotFoundError extends Error {
@@ -76,15 +77,6 @@ const manualExtensionContentTypes: Record<string, string> = {
 };
 
 const forceAttachmentParam = "download";
-
-const tinyPng = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/6X5l0cAAAAASUVORK5CYII=",
-  "base64",
-);
-const tinyJpeg = Buffer.from(
-  "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDABALCwwLCw0MDQ0NDhYREhYUFh8YGBcXGBkZIB0YHCAfHh8fIyAkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJP/2wBDARERERgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGP/wAARCAAQABADASIAAhEBAxEB/8QAFwABAQEBAAAAAAAAAAAAAAAAAAUGB//EABUBAQEAAAAAAAAAAAAAAAAAAAID/8QAFwEBAQEBAAAAAAAAAAAAAAAAAAIDBf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AL8A/9k=",
-  "base64",
-);
 
 export class System {
   #root: string;
@@ -349,7 +341,11 @@ export class System {
     return null;
   }
 
-  CreateThumb(originalKey: string, thumbKey: string, thumbSize: string): Error | null {
+  async CreateThumb(
+    originalKey: string,
+    thumbKey: string,
+    thumbSize: string,
+  ): Promise<Error | null> {
     const sizeParts = ThumbSizeRegex.exec(thumbSize);
     if (!sizeParts) {
       return new Error("thumb size must be in WxH, WxHt, WxHb or WxHf format");
@@ -357,6 +353,7 @@ export class System {
 
     const width = Number(sizeParts[1]);
     const height = Number(sizeParts[2]);
+    const resizeType = sizeParts[3] ?? "";
     if (width === 0 && height === 0) {
       return new Error("thumb width and height cannot be zero at the same time");
     }
@@ -366,31 +363,53 @@ export class System {
       return new NotFoundError();
     }
 
-    try {
-      const originalBytes = readFileSync(originalPath);
-      const detected = detectMimeTypeFromBytes(originalBytes);
-      const attrs = this.readAttrs(originalPath);
-      const originalContentType =
-        detected !== "application/octet-stream" ? detected : attrs.contentType;
+    const attrs = this.readAttrs(originalPath);
+    const originalContentType = attrs.contentType;
+    if (originalContentType === "image/svg+xml") {
+      return new Error("failed to decode image");
+    }
 
-      if (!originalContentType.startsWith("image/")) {
-        return new Error("failed to decode image");
+    try {
+      let transformer = sharp(originalPath, { failOn: "none" }).rotate();
+      if (width === 0 || height === 0) {
+        const targetWidth = width === 0 ? undefined : width;
+        const targetHeight = height === 0 ? undefined : height;
+        transformer = transformer.resize(targetWidth, targetHeight, { fit: "inside" });
+      } else {
+        const fit = resizeType === "f" ? "inside" : "cover";
+        const position =
+          resizeType === "t" ? "north" : resizeType === "b" ? "south" : "centre";
+        transformer = transformer.resize(width, height, { fit, position });
       }
 
       let outputContentType = originalContentType;
-      let outputBytes = tinyPng;
-      if (originalContentType === "image/jpeg") {
-        outputContentType = "image/jpeg";
-        outputBytes = tinyJpeg;
-      } else if (originalContentType === "image/png") {
-        outputContentType = "image/png";
-        outputBytes = tinyPng;
-      } else {
-        // fallback to png (includes webp)
-        outputContentType = "image/png";
-        outputBytes = tinyPng;
+      let outputFormat: "jpeg" | "png" | "gif" | "tiff";
+      switch (originalContentType) {
+        case "image/jpeg":
+        case "image/jpg":
+          outputFormat = "jpeg";
+          outputContentType = "image/jpeg";
+          break;
+        case "image/gif":
+          outputFormat = "gif";
+          outputContentType = "image/gif";
+          break;
+        case "image/tiff":
+          outputFormat = "tiff";
+          outputContentType = "image/tiff";
+          break;
+        case "image/bmp":
+          // Sharp doesn't output BMP, so fallback to PNG.
+          outputFormat = "png";
+          outputContentType = "image/png";
+          break;
+        default:
+          outputFormat = "png";
+          outputContentType = "image/png";
+          break;
       }
 
+      const outputBytes = await transformer.toFormat(outputFormat).toBuffer();
       const thumbPath = this.resolvePath(thumbKey);
       mkdirSync(dirname(thumbPath), { recursive: true });
       writeFileSync(thumbPath, outputBytes);

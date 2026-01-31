@@ -559,7 +559,7 @@ describe("filesystem system", () => {
       ];
 
       for (const scenario of scenarios) {
-        const err = fsys.CreateThumb(scenario.file, scenario.thumb, scenario.size);
+        const err = await fsys.CreateThumb(scenario.file, scenario.thumb, scenario.size);
         const shouldError = scenario.expectMime === "";
         expect(Boolean(err)).toBe(shouldError);
         if (shouldError) {
