@@ -26,6 +26,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-31 01:04Z) Add a DbxDatabase wrapper to apply the rewrite to all SQL queries and ensure the rewriter skips SQL comments.
 - [x] (2026-01-31 01:18Z) Add attach helper for existing Database instances and tests verifying idempotent patching.
 - [x] (2026-01-31 01:26Z) Add a dbx tools index export to surface DbxDatabase, rewrite, and attach helpers.
+- [x] (2026-01-31 01:34Z) Re-export dbx helpers from the public entrypoint for external consumers.
 - [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -259,3 +260,4 @@ Plan change note: 2026-01-31, added dbx identifier placeholder rewriting so we c
 Plan change note: 2026-01-31, moved dbx placeholder rewriting into a DbxDatabase wrapper and taught the rewriter to ignore SQL comments.
 Plan change note: 2026-01-31, added an attach helper to retrofit dbx placeholder rewriting onto existing Database instances with tests for idempotency.
 Plan change note: 2026-01-31, added a dbx tools index export to surface DbxDatabase and rewrite helpers.
+Plan change note: 2026-01-31, exported dbx helpers from the package entrypoint to make them available to external consumers.
