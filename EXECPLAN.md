@@ -30,6 +30,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-31 01:40Z) Document dbx helper exports and usage in README.
 - [x] (2026-01-31 02:15Z) Add superuser-only records list/view endpoints using the search provider with basic record export and tests.
 - [x] (2026-01-31 03:10Z) Apply list/view rules for non-superusers via RecordFieldResolver and add rule-based record list/view tests.
+- [x] (2026-01-31 11:58Z) Port multi-match joins for RecordFieldResolver and add dbutils index parsing + tokenizer support.
+- [x] (2026-01-31 12:08Z) Extend collection models with indexes and resolve typecheck/lint issues; document migration SQL deviations.
+- [x] (2026-01-31 12:16Z) Align record list count handling with upstream (_rowid_ for non-views) and apply view rule joins.
 - [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
