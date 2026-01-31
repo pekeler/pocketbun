@@ -8,6 +8,7 @@ import type { RouterGroup } from "../tools/router/group.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { Provider } from "../tools/search/provider.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
+import { checkForSuperuserOnlyRuleFields } from "./record_helpers.ts";
 
 type RecordsListResult = {
   page: number;
@@ -34,6 +35,11 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
 
   if (collection.listRule === null && !requestInfo.auth?.isSuperuser()) {
     return forbidden(event, "Only superusers can perform this action.");
+  }
+
+  const superuserFieldError = checkForSuperuserOnlyRuleFields(requestInfo);
+  if (superuserFieldError) {
+    return forbidden(event, superuserFieldError);
   }
 
   const resolver = new RecordFieldResolver(app, collection, requestInfo, true);

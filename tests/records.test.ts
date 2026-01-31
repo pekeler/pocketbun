@@ -115,6 +115,17 @@ describe("records api", () => {
     expect(body.items.length).toBe(0);
   });
 
+  it("rejects superuser-only rule fields for regular users", async () => {
+    const filter = encodeURIComponent("@request.auth.id != ''");
+    const response = await fetch(`${baseUrl}/api/collections/demo3/records?filter=${filter}`, {
+      headers: { Authorization: regularUserToken },
+    });
+    const body = (await response.json()) as ApiErrorResponse;
+
+    expect(response.status).toBe(403);
+    expect(body.message).toContain("Only superusers can filter by @request.");
+  });
+
   it("allows regular auth users to view their own record via view rule", async () => {
     const response = await fetch(`${baseUrl}/api/collections/users/records/4q1xlclmfloku33`, {
       headers: { Authorization: regularUserToken },
