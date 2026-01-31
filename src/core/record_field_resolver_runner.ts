@@ -1,7 +1,6 @@
 // Ported from pocketbase/core/record_field_resolver_runner.go
 
 import type { Collection, CollectionField } from "./collection.ts";
-import type { RequestInfo } from "./event_request.ts";
 import type { RecordFieldResolver } from "./record_field_resolver.ts";
 import {
   FieldNameCollectionId,
@@ -18,7 +17,6 @@ import { existInSliceWithRegex, toUniqueStringSlice } from "../tools/list/list.t
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import type { ResolverResult } from "../tools/search/field_resolver.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
-import { randomString } from "../tools/security/random.ts";
 import { MultiMatchSubquery } from "../tools/search/multi_match_subquery.ts";
 
 export const eachModifier = "each";
@@ -187,7 +185,6 @@ class Runner {
   }
 
   processRequestBodyField(): ResolverResult {
-    const info = this.resolver.requestInfo as RequestInfo;
     const name = this.activeProps[2] ?? "";
     const [fieldName, modifier] = splitModifier(name);
     const bodyField = getCollectionField(this.resolver.baseCollection, fieldName);
@@ -234,7 +231,7 @@ class Runner {
   }
 
   processRequestBodyLowerModifier(bodyField: CollectionField): ResolverResult {
-    const rawValue = String(this.resolver.requestInfo?.body[bodyField.name] ?? "");
+    const rawValue = toStringValue(this.resolver.requestInfo?.body[bodyField.name]);
     return {
       identifier: "LOWER(?)",
       params: [rawValue],
@@ -288,7 +285,9 @@ class Runner {
   }
 
   processRequestBodyRelationField(bodyField: CollectionField): ResolverResult {
-    const relCollectionId = String((bodyField.raw as Record<string, unknown>).collectionId ?? "");
+    const relCollectionId = toStringValue(
+      (bodyField.raw as Record<string, unknown>).collectionId,
+    );
     const relCollection = this.resolver.loadCollection(relCollectionId);
     if (!relCollection) {
       throw new Error(`failed to load collection "${relCollectionId}" from data field "${bodyField.name}"`);
@@ -412,8 +411,8 @@ class Runner {
           throw new Error(`non-filterable back relation field "${backField.name}"`);
         }
 
-        const backRelCollectionId = String(
-          (backField.raw as Record<string, unknown>).collectionId ?? "",
+        const backRelCollectionId = toStringValue(
+          (backField.raw as Record<string, unknown>).collectionId,
         );
         if (backRelCollectionId !== collection.id) {
           if (this.nullifyMissingField) {
@@ -498,7 +497,7 @@ class Runner {
         throw new Error(`field "${prop}" is not a valid relation`);
       }
 
-      const relCollectionId = String((field.raw as Record<string, unknown>).collectionId ?? "");
+      const relCollectionId = toStringValue((field.raw as Record<string, unknown>).collectionId);
       const relCollection = this.resolver.loadCollection(relCollectionId);
       if (!relCollection) {
         throw new Error(`failed to load field "${prop}" collection`);
@@ -699,7 +698,7 @@ function buildJsonPath(parts: string[]): string {
 }
 
 function buildInExpr(column: string, count: number): string {
-  const placeholders = new Array(Math.max(count, 1)).fill("?").join(", ");
+  const placeholders = Array.from({ length: Math.max(count, 1) }, () => "?").join(", ");
   return `${column} IN (${placeholders})`;
 }
 
@@ -797,4 +796,20 @@ function toSlice(value: unknown): unknown[] {
     return value;
   }
   return [value];
+}
+
+function toStringValue(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === "bigint") {
+    return value.toString();
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  return "";
 }

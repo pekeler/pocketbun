@@ -80,7 +80,7 @@ export function toUniqueStringSlice(value: unknown): string[] {
   let result: string[] = [];
 
   if (Array.isArray(value)) {
-    result = value.map((item) => String(item));
+    result = value.map((item) => coerceToString(item));
   } else if (typeof value === "string") {
     if (value === "") {
       return [];
@@ -89,9 +89,9 @@ export function toUniqueStringSlice(value: unknown): string[] {
       try {
         const parsed = JSON.parse(value);
         if (Array.isArray(parsed)) {
-          result = parsed.map((item) => String(item));
+          result = parsed.map((item) => coerceToString(item));
         } else if (parsed != null) {
-          result = [String(parsed)];
+          result = [coerceToString(parsed)];
         }
       } catch {
         result = [value];
@@ -102,16 +102,45 @@ export function toUniqueStringSlice(value: unknown): string[] {
   } else if (typeof value === "object" && typeof (value as { toJSON?: () => unknown }).toJSON === "function") {
     const raw = (value as { toJSON: () => unknown }).toJSON();
     if (Array.isArray(raw)) {
-      result = raw.map((item) => String(item));
+      result = raw.map((item) => coerceToString(item));
     } else if (raw != null) {
-      result = [String(raw)];
+      result = [coerceToString(raw)];
     }
   } else {
-    result = [String(value)];
+    result = [coerceToString(value)];
   }
 
   const cleaned = result.filter((item) => item !== "");
   return nonzeroUniques(cleaned);
+}
+
+function coerceToString(value: unknown): string {
+  if (value == null) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value) ?? "";
+    } catch {
+      return "";
+    }
+  }
+  if (typeof value === "function") {
+    return value.name ?? "";
+  }
+  if (typeof value === "symbol") {
+    return value.description ?? "";
+  }
+  return "";
 }
 
 export function toChunks<T>(list: T[], chunkSize: number): T[][] {
