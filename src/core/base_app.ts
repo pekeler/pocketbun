@@ -20,6 +20,7 @@ import {
   TokenTypeVerification,
 } from "./record_tokens.ts";
 import { Record as RecordModel, type RecordData } from "./record.ts";
+import type { SqlExpr } from "../tools/search/types.ts";
 import { Settings } from "./settings.ts";
 import { Store } from "./store.ts";
 import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
@@ -213,19 +214,36 @@ export class BaseApp implements App {
     return collectionFromRow(row);
   }
 
-  findRecordById(collection: Collection, id: string): RecordModel | null {
+  findRecordById(collection: Collection, id: string, rule: SqlExpr | null = null): RecordModel | null {
     const table = collection.name;
     if (!isSafeIdentifier(table)) {
       throw new Error(`unsafe table name ${table}`);
     }
 
-    const row = this.db().query(`select * from "${table}" where id = ?`).get(id);
+    let sql = `select * from "${table}" where id = ?`;
+    const params: unknown[] = [id];
+    if (rule?.sql) {
+      sql = appendWhere(sql, rule.sql);
+      params.push(...rule.params);
+    }
+
+    const row = this.db().query(sql).get(...params);
     if (!row || typeof row !== "object") {
       return null;
     }
 
     return new RecordModel(collection, row as RecordData);
   }
+}
+
+function appendWhere(baseSql: string, clause: string): string {
+  if (!clause) {
+    return baseSql;
+  }
+  if (/\bwhere\b/i.test(baseSql)) {
+    return `${baseSql} AND ${clause}`;
+  }
+  return `${baseSql} WHERE ${clause}`;
 }
 
 type CollectionRow = {

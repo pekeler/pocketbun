@@ -29,6 +29,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-31 01:34Z) Re-export dbx helpers from the public entrypoint for external consumers.
 - [x] (2026-01-31 01:40Z) Document dbx helper exports and usage in README.
 - [x] (2026-01-31 02:15Z) Add superuser-only records list/view endpoints using the search provider with basic record export and tests.
+- [x] (2026-01-31 03:10Z) Apply list/view rules for non-superusers via RecordFieldResolver and add rule-based record list/view tests.
 - [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -273,3 +274,4 @@ Plan change note: 2026-01-31, exported dbx helpers from the package entrypoint t
 Plan change note: 2026-01-31, documented dbx helper exports and example usage in README for external consumers.
 Plan change note: 2026-01-31, added superuser-only record list/view endpoints with basic record export and tests.
 Plan change note: 2026-01-31, reaffirmed mechanical upstream porting and updated Milestone 3 to port record field resolver/rule handling directly.
+Plan change note: 2026-01-31, ported a minimal RecordFieldResolver for list/view rule filtering; relation joins and advanced modifiers remain to be ported.

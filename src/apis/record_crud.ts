@@ -2,12 +2,12 @@
 
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
+import { RecordFieldResolver } from "../core/record_field_resolver.ts";
 import { Record as RecordModel } from "../core/record.ts";
 import type { RouterGroup } from "../tools/router/group.ts";
+import { buildFilterExpr } from "../tools/search/filter.ts";
 import { Provider } from "../tools/search/provider.ts";
-import { SimpleFieldResolver } from "../tools/search/simple_field_resolver.ts";
-
-const DEFAULT_SYSTEM_FIELDS = ["id", "created", "updated"];
+import { DefaultFilterExprLimit } from "../tools/search/types.ts";
 
 type RecordsListResult = {
   page: number;
@@ -23,24 +23,40 @@ export function bindRecordCrudApi(app: App, rg: RouterGroup<RequestEvent>): void
   group.get("/{id}", (event) => recordView(app, event));
 }
 
-function recordsList(app: App, event: RequestEvent): Response {
+async function recordsList(app: App, event: RequestEvent): Promise<Response> {
   const collectionId = event.params.collection ?? "";
   const collection = app.findCollectionByNameOrId(collectionId);
   if (!collection) {
     return notFound(event, "Missing collection context.");
   }
 
-  if (!event.auth || !event.auth.isSuperuser()) {
+  const requestInfo = await event.requestInfo();
+
+  if (collection.listRule === null && !requestInfo.auth?.isSuperuser()) {
     return forbidden(event, "Only superusers can perform this action.");
   }
 
-  const fields = collection.fields.map((field) => field.name).filter(Boolean);
-  const allowedFields = fields.length > 0 ? fields : DEFAULT_SYSTEM_FIELDS;
-  const resolver = new SimpleFieldResolver(...allowedFields);
+  const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
+
+  let selectSql = `select * from {{${collection.name}}}`;
+  let countSql = `select count(*) as total from {{${collection.name}}}`;
+  const params: unknown[] = [];
+
+  if (!requestInfo.auth?.isSuperuser() && collection.listRule && collection.listRule !== "") {
+    const expr = buildFilterExpr(collection.listRule, resolver, DefaultFilterExprLimit);
+    if (expr.sql) {
+      selectSql = appendWhere(selectSql, expr.sql);
+      countSql = appendWhere(countSql, expr.sql);
+      params.push(...expr.params);
+    }
+  }
+
+  resolver.setAllowHiddenFields(Boolean(requestInfo.auth?.isSuperuser()));
 
   const provider = new Provider(resolver).query({
-    select: `select * from {{${collection.name}}}`,
-    count: `select count(*) as total from {{${collection.name}}}`,
+    select: selectSql,
+    count: countSql,
+    params,
   });
 
   try {
@@ -57,14 +73,15 @@ function recordsList(app: App, event: RequestEvent): Response {
   }
 }
 
-function recordView(app: App, event: RequestEvent): Response {
+async function recordView(app: App, event: RequestEvent): Promise<Response> {
   const collectionId = event.params.collection ?? "";
   const collection = app.findCollectionByNameOrId(collectionId);
   if (!collection) {
     return notFound(event, "Missing collection context.");
   }
 
-  if (!event.auth || !event.auth.isSuperuser()) {
+  const requestInfo = await event.requestInfo();
+  if (collection.viewRule === null && !requestInfo.auth?.isSuperuser()) {
     return forbidden(event, "Only superusers can perform this action.");
   }
 
@@ -74,7 +91,13 @@ function recordView(app: App, event: RequestEvent): Response {
   }
 
   try {
-    const record = app.findRecordById(collection, recordId);
+    let ruleExpr = null;
+    if (!requestInfo.auth?.isSuperuser() && collection.viewRule && collection.viewRule !== "") {
+      const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
+      ruleExpr = buildFilterExpr(collection.viewRule, resolver, DefaultFilterExprLimit);
+    }
+
+    const record = app.findRecordById(collection, recordId, ruleExpr);
     if (!record) {
       return notFound(event, "");
     }
@@ -107,4 +130,14 @@ function forbidden(event: RequestEvent, message: string): Response {
     message,
     data: {},
   });
+}
+
+function appendWhere(baseSql: string, clause: string): string {
+  if (!clause) {
+    return baseSql;
+  }
+  if (/\bwhere\b/i.test(baseSql)) {
+    return `${baseSql} AND ${clause}`;
+  }
+  return `${baseSql} WHERE ${clause}`;
 }

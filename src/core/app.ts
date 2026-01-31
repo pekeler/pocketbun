@@ -5,6 +5,7 @@ import type { Settings } from "./settings.ts";
 import type { Store } from "./store.ts";
 import type { Record as RecordModel } from "./record.ts";
 import type { Collection } from "./collection.ts";
+import type { SqlExpr } from "../tools/search/types.ts";
 
 export interface App {
   dataDir(): string;
@@ -24,5 +25,5 @@ export interface App {
   findAuthRecordByToken(token: string, validTypes?: string[]): RecordModel;
   findCollectionById(id: string): Collection | null;
   findCollectionByNameOrId(identifier: string): Collection | null;
-  findRecordById(collection: Collection, id: string): RecordModel | null;
+  findRecordById(collection: Collection, id: string, rule?: SqlExpr | null): RecordModel | null;
 }

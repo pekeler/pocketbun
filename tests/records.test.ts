@@ -103,4 +103,38 @@ describe("records api", () => {
     expect(body.password).toBeUndefined();
     expect(body.tokenKey).toBeUndefined();
   });
+
+  it("applies list rules for regular auth users", async () => {
+    const response = await fetch(`${baseUrl}/api/collections/demo3/records`, {
+      headers: { Authorization: regularUserToken },
+    });
+    const body = (await response.json()) as RecordsListResponse;
+
+    expect(response.status).toBe(200);
+    expect(body.totalItems).toBe(0);
+    expect(body.items.length).toBe(0);
+  });
+
+  it("allows regular auth users to view their own record via view rule", async () => {
+    const response = await fetch(`${baseUrl}/api/collections/users/records/4q1xlclmfloku33`, {
+      headers: { Authorization: regularUserToken },
+    });
+    const body = (await response.json()) as RecordItem;
+
+    expect(response.status).toBe(200);
+    expect(body.id).toBe("4q1xlclmfloku33");
+    expect(body.collectionName).toBe("users");
+    expect(body.password).toBeUndefined();
+    expect(body.tokenKey).toBeUndefined();
+  });
+
+  it("denies regular auth users from viewing other records via view rule", async () => {
+    const response = await fetch(`${baseUrl}/api/collections/users/records/bgs820n361vj1qd`, {
+      headers: { Authorization: regularUserToken },
+    });
+    const body = (await response.json()) as ApiErrorResponse;
+
+    expect(response.status).toBe(404);
+    expect(body.data).toEqual({});
+  });
 });

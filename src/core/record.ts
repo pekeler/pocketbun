@@ -9,10 +9,12 @@ export type RecordExportOptions = {
   ignoreEmailVisibility?: boolean;
 };
 
+export const FieldNameId = "id";
 export const FieldNamePassword = "password";
 export const FieldNameTokenKey = "tokenKey";
 export const FieldNameEmailVisibility = "emailVisibility";
 export const FieldNameEmail = "email";
+export const FieldNameVerified = "verified";
 export const FieldNameCollectionId = "collectionId";
 export const FieldNameCollectionName = "collectionName";
 export const FieldNameExpand = "expand";
