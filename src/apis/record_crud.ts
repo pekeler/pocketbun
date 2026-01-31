@@ -39,14 +39,12 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
   const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
 
   let selectSql = `select * from {{${collection.name}}}`;
-  let countSql = `select count(*) as total from {{${collection.name}}}`;
   const params: unknown[] = [];
 
   if (!requestInfo.auth?.isSuperuser() && collection.listRule && collection.listRule !== "") {
     const expr = buildFilterExpr(collection.listRule, resolver, DefaultFilterExprLimit);
     if (expr.sql) {
       selectSql = appendWhere(selectSql, expr.sql);
-      countSql = appendWhere(countSql, expr.sql);
       params.push(...expr.params);
     }
   }
@@ -55,9 +53,12 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
 
   const provider = new Provider(resolver).query({
     select: selectSql,
-    count: countSql,
     params,
   });
+
+  if (collection.type !== "view") {
+    provider.countCol("_rowid_");
+  }
 
   try {
     const query = new URL(event.request.url).searchParams.toString();
@@ -91,13 +92,36 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
   }
 
   try {
-    let ruleExpr = null;
     if (!requestInfo.auth?.isSuperuser() && collection.viewRule && collection.viewRule !== "") {
       const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
-      ruleExpr = buildFilterExpr(collection.viewRule, resolver, DefaultFilterExprLimit);
+      const ruleExpr = buildFilterExpr(collection.viewRule, resolver, DefaultFilterExprLimit);
+
+      let selectSql = `select * from {{${collection.name}}}`;
+      const params: unknown[] = [recordId];
+      selectSql = appendWhere(selectSql, `[[${collection.name}.id]] = ?`);
+      if (ruleExpr.sql) {
+        selectSql = appendWhere(selectSql, ruleExpr.sql);
+        params.push(...ruleExpr.params);
+      }
+
+      if (resolver.updateQuery) {
+        const updated = resolver.updateQuery({
+          select: selectSql,
+          params,
+        });
+        selectSql = updated.select;
+        params.splice(0, params.length, ...(updated.params ?? []));
+      }
+
+      const row = app.db().query(selectSql).get(...params) as Record<string, unknown> | undefined;
+      if (!row) {
+        return notFound(event, "");
+      }
+
+      return event.json(200, new RecordModel(collection, row).publicExport());
     }
 
-    const record = app.findRecordById(collection, recordId, ruleExpr);
+    const record = app.findRecordById(collection, recordId);
     if (!record) {
       return notFound(event, "");
     }
