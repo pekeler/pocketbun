@@ -7,6 +7,7 @@ import { Router } from "../tools/router/router.ts";
 import { loadAuthFromRequest } from "./auth.ts";
 import { bindCollectionApi } from "./collection.ts";
 import { bindHealthApi } from "./health.ts";
+import { bindRecordCrudApi } from "./record_crud.ts";
 
 export type ServeConfig = {
   httpAddr?: string;
@@ -18,6 +19,7 @@ export function buildServeHandler(app: App): (req: Request, server?: unknown) =>
   const apiGroup = router.group("/api");
   bindCollectionApi(app, apiGroup);
   bindHealthApi(app, apiGroup);
+  bindRecordCrudApi(app, apiGroup);
   bindAdminUI(router);
 
   return router.buildHandler(({ request, params, remoteAddress }) => {

@@ -2,6 +2,14 @@ import { Collection, CollectionNameSuperusers } from "./collection.ts";
 
 export type RecordData = { [key: string]: unknown };
 
+export const FieldNamePassword = "password";
+export const FieldNameTokenKey = "tokenKey";
+export const FieldNameEmailVisibility = "emailVisibility";
+export const FieldNameEmail = "email";
+export const FieldNameCollectionId = "collectionId";
+export const FieldNameCollectionName = "collectionName";
+export const FieldNameExpand = "expand";
+
 export class Record {
   id: string;
   #collection: Collection;
@@ -17,6 +25,14 @@ export class Record {
     return this.#collection;
   }
 
+  get(field: string): unknown {
+    return this.#data[field];
+  }
+
+  getBool(field: string): boolean {
+    return Boolean(this.#data[field]);
+  }
+
   tokenKey(): string {
     const tokenKey = this.#data.tokenKey;
     return typeof tokenKey === "string" ? tokenKey : "";
@@ -24,5 +40,39 @@ export class Record {
 
   isSuperuser(): boolean {
     return this.#collection.name === CollectionNameSuperusers;
+  }
+
+  publicExport(): RecordData {
+    const exportData: RecordData = {};
+
+    for (const field of this.#collection.fields) {
+      if (field.hidden) {
+        continue;
+      }
+      exportData[field.name] = this.get(field.name);
+    }
+
+    if (this.#collection.isAuth()) {
+      delete exportData[FieldNamePassword];
+      delete exportData[FieldNameTokenKey];
+
+      if (!this.getBool(FieldNameEmailVisibility)) {
+        delete exportData[FieldNameEmail];
+      }
+    }
+
+    exportData[FieldNameCollectionId] = this.#collection.id;
+    exportData[FieldNameCollectionName] = this.#collection.name;
+
+    const expand = this.get(FieldNameExpand);
+    if (expand && typeof expand === "object") {
+      exportData[FieldNameExpand] = expand;
+    }
+
+    return exportData;
+  }
+
+  toJSON(): RecordData {
+    return this.publicExport();
   }
 }

@@ -28,6 +28,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-31 01:26Z) Add a dbx tools index export to surface DbxDatabase, rewrite, and attach helpers.
 - [x] (2026-01-31 01:34Z) Re-export dbx helpers from the public entrypoint for external consumers.
 - [x] (2026-01-31 01:40Z) Document dbx helper exports and usage in README.
+- [x] (2026-01-31 02:15Z) Add superuser-only records list/view endpoints using the search provider with basic record export and tests.
 - [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -90,6 +91,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Date/Author: 2026-01-31 / Codex
 - Decision: Provide an attach helper that monkey-patches an existing bun:sqlite Database instance with dbx placeholder rewriting.
   Rationale: some callers may construct Database instances outside BaseApp, and we still need dbx placeholder compatibility without changing their construction flow.
+  Date/Author: 2026-01-31 / Codex
+- Decision: Gate record list/view behind superuser auth until list/view rule parsing and request-auth-aware filtering are ported.
+  Rationale: it preserves safety and admin compatibility while we implement the full record rule/resolver stack.
   Date/Author: 2026-01-31 / Codex
 
 ## Outcomes & Retrospective
@@ -263,3 +267,4 @@ Plan change note: 2026-01-31, added an attach helper to retrofit dbx placeholder
 Plan change note: 2026-01-31, added a dbx tools index export to surface DbxDatabase and rewrite helpers.
 Plan change note: 2026-01-31, exported dbx helpers from the package entrypoint to make them available to external consumers.
 Plan change note: 2026-01-31, documented dbx helper exports and example usage in README for external consumers.
+Plan change note: 2026-01-31, added superuser-only record list/view endpoints with basic record export and tests.

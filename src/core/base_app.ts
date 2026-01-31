@@ -6,7 +6,7 @@ import type { Database } from "bun:sqlite";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { App } from "./app.ts";
-import { Collection } from "./collection.ts";
+import { Collection, parseCollectionFields } from "./collection.ts";
 import { AppMigrations, MigrationsRunner, SystemMigrations } from "./migrations_runner.ts";
 import { MigrationsList } from "./migrations_list.ts";
 import {
@@ -185,33 +185,35 @@ export class BaseApp implements App {
     return record;
   }
 
-  private findCollectionById(id: string): Collection | null {
+  findCollectionById(id: string): Collection | null {
     const row = this.db()
-      .query("select id, name, type, options from _collections where id = ?")
-      .get(id) as { id: string; name: string; type: string; options: string } | undefined;
+      .query(
+        "select id, name, system, type, fields, listRule, viewRule, createRule, updateRule, deleteRule, options from _collections where id = ?",
+      )
+      .get(id) as CollectionRow | undefined;
 
     if (!row) {
       return null;
     }
 
-    let options: unknown = null;
-    if (typeof row.options === "string") {
-      try {
-        options = JSON.parse(row.options);
-      } catch {
-        options = null;
-      }
-    }
-
-    return new Collection({
-      id: row.id,
-      name: row.name,
-      type: row.type,
-      options: typeof options === "object" && options ? (options as Record<string, unknown>) : null,
-    });
+    return collectionFromRow(row);
   }
 
-  private findRecordById(collection: Collection, id: string): RecordModel | null {
+  findCollectionByNameOrId(identifier: string): Collection | null {
+    const row = this.db()
+      .query(
+        "select id, name, system, type, fields, listRule, viewRule, createRule, updateRule, deleteRule, options from _collections where id = ? or name = ?",
+      )
+      .get(identifier, identifier) as CollectionRow | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return collectionFromRow(row);
+  }
+
+  findRecordById(collection: Collection, id: string): RecordModel | null {
     const table = collection.name;
     if (!isSafeIdentifier(table)) {
       throw new Error(`unsafe table name ${table}`);
@@ -224,6 +226,54 @@ export class BaseApp implements App {
 
     return new RecordModel(collection, row as RecordData);
   }
+}
+
+type CollectionRow = {
+  id: string;
+  name: string;
+  system: number;
+  type: string;
+  fields: string;
+  listRule: string | null;
+  viewRule: string | null;
+  createRule: string | null;
+  updateRule: string | null;
+  deleteRule: string | null;
+  options: string;
+};
+
+function collectionFromRow(row: CollectionRow): Collection {
+  let options: unknown = null;
+  if (typeof row.options === "string") {
+    try {
+      options = JSON.parse(row.options);
+    } catch {
+      options = null;
+    }
+  }
+
+  let fields: unknown = [];
+  if (typeof row.fields === "string") {
+    try {
+      fields = JSON.parse(row.fields);
+    } catch {
+      fields = [];
+    }
+  }
+
+  return new Collection({
+    id: row.id,
+    name: row.name,
+    system: Boolean(row.system),
+    type: row.type,
+    fields: parseCollectionFields(fields),
+    listRule: row.listRule ?? null,
+    viewRule: row.viewRule ?? null,
+    createRule: row.createRule ?? null,
+    updateRule: row.updateRule ?? null,
+    deleteRule: row.deleteRule ?? null,
+    options: typeof options === "object" && options ? (options as Record<string, unknown>) : null,
+  });
 }
 
 function resolveBaseTokenKey(collection: Collection, tokenType: string): string {
