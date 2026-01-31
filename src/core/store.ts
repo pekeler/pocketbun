@@ -1,3 +1,5 @@
+// PocketBun-only: minimal in-memory store until the upstream store package is ported.
+
 export const StoreKeyActiveBackup = "activeBackup";
 
 export class Store<K, V> {

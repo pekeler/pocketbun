@@ -1,3 +1,5 @@
+// Ported from pocketbase/tools/router/event.go
+
 export type NextHandler = () => Promise<void>;
 
 export class Event {

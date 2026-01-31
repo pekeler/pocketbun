@@ -1,3 +1,5 @@
+// Ported from pocketbase/tools/security/random.go
+
 import { randomInt } from "node:crypto";
 
 const defaultAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";

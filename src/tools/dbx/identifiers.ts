@@ -1,4 +1,4 @@
-// dbx-style identifier quoting compatibility for bun:sqlite.
+// PocketBun-only: rewrites dbx placeholders for bun:sqlite compatibility.
 
 export function rewriteDbxIdentifiers(sql: string): string {
   let result = "";

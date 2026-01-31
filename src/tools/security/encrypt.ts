@@ -1,4 +1,4 @@
-// Ported from pocketbase/tools/security/encrypt.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/tools/security/encrypt.go
 
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 

@@ -1,4 +1,4 @@
-// Attach dbx-style SQL placeholder rewriting to an existing bun:sqlite Database instance.
+// PocketBun-only: attach helper to patch dbx placeholder rewrites onto existing Database instances.
 
 import type { Database, SQLQueryBindings, Statement } from "bun:sqlite";
 import { rewriteDbxIdentifiers } from "./identifiers.ts";

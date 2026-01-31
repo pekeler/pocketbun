@@ -1,3 +1,5 @@
+// PocketBun-only: test server/data helpers for Bun.
+
 import { cp, mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";

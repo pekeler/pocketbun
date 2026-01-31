@@ -1,4 +1,4 @@
-// Ported from pocketbase/core/collection_model.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/core/collection_model.go
 
 export const CollectionNameSuperusers = "_superusers";
 

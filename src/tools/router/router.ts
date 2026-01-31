@@ -1,3 +1,5 @@
+// Ported from pocketbase/tools/router/router.go
+
 import { Route, type Handler } from "./route.ts";
 import { RouterGroup } from "./group.ts";
 

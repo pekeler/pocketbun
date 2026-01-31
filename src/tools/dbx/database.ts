@@ -1,4 +1,4 @@
-// dbx-style SQL placeholder rewrite wrapper for bun:sqlite.
+// PocketBun-only: bun:sqlite Database wrapper that applies dbx placeholder rewrites.
 
 import {
   Database,

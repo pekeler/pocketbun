@@ -1,4 +1,4 @@
-// Ported from pocketbase/dbx usage patterns; local compatibility helpers.
+// PocketBun-only: exports dbx compatibility helpers.
 
 export { DbxDatabase } from "./database.ts";
 export { rewriteDbxIdentifiers } from "./identifiers.ts";

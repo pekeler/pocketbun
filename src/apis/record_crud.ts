@@ -1,4 +1,4 @@
-// Ported from pocketbase/apis/record_crud.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/apis/record_crud.go
 
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";

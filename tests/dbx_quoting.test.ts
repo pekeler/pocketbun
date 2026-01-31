@@ -1,3 +1,5 @@
+// PocketBun-only: Bun tests for dbx identifier rewrite compatibility.
+
 import { describe, expect, it } from "bun:test";
 import { rewriteDbxIdentifiers } from "../src/tools/dbx/identifiers.ts";
 

@@ -1,3 +1,5 @@
+// PocketBun-only: Bun tests for dbx wrapper behavior.
+
 import { describe, expect, it } from "bun:test";
 import { Database } from "bun:sqlite";
 import { attachDbxRewrite } from "../src/tools/dbx/wrap.ts";

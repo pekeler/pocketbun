@@ -1,4 +1,4 @@
-// Ported from pocketbase/tools/search @ v0.36.1 (9b036fb1)
+// PocketBun-only: barrel exports for the search toolkit.
 
 export { Provider } from "./provider.ts";
 export { buildFilterExpr } from "./filter.ts";

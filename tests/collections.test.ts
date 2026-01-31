@@ -1,3 +1,5 @@
+// PocketBun-only: Bun tests for collections list/view compatibility.
+
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { startTestServer } from "./helpers.ts";
 

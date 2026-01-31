@@ -1,3 +1,5 @@
+// Ported from pocketbase/core/app.go
+
 import type { Database } from "bun:sqlite";
 import type { Settings } from "./settings.ts";
 import type { Store } from "./store.ts";

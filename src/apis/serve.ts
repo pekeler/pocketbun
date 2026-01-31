@@ -1,4 +1,4 @@
-// Ported from pocketbase/apis/serve.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/apis/serve.go
 
 import { resolve, sep } from "node:path";
 import type { App } from "../core/app.ts";

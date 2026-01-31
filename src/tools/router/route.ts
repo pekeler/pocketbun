@@ -1,3 +1,5 @@
+// Ported from pocketbase/tools/router/route.go
+
 export type Handler<E> = (event: E) => Response | Promise<Response> | void | Promise<void>;
 
 export type RouteMatch = {

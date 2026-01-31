@@ -1,4 +1,4 @@
-// Ported from pocketbase/core/record_tokens.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/core/record_tokens.go
 
 export const TokenTypeAuth = "auth";
 export const TokenTypeFile = "file";

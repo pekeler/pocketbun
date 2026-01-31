@@ -1,4 +1,4 @@
-// Ported from pocketbase/pocketbase.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/pocketbase.go
 
 export class PocketBase {
   constructor() {

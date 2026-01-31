@@ -1,3 +1,5 @@
+// PocketBun-only: migrations registry wiring for Bun.
+
 import "./1640988000_init.ts";
 import "./1640988000_aux_init.ts";
 import "./1717233556_v0.23_migrate.ts";

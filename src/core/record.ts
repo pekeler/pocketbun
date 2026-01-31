@@ -1,6 +1,13 @@
+// Ported from pocketbase/core/record_model.go
+
 import { Collection, CollectionNameSuperusers } from "./collection.ts";
 
 export type RecordData = { [key: string]: unknown };
+
+export type RecordExportOptions = {
+  includeHidden?: boolean;
+  ignoreEmailVisibility?: boolean;
+};
 
 export const FieldNamePassword = "password";
 export const FieldNameTokenKey = "tokenKey";
@@ -42,11 +49,13 @@ export class Record {
     return this.#collection.name === CollectionNameSuperusers;
   }
 
-  publicExport(): RecordData {
+  export(options: RecordExportOptions = {}): RecordData {
     const exportData: RecordData = {};
+    const includeHidden = Boolean(options.includeHidden);
+    const ignoreEmailVisibility = Boolean(options.ignoreEmailVisibility);
 
     for (const field of this.#collection.fields) {
-      if (field.hidden) {
+      if (field.hidden && !includeHidden) {
         continue;
       }
       exportData[field.name] = this.get(field.name);
@@ -56,7 +65,7 @@ export class Record {
       delete exportData[FieldNamePassword];
       delete exportData[FieldNameTokenKey];
 
-      if (!this.getBool(FieldNameEmailVisibility)) {
+      if (!ignoreEmailVisibility && !this.getBool(FieldNameEmailVisibility)) {
         delete exportData[FieldNameEmail];
       }
     }
@@ -70,6 +79,10 @@ export class Record {
     }
 
     return exportData;
+  }
+
+  publicExport(): RecordData {
+    return this.export();
   }
 
   toJSON(): RecordData {

@@ -1,3 +1,5 @@
+// Ported from pocketbase/core/settings_model.go
+
 export type TrustedProxyConfig = {
   headers: string[];
   useLeftmostIP: boolean;

@@ -1,4 +1,4 @@
-// Ported from pocketbase/core/migrations_list.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/core/migrations_list.go
 
 import type { App } from "./app.ts";
 import type { MigrationsRunner } from "./migrations_runner.ts";

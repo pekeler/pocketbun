@@ -1,4 +1,4 @@
-// Ported from pocketbase/tools/search/filter.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/tools/search/filter.go
 
 import type { FieldResolver, ResolverResult } from "./field_resolver.ts";
 import { resolveIdentifierMacro } from "./identifier_macros.ts";

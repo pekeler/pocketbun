@@ -1,3 +1,5 @@
+// Ported from pocketbase/tools/security/jwt.go
+
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export type JwtClaims = Record<string, unknown>;

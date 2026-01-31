@@ -1,3 +1,5 @@
+// Ported from pocketbase/core/event_request.go
+
 import { Event } from "../tools/router/event.ts";
 import type { App } from "./app.ts";
 import { Record as RecordModel } from "./record.ts";

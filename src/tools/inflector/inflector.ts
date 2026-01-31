@@ -1,4 +1,4 @@
-// Ported from pocketbase/tools/inflector/inflector.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/tools/inflector/inflector.go
 
 const columnifyRemoveRegex = /[^\w.*\-_@#]+/g;
 const snakecaseSplitRegex = /[\W_]+/g;

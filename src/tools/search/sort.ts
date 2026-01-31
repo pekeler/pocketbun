@@ -1,4 +1,4 @@
-// Ported from pocketbase/tools/search/sort.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/tools/search/sort.go
 
 import type { FieldResolver } from "./field_resolver.ts";
 

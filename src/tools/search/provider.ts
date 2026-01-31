@@ -1,4 +1,4 @@
-// Ported from pocketbase/tools/search/provider.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/tools/search/provider.go
 
 import type { Database, SQLQueryBindings } from "bun:sqlite";
 import { columnify } from "../inflector/inflector.ts";

@@ -1,4 +1,4 @@
-// Ported from pocketbase/core/base_app.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/core/base_app.go
 
 import "../migrations/index.ts";
 

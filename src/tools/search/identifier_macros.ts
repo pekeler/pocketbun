@@ -1,4 +1,4 @@
-// Ported from pocketbase/tools/search/identifier_macros.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/tools/search/identifier_macros.go
 
 export function resolveIdentifierMacro(name: string, now = new Date()): unknown {
   switch (name) {

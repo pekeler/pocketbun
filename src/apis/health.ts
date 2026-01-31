@@ -1,4 +1,4 @@
-// Ported from pocketbase/apis/health.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/apis/health.go
 
 import type { App } from "../core/app.ts";
 import { StoreKeyActiveBackup } from "../core/store.ts";

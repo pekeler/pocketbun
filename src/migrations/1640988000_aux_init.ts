@@ -1,4 +1,4 @@
-// Ported from pocketbase/migrations/1640988000_aux_init.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/migrations/1640988000_aux_init.go
 
 import type { App } from "../core/app.ts";
 import { SystemMigrations } from "../core/migrations_runner.ts";

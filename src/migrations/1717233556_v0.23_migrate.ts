@@ -1,4 +1,4 @@
-// Ported from pocketbase/migrations/1717233556_v0.23_migrate.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/migrations/1717233556_v0.23_migrate.go
 
 import type { Database } from "bun:sqlite";
 import type { App } from "../core/app.ts";

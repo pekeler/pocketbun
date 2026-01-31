@@ -1,3 +1,5 @@
+// PocketBun-only: Bun test for Admin UI static serving.
+
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { startTestServer } from "./helpers.ts";
 

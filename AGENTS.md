@@ -30,8 +30,9 @@ Goal: maximize long-term maintainability and upstream-syncability by keeping Poc
 
 - **Behavior first:** Match PocketBase observable behavior (API, status codes, JSON shapes, error formats, auth, realtime) even if the internal implementation differs.
 - **Mechanical translation preferred:** Avoid “cleanup”, refactors, or re-architecture unless needed for correctness or Bun constraints.
-- **Traceability:** When porting a file, add a short header comment linking to the upstream source path + pinned tag/commit, e.g.
-  `// Ported from pocketbase/<path> @ <tag> (<commit>)`
+- **Traceability:** When porting a file, add a short header comment linking to the upstream source path (no version/hash; `pocketbase_tag.txt` is the source of truth), e.g.
+  `// Ported from pocketbase/<path>`
+- **Non-upstream files:** Any source or test file without an upstream counterpart must include a short header comment explaining why the file exists (keep these files to a minimum).
 - **1:1 file mapping (when reasonable):** Prefer one `.ts` file per corresponding `.go` file and mirror directory structure (Go packages → TS folders) to keep diffs and future syncing straightforward.
   - If strict 1:1 creates unnatural modules (circular imports, huge files, etc.), it’s OK to merge/split — but document it in a comment near the top of the file.
 - **Naming:** Prefer upstream naming and concepts for internal identifiers (types/functions), even if not idiomatic JS/TS, **as long as it doesn’t reduce clarity or cause bugs**.

@@ -1,4 +1,4 @@
-// Ported from pocketbase/tools/search/provider.go @ v0.36.1 (9b036fb1)
+// Ported from pocketbase/tools/search/provider.go
 
 export const DefaultPerPage = 30;
 export const DefaultFilterExprLimit = 200;
