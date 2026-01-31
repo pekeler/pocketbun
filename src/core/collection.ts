@@ -223,6 +223,18 @@ export function NewViewCollection(name: string, id = ""): Collection {
   });
   collection.markNew(true);
   collection.Fields = NewFieldsList();
+
+  const idField = new TextField();
+  idField.Name = FieldNameId;
+  idField.System = true;
+  idField.PrimaryKey = true;
+  idField.Required = true;
+  idField.Min = 15;
+  idField.Max = 15;
+  idField.Pattern = defaultLowercaseRecordIdPattern;
+  idField.AutogeneratePattern = "[a-z0-9]{15}";
+  collection.Fields.Add(idField);
+
   return collection;
 }
 

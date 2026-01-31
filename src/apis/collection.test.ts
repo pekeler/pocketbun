@@ -1,7 +1,8 @@
-// PocketBun-only: Bun tests for collections list/view compatibility.
+// Ported from pocketbase/apis/collection_test.go
+// Note: partial port covering list/view compatibility.
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { startTestServer } from "./helpers.ts";
+import { startTestServer } from "../../tests/helpers.ts";
 
 type StartedServer = Awaited<ReturnType<typeof startTestServer>>;
 type ApiErrorResponse = { status: number; message: string; data: Record<string, unknown> };
@@ -92,5 +93,48 @@ describe("collections api", () => {
 
     expect(response.status).toBe(400);
     expect(body.data).toEqual({});
+  });
+
+  it("creates, updates, and deletes a collection (basic)", async () => {
+    const createRes = await fetch(`${baseUrl}/api/collections`, {
+      method: "POST",
+      headers: {
+        Authorization: superuserToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "bun_collections_basic",
+        type: "base",
+        fields: [{ type: "text", name: "title" }],
+      }),
+    });
+
+    expect(createRes.status).toBe(200);
+    const created = (await createRes.json()) as { id: string; name: string };
+    expect(created.name).toBe("bun_collections_basic");
+    expect(typeof created.id).toBe("string");
+
+    const updateRes = await fetch(`${baseUrl}/api/collections/${created.id}`, {
+      method: "PATCH",
+      headers: {
+        Authorization: superuserToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "bun_collections_basic_updated",
+      }),
+    });
+
+    expect(updateRes.status).toBe(200);
+    const updated = (await updateRes.json()) as { name: string };
+    expect(updated.name).toBe("bun_collections_basic_updated");
+
+    const deleteRes = await fetch(`${baseUrl}/api/collections/${created.id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: superuserToken,
+      },
+    });
+    expect(deleteRes.status).toBe(204);
   });
 });

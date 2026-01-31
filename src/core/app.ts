@@ -7,6 +7,12 @@ import type { Record as RecordModel } from "./record.ts";
 import type { Collection } from "./collection.ts";
 import type { SqlExpr } from "../tools/search/types.ts";
 import type { System } from "../tools/filesystem/filesystem.ts";
+import type { Hook } from "../tools/hook/hook.ts";
+import type {
+  CollectionRequestEvent,
+  CollectionsImportRequestEvent,
+  CollectionsListRequestEvent,
+} from "./events.ts";
 
 export type Logger = {
   Warn: (message: string, ...args: unknown[]) => void;
@@ -28,8 +34,10 @@ export interface App {
   runAppMigrations(): void;
   runAllMigrations(): void;
   NewFilesystem(): System;
-  Save(record: RecordModel): Error | null;
-  Delete(record: RecordModel): Error | null;
+  Save(model: RecordModel | Collection): Error | null;
+  Delete(model: RecordModel | Collection): Error | null;
+  TruncateCollection(collection: Collection): Error | null;
+  ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Error | null;
   RunInTransaction(fn: (txApp: App) => Error | null): Error | null;
   IsTransactional(): boolean;
   Logger(): Logger;
@@ -42,4 +50,10 @@ export interface App {
     filter: string,
     ...params: SQLQueryBindings[]
   ): RecordModel | null;
+  OnCollectionsListRequest(): Hook<CollectionsListRequestEvent>;
+  OnCollectionViewRequest(): Hook<CollectionRequestEvent>;
+  OnCollectionCreateRequest(): Hook<CollectionRequestEvent>;
+  OnCollectionUpdateRequest(): Hook<CollectionRequestEvent>;
+  OnCollectionDeleteRequest(): Hook<CollectionRequestEvent>;
+  OnCollectionsImportRequest(): Hook<CollectionsImportRequestEvent>;
 }
