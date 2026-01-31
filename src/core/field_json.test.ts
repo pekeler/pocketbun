@@ -1,17 +1,17 @@
 // Ported from pocketbase/core/field_json_test.go
 
 import { describe, expect, it } from "bun:test";
-import { JSONField, FieldTypeJSON, DefaultJSONFieldMaxSize } from "../src/core/field_json.ts";
-import { NewBaseCollection } from "../src/core/collection.ts";
-import { NewRecord } from "../src/core/record.ts";
-import { JSONRaw } from "../src/tools/types/index.ts";
-import { newTestApp } from "./test_app.ts";
+import { JSONField, FieldTypeJSON, DefaultJSONFieldMaxSize } from "./field_json.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { NewRecord } from "./record.ts";
+import { JSONRaw } from "../tools/types/index.ts";
+import { newTestApp } from "../../tests/test_app.ts";
 import {
   testDefaultFieldIdValidation,
   testDefaultFieldNameValidation,
   testFieldBaseMethods,
 } from "./field_test.ts";
-import { testValidationErrors } from "./validation_errors.ts";
+import { testValidationErrors } from "../../tests/validation_errors.ts";
 
 describe("json field", () => {
   it("base methods", () => {

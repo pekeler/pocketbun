@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/validators/string_test.go
 
 import { describe, expect, it } from "bun:test";
-import { isRegex } from "../src/core/validators/string.ts";
+import { isRegex } from "./string.ts";
 
 describe("validators string", () => {
   it("validates regex patterns", () => {

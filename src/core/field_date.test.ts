@@ -1,17 +1,17 @@
 // Ported from pocketbase/core/field_date_test.go
 
 import { describe, expect, it } from "bun:test";
-import { DateField, FieldTypeDate } from "../src/core/field_date.ts";
-import { NewBaseCollection } from "../src/core/collection.ts";
-import { NewRecord } from "../src/core/record.ts";
-import { DateTime, NowDateTime } from "../src/tools/types/index.ts";
-import { newTestApp } from "./test_app.ts";
+import { DateField, FieldTypeDate } from "./field_date.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { NewRecord } from "./record.ts";
+import { DateTime, NowDateTime } from "../tools/types/index.ts";
+import { newTestApp } from "../../tests/test_app.ts";
 import {
   testDefaultFieldIdValidation,
   testDefaultFieldNameValidation,
   testFieldBaseMethods,
 } from "./field_test.ts";
-import { testValidationErrors } from "./validation_errors.ts";
+import { testValidationErrors } from "../../tests/validation_errors.ts";
 
 describe("date field", () => {
   it("base methods", () => {

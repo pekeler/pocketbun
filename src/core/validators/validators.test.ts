@@ -1,8 +1,8 @@
 // Ported from pocketbase/core/validators/validators_test.go
 
 import { describe, expect, it } from "bun:test";
-import { ValidationErrors } from "../src/internal/compat/validation.ts";
-import { joinValidationErrors } from "../src/core/validators/validators.ts";
+import { ValidationErrors } from "../../internal/compat/validation.ts";
+import { joinValidationErrors } from "./validators.ts";
 
 function formatError(err: Error | null): string {
   if (!err) {

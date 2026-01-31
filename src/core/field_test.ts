@@ -1,10 +1,10 @@
 // Ported from pocketbase/core/field_test.go
 
 import { expect } from "bun:test";
-import { Fields } from "../src/core/field.ts";
-import { NewBaseCollection } from "../src/core/collection.ts";
-import { ValidationErrors } from "../src/internal/compat/validation.ts";
-import { newTestApp } from "./test_app.ts";
+import { Fields } from "./field.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { ValidationErrors } from "../internal/compat/validation.ts";
+import { newTestApp } from "../../tests/test_app.ts";
 
 export function testFieldBaseMethods(fieldType: string): void {
   const factory = Fields[fieldType];

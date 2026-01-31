@@ -5,16 +5,16 @@ import {
   PasswordField,
   FieldTypePassword,
   PasswordFieldValue,
-} from "../src/core/field_password.ts";
-import { NewBaseCollection } from "../src/core/collection.ts";
-import { NewRecord } from "../src/core/record.ts";
-import { newTestApp } from "./test_app.ts";
+} from "./field_password.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { NewRecord } from "./record.ts";
+import { newTestApp } from "../../tests/test_app.ts";
 import {
   testDefaultFieldIdValidation,
   testDefaultFieldNameValidation,
   testFieldBaseMethods,
 } from "./field_test.ts";
-import { testValidationErrors } from "./validation_errors.ts";
+import { testValidationErrors } from "../../tests/validation_errors.ts";
 
 describe("password field", () => {
   it("base methods", () => {

@@ -1,17 +1,17 @@
 // Ported from pocketbase/core/field_relation_test.go
 
 import { describe, expect, it } from "bun:test";
-import { RelationField, FieldTypeRelation } from "../src/core/field_relation.ts";
-import { NewBaseCollection, CollectionTypeView } from "../src/core/collection.ts";
-import { NewRecord } from "../src/core/record.ts";
-import { JSONArray } from "../src/tools/types/index.ts";
-import { newTestApp } from "./test_app.ts";
+import { RelationField, FieldTypeRelation } from "./field_relation.ts";
+import { NewBaseCollection, CollectionTypeView } from "./collection.ts";
+import { NewRecord } from "./record.ts";
+import { JSONArray } from "../tools/types/index.ts";
+import { newTestApp } from "../../tests/test_app.ts";
 import {
   testDefaultFieldIdValidation,
   testDefaultFieldNameValidation,
   testFieldBaseMethods,
 } from "./field_test.ts";
-import { testValidationErrors } from "./validation_errors.ts";
+import { testValidationErrors } from "../../tests/validation_errors.ts";
 
 describe("relation field", () => {
   it("base methods", () => {
