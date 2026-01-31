@@ -6,9 +6,7 @@ An early-stage attempt to port **PocketBase** to JavaScript/TypeScript using Bun
 
 ## Why?
 
-PocketBase is an excellent, well-designed, self-hosted Backend-as-a-Service.  
-You can extend it with Go **or** JavaScript — but the embedded JS engine has limited ES6/Node compatibility, making complex custom logic difficult.  
-Your project may end up running two backends.
+PocketBase is an excellent, well-designed, self-hosted Backend-as-a-Service.  You can extend it with Go **or** JavaScript — but the embedded JS engine has limited ES6/Node compatibility, making complex custom logic difficult. Your project may end up running two backends.
 
 PocketBun is a semi-automated port to **Bun** that aims for maximum compatibility with PocketBase’s API and behavior.
 
