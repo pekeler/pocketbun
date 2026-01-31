@@ -4,7 +4,7 @@ import type { Resolver } from "./event.ts";
 import { Event } from "./event.ts";
 import { randomString } from "../security/random.ts";
 
-export type HandlerFunc<T extends Resolver> = (event: T) => Promise<unknown>;
+export type HandlerFunc<T extends Resolver> = (event: T) => unknown;
 
 export type Handler<T extends Resolver> = {
   Func: HandlerFunc<T>;
@@ -57,7 +57,7 @@ export class Hook<T extends Resolver> {
     return this.#handlers.length;
   }
 
-  async Trigger(event: T, ...oneOffHandlerFuncs: HandlerFunc<T>[]): Promise<unknown> {
+  Trigger(event: T, ...oneOffHandlerFuncs: HandlerFunc<T>[]): unknown {
     const handlers: HandlerFunc<T>[] = [];
     for (const handler of this.#handlers) {
       handlers.push(handler.Func);

@@ -943,7 +943,9 @@ describe("OAuth2ProviderConfig.InitProvider", () => {
       expect(provider.TokenURL()).toBe(scenario.expectedConfig.TokenURL);
       expect(provider.DisplayName()).toBe(scenario.expectedConfig.DisplayName);
       expect(provider.PKCE()).toBe(Boolean(scenario.expectedConfig.PKCE));
-      expect(provider.Extra()).toEqual(scenario.expectedConfig.Extra ?? {});
+      const rawMeta = JSON.stringify(provider.Extra());
+      const expectedMeta = JSON.stringify(scenario.expectedConfig.Extra ?? null);
+      expect(rawMeta).toBe(expectedMeta);
     }
   });
 });

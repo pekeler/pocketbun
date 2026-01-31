@@ -37,6 +37,7 @@ import { Store } from "./store.ts";
 import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
 import { Hook } from "../tools/hook/hook.ts";
+import { NewTaggedHook } from "../tools/hook/tagged.ts";
 import { parseIndex } from "../tools/dbutils/index.ts";
 import {
   InterceptorActionAfterDelete,
@@ -58,9 +59,33 @@ import { DateTime, GeoPoint, JSONRaw, NowDateTime } from "../tools/types/index.t
 import { NewLocal } from "../tools/filesystem/filesystem.ts";
 import { randomString } from "../tools/security/random.ts";
 import type {
+  CollectionErrorEvent,
+  CollectionEvent,
   CollectionRequestEvent,
   CollectionsImportRequestEvent,
   CollectionsListRequestEvent,
+  RecordErrorEvent,
+  RecordEvent,
+} from "./events.ts";
+import {
+  ModelErrorEvent,
+  ModelEvent,
+  ModelEventTypeCreate,
+  ModelEventTypeDelete,
+  ModelEventTypeUpdate,
+  ModelEventTypeValidate,
+  newCollectionErrorEventFromModelErrorEvent,
+  newCollectionEventFromModelEvent,
+  newRecordErrorEventFromModelErrorEvent,
+  newRecordEventFromModelEvent,
+  syncCollectionErrorEventWithModelErrorEvent,
+  syncCollectionEventWithModelEvent,
+  syncModelErrorEventWithCollectionErrorEvent,
+  syncModelErrorEventWithRecordErrorEvent,
+  syncModelEventWithCollectionEvent,
+  syncModelEventWithRecordEvent,
+  syncRecordErrorEventWithModelErrorEvent,
+  syncRecordEventWithModelEvent,
 } from "./events.ts";
 import { validateCollection } from "./collection_validate.ts";
 import { TableInfo } from "./db_table.ts";
@@ -87,6 +112,45 @@ export class BaseApp implements App {
   #onCollectionUpdateRequest: Hook<CollectionRequestEvent>;
   #onCollectionDeleteRequest: Hook<CollectionRequestEvent>;
   #onCollectionsImportRequest: Hook<CollectionsImportRequestEvent>;
+  #onModelCreate: Hook<ModelEvent>;
+  #onModelCreateExecute: Hook<ModelEvent>;
+  #onModelAfterCreateSuccess: Hook<ModelEvent>;
+  #onModelAfterCreateError: Hook<ModelErrorEvent>;
+  #onModelUpdate: Hook<ModelEvent>;
+  #onModelUpdateExecute: Hook<ModelEvent>;
+  #onModelAfterUpdateSuccess: Hook<ModelEvent>;
+  #onModelAfterUpdateError: Hook<ModelErrorEvent>;
+  #onModelValidate: Hook<ModelEvent>;
+  #onModelDelete: Hook<ModelEvent>;
+  #onModelDeleteExecute: Hook<ModelEvent>;
+  #onModelAfterDeleteSuccess: Hook<ModelEvent>;
+  #onModelAfterDeleteError: Hook<ModelErrorEvent>;
+  #onRecordValidate: Hook<RecordEvent>;
+  #onRecordCreate: Hook<RecordEvent>;
+  #onRecordCreateExecute: Hook<RecordEvent>;
+  #onRecordAfterCreateSuccess: Hook<RecordEvent>;
+  #onRecordAfterCreateError: Hook<RecordErrorEvent>;
+  #onRecordUpdate: Hook<RecordEvent>;
+  #onRecordUpdateExecute: Hook<RecordEvent>;
+  #onRecordAfterUpdateSuccess: Hook<RecordEvent>;
+  #onRecordAfterUpdateError: Hook<RecordErrorEvent>;
+  #onRecordDelete: Hook<RecordEvent>;
+  #onRecordDeleteExecute: Hook<RecordEvent>;
+  #onRecordAfterDeleteSuccess: Hook<RecordEvent>;
+  #onRecordAfterDeleteError: Hook<RecordErrorEvent>;
+  #onCollectionValidate: Hook<CollectionEvent>;
+  #onCollectionCreate: Hook<CollectionEvent>;
+  #onCollectionCreateExecute: Hook<CollectionEvent>;
+  #onCollectionAfterCreateSuccess: Hook<CollectionEvent>;
+  #onCollectionAfterCreateError: Hook<CollectionErrorEvent>;
+  #onCollectionUpdate: Hook<CollectionEvent>;
+  #onCollectionUpdateExecute: Hook<CollectionEvent>;
+  #onCollectionAfterUpdateSuccess: Hook<CollectionEvent>;
+  #onCollectionAfterUpdateError: Hook<CollectionErrorEvent>;
+  #onCollectionDelete: Hook<CollectionEvent>;
+  #onCollectionDeleteExecute: Hook<CollectionEvent>;
+  #onCollectionAfterDeleteSuccess: Hook<CollectionEvent>;
+  #onCollectionAfterDeleteError: Hook<CollectionErrorEvent>;
 
   constructor(config: BaseAppConfig = {}) {
     this.#dataDir = config.dataDir ?? "pb_data";
@@ -104,6 +168,48 @@ export class BaseApp implements App {
     this.#onCollectionUpdateRequest = new Hook();
     this.#onCollectionDeleteRequest = new Hook();
     this.#onCollectionsImportRequest = new Hook();
+    this.#onModelCreate = new Hook();
+    this.#onModelCreateExecute = new Hook();
+    this.#onModelAfterCreateSuccess = new Hook();
+    this.#onModelAfterCreateError = new Hook();
+    this.#onModelUpdate = new Hook();
+    this.#onModelUpdateExecute = new Hook();
+    this.#onModelAfterUpdateSuccess = new Hook();
+    this.#onModelAfterUpdateError = new Hook();
+    this.#onModelValidate = new Hook();
+    this.#onModelDelete = new Hook();
+    this.#onModelDeleteExecute = new Hook();
+    this.#onModelAfterDeleteSuccess = new Hook();
+    this.#onModelAfterDeleteError = new Hook();
+    this.#onRecordValidate = new Hook();
+    this.#onRecordCreate = new Hook();
+    this.#onRecordCreateExecute = new Hook();
+    this.#onRecordAfterCreateSuccess = new Hook();
+    this.#onRecordAfterCreateError = new Hook();
+    this.#onRecordUpdate = new Hook();
+    this.#onRecordUpdateExecute = new Hook();
+    this.#onRecordAfterUpdateSuccess = new Hook();
+    this.#onRecordAfterUpdateError = new Hook();
+    this.#onRecordDelete = new Hook();
+    this.#onRecordDeleteExecute = new Hook();
+    this.#onRecordAfterDeleteSuccess = new Hook();
+    this.#onRecordAfterDeleteError = new Hook();
+    this.#onCollectionValidate = new Hook();
+    this.#onCollectionCreate = new Hook();
+    this.#onCollectionCreateExecute = new Hook();
+    this.#onCollectionAfterCreateSuccess = new Hook();
+    this.#onCollectionAfterCreateError = new Hook();
+    this.#onCollectionUpdate = new Hook();
+    this.#onCollectionUpdateExecute = new Hook();
+    this.#onCollectionAfterUpdateSuccess = new Hook();
+    this.#onCollectionAfterUpdateError = new Hook();
+    this.#onCollectionDelete = new Hook();
+    this.#onCollectionDeleteExecute = new Hook();
+    this.#onCollectionAfterDeleteSuccess = new Hook();
+    this.#onCollectionAfterDeleteError = new Hook();
+
+    this.registerCollectionHooks();
+    this.registerRecordHooks();
   }
 
   dataDir(): string {
@@ -148,6 +254,162 @@ export class BaseApp implements App {
 
   OnCollectionsImportRequest(): Hook<CollectionsImportRequestEvent> {
     return this.#onCollectionsImportRequest;
+  }
+
+  OnModelCreate(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelEvent>> {
+    return NewTaggedHook(this.#onModelCreate, ...tags);
+  }
+
+  OnModelCreateExecute(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelEvent>> {
+    return NewTaggedHook(this.#onModelCreateExecute, ...tags);
+  }
+
+  OnModelAfterCreateSuccess(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelEvent>> {
+    return NewTaggedHook(this.#onModelAfterCreateSuccess, ...tags);
+  }
+
+  OnModelAfterCreateError(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelErrorEvent>> {
+    return NewTaggedHook(this.#onModelAfterCreateError, ...tags);
+  }
+
+  OnModelUpdate(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelEvent>> {
+    return NewTaggedHook(this.#onModelUpdate, ...tags);
+  }
+
+  OnModelUpdateExecute(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelEvent>> {
+    return NewTaggedHook(this.#onModelUpdateExecute, ...tags);
+  }
+
+  OnModelAfterUpdateSuccess(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelEvent>> {
+    return NewTaggedHook(this.#onModelAfterUpdateSuccess, ...tags);
+  }
+
+  OnModelAfterUpdateError(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelErrorEvent>> {
+    return NewTaggedHook(this.#onModelAfterUpdateError, ...tags);
+  }
+
+  OnModelValidate(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelEvent>> {
+    return NewTaggedHook(this.#onModelValidate, ...tags);
+  }
+
+  OnModelDelete(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelEvent>> {
+    return NewTaggedHook(this.#onModelDelete, ...tags);
+  }
+
+  OnModelDeleteExecute(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelEvent>> {
+    return NewTaggedHook(this.#onModelDeleteExecute, ...tags);
+  }
+
+  OnModelAfterDeleteSuccess(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelEvent>> {
+    return NewTaggedHook(this.#onModelAfterDeleteSuccess, ...tags);
+  }
+
+  OnModelAfterDeleteError(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelErrorEvent>> {
+    return NewTaggedHook(this.#onModelAfterDeleteError, ...tags);
+  }
+
+  OnRecordValidate(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordEvent>> {
+    return NewTaggedHook(this.#onRecordValidate, ...tags);
+  }
+
+  OnRecordCreate(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordEvent>> {
+    return NewTaggedHook(this.#onRecordCreate, ...tags);
+  }
+
+  OnRecordCreateExecute(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordEvent>> {
+    return NewTaggedHook(this.#onRecordCreateExecute, ...tags);
+  }
+
+  OnRecordAfterCreateSuccess(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordEvent>> {
+    return NewTaggedHook(this.#onRecordAfterCreateSuccess, ...tags);
+  }
+
+  OnRecordAfterCreateError(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordErrorEvent>> {
+    return NewTaggedHook(this.#onRecordAfterCreateError, ...tags);
+  }
+
+  OnRecordUpdate(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordEvent>> {
+    return NewTaggedHook(this.#onRecordUpdate, ...tags);
+  }
+
+  OnRecordUpdateExecute(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordEvent>> {
+    return NewTaggedHook(this.#onRecordUpdateExecute, ...tags);
+  }
+
+  OnRecordAfterUpdateSuccess(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordEvent>> {
+    return NewTaggedHook(this.#onRecordAfterUpdateSuccess, ...tags);
+  }
+
+  OnRecordAfterUpdateError(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordErrorEvent>> {
+    return NewTaggedHook(this.#onRecordAfterUpdateError, ...tags);
+  }
+
+  OnRecordDelete(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordEvent>> {
+    return NewTaggedHook(this.#onRecordDelete, ...tags);
+  }
+
+  OnRecordDeleteExecute(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordEvent>> {
+    return NewTaggedHook(this.#onRecordDeleteExecute, ...tags);
+  }
+
+  OnRecordAfterDeleteSuccess(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordEvent>> {
+    return NewTaggedHook(this.#onRecordAfterDeleteSuccess, ...tags);
+  }
+
+  OnRecordAfterDeleteError(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordErrorEvent>> {
+    return NewTaggedHook(this.#onRecordAfterDeleteError, ...tags);
+  }
+
+  OnCollectionValidate(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+    return NewTaggedHook(this.#onCollectionValidate, ...tags);
+  }
+
+  OnCollectionCreate(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+    return NewTaggedHook(this.#onCollectionCreate, ...tags);
+  }
+
+  OnCollectionCreateExecute(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+    return NewTaggedHook(this.#onCollectionCreateExecute, ...tags);
+  }
+
+  OnCollectionAfterCreateSuccess(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+    return NewTaggedHook(this.#onCollectionAfterCreateSuccess, ...tags);
+  }
+
+  OnCollectionAfterCreateError(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionErrorEvent>> {
+    return NewTaggedHook(this.#onCollectionAfterCreateError, ...tags);
+  }
+
+  OnCollectionUpdate(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+    return NewTaggedHook(this.#onCollectionUpdate, ...tags);
+  }
+
+  OnCollectionUpdateExecute(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+    return NewTaggedHook(this.#onCollectionUpdateExecute, ...tags);
+  }
+
+  OnCollectionAfterUpdateSuccess(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+    return NewTaggedHook(this.#onCollectionAfterUpdateSuccess, ...tags);
+  }
+
+  OnCollectionAfterUpdateError(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionErrorEvent>> {
+    return NewTaggedHook(this.#onCollectionAfterUpdateError, ...tags);
+  }
+
+  OnCollectionDelete(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+    return NewTaggedHook(this.#onCollectionDelete, ...tags);
+  }
+
+  OnCollectionDeleteExecute(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+    return NewTaggedHook(this.#onCollectionDeleteExecute, ...tags);
+  }
+
+  OnCollectionAfterDeleteSuccess(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+    return NewTaggedHook(this.#onCollectionAfterDeleteSuccess, ...tags);
+  }
+
+  OnCollectionAfterDeleteError(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionErrorEvent>> {
+    return NewTaggedHook(this.#onCollectionAfterDeleteError, ...tags);
   }
 
   isBootstrapped(): boolean {
@@ -365,31 +627,47 @@ export class BaseApp implements App {
 
   Save(model: RecordModel | Collection): Error | null {
     if (model instanceof RecordModel) {
-      const action = model.IsNew() ? InterceptorActionCreate : InterceptorActionUpdate;
+      const isNew = model.IsNew();
+      const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
+      const action = isNew ? InterceptorActionCreate : InterceptorActionUpdate;
       const executeAction = model.IsNew()
         ? InterceptorActionCreateExecute
         : InterceptorActionUpdateExecute;
-      const afterSuccess = model.IsNew() ? InterceptorActionAfterCreate : InterceptorActionAfterUpdate;
-      const afterError = model.IsNew()
+      const afterSuccess = isNew ? InterceptorActionAfterCreate : InterceptorActionAfterUpdate;
+      const afterError = isNew
         ? InterceptorActionAfterCreateError
         : InterceptorActionAfterUpdateError;
 
-      const saveErr = model.callFieldInterceptors(null, this, action, () => {
-        const validateErr = model.callFieldInterceptors(null, this, InterceptorActionValidate, () =>
-          this.validateRecord(model),
-        );
-        if (validateErr) {
-          return validateErr;
-        }
+      const runPersist = () =>
+        model.callFieldInterceptors(null, this, action, () => {
+          const validateErr = model.callFieldInterceptors(null, this, InterceptorActionValidate, () =>
+            this.Validate(model),
+          );
+          if (validateErr) {
+            return validateErr;
+          }
 
-        return model.callFieldInterceptors(null, this, executeAction, () =>
-          this.persistRecord(model),
-        );
-      });
+          return model.callFieldInterceptors(null, this, executeAction, () =>
+            this.persistRecord(model),
+          );
+        });
+
+      const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
+        modelEvent,
+        () =>
+          (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(
+            modelEvent,
+            runPersist,
+          ),
+      ) as Error | null;
 
       if (saveErr) {
-        const afterErr = model.callFieldInterceptors(null, this, afterError, () => saveErr);
-        return afterErr ?? saveErr;
+        const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
+        const afterErr = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+          errorEvent,
+          () => model.callFieldInterceptors(null, this, afterError, () => errorEvent.Error),
+        ) as Error | null;
+        return afterErr ?? errorEvent.Error;
       }
 
       if (this.#txInfo) {
@@ -398,60 +676,176 @@ export class BaseApp implements App {
             if (action === InterceptorActionCreate) {
               model.markNew(true);
             }
-            return model.callFieldInterceptors(null, this, afterError, () => txErr);
+            const errorEvent = new ModelErrorEvent(modelEvent, txErr);
+            const result = (isNew
+              ? this.OnModelAfterCreateError()
+              : this.OnModelAfterUpdateError()
+            ).Trigger(
+              errorEvent,
+              () => model.callFieldInterceptors(null, this, afterError, () => errorEvent.Error),
+            ) as Error | null;
+            return result ?? null;
           }
-          return model.callFieldInterceptors(null, this, afterSuccess, () => null);
+          const result = (isNew
+            ? this.OnModelAfterCreateSuccess()
+            : this.OnModelAfterUpdateSuccess()
+          ).Trigger(
+            modelEvent,
+            () => model.callFieldInterceptors(null, this, afterSuccess, () => null),
+          ) as Error | null;
+          return result ?? null;
         });
         return null;
       }
 
-      const afterErr = model.callFieldInterceptors(null, this, afterSuccess, () => null);
+      const afterErr = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+        modelEvent,
+        () => model.callFieldInterceptors(null, this, afterSuccess, () => null),
+      ) as Error | null;
       return afterErr ?? null;
     }
 
-    return this.saveCollection(model);
+    const isNew = model.isNew();
+    const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
+    const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
+      modelEvent,
+      () =>
+        (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(
+          modelEvent,
+          () => this.saveCollection(model),
+        ),
+    ) as Error | null;
+    if (saveErr) {
+      const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
+      const afterErr = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+        errorEvent,
+        () => errorEvent.Error,
+      ) as Error | null;
+      return afterErr ?? errorEvent.Error;
+    }
+    if (this.#txInfo) {
+      this.#txInfo.OnComplete((txErr) => {
+        if (txErr) {
+          const errorEvent = new ModelErrorEvent(modelEvent, txErr);
+          const result = (isNew
+            ? this.OnModelAfterCreateError()
+            : this.OnModelAfterUpdateError()
+          ).Trigger(
+            errorEvent,
+            () => errorEvent.Error,
+          ) as Error | null;
+          return result ?? null;
+        }
+        const result = (isNew
+          ? this.OnModelAfterCreateSuccess()
+          : this.OnModelAfterUpdateSuccess()
+        ).Trigger(
+          modelEvent,
+          () => null,
+        ) as Error | null;
+        return result ?? null;
+      });
+      return null;
+    }
+    const afterErr = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+      modelEvent,
+      () => null,
+    ) as Error | null;
+    return afterErr ?? null;
   }
 
   Validate(model: RecordModel | Collection): Error | null {
-    if (model instanceof RecordModel) {
-      return this.validateRecord(model);
-    }
+    const event = new ModelEvent(this, model, ModelEventTypeValidate);
+    const result = this.OnModelValidate().Trigger(event, () => {
+      if (model instanceof RecordModel) {
+        return this.validateRecord(model);
+      }
 
-    const original = model.IsNew() ? null : this.findCollectionById(model.LastSavedPK());
-    return this.validateCollection(model, original);
+      const original = model.IsNew() ? null : this.findCollectionById(model.LastSavedPK());
+      return this.validateCollection(model, original);
+    }) as Error | null;
+
+    return result ?? null;
   }
 
   Delete(model: RecordModel | Collection): Error | null {
     if (model instanceof RecordModel) {
+      const modelEvent = new ModelEvent(this, model, ModelEventTypeDelete);
       const action = InterceptorActionDelete;
       const executeAction = InterceptorActionDeleteExecute;
       const afterSuccess = InterceptorActionAfterDelete;
       const afterError = InterceptorActionAfterDeleteError;
 
-      const deleteErr = model.callFieldInterceptors(null, this, action, () =>
-        model.callFieldInterceptors(null, this, executeAction, () => this.deleteRecord(model)),
-      );
+      const runDelete = () =>
+        model.callFieldInterceptors(null, this, action, () =>
+          model.callFieldInterceptors(null, this, executeAction, () => this.deleteRecord(model)),
+        );
+      const deleteErr = this.OnModelDelete().Trigger(
+        modelEvent,
+        () => this.OnModelDeleteExecute().Trigger(modelEvent, runDelete),
+      ) as Error | null;
 
       if (deleteErr) {
-        const afterErr = model.callFieldInterceptors(null, this, afterError, () => deleteErr);
-        return afterErr ?? deleteErr;
+        const errorEvent = new ModelErrorEvent(modelEvent, deleteErr);
+        const afterErr = this.OnModelAfterDeleteError().Trigger(
+          errorEvent,
+          () => model.callFieldInterceptors(null, this, afterError, () => errorEvent.Error),
+        ) as Error | null;
+        return afterErr ?? errorEvent.Error;
       }
 
       if (this.#txInfo) {
         this.#txInfo.OnComplete((txErr) => {
           if (txErr) {
-            return model.callFieldInterceptors(null, this, afterError, () => txErr);
+            const errorEvent = new ModelErrorEvent(modelEvent, txErr);
+            const result = this.OnModelAfterDeleteError().Trigger(errorEvent, () =>
+              model.callFieldInterceptors(null, this, afterError, () => errorEvent.Error),
+            ) as Error | null;
+            return result ?? null;
           }
-          return model.callFieldInterceptors(null, this, afterSuccess, () => null);
+          const result = this.OnModelAfterDeleteSuccess().Trigger(
+            modelEvent,
+            () => model.callFieldInterceptors(null, this, afterSuccess, () => null),
+          ) as Error | null;
+          return result ?? null;
         });
         return null;
       }
 
-      const afterErr = model.callFieldInterceptors(null, this, afterSuccess, () => null);
+      const afterErr = this.OnModelAfterDeleteSuccess().Trigger(
+        modelEvent,
+        () => model.callFieldInterceptors(null, this, afterSuccess, () => null),
+      ) as Error | null;
       return afterErr ?? null;
     }
 
-    return this.deleteCollection(model);
+    const modelEvent = new ModelEvent(this, model, ModelEventTypeDelete);
+    const deleteErr = this.OnModelDelete().Trigger(
+      modelEvent,
+      () => this.OnModelDeleteExecute().Trigger(modelEvent, () => this.deleteCollection(model)),
+    ) as Error | null;
+    if (deleteErr) {
+      const errorEvent = new ModelErrorEvent(modelEvent, deleteErr);
+      const afterErr = this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error) as Error | null;
+      return afterErr ?? errorEvent.Error;
+    }
+    if (this.#txInfo) {
+      this.#txInfo.OnComplete((txErr) => {
+        if (txErr) {
+          const errorEvent = new ModelErrorEvent(modelEvent, txErr);
+          const result = this.OnModelAfterDeleteError().Trigger(
+            errorEvent,
+            () => errorEvent.Error,
+          ) as Error | null;
+          return result ?? null;
+        }
+        const result = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null) as Error | null;
+        return result ?? null;
+      });
+      return null;
+    }
+    const afterErr = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null) as Error | null;
+    return afterErr ?? null;
   }
 
   RunInTransaction(fn: (txApp: App) => Error | null): Error | null {
@@ -831,6 +1225,508 @@ export class BaseApp implements App {
     }
 
     return null;
+  }
+
+  private registerCollectionHooks(): void {
+    const systemHookIdCollection = "__pbCollectionSystemHook__";
+
+    this.OnModelValidate().Bind({
+      Id: systemHookIdCollection,
+      Priority: -99,
+      Func: (me) => {
+        const { event: ce, ok } = newCollectionEventFromModelEvent(me);
+        if (!ok || !ce) {
+          return me.Next();
+        }
+        const err = this.OnCollectionValidate().Trigger(ce, (event) => {
+          syncModelEventWithCollectionEvent(me, event);
+          const result = me.Next();
+          syncCollectionEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithCollectionEvent(me, ce);
+        return err;
+      },
+    });
+
+    this.OnModelCreate().Bind({
+      Id: systemHookIdCollection,
+      Priority: -99,
+      Func: (me) => {
+        const { event: ce, ok } = newCollectionEventFromModelEvent(me);
+        if (!ok || !ce) {
+          return me.Next();
+        }
+        const err = this.OnCollectionCreate().Trigger(ce, (event) => {
+          syncModelEventWithCollectionEvent(me, event);
+          const result = me.Next();
+          syncCollectionEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithCollectionEvent(me, ce);
+        return err;
+      },
+    });
+
+    this.OnModelCreateExecute().Bind({
+      Id: systemHookIdCollection,
+      Priority: -99,
+      Func: (me) => {
+        const { event: ce, ok } = newCollectionEventFromModelEvent(me);
+        if (!ok || !ce) {
+          return me.Next();
+        }
+        const err = this.OnCollectionCreateExecute().Trigger(ce, (event) => {
+          syncModelEventWithCollectionEvent(me, event);
+          const result = me.Next();
+          syncCollectionEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithCollectionEvent(me, ce);
+        return err;
+      },
+    });
+
+    this.OnModelAfterCreateSuccess().Bind({
+      Id: systemHookIdCollection,
+      Priority: -99,
+      Func: (me) => {
+        const { event: ce, ok } = newCollectionEventFromModelEvent(me);
+        if (!ok || !ce) {
+          return me.Next();
+        }
+        const err = this.OnCollectionAfterCreateSuccess().Trigger(ce, (event) => {
+          syncModelEventWithCollectionEvent(me, event);
+          const result = me.Next();
+          syncCollectionEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithCollectionEvent(me, ce);
+        return err;
+      },
+    });
+
+    this.OnModelAfterCreateError().Bind({
+      Id: systemHookIdCollection,
+      Priority: -99,
+      Func: (me) => {
+        const { event: ce, ok } = newCollectionErrorEventFromModelErrorEvent(me);
+        if (!ok || !ce) {
+          return me.Next();
+        }
+        const err = this.OnCollectionAfterCreateError().Trigger(ce, (event) => {
+          syncModelErrorEventWithCollectionErrorEvent(me, event);
+          const result = me.Next();
+          syncCollectionErrorEventWithModelErrorEvent(event, me);
+          return result;
+        });
+        syncModelErrorEventWithCollectionErrorEvent(me, ce);
+        return err;
+      },
+    });
+
+    this.OnModelUpdate().Bind({
+      Id: systemHookIdCollection,
+      Priority: -99,
+      Func: (me) => {
+        const { event: ce, ok } = newCollectionEventFromModelEvent(me);
+        if (!ok || !ce) {
+          return me.Next();
+        }
+        const err = this.OnCollectionUpdate().Trigger(ce, (event) => {
+          syncModelEventWithCollectionEvent(me, event);
+          const result = me.Next();
+          syncCollectionEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithCollectionEvent(me, ce);
+        return err;
+      },
+    });
+
+    this.OnModelUpdateExecute().Bind({
+      Id: systemHookIdCollection,
+      Priority: -99,
+      Func: (me) => {
+        const { event: ce, ok } = newCollectionEventFromModelEvent(me);
+        if (!ok || !ce) {
+          return me.Next();
+        }
+        const err = this.OnCollectionUpdateExecute().Trigger(ce, (event) => {
+          syncModelEventWithCollectionEvent(me, event);
+          const result = me.Next();
+          syncCollectionEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithCollectionEvent(me, ce);
+        return err;
+      },
+    });
+
+    this.OnModelAfterUpdateSuccess().Bind({
+      Id: systemHookIdCollection,
+      Priority: -99,
+      Func: (me) => {
+        const { event: ce, ok } = newCollectionEventFromModelEvent(me);
+        if (!ok || !ce) {
+          return me.Next();
+        }
+        const err = this.OnCollectionAfterUpdateSuccess().Trigger(ce, (event) => {
+          syncModelEventWithCollectionEvent(me, event);
+          const result = me.Next();
+          syncCollectionEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithCollectionEvent(me, ce);
+        return err;
+      },
+    });
+
+    this.OnModelAfterUpdateError().Bind({
+      Id: systemHookIdCollection,
+      Priority: -99,
+      Func: (me) => {
+        const { event: ce, ok } = newCollectionErrorEventFromModelErrorEvent(me);
+        if (!ok || !ce) {
+          return me.Next();
+        }
+        const err = this.OnCollectionAfterUpdateError().Trigger(ce, (event) => {
+          syncModelErrorEventWithCollectionErrorEvent(me, event);
+          const result = me.Next();
+          syncCollectionErrorEventWithModelErrorEvent(event, me);
+          return result;
+        });
+        syncModelErrorEventWithCollectionErrorEvent(me, ce);
+        return err;
+      },
+    });
+
+    this.OnModelDelete().Bind({
+      Id: systemHookIdCollection,
+      Priority: -99,
+      Func: (me) => {
+        const { event: ce, ok } = newCollectionEventFromModelEvent(me);
+        if (!ok || !ce) {
+          return me.Next();
+        }
+        const err = this.OnCollectionDelete().Trigger(ce, (event) => {
+          syncModelEventWithCollectionEvent(me, event);
+          const result = me.Next();
+          syncCollectionEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithCollectionEvent(me, ce);
+        return err;
+      },
+    });
+
+    this.OnModelDeleteExecute().Bind({
+      Id: systemHookIdCollection,
+      Priority: -99,
+      Func: (me) => {
+        const { event: ce, ok } = newCollectionEventFromModelEvent(me);
+        if (!ok || !ce) {
+          return me.Next();
+        }
+        const err = this.OnCollectionDeleteExecute().Trigger(ce, (event) => {
+          syncModelEventWithCollectionEvent(me, event);
+          const result = me.Next();
+          syncCollectionEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithCollectionEvent(me, ce);
+        return err;
+      },
+    });
+
+    this.OnModelAfterDeleteSuccess().Bind({
+      Id: systemHookIdCollection,
+      Priority: -99,
+      Func: (me) => {
+        const { event: ce, ok } = newCollectionEventFromModelEvent(me);
+        if (!ok || !ce) {
+          return me.Next();
+        }
+        const err = this.OnCollectionAfterDeleteSuccess().Trigger(ce, (event) => {
+          syncModelEventWithCollectionEvent(me, event);
+          const result = me.Next();
+          syncCollectionEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithCollectionEvent(me, ce);
+        return err;
+      },
+    });
+
+    this.OnModelAfterDeleteError().Bind({
+      Id: systemHookIdCollection,
+      Priority: -99,
+      Func: (me) => {
+        const { event: ce, ok } = newCollectionErrorEventFromModelErrorEvent(me);
+        if (!ok || !ce) {
+          return me.Next();
+        }
+        const err = this.OnCollectionAfterDeleteError().Trigger(ce, (event) => {
+          syncModelErrorEventWithCollectionErrorEvent(me, event);
+          const result = me.Next();
+          syncCollectionErrorEventWithModelErrorEvent(event, me);
+          return result;
+        });
+        syncModelErrorEventWithCollectionErrorEvent(me, ce);
+        return err;
+      },
+    });
+  }
+
+  private registerRecordHooks(): void {
+    const systemHookIdRecord = "__pbRecordSystemHook__";
+
+    this.OnModelValidate().Bind({
+      Id: systemHookIdRecord,
+      Priority: -99,
+      Func: (me) => {
+        const { event: re, ok } = newRecordEventFromModelEvent(me);
+        if (!ok || !re) {
+          return me.Next();
+        }
+        const err = this.OnRecordValidate().Trigger(re, (event) => {
+          syncModelEventWithRecordEvent(me, event);
+          const result = me.Next();
+          syncRecordEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithRecordEvent(me, re);
+        return err;
+      },
+    });
+
+    this.OnModelCreate().Bind({
+      Id: systemHookIdRecord,
+      Priority: -99,
+      Func: (me) => {
+        const { event: re, ok } = newRecordEventFromModelEvent(me);
+        if (!ok || !re) {
+          return me.Next();
+        }
+        const err = this.OnRecordCreate().Trigger(re, (event) => {
+          syncModelEventWithRecordEvent(me, event);
+          const result = me.Next();
+          syncRecordEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithRecordEvent(me, re);
+        return err;
+      },
+    });
+
+    this.OnModelCreateExecute().Bind({
+      Id: systemHookIdRecord,
+      Priority: -99,
+      Func: (me) => {
+        const { event: re, ok } = newRecordEventFromModelEvent(me);
+        if (!ok || !re) {
+          return me.Next();
+        }
+        const err = this.OnRecordCreateExecute().Trigger(re, (event) => {
+          syncModelEventWithRecordEvent(me, event);
+          const result = me.Next();
+          syncRecordEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithRecordEvent(me, re);
+        return err;
+      },
+    });
+
+    this.OnModelAfterCreateSuccess().Bind({
+      Id: systemHookIdRecord,
+      Priority: -99,
+      Func: (me) => {
+        const { event: re, ok } = newRecordEventFromModelEvent(me);
+        if (!ok || !re) {
+          return me.Next();
+        }
+        const err = this.OnRecordAfterCreateSuccess().Trigger(re, (event) => {
+          syncModelEventWithRecordEvent(me, event);
+          const result = me.Next();
+          syncRecordEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithRecordEvent(me, re);
+        return err;
+      },
+    });
+
+    this.OnModelAfterCreateError().Bind({
+      Id: systemHookIdRecord,
+      Priority: -99,
+      Func: (me) => {
+        const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
+        if (!ok || !re) {
+          return me.Next();
+        }
+        const err = this.OnRecordAfterCreateError().Trigger(re, (event) => {
+          syncModelErrorEventWithRecordErrorEvent(me, event);
+          const result = me.Next();
+          syncRecordErrorEventWithModelErrorEvent(event, me);
+          return result;
+        });
+        syncModelErrorEventWithRecordErrorEvent(me, re);
+        return err;
+      },
+    });
+
+    this.OnModelUpdate().Bind({
+      Id: systemHookIdRecord,
+      Priority: -99,
+      Func: (me) => {
+        const { event: re, ok } = newRecordEventFromModelEvent(me);
+        if (!ok || !re) {
+          return me.Next();
+        }
+        const err = this.OnRecordUpdate().Trigger(re, (event) => {
+          syncModelEventWithRecordEvent(me, event);
+          const result = me.Next();
+          syncRecordEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithRecordEvent(me, re);
+        return err;
+      },
+    });
+
+    this.OnModelUpdateExecute().Bind({
+      Id: systemHookIdRecord,
+      Priority: -99,
+      Func: (me) => {
+        const { event: re, ok } = newRecordEventFromModelEvent(me);
+        if (!ok || !re) {
+          return me.Next();
+        }
+        const err = this.OnRecordUpdateExecute().Trigger(re, (event) => {
+          syncModelEventWithRecordEvent(me, event);
+          const result = me.Next();
+          syncRecordEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithRecordEvent(me, re);
+        return err;
+      },
+    });
+
+    this.OnModelAfterUpdateSuccess().Bind({
+      Id: systemHookIdRecord,
+      Priority: -99,
+      Func: (me) => {
+        const { event: re, ok } = newRecordEventFromModelEvent(me);
+        if (!ok || !re) {
+          return me.Next();
+        }
+        const err = this.OnRecordAfterUpdateSuccess().Trigger(re, (event) => {
+          syncModelEventWithRecordEvent(me, event);
+          const result = me.Next();
+          syncRecordEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithRecordEvent(me, re);
+        return err;
+      },
+    });
+
+    this.OnModelAfterUpdateError().Bind({
+      Id: systemHookIdRecord,
+      Priority: -99,
+      Func: (me) => {
+        const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
+        if (!ok || !re) {
+          return me.Next();
+        }
+        const err = this.OnRecordAfterUpdateError().Trigger(re, (event) => {
+          syncModelErrorEventWithRecordErrorEvent(me, event);
+          const result = me.Next();
+          syncRecordErrorEventWithModelErrorEvent(event, me);
+          return result;
+        });
+        syncModelErrorEventWithRecordErrorEvent(me, re);
+        return err;
+      },
+    });
+
+    this.OnModelDelete().Bind({
+      Id: systemHookIdRecord,
+      Priority: -99,
+      Func: (me) => {
+        const { event: re, ok } = newRecordEventFromModelEvent(me);
+        if (!ok || !re) {
+          return me.Next();
+        }
+        const err = this.OnRecordDelete().Trigger(re, (event) => {
+          syncModelEventWithRecordEvent(me, event);
+          const result = me.Next();
+          syncRecordEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithRecordEvent(me, re);
+        return err;
+      },
+    });
+
+    this.OnModelDeleteExecute().Bind({
+      Id: systemHookIdRecord,
+      Priority: -99,
+      Func: (me) => {
+        const { event: re, ok } = newRecordEventFromModelEvent(me);
+        if (!ok || !re) {
+          return me.Next();
+        }
+        const err = this.OnRecordDeleteExecute().Trigger(re, (event) => {
+          syncModelEventWithRecordEvent(me, event);
+          const result = me.Next();
+          syncRecordEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithRecordEvent(me, re);
+        return err;
+      },
+    });
+
+    this.OnModelAfterDeleteSuccess().Bind({
+      Id: systemHookIdRecord,
+      Priority: -99,
+      Func: (me) => {
+        const { event: re, ok } = newRecordEventFromModelEvent(me);
+        if (!ok || !re) {
+          return me.Next();
+        }
+        const err = this.OnRecordAfterDeleteSuccess().Trigger(re, (event) => {
+          syncModelEventWithRecordEvent(me, event);
+          const result = me.Next();
+          syncRecordEventWithModelEvent(event, me);
+          return result;
+        });
+        syncModelEventWithRecordEvent(me, re);
+        return err;
+      },
+    });
+
+    this.OnModelAfterDeleteError().Bind({
+      Id: systemHookIdRecord,
+      Priority: -99,
+      Func: (me) => {
+        const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
+        if (!ok || !re) {
+          return me.Next();
+        }
+        const err = this.OnRecordAfterDeleteError().Trigger(re, (event) => {
+          syncModelErrorEventWithRecordErrorEvent(me, event);
+          const result = me.Next();
+          syncRecordErrorEventWithModelErrorEvent(event, me);
+          return result;
+        });
+        syncModelErrorEventWithRecordErrorEvent(me, re);
+        return err;
+      },
+    });
   }
 
   SaveView(name: string, selectQuery: string): Error | null {

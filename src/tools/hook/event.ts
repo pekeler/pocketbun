@@ -1,9 +1,9 @@
 // Ported from pocketbase/tools/hook/event.go
 
-export type NextFunc = () => Promise<unknown>;
+export type NextFunc = () => unknown;
 
 export interface Resolver {
-  Next(): Promise<unknown>;
+  Next(): unknown;
   nextFunc(): NextFunc | null;
   setNextFunc(fn: NextFunc | null): void;
 }
@@ -11,9 +11,9 @@ export interface Resolver {
 export class Event implements Resolver {
   #next: NextFunc | null = null;
 
-  async Next(): Promise<unknown> {
+  Next(): unknown {
     if (this.#next) {
-      return await this.#next();
+      return this.#next();
     }
     return null;
   }

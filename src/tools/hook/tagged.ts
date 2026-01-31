@@ -57,6 +57,22 @@ export class TaggedHook<T extends Tagger> {
       return event.Next();
     });
   }
+
+  Trigger(event: T, ...oneOffHandlerFuncs: HandlerFunc<T>[]): unknown {
+    return this.#main.Hook.Trigger(event, ...oneOffHandlerFuncs);
+  }
+
+  Unbind(...idsToRemove: string[]): void {
+    this.#main.Hook.Unbind(...idsToRemove);
+  }
+
+  UnbindAll(): void {
+    this.#main.Hook.UnbindAll();
+  }
+
+  Length(): number {
+    return this.#main.Hook.Length();
+  }
 }
 
 export function NewTaggedHook<T extends Tagger>(hook: Hook<T>, ...tags: string[]): TaggedHook<T> {

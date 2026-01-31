@@ -19,8 +19,8 @@ export interface Provider {
   SetPKCE(enable: boolean): void;
   DisplayName(): string;
   SetDisplayName(displayName: string): void;
-  Scopes(): string[];
-  SetScopes(scopes: string[]): void;
+  Scopes(): string[] | null;
+  SetScopes(scopes: string[] | null): void;
   ClientId(): string;
   SetClientId(clientId: string): void;
   ClientSecret(): string;
@@ -33,8 +33,10 @@ export interface Provider {
   SetTokenURL(url: string): void;
   UserInfoURL(): string;
   SetUserInfoURL(url: string): void;
-  Extra(): Record<string, unknown>;
-  SetExtra(data: Record<string, unknown>): void;
+  Extra(): Record<string, unknown> | null;
+  SetExtra(data: Record<string, unknown> | null): void;
+  Client(token: unknown): (input: Request | URL | string, init?: RequestInit) => Promise<Response>;
+  BuildAuthURL(state: string, ...opts: import("./oauth2.ts").AuthCodeOption[]): string;
 }
 
 export function wrapFactory<T extends Provider>(factory: () => T): ProviderFactoryFunc {

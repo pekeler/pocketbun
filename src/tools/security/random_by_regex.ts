@@ -10,6 +10,7 @@ const anyCharNotNLPairs: Array<[number, number]> = [
   ["a".charCodeAt(0), "z".charCodeAt(0)],
   ["0".charCodeAt(0), "9".charCodeAt(0)],
 ];
+const printableAsciiPairs: Array<[number, number]> = [[32, 126]];
 
 type AstNode =
   | { type: "literal"; value: string }
@@ -19,7 +20,13 @@ type AstNode =
   | { type: "alternate"; options: AstNode[] }
   | { type: "repeat"; node: AstNode; min: number; max: number };
 
-export function randomStringByRegex(pattern: string): string {
+export function randomStringByRegex(pattern: string, ...flags: number[]): string {
+  if (!pattern) {
+    throw new Error("empty regex pattern");
+  }
+  if (flags.length > 0) {
+    throw new Error("regex flags are not supported");
+  }
   const parser = new Parser(pattern);
   const ast = parser.parseExpression();
   const writer: string[] = [];
@@ -214,7 +221,11 @@ class Parser {
       }
     }
     if (negate) {
-      throw new Error("negated character classes are not supported");
+      const inverted = invertRanges(ranges, printableAsciiPairs);
+      if (inverted.length === 0) {
+        throw new Error("negated character class has no valid ranges");
+      }
+      return { type: "charClass", ranges: inverted };
     }
     return { type: "charClass", ranges };
   }
@@ -325,4 +336,52 @@ class Parser {
   eof(): boolean {
     return this.#pos >= this.#pattern.length;
   }
+}
+
+function invertRanges(
+  ranges: Array<[number, number]>,
+  base: Array<[number, number]>,
+): Array<[number, number]> {
+  if (ranges.length === 0) {
+    return base.map((pair) => [...pair] as [number, number]);
+  }
+
+  const sorted = ranges
+    .map((pair) => [Math.min(pair[0], pair[1]), Math.max(pair[0], pair[1])] as [number, number])
+    .sort((a, b) => a[0] - b[0]);
+
+  const merged: Array<[number, number]> = [];
+  for (const [start, end] of sorted) {
+    const last = merged[merged.length - 1];
+    if (!last || start > last[1] + 1) {
+      merged.push([start, end]);
+    } else if (end > last[1]) {
+      last[1] = end;
+    }
+  }
+
+  const result: Array<[number, number]> = [];
+  for (const [baseStart, baseEnd] of base) {
+    let cursor = baseStart;
+    for (const [start, end] of merged) {
+      if (end < cursor) {
+        continue;
+      }
+      if (start > baseEnd) {
+        break;
+      }
+      if (start > cursor) {
+        result.push([cursor, Math.min(start - 1, baseEnd)]);
+      }
+      cursor = Math.max(cursor, end + 1);
+      if (cursor > baseEnd) {
+        break;
+      }
+    }
+    if (cursor <= baseEnd) {
+      result.push([cursor, baseEnd]);
+    }
+  }
+
+  return result;
 }

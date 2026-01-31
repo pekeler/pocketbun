@@ -335,6 +335,10 @@ export class Record {
     return this.#collection.name;
   }
 
+  HookTags(): string[] {
+    return [this.#collection.name, this.#collection.id];
+  }
+
   BaseFilesPath(): string {
     const id = this.LastSavedPK() || this.id;
     return `${this.#collection.BaseFilesPath()}/${id}`;

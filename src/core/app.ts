@@ -9,10 +9,17 @@ import type { FieldsList } from "./fields_list.ts";
 import type { SqlExpr } from "../tools/search/types.ts";
 import type { System } from "../tools/filesystem/filesystem.ts";
 import type { Hook } from "../tools/hook/hook.ts";
+import type { TaggedHook } from "../tools/hook/tagged.ts";
 import type {
   CollectionRequestEvent,
   CollectionsImportRequestEvent,
   CollectionsListRequestEvent,
+  CollectionEvent,
+  CollectionErrorEvent,
+  ModelErrorEvent,
+  ModelEvent,
+  RecordErrorEvent,
+  RecordEvent,
 } from "./events.ts";
 import type { TableInfoRow } from "./db_table.ts";
 
@@ -61,6 +68,48 @@ export interface App {
   OnCollectionUpdateRequest(): Hook<CollectionRequestEvent>;
   OnCollectionDeleteRequest(): Hook<CollectionRequestEvent>;
   OnCollectionsImportRequest(): Hook<CollectionsImportRequestEvent>;
+
+  OnModelCreate(tags?: string[]): TaggedHook<ModelEvent>;
+  OnModelCreateExecute(tags?: string[]): TaggedHook<ModelEvent>;
+  OnModelAfterCreateSuccess(tags?: string[]): TaggedHook<ModelEvent>;
+  OnModelAfterCreateError(tags?: string[]): TaggedHook<ModelErrorEvent>;
+  OnModelUpdate(tags?: string[]): TaggedHook<ModelEvent>;
+  OnModelUpdateExecute(tags?: string[]): TaggedHook<ModelEvent>;
+  OnModelAfterUpdateSuccess(tags?: string[]): TaggedHook<ModelEvent>;
+  OnModelAfterUpdateError(tags?: string[]): TaggedHook<ModelErrorEvent>;
+  OnModelValidate(tags?: string[]): TaggedHook<ModelEvent>;
+  OnModelDelete(tags?: string[]): TaggedHook<ModelEvent>;
+  OnModelDeleteExecute(tags?: string[]): TaggedHook<ModelEvent>;
+  OnModelAfterDeleteSuccess(tags?: string[]): TaggedHook<ModelEvent>;
+  OnModelAfterDeleteError(tags?: string[]): TaggedHook<ModelErrorEvent>;
+
+  OnRecordValidate(tags?: string[]): TaggedHook<RecordEvent>;
+  OnRecordCreate(tags?: string[]): TaggedHook<RecordEvent>;
+  OnRecordCreateExecute(tags?: string[]): TaggedHook<RecordEvent>;
+  OnRecordAfterCreateSuccess(tags?: string[]): TaggedHook<RecordEvent>;
+  OnRecordAfterCreateError(tags?: string[]): TaggedHook<RecordErrorEvent>;
+  OnRecordUpdate(tags?: string[]): TaggedHook<RecordEvent>;
+  OnRecordUpdateExecute(tags?: string[]): TaggedHook<RecordEvent>;
+  OnRecordAfterUpdateSuccess(tags?: string[]): TaggedHook<RecordEvent>;
+  OnRecordAfterUpdateError(tags?: string[]): TaggedHook<RecordErrorEvent>;
+  OnRecordDelete(tags?: string[]): TaggedHook<RecordEvent>;
+  OnRecordDeleteExecute(tags?: string[]): TaggedHook<RecordEvent>;
+  OnRecordAfterDeleteSuccess(tags?: string[]): TaggedHook<RecordEvent>;
+  OnRecordAfterDeleteError(tags?: string[]): TaggedHook<RecordErrorEvent>;
+
+  OnCollectionValidate(tags?: string[]): TaggedHook<CollectionEvent>;
+  OnCollectionCreate(tags?: string[]): TaggedHook<CollectionEvent>;
+  OnCollectionCreateExecute(tags?: string[]): TaggedHook<CollectionEvent>;
+  OnCollectionAfterCreateSuccess(tags?: string[]): TaggedHook<CollectionEvent>;
+  OnCollectionAfterCreateError(tags?: string[]): TaggedHook<CollectionErrorEvent>;
+  OnCollectionUpdate(tags?: string[]): TaggedHook<CollectionEvent>;
+  OnCollectionUpdateExecute(tags?: string[]): TaggedHook<CollectionEvent>;
+  OnCollectionAfterUpdateSuccess(tags?: string[]): TaggedHook<CollectionEvent>;
+  OnCollectionAfterUpdateError(tags?: string[]): TaggedHook<CollectionErrorEvent>;
+  OnCollectionDelete(tags?: string[]): TaggedHook<CollectionEvent>;
+  OnCollectionDeleteExecute(tags?: string[]): TaggedHook<CollectionEvent>;
+  OnCollectionAfterDeleteSuccess(tags?: string[]): TaggedHook<CollectionEvent>;
+  OnCollectionAfterDeleteError(tags?: string[]): TaggedHook<CollectionErrorEvent>;
 
   SaveView(name: string, selectQuery: string): Error | null;
   DeleteView(name: string): Error | null;
