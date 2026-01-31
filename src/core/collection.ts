@@ -110,6 +110,10 @@ export class Collection {
     return this.type === CollectionTypeView;
   }
 
+  BaseFilesPath(): string {
+    return this.id;
+  }
+
   isNew(): boolean {
     return this.#isNew;
   }

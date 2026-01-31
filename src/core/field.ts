@@ -25,6 +25,20 @@ export const SystemDynamicFieldNames = [
   FieldNameExpand,
 ];
 
+export const InterceptorActionValidate = "validate";
+export const InterceptorActionDelete = "delete";
+export const InterceptorActionDeleteExecute = "deleteExecute";
+export const InterceptorActionAfterDelete = "afterDelete";
+export const InterceptorActionAfterDeleteError = "afterDeleteError";
+export const InterceptorActionCreate = "create";
+export const InterceptorActionCreateExecute = "createExecute";
+export const InterceptorActionAfterCreate = "afterCreate";
+export const InterceptorActionAfterCreateError = "afterCreateFailure";
+export const InterceptorActionUpdate = "update";
+export const InterceptorActionUpdateExecute = "updateExecute";
+export const InterceptorActionAfterUpdate = "afterUpdate";
+export const InterceptorActionAfterUpdateError = "afterUpdateError";
+
 const excludeFieldNames = new Set<string>([
   "null",
   "true",

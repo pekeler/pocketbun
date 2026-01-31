@@ -39,6 +39,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-31 14:22Z) Port db/equal validators with upstream tests and export them from the validators barrel.
 - [x] (2026-01-31 14:28Z) Port number field with upstream tests and add numeric casting helpers/pointer alias for parity.
 - [x] (2026-01-31 14:54Z) Port select/url/editor/geoPoint/autodate fields + GeoPoint type and tests; register field factories for JSON parsing and ensure record exports include ids.
+- [x] (2026-01-31 16:50Z) Port filesystem helpers, file field + validators, and associated tests; align record default values and transactional file cleanup with upstream behavior.
 - [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -107,6 +108,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Date/Author: 2026-01-31 / Codex
 - Decision: Gate record list/view behind superuser auth until list/view rule parsing and request-auth-aware filtering are ported.
   Rationale: it preserves safety and admin compatibility while we implement the full record rule/resolver stack.
+  Date/Author: 2026-01-31 / Codex
+- Decision: Mirror default field values into new record data to emulate Go's `store.GetOk` fallback semantics for missing keys in JS objects.
+  Rationale: ensures `GetRaw` and validation see upstream-equivalent defaults even when JS objects omit keys.
   Date/Author: 2026-01-31 / Codex
 
 ## Outcomes & Retrospective

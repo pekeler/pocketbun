@@ -6,7 +6,7 @@ import "./fields_register.ts";
 import type { Database, SQLQueryBindings } from "bun:sqlite";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import type { App } from "./app.ts";
+import type { App, Logger } from "./app.ts";
 import { Collection, parseCollectionFields } from "./collection.ts";
 import { FieldsList } from "./fields_list.ts";
 import { AppMigrations, MigrationsRunner, SystemMigrations } from "./migrations_runner.ts";
@@ -27,6 +27,20 @@ import { Settings } from "./settings.ts";
 import { Store } from "./store.ts";
 import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
+import {
+  InterceptorActionAfterCreate,
+  InterceptorActionAfterCreateError,
+  InterceptorActionAfterUpdate,
+  InterceptorActionAfterUpdateError,
+  InterceptorActionCreate,
+  InterceptorActionCreateExecute,
+  InterceptorActionUpdate,
+  InterceptorActionUpdateExecute,
+  InterceptorActionValidate,
+} from "./field.ts";
+import { ValidationErrors } from "../internal/compat/validation.ts";
+import { DateTime, GeoPoint, JSONRaw } from "../tools/types/index.ts";
+import { NewLocal } from "../tools/filesystem/filesystem.ts";
 
 export type BaseAppConfig = {
   dataDir?: string;
@@ -41,12 +55,19 @@ export class BaseApp implements App {
   #bootstrapped = false;
   #db: DbxDatabase | null = null;
   #auxDb: DbxDatabase | null = null;
+  #logger: Logger;
+  #txInfo: TxAppInfo | null = null;
 
   constructor(config: BaseAppConfig = {}) {
     this.#dataDir = config.dataDir ?? "pb_data";
     this.#encryptionEnv = config.encryptionEnv ?? "";
     this.#settings = new Settings();
     this.#store = new Store();
+    this.#logger = {
+      Warn: (message: string, ...args: unknown[]) => {
+        console.warn(message, ...args);
+      },
+    };
   }
 
   dataDir(): string {
@@ -63,6 +84,10 @@ export class BaseApp implements App {
 
   store(): Store<string, unknown> {
     return this.#store;
+  }
+
+  Logger(): Logger {
+    return this.#logger;
   }
 
   isBootstrapped(): boolean {
@@ -94,6 +119,10 @@ export class BaseApp implements App {
       this.#auxDb = null;
     }
     this.#bootstrapped = false;
+  }
+
+  IsTransactional(): boolean {
+    return this.#txInfo !== null;
   }
 
   db(): Database {
@@ -269,6 +298,138 @@ export class BaseApp implements App {
     }
     return new RecordModel(collection, row as RecordData);
   }
+
+  NewFilesystem() {
+    return NewLocal(join(this.#dataDir, "storage"));
+  }
+
+  Save(record: RecordModel): Error | null {
+    const action = record.IsNew() ? InterceptorActionCreate : InterceptorActionUpdate;
+    const executeAction = record.IsNew()
+      ? InterceptorActionCreateExecute
+      : InterceptorActionUpdateExecute;
+    const afterSuccess = record.IsNew() ? InterceptorActionAfterCreate : InterceptorActionAfterUpdate;
+    const afterError = record.IsNew()
+      ? InterceptorActionAfterCreateError
+      : InterceptorActionAfterUpdateError;
+
+    const saveErr = record.callFieldInterceptors(null, this, action, () => {
+      const validateErr = record.callFieldInterceptors(null, this, InterceptorActionValidate, () =>
+        this.validateRecord(record),
+      );
+      if (validateErr) {
+        return validateErr;
+      }
+
+      return record.callFieldInterceptors(null, this, executeAction, () =>
+        this.persistRecord(record),
+      );
+    });
+
+    if (saveErr) {
+      const afterErr = record.callFieldInterceptors(null, this, afterError, () => saveErr);
+      return afterErr ?? saveErr;
+    }
+
+    if (this.#txInfo) {
+      this.#txInfo.OnComplete((txErr) => {
+        if (txErr) {
+          if (action === InterceptorActionCreate) {
+            record.markNew(true);
+          }
+          return record.callFieldInterceptors(null, this, afterError, () => txErr);
+        }
+        return record.callFieldInterceptors(null, this, afterSuccess, () => null);
+      });
+      return null;
+    }
+
+    const afterErr = record.callFieldInterceptors(null, this, afterSuccess, () => null);
+    return afterErr ?? null;
+  }
+
+  RunInTransaction(fn: (txApp: App) => Error | null): Error | null {
+    if (this.#txInfo) {
+      return fn(this);
+    }
+
+    this.#txInfo = new TxAppInfo();
+    let txErr: Error | null = null;
+    this.db().run("BEGIN");
+    try {
+      txErr = fn(this) ?? null;
+    } catch (error) {
+      txErr = error as Error;
+    }
+
+    if (txErr) {
+      this.db().run("ROLLBACK");
+    } else {
+      this.db().run("COMMIT");
+    }
+
+    const txInfo = this.#txInfo;
+    this.#txInfo = null;
+    const afterErr = txInfo.runAfterFuncs(txErr);
+
+    if (txErr && afterErr) {
+      return new Error(`${txErr.message}; ${afterErr.message}`);
+    }
+    if (txErr) {
+      return txErr;
+    }
+    if (afterErr) {
+      return afterErr;
+    }
+    return null;
+  }
+
+  private validateRecord(record: RecordModel): Error | null {
+    const errors: Record<string, Error> = {};
+    for (const field of record.collection().Fields) {
+      const err = field.ValidateValue(null, this, record);
+      if (err) {
+        errors[field.GetName()] = err;
+      }
+    }
+    return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+  }
+
+  private persistRecord(record: RecordModel): Error | null {
+    let data: Record<string, unknown>;
+    try {
+      data = record.DBExport();
+    } catch (error) {
+      return error as Error;
+    }
+
+    if (!("id" in data) || !data.id) {
+      data.id = record.Id;
+    }
+    if (!data.id) {
+      return new Error("empty primary key is not allowed");
+    }
+
+    const keys = Object.keys(data);
+    if (record.IsNew()) {
+      const columns = keys.map((key) => `"${key}"`).join(", ");
+      const placeholders = keys.map(() => "?").join(", ");
+      const values = keys.map((key) => normalizeDbValue(data[key]));
+      const sql = `insert into "${record.TableName()}" (${columns}) values (${placeholders})`;
+      this.db().run(sql, values);
+    } else {
+      const columns = keys.filter((key) => key !== "id");
+      if (columns.length > 0) {
+        const assignments = columns.map((key) => `"${key}" = ?`).join(", ");
+        const values = columns.map((key) => normalizeDbValue(data[key]));
+        values.push(record.Id);
+        const sql = `update "${record.TableName()}" set ${assignments} where id = ?`;
+        this.db().run(sql, values);
+      }
+    }
+
+    return record.PostScan();
+  }
 }
 
 function appendWhere(baseSql: string, clause: string): string {
@@ -365,6 +526,63 @@ function resolveBaseTokenKey(collection: Collection, tokenType: string): string 
       return "";
   }
 }
+
+class TxAppInfo {
+  #afterFuncs: Array<(txErr: Error | null) => Error | null> = [];
+
+  OnComplete(fn: (txErr: Error | null) => Error | null) {
+    this.#afterFuncs.push(fn);
+  }
+
+  runAfterFuncs(txErr: Error | null): Error | null {
+    const errors: Error[] = [];
+    for (const fn of this.#afterFuncs) {
+      const err = fn(txErr);
+      if (err) {
+        errors.push(err);
+      }
+    }
+    this.#afterFuncs = [];
+
+    if (errors.length === 0) {
+      return null;
+    }
+    if (errors.length === 1) {
+      return errors[0] ?? null;
+    }
+    return new Error(errors.map((err) => err.message).join("; "));
+  }
+}
+
+function normalizeDbValue(value: unknown): SQLQueryBindings {
+  if (value == null) {
+    return null;
+  }
+  if (value instanceof JSONRaw) {
+    return value.toString();
+  }
+  if (value instanceof DateTime) {
+    return value.toString();
+  }
+  if (value instanceof GeoPoint) {
+    return value.toString();
+  }
+  if (value instanceof Uint8Array) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return JSON.stringify(value);
+  }
+  if (typeof value === "object") {
+    const hasToJSON = (value as { toJSON?: () => unknown }).toJSON;
+    if (typeof hasToJSON === "function") {
+      return JSON.stringify(hasToJSON.call(value));
+    }
+    return JSON.stringify(value);
+  }
+  return value as SQLQueryBindings;
+}
+
 
 function isSafeIdentifier(value: string): boolean {
   return /^[A-Za-z0-9_]+$/.test(value);

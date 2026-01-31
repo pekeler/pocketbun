@@ -4,7 +4,7 @@ import { Collection, CollectionNameSuperusers } from "./collection.ts";
 import { toBoolValue, toStringValue } from "../internal/compat/cast.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { GeoPoint, ParseDateTime } from "../tools/types/index.ts";
-import type { GetterFinder, SetterFinder } from "./field.ts";
+import type { DriverValuer, Field, GetterFinder, RecordInterceptor, SetterFinder } from "./field.ts";
 
 export type RecordData = { [key: string]: unknown };
 
@@ -38,6 +38,23 @@ export class Record {
     this.#originalData = { ...data };
     this.id = typeof data.id === "string" ? data.id : "";
     this.#isNew = isNew;
+
+    if (isNew) {
+      for (const field of collection.Fields) {
+        const name = field.GetName();
+        if (name === FieldNameId) {
+          continue;
+        }
+        const prepared = field.PrepareValue(this, null);
+        if (!Object.prototype.hasOwnProperty.call(this.#originalData, name)) {
+          this.#originalData[name] = prepared;
+        }
+        // Deviation: mirror defaults into #data to emulate Go's store.GetOk fallback behavior.
+        if (!Object.prototype.hasOwnProperty.call(this.#data, name)) {
+          this.#data[name] = prepared;
+        }
+      }
+    }
   }
 
   collection(): Collection {
@@ -65,7 +82,13 @@ export class Record {
     if (field === FieldNameId) {
       return this.id;
     }
-    return this.#data[field];
+    if (Object.prototype.hasOwnProperty.call(this.#data, field)) {
+      const value = this.#data[field];
+      if (value !== undefined) {
+        return value;
+      }
+    }
+    return this.#originalData[field];
   }
 
   SetRaw(field: string, value: unknown): void {
@@ -139,19 +162,10 @@ export class Record {
       return;
     }
 
-    for (const f of this.#collection.Fields) {
-      const finder = f as unknown as SetterFinder;
-      if (typeof finder.FindSetter !== "function") {
-        continue;
-      }
-      const setter = finder.FindSetter(field);
-      if (setter) {
-        setter(this, value);
-        return;
-      }
+    const found = this.SetIfFieldExists(field, value);
+    if (!found) {
+      this.SetRaw(field, value);
     }
-
-    this.SetRaw(field, value);
   }
 
   LastSavedPK(): string {
@@ -163,8 +177,69 @@ export class Record {
     return new Record(this.#collection, { ...this.#originalData }, false);
   }
 
+  SetIfFieldExists(key: string, value: unknown): Field | null {
+    for (const field of this.#collection.Fields) {
+      const finder = field as unknown as SetterFinder;
+      if (typeof finder.FindSetter === "function") {
+        const setter = finder.FindSetter(key);
+        if (setter) {
+          setter(this, value);
+          return field;
+        }
+      }
+
+      if (key === field.GetName()) {
+        const prepared = field.PrepareValue(this, value);
+        this.SetRaw(key, prepared);
+        return field;
+      }
+    }
+
+    return null;
+  }
+
   TableName(): string {
     return this.#collection.name;
+  }
+
+  BaseFilesPath(): string {
+    const id = this.LastSavedPK() || this.id;
+    return `${this.#collection.BaseFilesPath()}/${id}`;
+  }
+
+  callFieldInterceptors(
+    ctx: unknown,
+    app: unknown,
+    actionName: string,
+    actionFunc: () => Error | null,
+  ): Error | null {
+    let next = actionFunc;
+    for (const field of this.#collection.Fields) {
+      const interceptor = field as unknown as RecordInterceptor;
+      if (typeof interceptor.Intercept === "function") {
+        const prev = next;
+        next = () => interceptor.Intercept(ctx, app, this, actionName, prev);
+      }
+    }
+    return next();
+  }
+
+  DBExport(): RecordData {
+    const result: RecordData = {};
+    for (const field of this.#collection.Fields) {
+      const name = field.GetName();
+      const driver = field as unknown as DriverValuer;
+      if (typeof driver.DriverValue === "function") {
+        const [value, err] = driver.DriverValue(this);
+        if (err) {
+          throw err;
+        }
+        result[name] = value;
+      } else {
+        result[name] = this.GetRaw(name);
+      }
+    }
+    return result;
   }
 
   tokenKey(): string {

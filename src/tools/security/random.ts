@@ -14,4 +14,8 @@ export function randomString(length: number, alphabet = defaultAlphabet): string
   return chars.join("");
 }
 
+export function randomStringWithAlphabet(length: number, alphabet: string): string {
+  return randomString(length, alphabet);
+}
+
 export { randomStringByRegex };

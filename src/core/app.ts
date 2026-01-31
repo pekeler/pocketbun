@@ -6,6 +6,11 @@ import type { Store } from "./store.ts";
 import type { Record as RecordModel } from "./record.ts";
 import type { Collection } from "./collection.ts";
 import type { SqlExpr } from "../tools/search/types.ts";
+import type { System } from "../tools/filesystem/filesystem.ts";
+
+export type Logger = {
+  Warn: (message: string, ...args: unknown[]) => void;
+};
 
 export interface App {
   dataDir(): string;
@@ -22,6 +27,11 @@ export interface App {
   runSystemMigrations(): void;
   runAppMigrations(): void;
   runAllMigrations(): void;
+  NewFilesystem(): System;
+  Save(record: RecordModel): Error | null;
+  RunInTransaction(fn: (txApp: App) => Error | null): Error | null;
+  IsTransactional(): boolean;
+  Logger(): Logger;
   findAuthRecordByToken(token: string, validTypes?: string[]): RecordModel;
   findCollectionById(id: string): Collection | null;
   findCollectionByNameOrId(identifier: string): Collection | null;
