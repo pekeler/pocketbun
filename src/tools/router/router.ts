@@ -19,6 +19,26 @@ export class Router<E> {
     return this;
   }
 
+  post(path: string, handler: Handler<E>): this {
+    this.#routes.push(new Route("POST", path, handler));
+    return this;
+  }
+
+  patch(path: string, handler: Handler<E>): this {
+    this.#routes.push(new Route("PATCH", path, handler));
+    return this;
+  }
+
+  put(path: string, handler: Handler<E>): this {
+    this.#routes.push(new Route("PUT", path, handler));
+    return this;
+  }
+
+  delete(path: string, handler: Handler<E>): this {
+    this.#routes.push(new Route("DELETE", path, handler));
+    return this;
+  }
+
   group(prefix: string): RouterGroup<E> {
     return new RouterGroup(this, prefix);
   }

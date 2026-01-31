@@ -28,10 +28,14 @@ import { Store } from "./store.ts";
 import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
 import {
+  InterceptorActionAfterDelete,
+  InterceptorActionAfterDeleteError,
   InterceptorActionAfterCreate,
   InterceptorActionAfterCreateError,
   InterceptorActionAfterUpdate,
   InterceptorActionAfterUpdateError,
+  InterceptorActionDelete,
+  InterceptorActionDeleteExecute,
   InterceptorActionCreate,
   InterceptorActionCreateExecute,
   InterceptorActionUpdate,
@@ -269,7 +273,7 @@ export class BaseApp implements App {
       return null;
     }
 
-    return new RecordModel(collection, row as RecordData);
+    return RecordModel.fromRow(collection, row as RecordData);
   }
 
   findFirstRecordByFilter(
@@ -296,7 +300,7 @@ export class BaseApp implements App {
     if (!row || typeof row !== "object") {
       return null;
     }
-    return new RecordModel(collection, row as RecordData);
+    return RecordModel.fromRow(collection, row as RecordData);
   }
 
   NewFilesystem() {
@@ -337,6 +341,35 @@ export class BaseApp implements App {
           if (action === InterceptorActionCreate) {
             record.markNew(true);
           }
+          return record.callFieldInterceptors(null, this, afterError, () => txErr);
+        }
+        return record.callFieldInterceptors(null, this, afterSuccess, () => null);
+      });
+      return null;
+    }
+
+    const afterErr = record.callFieldInterceptors(null, this, afterSuccess, () => null);
+    return afterErr ?? null;
+  }
+
+  Delete(record: RecordModel): Error | null {
+    const action = InterceptorActionDelete;
+    const executeAction = InterceptorActionDeleteExecute;
+    const afterSuccess = InterceptorActionAfterDelete;
+    const afterError = InterceptorActionAfterDeleteError;
+
+    const deleteErr = record.callFieldInterceptors(null, this, action, () =>
+      record.callFieldInterceptors(null, this, executeAction, () => this.deleteRecord(record)),
+    );
+
+    if (deleteErr) {
+      const afterErr = record.callFieldInterceptors(null, this, afterError, () => deleteErr);
+      return afterErr ?? deleteErr;
+    }
+
+    if (this.#txInfo) {
+      this.#txInfo.OnComplete((txErr) => {
+        if (txErr) {
           return record.callFieldInterceptors(null, this, afterError, () => txErr);
         }
         return record.callFieldInterceptors(null, this, afterSuccess, () => null);
@@ -429,6 +462,14 @@ export class BaseApp implements App {
     }
 
     return record.PostScan();
+  }
+
+  private deleteRecord(record: RecordModel): Error | null {
+    if (!record.Id) {
+      return new Error("missing record id");
+    }
+    this.db().run(`delete from {{${record.TableName()}}} where id = ?`, [record.Id]);
+    return null;
   }
 }
 

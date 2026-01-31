@@ -29,6 +29,7 @@ export interface App {
   runAllMigrations(): void;
   NewFilesystem(): System;
   Save(record: RecordModel): Error | null;
+  Delete(record: RecordModel): Error | null;
   RunInTransaction(fn: (txApp: App) => Error | null): Error | null;
   IsTransactional(): boolean;
   Logger(): Logger;

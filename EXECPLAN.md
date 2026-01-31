@@ -41,6 +41,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-31 14:54Z) Port select/url/editor/geoPoint/autodate fields + GeoPoint type and tests; register field factories for JSON parsing and ensure record exports include ids.
 - [x] (2026-01-31 16:50Z) Port filesystem helpers, file field + validators, and associated tests; align record default values and transactional file cleanup with upstream behavior.
 - [x] (2026-01-31 17:04Z) Replace thumbnail placeholder with real image resizing using Sharp and align CreateThumb behavior with upstream.
+- [x] (2026-01-31 19:05Z) Add initial record CRUD write endpoints (create/update/delete) with request data parsing, record modifiers/auth helpers, and core record model tests.
 - [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries
@@ -115,6 +116,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Date/Author: 2026-01-31 / Codex
 - Decision: Use Sharp for thumbnail generation and expose CreateThumb as async in the Bun port.
   Rationale: Bun-compatible image decoding/resizing libraries are async; Sharp provides the closest feature parity to the Go imaging stack.
+  Date/Author: 2026-01-31 / Codex
+- Decision: Land initial record write endpoints without hooks/forms/manage-access features while documenting the deviation.
+  Rationale: Enables incremental API progress and test coverage while larger hook/form infrastructure is still being ported.
   Date/Author: 2026-01-31 / Codex
 
 ## Outcomes & Retrospective

@@ -2,7 +2,18 @@
 
 import { FieldsList, NewFieldsList } from "./fields_list.ts";
 import { TextField, defaultLowercaseRecordIdPattern } from "./field_text.ts";
-import { FieldNameId } from "./field.ts";
+import {
+  FieldNameEmail,
+  FieldNameEmailVisibility,
+  FieldNameId,
+  FieldNamePassword,
+  FieldNameTokenKey,
+  FieldNameVerified,
+} from "./field.ts";
+import { BoolField } from "./field_bool.ts";
+import { EmailField } from "./field_email.ts";
+import { PasswordField } from "./field_password.ts";
+import { randomString } from "../tools/security/random.ts";
 
 export const CollectionNameSuperusers = "_superusers";
 export const CollectionTypeBase = "base";
@@ -146,6 +157,75 @@ export function NewBaseCollection(name: string, id = ""): Collection {
   return collection;
 }
 
+export function NewAuthCollection(name: string, id = ""): Collection {
+  const collection = new Collection({
+    id,
+    name,
+    type: CollectionTypeAuth,
+    options: defaultAuthOptions(),
+  });
+  collection.markNew(true);
+  collection.Fields = NewFieldsList();
+
+  const idField = new TextField();
+  idField.Name = FieldNameId;
+  idField.System = true;
+  idField.PrimaryKey = true;
+  idField.Required = true;
+  idField.Min = 15;
+  idField.Max = 15;
+  idField.Pattern = defaultLowercaseRecordIdPattern;
+  idField.AutogeneratePattern = "[a-z0-9]{15}";
+  collection.Fields.Add(idField);
+
+  const passwordField = new PasswordField();
+  passwordField.Name = FieldNamePassword;
+  passwordField.System = true;
+  passwordField.Hidden = true;
+  passwordField.Required = true;
+  passwordField.Min = 8;
+  collection.Fields.Add(passwordField);
+
+  const tokenKeyField = new TextField();
+  tokenKeyField.Name = FieldNameTokenKey;
+  tokenKeyField.System = true;
+  tokenKeyField.Hidden = true;
+  tokenKeyField.Required = true;
+  tokenKeyField.Min = 30;
+  tokenKeyField.Max = 60;
+  tokenKeyField.AutogeneratePattern = "[a-zA-Z0-9]{50}";
+  collection.Fields.Add(tokenKeyField);
+
+  const emailField = new EmailField();
+  emailField.Name = FieldNameEmail;
+  emailField.System = true;
+  emailField.Required = true;
+  collection.Fields.Add(emailField);
+
+  const emailVisibilityField = new BoolField();
+  emailVisibilityField.Name = FieldNameEmailVisibility;
+  emailVisibilityField.System = true;
+  collection.Fields.Add(emailVisibilityField);
+
+  const verifiedField = new BoolField();
+  verifiedField.Name = FieldNameVerified;
+  verifiedField.System = true;
+  collection.Fields.Add(verifiedField);
+
+  return collection;
+}
+
+export function NewViewCollection(name: string, id = ""): Collection {
+  const collection = new Collection({
+    id,
+    name,
+    type: CollectionTypeView,
+  });
+  collection.markNew(true);
+  collection.Fields = NewFieldsList();
+  return collection;
+}
+
 export function parseCollectionFields(raw: unknown): CollectionField[] {
   if (!Array.isArray(raw)) {
     return [];
@@ -171,6 +251,16 @@ export function parseCollectionFields(raw: unknown): CollectionField[] {
   }
 
   return fields;
+}
+
+function defaultAuthOptions(): CollectionAuthOptions {
+  return {
+    authToken: { secret: randomString(50), duration: 604800 },
+    fileToken: { secret: randomString(50), duration: 180 },
+    verificationToken: { secret: randomString(50), duration: 259200 },
+    passwordResetToken: { secret: randomString(50), duration: 1800 },
+    emailChangeToken: { secret: randomString(50), duration: 1800 },
+  };
 }
 
 function normalizeAuthOptions(

@@ -1,10 +1,14 @@
 // Ported from pocketbase/core/record_model.go
+// Note: includes Record auth helpers from pocketbase/core/record_model_auth.go.
 
 import { Collection, CollectionNameSuperusers } from "./collection.ts";
 import { toBoolValue, toStringValue } from "../internal/compat/cast.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { GeoPoint, ParseDateTime } from "../tools/types/index.ts";
 import type { DriverValuer, Field, GetterFinder, RecordInterceptor, SetterFinder } from "./field.ts";
+import { autogenerateModifier } from "./field_text.ts";
+import { PasswordFieldValue } from "./field_password.ts";
+import { randomString } from "../tools/security/random.ts";
 
 export type RecordData = { [key: string]: unknown };
 
@@ -31,6 +35,24 @@ export class Record {
   #data: RecordData;
   #originalData: RecordData;
   #isNew: boolean;
+
+  static fromRow(collection: Collection, row: RecordData): Record {
+    const record = new Record(collection, {}, false);
+    record.#data = {};
+    record.#originalData = {};
+
+    for (const field of collection.Fields) {
+      const name = field.GetName();
+      const raw = Object.prototype.hasOwnProperty.call(row, name) ? normalizeRowValue(row[name]) : null;
+      const prepared = field.PrepareValue(record, raw);
+      record.#originalData[name] = prepared;
+      if (name === FieldNameId) {
+        record.id = toStringValue(prepared);
+      }
+    }
+
+    return record;
+  }
 
   constructor(collection: Collection, data: RecordData = {}, isNew = false) {
     this.#collection = collection;
@@ -156,6 +178,67 @@ export class Record {
     return toUniqueStringSlice(this.Get(field));
   }
 
+  Email(): string {
+    return this.GetString(FieldNameEmail);
+  }
+
+  SetEmail(email: string): void {
+    this.Set(FieldNameEmail, email);
+  }
+
+  EmailVisibility(): boolean {
+    return this.GetBool(FieldNameEmailVisibility);
+  }
+
+  SetEmailVisibility(visible: boolean): void {
+    this.Set(FieldNameEmailVisibility, visible);
+  }
+
+  Verified(): boolean {
+    return this.GetBool(FieldNameVerified);
+  }
+
+  SetVerified(verified: boolean): void {
+    this.Set(FieldNameVerified, verified);
+  }
+
+  TokenKey(): string {
+    return this.GetString(FieldNameTokenKey);
+  }
+
+  SetTokenKey(key: string): void {
+    this.Set(FieldNameTokenKey, key);
+  }
+
+  RefreshTokenKey(): void {
+    this.Set(FieldNameTokenKey + autogenerateModifier, "");
+  }
+
+  SetPassword(password: string): void {
+    this.Set(FieldNamePassword, password);
+  }
+
+  SetRandomPassword(): string {
+    const pass = randomString(30);
+    this.SetPassword(pass);
+    this.RefreshTokenKey();
+
+    const raw = this.GetRaw(FieldNamePassword);
+    if (raw instanceof PasswordFieldValue) {
+      raw.Plain = "";
+    }
+
+    return pass;
+  }
+
+  ValidatePassword(password: string): boolean {
+    const raw = this.GetRaw(FieldNamePassword);
+    if (!(raw instanceof PasswordFieldValue)) {
+      return false;
+    }
+    return raw.Validate(password);
+  }
+
   Set(field: string, value: unknown): void {
     if (field === FieldNameExpand) {
       this.SetRaw(field, value);
@@ -177,6 +260,26 @@ export class Record {
     return new Record(this.#collection, { ...this.#originalData }, false);
   }
 
+  Fresh(): Record {
+    const fresh = this.Original();
+
+    for (const field of this.#collection.Fields) {
+      const name = field.GetName();
+      fresh.SetRaw(name, this.GetRaw(name));
+    }
+
+    return fresh;
+  }
+
+  Clone(): Record {
+    const clone = new Record(this.#collection, { ...this.#originalData }, false);
+    clone.#data = { ...this.#data };
+    clone.#originalData = { ...this.#originalData };
+    clone.#isNew = this.#isNew;
+    clone.Id = this.id;
+    return clone;
+  }
+
   SetIfFieldExists(key: string, value: unknown): Field | null {
     for (const field of this.#collection.Fields) {
       const finder = field as unknown as SetterFinder;
@@ -196,6 +299,36 @@ export class Record {
     }
 
     return null;
+  }
+
+  ReplaceModifiers(data: RecordData): RecordData {
+    if (Object.keys(data).length === 0) {
+      return data;
+    }
+
+    const dataCopy: RecordData = { ...data };
+    const recordCopy = this.Fresh();
+
+    const sortedKeys = Object.keys(data)
+      .map((key, index) => ({ key, index }))
+      .sort((a, b) => {
+        const lenDiff = a.key.length - b.key.length;
+        if (lenDiff !== 0) {
+          return lenDiff;
+        }
+        return a.index - b.index;
+      })
+      .map((entry) => entry.key);
+
+    for (const key of sortedKeys) {
+      const field = recordCopy.SetIfFieldExists(key, data[key]);
+      if (field) {
+        delete dataCopy[key];
+        dataCopy[field.GetName()] = recordCopy.Get(field.GetName());
+      }
+    }
+
+    return dataCopy;
   }
 
   TableName(): string {
@@ -243,12 +376,15 @@ export class Record {
   }
 
   tokenKey(): string {
-    const tokenKey = this.#data.tokenKey;
-    return typeof tokenKey === "string" ? tokenKey : "";
+    return this.TokenKey();
   }
 
   isSuperuser(): boolean {
     return this.#collection.name === CollectionNameSuperusers;
+  }
+
+  IsSuperuser(): boolean {
+    return this.isSuperuser();
   }
 
   export(options: RecordExportOptions = {}): RecordData {
@@ -312,4 +448,19 @@ export class Record {
 
 export function NewRecord(collection: Collection, data: RecordData = {}): Record {
   return new Record(collection, data, true);
+}
+
+const utf8Decoder = new TextDecoder();
+
+function normalizeRowValue(value: unknown): unknown {
+  if (value instanceof Uint8Array) {
+    return utf8Decoder.decode(value);
+  }
+  if (value instanceof ArrayBuffer) {
+    return utf8Decoder.decode(new Uint8Array(value));
+  }
+  if (ArrayBuffer.isView(value)) {
+    return utf8Decoder.decode(new Uint8Array(value.buffer, value.byteOffset, value.byteLength));
+  }
+  return value;
 }

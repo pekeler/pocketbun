@@ -29,6 +29,26 @@ export class RouterGroup<E> {
     return this;
   }
 
+  post(path: string, handler: Handler<E>): this {
+    this.#router.post(joinPaths(this.#prefix, path), handler);
+    return this;
+  }
+
+  patch(path: string, handler: Handler<E>): this {
+    this.#router.patch(joinPaths(this.#prefix, path), handler);
+    return this;
+  }
+
+  put(path: string, handler: Handler<E>): this {
+    this.#router.put(joinPaths(this.#prefix, path), handler);
+    return this;
+  }
+
+  delete(path: string, handler: Handler<E>): this {
+    this.#router.delete(joinPaths(this.#prefix, path), handler);
+    return this;
+  }
+
   group(prefix: string): RouterGroup<E> {
     return new RouterGroup(this.#router, joinPaths(this.#prefix, prefix));
   }
