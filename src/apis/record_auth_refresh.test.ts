@@ -1,5 +1,4 @@
 // Ported from pocketbase/apis/record_auth_refresh_test.go.
-// Note: rate limit scenarios are TODO until rate limiting middleware is ported.
 
 import { describe, it } from "bun:test";
 import { runApiScenario, type ApiScenario } from "../../tests/api.ts";
@@ -157,26 +156,38 @@ const scenarios: Scenario[] = [
     name: "RateLimit rule - users:authRefresh",
     method: "POST",
     url: "/api/collections/users/auth-refresh",
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 100, label: "*:authRefresh", duration: 1 },
+        { maxRequests: 0, label: "users:authRefresh", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
   },
   {
     name: "RateLimit rule - *:authRefresh",
     method: "POST",
     url: "/api/collections/users/auth-refresh",
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 0, label: "*:authRefresh", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
   },
 ];
 
 describe("record auth refresh", () => {
   for (const scenario of scenarios) {
     const name = scenario.name ?? `${scenario.method}:${scenario.url}`;
-    if (scenario.todo) {
-      it.todo(name, () => {});
-      continue;
-    }
-
     it(name, async () => {
       await runApiScenario(scenario);
     });

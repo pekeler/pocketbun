@@ -1,5 +1,4 @@
 // Ported from pocketbase/apis/record_auth_with_oauth2_test.go
-// Note: rate limit scenarios are TODO until rate limiting middleware is ported.
 
 import { afterAll, beforeAll, describe, it } from "bun:test";
 import { runApiScenario, type ApiScenario } from "../../tests/api.ts";
@@ -1401,7 +1400,15 @@ const scenarios: Scenario[] = [
     name: "RateLimit rule - users:authWithOAuth2",
     method: "POST",
     url: "/api/collections/users/auth-with-oauth2",
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 100, label: "*:authWithOAuth2", duration: 1 },
+        { maxRequests: 100, label: "users:auth", duration: 1 },
+        { maxRequests: 0, label: "users:authWithOAuth2", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
     expectedContent: ['"data":{}'],
     expectedEvents: { "*": 0 },
@@ -1410,7 +1417,14 @@ const scenarios: Scenario[] = [
     name: "RateLimit rule - *:authWithOAuth2",
     method: "POST",
     url: "/api/collections/users/auth-with-oauth2",
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 100, label: "*:auth", duration: 1 },
+        { maxRequests: 0, label: "*:authWithOAuth2", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
     expectedContent: ['"data":{}'],
     expectedEvents: { "*": 0 },
@@ -1419,7 +1433,14 @@ const scenarios: Scenario[] = [
     name: "RateLimit tag - users:auth",
     method: "POST",
     url: "/api/collections/users/auth-with-oauth2",
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 100, label: "*:authWithOAuth2", duration: 1 },
+        { maxRequests: 0, label: "users:auth", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
     expectedContent: ['"data":{}'],
     expectedEvents: { "*": 0 },
@@ -1428,7 +1449,13 @@ const scenarios: Scenario[] = [
     name: "RateLimit tag - *:auth",
     method: "POST",
     url: "/api/collections/users/auth-with-oauth2",
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 0, label: "*:auth", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
     expectedContent: ['"data":{}'],
     expectedEvents: { "*": 0 },
@@ -1438,10 +1465,6 @@ const scenarios: Scenario[] = [
 describe("record auth with oauth2", () => {
   for (const scenario of scenarios) {
     const name = scenario.name ?? "scenario";
-    if (scenario.todo) {
-      it.todo(name, () => {});
-      continue;
-    }
     it(name, async () => {
       await runApiScenario(scenario);
     });

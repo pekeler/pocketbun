@@ -4,9 +4,10 @@ import { resolve, sep } from "node:path";
 import type { App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { Router } from "../tools/router/router.ts";
-import { loadAuthFromRequest } from "./auth.ts";
 import { bindCollectionApi } from "./collection.ts";
 import { bindHealthApi } from "./health.ts";
+import { loadAuthToken, panicRecover, securityHeaders } from "./middlewares.ts";
+import { rateLimit } from "./middlewares_rate_limit.ts";
 import { bindRecordAuthApi } from "./record_auth.ts";
 import { bindRecordCrudApi } from "./record_crud.ts";
 
@@ -17,6 +18,10 @@ export type ServeConfig = {
 
 export function buildServeHandler(app: App): (req: Request, server?: unknown) => Promise<Response> {
   const router = new Router<RequestEvent>();
+  router.Bind(panicRecover());
+  router.Bind(rateLimit());
+  router.Bind(loadAuthToken());
+  router.Bind(securityHeaders());
   const apiGroup = router.group("/api");
   bindCollectionApi(app, apiGroup);
   bindHealthApi(app, apiGroup);
@@ -24,10 +29,8 @@ export function buildServeHandler(app: App): (req: Request, server?: unknown) =>
   bindRecordCrudApi(app, apiGroup);
   bindAdminUI(router);
 
-  return router.buildHandler(({ request, params, remoteAddress }) => {
-    const event = new RequestEvent({ app, request, params, remoteAddress });
-    loadAuthFromRequest(app, event);
-    return event;
+  return router.buildHandler(({ request, params, remoteAddress, pattern }) => {
+    return new RequestEvent({ app, request, params, remoteAddress, pattern });
   });
 }
 

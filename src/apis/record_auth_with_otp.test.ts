@@ -1,5 +1,4 @@
 // Ported from pocketbase/apis/record_auth_with_otp_test.go.
-// Note: rate limit scenarios are TODO until rate limiting middleware is ported.
 
 import { describe, it } from "bun:test";
 import type { TestApp } from "../../tests/test_app.ts";
@@ -379,47 +378,130 @@ const scenarios: Scenario[] = [
     name: "RateLimit rule - users:authWithOTP",
     method: "POST",
     url: "/api/collections/users/auth-with-otp",
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 100, label: "*:authWithOTP", duration: 1 },
+        { maxRequests: 100, label: "users:auth", duration: 1 },
+        { maxRequests: 0, label: "users:authWithOTP", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
   },
   {
     name: "RateLimit rule - *:authWithOTP",
     method: "POST",
     url: "/api/collections/users/auth-with-otp",
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 100, label: "*:auth", duration: 1 },
+        { maxRequests: 0, label: "*:authWithOTP", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
   },
   {
     name: "RateLimit rule - users:auth",
     method: "POST",
     url: "/api/collections/users/auth-with-otp",
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 100, label: "*:authWithOTP", duration: 1 },
+        { maxRequests: 0, label: "users:auth", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
   },
   {
     name: "RateLimit rule - *:auth",
     method: "POST",
     url: "/api/collections/users/auth-with-otp",
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 0, label: "*:auth", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
   },
 ];
 
 describe("record auth with OTP", () => {
   for (const scenario of scenarios) {
     const name = scenario.name ?? `${scenario.method}:${scenario.url}`;
-    if (scenario.todo) {
-      it.todo(name, () => {});
-      continue;
-    }
-
     it(name, async () => {
       await runApiScenario(scenario);
     });
   }
 });
 
-// Manual rate limiter checks are TODO until rate limit middleware is ported.
 describe("record auth with OTP manual rate limit", () => {
-  it.todo("manual rate limiter checks", () => {});
+  let storeCache: Map<string, unknown> = new Map();
+  const otpAId = "a".repeat(15);
+  const otpBId = "b".repeat(15);
+
+  const scenarios = [
+    { otpId: otpAId, password: "12345", expectedStatus: 400 },
+    { otpId: otpAId, password: "12345", expectedStatus: 400 },
+    { otpId: otpBId, password: "12345", expectedStatus: 400 },
+    { otpId: otpBId, password: "12345", expectedStatus: 400 },
+    { otpId: otpBId, password: "12345", expectedStatus: 400 },
+    { otpId: otpAId, password: "12345", expectedStatus: 429 },
+    { otpId: otpAId, password: "123456", expectedStatus: 429 },
+    { otpId: otpAId, password: "123456", expectedStatus: 429 },
+    { otpId: otpBId, password: "123456", expectedStatus: 429 },
+  ];
+
+  for (const scenario of scenarios) {
+    it(`${scenario.otpId}:${scenario.password}`, async () => {
+      await runApiScenario({
+        method: "POST",
+        url: "/api/collections/users/auth-with-otp",
+        body: JSON.stringify({ otpId: scenario.otpId, password: scenario.password }),
+        expectedStatus: scenario.expectedStatus,
+        expectedContent: ['"'],
+        beforeTest: (app) => {
+          for (const [key, value] of storeCache.entries()) {
+            app.store().set(key, value);
+          }
+
+          const user = app.FindAuthRecordByEmail("users", "test@example.com");
+          user.collection().MFA.Enabled = false;
+          const err = app.Save(user.collection());
+          if (err) {
+            throw err;
+          }
+
+          for (const id of [otpAId, otpBId]) {
+            const otp = NewOTP(app);
+            otp.Id = id;
+            otp.SetCollectionRef(user.collection().Id);
+            otp.SetRecordRef(user.Id);
+            otp.ProxyRecord().SetPassword("123456");
+            const saveErr = app.Save(otp);
+            if (saveErr) {
+              throw saveErr;
+            }
+          }
+        },
+        afterTest: (app) => {
+          storeCache = app.store().getAll();
+        },
+      });
+    });
+  }
 });

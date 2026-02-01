@@ -1,5 +1,4 @@
 // Ported from pocketbase/apis/record_auth_password_reset_request_test.go.
-// Note: rate limit scenarios are TODO until rate limiting middleware is ported.
 
 import { describe, it } from "bun:test";
 import type { TestApp } from "../../tests/test_app.ts";
@@ -125,7 +124,14 @@ const scenarios: Scenario[] = [
     method: "POST",
     url: "/api/collections/users/request-password-reset",
     body: '{"email":"missing@example.com"}',
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 100, label: "*:requestPasswordReset", duration: 1 },
+        { maxRequests: 0, label: "users:requestPasswordReset", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
     expectedContent: ['"data":{}'],
     expectedEvents: { "*": 0 },
@@ -135,7 +141,13 @@ const scenarios: Scenario[] = [
     method: "POST",
     url: "/api/collections/users/request-password-reset",
     body: '{"email":"missing@example.com"}',
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 0, label: "*:requestPasswordReset", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
     expectedContent: ['"data":{}'],
     expectedEvents: { "*": 0 },
@@ -145,10 +157,6 @@ const scenarios: Scenario[] = [
 describe("record auth password reset request", () => {
   for (const scenario of scenarios) {
     const name = scenario.name ?? "scenario";
-    if (scenario.todo) {
-      it.todo(name, () => {});
-      continue;
-    }
     it(name, async () => {
       await runApiScenario(scenario);
     });

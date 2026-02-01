@@ -1,5 +1,4 @@
 // Ported from pocketbase/apis/record_auth_otp_request_test.go.
-// Note: rate limit scenarios are TODO until rate limiting middleware is ported.
 
 import { describe, it } from "bun:test";
 import type { TestApp } from "../../tests/test_app.ts";
@@ -241,27 +240,39 @@ const scenarios: Scenario[] = [
     method: "POST",
     url: "/api/collections/users/request-otp",
     body: '{"email":"test@example.com"}',
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 100, label: "*:requestOTP", duration: 1 },
+        { maxRequests: 0, label: "users:requestOTP", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
   },
   {
     name: "RateLimit rule - *:requestOTP",
     method: "POST",
     url: "/api/collections/users/request-otp",
     body: '{"email":"test@example.com"}',
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 0, label: "*:requestOTP", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
   },
 ];
 
 describe("record request OTP", () => {
   for (const scenario of scenarios) {
     const name = scenario.name ?? `${scenario.method}:${scenario.url}`;
-    if (scenario.todo) {
-      it.todo(name, () => {});
-      continue;
-    }
-
     it(name, async () => {
       await runApiScenario(scenario);
     });

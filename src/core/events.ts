@@ -64,6 +64,15 @@ class BaseCollectionEventData {
   }
 }
 
+export class SettingsReloadEvent extends Event {
+  App: App;
+
+  constructor(app: App) {
+    super();
+    this.App = app;
+  }
+}
+
 export class MailerEvent extends Event {
   App: App;
   Mailer: Mailer;

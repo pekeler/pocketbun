@@ -29,11 +29,80 @@ export type LogsConfig = {
   logIP: boolean;
 };
 
+export const RateLimitRuleAudienceAll = "";
+export const RateLimitRuleAudienceGuest = "@guest";
+export const RateLimitRuleAudienceAuth = "@auth";
+
+export type RateLimitRule = {
+  label: string;
+  audience?: string;
+  duration: number;
+  maxRequests: number;
+};
+
+export class RateLimitsConfig {
+  rules: RateLimitRule[];
+  enabled: boolean;
+
+  constructor() {
+    this.enabled = false;
+    this.rules = [
+      { label: "*:auth", maxRequests: 2, duration: 3, audience: RateLimitRuleAudienceAll },
+      { label: "*:create", maxRequests: 20, duration: 5, audience: RateLimitRuleAudienceAll },
+      { label: "/api/batch", maxRequests: 3, duration: 1, audience: RateLimitRuleAudienceAll },
+      { label: "/api/", maxRequests: 300, duration: 10, audience: RateLimitRuleAudienceAll },
+    ];
+  }
+
+  findRateLimitRule(searchLabels: string[], ...optOnlyAudience: string[]): [RateLimitRule | null, boolean] {
+    const prefixRules: number[] = [];
+
+    for (let i = 0; i < searchLabels.length; i += 1) {
+      const label = searchLabels[i];
+
+      for (let j = 0; j < this.rules.length; j += 1) {
+        const rule = this.rules[j];
+        if (!rule) {
+          continue;
+        }
+        if (
+          label === rule.label &&
+          (optOnlyAudience.length === 0 || optOnlyAudience.includes(rule.audience ?? RateLimitRuleAudienceAll))
+        ) {
+          return [rule, true];
+        }
+
+        if (i === 0 && rule.label.endsWith("/")) {
+          prefixRules.push(j);
+        }
+      }
+
+      if (prefixRules.length > 0) {
+        for (const index of prefixRules) {
+          const rule = this.rules[index];
+          if (!rule) {
+            continue;
+          }
+          if (
+            (label + "/").startsWith(rule.label) &&
+            (optOnlyAudience.length === 0 || optOnlyAudience.includes(rule.audience ?? RateLimitRuleAudienceAll))
+          ) {
+            return [rule, true];
+          }
+        }
+      }
+    }
+
+    return [null, false];
+  }
+}
+
 export class Settings {
   trustedProxy: TrustedProxyConfig;
   meta: MetaConfig;
   smtp: SMTPConfig;
   logs: LogsConfig;
+  rateLimits: RateLimitsConfig;
 
   constructor() {
     this.trustedProxy = {
@@ -61,6 +130,7 @@ export class Settings {
       maxDays: 5,
       logIP: true,
     };
+    this.rateLimits = new RateLimitsConfig();
   }
 
   loadFromJSON(value: unknown): void {
@@ -140,6 +210,38 @@ export class Settings {
       }
       if (typeof record.logIP === "boolean") {
         this.logs.logIP = record.logIP;
+      }
+    }
+
+    const rateLimits = raw.rateLimits;
+    if (rateLimits && typeof rateLimits === "object") {
+      const record = rateLimits as Record<string, unknown>;
+      if (typeof record.enabled === "boolean") {
+        this.rateLimits.enabled = record.enabled;
+      }
+
+      const rules = record.rules;
+      if (Array.isArray(rules)) {
+        const parsed: RateLimitRule[] = [];
+        for (const rule of rules) {
+          if (!rule || typeof rule !== "object") {
+            continue;
+          }
+          const entry = rule as Record<string, unknown>;
+          const label = typeof entry.label === "string" ? entry.label : "";
+          const audience = typeof entry.audience === "string" ? entry.audience : RateLimitRuleAudienceAll;
+          const maxRequests =
+            typeof entry.maxRequests === "number" && Number.isFinite(entry.maxRequests) ? entry.maxRequests : 0;
+          const duration = typeof entry.duration === "number" && Number.isFinite(entry.duration) ? entry.duration : 0;
+
+          if (!label || maxRequests <= 0 || duration <= 0) {
+            continue;
+          }
+
+          parsed.push({ label, audience, maxRequests, duration });
+        }
+
+        this.rateLimits.rules = parsed;
       }
     }
   }

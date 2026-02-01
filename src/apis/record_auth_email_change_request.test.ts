@@ -1,5 +1,4 @@
 // Ported from pocketbase/apis/record_auth_email_change_request_test.go.
-// Note: rate limit scenarios are TODO until rate limiting middleware is ported.
 
 import { describe, it } from "bun:test";
 import { runApiScenario, type ApiScenario } from "../../tests/api.ts";
@@ -136,7 +135,14 @@ const scenarios: Scenario[] = [
     url: "/api/collections/users/request-email-change",
     body: '{"newEmail":"change@example.com"}',
     headers: { Authorization: regularUserToken },
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 100, label: "*:requestEmailChange", duration: 1 },
+        { maxRequests: 0, label: "users:requestEmailChange", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
     expectedContent: ['"data":{}'],
     expectedEvents: { "*": 0 },
@@ -147,7 +153,13 @@ const scenarios: Scenario[] = [
     url: "/api/collections/users/request-email-change",
     body: '{"newEmail":"change@example.com"}',
     headers: { Authorization: regularUserToken },
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 0, label: "*:requestEmailChange", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
     expectedContent: ['"data":{}'],
     expectedEvents: { "*": 0 },
@@ -157,10 +169,6 @@ const scenarios: Scenario[] = [
 describe("record auth email change request", () => {
   for (const scenario of scenarios) {
     const name = scenario.name ?? "scenario";
-    if (scenario.todo) {
-      it.todo(name, () => {});
-      continue;
-    }
     it(name, async () => {
       await runApiScenario(scenario);
     });

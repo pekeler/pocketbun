@@ -1,88 +1,63 @@
 // Ported from pocketbase/tools/router/route.go
 
-export type Handler<E> = (event: E) => Response | Promise<Response> | void | Promise<void>;
+import type { Resolver } from "../hook/event.ts";
+import type { Handler as HookHandler } from "../hook/hook.ts";
 
-export type RouteMatch = {
-  params: Record<string, string>;
-};
+export type Handler<E> = (event: E) => unknown;
 
-type Segment = { type: "static"; value: string } | { type: "param"; name: string } | { type: "wildcard"; name: string };
+export class Route<T extends Resolver> {
+  excludedMiddlewares: Set<string> | null = null;
 
-function parsePattern(pattern: string): Segment[] {
-  const trimmed = pattern.replace(/^\/+|\/+$/g, "");
-  if (trimmed === "") {
-    return [];
+  Action: Handler<T>;
+  Method: string;
+  Path: string;
+  Middlewares: Array<HookHandler<T>> = [];
+
+  constructor(method: string, path: string, action: Handler<T>) {
+    this.Method = method.toUpperCase();
+    this.Path = path;
+    this.Action = action;
   }
 
-  return trimmed.split("/").map((part) => {
-    if (part.startsWith("{") && part.endsWith("}")) {
-      const inner = part.slice(1, -1);
-      if (inner.endsWith("...")) {
-        return { type: "wildcard", name: inner.slice(0, -3) };
+  BindFunc(...middlewareFuncs: Array<(e: T) => unknown>): this {
+    for (const fn of middlewareFuncs) {
+      this.Middlewares.push({ Func: fn });
+    }
+    return this;
+  }
+
+  Bind(...middlewares: Array<HookHandler<T>>): this {
+    this.Middlewares.push(...middlewares);
+
+    if (this.excludedMiddlewares) {
+      for (const middleware of middlewares) {
+        if (middleware.Id) {
+          this.excludedMiddlewares.delete(middleware.Id);
+        }
       }
-      return { type: "param", name: inner };
     }
 
-    return { type: "static", value: part };
-  });
-}
-
-function splitPath(pathname: string): string[] {
-  const trimmed = pathname.replace(/^\/+|\/+$/g, "");
-  if (trimmed === "") {
-    return [];
-  }
-  return trimmed.split("/");
-}
-
-export class Route<E> {
-  method: string;
-  pattern: string;
-  handler: Handler<E>;
-  #segments: Segment[];
-
-  constructor(method: string, pattern: string, handler: Handler<E>) {
-    this.method = method.toUpperCase();
-    this.pattern = pattern;
-    this.handler = handler;
-    this.#segments = parsePattern(pattern);
+    return this;
   }
 
-  match(pathname: string): RouteMatch | null {
-    const params: Record<string, string> = {};
-    const parts = splitPath(pathname);
-
-    for (let i = 0, j = 0; i < this.#segments.length; i += 1, j += 1) {
-      const segment = this.#segments[i];
-      const part = parts[j];
-      if (!segment) {
-        return null;
-      }
-
-      if (segment.type === "wildcard") {
-        const remaining = parts.slice(j).join("/");
-        params[segment.name] = remaining;
-        return { params };
-      }
-
-      if (part === undefined) {
-        return null;
-      }
-
-      if (segment.type === "static") {
-        if (segment.value !== part) {
-          return null;
-        }
+  Unbind(...middlewareIds: string[]): this {
+    for (const middlewareId of middlewareIds) {
+      if (!middlewareId) {
         continue;
       }
 
-      params[segment.name] = part;
+      for (let i = this.Middlewares.length - 1; i >= 0; i -= 1) {
+        if (this.Middlewares[i]?.Id === middlewareId) {
+          this.Middlewares.splice(i, 1);
+        }
+      }
+
+      if (!this.excludedMiddlewares) {
+        this.excludedMiddlewares = new Set();
+      }
+      this.excludedMiddlewares.add(middlewareId);
     }
 
-    if (parts.length !== this.#segments.length) {
-      return null;
-    }
-
-    return { params };
+    return this;
   }
 }

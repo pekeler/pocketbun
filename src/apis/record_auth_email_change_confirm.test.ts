@@ -1,5 +1,4 @@
 // Ported from pocketbase/apis/record_auth_email_change_confirm_test.go.
-// Note: rate limit scenarios are TODO until rate limiting middleware is ported.
 
 import { describe, it } from "bun:test";
 import { runApiScenario, type ApiScenario } from "../../tests/api.ts";
@@ -146,7 +145,14 @@ const scenarios: Scenario[] = [
       "token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsImNvbGxlY3Rpb25JZCI6Il9wYl91c2Vyc19hdXRoXyIsInR5cGUiOiJlbWFpbENoYW5nZSIsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSIsIm5ld0VtYWlsIjoiY2hhbmdlQGV4YW1wbGUuY29tIiwiZXhwIjoyNTI0NjA0NDYxfQ.Y7mVlaEPhJiNPoIvIqbIosZU4c4lEhwysOrRR8c95iU",
       "password":"1234567890"
     }`,
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 100, label: "*:confirmEmailChange", duration: 1 },
+        { maxRequests: 0, label: "users:confirmEmailChange", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
     expectedContent: ['"data":{}'],
     expectedEvents: { "*": 0 },
@@ -159,7 +165,13 @@ const scenarios: Scenario[] = [
       "token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsImNvbGxlY3Rpb25JZCI6Il9wYl91c2Vyc19hdXRoXyIsInR5cGUiOiJlbWFpbENoYW5nZSIsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSIsIm5ld0VtYWlsIjoiY2hhbmdlQGV4YW1wbGUuY29tIiwiZXhwIjoyNTI0NjA0NDYxfQ.Y7mVlaEPhJiNPoIvIqbIosZU4c4lEhwysOrRR8c95iU",
       "password":"1234567890"
     }`,
-    todo: true,
+    beforeTest: (app) => {
+      app.settings().rateLimits.enabled = true;
+      app.settings().rateLimits.rules = [
+        { maxRequests: 100, label: "abc", duration: 1 },
+        { maxRequests: 0, label: "*:confirmEmailChange", duration: 1 },
+      ];
+    },
     expectedStatus: 429,
     expectedContent: ['"data":{}'],
     expectedEvents: { "*": 0 },
@@ -169,10 +181,6 @@ const scenarios: Scenario[] = [
 describe("record auth email change confirm", () => {
   for (const scenario of scenarios) {
     const name = scenario.name ?? "scenario";
-    if (scenario.todo) {
-      it.todo(name, () => {});
-      continue;
-    }
     it(name, async () => {
       await runApiScenario(scenario);
     });

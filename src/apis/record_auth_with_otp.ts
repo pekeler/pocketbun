@@ -8,6 +8,7 @@ import { RecordAuthWithOTPRequestEvent } from "../core/events.ts";
 import { MFAMethodOTP } from "../core/mfa_model.ts";
 import { ValidationErrors, ErrRequired, newError, required } from "../internal/compat/validation.ts";
 import { badRequest, forbidden, tooManyRequests } from "./api_errors.ts";
+import { checkRateLimit } from "./middlewares_rate_limit.ts";
 import { authCollectionNotFound, findAuthCollection, readJsonBody } from "./record_auth_utils.ts";
 import { RecordAuthResponse } from "./record_helpers.ts";
 
@@ -67,9 +68,13 @@ export async function recordAuthWithOTP(app: App, event: RequestEvent): Promise<
     return badRequest(event, "Invalid or expired OTP");
   }
 
-  // TODO: port rate limiting middleware and enforce the OTP attempts rule.
-  const rateLimitErr = checkRateLimitStub();
-  if (rateLimitErr) {
+  const rateLimitResponse = checkRateLimit(event, `@pb_otp_${record.Id}`, {
+    label: "",
+    audience: "",
+    duration: 180,
+    maxRequests: 5,
+  });
+  if (rateLimitResponse) {
     return tooManyRequests(event, "Too many attempts, please try again later with a new OTP.");
   }
 
@@ -131,8 +136,4 @@ function validateOTPAuthForm(form: { otpId: string; password: string }): Error |
   }
 
   return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
-}
-
-function checkRateLimitStub(): Error | null {
-  return null;
 }

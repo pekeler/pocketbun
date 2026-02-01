@@ -9,31 +9,6 @@ import type { SqlExpr } from "../tools/search/types.ts";
 import type { App, Logger } from "./app.ts";
 import type { PostValidator, PreValidator } from "./db.ts";
 import type { RequestInfo } from "./event_request.ts";
-import type {
-  CollectionErrorEvent,
-  CollectionEvent,
-  CollectionRequestEvent,
-  CollectionsImportRequestEvent,
-  CollectionsListRequestEvent,
-  MailerRecordEvent,
-  RecordAuthRefreshRequestEvent,
-  RecordAuthRequestEvent,
-  RecordAuthWithOAuth2RequestEvent,
-  RecordAuthWithOTPRequestEvent,
-  RecordAuthWithPasswordRequestEvent,
-  RecordConfirmEmailChangeRequestEvent,
-  RecordConfirmPasswordResetRequestEvent,
-  RecordConfirmVerificationRequestEvent,
-  RecordCreateOTPRequestEvent,
-  RecordEnrichEvent,
-  RecordErrorEvent,
-  RecordEvent,
-  RecordRequestEvent,
-  RecordsListRequestEvent,
-  RecordRequestEmailChangeRequestEvent,
-  RecordRequestPasswordResetRequestEvent,
-  RecordRequestVerificationRequestEvent,
-} from "./events.ts";
 import type { RecordProxy } from "./record_proxy.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { Providers } from "../tools/auth/auth.ts";
@@ -68,6 +43,32 @@ import {
 } from "./collection.ts";
 import { validateCollection } from "./collection_validate.ts";
 import { TableInfo } from "./db_table.ts";
+import {
+  SettingsReloadEvent,
+  type CollectionErrorEvent,
+  type CollectionEvent,
+  type CollectionRequestEvent,
+  type CollectionsImportRequestEvent,
+  type CollectionsListRequestEvent,
+  type MailerRecordEvent,
+  type RecordAuthRefreshRequestEvent,
+  type RecordAuthRequestEvent,
+  type RecordAuthWithOAuth2RequestEvent,
+  type RecordAuthWithOTPRequestEvent,
+  type RecordAuthWithPasswordRequestEvent,
+  type RecordConfirmEmailChangeRequestEvent,
+  type RecordConfirmPasswordResetRequestEvent,
+  type RecordConfirmVerificationRequestEvent,
+  type RecordCreateOTPRequestEvent,
+  type RecordEnrichEvent,
+  type RecordErrorEvent,
+  type RecordEvent,
+  type RecordRequestEvent,
+  type RecordsListRequestEvent,
+  type RecordRequestEmailChangeRequestEvent,
+  type RecordRequestPasswordResetRequestEvent,
+  type RecordRequestVerificationRequestEvent,
+} from "./events.ts";
 import {
   MailerEvent,
   ModelErrorEvent,
@@ -199,6 +200,7 @@ export class BaseApp implements App {
   #onRecordConfirmVerificationRequest!: Hook<RecordConfirmVerificationRequestEvent>;
   #onRecordRequestEmailChangeRequest!: Hook<RecordRequestEmailChangeRequestEvent>;
   #onRecordConfirmEmailChangeRequest!: Hook<RecordConfirmEmailChangeRequestEvent>;
+  #onSettingsReload!: Hook<SettingsReloadEvent>;
   #onMailerSend!: Hook<MailerEvent>;
   #onMailerRecordAuthAlertSend!: Hook<MailerRecordEvent>;
   #onMailerRecordPasswordResetSend!: Hook<MailerRecordEvent>;
@@ -298,6 +300,7 @@ export class BaseApp implements App {
     this.#onRecordConfirmVerificationRequest = new Hook();
     this.#onRecordRequestEmailChangeRequest = new Hook();
     this.#onRecordConfirmEmailChangeRequest = new Hook();
+    this.#onSettingsReload = new Hook();
     this.#onMailerSend = new Hook();
     this.#onMailerRecordAuthAlertSend = new Hook();
     this.#onMailerRecordPasswordResetSend = new Hook();
@@ -563,6 +566,10 @@ export class BaseApp implements App {
     return NewTaggedHook(this.#onRecordConfirmEmailChangeRequest, ...tags);
   }
 
+  OnSettingsReload(): Hook<SettingsReloadEvent> {
+    return this.#onSettingsReload;
+  }
+
   OnMailerSend(): Hook<MailerEvent> {
     return this.#onMailerSend;
   }
@@ -745,7 +752,16 @@ export class BaseApp implements App {
       }
 
       const parsed = JSON.parse(row.value) as Record<string, unknown>;
-      this.#settings.loadFromJSON(parsed);
+      const event = new SettingsReloadEvent(this);
+      const result = this.OnSettingsReload().Trigger(event, () => {
+        this.#settings.loadFromJSON(parsed);
+        return null;
+      });
+      if (result instanceof Promise) {
+        void result.catch((err) => this.Logger().Warn("Failed to reload settings", "error", err));
+      } else if (result instanceof Error) {
+        this.Logger().Warn("Failed to reload settings", "error", result);
+      }
     } catch {
       // ignore missing settings table or invalid JSON
     }
@@ -1456,6 +1472,10 @@ export class BaseApp implements App {
     }
 
     return collectionFromRow(row);
+  }
+
+  FindCachedCollectionByNameOrId(identifier: string): Collection | null {
+    return this.findCollectionByNameOrId(identifier);
   }
 
   findRecordById(collection: Collection, id: string, rule: SqlExpr | null = null): RecordModel | null {

@@ -39,6 +39,7 @@ import type {
   RecordRequestPasswordResetRequestEvent,
   RecordRequestVerificationRequestEvent,
   RecordsListRequestEvent,
+  SettingsReloadEvent,
 } from "./events.ts";
 import type { ExternalAuth } from "./external_auth_model.ts";
 import type { FieldsList } from "./fields_list.ts";
@@ -95,6 +96,7 @@ export interface App {
   findAuthRecordByToken(token: string, validTypes?: string[]): RecordModel;
   findCollectionById(id: string): Collection | null;
   findCollectionByNameOrId(identifier: string): Collection | null;
+  FindCachedCollectionByNameOrId(identifier: string): Collection | null;
   FindAllCollections(...collectionTypes: string[]): Collection[];
   HasTable(name: string): boolean;
   IsCollectionNameUnique(name: string, excludeId?: string): boolean;
@@ -211,6 +213,7 @@ export interface App {
   OnRecordConfirmVerificationRequest(tags?: string[]): TaggedHook<RecordConfirmVerificationRequestEvent>;
   OnRecordRequestEmailChangeRequest(tags?: string[]): TaggedHook<RecordRequestEmailChangeRequestEvent>;
   OnRecordConfirmEmailChangeRequest(tags?: string[]): TaggedHook<RecordConfirmEmailChangeRequestEvent>;
+  OnSettingsReload(): Hook<SettingsReloadEvent>;
 
   OnMailerSend(): Hook<MailerEvent>;
   OnMailerRecordAuthAlertSend(tags?: string[]): TaggedHook<MailerRecordEvent>;

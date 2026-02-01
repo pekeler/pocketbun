@@ -37,7 +37,15 @@ export function forbidden(event: RequestEvent, message: string): Response {
 export function tooManyRequests(event: RequestEvent, message: string): Response {
   return event.json(429, {
     status: 429,
-    message: message || "Too many requests.",
+    message: message || "Too Many Requests.",
+    data: {},
+  });
+}
+
+export function notFound(event: RequestEvent, message: string): Response {
+  return event.json(404, {
+    status: 404,
+    message: message || "The requested resource wasn't found.",
     data: {},
   });
 }

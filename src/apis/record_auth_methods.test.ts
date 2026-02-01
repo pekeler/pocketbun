@@ -1,7 +1,7 @@
 // Ported from pocketbase/apis/record_auth_methods_test.go.
-// Note: rate limit scenarios are TODO until rate limiting middleware is ported.
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { runApiScenario } from "../../tests/api.ts";
 import { startTestServer } from "../../tests/helpers.ts";
 
 type StartedServer = Awaited<ReturnType<typeof startTestServer>>;
@@ -90,6 +90,41 @@ describe("record auth methods", () => {
     expect(body.emailPassword).toBe(true);
     expect(body.usernamePassword).toBe(true);
   });
+});
 
-  it.todo("rate limit rules for auth-methods requests", () => {});
+describe("record auth methods rate limit", () => {
+  it("RateLimit rule - nologin:listAuthMethods", async () => {
+    await runApiScenario({
+      method: "GET",
+      url: "/api/collections/nologin/auth-methods",
+      beforeTest: (app) => {
+        app.settings().rateLimits.enabled = true;
+        app.settings().rateLimits.rules = [
+          { maxRequests: 100, label: "abc", duration: 1 },
+          { maxRequests: 100, label: "*:listAuthMethods", duration: 1 },
+          { maxRequests: 0, label: "nologin:listAuthMethods", duration: 1 },
+        ];
+      },
+      expectedStatus: 429,
+      expectedContent: ['"data":{}'],
+      expectedEvents: { "*": 0 },
+    });
+  });
+
+  it("RateLimit rule - *:listAuthMethods", async () => {
+    await runApiScenario({
+      method: "GET",
+      url: "/api/collections/nologin/auth-methods",
+      beforeTest: (app) => {
+        app.settings().rateLimits.enabled = true;
+        app.settings().rateLimits.rules = [
+          { maxRequests: 100, label: "abc", duration: 1 },
+          { maxRequests: 0, label: "*:listAuthMethods", duration: 1 },
+        ];
+      },
+      expectedStatus: 429,
+      expectedContent: ['"data":{}'],
+      expectedEvents: { "*": 0 },
+    });
+  });
 });

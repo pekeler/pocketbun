@@ -25,10 +25,17 @@ export type RequestInfo = {
 export class RequestEvent extends Event {
   app: App;
   auth: RecordModel | null;
+  pattern: string;
   #cachedRequestInfo: RequestInfo | null = null;
   #cachedBody: Record<string, unknown> | null = null;
 
-  constructor(options: { app: App; request: Request; params?: Record<string, string>; remoteAddress?: string | null }) {
+  constructor(options: {
+    app: App;
+    request: Request;
+    params?: Record<string, string>;
+    remoteAddress?: string | null;
+    pattern?: string;
+  }) {
     super({
       request: options.request,
       params: options.params,
@@ -36,6 +43,7 @@ export class RequestEvent extends Event {
     });
     this.app = options.app;
     this.auth = null;
+    this.pattern = options.pattern ?? "";
   }
 
   realIP(): string {
