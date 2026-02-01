@@ -268,13 +268,30 @@ export class Record {
     }
   }
 
+  Load(data: RecordData): void {
+    for (const [key, value] of Object.entries(data)) {
+      this.Set(key, value);
+    }
+  }
+
   LastSavedPK(): string {
     const pk = this.#originalData.id;
     return typeof pk === "string" ? pk : "";
   }
 
   Original(): Record {
-    return new Record(this.#collection, { ...this.#originalData }, false);
+    const original = new Record(this.#collection, {}, true);
+    original.#data = {};
+    original.#originalData = { ...this.#originalData };
+    const savedId = typeof original.#originalData.id === "string" ? original.#originalData.id : "";
+    if (savedId) {
+      original.id = savedId;
+      original.#isNew = false;
+    } else {
+      original.id = "";
+      original.#isNew = true;
+    }
+    return original;
   }
 
   Fresh(): Record {
@@ -289,10 +306,8 @@ export class Record {
   }
 
   Clone(): Record {
-    const clone = new Record(this.#collection, { ...this.#originalData }, false);
+    const clone = this.Original();
     clone.#data = { ...this.#data };
-    clone.#originalData = { ...this.#originalData };
-    clone.#isNew = this.#isNew;
     clone.#exportCustomData = this.#exportCustomData;
     clone.#ignoreEmailVisibility = this.#ignoreEmailVisibility;
     clone.#customVisibility.reset(Object.fromEntries(this.#customVisibility.getAll()));

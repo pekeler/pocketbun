@@ -28,6 +28,8 @@ import type {
   RecordEnrichEvent,
   RecordErrorEvent,
   RecordEvent,
+  RecordRequestEvent,
+  RecordsListRequestEvent,
   RecordRequestEmailChangeRequestEvent,
   RecordRequestPasswordResetRequestEvent,
   RecordRequestVerificationRequestEvent,
@@ -50,6 +52,7 @@ import { buildSortExpr, parseSortFromString } from "../tools/search/sort.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
 import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
 import { randomString } from "../tools/security/random.ts";
+import { Broker } from "../tools/subscriptions/broker.ts";
 import { DateTime, GeoPoint, JSONRaw, NowDateTime, ParseDateTime } from "../tools/types/index.ts";
 import { AuthOrigin, CollectionNameAuthOrigins, recordRefHooks } from "./auth_origin_model.ts";
 import {
@@ -123,11 +126,13 @@ import {
 } from "./record_tokens.ts";
 import { Settings } from "./settings.ts";
 import { Store } from "./store.ts";
+import { NormalizeUniqueIndexError } from "./validators/db.ts";
 import { CreateViewFields, DeleteView, SaveView } from "./view.ts";
 
 export type BaseAppConfig = {
   dataDir?: string;
   encryptionEnv?: string;
+  isDev?: boolean;
 };
 
 export class BaseApp implements App {
@@ -136,82 +141,92 @@ export class BaseApp implements App {
   #settings: Settings;
   #store: Store<string, unknown>;
   #cron: Cron;
+  #subscriptionsBroker: Broker;
+  #isDev: boolean;
   #bootstrapped = false;
   #db: DbxDatabase | null = null;
   #auxDb: DbxDatabase | null = null;
   #logger: Logger;
   #txInfo: TxAppInfo | null = null;
-  #onCollectionsListRequest: Hook<CollectionsListRequestEvent>;
-  #onCollectionViewRequest: Hook<CollectionRequestEvent>;
-  #onCollectionCreateRequest: Hook<CollectionRequestEvent>;
-  #onCollectionUpdateRequest: Hook<CollectionRequestEvent>;
-  #onCollectionDeleteRequest: Hook<CollectionRequestEvent>;
-  #onCollectionsImportRequest: Hook<CollectionsImportRequestEvent>;
-  #onModelCreate: Hook<ModelEvent>;
-  #onModelCreateExecute: Hook<ModelEvent>;
-  #onModelAfterCreateSuccess: Hook<ModelEvent>;
-  #onModelAfterCreateError: Hook<ModelErrorEvent>;
-  #onModelUpdate: Hook<ModelEvent>;
-  #onModelUpdateExecute: Hook<ModelEvent>;
-  #onModelAfterUpdateSuccess: Hook<ModelEvent>;
-  #onModelAfterUpdateError: Hook<ModelErrorEvent>;
-  #onModelValidate: Hook<ModelEvent>;
-  #onModelDelete: Hook<ModelEvent>;
-  #onModelDeleteExecute: Hook<ModelEvent>;
-  #onModelAfterDeleteSuccess: Hook<ModelEvent>;
-  #onModelAfterDeleteError: Hook<ModelErrorEvent>;
-  #onRecordValidate: Hook<RecordEvent>;
-  #onRecordCreate: Hook<RecordEvent>;
-  #onRecordCreateExecute: Hook<RecordEvent>;
-  #onRecordAfterCreateSuccess: Hook<RecordEvent>;
-  #onRecordAfterCreateError: Hook<RecordErrorEvent>;
-  #onRecordUpdate: Hook<RecordEvent>;
-  #onRecordUpdateExecute: Hook<RecordEvent>;
-  #onRecordAfterUpdateSuccess: Hook<RecordEvent>;
-  #onRecordAfterUpdateError: Hook<RecordErrorEvent>;
-  #onRecordDelete: Hook<RecordEvent>;
-  #onRecordDeleteExecute: Hook<RecordEvent>;
-  #onRecordAfterDeleteSuccess: Hook<RecordEvent>;
-  #onRecordAfterDeleteError: Hook<RecordErrorEvent>;
-  #onRecordEnrich: Hook<RecordEnrichEvent>;
-  #onRecordAuthWithPasswordRequest: Hook<RecordAuthWithPasswordRequestEvent>;
-  #onRecordAuthWithOAuth2Request: Hook<RecordAuthWithOAuth2RequestEvent>;
-  #onRecordAuthWithOTPRequest: Hook<RecordAuthWithOTPRequestEvent>;
-  #onRecordAuthRequest: Hook<RecordAuthRequestEvent>;
-  #onRecordAuthRefreshRequest: Hook<RecordAuthRefreshRequestEvent>;
-  #onRecordCreateOTPRequest: Hook<RecordCreateOTPRequestEvent>;
-  #onRecordRequestPasswordResetRequest: Hook<RecordRequestPasswordResetRequestEvent>;
-  #onRecordConfirmPasswordResetRequest: Hook<RecordConfirmPasswordResetRequestEvent>;
-  #onRecordRequestVerificationRequest: Hook<RecordRequestVerificationRequestEvent>;
-  #onRecordConfirmVerificationRequest: Hook<RecordConfirmVerificationRequestEvent>;
-  #onRecordRequestEmailChangeRequest: Hook<RecordRequestEmailChangeRequestEvent>;
-  #onRecordConfirmEmailChangeRequest: Hook<RecordConfirmEmailChangeRequestEvent>;
-  #onMailerSend: Hook<MailerEvent>;
-  #onMailerRecordAuthAlertSend: Hook<MailerRecordEvent>;
-  #onMailerRecordPasswordResetSend: Hook<MailerRecordEvent>;
-  #onMailerRecordVerificationSend: Hook<MailerRecordEvent>;
-  #onMailerRecordEmailChangeSend: Hook<MailerRecordEvent>;
-  #onMailerRecordOTPSend: Hook<MailerRecordEvent>;
-  #onCollectionValidate: Hook<CollectionEvent>;
-  #onCollectionCreate: Hook<CollectionEvent>;
-  #onCollectionCreateExecute: Hook<CollectionEvent>;
-  #onCollectionAfterCreateSuccess: Hook<CollectionEvent>;
-  #onCollectionAfterCreateError: Hook<CollectionErrorEvent>;
-  #onCollectionUpdate: Hook<CollectionEvent>;
-  #onCollectionUpdateExecute: Hook<CollectionEvent>;
-  #onCollectionAfterUpdateSuccess: Hook<CollectionEvent>;
-  #onCollectionAfterUpdateError: Hook<CollectionErrorEvent>;
-  #onCollectionDelete: Hook<CollectionEvent>;
-  #onCollectionDeleteExecute: Hook<CollectionEvent>;
-  #onCollectionAfterDeleteSuccess: Hook<CollectionEvent>;
-  #onCollectionAfterDeleteError: Hook<CollectionErrorEvent>;
+  #hooksEnabled = false;
+  #onCollectionsListRequest!: Hook<CollectionsListRequestEvent>;
+  #onCollectionViewRequest!: Hook<CollectionRequestEvent>;
+  #onCollectionCreateRequest!: Hook<CollectionRequestEvent>;
+  #onCollectionUpdateRequest!: Hook<CollectionRequestEvent>;
+  #onCollectionDeleteRequest!: Hook<CollectionRequestEvent>;
+  #onCollectionsImportRequest!: Hook<CollectionsImportRequestEvent>;
+  #onModelCreate!: Hook<ModelEvent>;
+  #onModelCreateExecute!: Hook<ModelEvent>;
+  #onModelAfterCreateSuccess!: Hook<ModelEvent>;
+  #onModelAfterCreateError!: Hook<ModelErrorEvent>;
+  #onModelUpdate!: Hook<ModelEvent>;
+  #onModelUpdateExecute!: Hook<ModelEvent>;
+  #onModelAfterUpdateSuccess!: Hook<ModelEvent>;
+  #onModelAfterUpdateError!: Hook<ModelErrorEvent>;
+  #onModelValidate!: Hook<ModelEvent>;
+  #onModelDelete!: Hook<ModelEvent>;
+  #onModelDeleteExecute!: Hook<ModelEvent>;
+  #onModelAfterDeleteSuccess!: Hook<ModelEvent>;
+  #onModelAfterDeleteError!: Hook<ModelErrorEvent>;
+  #onRecordValidate!: Hook<RecordEvent>;
+  #onRecordCreate!: Hook<RecordEvent>;
+  #onRecordCreateExecute!: Hook<RecordEvent>;
+  #onRecordAfterCreateSuccess!: Hook<RecordEvent>;
+  #onRecordAfterCreateError!: Hook<RecordErrorEvent>;
+  #onRecordUpdate!: Hook<RecordEvent>;
+  #onRecordUpdateExecute!: Hook<RecordEvent>;
+  #onRecordAfterUpdateSuccess!: Hook<RecordEvent>;
+  #onRecordAfterUpdateError!: Hook<RecordErrorEvent>;
+  #onRecordDelete!: Hook<RecordEvent>;
+  #onRecordDeleteExecute!: Hook<RecordEvent>;
+  #onRecordAfterDeleteSuccess!: Hook<RecordEvent>;
+  #onRecordAfterDeleteError!: Hook<RecordErrorEvent>;
+  #onRecordEnrich!: Hook<RecordEnrichEvent>;
+  #onRecordAuthWithPasswordRequest!: Hook<RecordAuthWithPasswordRequestEvent>;
+  #onRecordAuthWithOAuth2Request!: Hook<RecordAuthWithOAuth2RequestEvent>;
+  #onRecordAuthWithOTPRequest!: Hook<RecordAuthWithOTPRequestEvent>;
+  #onRecordsListRequest!: Hook<RecordsListRequestEvent>;
+  #onRecordViewRequest!: Hook<RecordRequestEvent>;
+  #onRecordCreateRequest!: Hook<RecordRequestEvent>;
+  #onRecordUpdateRequest!: Hook<RecordRequestEvent>;
+  #onRecordDeleteRequest!: Hook<RecordRequestEvent>;
+  #onRecordAuthRequest!: Hook<RecordAuthRequestEvent>;
+  #onRecordAuthRefreshRequest!: Hook<RecordAuthRefreshRequestEvent>;
+  #onRecordCreateOTPRequest!: Hook<RecordCreateOTPRequestEvent>;
+  #onRecordRequestPasswordResetRequest!: Hook<RecordRequestPasswordResetRequestEvent>;
+  #onRecordConfirmPasswordResetRequest!: Hook<RecordConfirmPasswordResetRequestEvent>;
+  #onRecordRequestVerificationRequest!: Hook<RecordRequestVerificationRequestEvent>;
+  #onRecordConfirmVerificationRequest!: Hook<RecordConfirmVerificationRequestEvent>;
+  #onRecordRequestEmailChangeRequest!: Hook<RecordRequestEmailChangeRequestEvent>;
+  #onRecordConfirmEmailChangeRequest!: Hook<RecordConfirmEmailChangeRequestEvent>;
+  #onMailerSend!: Hook<MailerEvent>;
+  #onMailerRecordAuthAlertSend!: Hook<MailerRecordEvent>;
+  #onMailerRecordPasswordResetSend!: Hook<MailerRecordEvent>;
+  #onMailerRecordVerificationSend!: Hook<MailerRecordEvent>;
+  #onMailerRecordEmailChangeSend!: Hook<MailerRecordEvent>;
+  #onMailerRecordOTPSend!: Hook<MailerRecordEvent>;
+  #onCollectionValidate!: Hook<CollectionEvent>;
+  #onCollectionCreate!: Hook<CollectionEvent>;
+  #onCollectionCreateExecute!: Hook<CollectionEvent>;
+  #onCollectionAfterCreateSuccess!: Hook<CollectionEvent>;
+  #onCollectionAfterCreateError!: Hook<CollectionErrorEvent>;
+  #onCollectionUpdate!: Hook<CollectionEvent>;
+  #onCollectionUpdateExecute!: Hook<CollectionEvent>;
+  #onCollectionAfterUpdateSuccess!: Hook<CollectionEvent>;
+  #onCollectionAfterUpdateError!: Hook<CollectionErrorEvent>;
+  #onCollectionDelete!: Hook<CollectionEvent>;
+  #onCollectionDeleteExecute!: Hook<CollectionEvent>;
+  #onCollectionAfterDeleteSuccess!: Hook<CollectionEvent>;
+  #onCollectionAfterDeleteError!: Hook<CollectionErrorEvent>;
 
   constructor(config: BaseAppConfig = {}) {
     this.#dataDir = config.dataDir ?? "pb_data";
     this.#encryptionEnv = config.encryptionEnv ?? "";
+    this.#isDev = config.isDev ?? false;
     this.#settings = new Settings();
     this.#store = new Store();
     this.#cron = new Cron();
+    this.#subscriptionsBroker = new Broker();
     this.#logger = {
       Warn: (message: string, ...args: unknown[]) => {
         console.warn(message, ...args);
@@ -220,6 +235,19 @@ export class BaseApp implements App {
         console.error(message, ...args);
       },
     };
+    this.resetHooks();
+
+    this.registerCollectionHooks();
+    this.registerRecordHooks();
+    this.registerOTPHooks();
+    this.registerMFAHooks();
+    this.registerExternalAuthHooks();
+    this.registerAuthOriginHooks();
+    this.#hooksEnabled = true;
+  }
+
+  private resetHooks(): void {
+    this.#hooksEnabled = false;
     this.#onCollectionsListRequest = new Hook();
     this.#onCollectionViewRequest = new Hook();
     this.#onCollectionCreateRequest = new Hook();
@@ -256,6 +284,11 @@ export class BaseApp implements App {
     this.#onRecordAuthWithPasswordRequest = new Hook();
     this.#onRecordAuthWithOAuth2Request = new Hook();
     this.#onRecordAuthWithOTPRequest = new Hook();
+    this.#onRecordsListRequest = new Hook();
+    this.#onRecordViewRequest = new Hook();
+    this.#onRecordCreateRequest = new Hook();
+    this.#onRecordUpdateRequest = new Hook();
+    this.#onRecordDeleteRequest = new Hook();
     this.#onRecordAuthRequest = new Hook();
     this.#onRecordAuthRefreshRequest = new Hook();
     this.#onRecordCreateOTPRequest = new Hook();
@@ -284,13 +317,6 @@ export class BaseApp implements App {
     this.#onCollectionDeleteExecute = new Hook();
     this.#onCollectionAfterDeleteSuccess = new Hook();
     this.#onCollectionAfterDeleteError = new Hook();
-
-    this.registerCollectionHooks();
-    this.registerRecordHooks();
-    this.registerOTPHooks();
-    this.registerMFAHooks();
-    this.registerExternalAuthHooks();
-    this.registerAuthOriginHooks();
   }
 
   dataDir(): string {
@@ -311,6 +337,14 @@ export class BaseApp implements App {
 
   Cron(): Cron {
     return this.#cron;
+  }
+
+  IsDev(): boolean {
+    return this.#isDev;
+  }
+
+  SubscriptionsBroker(): Broker {
+    return this.#subscriptionsBroker;
   }
 
   Logger(): Logger {
@@ -459,6 +493,26 @@ export class BaseApp implements App {
 
   OnRecordAuthWithOTPRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordAuthWithOTPRequestEvent>> {
     return NewTaggedHook(this.#onRecordAuthWithOTPRequest, ...tags);
+  }
+
+  OnRecordsListRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordsListRequestEvent>> {
+    return NewTaggedHook(this.#onRecordsListRequest, ...tags);
+  }
+
+  OnRecordViewRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordRequestEvent>> {
+    return NewTaggedHook(this.#onRecordViewRequest, ...tags);
+  }
+
+  OnRecordCreateRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordRequestEvent>> {
+    return NewTaggedHook(this.#onRecordCreateRequest, ...tags);
+  }
+
+  OnRecordUpdateRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordRequestEvent>> {
+    return NewTaggedHook(this.#onRecordUpdateRequest, ...tags);
+  }
+
+  OnRecordDeleteRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordRequestEvent>> {
+    return NewTaggedHook(this.#onRecordDeleteRequest, ...tags);
   }
 
   OnRecordAuthRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordAuthRequestEvent>> {
@@ -618,6 +672,29 @@ export class BaseApp implements App {
 
   IsTransactional(): boolean {
     return this.#txInfo !== null;
+  }
+
+  UnsafeWithoutHooks(): App {
+    const CloneCtor = this.constructor as typeof BaseApp;
+    const clone = new CloneCtor({
+      dataDir: this.#dataDir,
+      encryptionEnv: this.#encryptionEnv,
+      isDev: this.#isDev,
+    });
+    clone.#dataDir = this.#dataDir;
+    clone.#encryptionEnv = this.#encryptionEnv;
+    clone.#settings = this.#settings;
+    clone.#store = this.#store;
+    clone.#cron = this.#cron;
+    clone.#subscriptionsBroker = this.#subscriptionsBroker;
+    clone.#isDev = this.#isDev;
+    clone.#bootstrapped = this.#bootstrapped;
+    clone.#db = this.#db;
+    clone.#auxDb = this.#auxDb;
+    clone.#logger = this.#logger;
+    clone.#txInfo = this.#txInfo;
+    clone.resetHooks();
+    return clone;
   }
 
   db(): Database {
@@ -1443,6 +1520,21 @@ export class BaseApp implements App {
     return this.saveModel(model, false);
   }
 
+  SaveWithContext(_ctx: unknown, model: RecordModel | Collection | RecordProxy): Error | null {
+    return this.saveModel(model, true);
+  }
+
+  SaveNoValidateWithContext(_ctx: unknown, model: RecordModel | Collection | RecordProxy): Error | null {
+    return this.saveModel(model, false);
+  }
+
+  private runRecordInterceptors(record: RecordModel, action: string, actionFunc: () => Error | null): Error | null {
+    if (!this.#hooksEnabled) {
+      return actionFunc();
+    }
+    return record.callFieldInterceptors(null, this, action, actionFunc);
+  }
+
   private saveModel(model: RecordModel | Collection | RecordProxy, runValidation: boolean): Error | null {
     const recordInfo = resolveRecordProxy(model);
     if (recordInfo) {
@@ -1455,7 +1547,7 @@ export class BaseApp implements App {
       const afterError = isNew ? InterceptorActionAfterCreateError : InterceptorActionAfterUpdateError;
 
       const runPersist = () =>
-        record.callFieldInterceptors(null, this, action, () => {
+        this.runRecordInterceptors(record, action, () => {
           if (runValidation) {
             const validateErr = this.Validate(eventModel);
             if (validateErr) {
@@ -1463,7 +1555,15 @@ export class BaseApp implements App {
             }
           }
 
-          return record.callFieldInterceptors(null, this, executeAction, () => this.persistRecord(record));
+          return this.runRecordInterceptors(record, executeAction, () => {
+            if (this.#hooksEnabled) {
+              const execErr = this.onRecordSaveExecute(record);
+              if (execErr) {
+                return execErr;
+              }
+            }
+            return this.persistRecord(record);
+          });
         });
 
       const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(modelEvent, () =>
@@ -1473,7 +1573,7 @@ export class BaseApp implements App {
       if (saveErr) {
         const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
         const afterErr = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(errorEvent, () =>
-          record.callFieldInterceptors(null, this, afterError, () => errorEvent.Error),
+          this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
         ) as Error | null;
         return afterErr ?? errorEvent.Error;
       }
@@ -1486,12 +1586,12 @@ export class BaseApp implements App {
             }
             const errorEvent = new ModelErrorEvent(modelEvent, txErr);
             const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(errorEvent, () =>
-              record.callFieldInterceptors(null, this, afterError, () => errorEvent.Error),
+              this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
             ) as Error | null;
             return result ?? null;
           }
           const result = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(modelEvent, () =>
-            record.callFieldInterceptors(null, this, afterSuccess, () => null),
+            this.runRecordInterceptors(record, afterSuccess, () => null),
           ) as Error | null;
           return result ?? null;
         });
@@ -1499,7 +1599,7 @@ export class BaseApp implements App {
       }
 
       const afterErr = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(modelEvent, () =>
-        record.callFieldInterceptors(null, this, afterSuccess, () => null),
+        this.runRecordInterceptors(record, afterSuccess, () => null),
       ) as Error | null;
       return afterErr ?? null;
     }
@@ -1593,8 +1693,8 @@ export class BaseApp implements App {
       const afterError = InterceptorActionAfterDeleteError;
 
       const runDelete = () =>
-        record.callFieldInterceptors(null, this, action, () =>
-          record.callFieldInterceptors(null, this, executeAction, () => this.deleteRecord(record)),
+        this.runRecordInterceptors(record, action, () =>
+          this.runRecordInterceptors(record, executeAction, () => this.deleteRecord(record)),
         );
       const deleteErr = this.OnModelDelete().Trigger(modelEvent, () =>
         this.OnModelDeleteExecute().Trigger(modelEvent, runDelete),
@@ -1603,7 +1703,7 @@ export class BaseApp implements App {
       if (deleteErr) {
         const errorEvent = new ModelErrorEvent(modelEvent, deleteErr);
         const afterErr = this.OnModelAfterDeleteError().Trigger(errorEvent, () =>
-          record.callFieldInterceptors(null, this, afterError, () => errorEvent.Error),
+          this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
         ) as Error | null;
         return afterErr ?? errorEvent.Error;
       }
@@ -1613,12 +1713,12 @@ export class BaseApp implements App {
           if (txErr) {
             const errorEvent = new ModelErrorEvent(modelEvent, txErr);
             const result = this.OnModelAfterDeleteError().Trigger(errorEvent, () =>
-              record.callFieldInterceptors(null, this, afterError, () => errorEvent.Error),
+              this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
             ) as Error | null;
             return result ?? null;
           }
           const result = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () =>
-            record.callFieldInterceptors(null, this, afterSuccess, () => null),
+            this.runRecordInterceptors(record, afterSuccess, () => null),
           ) as Error | null;
           return result ?? null;
         });
@@ -1626,7 +1726,7 @@ export class BaseApp implements App {
       }
 
       const afterErr = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () =>
-        record.callFieldInterceptors(null, this, afterSuccess, () => null),
+        this.runRecordInterceptors(record, afterSuccess, () => null),
       ) as Error | null;
       return afterErr ?? null;
     }
@@ -1696,6 +1796,10 @@ export class BaseApp implements App {
     return null;
   }
 
+  DeleteWithContext(_ctx: unknown, model: RecordModel | Collection | RecordProxy): Error | null {
+    return this.Delete(model);
+  }
+
   TruncateCollection(collection: Collection): Error | null {
     if (collection.isView()) {
       return new Error("view collections cannot be truncated");
@@ -1753,6 +1857,43 @@ export class BaseApp implements App {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
+  private onRecordSaveExecute(record: RecordModel): Error | null {
+    if (!record.collection().IsAuth()) {
+      return null;
+    }
+
+    if (!record.IsNew()) {
+      let lastSavedRecord: RecordModel;
+      try {
+        lastSavedRecord = this.FindRecordById(record.collection(), record.Id);
+      } catch (error) {
+        return error as Error;
+      }
+
+      if (
+        lastSavedRecord.TokenKey() === record.TokenKey() &&
+        (lastSavedRecord.Get(FieldNamePassword) !== record.Get(FieldNamePassword) || lastSavedRecord.Email() !== record.Email())
+      ) {
+        record.RefreshTokenKey();
+      }
+    }
+
+    const authCollections = this.FindAllCollections(CollectionTypeAuth);
+    for (const collection of authCollections) {
+      if (collection.Id === record.collection().Id) {
+        continue;
+      }
+      const existing = this.findRecordById(collection, record.Id);
+      if (existing) {
+        return new ValidationErrors({
+          id: newError("validation_invalid_auth_id", "Invalid or duplicated auth record id."),
+        });
+      }
+    }
+
+    return null;
+  }
+
   private persistRecord(record: RecordModel): Error | null {
     let data: Record<string, unknown>;
     try {
@@ -1769,21 +1910,26 @@ export class BaseApp implements App {
     }
 
     const keys = Object.keys(data);
-    if (record.IsNew()) {
-      const columns = keys.map((key) => `"${key}"`).join(", ");
-      const placeholders = keys.map(() => "?").join(", ");
-      const values = keys.map((key) => normalizeDbValue(data[key]));
-      const sql = `insert into "${record.TableName()}" (${columns}) values (${placeholders})`;
-      this.db().run(sql, values);
-    } else {
-      const columns = keys.filter((key) => key !== "id");
-      if (columns.length > 0) {
-        const assignments = columns.map((key) => `"${key}" = ?`).join(", ");
-        const values = columns.map((key) => normalizeDbValue(data[key]));
-        values.push(record.Id);
-        const sql = `update "${record.TableName()}" set ${assignments} where id = ?`;
+    try {
+      if (record.IsNew()) {
+        const columns = keys.map((key) => `"${key}"`).join(", ");
+        const placeholders = keys.map(() => "?").join(", ");
+        const values = keys.map((key) => normalizeDbValue(data[key]));
+        const sql = `insert into "${record.TableName()}" (${columns}) values (${placeholders})`;
         this.db().run(sql, values);
+      } else {
+        const columns = keys.filter((key) => key !== "id");
+        if (columns.length > 0) {
+          const assignments = columns.map((key) => `"${key}" = ?`).join(", ");
+          const values = columns.map((key) => normalizeDbValue(data[key]));
+          values.push(record.Id);
+          const sql = `update "${record.TableName()}" set ${assignments} where id = ?`;
+          this.db().run(sql, values);
+        }
       }
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      return NormalizeUniqueIndexError(error, record.collection().name, record.collection().Fields.FieldNames());
     }
 
     return record.PostScan();

@@ -56,6 +56,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-01 05:40Z) Port cron scheduler utilities + tests and add OTP/MFA models, queries, hooks, and stubs with SaveNoValidate support.
 - [x] (2026-02-01 06:25Z) Port record auth methods endpoint + tests (rate limit scenarios left as TODO until middleware is ported).
 - [x] (2026-02-01 08:20Z) Port record auth with password + auth refresh endpoints, mailer stubs/templates, record expand helpers, and auth tests (rate limit scenarios left as TODO).
+- [x] (2026-02-01 09:40Z) Port record auth impersonate endpoint + tests and OAuth2 redirect tests with subscription notifications.
 - [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries

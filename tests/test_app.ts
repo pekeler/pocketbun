@@ -4,6 +4,7 @@ import { cp, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { Logger } from "../src/core/app.ts";
 import type { MailerEvent } from "../src/core/events.ts";
 import { BaseApp } from "../src/core/base_app.ts";
 import { TestMailer } from "./test_mailer.ts";
@@ -11,6 +12,15 @@ import { TestMailer } from "./test_mailer.ts";
 export class TestApp extends BaseApp {
   eventCalls: Record<string, number> = {};
   testMailer: TestMailer = new TestMailer();
+  #logger: Logger = {
+    Warn: () => {},
+    Error: () => {},
+  };
+
+  override Logger(): Logger {
+    // Silence expected warnings in tests to keep output aligned with upstream.
+    return this.#logger;
+  }
 
   resetEventCalls(): void {
     this.eventCalls = {};
@@ -70,6 +80,11 @@ export class TestApp extends BaseApp {
     bindTagged("OnRecordAuthWithPasswordRequest", this.OnRecordAuthWithPasswordRequest());
     bindTagged("OnRecordAuthWithOAuth2Request", this.OnRecordAuthWithOAuth2Request());
     bindTagged("OnRecordAuthWithOTPRequest", this.OnRecordAuthWithOTPRequest());
+    bindTagged("OnRecordsListRequest", this.OnRecordsListRequest());
+    bindTagged("OnRecordViewRequest", this.OnRecordViewRequest());
+    bindTagged("OnRecordCreateRequest", this.OnRecordCreateRequest());
+    bindTagged("OnRecordUpdateRequest", this.OnRecordUpdateRequest());
+    bindTagged("OnRecordDeleteRequest", this.OnRecordDeleteRequest());
     bindTagged("OnRecordAuthRequest", this.OnRecordAuthRequest());
     bindTagged("OnRecordAuthRefreshRequest", this.OnRecordAuthRefreshRequest());
     bindTagged("OnRecordCreateOTPRequest", this.OnRecordCreateOTPRequest());

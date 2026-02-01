@@ -7,6 +7,7 @@ import type { Hook } from "../tools/hook/hook.ts";
 import type { TaggedHook } from "../tools/hook/tagged.ts";
 import type { Mailer } from "../tools/mailer/mailer.ts";
 import type { SqlExpr } from "../tools/search/types.ts";
+import type { Broker } from "../tools/subscriptions/broker.ts";
 import type { AuthOrigin } from "./auth_origin_model.ts";
 import type { Collection } from "./collection.ts";
 import type { TableInfoRow } from "./db_table.ts";
@@ -33,9 +34,11 @@ import type {
   RecordEnrichEvent,
   RecordErrorEvent,
   RecordEvent,
+  RecordRequestEvent,
   RecordRequestEmailChangeRequestEvent,
   RecordRequestPasswordResetRequestEvent,
   RecordRequestVerificationRequestEvent,
+  RecordsListRequestEvent,
 } from "./events.ts";
 import type { ExternalAuth } from "./external_auth_model.ts";
 import type { FieldsList } from "./fields_list.ts";
@@ -60,6 +63,8 @@ export interface App {
   settings(): Settings;
   store(): Store<string, unknown>;
   Cron(): Cron;
+  IsDev(): boolean;
+  SubscriptionsBroker(): Broker;
   isBootstrapped(): boolean;
   bootstrap(): void;
   resetBootstrapState(): void;
@@ -75,12 +80,16 @@ export interface App {
   NewFilesystem(): System;
   Save(model: RecordModel | Collection | RecordProxy): Error | null;
   SaveNoValidate(model: RecordModel | Collection | RecordProxy): Error | null;
+  SaveWithContext(ctx: unknown, model: RecordModel | Collection | RecordProxy): Error | null;
+  SaveNoValidateWithContext(ctx: unknown, model: RecordModel | Collection | RecordProxy): Error | null;
   Delete(model: RecordModel | Collection | RecordProxy): Error | null;
+  DeleteWithContext(ctx: unknown, model: RecordModel | Collection | RecordProxy): Error | null;
   Validate(model: RecordModel | Collection | RecordProxy): Error | null;
   TruncateCollection(collection: Collection): Error | null;
   ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Error | null;
   RunInTransaction(fn: (txApp: App) => Error | null): Error | null;
   IsTransactional(): boolean;
+  UnsafeWithoutHooks(): App;
   Logger(): Logger;
   RecordQuery(collectionModelOrIdentifier: Collection | string | null | undefined): RecordQuery;
   findAuthRecordByToken(token: string, validTypes?: string[]): RecordModel;
@@ -188,6 +197,11 @@ export interface App {
   OnRecordAuthWithPasswordRequest(tags?: string[]): TaggedHook<RecordAuthWithPasswordRequestEvent>;
   OnRecordAuthWithOAuth2Request(tags?: string[]): TaggedHook<RecordAuthWithOAuth2RequestEvent>;
   OnRecordAuthWithOTPRequest(tags?: string[]): TaggedHook<RecordAuthWithOTPRequestEvent>;
+  OnRecordsListRequest(tags?: string[]): TaggedHook<RecordsListRequestEvent>;
+  OnRecordViewRequest(tags?: string[]): TaggedHook<RecordRequestEvent>;
+  OnRecordCreateRequest(tags?: string[]): TaggedHook<RecordRequestEvent>;
+  OnRecordUpdateRequest(tags?: string[]): TaggedHook<RecordRequestEvent>;
+  OnRecordDeleteRequest(tags?: string[]): TaggedHook<RecordRequestEvent>;
   OnRecordAuthRequest(tags?: string[]): TaggedHook<RecordAuthRequestEvent>;
   OnRecordAuthRefreshRequest(tags?: string[]): TaggedHook<RecordAuthRefreshRequestEvent>;
   OnRecordCreateOTPRequest(tags?: string[]): TaggedHook<RecordCreateOTPRequestEvent>;

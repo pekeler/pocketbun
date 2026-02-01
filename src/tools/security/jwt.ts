@@ -10,6 +10,11 @@ export function parseUnverifiedJWT(token: string): JwtClaims {
   return payload;
 }
 
+export function decodeUnverifiedJWT(token: string): JwtClaims {
+  const { payload } = decodeToken(token);
+  return payload;
+}
+
 export function parseJWT(token: string, verificationKey: string): JwtClaims {
   const { header, payload, signature, signingInput } = decodeToken(token);
 

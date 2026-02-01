@@ -1,14 +1,18 @@
 // Ported from pocketbase/apis/record_crud.go
-// Note: record upsert/delete hooks and auth manage form logic are not yet ported.
+// Note: record upsert form logic (auth manage rules, file handling parity) is not yet ported.
 
 import type { SQLQueryBindings } from "bun:sqlite";
 import type { App } from "../core/app.ts";
 import type { RequestEvent, RequestInfo } from "../core/event_request.ts";
 import type { RouterGroup } from "../tools/router/group.ts";
 import { Collection } from "../core/collection.ts";
+import { RequestInfoContextOAuth2 } from "../core/event_request.ts";
+import { RecordRequestEvent, RecordsListRequestEvent } from "../core/events.ts";
 import { FieldTypeFile } from "../core/field_file.ts";
+import { PasswordFieldValue } from "../core/field_password.ts";
 import { FieldNamePassword, NewRecord, Record as RecordModel, type RecordData } from "../core/record.ts";
 import { RecordFieldResolver } from "../core/record_field_resolver.ts";
+import { RecordUpsert } from "../forms/record_upsert.ts";
 import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";
 import { NewFileFromBytes, type File as LocalFile } from "../tools/filesystem/file.ts";
 import { columnify } from "../tools/inflector/inflector.ts";
@@ -58,55 +62,67 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
     return notFound(event, "Missing collection context.");
   }
 
-  const requestInfo = await event.requestInfo();
+  const hookEvent = new RecordsListRequestEvent(event, collection);
 
-  if (collection.listRule === null && !requestInfo.auth?.isSuperuser()) {
-    return forbidden(event, "Only superusers can perform this action.");
-  }
+  const out = await app.OnRecordsListRequest().Trigger(hookEvent, async () => {
+    const requestInfo = await event.requestInfo();
 
-  const superuserFieldError = checkForSuperuserOnlyRuleFields(requestInfo);
-  if (superuserFieldError) {
-    return forbidden(event, superuserFieldError);
-  }
-
-  const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
-
-  let selectSql = `select * from {{${collection.name}}}`;
-  let countSql = `select count(distinct [[${collection.name}.id]]) as total from {{${collection.name}}}`;
-  if (collection.type !== "view") {
-    countSql = `select count(distinct [[${collection.name}]].[[_rowid_]]) as total from {{${collection.name}}}`;
-  }
-  const params: unknown[] = [];
-
-  if (!requestInfo.auth?.isSuperuser() && collection.listRule && collection.listRule !== "") {
-    const expr = buildFilterExpr(collection.listRule, resolver, DefaultFilterExprLimit);
-    if (expr.sql) {
-      selectSql = appendWhere(selectSql, expr.sql);
-      countSql = appendWhere(countSql, expr.sql);
-      params.push(...expr.params);
+    if (collection.listRule === null && !requestInfo.auth?.isSuperuser()) {
+      return forbidden(event, "Only superusers can perform this action.");
     }
-  }
 
-  resolver.setAllowHiddenFields(Boolean(requestInfo.auth?.isSuperuser()));
+    const superuserFieldError = checkForSuperuserOnlyRuleFields(requestInfo);
+    if (superuserFieldError) {
+      return forbidden(event, superuserFieldError);
+    }
 
-  const provider = new Provider(resolver).query({
-    select: selectSql,
-    count: countSql,
-    params,
+    const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
+
+    let selectSql = `select * from {{${collection.name}}}`;
+    let countSql = `select count(distinct [[${collection.name}.id]]) as total from {{${collection.name}}}`;
+    if (collection.type !== "view") {
+      countSql = `select count(distinct [[${collection.name}]].[[_rowid_]]) as total from {{${collection.name}}}`;
+    }
+    const params: unknown[] = [];
+
+    if (!requestInfo.auth?.isSuperuser() && collection.listRule && collection.listRule !== "") {
+      const expr = buildFilterExpr(collection.listRule, resolver, DefaultFilterExprLimit);
+      if (expr.sql) {
+        selectSql = appendWhere(selectSql, expr.sql);
+        countSql = appendWhere(countSql, expr.sql);
+        params.push(...expr.params);
+      }
+    }
+
+    resolver.setAllowHiddenFields(Boolean(requestInfo.auth?.isSuperuser()));
+
+    const provider = new Provider(resolver).query({
+      select: selectSql,
+      count: countSql,
+      params,
+    });
+
+    try {
+      const query = new URL(event.request.url).searchParams.toString();
+      const result = provider.parseAndExec<Record<string, unknown>>(query, app.db());
+      const records = result.items.map((row) => new RecordModel(collection, row));
+      const response: RecordsListResult = {
+        ...result,
+        items: records.map((record) => record.publicExport()),
+      };
+      hookEvent.Records = records;
+      hookEvent.Result = result;
+      return event.json(200, response);
+    } catch {
+      return badRequest(event, "");
+    }
   });
 
-  try {
-    const query = new URL(event.request.url).searchParams.toString();
-    const result = provider.parseAndExec<Record<string, unknown>>(query, app.db());
-    const items = result.items.map((row) => new RecordModel(collection, row).publicExport());
-    const response: RecordsListResult = {
-      ...result,
-      items,
-    };
-    return event.json(200, response);
-  } catch {
-    return badRequest(event, "");
+  if (out instanceof Response) {
+    return out;
   }
+
+  return badRequest(event, "");
 }
 
 async function recordView(app: App, event: RequestEvent): Promise<Response> {
@@ -157,12 +173,31 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
         return notFound(event, "");
       }
 
-      return event.json(200, new RecordModel(collection, row).publicExport());
+      const record = new RecordModel(collection, row);
+      const hookEvent = new RecordRequestEvent(event, collection, record);
+      const out = await app.OnRecordViewRequest().Trigger(hookEvent, async () => {
+        return event.json(200, record.publicExport());
+      });
+
+      if (out instanceof Response) {
+        return out;
+      }
+
+      return event.json(200, record.publicExport());
     }
 
     const record = app.findRecordById(collection, recordId);
     if (!record) {
       return notFound(event, "");
+    }
+
+    const hookEvent = new RecordRequestEvent(event, collection, record);
+    const out = await app.OnRecordViewRequest().Trigger(hookEvent, async () => {
+      return event.json(200, record.publicExport());
+    });
+
+    if (out instanceof Response) {
+      return out;
     }
 
     return event.json(200, record.publicExport());
@@ -200,8 +235,27 @@ async function recordCreate(app: App, event: RequestEvent): Promise<Response> {
   let data = resolveRecordData(record, requestInfo, parsed.files);
   requestInfo.body = data;
 
-  for (const [key, value] of Object.entries(data)) {
-    record.Set(key, value);
+  let skipPlainPasswordRecordValidators = false;
+  if (requestInfo.context === RequestInfoContextOAuth2) {
+    if (!(FieldNamePassword in data)) {
+      const generated = randomString(30);
+      data[FieldNamePassword] = generated;
+      data[`${FieldNamePassword}Confirm`] = generated;
+      skipPlainPasswordRecordValidators = true;
+    }
+  }
+
+  const form = new RecordUpsert(app, record);
+  if (hasSuperuser) {
+    form.GrantSuperuserAccess();
+  }
+  form.Load(data);
+
+  if (skipPlainPasswordRecordValidators) {
+    const raw = record.GetRaw(FieldNamePassword);
+    if (raw instanceof PasswordFieldValue) {
+      raw.Plain = "";
+    }
   }
 
   if (!hasSuperuser && collection.createRule && collection.createRule !== "") {
@@ -211,9 +265,22 @@ async function recordCreate(app: App, event: RequestEvent): Promise<Response> {
     }
   }
 
-  const saveErr = app.Save(record);
-  if (saveErr) {
-    return badRequest(event, "Failed to create record.", saveErr);
+  const hookEvent = new RecordRequestEvent(event, collection, record);
+  const out = await app.OnRecordCreateRequest().Trigger(hookEvent, async () => {
+    const recordRef = hookEvent.Record ?? record;
+    form.SetApp(hookEvent.App);
+    form.SetRecord(recordRef);
+
+    const submitErr = form.Submit();
+    if (submitErr) {
+      return badRequest(event, "Failed to create record.", submitErr);
+    }
+
+    return event.json(200, recordRef.publicExport());
+  });
+
+  if (out instanceof Response) {
+    return out;
   }
 
   return event.json(200, record.publicExport());
@@ -265,13 +332,28 @@ async function recordUpdate(app: App, event: RequestEvent): Promise<Response> {
     record = ruleRecord;
   }
 
-  for (const [key, value] of Object.entries(data)) {
-    record.Set(key, value);
+  const form = new RecordUpsert(app, record);
+  if (hasSuperuser) {
+    form.GrantSuperuserAccess();
   }
+  form.Load(data);
 
-  const saveErr = app.Save(record);
-  if (saveErr) {
-    return badRequest(event, "Failed to update record.", saveErr);
+  const hookEvent = new RecordRequestEvent(event, collection, record);
+  const out = await app.OnRecordUpdateRequest().Trigger(hookEvent, async () => {
+    const recordRef = hookEvent.Record ?? record;
+    form.SetApp(hookEvent.App);
+    form.SetRecord(recordRef);
+
+    const submitErr = form.Submit();
+    if (submitErr) {
+      return badRequest(event, "Failed to update record.", submitErr);
+    }
+
+    return event.json(200, recordRef.publicExport());
+  });
+
+  if (out instanceof Response) {
+    return out;
   }
 
   return event.json(200, record.publicExport());
@@ -311,13 +393,23 @@ async function recordDelete(app: App, event: RequestEvent): Promise<Response> {
     return notFound(event, "");
   }
 
-  const deleteErr = app.Delete(record);
-  if (deleteErr) {
-    return badRequest(
-      event,
-      "Failed to delete record. Make sure that the record is not part of a required relation reference.",
-      deleteErr,
-    );
+  const hookEvent = new RecordRequestEvent(event, collection, record);
+  const out = await app.OnRecordDeleteRequest().Trigger(hookEvent, async () => {
+    const recordRef = hookEvent.Record ?? record;
+    const deleteErr = app.Delete(recordRef);
+    if (deleteErr) {
+      return badRequest(
+        event,
+        "Failed to delete record. Make sure that the record is not part of a required relation reference.",
+        deleteErr,
+      );
+    }
+
+    return noContent(event);
+  });
+
+  if (out instanceof Response) {
+    return out;
   }
 
   return noContent(event);

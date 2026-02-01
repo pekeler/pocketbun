@@ -413,6 +413,56 @@ export class CollectionRequestEvent extends Event {
   }
 }
 
+export class RecordsListRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  Records: RecordModel[];
+  Result: SearchResult<Record<string, unknown>> | null;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, collection: Collection) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.Records = [];
+    this.Result = null;
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
+}
+
+export class RecordRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  Record: RecordModel | null;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, collection: Collection, record: RecordModel | null) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.Record = record;
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
+}
+
 export class RecordEnrichEvent extends Event {
   App: App;
   RequestInfo: RequestInfo | null;

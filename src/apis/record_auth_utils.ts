@@ -25,3 +25,33 @@ export function authCollectionNotFound(event: RequestEvent): Response {
     data: {},
   });
 }
+
+export async function readJsonBody(
+  event: RequestEvent,
+): Promise<{ data: Record<string, unknown> | null; error: Error | null }> {
+  if (!event.request.body) {
+    return { data: null, error: null };
+  }
+
+  let raw = "";
+  try {
+    raw = await event.request.clone().text();
+  } catch (error) {
+    return { data: null, error: error as Error };
+  }
+
+  if (raw.trim() === "") {
+    return { data: null, error: null };
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return { data: parsed as Record<string, unknown>, error: null };
+    }
+  } catch (error) {
+    return { data: null, error: error as Error };
+  }
+
+  return { data: null, error: null };
+}

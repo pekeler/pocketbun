@@ -1,6 +1,14 @@
 // Ported from pocketbase/tools/auth (barrel exports).
 
-export { Providers, newProviderByName, wrapFactory, type Provider, type ProviderFactoryFunc } from "./auth.ts";
+export {
+  Providers,
+  newProviderByName,
+  wrapFactory,
+  AuthUser,
+  type OAuth2Token,
+  type Provider,
+  type ProviderFactoryFunc,
+} from "./auth.ts";
 export { BaseProvider } from "./base_provider.ts";
 export { Apple, NameApple } from "./apple.ts";
 export { Bitbucket, NameBitbucket } from "./bitbucket.ts";

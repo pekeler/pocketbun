@@ -20,6 +20,15 @@ const expandQueryParam = "expand";
 
 export const ErrMFA = new Error("mfa required");
 
+// Ported from pocketbase/apis/record_helpers.go (simplified for Bun response flow).
+export async function execAfterSuccessTx(
+  _checkTx: boolean,
+  _app: App,
+  fn: () => Response | Promise<Response>,
+): Promise<Response> {
+  return await fn();
+}
+
 const ruleQueryParams = [FilterQueryParam, SortQueryParam];
 const superuserOnlyRuleFields = ["@collection.", "@request."];
 
