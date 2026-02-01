@@ -65,6 +65,13 @@ class BaseCollectionEventData {
   }
 }
 
+function syncStopSignal(target: Event, requestEvent: RequestEvent): void {
+  const stopSignal = requestEvent.getStopSignal();
+  if (stopSignal) {
+    target.setStopSignal(stopSignal);
+  }
+}
+
 export class SettingsReloadEvent extends Event {
   App: App;
 
@@ -373,6 +380,7 @@ export class FileTokenRequestEvent extends Event {
     const base = new BaseRecordEventData();
     base.Record = record;
     this.Tags = () => base.Tags();
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -412,6 +420,7 @@ export class FileDownloadRequestEvent extends Event {
     this.ThumbError = null;
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -445,6 +454,7 @@ export class CollectionsListRequestEvent extends Event {
     this.RequestEvent = requestEvent;
     this.Collections = collections;
     this.Result = result;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -466,6 +476,7 @@ export class CollectionsImportRequestEvent extends Event {
     this.RequestEvent = requestEvent;
     this.CollectionsData = collectionsData;
     this.DeleteMissing = deleteMissing;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -488,6 +499,7 @@ export class CollectionRequestEvent extends Event {
     this.Collection = collection;
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -514,6 +526,7 @@ export class RecordsListRequestEvent extends Event {
     this.Result = null;
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -538,6 +551,7 @@ export class RecordRequestEvent extends Event {
     this.Record = record;
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -584,6 +598,7 @@ export class RecordCreateOTPRequestEvent extends Event {
     this.Password = "";
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -610,6 +625,7 @@ export class RecordAuthWithOTPRequestEvent extends Event {
     this.OTP = null;
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -640,6 +656,7 @@ export class RecordAuthRequestEvent extends Event {
     this.AuthMethod = "";
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -670,6 +687,7 @@ export class RecordAuthWithPasswordRequestEvent extends Event {
     this.Password = "";
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -704,6 +722,7 @@ export class RecordAuthWithOAuth2RequestEvent extends Event {
     this.IsNewRecord = false;
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -728,6 +747,7 @@ export class RecordAuthRefreshRequestEvent extends Event {
     this.Record = record;
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -752,6 +772,7 @@ export class RecordRequestPasswordResetRequestEvent extends Event {
     this.Record = record;
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -776,6 +797,7 @@ export class RecordConfirmPasswordResetRequestEvent extends Event {
     this.Record = record;
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -800,6 +822,7 @@ export class RecordRequestVerificationRequestEvent extends Event {
     this.Record = record;
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -824,6 +847,7 @@ export class RecordConfirmVerificationRequestEvent extends Event {
     this.Record = record;
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -850,6 +874,7 @@ export class RecordRequestEmailChangeRequestEvent extends Event {
     this.NewEmail = "";
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }
 
@@ -876,5 +901,6 @@ export class RecordConfirmEmailChangeRequestEvent extends Event {
     this.NewEmail = "";
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
   }
 }

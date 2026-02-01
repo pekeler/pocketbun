@@ -6,7 +6,7 @@ import type { RequestInfo } from "../core/event_request.ts";
 import type { Record as RecordModel } from "../core/record.ts";
 import type { OAuth2Token } from "../tools/auth/auth.ts";
 import { CollectionNameSuperusers } from "../core/collection.ts";
-import { RequestEvent, RequestInfoContextOAuth2 } from "../core/event_request.ts";
+import { RequestEvent, RequestEventKeyInfoContext, RequestInfoContextOAuth2 } from "../core/event_request.ts";
 import { RecordAuthWithOAuth2RequestEvent, RecordRequestEvent } from "../core/events.ts";
 import { NewExternalAuth } from "../core/external_auth_model.ts";
 import { FieldTypeFile } from "../core/field_file.ts";
@@ -62,8 +62,8 @@ export async function recordAuthWithOAuth2(app: App, event: RequestEvent): Promi
     fallbackAuthRecord = event.auth;
   }
 
-  const info = await event.requestInfo();
-  info.context = RequestInfoContextOAuth2;
+  event.Set(RequestEventKeyInfoContext, RequestInfoContextOAuth2);
+  await event.requestInfo();
 
   const formResult = await parseOAuth2Form(event);
   if (formResult.error) {
@@ -224,8 +224,8 @@ async function oauth2Submit(event: RecordAuthWithOAuth2RequestEvent, optExternal
     });
     createEvent.auth = event.RequestEvent.auth;
 
+    createEvent.Set(RequestEventKeyInfoContext, RequestInfoContextOAuth2);
     const requestInfo = await createEvent.requestInfo();
-    requestInfo.context = RequestInfoContextOAuth2;
     requestInfo.body = createPayload ?? {};
 
     const record = NewRecord(event.Collection);

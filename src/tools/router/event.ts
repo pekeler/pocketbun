@@ -1,6 +1,7 @@
 // Ported from pocketbase/tools/router/event.go
 
 import type { NextFunc, Resolver } from "../hook/event.ts";
+import { Pick } from "../picker/pick.ts";
 import { Store } from "../store/store.ts";
 
 export class Event implements Resolver {
@@ -64,9 +65,18 @@ export class Event implements Resolver {
 
   json(status: number, body: unknown): Response {
     if (!this.responseHeaders.has("Content-Type")) {
-      this.responseHeaders.set("Content-Type", "application/json; charset=utf-8");
+      this.responseHeaders.set("Content-Type", "application/json");
     }
-    return new Response(JSON.stringify(body), {
+
+    let output = body;
+    if (status >= 200 && status <= 299) {
+      const rawFields = new URL(this.request.url).searchParams.get("fields") ?? "";
+      if (rawFields) {
+        output = Pick(body, rawFields);
+      }
+    }
+
+    return new Response(JSON.stringify(output), {
       status,
       headers: this.responseHeaders,
     });

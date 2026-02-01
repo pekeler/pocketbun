@@ -9,11 +9,13 @@ import type { SqlExpr } from "../tools/search/types.ts";
 import type { App, Logger } from "./app.ts";
 import type { PostValidator, PreValidator } from "./db.ts";
 import type { RequestInfo } from "./event_request.ts";
+import type { BatchRequestEvent } from "./event_request_batch.ts";
 import type { RecordProxy } from "./record_proxy.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { Providers } from "../tools/auth/auth.ts";
 import { Cron } from "../tools/cron/cron.ts";
 import { findSingleColumnUniqueIndex, parseIndex } from "../tools/dbutils/index.ts";
+import { JSONEach } from "../tools/dbutils/json.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
 import { HashExp, NewExp, Not } from "../tools/dbx/expr.ts";
 import { NewLocal } from "../tools/filesystem/filesystem.ts";
@@ -107,7 +109,9 @@ import {
   InterceptorActionUpdate,
   InterceptorActionUpdateExecute,
   InterceptorActionValidate,
+  type Field,
 } from "./field.ts";
+import { RelationField } from "./field_relation.ts";
 import { FieldsList, NewFieldsList } from "./fields_list.ts";
 import { CollectionNameMFAs, MFA } from "./mfa_model.ts";
 import { MigrationsList } from "./migrations_list.ts";
@@ -158,6 +162,7 @@ export class BaseApp implements App {
   #onCollectionUpdateRequest!: Hook<CollectionRequestEvent>;
   #onCollectionDeleteRequest!: Hook<CollectionRequestEvent>;
   #onCollectionsImportRequest!: Hook<CollectionsImportRequestEvent>;
+  #onBatchRequest!: Hook<BatchRequestEvent>;
   #onModelCreate!: Hook<ModelEvent>;
   #onModelCreateExecute!: Hook<ModelEvent>;
   #onModelAfterCreateSuccess!: Hook<ModelEvent>;
@@ -260,6 +265,7 @@ export class BaseApp implements App {
     this.#onCollectionUpdateRequest = new Hook();
     this.#onCollectionDeleteRequest = new Hook();
     this.#onCollectionsImportRequest = new Hook();
+    this.#onBatchRequest = new Hook();
     this.#onModelCreate = new Hook();
     this.#onModelCreateExecute = new Hook();
     this.#onModelAfterCreateSuccess = new Hook();
@@ -382,6 +388,10 @@ export class BaseApp implements App {
 
   OnCollectionsImportRequest(): Hook<CollectionsImportRequestEvent> {
     return this.#onCollectionsImportRequest;
+  }
+
+  OnBatchRequest(): Hook<BatchRequestEvent> {
+    return this.#onBatchRequest;
   }
 
   OnModelCreate(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelEvent>> {
@@ -1468,6 +1478,28 @@ export class BaseApp implements App {
     return rows.map((row) => collectionFromRow(row as CollectionRow));
   }
 
+  FindCachedCollectionReferences(collection: Collection, ...excludeIds: string[]): Map<Collection, Field[]> {
+    const exclude = new Set(excludeIds.filter((value) => value));
+    const result = new Map<Collection, Field[]>();
+    const collections = this.FindAllCollections();
+
+    for (const candidate of collections) {
+      if (exclude.has(candidate.id)) {
+        continue;
+      }
+
+      for (const field of candidate.Fields) {
+        if (field instanceof RelationField && field.CollectionId === collection.id) {
+          const current = result.get(candidate) ?? [];
+          current.push(field);
+          result.set(candidate, current);
+        }
+      }
+    }
+
+    return result;
+  }
+
   findCollectionById(id: string): Collection | null {
     const row = this.db()
       .query(
@@ -1832,17 +1864,34 @@ export class BaseApp implements App {
     const txInfo = this.#txInfo;
     this.#txInfo = null;
     const afterErr = txInfo.runAfterFuncs(txErr);
+    return joinErrors(txErr, afterErr);
+  }
 
-    if (txErr && afterErr) {
-      return new Error(`${txErr.message}; ${afterErr.message}`);
+  // Bun port adds an async variant to accommodate request parsing and hook delays.
+  async RunInTransactionAsync(fn: (txApp: App) => Promise<Error | null> | Error | null): Promise<Error | null> {
+    if (this.#txInfo) {
+      return (await fn(this)) ?? null;
     }
+
+    this.#txInfo = new TxAppInfo();
+    let txErr: Error | null = null;
+    this.db().run("BEGIN");
+    try {
+      txErr = (await fn(this)) ?? null;
+    } catch (error) {
+      txErr = error as Error;
+    }
+
     if (txErr) {
-      return txErr;
+      this.db().run("ROLLBACK");
+    } else {
+      this.db().run("COMMIT");
     }
-    if (afterErr) {
-      return afterErr;
-    }
-    return null;
+
+    const txInfo = this.#txInfo;
+    this.#txInfo = null;
+    const afterErr = txInfo.runAfterFuncs(txErr);
+    return joinErrors(txErr, afterErr);
   }
 
   DeleteWithContext(_ctx: unknown, model: RecordModel | Collection | RecordProxy): Error | null {
@@ -1941,6 +1990,28 @@ export class BaseApp implements App {
     }
 
     return null;
+  }
+
+  private onRecordDeleteExecute(event: RecordEvent): Error | null {
+    const record = event.Record;
+    if (!record) {
+      return new Error("missing record in record delete event");
+    }
+    const refs = this.FindCachedCollectionReferences(record.collection());
+
+    const originalApp = event.App;
+    const txErr = this.RunInTransaction((txApp) => {
+      event.App = txApp;
+      const nextResult = event.Next();
+      if (nextResult instanceof Error) {
+        return nextResult;
+      }
+
+      return cascadeRecordDelete(txApp, record, refs);
+    });
+    event.App = originalApp;
+
+    return txErr ?? null;
   }
 
   private persistRecord(record: RecordModel): Error | null {
@@ -2709,6 +2780,12 @@ export class BaseApp implements App {
       },
     });
 
+    this.OnRecordDeleteExecute().Bind({
+      Id: systemHookIdRecord,
+      Priority: 99,
+      Func: (event) => this.onRecordDeleteExecute(event),
+    });
+
     this.OnModelAfterDeleteSuccess().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
@@ -3023,7 +3100,7 @@ class TxAppInfo {
     if (errors.length === 1) {
       return errors[0] ?? null;
     }
-    return new Error(errors.map((err) => err.message).join("; "));
+    return new AggregateError(errors, errors.map((err) => err.message).join("\n"));
   }
 }
 
@@ -3058,6 +3135,123 @@ function normalizeDbValue(value: unknown): SQLQueryBindings {
 
 function isSafeIdentifier(value: string): boolean {
   return /^[A-Za-z0-9_]+$/.test(value);
+}
+
+function cascadeRecordDelete(app: App, mainRecord: RecordModel, refs: Map<Collection, Field[]>): Error | null {
+  const sortedRefs = Array.from(refs.keys()).sort((a, b) => a.name.localeCompare(b.name));
+
+  for (const refCollection of sortedRefs) {
+    const fields = refs.get(refCollection);
+    if (!fields || refCollection.isView()) {
+      continue;
+    }
+
+    const recordTableName = columnify(refCollection.name);
+
+    for (const field of fields) {
+      if (!(field instanceof RelationField)) {
+        return new Error(`only RelationField is supported at the moment, got ${field.Type()}`);
+      }
+
+      const prefixedFieldName = `${recordTableName}.${columnify(field.GetName())}`;
+      const query = app.RecordQuery(refCollection);
+
+      if (!field.IsMultiple()) {
+        query.AndWhere({ [prefixedFieldName]: mainRecord.Id });
+      } else {
+        query.AndWhere({
+          sql: `EXISTS (SELECT 1 FROM ${JSONEach(prefixedFieldName)} as {{__je__}} WHERE [[__je__.value]] = ?)`,
+          params: [mainRecord.Id],
+        });
+      }
+
+      if (refCollection.Id === mainRecord.collection().Id) {
+        query.AndWhere(Not(HashExp({ [`${recordTableName}.id`]: mainRecord.Id })));
+      }
+
+      const batchSize = 4000;
+      for (;;) {
+        const rows = query.Limit(batchSize).All() as RecordModel[];
+        const total = rows.length;
+        if (total === 0) {
+          break;
+        }
+
+        const err = deleteRefRecords(app, mainRecord, rows, field);
+        if (err) {
+          return err;
+        }
+
+        if (total < batchSize) {
+          break;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function deleteRefRecords(app: App, mainRecord: RecordModel, refRecords: RecordModel[], field: RelationField): Error | null {
+  for (const refRecord of refRecords) {
+    let ids = refRecord.GetStringSlice(field.Name);
+
+    for (let i = ids.length - 1; i >= 0; i -= 1) {
+      if (ids[i] === mainRecord.Id) {
+        ids = ids.slice(0, i).concat(ids.slice(i + 1));
+        break;
+      }
+    }
+
+    if (field.CascadeDelete && ids.length === 0) {
+      const deleteErr = app.Delete(refRecord);
+      if (deleteErr) {
+        return deleteErr;
+      }
+      continue;
+    }
+
+    if (field.Required && ids.length === 0) {
+      return new Error(
+        `the record cannot be deleted because it is part of a required reference in record ${refRecord.Id} (${refRecord.collection().Name} collection)`,
+      );
+    }
+
+    refRecord.Set(field.Name, ids);
+    const saveErr = app.SaveNoValidate(refRecord);
+    if (saveErr) {
+      return saveErr;
+    }
+  }
+
+  return null;
+}
+
+function joinErrors(...errors: Array<Error | null | undefined>): Error | null {
+  const flattened: Error[] = [];
+  for (const err of errors) {
+    if (!err) {
+      continue;
+    }
+    if (err instanceof AggregateError) {
+      for (const inner of err.errors) {
+        if (inner instanceof Error) {
+          flattened.push(inner);
+        }
+      }
+      continue;
+    }
+    flattened.push(err);
+  }
+
+  if (flattened.length === 0) {
+    return null;
+  }
+  if (flattened.length === 1) {
+    return flattened[0] ?? null;
+  }
+
+  return new AggregateError(flattened, flattened.map((err) => err.message).join("\n"));
 }
 
 function normalizeCollectionFields(collection: Collection): void {

@@ -29,6 +29,13 @@ export type LogsConfig = {
   logIP: boolean;
 };
 
+export type BatchConfig = {
+  enabled: boolean;
+  maxRequests: number;
+  timeout: number;
+  maxBodySize: number;
+};
+
 export const RateLimitRuleAudienceAll = "";
 export const RateLimitRuleAudienceGuest = "@guest";
 export const RateLimitRuleAudienceAuth = "@auth";
@@ -103,6 +110,7 @@ export class Settings {
   smtp: SMTPConfig;
   logs: LogsConfig;
   rateLimits: RateLimitsConfig;
+  batch: BatchConfig;
 
   constructor() {
     this.trustedProxy = {
@@ -131,6 +139,12 @@ export class Settings {
       logIP: true,
     };
     this.rateLimits = new RateLimitsConfig();
+    this.batch = {
+      enabled: false,
+      maxRequests: 50,
+      timeout: 3,
+      maxBodySize: 0,
+    };
   }
 
   loadFromJSON(value: unknown): void {
@@ -210,6 +224,23 @@ export class Settings {
       }
       if (typeof record.logIP === "boolean") {
         this.logs.logIP = record.logIP;
+      }
+    }
+
+    const batch = raw.batch;
+    if (batch && typeof batch === "object") {
+      const record = batch as Record<string, unknown>;
+      if (typeof record.enabled === "boolean") {
+        this.batch.enabled = record.enabled;
+      }
+      if (typeof record.maxRequests === "number" && Number.isFinite(record.maxRequests)) {
+        this.batch.maxRequests = record.maxRequests;
+      }
+      if (typeof record.timeout === "number" && Number.isFinite(record.timeout)) {
+        this.batch.timeout = record.timeout;
+      }
+      if (typeof record.maxBodySize === "number" && Number.isFinite(record.maxBodySize)) {
+        this.batch.maxBodySize = record.maxBodySize;
       }
     }
 

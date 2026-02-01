@@ -64,6 +64,20 @@ export function safeErrorsData(err: unknown): Record<string, unknown> {
     return {};
   }
 
+  if (err instanceof AggregateError) {
+    for (const inner of err.errors) {
+      if (inner instanceof ValidationErrors || inner instanceof ValidationError) {
+        return safeErrorsData(inner);
+      }
+    }
+    for (const inner of err.errors) {
+      if (inner instanceof Error) {
+        return safeErrorsData(inner);
+      }
+    }
+    return {};
+  }
+
   if (err instanceof ValidationErrors) {
     const data: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(err.errors)) {

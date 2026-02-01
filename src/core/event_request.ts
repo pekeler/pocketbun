@@ -13,6 +13,9 @@ export const RequestInfoContextOAuth2 = "oauth2";
 export const RequestInfoContextOTP = "otp";
 export const RequestInfoContextPasswordAuth = "password";
 
+// Common request store keys used by middlewares and handlers.
+export const RequestEventKeyInfoContext = "infoContext";
+
 export type RequestInfo = {
   query: Record<string, string>;
   headers: Record<string, string>;
@@ -28,6 +31,7 @@ export class RequestEvent extends Event {
   pattern: string;
   #cachedRequestInfo: RequestInfo | null = null;
   #cachedBody: Record<string, unknown> | null = null;
+  #stopSignal: { stopped: boolean; error?: Error } | null = null;
 
   constructor(options: {
     app: App;
@@ -92,11 +96,21 @@ export class RequestEvent extends Event {
   async requestInfo(): Promise<RequestInfo> {
     if (this.#cachedRequestInfo) {
       this.#cachedRequestInfo.auth = this.auth;
+      const infoContext = this.Get(RequestEventKeyInfoContext);
+      if (typeof infoContext === "string" && infoContext) {
+        this.#cachedRequestInfo.context = infoContext;
+      } else {
+        this.#cachedRequestInfo.context = RequestInfoContextDefault;
+      }
       return this.#cachedRequestInfo;
     }
 
+    const infoContextRaw = this.Get(RequestEventKeyInfoContext);
+    const infoContext =
+      typeof infoContextRaw === "string" && infoContextRaw !== "" ? infoContextRaw : RequestInfoContextDefault;
+
     const info: RequestInfo = {
-      context: RequestInfoContextDefault,
+      context: infoContext,
       method: this.request.method,
       query: {},
       headers: {},
@@ -153,6 +167,14 @@ export class RequestEvent extends Event {
         // ignore malformed JSON for now; upstream returns error later in request validation
       }
     }
+  }
+
+  setStopSignal(signal: { stopped: boolean; error?: Error } | null): void {
+    this.#stopSignal = signal;
+  }
+
+  getStopSignal(): { stopped: boolean; error?: Error } | null {
+    return this.#stopSignal;
   }
 }
 

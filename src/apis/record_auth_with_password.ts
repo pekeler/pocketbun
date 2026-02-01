@@ -4,7 +4,7 @@ import type { App } from "../core/app.ts";
 import type { Collection } from "../core/collection.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { Record as RecordModel } from "../core/record.ts";
-import { RequestInfoContextPasswordAuth } from "../core/event_request.ts";
+import { RequestEventKeyInfoContext, RequestInfoContextPasswordAuth } from "../core/event_request.ts";
 import { RecordAuthWithPasswordRequestEvent } from "../core/events.ts";
 import { MFAMethodPassword } from "../core/mfa_model.ts";
 import { ValidationError, ValidationErrors, ErrRequired, newError, required } from "../internal/compat/validation.ts";
@@ -54,8 +54,8 @@ export async function recordAuthWithPassword(app: App, event: RequestEvent): Pro
     return badRequest(event, "An error occurred while validating the submitted data.", validationErr);
   }
 
-  const info = await event.requestInfo();
-  info.context = RequestInfoContextPasswordAuth;
+  event.Set(RequestEventKeyInfoContext, RequestInfoContextPasswordAuth);
+  await event.requestInfo();
 
   let foundRecord: RecordModel | null = null;
   let foundErr: Error | null = null;

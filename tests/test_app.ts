@@ -50,6 +50,7 @@ export class TestApp extends BaseApp {
     bindTagged("OnCollectionUpdateRequest", this.OnCollectionUpdateRequest());
     bindTagged("OnCollectionDeleteRequest", this.OnCollectionDeleteRequest());
     bindTagged("OnCollectionsImportRequest", this.OnCollectionsImportRequest());
+    bindTagged("OnBatchRequest", this.OnBatchRequest());
 
     bindTagged("OnModelCreate", this.OnModelCreate());
     bindTagged("OnModelCreateExecute", this.OnModelCreateExecute());

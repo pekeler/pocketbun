@@ -12,6 +12,7 @@ import type { AuthOrigin } from "./auth_origin_model.ts";
 import type { Collection } from "./collection.ts";
 import type { TableInfoRow } from "./db_table.ts";
 import type { RequestInfo } from "./event_request.ts";
+import type { BatchRequestEvent } from "./event_request_batch.ts";
 import type {
   CollectionRequestEvent,
   CollectionsImportRequestEvent,
@@ -44,6 +45,7 @@ import type {
   SettingsReloadEvent,
 } from "./events.ts";
 import type { ExternalAuth } from "./external_auth_model.ts";
+import type { Field } from "./field.ts";
 import type { FieldsList } from "./fields_list.ts";
 import type { MFA } from "./mfa_model.ts";
 import type { OTP } from "./otp_model.ts";
@@ -91,6 +93,7 @@ export interface App {
   TruncateCollection(collection: Collection): Error | null;
   ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Error | null;
   RunInTransaction(fn: (txApp: App) => Error | null): Error | null;
+  RunInTransactionAsync(fn: (txApp: App) => Promise<Error | null> | Error | null): Promise<Error | null>;
   IsTransactional(): boolean;
   UnsafeWithoutHooks(): App;
   Logger(): Logger;
@@ -100,6 +103,7 @@ export interface App {
   findCollectionByNameOrId(identifier: string): Collection | null;
   FindCachedCollectionByNameOrId(identifier: string): Collection | null;
   FindAllCollections(...collectionTypes: string[]): Collection[];
+  FindCachedCollectionReferences(collection: Collection, ...excludeIds: string[]): Map<Collection, Field[]>;
   HasTable(name: string): boolean;
   IsCollectionNameUnique(name: string, excludeId?: string): boolean;
   findRecordById(collection: Collection, id: string, rule?: SqlExpr | null): RecordModel | null;
@@ -174,6 +178,7 @@ export interface App {
   OnCollectionUpdateRequest(): Hook<CollectionRequestEvent>;
   OnCollectionDeleteRequest(): Hook<CollectionRequestEvent>;
   OnCollectionsImportRequest(): Hook<CollectionsImportRequestEvent>;
+  OnBatchRequest(): Hook<BatchRequestEvent>;
 
   OnModelCreate(tags?: string[]): TaggedHook<ModelEvent>;
   OnModelCreateExecute(tags?: string[]): TaggedHook<ModelEvent>;

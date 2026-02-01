@@ -195,10 +195,20 @@ function triggerRecordEnrichHooks(
   records: RecordModel[],
   finalizer: (() => Error | null) | null,
 ): Error | null {
-  let index = 0;
-
   const hook = app.OnRecordEnrich();
   const event = new RecordEnrichEvent(app, requestInfo, null);
+
+  const iterator = {
+    index: 0,
+    next(): RecordModel | null {
+      if (this.index >= records.length) {
+        return null;
+      }
+      const item = records[this.index] ?? null;
+      this.index += 1;
+      return item;
+    },
+  };
 
   const iterate = (record: RecordModel | null): Error | null => {
     if (!record) {
@@ -208,14 +218,14 @@ function triggerRecordEnrichHooks(
     event.Record = record;
 
     const result = hook.Trigger(event, (e) => {
-      const next = records[index + 1] ?? null;
-      index += 1;
+      const next = iterator.next();
       if (!next) {
         return finalizer ? finalizer() : null;
       }
 
       const originalApp = event.App;
       event.App = e.App;
+      event.Record = next;
 
       const err = iterate(next);
 
@@ -228,7 +238,7 @@ function triggerRecordEnrichHooks(
     return result instanceof Error ? result : null;
   };
 
-  return iterate(records[0] ?? null);
+  return iterate(iterator.next());
 }
 
 function defaultEnrichRecords(app: App, requestInfo: RequestInfo, records: RecordModel[], ...expands: string[]): Error | null {
@@ -254,41 +264,42 @@ function expandFetch(app: App, originalRequestInfo: RequestInfo) {
   };
 
   return (relCollection: Collection, relIds: string[]): RecordModel[] => {
-    if (requestInfo.auth && requestInfo.auth.isSuperuser()) {
-      return app.FindRecordsByIds(relCollection.Id, relIds);
-    }
-
-    if (relCollection.viewRule === null) {
-      throw new Error(`only superusers can view collection ${JSON.stringify(relCollection.name)} records`);
-    }
-
     if (relIds.length === 0) {
       return [];
     }
 
-    let sql = `select * from {{${relCollection.name}}}`;
-    const params: SQLQueryBindings[] = [];
-    sql = appendWhere(sql, inClause(`[[${relCollection.name}.id]]`, relIds.length));
-    params.push(...relIds);
-
-    if (relCollection.viewRule && relCollection.viewRule !== "") {
-      const resolver = new RecordFieldResolver(app, relCollection, requestInfo, true);
-      const expr = buildFilterExpr(relCollection.viewRule, resolver, DefaultFilterExprLimit);
-      if (expr.sql) {
-        sql = appendWhere(sql, expr.sql);
-        params.push(...(expr.params as SQLQueryBindings[]));
+    let records: RecordModel[] = [];
+    if (requestInfo.auth && requestInfo.auth.isSuperuser()) {
+      records = app.FindRecordsByIds(relCollection.Id, relIds);
+    } else {
+      if (relCollection.viewRule === null) {
+        throw new Error(`only superusers can view collection ${JSON.stringify(relCollection.name)} records`);
       }
 
-      const updated = resolver.updateQuery({ select: sql, params });
-      sql = updated.select;
-      params.splice(0, params.length, ...((updated.params ?? []) as SQLQueryBindings[]));
-    }
+      let sql = `select * from {{${relCollection.name}}}`;
+      const params: SQLQueryBindings[] = [];
+      sql = appendWhere(sql, inClause(`[[${relCollection.name}.id]]`, relIds.length));
+      params.push(...relIds);
 
-    const rows = app
-      .db()
-      .query(sql)
-      .all(...params) as Array<Record<string, unknown>>;
-    const records = rows.map((row) => RecordModel.fromRow(relCollection, row));
+      if (relCollection.viewRule && relCollection.viewRule !== "") {
+        const resolver = new RecordFieldResolver(app, relCollection, requestInfo, true);
+        const expr = buildFilterExpr(relCollection.viewRule, resolver, DefaultFilterExprLimit);
+        if (expr.sql) {
+          sql = appendWhere(sql, expr.sql);
+          params.push(...(expr.params as SQLQueryBindings[]));
+        }
+
+        const updated = resolver.updateQuery({ select: sql, params });
+        sql = updated.select;
+        params.splice(0, params.length, ...((updated.params ?? []) as SQLQueryBindings[]));
+      }
+
+      const rows = app
+        .db()
+        .query(sql)
+        .all(...params) as Array<Record<string, unknown>>;
+      records = rows.map((row) => RecordModel.fromRow(relCollection, row));
+    }
 
     const enrichErr = triggerRecordEnrichHooks(app, requestInfo, records, () => {
       const err = autoResolveRecordsFlags(app, records, requestInfo);

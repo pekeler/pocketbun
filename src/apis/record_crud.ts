@@ -23,7 +23,10 @@ import { Provider } from "../tools/search/provider.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
 import { randomString } from "../tools/security/random.ts";
 import { DateTime, GeoPoint, JSONRaw } from "../tools/types/index.ts";
-import { checkForSuperuserOnlyRuleFields } from "./record_helpers.ts";
+import { DefaultRateLimitMiddlewareId } from "./middlewares.ts";
+import { dynamicCollectionBodyLimit } from "./middlewares_body_limit.ts";
+import { checkCollectionRateLimit } from "./middlewares_rate_limit.ts";
+import { checkForSuperuserOnlyRuleFields, EnrichRecord, EnrichRecords } from "./record_helpers.ts";
 
 type RecordsListResult = {
   page: number;
@@ -47,11 +50,11 @@ type RequestLike = {
 };
 
 export function bindRecordCrudApi(app: App, rg: RouterGroup<RequestEvent>): void {
-  const group = rg.group("/collections/{collection}/records");
+  const group = rg.group("/collections/{collection}/records").unbind(DefaultRateLimitMiddlewareId);
   group.get("", (event) => recordsList(app, event));
   group.get("/{id}", (event) => recordView(app, event));
-  group.post("", (event) => recordCreate(app, event));
-  group.patch("/{id}", (event) => recordUpdate(app, event));
+  group.post("", (event) => recordCreate(app, event)).Bind(dynamicCollectionBodyLimit(""));
+  group.patch("/{id}", (event) => recordUpdate(app, event)).Bind(dynamicCollectionBodyLimit(""));
   group.delete("/{id}", (event) => recordDelete(app, event));
 }
 
@@ -60,6 +63,11 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
   const collection = app.findCollectionByNameOrId(collectionId);
   if (!collection) {
     return notFound(event, "Missing collection context.");
+  }
+
+  const rateLimitResponse = checkCollectionRateLimit(event, collection, "list");
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const hookEvent = new RecordsListRequestEvent(event, collection);
@@ -106,6 +114,10 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
       const query = new URL(event.request.url).searchParams.toString();
       const result = provider.parseAndExec<Record<string, unknown>>(query, app.db());
       const records = result.items.map((row) => new RecordModel(collection, row));
+      const enrichErr = await EnrichRecords(event, records);
+      if (enrichErr) {
+        return internalServerError(event, "Failed to enrich records", enrichErr);
+      }
       const response: RecordsListResult = {
         ...result,
         items: records.map((record) => record.publicExport()),
@@ -130,6 +142,11 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
   const collection = app.findCollectionByNameOrId(collectionId);
   if (!collection) {
     return notFound(event, "Missing collection context.");
+  }
+
+  const rateLimitResponse = checkCollectionRateLimit(event, collection, "view");
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const requestInfo = await event.requestInfo();
@@ -193,20 +210,31 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
 
     const hookEvent = new RecordRequestEvent(event, collection, record);
     const out = await app.OnRecordViewRequest().Trigger(hookEvent, async () => {
-      return event.json(200, record.publicExport());
+      const recordRef = hookEvent.Record ?? record;
+      const enrichErr = await EnrichRecord(event, recordRef);
+      if (enrichErr) {
+        return internalServerError(event, "Failed to enrich record", enrichErr);
+      }
+      return event.json(200, recordRef.publicExport());
     });
 
     if (out instanceof Response) {
       return out;
     }
 
-    return event.json(200, record.publicExport());
+    const recordRef = hookEvent.Record ?? record;
+    const enrichErr = await EnrichRecord(event, recordRef);
+    if (enrichErr) {
+      return internalServerError(event, "Failed to enrich record", enrichErr);
+    }
+
+    return event.json(200, recordRef.publicExport());
   } catch {
     return notFound(event, "");
   }
 }
 
-async function recordCreate(app: App, event: RequestEvent): Promise<Response> {
+export async function recordCreate(app: App, event: RequestEvent): Promise<Response> {
   const collectionId = event.params.collection ?? "";
   const collection = app.findCollectionByNameOrId(collectionId);
   if (!collection) {
@@ -215,6 +243,11 @@ async function recordCreate(app: App, event: RequestEvent): Promise<Response> {
 
   if (collection.isView()) {
     return badRequest(event, "Unsupported collection type.", null);
+  }
+
+  const rateLimitResponse = checkCollectionRateLimit(event, collection, "create");
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const parsed = await parseRequestData(event.request.clone());
@@ -276,6 +309,11 @@ async function recordCreate(app: App, event: RequestEvent): Promise<Response> {
       return badRequest(event, "Failed to create record.", submitErr);
     }
 
+    const enrichErr = await EnrichRecord(event, recordRef);
+    if (enrichErr) {
+      return internalServerError(event, "Failed to enrich record", enrichErr);
+    }
+
     return event.json(200, recordRef.publicExport());
   });
 
@@ -283,10 +321,15 @@ async function recordCreate(app: App, event: RequestEvent): Promise<Response> {
     return out;
   }
 
+  const enrichErr = await EnrichRecord(event, record);
+  if (enrichErr) {
+    return internalServerError(event, "Failed to enrich record", enrichErr);
+  }
+
   return event.json(200, record.publicExport());
 }
 
-async function recordUpdate(app: App, event: RequestEvent): Promise<Response> {
+export async function recordUpdate(app: App, event: RequestEvent): Promise<Response> {
   const collectionId = event.params.collection ?? "";
   const collection = app.findCollectionByNameOrId(collectionId);
   if (!collection) {
@@ -295,6 +338,11 @@ async function recordUpdate(app: App, event: RequestEvent): Promise<Response> {
 
   if (collection.isView()) {
     return badRequest(event, "Unsupported collection type.", null);
+  }
+
+  const rateLimitResponse = checkCollectionRateLimit(event, collection, "update");
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const recordId = event.params.id ?? "";
@@ -349,6 +397,11 @@ async function recordUpdate(app: App, event: RequestEvent): Promise<Response> {
       return badRequest(event, "Failed to update record.", submitErr);
     }
 
+    const enrichErr = await EnrichRecord(event, recordRef);
+    if (enrichErr) {
+      return internalServerError(event, "Failed to enrich record", enrichErr);
+    }
+
     return event.json(200, recordRef.publicExport());
   });
 
@@ -356,10 +409,15 @@ async function recordUpdate(app: App, event: RequestEvent): Promise<Response> {
     return out;
   }
 
+  const enrichErr = await EnrichRecord(event, record);
+  if (enrichErr) {
+    return internalServerError(event, "Failed to enrich record", enrichErr);
+  }
+
   return event.json(200, record.publicExport());
 }
 
-async function recordDelete(app: App, event: RequestEvent): Promise<Response> {
+export async function recordDelete(app: App, event: RequestEvent): Promise<Response> {
   const collectionId = event.params.collection ?? "";
   const collection = app.findCollectionByNameOrId(collectionId);
   if (!collection) {
@@ -368,6 +426,11 @@ async function recordDelete(app: App, event: RequestEvent): Promise<Response> {
 
   if (collection.isView()) {
     return badRequest(event, "Unsupported collection type.", null);
+  }
+
+  const rateLimitResponse = checkCollectionRateLimit(event, collection, "delete");
+  if (rateLimitResponse) {
+    return rateLimitResponse;
   }
 
   const recordId = event.params.id ?? "";
@@ -806,6 +869,15 @@ function forbidden(event: RequestEvent, message: string): Response {
     status: 403,
     message,
     data: {},
+  });
+}
+
+function internalServerError(event: RequestEvent, message: string, err: unknown = null): Response {
+  const data = err instanceof Error ? { message: err.message } : {};
+  return event.json(500, {
+    status: 500,
+    message: message || "Something went wrong while processing your request.",
+    data,
   });
 }
 

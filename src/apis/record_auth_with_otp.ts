@@ -3,7 +3,7 @@
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { Record as RecordModel } from "../core/record.ts";
-import { RequestInfoContextOTP } from "../core/event_request.ts";
+import { RequestEventKeyInfoContext, RequestInfoContextOTP } from "../core/event_request.ts";
 import { RecordAuthWithOTPRequestEvent } from "../core/events.ts";
 import { MFAMethodOTP } from "../core/mfa_model.ts";
 import { ValidationErrors, ErrRequired, newError, required } from "../internal/compat/validation.ts";
@@ -41,8 +41,8 @@ export async function recordAuthWithOTP(app: App, event: RequestEvent): Promise<
     return badRequest(event, "An error occurred while validating the submitted data.", validationErr);
   }
 
-  const info = await event.requestInfo();
-  info.context = RequestInfoContextOTP;
+  event.Set(RequestEventKeyInfoContext, RequestInfoContextOTP);
+  await event.requestInfo();
 
   const hookEvent = new RecordAuthWithOTPRequestEvent(event, collection, null);
 
