@@ -33,11 +33,14 @@ export class TestApp extends BaseApp {
   bindEventCounters(): void {
     const bindTagged = <T extends { Next: () => unknown }>(
       name: string,
-      hook: { BindFunc: (fn: (e: T) => unknown) => string },
+      hook: { Bind: (handler: { Func: (e: T) => unknown; Priority?: number }) => string },
     ) => {
-      hook.BindFunc((e) => {
-        this.registerEventCall(name);
-        return e.Next();
+      hook.Bind({
+        Func: (e) => {
+          this.registerEventCall(name);
+          return e.Next();
+        },
+        Priority: -100,
       });
     };
 

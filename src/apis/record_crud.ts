@@ -497,7 +497,11 @@ async function parseRequestData(request: RequestLike): Promise<ParsedRequestData
   return { data: {}, files, error: new Error("unsupported content type") };
 }
 
-function resolveRecordData(record: RecordModel, requestInfo: RequestInfo, uploadedFiles: Map<string, LocalFile[]>): RecordData {
+export function resolveRecordData(
+  record: RecordModel,
+  requestInfo: RequestInfo,
+  uploadedFiles: Map<string, LocalFile[]>,
+): RecordData {
   let data = record.ReplaceModifiers(requestInfo.body as RecordData);
   const files = extractUploadedFiles(record.collection(), uploadedFiles);
 
@@ -568,7 +572,7 @@ function extractUploadedFiles(
   return result;
 }
 
-function checkCreateRule(app: App, collection: Collection, record: RecordModel, requestInfo: RequestInfo): Error | null {
+export function checkCreateRule(app: App, collection: Collection, record: RecordModel, requestInfo: RequestInfo): Error | null {
   const rule = collection.createRule;
   if (!rule || rule === "") {
     return null;

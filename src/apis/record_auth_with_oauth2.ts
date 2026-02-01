@@ -2,17 +2,19 @@
 
 import type { App } from "../core/app.ts";
 import type { Collection } from "../core/collection.ts";
-import type { RequestEvent } from "../core/event_request.ts";
+import type { RequestInfo } from "../core/event_request.ts";
 import type { Record as RecordModel } from "../core/record.ts";
 import type { OAuth2Token } from "../tools/auth/auth.ts";
 import { CollectionNameSuperusers } from "../core/collection.ts";
-import { RequestInfoContextOAuth2 } from "../core/event_request.ts";
-import { RecordAuthWithOAuth2RequestEvent } from "../core/events.ts";
+import { RequestEvent, RequestInfoContextOAuth2 } from "../core/event_request.ts";
+import { RecordAuthWithOAuth2RequestEvent, RecordRequestEvent } from "../core/events.ts";
 import { NewExternalAuth } from "../core/external_auth_model.ts";
 import { FieldTypeFile } from "../core/field_file.ts";
+import { PasswordFieldValue } from "../core/field_password.ts";
 import { TextField } from "../core/field_text.ts";
 import { MFAMethodOAuth2 } from "../core/mfa_model.ts";
 import { FieldNameEmail, FieldNamePassword, NewRecord } from "../core/record.ts";
+import { RecordUpsert } from "../forms/record_upsert.ts";
 import { ValidationErrors, ErrRequired, newError, required } from "../internal/compat/validation.ts";
 import { AuthUser } from "../tools/auth/auth.ts";
 import { SetAuthURLParam } from "../tools/auth/oauth2.ts";
@@ -22,7 +24,8 @@ import { NewFileFromURL } from "../tools/filesystem/file.ts";
 import { randomString } from "../tools/security/random.ts";
 import { badRequest, forbidden, internalServerError } from "./api_errors.ts";
 import { authCollectionNotFound, findAuthCollection } from "./record_auth_utils.ts";
-import { RecordAuthResponse } from "./record_helpers.ts";
+import { checkCreateRule, resolveRecordData } from "./record_crud.ts";
+import { EnrichRecord, RecordAuthResponse } from "./record_helpers.ts";
 
 const oauth2RedirectAppleNameStoreKeyPrefix = "@redirect_name_";
 
@@ -33,6 +36,15 @@ type OAuth2Form = {
   codeVerifier: string;
   redirectURL: string;
   redirectUrl: string;
+};
+
+type OAuth2CreateContext = {
+  requestEvent: RequestEvent;
+  requestInfo: RequestInfo;
+  record: RecordModel;
+  data: Record<string, unknown>;
+  hasSuperuser: boolean;
+  skipPlainPasswordRecordValidators: boolean;
 };
 
 export async function recordAuthWithOAuth2(app: App, event: RequestEvent): Promise<Response> {
@@ -55,7 +67,7 @@ export async function recordAuthWithOAuth2(app: App, event: RequestEvent): Promi
 
   const formResult = await parseOAuth2Form(event);
   if (formResult.error) {
-    return badRequest(event, "An error occurred while loading the submitted data.", formResult.error);
+    return badRequest(event, "An error occurred while loading the submitted data.");
   }
 
   const form = formResult.data;
@@ -187,38 +199,124 @@ export async function recordAuthWithOAuth2(app: App, event: RequestEvent): Promi
 
 async function oauth2Submit(event: RecordAuthWithOAuth2RequestEvent, optExternalAuth: any): Promise<Error | null> {
   const authUser = event.OAuth2User as AuthUser;
-  let createPayload: Record<string, unknown> | null = null;
+  let createContext: OAuth2CreateContext | null = null;
+  let createdRecord: RecordModel | null = null;
 
   if (!event.Record) {
-    createPayload = await buildOAuth2CreatePayload(event, authUser);
+    const createPayload = await buildOAuth2CreatePayload(event, authUser);
+    const baseRequest = event.RequestEvent.request;
+    const createUrl = new URL(baseRequest.url);
+    createUrl.pathname = `/api/collections/${event.Collection.name}/records`;
+    createUrl.search = "";
+
+    const headers = new Headers(baseRequest.headers);
+    headers.set("content-type", "application/json");
+
+    const createEvent = new RequestEvent({
+      app: event.App,
+      request: new Request(createUrl.toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify(createPayload ?? {}),
+      }),
+      params: { collection: event.Collection.name },
+      remoteAddress: event.RequestEvent.remoteIP() || null,
+    });
+    createEvent.auth = event.RequestEvent.auth;
+
+    const requestInfo = await createEvent.requestInfo();
+    requestInfo.context = RequestInfoContextOAuth2;
+    requestInfo.body = createPayload ?? {};
+
+    const record = NewRecord(event.Collection);
+    let data = resolveRecordData(record, requestInfo, new Map());
+    requestInfo.body = data;
+
+    let skipPlainPasswordRecordValidators = false;
+    if (requestInfo.context === RequestInfoContextOAuth2 && !(FieldNamePassword in data)) {
+      const generated = randomString(30);
+      data[FieldNamePassword] = generated;
+      data[`${FieldNamePassword}Confirm`] = generated;
+      skipPlainPasswordRecordValidators = true;
+      requestInfo.body = data;
+    }
+
+    createContext = {
+      requestEvent: createEvent,
+      requestInfo,
+      record,
+      data,
+      hasSuperuser: Boolean(requestInfo.auth?.isSuperuser()),
+      skipPlainPasswordRecordValidators,
+    };
   }
 
   const err = event.App.RunInTransaction((txApp) => {
     if (!event.Record) {
+      if (!createContext) {
+        return new Error("missing OAuth2 create context");
+      }
+
       if (event.Collection.name === CollectionNameSuperusers) {
         return new Error("superusers are not allowed to sign-up with OAuth2");
       }
 
-      const record = NewRecord(event.Collection);
-      for (const [key, value] of Object.entries(createPayload ?? {})) {
-        record.Set(key, value);
-      }
-      if (!Object.prototype.hasOwnProperty.call(createPayload ?? {}, FieldNamePassword)) {
-        const generated = randomString(30);
-        record.Set(FieldNamePassword, generated);
+      if (!createContext.hasSuperuser && event.Collection.createRule === null) {
+        return new Error("Only superusers can perform this action.");
       }
 
-      const saveErr = txApp.Save(record);
-      if (saveErr) {
-        return saveErr;
+      const form = new RecordUpsert(txApp, createContext.record);
+      if (createContext.hasSuperuser) {
+        form.GrantSuperuserAccess();
+      }
+      form.Load(createContext.data);
+
+      if (createContext.skipPlainPasswordRecordValidators) {
+        const raw = createContext.record.GetRaw(FieldNamePassword);
+        if (raw instanceof PasswordFieldValue) {
+          raw.Plain = "";
+        }
       }
 
-      event.Record = record;
+      if (!createContext.hasSuperuser && event.Collection.createRule && event.Collection.createRule !== "") {
+        const ruleErr = checkCreateRule(txApp, event.Collection, createContext.record, createContext.requestInfo);
+        if (ruleErr) {
+          return ruleErr;
+        }
+      }
+
+      const hookEvent = new RecordRequestEvent(createContext.requestEvent, event.Collection, createContext.record);
+      const originalApp = createContext.requestEvent.app;
+      createContext.requestEvent.app = txApp;
+      const hookResult = txApp.OnRecordCreateRequest().Trigger(hookEvent, (hook) => {
+        const recordRef = hook.Record ?? createContext.record;
+        form.SetApp(hook.App);
+        form.SetRecord(recordRef);
+
+        const submitErr = form.Submit();
+        if (submitErr) {
+          return submitErr;
+        }
+
+        return null;
+      });
+      createContext.requestEvent.app = originalApp;
+
+      if (hookResult instanceof Error) {
+        return hookResult;
+      }
+      if (hookResult instanceof Response) {
+        return new Error("failed to create OAuth2 auth record");
+      }
+
+      const recordRef = hookEvent.Record ?? createContext.record;
+      event.Record = recordRef;
       event.IsNewRecord = true;
+      createdRecord = recordRef;
 
-      if (record.Email() === authUser.Email && !record.Verified()) {
-        record.SetVerified(true);
-        const verifyErr = txApp.Save(record);
+      if (recordRef.Email() === authUser.Email && !recordRef.Verified()) {
+        recordRef.SetVerified(true);
+        const verifyErr = txApp.Save(recordRef);
         if (verifyErr) {
           return verifyErr;
         }
@@ -269,7 +367,18 @@ async function oauth2Submit(event: RecordAuthWithOAuth2RequestEvent, optExternal
     return null;
   });
 
-  return err ?? null;
+  if (err) {
+    return err;
+  }
+
+  if (createdRecord && createContext) {
+    const enrichErr = await EnrichRecord(createContext.requestEvent, createdRecord);
+    if (enrichErr) {
+      return enrichErr;
+    }
+  }
+
+  return null;
 }
 
 async function buildOAuth2CreatePayload(event: RecordAuthWithOAuth2RequestEvent, authUser: AuthUser) {

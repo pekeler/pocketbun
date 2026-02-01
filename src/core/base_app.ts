@@ -1547,6 +1547,17 @@ export class BaseApp implements App {
       const afterError = isNew ? InterceptorActionAfterCreateError : InterceptorActionAfterUpdateError;
 
       const runPersist = () =>
+        this.runRecordInterceptors(record, executeAction, () => {
+          if (this.#hooksEnabled) {
+            const execErr = this.onRecordSaveExecute(record);
+            if (execErr) {
+              return execErr;
+            }
+          }
+          return this.persistRecord(record);
+        });
+
+      const runValidatedExecute = (): Error | null =>
         this.runRecordInterceptors(record, action, () => {
           if (runValidation) {
             const validateErr = this.Validate(eventModel);
@@ -1555,19 +1566,15 @@ export class BaseApp implements App {
             }
           }
 
-          return this.runRecordInterceptors(record, executeAction, () => {
-            if (this.#hooksEnabled) {
-              const execErr = this.onRecordSaveExecute(record);
-              if (execErr) {
-                return execErr;
-              }
-            }
-            return this.persistRecord(record);
-          });
+          return (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(
+            modelEvent,
+            runPersist,
+          ) as Error | null;
         });
 
-      const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(modelEvent, () =>
-        (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, runPersist),
+      const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
+        modelEvent,
+        runValidatedExecute,
       ) as Error | null;
 
       if (saveErr) {
