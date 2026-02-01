@@ -117,7 +117,7 @@ PocketBun should make server-side extensibility practical in Bun:
 - Where possible, keep naming/semantics close to PocketBase hook concepts so existing users can migrate.
 
 ## Testing (must exist and grow over time)
-Use `bun test` and keep tests focused on compatibility. Always run `bun run typecheck` to catch TypeScript errors, and treat any compiler/runtime warnings (including deprecation warnings surfaced during tests or `bun run start`) as issues to fix before committing. Run `bun run lint` for oxlint findings and `bun run format` (or `bun run format:fix` for auto-fixes) to keep formatting consistent.
+Use `bun test` and keep tests focused on compatibility. Always run all four — `bun run format:fix`, `bun test`, `bun run typecheck`, and `bun run lint` — before committing any changes to `src/` or `tests/`, and fix any errors or warnings they report. Treat compiler/runtime warnings (including deprecation warnings surfaced during tests or `bun run start`) as issues to fix before committing. Use `bun run format` for a formatting check when you don’t want to apply auto-fixes.
 When porting any upstream code (especially validators/fields), also port the corresponding upstream tests and use them as the primary verification of correctness.
 Keep tests in the same relative paths as upstream: if the upstream test lives next to the code (for example `core/validators/db_test.go`), place the ported test next to the TS source (for example `src/core/validators/db.test.ts`). Only keep tests under `tests/` when the upstream file is under `tests/`, or when the test is PocketBun-only (and then include the required “why this file exists” header comment).
 Minimum expectations:
