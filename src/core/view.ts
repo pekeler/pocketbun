@@ -2,7 +2,9 @@
 
 import type { App } from "./app.ts";
 import type { CollectionRow } from "./collection.ts";
-import type { Field } from "./field.ts";
+import type { Field, MultiValuer } from "./field.ts";
+import { JSONEach } from "../tools/dbutils/json.ts";
+import { columnify } from "../tools/inflector/inflector.ts";
 import { pseudorandomString } from "../tools/security/random.ts";
 import { Tokenizer } from "../tools/tokenizer/tokenizer.ts";
 import { Collection, collectionFromRow } from "./collection.ts";
@@ -13,10 +15,24 @@ import { NumberField } from "./field_number.ts";
 import { RelationField } from "./field_relation.ts";
 import { TextField } from "./field_text.ts";
 import { FieldsList, NewFieldsList } from "./fields_list.ts";
+import { Record as RecordModel, type RecordData } from "./record.ts";
 
 export function DeleteView(app: App, name: string): Error | null {
+  const trimmedName = name.trim();
+  if (!trimmedName) {
+    return new Error("missing view name");
+  }
+
+  const existing = app
+    .db()
+    .query<{ type?: string }, [string]>("select type from sqlite_schema where lower(name) = lower(?) limit 1")
+    .get(trimmedName);
+  if (existing?.type && existing.type !== "view") {
+    return new Error("not a view table");
+  }
+
   try {
-    app.db().run(`DROP VIEW IF EXISTS {{${name}}}`);
+    app.db().run(`DROP VIEW IF EXISTS {{${trimmedName}}}`);
     return null;
   } catch (error) {
     return error as Error;
@@ -24,14 +40,22 @@ export function DeleteView(app: App, name: string): Error | null {
 }
 
 export function SaveView(app: App, name: string, selectQuery: string): Error | null {
+  const trimmedName = name.trim();
+  if (!trimmedName) {
+    return new Error("missing view name");
+  }
+
   return app.RunInTransaction((txApp) => {
-    const deleteErr = DeleteView(txApp, name);
+    const deleteErr = DeleteView(txApp, trimmedName);
     if (deleteErr) {
       return deleteErr;
     }
 
     let query = selectQuery.trim();
     query = query.replace(/^;+|;+$/g, "");
+    if (!query) {
+      return new Error("missing view query");
+    }
 
     const tk = new Tokenizer(query);
     tk.separators(";");
@@ -40,7 +64,7 @@ export function SaveView(app: App, name: string, selectQuery: string): Error | n
       return new Error("multiple statements are not supported");
     }
 
-    const viewQuery = `CREATE VIEW {{${name}}} AS SELECT * FROM (${query})`;
+    const viewQuery = `CREATE VIEW {{${trimmedName}}} AS SELECT * FROM (${query})`;
     try {
       txApp.db().run(viewQuery);
     } catch (error) {
@@ -48,9 +72,9 @@ export function SaveView(app: App, name: string, selectQuery: string): Error | n
     }
 
     try {
-      txApp.TableInfo(name);
+      txApp.TableInfo(trimmedName);
     } catch (error) {
-      DeleteView(txApp, name);
+      DeleteView(txApp, trimmedName);
       return error as Error;
     }
 
@@ -88,6 +112,74 @@ export function CreateViewFields(app: App, selectQuery: string): FieldsList {
   }
 
   return result;
+}
+
+export function FindRecordByViewFile(
+  app: App,
+  viewCollectionModelOrIdentifier: Collection | string,
+  fileFieldName: string,
+  filename: string,
+): RecordModel {
+  const initialView = getCollectionByModelOrIdentifier(app, viewCollectionModelOrIdentifier);
+  if (!initialView) {
+    throw new Error("unknown collection identifier - must be collection model, id or name");
+  }
+
+  if (!initialView.IsView()) {
+    throw new Error("not a view collection");
+  }
+
+  let view: Collection = initialView;
+  const findFirstNonViewQueryFileField = (level: number): QueryField => {
+    if (level > 5) {
+      throw new Error("reached the max recursion level of view collection file field queries");
+    }
+
+    const queryFields = parseQueryToFields(app, view.ViewQuery);
+
+    for (const item of queryFields.values()) {
+      if (!item.collection || !item.original || item.field.GetName() !== fileFieldName) {
+        continue;
+      }
+
+      if (item.collection.IsView()) {
+        view = item.collection;
+        fileFieldName = item.original.GetName();
+        return findFirstNonViewQueryFileField(level + 1);
+      }
+
+      return item;
+    }
+
+    throw new Error("no query file field found");
+  };
+
+  const qf = findFirstNonViewQueryFileField(1);
+  const cleanFieldName = columnify(qf.original!.GetName());
+  const tableName = qf.collection!.name;
+
+  let sql = `select {{${tableName}}}.* from {{${tableName}}}`;
+  const params: Array<string> = [];
+
+  const multi = qf.original as unknown as MultiValuer;
+  if (!multi || typeof multi.IsMultiple !== "function" || !multi.IsMultiple()) {
+    sql += ` where [[${cleanFieldName}]] = ?`;
+    params.push(filename);
+  } else {
+    sql += ` inner join ${JSONEach(cleanFieldName)} as {{_je_file}} on [[_je_file.value]] = ?`;
+    params.push(filename);
+  }
+  sql += " limit 1";
+
+  const row = app
+    .db()
+    .query(sql)
+    .get(...params);
+  if (!row || typeof row !== "object") {
+    throw new Error("record not found");
+  }
+
+  return RecordModel.fromRow(qf.collection!, row as RecordData);
 }
 
 type QueryField = {
@@ -237,6 +329,18 @@ function cloneField(field: Field): Field {
   list.Add(field);
   const cloned = FieldsList.fromJSON(JSON.stringify(list));
   return cloned[0]!;
+}
+
+function getCollectionByModelOrIdentifier(app: App, value: Collection | string): Collection | null {
+  if (typeof value === "string") {
+    return app.findCollectionByNameOrId(value);
+  }
+
+  if (value instanceof Collection) {
+    return value;
+  }
+
+  return null;
 }
 
 function findCollectionsByIdentifiers(app: App, tables: Identifier[]): Map<string, Collection> {

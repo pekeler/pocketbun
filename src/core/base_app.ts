@@ -128,7 +128,7 @@ import {
 import { Settings } from "./settings.ts";
 import { Store } from "./store.ts";
 import { NormalizeUniqueIndexError } from "./validators/db.ts";
-import { CreateViewFields, DeleteView, SaveView } from "./view.ts";
+import { CreateViewFields, DeleteView, SaveView, FindRecordByViewFile as findRecordByViewFile } from "./view.ts";
 
 export type BaseAppConfig = {
   dataDir?: string;
@@ -838,6 +838,14 @@ export class BaseApp implements App {
     }
 
     return record;
+  }
+
+  FindRecordByViewFile(
+    viewCollectionModelOrIdentifier: Collection | string,
+    fileFieldName: string,
+    filename: string,
+  ): RecordModel {
+    return findRecordByViewFile(this, viewCollectionModelOrIdentifier, fileFieldName, filename);
   }
 
   FindRecordsByIds(
@@ -1997,6 +2005,29 @@ export class BaseApp implements App {
       if (validationErr) {
         return validationErr;
       }
+    }
+
+    if (collection.isView()) {
+      let viewFields: FieldsList;
+      try {
+        viewFields = this.CreateViewFields(collection.ViewQuery);
+      } catch (error) {
+        return error as Error;
+      }
+
+      if (original) {
+        const deleteErr = this.DeleteView(original.name);
+        if (deleteErr) {
+          return deleteErr;
+        }
+      }
+
+      const saveViewErr = this.SaveView(collection.name, collection.ViewQuery);
+      if (saveViewErr) {
+        return saveViewErr;
+      }
+
+      collection.Fields = viewFields;
     }
 
     const fieldsJson = JSON.stringify(collection.Fields.toJSON());

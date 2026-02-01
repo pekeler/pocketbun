@@ -2,6 +2,7 @@
 // Note: includes Record auth helpers from pocketbase/core/record_model_auth.go.
 
 import type { DriverValuer, Field, GetterFinder, RecordInterceptor, SetterFinder } from "./field.ts";
+import type { FileField } from "./field_file.ts";
 import { toBoolValue, toStringValue } from "../internal/compat/cast.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { randomString } from "../tools/security/random.ts";
@@ -430,6 +431,22 @@ export class Record {
     }
 
     this.#expand.reset(oldExpand);
+  }
+
+  FindFileFieldByFile(filename: string): FileField | null {
+    for (const field of this.#collection.Fields) {
+      if (field.Type() !== "file") {
+        continue;
+      }
+
+      const fileField = field as FileField;
+      const filenames = this.GetStringSlice(fileField.GetName());
+      if (filenames.includes(filename)) {
+        return fileField;
+      }
+    }
+
+    return null;
   }
 
   Hide(...fieldNames: string[]): this {

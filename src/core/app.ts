@@ -106,6 +106,11 @@ export interface App {
     id: string,
     ...filters: Array<RecordQueryFilter | null | undefined>
   ): RecordModel;
+  FindRecordByViewFile(
+    viewCollectionModelOrIdentifier: Collection | string,
+    fileFieldName: string,
+    filename: string,
+  ): RecordModel;
   FindRecordsByIds(
     collectionModelOrIdentifier: Collection | string,
     ids: string[],
