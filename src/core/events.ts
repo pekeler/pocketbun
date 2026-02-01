@@ -1,4 +1,4 @@
-// Ported from pocketbase/core/events.go (partial: model/record/collection + collection request events).
+// Ported from pocketbase/core/events.go (partial: model/record/collection + collection request + file events).
 
 import type { Mailer, Message } from "../tools/mailer/mailer.ts";
 import type { SearchResult } from "../tools/search/types.ts";
@@ -6,6 +6,7 @@ import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
 import type { RequestEvent } from "./event_request.ts";
 import type { RequestInfo } from "./event_request.ts";
+import type { FileField } from "./field_file.ts";
 import type { Record as RecordModel } from "./record.ts";
 import type { RecordProxy } from "./record_proxy.ts";
 import { Event } from "../tools/hook/event.ts";
@@ -344,6 +345,74 @@ export function syncCollectionErrorEventWithModelErrorEvent(
 ): void {
   syncCollectionEventWithModelEvent(collectionErrorEvent.CollectionEvent, modelErrorEvent.ModelEvent);
   collectionErrorEvent.Error = modelErrorEvent.Error;
+}
+
+// -------------------------------------------------------------------
+// File API events data
+// -------------------------------------------------------------------
+
+export class FileTokenRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Record: RecordModel | null;
+  Token: string;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, record: RecordModel | null) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Record = record;
+    this.Token = "";
+    const base = new BaseRecordEventData();
+    base.Record = record;
+    this.Tags = () => base.Tags();
+  }
+}
+
+export class FileDownloadRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  Record: RecordModel;
+  FileField: FileField;
+  ServedPath: string;
+  ServedName: string;
+  ThumbError: Error | null;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(
+    requestEvent: RequestEvent,
+    collection: Collection,
+    record: RecordModel,
+    fileField: FileField,
+    servedPath: string,
+    servedName: string,
+  ) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.Record = record;
+    this.FileField = fileField;
+    this.ServedPath = servedPath;
+    this.ServedName = servedName;
+    this.ThumbError = null;
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
 }
 
 export function newBaseCollectionEventData(collection: Collection | null): {

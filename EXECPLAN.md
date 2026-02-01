@@ -60,7 +60,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-01 11:20Z) Port record auth with OAuth2 create flow, align record validation/hook ordering with upstream, and complete OAuth2 auth test coverage (rate limit scenarios still TODO).
 - [x] (2026-02-01 16:30Z) Port rate limiting middleware + settings rules, update router hook chaining and request pattern tracking, and complete rate limit auth tests.
 - [x] (2026-02-01 18:10Z) Port view helpers (save/delete/create fields + FindRecordByViewFile), align collection default new-state handling, and add upstream view tests.
-- [ ] Implement remaining collection/record CRUD coverage, then port missing API endpoints/middleware (batch, file, logs, settings, backups, realtime) and hooks (completed: core auth flows; remaining: realtime + remaining APIs).
+- [x] (2026-02-01 20:10Z) Port file API (token + download + thumb generation), add file request hooks, and port upstream file API tests.
+- [ ] Implement remaining collection/record CRUD coverage, then port missing API endpoints/middleware (batch, logs, settings, backups, realtime) and hooks (completed: core auth flows; remaining: realtime + remaining APIs).
 
 ## Surprises & Discoveries
 

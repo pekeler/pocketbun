@@ -5,6 +5,7 @@ import type { App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { Router } from "../tools/router/router.ts";
 import { bindCollectionApi } from "./collection.ts";
+import { bindFileApi } from "./file.ts";
 import { bindHealthApi } from "./health.ts";
 import { loadAuthToken, panicRecover, securityHeaders } from "./middlewares.ts";
 import { rateLimit } from "./middlewares_rate_limit.ts";
@@ -24,6 +25,7 @@ export function buildServeHandler(app: App): (req: Request, server?: unknown) =>
   router.Bind(securityHeaders());
   const apiGroup = router.group("/api");
   bindCollectionApi(app, apiGroup);
+  bindFileApi(app, apiGroup);
   bindHealthApi(app, apiGroup);
   bindRecordAuthApi(app, apiGroup);
   bindRecordCrudApi(app, apiGroup);

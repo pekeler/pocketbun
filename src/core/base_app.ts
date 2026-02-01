@@ -50,6 +50,8 @@ import {
   type CollectionRequestEvent,
   type CollectionsImportRequestEvent,
   type CollectionsListRequestEvent,
+  type FileDownloadRequestEvent,
+  type FileTokenRequestEvent,
   type MailerRecordEvent,
   type RecordAuthRefreshRequestEvent,
   type RecordAuthRequestEvent,
@@ -201,6 +203,8 @@ export class BaseApp implements App {
   #onRecordRequestEmailChangeRequest!: Hook<RecordRequestEmailChangeRequestEvent>;
   #onRecordConfirmEmailChangeRequest!: Hook<RecordConfirmEmailChangeRequestEvent>;
   #onSettingsReload!: Hook<SettingsReloadEvent>;
+  #onFileDownloadRequest!: Hook<FileDownloadRequestEvent>;
+  #onFileTokenRequest!: Hook<FileTokenRequestEvent>;
   #onMailerSend!: Hook<MailerEvent>;
   #onMailerRecordAuthAlertSend!: Hook<MailerRecordEvent>;
   #onMailerRecordPasswordResetSend!: Hook<MailerRecordEvent>;
@@ -301,6 +305,8 @@ export class BaseApp implements App {
     this.#onRecordRequestEmailChangeRequest = new Hook();
     this.#onRecordConfirmEmailChangeRequest = new Hook();
     this.#onSettingsReload = new Hook();
+    this.#onFileDownloadRequest = new Hook();
+    this.#onFileTokenRequest = new Hook();
     this.#onMailerSend = new Hook();
     this.#onMailerRecordAuthAlertSend = new Hook();
     this.#onMailerRecordPasswordResetSend = new Hook();
@@ -568,6 +574,14 @@ export class BaseApp implements App {
 
   OnSettingsReload(): Hook<SettingsReloadEvent> {
     return this.#onSettingsReload;
+  }
+
+  OnFileDownloadRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<FileDownloadRequestEvent>> {
+    return NewTaggedHook(this.#onFileDownloadRequest, ...tags);
+  }
+
+  OnFileTokenRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<FileTokenRequestEvent>> {
+    return NewTaggedHook(this.#onFileTokenRequest, ...tags);
   }
 
   OnMailerSend(): Hook<MailerEvent> {

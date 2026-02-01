@@ -18,6 +18,8 @@ import type {
   CollectionsListRequestEvent,
   CollectionEvent,
   CollectionErrorEvent,
+  FileDownloadRequestEvent,
+  FileTokenRequestEvent,
   MailerEvent,
   MailerRecordEvent,
   ModelErrorEvent,
@@ -219,6 +221,8 @@ export interface App {
   OnRecordRequestEmailChangeRequest(tags?: string[]): TaggedHook<RecordRequestEmailChangeRequestEvent>;
   OnRecordConfirmEmailChangeRequest(tags?: string[]): TaggedHook<RecordConfirmEmailChangeRequestEvent>;
   OnSettingsReload(): Hook<SettingsReloadEvent>;
+  OnFileDownloadRequest(tags?: string[]): TaggedHook<FileDownloadRequestEvent>;
+  OnFileTokenRequest(tags?: string[]): TaggedHook<FileTokenRequestEvent>;
 
   OnMailerSend(): Hook<MailerEvent>;
   OnMailerRecordAuthAlertSend(tags?: string[]): TaggedHook<MailerRecordEvent>;

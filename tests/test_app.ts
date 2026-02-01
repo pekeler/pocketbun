@@ -97,6 +97,8 @@ export class TestApp extends BaseApp {
     bindTagged("OnRecordConfirmVerificationRequest", this.OnRecordConfirmVerificationRequest());
     bindTagged("OnRecordRequestEmailChangeRequest", this.OnRecordRequestEmailChangeRequest());
     bindTagged("OnRecordConfirmEmailChangeRequest", this.OnRecordConfirmEmailChangeRequest());
+    bindTagged("OnFileDownloadRequest", this.OnFileDownloadRequest());
+    bindTagged("OnFileTokenRequest", this.OnFileTokenRequest());
 
     this.OnMailerSend().BindFunc((e: MailerEvent) => {
       this.registerEventCall("OnMailerSend");
