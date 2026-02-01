@@ -10,7 +10,8 @@ An attempt to port **PocketBase** to JavaScript/TypeScript using Bun. **_Work in
 > - and simple **REST-ish API**
 > 
 > **For documentation and examples, please visit https://pocketbase.io/docs.**
-[PocketBase GitHub](https://github.com/pocketbase/pocketbase) © 2022–present Gani Georgiev.
+
+PocketBase © 2022–present Gani Georgiev. [Project on GitHub](https://github.com/pocketbase/pocketbase).
 
 ## Why?
 
