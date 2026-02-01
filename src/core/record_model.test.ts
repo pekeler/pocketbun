@@ -1,11 +1,11 @@
 // Ported from pocketbase/core/record_model_test.go
 
 import { describe, expect, it } from "bun:test";
-import { NewBaseCollection } from "./collection.ts";
-import { NewRecord } from "./record.ts";
-import { TextField } from "./field_text.ts";
-import { NumberField } from "./field_number.ts";
 import type { GetterFunc, SetterFunc } from "./field.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { NumberField } from "./field_number.ts";
+import { TextField } from "./field_text.ts";
+import { NewRecord } from "./record.ts";
 
 class MockField extends TextField {
   FindGetter(key: string): GetterFunc | null {

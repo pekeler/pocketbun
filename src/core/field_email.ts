@@ -2,14 +2,9 @@
 
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
-import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { toStringValue } from "../internal/compat/cast.ts";
-import {
-  Fields,
-  type Field,
-  defaultFieldIdValidationRule,
-  defaultFieldNameValidationRule,
-} from "./field.ts";
+import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
+import { Fields, type Field, defaultFieldIdValidationRule, defaultFieldNameValidationRule } from "./field.ts";
 import { ErrUnsupportedValueType } from "./validators/validators.ts";
 
 export const FieldTypeEmail = "email";
@@ -122,10 +117,7 @@ export class EmailField implements Field {
     this.ExceptDomains = exceptDomains;
 
     if (onlyDomains.length > 0 && exceptDomains.length > 0) {
-      errors.onlyDomains = newError(
-        "validation_email_domain_not_allowed",
-        "Only one of onlyDomains/exceptDomains can be set",
-      );
+      errors.onlyDomains = newError("validation_email_domain_not_allowed", "Only one of onlyDomains/exceptDomains can be set");
       errors.exceptDomains = newError(
         "validation_email_domain_not_allowed",
         "Only one of onlyDomains/exceptDomains can be set",

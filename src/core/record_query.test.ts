@@ -1,12 +1,12 @@
 // Ported from pocketbase/core/record_query_test.go.
 
 import { describe, expect, it } from "bun:test";
-import { HashExp, Like, Not } from "../tools/dbx/expr.ts";
-import { findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
-import { newTestApp } from "../../tests/test_app.ts";
-import type { RecordQueryFilter } from "./record_query.ts";
-import { Collection, CollectionNameSuperusers } from "./collection.ts";
 import type { RequestInfo } from "./event_request.ts";
+import type { RecordQueryFilter } from "./record_query.ts";
+import { newTestApp } from "../../tests/test_app.ts";
+import { findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
+import { HashExp, Like, Not } from "../tools/dbx/expr.ts";
+import { Collection, CollectionNameSuperusers } from "./collection.ts";
 import { FieldNameEmail, Record as RecordModel } from "./record.ts";
 import { BaseRecordProxy } from "./record_proxy.ts";
 import { TokenTypeAuth, TokenTypeFile } from "./record_tokens.ts";
@@ -24,9 +24,19 @@ describe("RecordQuery", () => {
 
       const scenarios = [
         { name: "with null value", collection: null, expectedTotal: 0, expectError: true },
-        { name: "with invalid or missing collection id/name", collection: "missing", expectedTotal: 0, expectError: true },
+        {
+          name: "with invalid or missing collection id/name",
+          collection: "missing",
+          expectedTotal: 0,
+          expectError: true,
+        },
         { name: "with model", collection, expectedTotal: 3, expectError: false },
-        { name: "with cloned model", collection: collectionClone, expectedTotal: 3, expectError: false },
+        {
+          name: "with cloned model",
+          collection: collectionClone,
+          expectedTotal: 3,
+          expectError: false,
+        },
         { name: "with name", collection: "demo1", expectedTotal: 3, expectError: false },
         { name: "with id", collection: "wsmn24bux7wo113", expectedTotal: 3, expectError: false },
       ];
@@ -125,15 +135,19 @@ describe("FindRecordById", () => {
   it("finds records by id with optional filters", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const byTitle = (title: string): RecordQueryFilter => (q) => {
-        q.AndWhere({ title });
-        return null;
-      };
+      const byTitle =
+        (title: string): RecordQueryFilter =>
+        (q) => {
+          q.AndWhere({ title });
+          return null;
+        };
 
-      const byActive = (active: boolean): RecordQueryFilter => (q) => {
-        q.AndWhere({ active });
-        return null;
-      };
+      const byActive =
+        (active: boolean): RecordQueryFilter =>
+        (q) => {
+          q.AndWhere({ active });
+          return null;
+        };
 
       const errFilter: RecordQueryFilter = () => new Error("test error");
 
@@ -147,12 +161,42 @@ describe("FindRecordById", () => {
         { collectionIdOrName: "missing", id: "0yxhwia2amd8gec", filters: [], expectError: true },
         { collectionIdOrName: "demo2", id: "0yxhwia2amd8gec", filters: [], expectError: false },
         { collectionIdOrName: "demo2", id: "0yxhwia2amd8gec", filters: [], expectError: false },
-        { collectionIdOrName: "demo2", id: "0yxhwia2amd8gec", filters: [null, null], expectError: false },
-        { collectionIdOrName: "demo2", id: "0yxhwia2amd8gec", filters: [null, () => null], expectError: false },
-        { collectionIdOrName: "demo2", id: "0yxhwia2amd8gec", filters: [byTitle("missing")], expectError: true },
-        { collectionIdOrName: "demo2", id: "0yxhwia2amd8gec", filters: [errFilter], expectError: true },
-        { collectionIdOrName: "demo2", id: "0yxhwia2amd8gec", filters: [byTitle("test3")], expectError: false },
-        { collectionIdOrName: "demo2", id: "0yxhwia2amd8gec", filters: [byTitle("test3"), null], expectError: false },
+        {
+          collectionIdOrName: "demo2",
+          id: "0yxhwia2amd8gec",
+          filters: [null, null],
+          expectError: false,
+        },
+        {
+          collectionIdOrName: "demo2",
+          id: "0yxhwia2amd8gec",
+          filters: [null, () => null],
+          expectError: false,
+        },
+        {
+          collectionIdOrName: "demo2",
+          id: "0yxhwia2amd8gec",
+          filters: [byTitle("missing")],
+          expectError: true,
+        },
+        {
+          collectionIdOrName: "demo2",
+          id: "0yxhwia2amd8gec",
+          filters: [errFilter],
+          expectError: true,
+        },
+        {
+          collectionIdOrName: "demo2",
+          id: "0yxhwia2amd8gec",
+          filters: [byTitle("test3")],
+          expectError: false,
+        },
+        {
+          collectionIdOrName: "demo2",
+          id: "0yxhwia2amd8gec",
+          filters: [byTitle("test3"), null],
+          expectError: false,
+        },
         {
           collectionIdOrName: "demo2",
           id: "0yxhwia2amd8gec",
@@ -196,10 +240,12 @@ describe("FindRecordsByIds", () => {
   it("returns records by ids with optional filters", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const byActive = (active: boolean): RecordQueryFilter => (q) => {
-        q.AndWhere(HashExp({ active }));
-        return null;
-      };
+      const byActive =
+        (active: boolean): RecordQueryFilter =>
+        (q) => {
+          q.AndWhere(HashExp({ active }));
+          return null;
+        };
 
       const notEmptyTitle: RecordQueryFilter = (q) => {
         q.AndWhere(Not(HashExp({ title: "" })));
@@ -209,12 +255,42 @@ describe("FindRecordsByIds", () => {
       const errFilter: RecordQueryFilter = () => new Error("test error");
 
       const scenarios = [
-        { collectionIdOrName: "demo2", ids: [] as string[], filters: [], expectTotal: 0, expectError: false },
+        {
+          collectionIdOrName: "demo2",
+          ids: [] as string[],
+          filters: [],
+          expectTotal: 0,
+          expectError: false,
+        },
         { collectionIdOrName: "demo2", ids: [""], filters: [], expectTotal: 0, expectError: false },
-        { collectionIdOrName: "demo2", ids: ["missing"], filters: [], expectTotal: 0, expectError: false },
-        { collectionIdOrName: "missing", ids: ["0yxhwia2amd8gec"], filters: [], expectTotal: 0, expectError: true },
-        { collectionIdOrName: "demo2", ids: ["0yxhwia2amd8gec"], filters: [], expectTotal: 1, expectError: false },
-        { collectionIdOrName: "sz5l5z67tg7gku0", ids: ["0yxhwia2amd8gec"], filters: [], expectTotal: 1, expectError: false },
+        {
+          collectionIdOrName: "demo2",
+          ids: ["missing"],
+          filters: [],
+          expectTotal: 0,
+          expectError: false,
+        },
+        {
+          collectionIdOrName: "missing",
+          ids: ["0yxhwia2amd8gec"],
+          filters: [],
+          expectTotal: 0,
+          expectError: true,
+        },
+        {
+          collectionIdOrName: "demo2",
+          ids: ["0yxhwia2amd8gec"],
+          filters: [],
+          expectTotal: 1,
+          expectError: false,
+        },
+        {
+          collectionIdOrName: "sz5l5z67tg7gku0",
+          ids: ["0yxhwia2amd8gec"],
+          filters: [],
+          expectTotal: 1,
+          expectError: false,
+        },
         {
           collectionIdOrName: "demo2",
           ids: ["0yxhwia2amd8gec", "llvuca81nly1qls"],
@@ -299,7 +375,12 @@ describe("FindAllRecords", () => {
     const { app, cleanup } = await newTestApp();
     try {
       const scenarios = [
-        { collectionIdOrName: "missing", expressions: [] as any[], expectIds: [] as string[], expectError: true },
+        {
+          collectionIdOrName: "missing",
+          expressions: [] as any[],
+          expectIds: [] as string[],
+          expectError: true,
+        },
         {
           collectionIdOrName: "demo2",
           expressions: [] as any[],
@@ -353,8 +434,20 @@ describe("FindFirstRecordByData", () => {
     const { app, cleanup } = await newTestApp();
     try {
       const scenarios = [
-        { collectionIdOrName: "missing", key: "id", value: "llvuca81nly1qls", expectId: "", expectError: true },
-        { collectionIdOrName: "demo2", key: "", value: "llvuca81nly1qls", expectId: "", expectError: true },
+        {
+          collectionIdOrName: "missing",
+          key: "id",
+          value: "llvuca81nly1qls",
+          expectId: "",
+          expectError: true,
+        },
+        {
+          collectionIdOrName: "demo2",
+          key: "",
+          value: "llvuca81nly1qls",
+          expectId: "",
+          expectError: true,
+        },
         {
           collectionIdOrName: "demo2",
           key: "invalid_or_missing",
@@ -362,9 +455,27 @@ describe("FindFirstRecordByData", () => {
           expectId: "",
           expectError: true,
         },
-        { collectionIdOrName: "demo2", key: "id", value: "invalid", expectId: "", expectError: true },
-        { collectionIdOrName: "demo2", key: "id", value: "llvuca81nly1qls", expectId: "llvuca81nly1qls", expectError: false },
-        { collectionIdOrName: "sz5l5z67tg7gku0", key: "title", value: "test3", expectId: "0yxhwia2amd8gec", expectError: false },
+        {
+          collectionIdOrName: "demo2",
+          key: "id",
+          value: "invalid",
+          expectId: "",
+          expectError: true,
+        },
+        {
+          collectionIdOrName: "demo2",
+          key: "id",
+          value: "llvuca81nly1qls",
+          expectId: "llvuca81nly1qls",
+          expectError: false,
+        },
+        {
+          collectionIdOrName: "sz5l5z67tg7gku0",
+          key: "title",
+          value: "test3",
+          expectId: "0yxhwia2amd8gec",
+          expectError: false,
+        },
       ];
 
       for (const scenario of scenarios) {
@@ -601,10 +712,34 @@ describe("CountRecords", () => {
     const { app, cleanup } = await newTestApp();
     try {
       const scenarios = [
-        { name: "missing collection", collectionIdOrName: "missing", expressions: [] as any[], expectTotal: 0, expectError: true },
-        { name: "valid collection name", collectionIdOrName: "demo2", expressions: [] as any[], expectTotal: 3, expectError: false },
-        { name: "valid collection id", collectionIdOrName: "sz5l5z67tg7gku0", expressions: [] as any[], expectTotal: 3, expectError: false },
-        { name: "nil expression", collectionIdOrName: "demo2", expressions: [null], expectTotal: 3, expectError: false },
+        {
+          name: "missing collection",
+          collectionIdOrName: "missing",
+          expressions: [] as any[],
+          expectTotal: 0,
+          expectError: true,
+        },
+        {
+          name: "valid collection name",
+          collectionIdOrName: "demo2",
+          expressions: [] as any[],
+          expectTotal: 3,
+          expectError: false,
+        },
+        {
+          name: "valid collection id",
+          collectionIdOrName: "sz5l5z67tg7gku0",
+          expressions: [] as any[],
+          expectTotal: 3,
+          expectError: false,
+        },
+        {
+          name: "nil expression",
+          collectionIdOrName: "demo2",
+          expressions: [null],
+          expectTotal: 3,
+          expectError: false,
+        },
         {
           name: "no matches",
           collectionIdOrName: "demo2",
@@ -715,13 +850,48 @@ describe("FindAuthRecordByToken", () => {
 describe("FindAuthRecordByEmail", () => {
   it("respects collection auth and nocase indexes", async () => {
     const scenarios = [
-      { collectionIdOrName: "missing", email: "test@example.com", nocaseIndex: false, expectError: true },
-      { collectionIdOrName: "demo2", email: "test@example.com", nocaseIndex: false, expectError: true },
-      { collectionIdOrName: "users", email: "missing@example.com", nocaseIndex: false, expectError: true },
-      { collectionIdOrName: "users", email: "test@example.com", nocaseIndex: false, expectError: false },
-      { collectionIdOrName: "clients", email: "test2@example.com", nocaseIndex: false, expectError: false },
-      { collectionIdOrName: "clients", email: "TeSt2@example.com", nocaseIndex: false, expectError: true },
-      { collectionIdOrName: "clients", email: "TeSt2@example.com", nocaseIndex: true, expectError: false },
+      {
+        collectionIdOrName: "missing",
+        email: "test@example.com",
+        nocaseIndex: false,
+        expectError: true,
+      },
+      {
+        collectionIdOrName: "demo2",
+        email: "test@example.com",
+        nocaseIndex: false,
+        expectError: true,
+      },
+      {
+        collectionIdOrName: "users",
+        email: "missing@example.com",
+        nocaseIndex: false,
+        expectError: true,
+      },
+      {
+        collectionIdOrName: "users",
+        email: "test@example.com",
+        nocaseIndex: false,
+        expectError: false,
+      },
+      {
+        collectionIdOrName: "clients",
+        email: "test2@example.com",
+        nocaseIndex: false,
+        expectError: false,
+      },
+      {
+        collectionIdOrName: "clients",
+        email: "TeSt2@example.com",
+        nocaseIndex: false,
+        expectError: true,
+      },
+      {
+        collectionIdOrName: "clients",
+        email: "TeSt2@example.com",
+        nocaseIndex: true,
+        expectError: false,
+      },
     ];
 
     for (const scenario of scenarios) {

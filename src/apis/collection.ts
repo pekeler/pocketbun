@@ -2,6 +2,7 @@
 
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
+import type { RouterGroup } from "../tools/router/group.ts";
 import {
   Collection,
   NewAuthCollection,
@@ -13,7 +14,6 @@ import {
 } from "../core/collection.ts";
 import { CollectionRequestEvent, CollectionsImportRequestEvent, CollectionsListRequestEvent } from "../core/events.ts";
 import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";
-import type { RouterGroup } from "../tools/router/group.ts";
 import { Provider } from "../tools/search/provider.ts";
 import { SimpleFieldResolver } from "../tools/search/simple_field_resolver.ts";
 
@@ -98,9 +98,7 @@ async function collectionsList(app: App, event: RequestEvent): Promise<Response>
       }) as CollectionsListResult;
 
     const hookEvent = new CollectionsListRequestEvent(event, collections, result);
-    const out = await app.OnCollectionsListRequest().Trigger(hookEvent, async () =>
-      event.json(200, responseBuilder()),
-    );
+    const out = await app.OnCollectionsListRequest().Trigger(hookEvent, async () => event.json(200, responseBuilder()));
     if (out instanceof Response) {
       return out;
     }
@@ -127,9 +125,9 @@ async function collectionView(app: App, event: RequestEvent): Promise<Response> 
   }
 
   const hookEvent = new CollectionRequestEvent(event, collection);
-  const out = await app.OnCollectionViewRequest().Trigger(hookEvent, async () =>
-    event.json(200, normalizeCollectionRow(hookEvent.Collection)),
-  );
+  const out = await app
+    .OnCollectionViewRequest()
+    .Trigger(hookEvent, async () => event.json(200, normalizeCollectionRow(hookEvent.Collection)));
   if (out instanceof Response) {
     return out;
   }
@@ -191,7 +189,7 @@ async function collectionUpdate(app: App, event: RequestEvent): Promise<Response
     if (row) {
       return event.json(200, normalizeCollectionRow(row));
     }
-  return event.json(200, normalizeCollectionRow(hookEvent.Collection));
+    return event.json(200, normalizeCollectionRow(hookEvent.Collection));
   });
   if (out instanceof Response) {
     return out;
@@ -238,10 +236,7 @@ function collectionTruncate(app: App, event: RequestEvent): Response {
   }
 
   if (collection.isView()) {
-    return badRequest(
-      event,
-      "View collections cannot be truncated since they don't store their own records.",
-    );
+    return badRequest(event, "View collections cannot be truncated since they don't store their own records.");
   }
 
   const err = app.TruncateCollection(collection);
@@ -271,11 +266,7 @@ async function collectionsImport(app: App, event: RequestEvent): Promise<Respons
   }
 
   const deleteMissing = Boolean(data.deleteMissing);
-  const hookEvent = new CollectionsImportRequestEvent(
-    event,
-    collections as Array<Record<string, unknown>>,
-    deleteMissing,
-  );
+  const hookEvent = new CollectionsImportRequestEvent(event, collections as Array<Record<string, unknown>>, deleteMissing);
 
   const out = await app.OnCollectionsImportRequest().Trigger(hookEvent, async () => {
     const err = app.ImportCollections(hookEvent.CollectionsData, hookEvent.DeleteMissing);

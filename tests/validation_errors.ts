@@ -18,9 +18,7 @@ export function testValidationErrors(rawErrors: Error | null, expectedErrors: st
 
   if (keys.length !== expectedErrors.length) {
     const message = errs ? errs.message : "";
-    throw new Error(
-      `Expected error keys ${JSON.stringify(expectedErrors)} got ${JSON.stringify(keys)}\n${message}`,
-    );
+    throw new Error(`Expected error keys ${JSON.stringify(expectedErrors)} got ${JSON.stringify(keys)}\n${message}`);
   }
 
   for (const key of expectedErrors) {

@@ -3,12 +3,12 @@
 // while those helpers are not yet ported.
 
 import type { Database } from "bun:sqlite";
-import type { App } from "../core/app.ts";
-import { SystemMigrations } from "../core/migrations_runner.ts";
-import { randomString } from "../tools/security/random.ts";
-import { decrypt } from "../tools/security/encrypt.ts";
 import { rmSync } from "node:fs";
 import { join } from "node:path";
+import type { App } from "../core/app.ts";
+import { SystemMigrations } from "../core/migrations_runner.ts";
+import { decrypt } from "../tools/security/encrypt.ts";
+import { randomString } from "../tools/security/random.ts";
 
 const FILE_NAME = "1717233556_v0.23_migrate.go";
 
@@ -57,18 +57,11 @@ function migrateSuperusers(app: App, oldSettings: Record<string, unknown>): void
 
   const options = parseJson<Record<string, unknown>>(row.options, {});
   const authToken = (options.authToken as Record<string, unknown> | undefined) ?? {};
-  authToken.secret = zeroFallback(
-    toString(getMapVal(oldSettings, "adminAuthToken", "secret")),
-    toString(authToken.secret),
-  );
-  authToken.duration = zeroFallback(
-    toInt64(getMapVal(oldSettings, "adminAuthToken", "duration")),
-    toInt64(authToken.duration),
-  );
+  authToken.secret = zeroFallback(toString(getMapVal(oldSettings, "adminAuthToken", "secret")), toString(authToken.secret));
+  authToken.duration = zeroFallback(toInt64(getMapVal(oldSettings, "adminAuthToken", "duration")), toInt64(authToken.duration));
   options.authToken = authToken;
 
-  const passwordResetToken =
-    (options.passwordResetToken as Record<string, unknown> | undefined) ?? {};
+  const passwordResetToken = (options.passwordResetToken as Record<string, unknown> | undefined) ?? {};
   passwordResetToken.secret = zeroFallback(
     toString(getMapVal(oldSettings, "adminPasswordResetToken", "secret")),
     toString(passwordResetToken.secret),
@@ -80,14 +73,8 @@ function migrateSuperusers(app: App, oldSettings: Record<string, unknown>): void
   options.passwordResetToken = passwordResetToken;
 
   const fileToken = (options.fileToken as Record<string, unknown> | undefined) ?? {};
-  fileToken.secret = zeroFallback(
-    toString(getMapVal(oldSettings, "adminFileToken", "secret")),
-    toString(fileToken.secret),
-  );
-  fileToken.duration = zeroFallback(
-    toInt64(getMapVal(oldSettings, "adminFileToken", "duration")),
-    toInt64(fileToken.duration),
-  );
+  fileToken.secret = zeroFallback(toString(getMapVal(oldSettings, "adminFileToken", "secret")), toString(fileToken.secret));
+  fileToken.duration = zeroFallback(toInt64(getMapVal(oldSettings, "adminFileToken", "duration")), toInt64(fileToken.duration));
   options.fileToken = fileToken;
 
   db.query("update _collections set options = ? where id = ?").run(JSON.stringify(options), row.id);
@@ -184,10 +171,7 @@ function migrateSettings(app: App, oldSettings: Record<string, unknown>): void {
     },
   };
 
-  db.query("insert into _params (id, value) values (?, ?)").run(
-    "settings",
-    JSON.stringify(newSettings),
-  );
+  db.query("insert into _params (id, value) values (?, ?)").run("settings", JSON.stringify(newSettings));
   db.run("DROP TABLE _params_old;");
 }
 
@@ -253,10 +237,7 @@ function migrateOldCollections(app: App, oldSettings: Record<string, unknown>): 
       const dummyAuthOptions = defaultAuthOptions({ authTokenDuration: 604800 });
 
       options.authToken = {
-        secret: zeroFallback(
-          toString(getMapVal(oldSettings, "recordAuthToken", "secret")),
-          dummyAuthOptions.authToken.secret,
-        ),
+        secret: zeroFallback(toString(getMapVal(oldSettings, "recordAuthToken", "secret")), dummyAuthOptions.authToken.secret),
         duration: zeroFallback(
           toInt64(getMapVal(oldSettings, "recordAuthToken", "duration")),
           dummyAuthOptions.authToken.duration,
@@ -293,10 +274,7 @@ function migrateOldCollections(app: App, oldSettings: Record<string, unknown>): 
         ),
       };
       options.fileToken = {
-        secret: zeroFallback(
-          toString(getMapVal(oldSettings, "recordFileToken", "secret")),
-          dummyAuthOptions.fileToken.secret,
-        ),
+        secret: zeroFallback(toString(getMapVal(oldSettings, "recordFileToken", "secret")), dummyAuthOptions.fileToken.secret),
         duration: zeroFallback(
           toInt64(getMapVal(oldSettings, "recordFileToken", "duration")),
           dummyAuthOptions.fileToken.duration,
@@ -387,16 +365,9 @@ function migrateOldCollections(app: App, oldSettings: Record<string, unknown>): 
 
       for (const [name, fallback] of Object.entries(templateDefaults)) {
         const actionUrl = toString(getMapVal(oldSettings, "meta", name, "actionUrl"));
-        const subject = zeroFallback(
-          toString(getMapVal(oldSettings, "meta", name, "subject")),
-          fallback.subject,
-        );
+        const subject = zeroFallback(toString(getMapVal(oldSettings, "meta", name, "subject")), fallback.subject);
         const body = zeroFallback(
-          replaceAll(
-            toString(getMapVal(oldSettings, "meta", name, "body")),
-            "{ACTION_URL}",
-            actionUrl,
-          ),
+          replaceAll(toString(getMapVal(oldSettings, "meta", name, "body")), "{ACTION_URL}", actionUrl),
           fallback.body,
         );
         options[name] = { subject, body };
@@ -742,8 +713,7 @@ function createAuthOriginsCollection(app: App): void {
 }
 
 function buildMFAsCollection(): CollectionInsert {
-  const ownerRule =
-    "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
+  const ownerRule = "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
 
   const mfas = baseSystemCollection(
     "_mfas",
@@ -774,8 +744,7 @@ function buildMFAsCollection(): CollectionInsert {
 }
 
 function buildOTPsCollection(): CollectionInsert {
-  const ownerRule =
-    "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
+  const ownerRule = "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
 
   const otps = baseSystemCollection(
     "_otps",
@@ -814,8 +783,7 @@ function buildOTPsCollection(): CollectionInsert {
 }
 
 function buildExternalAuthsCollection(): CollectionInsert {
-  const ownerRule =
-    "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
+  const ownerRule = "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
 
   const externalAuths = baseSystemCollection(
     "_externalAuths",
@@ -839,18 +807,8 @@ function buildExternalAuthsCollection(): CollectionInsert {
       autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
     ],
     [
-      buildIndex(
-        "idx_externalAuths_record_provider",
-        true,
-        "_externalAuths",
-        "collectionRef, recordRef, provider",
-      ),
-      buildIndex(
-        "idx_externalAuths_collection_provider",
-        true,
-        "_externalAuths",
-        "collectionRef, provider, providerId",
-      ),
+      buildIndex("idx_externalAuths_record_provider", true, "_externalAuths", "collectionRef, recordRef, provider"),
+      buildIndex("idx_externalAuths_collection_provider", true, "_externalAuths", "collectionRef, provider, providerId"),
     ],
   );
   externalAuths.listRule = ownerRule;
@@ -860,8 +818,7 @@ function buildExternalAuthsCollection(): CollectionInsert {
 }
 
 function buildAuthOriginsCollection(): CollectionInsert {
-  const ownerRule =
-    "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
+  const ownerRule = "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
 
   const authOrigins = baseSystemCollection(
     "_authOrigins",
@@ -883,14 +840,7 @@ function buildAuthOriginsCollection(): CollectionInsert {
       autodateField("created", { system: true, onCreate: true, onUpdate: false }),
       autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
     ],
-    [
-      buildIndex(
-        "idx_authOrigins_unique_pairs",
-        true,
-        "_authOrigins",
-        "collectionRef, recordRef, fingerprint",
-      ),
-    ],
+    [buildIndex("idx_authOrigins_unique_pairs", true, "_authOrigins", "collectionRef, recordRef, fingerprint")],
   );
   authOrigins.listRule = ownerRule;
   authOrigins.viewRule = ownerRule;
@@ -938,13 +888,7 @@ function buildSuperusersCollection(): CollectionInsert {
     ],
     [
       buildIndex(fieldIndexName("tokenKey", "pbc_3142635823"), true, "_superusers", "tokenKey"),
-      buildIndex(
-        fieldIndexName("email", "pbc_3142635823"),
-        true,
-        "_superusers",
-        "email",
-        "email != ''",
-      ),
+      buildIndex(fieldIndexName("email", "pbc_3142635823"), true, "_superusers", "email", "email != ''"),
     ],
   );
   superusers.options = defaultAuthOptions({ authTokenDuration: 86400 });
@@ -984,13 +928,7 @@ function fieldIndexName(field: string, collectionIdValue: string): string {
   return name.length > 64 ? name.slice(0, 64) : name;
 }
 
-function buildIndex(
-  name: string,
-  unique: boolean,
-  table: string,
-  columns: string,
-  where?: string,
-): string {
+function buildIndex(name: string, unique: boolean, table: string, columns: string, where?: string): string {
   const uniqueClause = unique ? "UNIQUE " : "";
   const whereClause = where ? ` WHERE ${where}` : "";
   return `CREATE ${uniqueClause}INDEX \`${name}\` ON \`${table}\` (${columns})${whereClause}`;
@@ -1540,9 +1478,9 @@ function trimSuffix(value: string, suffix: string): string {
 }
 
 function hasTable(db: Database, name: string): boolean {
-  const row = db
-    .query("select name from sqlite_master where type='table' and name = ?")
-    .get(name) as { name?: string } | undefined;
+  const row = db.query("select name from sqlite_master where type='table' and name = ?").get(name) as
+    | { name?: string }
+    | undefined;
   return Boolean(row?.name);
 }
 

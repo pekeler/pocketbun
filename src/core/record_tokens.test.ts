@@ -1,9 +1,10 @@
 // Ported from pocketbase/core/record_tokens_test.go
 
 import { describe, expect, it } from "bun:test";
+import type { Record as RecordModel } from "./record.ts";
+import { newTestApp } from "../../tests/test_app.ts";
 import { parseUnverifiedJWT } from "../tools/security/jwt.ts";
 import { Collection, CollectionTypeAuth } from "./collection.ts";
-import type { Record as RecordModel } from "./record.ts";
 import {
   TokenClaimRefreshable,
   TokenTypeAuth,
@@ -12,15 +13,12 @@ import {
   TokenTypePasswordReset,
   TokenTypeVerification,
 } from "./record_tokens.ts";
-import { newTestApp } from "../../tests/test_app.ts";
 
 describe("record tokens", () => {
   it("creates static auth tokens", async () => {
-    await testRecordToken(
-      TokenTypeAuth,
-      (record) => record.NewStaticAuthToken(0),
-      { [TokenClaimRefreshable]: false },
-    );
+    await testRecordToken(TokenTypeAuth, (record) => record.NewStaticAuthToken(0), {
+      [TokenClaimRefreshable]: false,
+    });
   });
 
   it("uses custom durations for static auth tokens", async () => {
@@ -68,11 +66,7 @@ describe("record tokens", () => {
   });
 
   it("creates email change tokens", async () => {
-    await testRecordToken(
-      TokenTypeEmailChange,
-      (record) => record.NewEmailChangeToken("new@example.com"),
-      null,
-    );
+    await testRecordToken(TokenTypeEmailChange, (record) => record.NewEmailChangeToken("new@example.com"), null);
   });
 
   it("creates file tokens", async () => {

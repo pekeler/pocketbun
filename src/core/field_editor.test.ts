@@ -1,16 +1,12 @@
 // Ported from pocketbase/core/field_editor_test.go
 
 import { describe, expect, it } from "bun:test";
-import { EditorField, FieldTypeEditor, DefaultEditorFieldMaxSize } from "./field_editor.ts";
-import { NewBaseCollection } from "./collection.ts";
-import { NewRecord } from "./record.ts";
 import { newTestApp } from "../../tests/test_app.ts";
 import { testValidationErrors } from "../../tests/validation_errors.ts";
-import {
-  testDefaultFieldIdValidation,
-  testDefaultFieldNameValidation,
-  testFieldBaseMethods,
-} from "./field_test.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { EditorField, FieldTypeEditor, DefaultEditorFieldMaxSize } from "./field_editor.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
+import { NewRecord } from "./record.ts";
 
 describe("editor field", () => {
   it("base methods", () => {
@@ -161,8 +157,7 @@ describe("editor field", () => {
         },
         {
           name: "MaxSize > safe json int",
-          build: () =>
-            Object.assign(new EditorField(), { Id: "test", Name: "test", MaxSize: 2 ** 53 }),
+          build: () => Object.assign(new EditorField(), { Id: "test", Name: "test", MaxSize: 2 ** 53 }),
           expectErrors: ["maxSize"],
         },
       ];

@@ -3,8 +3,8 @@
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
 import { ValidationErrors, ErrRequired, newError } from "../internal/compat/validation.ts";
-import { JSONArray } from "../tools/types/index.ts";
 import { subtractSlice, toUniqueStringSlice } from "../tools/list/list.ts";
+import { JSONArray } from "../tools/types/index.ts";
 import {
   Fields,
   type DriverValuer,
@@ -101,9 +101,7 @@ export class SelectField implements Field, MultiValuer, DriverValuer, SetterFind
 
     const maxSelect = Math.max(this.MaxSelect, 1);
     if (values.length > maxSelect) {
-      return newError("validation_too_many_values", "Select no more than {{.maxSelect}}").setParams(
-        { maxSelect },
-      );
+      return newError("validation_too_many_values", "Select no more than {{.maxSelect}}").setParams({ maxSelect });
     }
 
     for (const value of values) {

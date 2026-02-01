@@ -1,7 +1,7 @@
 // Ported from pocketbase/tools/search/simple_field_resolver.go
 
-import { columnify } from "../inflector/inflector.ts";
 import type { FieldResolver, ResolverResult } from "./field_resolver.ts";
+import { columnify } from "../inflector/inflector.ts";
 
 export type NullFallbackPreference = "auto" | "disabled" | "enforced";
 

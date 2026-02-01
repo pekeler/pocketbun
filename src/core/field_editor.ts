@@ -2,8 +2,8 @@
 
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
-import { ValidationErrors, ErrRequired, newError } from "../internal/compat/validation.ts";
 import { toStringValue } from "../internal/compat/cast.ts";
+import { ValidationErrors, ErrRequired, newError } from "../internal/compat/validation.ts";
 import {
   Fields,
   type Field,
@@ -83,10 +83,9 @@ export class EditorField implements Field, MaxBodySizeCalculator {
 
     const maxSize = this.CalculateMaxBodySize();
     if (value.length > maxSize) {
-      return newError(
-        "validation_content_size_limit",
-        "The maximum allowed content size is {{.maxSize}} bytes",
-      ).setParams({ maxSize });
+      return newError("validation_content_size_limit", "The maximum allowed content size is {{.maxSize}} bytes").setParams({
+        maxSize,
+      });
     }
 
     return null;

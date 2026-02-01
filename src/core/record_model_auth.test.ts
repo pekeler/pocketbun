@@ -1,9 +1,9 @@
 // Ported from pocketbase/core/record_model_auth_test.go
 
 import { describe, expect, it } from "bun:test";
+import { newTestApp } from "../../tests/test_app.ts";
 import { NewAuthCollection } from "./collection.ts";
 import { NewRecord } from "./record.ts";
-import { newTestApp } from "../../tests/test_app.ts";
 
 describe("Record auth helpers", () => {
   it("handles email", () => {

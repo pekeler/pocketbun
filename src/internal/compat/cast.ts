@@ -17,12 +17,7 @@ export function toStringValue(value: unknown): string {
     const candidate = value as { valueOf?: () => unknown; toString?: () => string };
     if (typeof candidate.valueOf === "function") {
       const raw = candidate.valueOf();
-      if (
-        typeof raw === "string" ||
-        typeof raw === "number" ||
-        typeof raw === "boolean" ||
-        typeof raw === "bigint"
-      ) {
+      if (typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean" || typeof raw === "bigint") {
         return String(raw);
       }
     }
@@ -77,12 +72,7 @@ export function toNumberValue(value: unknown): number {
     if (lowered === "nan") {
       return Number.NaN;
     }
-    if (
-      lowered === "inf" ||
-      lowered === "+inf" ||
-      lowered === "infinity" ||
-      lowered === "+infinity"
-    ) {
+    if (lowered === "inf" || lowered === "+inf" || lowered === "infinity" || lowered === "+infinity") {
       return Number.POSITIVE_INFINITY;
     }
     if (lowered === "-inf" || lowered === "-infinity") {

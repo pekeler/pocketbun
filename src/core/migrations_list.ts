@@ -36,11 +36,7 @@ export class MigrationsList {
     this.sort();
   }
 
-  register(
-    up: ((txApp: App) => void) | undefined,
-    down: ((txApp: App) => void) | undefined,
-    file: string,
-  ): void {
+  register(up: ((txApp: App) => void) | undefined, down: ((txApp: App) => void) | undefined, file: string): void {
     if (!file) {
       throw new Error("migration file name is required");
     }

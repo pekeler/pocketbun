@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/event_request.go
 
-import { Event } from "../tools/router/event.ts";
 import type { App } from "./app.ts";
+import { Event } from "../tools/router/event.ts";
 import { Record as RecordModel } from "./record.ts";
 
 export const RequestInfoContextDefault = "default";
@@ -27,12 +27,7 @@ export class RequestEvent extends Event {
   auth: RecordModel | null;
   #cachedRequestInfo: RequestInfo | null = null;
 
-  constructor(options: {
-    app: App;
-    request: Request;
-    params?: Record<string, string>;
-    remoteAddress?: string | null;
-  }) {
+  constructor(options: { app: App; request: Request; params?: Record<string, string>; remoteAddress?: string | null }) {
     super({
       request: options.request,
       params: options.params,

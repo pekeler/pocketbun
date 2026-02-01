@@ -1,12 +1,6 @@
 // PocketBun-only: bun:sqlite Database wrapper that applies dbx placeholder rewrites.
 
-import {
-  Database,
-  type Changes,
-  type DatabaseOptions,
-  type SQLQueryBindings,
-  type Statement,
-} from "bun:sqlite";
+import { Database, type Changes, type DatabaseOptions, type SQLQueryBindings, type Statement } from "bun:sqlite";
 import { rewriteDbxIdentifiers } from "./identifiers.ts";
 
 export class DbxDatabase extends Database {
@@ -14,17 +8,11 @@ export class DbxDatabase extends Database {
     super(filename, options);
   }
 
-  override run<ParamsType extends SQLQueryBindings[]>(
-    sql: string,
-    ...bindings: ParamsType[]
-  ): Changes {
+  override run<ParamsType extends SQLQueryBindings[]>(sql: string, ...bindings: ParamsType[]): Changes {
     return super.run(rewriteDbxIdentifiers(sql), ...bindings);
   }
 
-  override exec<ParamsType extends SQLQueryBindings[]>(
-    sql: string,
-    ...bindings: ParamsType[]
-  ): Changes {
+  override exec<ParamsType extends SQLQueryBindings[]>(sql: string, ...bindings: ParamsType[]): Changes {
     return super.run(rewriteDbxIdentifiers(sql), ...bindings);
   }
 

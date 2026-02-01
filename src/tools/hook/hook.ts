@@ -1,8 +1,8 @@
 // Ported from pocketbase/tools/hook/hook.go
 
 import type { Resolver } from "./event.ts";
-import { Event } from "./event.ts";
 import { randomString } from "../security/random.ts";
+import { Event } from "./event.ts";
 
 export type HandlerFunc<T extends Resolver> = (event: T) => unknown;
 

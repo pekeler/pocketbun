@@ -160,11 +160,7 @@ export function parseIndex(createIndexExpr: string): Index {
 export function findSingleColumnUniqueIndex(indexes: string[], column: string): [Index, boolean] {
   for (const idx of indexes) {
     const index = parseIndex(idx);
-    if (
-      index.unique &&
-      index.columns.length === 1 &&
-      index.columns[0]?.name.toLowerCase() === column.toLowerCase()
-    ) {
+    if (index.unique && index.columns.length === 1 && index.columns[0]?.name.toLowerCase() === column.toLowerCase()) {
       return [index, true];
     }
   }

@@ -2,10 +2,7 @@
 
 import { ValidationErrors, newError } from "../../internal/compat/validation.ts";
 
-export const ErrUnsupportedValueType = newError(
-  "validation_unsupported_value_type",
-  "Invalid or unsupported value type.",
-);
+export const ErrUnsupportedValueType = newError("validation_unsupported_value_type", "Invalid or unsupported value type.");
 
 export function joinValidationErrors(errorA: Error | null, errorB: Error | null): Error | null {
   const vErrA = errorA instanceof ValidationErrors ? errorA : null;

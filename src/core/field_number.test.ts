@@ -1,17 +1,13 @@
 // Ported from pocketbase/core/field_number_test.go
 
 import { describe, expect, it } from "bun:test";
-import { NewBaseCollection } from "./collection.ts";
-import { NumberField, FieldTypeNumber } from "./field_number.ts";
-import { NewRecord } from "./record.ts";
-import { Pointer } from "../tools/types/index.ts";
 import { newTestApp } from "../../tests/test_app.ts";
 import { testValidationErrors } from "../../tests/validation_errors.ts";
-import {
-  testDefaultFieldIdValidation,
-  testDefaultFieldNameValidation,
-  testFieldBaseMethods,
-} from "./field_test.ts";
+import { Pointer } from "../tools/types/index.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { NumberField, FieldTypeNumber } from "./field_number.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
+import { NewRecord } from "./record.ts";
 
 describe("number field", () => {
   it("base methods", () => {
@@ -204,8 +200,7 @@ describe("number field", () => {
         },
         {
           name: "decimal min",
-          build: () =>
-            Object.assign(new NumberField(), { Id: "test", Name: "test", Min: Pointer(1.2) }),
+          build: () => Object.assign(new NumberField(), { Id: "test", Name: "test", Min: Pointer(1.2) }),
           expectErrors: [],
         },
         {
@@ -232,8 +227,7 @@ describe("number field", () => {
         },
         {
           name: "decimal max",
-          build: () =>
-            Object.assign(new NumberField(), { Id: "test", Name: "test", Max: Pointer(1.2) }),
+          build: () => Object.assign(new NumberField(), { Id: "test", Name: "test", Max: Pointer(1.2) }),
           expectErrors: [],
         },
         {

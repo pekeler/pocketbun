@@ -55,12 +55,7 @@ function quoteTableName(value: string): string {
   if (!trimmed) {
     return trimmed;
   }
-  if (
-    trimmed.includes("(") ||
-    /\s/.test(trimmed) ||
-    trimmed.includes("{{") ||
-    trimmed.includes("[[")
-  ) {
+  if (trimmed.includes("(") || /\s/.test(trimmed) || trimmed.includes("{{") || trimmed.includes("[[")) {
     return trimmed;
   }
   return `{{${trimmed}}}`;

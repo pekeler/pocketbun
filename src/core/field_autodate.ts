@@ -114,18 +114,12 @@ export class AutodateField implements Field, SetterFinder, RecordInterceptor {
 
     if (!this.OnUpdate) {
       if (!this.OnCreate) {
-        errors.onCreate = newError(
-          "validation_required",
-          "either onCreate or onUpdate must be enabled",
-        );
+        errors.onCreate = newError("validation_required", "either onCreate or onUpdate must be enabled");
       }
     }
     if (!this.OnCreate) {
       if (!this.OnUpdate) {
-        errors.onUpdate = newError(
-          "validation_required",
-          "either onCreate or onUpdate must be enabled",
-        );
+        errors.onUpdate = newError("validation_required", "either onCreate or onUpdate must be enabled");
       }
     }
 
@@ -141,13 +135,7 @@ export class AutodateField implements Field, SetterFinder, RecordInterceptor {
     }
   }
 
-  Intercept(
-    _ctx: unknown,
-    _app: App,
-    record: RecordLike,
-    actionName: string,
-    actionFunc: () => Error | null,
-  ): Error | null {
+  Intercept(_ctx: unknown, _app: App, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null {
     const typed = record as RecordLike & {
       GetDateTime: (field: string) => { IsZero: () => boolean; Equal: (other: unknown) => boolean };
       Original: () => RecordLike;

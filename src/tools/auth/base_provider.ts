@@ -186,11 +186,7 @@ export class BaseProvider implements Provider {
   }
 }
 
-function buildAuthURL(
-  baseURL: string,
-  baseParams: Record<string, string>,
-  options: AuthCodeOption[],
-): string {
+function buildAuthURL(baseURL: string, baseParams: Record<string, string>, options: AuthCodeOption[]): string {
   const params: Record<string, string> = {};
 
   for (const [key, value] of Object.entries(baseParams)) {
@@ -211,9 +207,7 @@ function buildAuthURL(
     return baseURL;
   }
 
-  const query = entries
-    .map(([key, value]) => `${encodeQueryComponent(key)}=${encodeQueryComponent(value)}`)
-    .join("&");
+  const query = entries.map(([key, value]) => `${encodeQueryComponent(key)}=${encodeQueryComponent(value)}`).join("&");
 
   return `${baseURL}?${query}`;
 }

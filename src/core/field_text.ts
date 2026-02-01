@@ -3,14 +3,9 @@
 
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
-import { randomStringByRegex } from "../tools/security/random.ts";
-import {
-  ErrRequired,
-  ValidationErrors,
-  newError,
-  required,
-} from "../internal/compat/validation.ts";
 import { toStringValue } from "../internal/compat/cast.ts";
+import { ErrRequired, ValidationErrors, newError, required } from "../internal/compat/validation.ts";
+import { randomStringByRegex } from "../tools/security/random.ts";
 import {
   Fields,
   type Field,
@@ -21,8 +16,8 @@ import {
   defaultFieldNameValidationRule,
   maxSafeJSONInt,
 } from "./field.ts";
-import { ErrUnsupportedValueType } from "./validators/validators.ts";
 import { isRegex } from "./validators/string.ts";
+import { ErrUnsupportedValueType } from "./validators/validators.ts";
 
 export const FieldTypeText = "text";
 export const autogenerateModifier = ":autogenerate";
@@ -156,15 +151,10 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
       } else if (this.Pattern !== defaultLowercaseRecordIdPattern) {
         const exists = app
           .db()
-          .query(
-            `select 1 as "exists" from {{${record.TableName()}}} where id = ? COLLATE NOCASE limit 1`,
-          )
+          .query(`select 1 as "exists" from {{${record.TableName()}}} where id = ? COLLATE NOCASE limit 1`)
           .get(newVal) as { exists?: number } | undefined;
         if (exists?.exists) {
-          return newError(
-            "validation_pk_invalid",
-            "The record primary key is invalid or already exists.",
-          );
+          return newError("validation_pk_invalid", "The record primary key is invalid or already exists.");
         }
       }
     }
@@ -187,10 +177,9 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     const length = Array.from(value).length;
 
     if (this.Min > 0 && length < this.Min) {
-      return newError(
-        "validation_min_text_constraint",
-        "Must be at least {{.min}} character(s).",
-      ).setParams({ min: this.Min });
+      return newError("validation_min_text_constraint", "Must be at least {{.min}} character(s).").setParams({
+        min: this.Min,
+      });
     }
 
     let max = this.Max;
@@ -199,10 +188,7 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     }
 
     if (max > 0 && length > max) {
-      return newError(
-        "validation_max_text_constraint",
-        "Must be no more than {{.max}} character(s).",
-      ).setParams({ max });
+      return newError("validation_max_text_constraint", "Must be no more than {{.max}} character(s).").setParams({ max });
     }
 
     if (this.Pattern !== "") {
@@ -215,10 +201,9 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     if (this.PrimaryKey && this.Pattern !== defaultLowercaseRecordIdPattern) {
       for (const ch of forbiddenPKCharacters) {
         if (value.includes(ch)) {
-          return newError(
-            "validation_forbidden_pk_character",
-            "'{{.ch}}' is not a valid primary key character.",
-          ).setParams({ ch });
+          return newError("validation_forbidden_pk_character", "'{{.ch}}' is not a valid primary key character.").setParams({
+            ch,
+          });
         }
       }
 
@@ -249,10 +234,7 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
       errors.name = nameErr;
     }
     if (this.PrimaryKey && this.Name !== idColumn) {
-      errors.name = newError(
-        "validation_invalid_primary_key",
-        'The primary key must be named "id".',
-      );
+      errors.name = newError("validation_invalid_primary_key", 'The primary key must be named "id".');
     }
 
     if (this.Min < 0 || this.Min > maxSafeJSONInt) {
@@ -272,10 +254,7 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     }
 
     if (this.PrimaryKey && this.Hidden) {
-      errors.hidden = newError(
-        "validation_invalid_primary_key",
-        "Primary key field cannot be hidden.",
-      );
+      errors.hidden = newError("validation_invalid_primary_key", "Primary key field cannot be hidden.");
     }
     if (this.PrimaryKey && !this.Required) {
       errors.required = ErrRequired;
@@ -348,13 +327,7 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     return null;
   }
 
-  Intercept(
-    _ctx: unknown,
-    _app: App,
-    record: RecordLike,
-    actionName: string,
-    actionFunc: () => Error | null,
-  ): Error | null {
+  Intercept(_ctx: unknown, _app: App, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null {
     switch (actionName) {
       case "validate":
       case "create":

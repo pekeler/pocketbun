@@ -1,12 +1,12 @@
 // Ported from pocketbase/core/events.go (partial: model/record/collection + collection request events).
 
+import type { SearchResult } from "../tools/search/types.ts";
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
+import type { RequestEvent } from "./event_request.ts";
 import type { Record as RecordModel } from "./record.ts";
 import type { RecordProxy } from "./record_proxy.ts";
-import type { RequestEvent } from "./event_request.ts";
 import { Event } from "../tools/hook/event.ts";
-import type { SearchResult } from "../tools/search/types.ts";
 
 export type HookTagger = {
   HookTags(): string[];
@@ -190,9 +190,10 @@ export function syncRecordEventWithModelEvent(recordEvent: RecordEvent, modelEve
   recordEvent.Type = modelEvent.Type;
 }
 
-export function newRecordEventFromModelEvent(
-  modelEvent: ModelEvent,
-): { event: RecordEvent | null; ok: boolean } {
+export function newRecordEventFromModelEvent(modelEvent: ModelEvent): {
+  event: RecordEvent | null;
+  ok: boolean;
+} {
   const model = modelEvent.Model;
   let record: RecordModel | null = null;
   if (model && typeof (model as RecordModel).collection === "function") {
@@ -213,9 +214,10 @@ export function newRecordEventFromModelEvent(
   };
 }
 
-export function newRecordErrorEventFromModelErrorEvent(
-  modelErrorEvent: ModelErrorEvent,
-): { event: RecordErrorEvent | null; ok: boolean } {
+export function newRecordErrorEventFromModelErrorEvent(modelErrorEvent: ModelErrorEvent): {
+  event: RecordErrorEvent | null;
+  ok: boolean;
+} {
   const { event, ok } = newRecordEventFromModelEvent(modelErrorEvent.ModelEvent);
   if (!ok || !event) {
     return { event: null, ok: false };
@@ -246,10 +248,7 @@ export function syncModelEventWithCollectionEvent(modelEvent: ModelEvent, collec
   modelEvent.Model = collectionEvent.Collection;
 }
 
-export function syncCollectionEventWithModelEvent(
-  collectionEvent: CollectionEvent,
-  modelEvent: ModelEvent,
-): void {
+export function syncCollectionEventWithModelEvent(collectionEvent: CollectionEvent, modelEvent: ModelEvent): void {
   collectionEvent.App = modelEvent.App;
   collectionEvent.Context = modelEvent.Context;
   collectionEvent.Type = modelEvent.Type;
@@ -258,9 +257,10 @@ export function syncCollectionEventWithModelEvent(
   }
 }
 
-export function newCollectionEventFromModelEvent(
-  modelEvent: ModelEvent,
-): { event: CollectionEvent | null; ok: boolean } {
+export function newCollectionEventFromModelEvent(modelEvent: ModelEvent): {
+  event: CollectionEvent | null;
+  ok: boolean;
+} {
   const collection = modelEvent.Model as Collection | null;
   if (!collection || typeof collection.TableName !== "function") {
     return { event: null, ok: false };
@@ -271,9 +271,10 @@ export function newCollectionEventFromModelEvent(
   };
 }
 
-export function newCollectionErrorEventFromModelErrorEvent(
-  modelErrorEvent: ModelErrorEvent,
-): { event: CollectionErrorEvent | null; ok: boolean } {
+export function newCollectionErrorEventFromModelErrorEvent(modelErrorEvent: ModelErrorEvent): {
+  event: CollectionErrorEvent | null;
+  ok: boolean;
+} {
   const { event, ok } = newCollectionEventFromModelEvent(modelErrorEvent.ModelEvent);
   if (!ok || !event) {
     return { event: null, ok: false };
@@ -314,11 +315,7 @@ export class CollectionsListRequestEvent extends Event {
   Collections: Collection[];
   Result: SearchResult<unknown> | null;
 
-  constructor(
-    requestEvent: RequestEvent,
-    collections: Collection[],
-    result: SearchResult<unknown> | null,
-  ) {
+  constructor(requestEvent: RequestEvent, collections: Collection[], result: SearchResult<unknown> | null) {
     super();
     this.RequestEvent = requestEvent;
     this.Collections = collections;
@@ -331,11 +328,7 @@ export class CollectionsImportRequestEvent extends Event {
   CollectionsData: Array<Record<string, unknown>>;
   DeleteMissing: boolean;
 
-  constructor(
-    requestEvent: RequestEvent,
-    collectionsData: Array<Record<string, unknown>>,
-    deleteMissing: boolean,
-  ) {
+  constructor(requestEvent: RequestEvent, collectionsData: Array<Record<string, unknown>>, deleteMissing: boolean) {
     super();
     this.RequestEvent = requestEvent;
     this.CollectionsData = collectionsData;

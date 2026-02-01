@@ -1,7 +1,7 @@
 // Ported from pocketbase/tools/auth/strava.go (provider defaults only).
 
-import { BaseProvider } from "./base_provider.ts";
 import { Providers, wrapFactory } from "./auth.ts";
+import { BaseProvider } from "./base_provider.ts";
 
 export const NameStrava = "strava";
 

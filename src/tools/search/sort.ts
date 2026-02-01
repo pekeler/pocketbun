@@ -23,11 +23,7 @@ export function buildSortExpr(field: SortField, resolver: FieldResolver): string
   }
 
   const result = resolver.resolve(field.name);
-  if (
-    !result.identifier ||
-    result.params.length > 0 ||
-    result.identifier.toLowerCase() === "null"
-  ) {
+  if (!result.identifier || result.params.length > 0 || result.identifier.toLowerCase() === "null") {
     throw new Error(`invalid sort field "${field.name}"`);
   }
 

@@ -11,31 +11,19 @@ export function UniqueId(db: Database, tableName: string): (value: unknown) => E
     }
 
     try {
-      const row = db.query(`select id from {{${tableName}}} where id = ? limit 1`).get(v) as
-        | { id?: string }
-        | undefined;
+      const row = db.query(`select id from {{${tableName}}} where id = ? limit 1`).get(v) as { id?: string } | undefined;
       if (row?.id) {
-        return newError(
-          "validation_invalid_or_existing_id",
-          "The model id is invalid or already exists.",
-        );
+        return newError("validation_invalid_or_existing_id", "The model id is invalid or already exists.");
       }
     } catch {
-      return newError(
-        "validation_invalid_or_existing_id",
-        "The model id is invalid or already exists.",
-      );
+      return newError("validation_invalid_or_existing_id", "The model id is invalid or already exists.");
     }
 
     return null;
   };
 }
 
-export function NormalizeUniqueIndexError(
-  err: Error | null,
-  tableOrAlias: string,
-  fieldNames: string[],
-): Error | null {
+export function NormalizeUniqueIndexError(err: Error | null, tableOrAlias: string, fieldNames: string[]): Error | null {
   if (!err) {
     return err;
   }

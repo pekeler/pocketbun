@@ -40,9 +40,7 @@ describe("security random by regex", () => {
 
         const hasError = error != null;
         if (hasError !== scenario.expectError) {
-          throw new Error(
-            `Expected hasError ${scenario.expectError}, got ${hasError} (${String(error)})`,
-          );
+          throw new Error(`Expected hasError ${scenario.expectError}, got ${hasError} (${String(error)})`);
         }
 
         if (hasError) {

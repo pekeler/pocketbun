@@ -1,9 +1,9 @@
 // Ported from pocketbase/apis/health.go
 
 import type { App } from "../core/app.ts";
-import { StoreKeyActiveBackup } from "../core/store.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { RouterGroup } from "../tools/router/group.ts";
+import { StoreKeyActiveBackup } from "../core/store.ts";
 
 export function bindHealthApi(app: App, rg: RouterGroup<RequestEvent>): void {
   const subGroup = rg.group("/health");
@@ -33,12 +33,7 @@ export function healthCheck(app: App, event: RequestEvent): Response {
 }
 
 function findPossibleProxyHeader(app: App, event: RequestEvent): string {
-  const headersToCheck = [
-    ...app.settings().trustedProxy.headers,
-    "CF-Connecting-IP",
-    "Fly-Client-IP",
-    "X-Forwarded-For",
-  ];
+  const headersToCheck = [...app.settings().trustedProxy.headers, "CF-Connecting-IP", "Fly-Client-IP", "X-Forwarded-For"];
 
   for (const header of headersToCheck) {
     if (event.request.headers.get(header)) {

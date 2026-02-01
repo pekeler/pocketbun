@@ -1,16 +1,12 @@
 // Ported from pocketbase/core/field_text_test.go
 
 import { describe, expect, it } from "bun:test";
-import { TextField, FieldTypeText, autogenerateModifier } from "./field_text.ts";
-import { NewBaseCollection } from "./collection.ts";
-import { NewRecord } from "./record.ts";
 import { newTestApp } from "../../tests/test_app.ts";
-import {
-  testDefaultFieldIdValidation,
-  testDefaultFieldNameValidation,
-  testFieldBaseMethods,
-} from "./field_test.ts";
 import { testValidationErrors } from "../../tests/validation_errors.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
+import { TextField, FieldTypeText, autogenerateModifier } from "./field_text.ts";
+import { NewRecord } from "./record.ts";
 
 describe("text field", () => {
   it("base methods", () => {
@@ -433,8 +429,7 @@ describe("text field", () => {
         },
         {
           name: "invalid pattern",
-          build: () =>
-            Object.assign(new TextField(), { Id: "test2", Name: "id", Pattern: "(invalid" }),
+          build: () => Object.assign(new TextField(), { Id: "test2", Name: "id", Pattern: "(invalid" }),
           expectErrors: ["pattern"],
         },
         {

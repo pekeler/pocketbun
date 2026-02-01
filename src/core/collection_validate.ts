@@ -1,6 +1,12 @@
 // Ported from pocketbase/core/collection_validate.go
 
 import type { App } from "./app.ts";
+import type { RequestInfo } from "./event_request.ts";
+import { ValidationErrors, ErrRequired, newError } from "../internal/compat/validation.ts";
+import { parseIndex, findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
+import { existInSlice } from "../tools/list/list.ts";
+import { buildFilterExpr } from "../tools/search/filter.ts";
+import { DefaultFilterExprLimit } from "../tools/search/types.ts";
 import {
   Collection,
   CollectionTypeAuth,
@@ -9,11 +15,7 @@ import {
   NewCollection,
   parseCollectionFields,
 } from "./collection.ts";
-import { FieldsList } from "./fields_list.ts";
-import { TextField } from "./field_text.ts";
-import { PasswordField } from "./field_password.ts";
-import { EmailField } from "./field_email.ts";
-import { BoolField } from "./field_bool.ts";
+import { DefaultIdRegex } from "./db.ts";
 import {
   ErrMustBeSystem,
   ErrMustBeSystemAndHidden,
@@ -24,26 +26,20 @@ import {
   FieldNameTokenKey,
   FieldNameVerified,
 } from "./field.ts";
-import { ErrUnsupportedValueType, joinValidationErrors } from "./validators/index.ts";
-import { Equal } from "./validators/equal.ts";
-import { UniqueId } from "./validators/db.ts";
-import { ValidationErrors, ErrRequired, newError } from "../internal/compat/validation.ts";
-import { existInSlice } from "../tools/list/list.ts";
-import { parseIndex, findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
-import { buildFilterExpr } from "../tools/search/filter.ts";
-import { DefaultFilterExprLimit } from "../tools/search/types.ts";
+import { BoolField } from "./field_bool.ts";
+import { EmailField } from "./field_email.ts";
+import { PasswordField } from "./field_password.ts";
+import { TextField } from "./field_text.ts";
+import { FieldsList } from "./fields_list.ts";
 import { RecordFieldResolver } from "./record_field_resolver.ts";
-import type { RequestInfo } from "./event_request.ts";
-import { DefaultIdRegex } from "./db.ts";
+import { UniqueId } from "./validators/db.ts";
+import { Equal } from "./validators/equal.ts";
+import { ErrUnsupportedValueType, joinValidationErrors } from "./validators/index.ts";
 
 const collectionNameRegex = /^\w+$/;
 const reservedAuthKeys = ["passwordConfirm", "oldPassword"];
 
-export function validateCollection(
-  app: App,
-  collection: Collection,
-  original: Collection | null,
-): Error | null {
+export function validateCollection(app: App, collection: Collection, original: Collection | null): Error | null {
   const validator = new CollectionValidator(app, collection, original);
   return validator.run();
 }
@@ -290,10 +286,7 @@ class CollectionValidator {
       if (authsEnabled < 2) {
         return new ValidationErrors({
           mfa: new ValidationErrors({
-            enabled: newError(
-              "validation_mfa_not_enough_auths",
-              "MFA requires at least 2 auth methods to be enabled.",
-            ),
+            enabled: newError("validation_mfa_not_enough_auths", "MFA requires at least 2 auth methods to be enabled."),
           }),
         });
       }
@@ -425,10 +418,7 @@ class CollectionValidator {
     return this.checkFieldValidators(fields);
   }
 
-  private checkCreateUpdateDeleteRule(
-    rule: string | null,
-    originalRule: string | null,
-  ): Error | null {
+  private checkCreateUpdateDeleteRule(rule: string | null, originalRule: string | null): Error | null {
     if (this.#next.IsView()) {
       if (rule == null) {
         return null;
@@ -463,28 +453,15 @@ class CollectionValidator {
 
   private checkUniqueName(value: string): Error | null {
     if (!this.#app.IsCollectionNameUnique(value, this.#original.id)) {
-      return newError(
-        "validation_collection_name_exists",
-        "Collection name must be unique (case insensitive).",
-      );
+      return newError("validation_collection_name_exists", "Collection name must be unique (case insensitive).");
     }
 
     if (this.#app.findCollectionById(value)) {
-      return newError(
-        "validation_collection_name_id_duplicate",
-        "The name must not match an existing collection id.",
-      );
+      return newError("validation_collection_name_id_duplicate", "The name must not match an existing collection id.");
     }
 
-    if (
-      this.#original.name !== value &&
-      this.#app.IsCollectionNameUnique(value) &&
-      this.#app.HasTable(value)
-    ) {
-      return newError(
-        "validation_collection_name_invalid",
-        "The name shouldn't match with an existing internal table.",
-      );
+    if (this.#original.name !== value && this.#app.IsCollectionNameUnique(value) && this.#app.HasTable(value)) {
+      return newError("validation_collection_name_invalid", "The name shouldn't match with an existing internal table.");
     }
 
     return null;
@@ -492,10 +469,7 @@ class CollectionValidator {
 
   private ensureNoSystemNameChange(value: string): Error | null {
     if (!this.#original.IsNew() && this.#original.system && value !== this.#original.name) {
-      return newError(
-        "validation_collection_system_name_change",
-        "System collection name cannot be changed.",
-      );
+      return newError("validation_collection_system_name_change", "System collection name cannot be changed.");
     }
 
     return null;
@@ -507,10 +481,7 @@ class CollectionValidator {
     }
 
     if (!this.#original.IsNew() && value !== this.#original.system) {
-      return newError(
-        "validation_collection_system_flag_change",
-        "System collection state cannot be changed.",
-      );
+      return newError("validation_collection_system_flag_change", "System collection state cannot be changed.");
     }
 
     return null;
@@ -554,10 +525,7 @@ class CollectionValidator {
       if (existInSlice(field.GetId(), ids)) {
         return new ValidationErrors({
           [String(i)]: new ValidationErrors({
-            id: newError(
-              "validation_duplicated_field_id",
-              `Duplicated or invalid field id ${JSON.stringify(field.GetId())}`,
-            ),
+            id: newError("validation_duplicated_field_id", `Duplicated or invalid field id ${JSON.stringify(field.GetId())}`),
           }),
         });
       }
@@ -566,10 +534,9 @@ class CollectionValidator {
       if (existInSlice(nameLower, names)) {
         return new ValidationErrors({
           [String(i)]: new ValidationErrors({
-            name: newError(
-              "validation_duplicated_field_name",
-              "Duplicated or invalid field name {{.fieldName}}",
-            ).setParams({ fieldName: field.GetName() }),
+            name: newError("validation_duplicated_field_name", "Duplicated or invalid field name {{.fieldName}}").setParams({
+              fieldName: field.GetName(),
+            }),
           }),
         });
       }
@@ -625,10 +592,7 @@ class CollectionValidator {
       }
       if (existInSlice(field.GetName(), reservedAuthKeys)) {
         errs[String(i)] = new ValidationErrors({
-          name: newError(
-            "validation_reserved_field_name",
-            "The field name is reserved and cannot be used.",
-          ),
+          name: newError("validation_reserved_field_name", "The field name is reserved and cannot be used."),
         });
       }
     }
@@ -652,10 +616,7 @@ class CollectionValidator {
 
     const passwordField = value.GetByName(FieldNamePassword);
     if (!(passwordField instanceof PasswordField)) {
-      return newError(
-        "validation_missing_password_field",
-        'System "password" field is required.',
-      );
+      return newError("validation_missing_password_field", 'System "password" field is required.');
     }
     if (!passwordField.Hidden || !passwordField.System) {
       return new ValidationErrors({ [FieldNamePassword]: ErrMustBeSystemAndHidden });
@@ -663,10 +624,7 @@ class CollectionValidator {
 
     const tokenKeyField = value.GetByName(FieldNameTokenKey);
     if (!(tokenKeyField instanceof TextField)) {
-      return newError(
-        "validation_missing_tokenKey_field",
-        'System "tokenKey" field is required.',
-      );
+      return newError("validation_missing_tokenKey_field", 'System "tokenKey" field is required.');
     }
     if (!tokenKeyField.Hidden || !tokenKeyField.System) {
       return new ValidationErrors({ [FieldNameTokenKey]: ErrMustBeSystemAndHidden });
@@ -682,10 +640,7 @@ class CollectionValidator {
 
     const visibilityField = value.GetByName(FieldNameEmailVisibility);
     if (!(visibilityField instanceof BoolField)) {
-      return newError(
-        "validation_missing_emailVisibility_field",
-        'System "emailVisibility" field is required.',
-      );
+      return newError("validation_missing_emailVisibility_field", 'System "emailVisibility" field is required.');
     }
     if (!visibilityField.System) {
       return new ValidationErrors({ [FieldNameEmailVisibility]: ErrMustBeSystem });
@@ -693,10 +648,7 @@ class CollectionValidator {
 
     const verifiedField = value.GetByName(FieldNameVerified);
     if (!(verifiedField instanceof BoolField)) {
-      return newError(
-        "validation_missing_verified_field",
-        'System "verified" field is required.',
-      );
+      return newError("validation_missing_verified_field", 'System "verified" field is required.');
     }
     if (!verifiedField.System) {
       return new ValidationErrors({ [FieldNameVerified]: ErrMustBeSystem });
@@ -717,10 +669,7 @@ class CollectionValidator {
 
       const newField = value.GetById(oldField.GetId());
       if (!newField || newField.GetName() !== oldField.GetName()) {
-        return newError(
-          "validation_system_field_change",
-          "System fields cannot be deleted or renamed.",
-        );
+        return newError("validation_system_field_change", "System fields cannot be deleted or renamed.");
       }
     }
 
@@ -735,9 +684,9 @@ class CollectionValidator {
     for (const name of names) {
       const field = this.#next.Fields.GetByName(name);
       if (!field) {
-        return newError("validation_missing_field", "Invalid or missing field {{.fieldName}}").setParams(
-          { fieldName: name },
-        );
+        return newError("validation_missing_field", "Invalid or missing field {{.fieldName}}").setParams({
+          fieldName: name,
+        });
       }
 
       const [, ok] = findSingleColumnUniqueIndex(this.#next.indexes ?? [], name);
@@ -798,10 +747,7 @@ class CollectionValidator {
         return null;
       }
 
-      return newError(
-        "validation_collection_system_rule_change",
-        "System collection API rule cannot be changed.",
-      );
+      return newError("validation_collection_system_rule_change", "System collection API rule cannot be changed.");
     };
   }
 
@@ -852,10 +798,7 @@ class CollectionValidator {
       const parsedDef = parsed.build();
       if (duplicatedDefinitions.has(parsedDef)) {
         return new ValidationErrors({
-          [String(i)]: newError(
-            "validation_duplicated_index_definition",
-            "The index definition already exists.",
-          ),
+          [String(i)]: newError("validation_duplicated_index_definition", "The index definition already exists."),
         });
       }
       duplicatedDefinitions.set(parsedDef, true);

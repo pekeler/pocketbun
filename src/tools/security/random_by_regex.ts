@@ -338,10 +338,7 @@ class Parser {
   }
 }
 
-function invertRanges(
-  ranges: Array<[number, number]>,
-  base: Array<[number, number]>,
-): Array<[number, number]> {
+function invertRanges(ranges: Array<[number, number]>, base: Array<[number, number]>): Array<[number, number]> {
   if (ranges.length === 0) {
     return base.map((pair) => [...pair] as [number, number]);
   }

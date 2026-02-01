@@ -1,18 +1,18 @@
 // Ported from pocketbase/core/view.go (view helpers and query-to-fields parsing).
 
-import { Tokenizer } from "../tools/tokenizer/tokenizer.ts";
-import { pseudorandomString } from "../tools/security/random.ts";
 import type { App } from "./app.ts";
-import { Collection, collectionFromRow } from "./collection.ts";
 import type { CollectionRow } from "./collection.ts";
-import { FieldsList, NewFieldsList } from "./fields_list.ts";
 import type { Field } from "./field.ts";
+import { pseudorandomString } from "../tools/security/random.ts";
+import { Tokenizer } from "../tools/tokenizer/tokenizer.ts";
+import { Collection, collectionFromRow } from "./collection.ts";
 import { FieldNameId } from "./field.ts";
+import { BoolField } from "./field_bool.ts";
 import { JSONField } from "./field_json.ts";
 import { NumberField } from "./field_number.ts";
-import { TextField } from "./field_text.ts";
-import { BoolField } from "./field_bool.ts";
 import { RelationField } from "./field_relation.ts";
+import { TextField } from "./field_text.ts";
+import { FieldsList, NewFieldsList } from "./fields_list.ts";
 
 export function DeleteView(app: App, name: string): Error | null {
   try {
@@ -77,9 +77,7 @@ export function CreateViewFields(app: App, selectQuery: string): FieldsList {
     }
 
     if (!hasId) {
-      return new Error(
-        "missing required id column (you can use `(ROW_NUMBER() OVER()) as id` if you don't have one)",
-      );
+      return new Error("missing required id column (you can use `(ROW_NUMBER() OVER()) as id` if you don't have one)");
     }
 
     return null;
@@ -175,11 +173,15 @@ function parseQueryToFields(app: App, selectQuery: string): Map<string, QueryFie
       collection = collections.get(parts[0] ?? "") ?? null;
     } else {
       fieldName = parts[0] ?? "";
-      collection = mainTable ? collections.get(mainTable.alias) ?? null : null;
+      collection = mainTable ? (collections.get(mainTable.alias) ?? null) : null;
     }
 
     if (!collection) {
-      result.set(col.alias, { field: defaultViewField(col.alias), collection: null, original: null });
+      result.set(col.alias, {
+        field: defaultViewField(col.alias),
+        collection: null,
+        original: null,
+      });
       continue;
     }
 
@@ -299,7 +301,8 @@ function getQueryTableInfo(app: App, selectQuery: string) {
   return info;
 }
 
-const joinReplaceRegex = /\s+(full\s+outer\s+join|left\s+outer\s+join|right\s+outer\s+join|full\s+join|cross\s+join|inner\s+join|outer\s+join|left\s+join|right\s+join|join)\s+?/gim;
+const joinReplaceRegex =
+  /\s+(full\s+outer\s+join|left\s+outer\s+join|right\s+outer\s+join|full\s+join|cross\s+join|inner\s+join|outer\s+join|left\s+join|right\s+join|join)\s+?/gim;
 const discardReplaceRegex = /\s+(where|group\s+by|having|order|limit|with)\s+?/gim;
 const commentsReplaceRegex = /\/\*[\s\S]*?\*\/|--.+$/gm;
 
@@ -427,7 +430,7 @@ function identifierFromParts(parts: string[]): Identifier {
 }
 
 function trimRawIdentifier(rawIdentifier: string, extraTrimChars = ""): string {
-  let trimChars = "`\"[];";
+  let trimChars = '`"[];';
   if (extraTrimChars) {
     trimChars += extraTrimChars;
   }

@@ -1,16 +1,12 @@
 // Ported from pocketbase/core/field_url_test.go
 
 import { describe, expect, it } from "bun:test";
-import { URLField, FieldTypeURL } from "./field_url.ts";
-import { NewBaseCollection } from "./collection.ts";
-import { NewRecord } from "./record.ts";
 import { newTestApp } from "../../tests/test_app.ts";
 import { testValidationErrors } from "../../tests/validation_errors.ts";
-import {
-  testDefaultFieldIdValidation,
-  testDefaultFieldNameValidation,
-  testFieldBaseMethods,
-} from "./field_test.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
+import { URLField, FieldTypeURL } from "./field_url.ts";
+import { NewRecord } from "./record.ts";
 
 describe("url field", () => {
   it("base methods", () => {

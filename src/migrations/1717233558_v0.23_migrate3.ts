@@ -17,9 +17,7 @@ function up(app: App): void {
   const placeholders = names.map(() => "?").join(",");
 
   const rows = db
-    .query(
-      `select id, name, type, ${fieldsColumn} as fields from _collections where name in (${placeholders})`,
-    )
+    .query(`select id, name, type, ${fieldsColumn} as fields from _collections where name in (${placeholders})`)
     .all(...names) as Array<{ id: string; name: string; type: string; fields: string }>;
 
   for (const row of rows) {
@@ -65,20 +63,12 @@ function up(app: App): void {
       if (!hasTable(db, table)) {
         continue;
       }
-      db.query(`update ${table} set collectionRef = ? where collectionRef = ?`).run(
-        row.id,
-        originalId,
-      );
+      db.query(`update ${table} set collectionRef = ? where collectionRef = ?`).run(row.id, originalId);
     }
   }
 }
 
-function updateRelationReferences(
-  db: Database,
-  fieldsColumn: string,
-  originalId: string,
-  newId: string,
-): void {
+function updateRelationReferences(db: Database, fieldsColumn: string, originalId: string, newId: string): void {
   const rows = db.query(`select id, ${fieldsColumn} as fields from _collections`).all() as Array<{
     id: string;
     fields: string;
@@ -103,10 +93,7 @@ function updateRelationReferences(
       continue;
     }
 
-    db.query(`update _collections set ${fieldsColumn} = ? where id = ?`).run(
-      JSON.stringify(fields),
-      row.id,
-    );
+    db.query(`update _collections set ${fieldsColumn} = ? where id = ?`).run(JSON.stringify(fields), row.id);
   }
 }
 
@@ -182,9 +169,9 @@ function hasColumn(db: Database, table: string, column: string): boolean {
 }
 
 function hasTable(db: Database, name: string): boolean {
-  const row = db
-    .query("select name from sqlite_master where type='table' and name = ?")
-    .get(name) as { name?: string } | undefined;
+  const row = db.query("select name from sqlite_master where type='table' and name = ?").get(name) as
+    | { name?: string }
+    | undefined;
   return Boolean(row?.name);
 }
 

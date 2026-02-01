@@ -3,10 +3,7 @@
 
 export const JSONPayloadKey = "@jsonPayload";
 
-export function unmarshalRequestData(
-  data: Record<string, string[]>,
-  dest: Record<string, unknown>,
-): Error | null {
+export function unmarshalRequestData(data: Record<string, string[]>, dest: Record<string, unknown>): Error | null {
   if (!data || Object.keys(data).length === 0) {
     return null;
   }
@@ -59,11 +56,7 @@ function inferValue(raw: string): unknown {
       return false;
     default: {
       const first = raw[0] ?? "";
-      if (
-        raw.length > 0 &&
-        (first === "-" || (first >= "0" && first <= "9")) &&
-        inferNumberCharsRegex.test(raw)
-      ) {
+      if (raw.length > 0 && (first === "-" || (first >= "0" && first <= "9")) && inferNumberCharsRegex.test(raw)) {
         const value = Number.parseFloat(raw);
         if (Number.isFinite(value) && String(value) === raw) {
           return value;

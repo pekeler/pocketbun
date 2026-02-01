@@ -70,10 +70,26 @@ describe("security crypto", () => {
 
   it("HS256", () => {
     const scenarios = [
-      { text: " ", secret: "test", expected: "9fb4e4a12d50728683a222b4fc466a69ee977332cfcdd6b9ebb44c7121dbd99f" },
-      { text: " ", secret: "test2", expected: "d792417a504716e22805d940125ec12e68e8cb18fc84674703bd96c59f1e1228" },
-      { text: "hello", secret: "test", expected: "f151ea24bda91a18e89b8bb5793ef324b2a02133cce15a28a719acbd2e58a986" },
-      { text: "hello", secret: "test2", expected: "16436e8dcbf3d7b5b0455573b27e6372699beb5bfe94e6a2a371b14b4ae068f4" },
+      {
+        text: " ",
+        secret: "test",
+        expected: "9fb4e4a12d50728683a222b4fc466a69ee977332cfcdd6b9ebb44c7121dbd99f",
+      },
+      {
+        text: " ",
+        secret: "test2",
+        expected: "d792417a504716e22805d940125ec12e68e8cb18fc84674703bd96c59f1e1228",
+      },
+      {
+        text: "hello",
+        secret: "test",
+        expected: "f151ea24bda91a18e89b8bb5793ef324b2a02133cce15a28a719acbd2e58a986",
+      },
+      {
+        text: "hello",
+        secret: "test2",
+        expected: "16436e8dcbf3d7b5b0455573b27e6372699beb5bfe94e6a2a371b14b4ae068f4",
+      },
     ];
 
     for (const scenario of scenarios) {

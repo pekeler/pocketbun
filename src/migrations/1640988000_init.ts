@@ -197,8 +197,7 @@ type CollectionInsert = {
 };
 
 function buildSystemCollections(): CollectionInsert[] {
-  const ownerRule =
-    "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
+  const ownerRule = "@request.auth.id != '' && recordRef = @request.auth.id && collectionRef = @request.auth.collectionId";
   const userRule = "id = @request.auth.id";
 
   const mfas = baseSystemCollection(
@@ -281,18 +280,8 @@ function buildSystemCollections(): CollectionInsert[] {
       autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
     ],
     [
-      buildIndex(
-        "idx_externalAuths_record_provider",
-        true,
-        "_externalAuths",
-        "collectionRef, recordRef, provider",
-      ),
-      buildIndex(
-        "idx_externalAuths_collection_provider",
-        true,
-        "_externalAuths",
-        "collectionRef, provider, providerId",
-      ),
+      buildIndex("idx_externalAuths_record_provider", true, "_externalAuths", "collectionRef, recordRef, provider"),
+      buildIndex("idx_externalAuths_collection_provider", true, "_externalAuths", "collectionRef, provider, providerId"),
     ],
   );
   externalAuths.listRule = ownerRule;
@@ -318,14 +307,7 @@ function buildSystemCollections(): CollectionInsert[] {
       autodateField("created", { system: true, onCreate: true, onUpdate: false }),
       autodateField("updated", { system: true, onCreate: true, onUpdate: true }),
     ],
-    [
-      buildIndex(
-        "idx_authOrigins_unique_pairs",
-        true,
-        "_authOrigins",
-        "collectionRef, recordRef, fingerprint",
-      ),
-    ],
+    [buildIndex("idx_authOrigins_unique_pairs", true, "_authOrigins", "collectionRef, recordRef, fingerprint")],
   );
   authOrigins.listRule = ownerRule;
   authOrigins.viewRule = ownerRule;
@@ -369,13 +351,7 @@ function buildSystemCollections(): CollectionInsert[] {
     ],
     [
       buildIndex(fieldIndexName("tokenKey", "pbc_3142635823"), true, "_superusers", "tokenKey"),
-      buildIndex(
-        fieldIndexName("email", "pbc_3142635823"),
-        true,
-        "_superusers",
-        "email",
-        "email != ''",
-      ),
+      buildIndex(fieldIndexName("email", "pbc_3142635823"), true, "_superusers", "email", "email != ''"),
     ],
   );
   superusers.options = defaultAuthOptions({ authTokenDuration: 86400 });
@@ -474,13 +450,7 @@ function fieldIndexName(field: string, collectionId: string): string {
   return name.length > 64 ? name.slice(0, 64) : name;
 }
 
-function buildIndex(
-  name: string,
-  unique: boolean,
-  table: string,
-  columns: string,
-  where?: string,
-): string {
+function buildIndex(name: string, unique: boolean, table: string, columns: string, where?: string): string {
   const uniqueClause = unique ? "UNIQUE " : "";
   const whereClause = where ? ` WHERE ${where}` : "";
   return `CREATE ${uniqueClause}INDEX \`${name}\` ON \`${table}\` (${columns})${whereClause}`;

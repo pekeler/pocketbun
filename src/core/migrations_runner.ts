@@ -108,9 +108,7 @@ export class MigrationsRunner {
 
     this.#app
       .db()
-      .query(
-        `create table if not exists ${this.#tableName} (file text primary key not null, applied integer not null)`,
-      )
+      .query(`create table if not exists ${this.#tableName} (file text primary key not null, applied integer not null)`)
       .run();
     this.#inited = true;
   }

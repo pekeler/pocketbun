@@ -23,10 +23,7 @@ describe("migrations", () => {
   });
 
   it("creates core system tables", () => {
-    const rows = app
-      .db()
-      .query("select name from sqlite_master where type='table'")
-      .all() as Array<{ name: string }>;
+    const rows = app.db().query("select name from sqlite_master where type='table'").all() as Array<{ name: string }>;
     const names = rows.map((row) => row.name);
 
     expect(names).toContain("_params");
@@ -41,20 +38,16 @@ describe("migrations", () => {
   });
 
   it("creates aux logs table", () => {
-    const rows = app
-      .auxDb()
-      .query("select name from sqlite_master where type='table'")
-      .all() as Array<{ name: string }>;
+    const rows = app.auxDb().query("select name from sqlite_master where type='table'").all() as Array<{ name: string }>;
     const names = rows.map((row) => row.name);
 
     expect(names).toContain("_logs");
   });
 
   it("records the init migration", () => {
-    const rows = app
-      .db()
-      .query("select file from _migrations where file = ?")
-      .all("1640988000_init.go") as Array<{ file: string }>;
+    const rows = app.db().query("select file from _migrations where file = ?").all("1640988000_init.go") as Array<{
+      file: string;
+    }>;
     expect(rows.length).toBe(1);
   });
 

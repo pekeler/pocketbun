@@ -237,9 +237,7 @@ describe("auth base provider", () => {
 
     const scopes = provider.Scopes() ?? [];
     if (config.Scopes.length !== scopes.length || config.Scopes[0] !== scopes[0]) {
-      throw new Error(
-        `Expected scopes ${JSON.stringify(scopes)}, got ${JSON.stringify(config.Scopes)}`,
-      );
+      throw new Error(`Expected scopes ${JSON.stringify(scopes)}, got ${JSON.stringify(config.Scopes)}`);
     }
   });
 });

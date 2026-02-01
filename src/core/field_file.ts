@@ -2,6 +2,13 @@
 
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
+import type { Record as RecordModel } from "./record.ts";
+import { toStringValue } from "../internal/compat/cast.ts";
+import { newError, ValidationErrors, ErrRequired } from "../internal/compat/validation.ts";
+import { File } from "../tools/filesystem/file.ts";
+import { NotFoundError, ThumbSizeRegex } from "../tools/filesystem/filesystem.ts";
+import { toInterfaceSlice, toUniqueStringSlice } from "../tools/list/list.ts";
+import { JSONArray } from "../tools/types/json_array.ts";
 import {
   Fields,
   type DriverValuer,
@@ -24,15 +31,8 @@ import {
   InterceptorActionCreateExecute,
   InterceptorActionUpdateExecute,
 } from "./field.ts";
-import { newError, ValidationErrors, ErrRequired } from "../internal/compat/validation.ts";
-import { toStringValue } from "../internal/compat/cast.ts";
-import { UploadedFileMimeType, UploadedFileSize } from "./validators/file.ts";
-import { File } from "../tools/filesystem/file.ts";
-import { NotFoundError, ThumbSizeRegex } from "../tools/filesystem/filesystem.ts";
-import { toInterfaceSlice, toUniqueStringSlice } from "../tools/list/list.ts";
-import { JSONArray } from "../tools/types/json_array.ts";
-import type { Record as RecordModel } from "./record.ts";
 import { internalCustomFieldKeyPrefix } from "./record.ts";
+import { UploadedFileMimeType, UploadedFileSize } from "./validators/file.ts";
 
 export const FieldTypeFile = "file";
 export const DefaultFileFieldMaxSize = 5 << 20;
@@ -43,14 +43,7 @@ const deletedFilesPrefix = `${internalCustomFieldKeyPrefix}_deletedFilesPrefix_`
 const uploadedFilesPrefix = `${internalCustomFieldKeyPrefix}_uploadedFilesPrefix_`;
 
 export class FileField
-  implements
-    Field,
-    MultiValuer,
-    DriverValuer,
-    GetterFinder,
-    SetterFinder,
-    RecordInterceptor,
-    MaxBodySizeCalculator
+  implements Field, MultiValuer, DriverValuer, GetterFinder, SetterFinder, RecordInterceptor, MaxBodySizeCalculator
 {
   Name = "";
   Id = "";
@@ -196,9 +189,9 @@ export class FileField
 
     const maxSelect = this.effectiveMaxSelect();
     if (files.length > maxSelect) {
-      return newError("validation_too_many_files", "The maximum allowed files is {{.maxSelect}}").setParams(
-        { maxSelect },
-      );
+      return newError("validation_too_many_files", "The maximum allowed files is {{.maxSelect}}").setParams({
+        maxSelect,
+      });
     }
 
     const uploads = this.extractUploadableFiles(files);
@@ -231,13 +224,7 @@ export class FileField
     return this.effectiveMaxSize() * this.effectiveMaxSelect();
   }
 
-  Intercept(
-    ctx: unknown,
-    app: App,
-    record: RecordLike,
-    actionName: string,
-    actionFunc: () => Error | null,
-  ): Error | null {
+  Intercept(ctx: unknown, app: App, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null {
     switch (actionName) {
       case InterceptorActionCreateExecute:
       case InterceptorActionUpdateExecute: {
@@ -269,13 +256,15 @@ export class FileField
 
         const [failedToDelete, deleteErr] = this.deleteNewlyUploadedFiles(ctx, app, record);
         if (deleteErr) {
-          app.Logger().Warn(
-            "Failed to cleanup all new files after record commit failure",
-            "error",
-            deleteErr,
-            "failedToDelete",
-            failedToDelete,
-          );
+          app
+            .Logger()
+            .Warn(
+              "Failed to cleanup all new files after record commit failure",
+              "error",
+              deleteErr,
+              "failedToDelete",
+              failedToDelete,
+            );
         }
 
         record.SetRaw(`${deletedFilesPrefix}${this.Name}`, null);
@@ -491,21 +480,18 @@ export class FileField
   private afterRecordExecuteFailure(ctx: unknown, app: App, record: RecordLike): Error | null {
     const uploaded = this.extractUploadableFiles(this.toSliceValue(record.GetRaw(this.Name)));
     const toDelete = uploaded.map((file) => file.Name);
-    const [failedToDelete, err] = this.deleteFilesByNamesList(
-      ctx,
-      app,
-      record,
-      Array.from(new Set(toDelete)),
-    );
+    const [failedToDelete, err] = this.deleteFilesByNamesList(ctx, app, record, Array.from(new Set(toDelete)));
 
     if (failedToDelete.length > 0) {
-      app.Logger().Warn(
-        "Failed to cleanup the new uploaded file after record db write failure",
-        "error",
-        err,
-        "failedToDelete",
-        failedToDelete,
-      );
+      app
+        .Logger()
+        .Warn(
+          "Failed to cleanup the new uploaded file after record db write failure",
+          "error",
+          err,
+          "failedToDelete",
+          failedToDelete,
+        );
     }
 
     return err;
@@ -542,12 +528,7 @@ export class FileField
     const diff = this.excludeFiles(old, current);
 
     const toDelete = diff.map((value) => this.getFileName(value));
-    const [failedToDelete, err] = this.deleteFilesByNamesList(
-      ctx,
-      app,
-      record,
-      Array.from(new Set(toDelete)),
-    );
+    const [failedToDelete, err] = this.deleteFilesByNamesList(ctx, app, record, Array.from(new Set(toDelete)));
 
     record.SetRaw(`${deletedFilesPrefix}${this.Name}`, failedToDelete);
     return err;
@@ -595,11 +576,7 @@ export class FileField
     return null;
   }
 
-  private deleteNewlyUploadedFiles(
-    ctx: unknown,
-    app: App,
-    record: RecordLike,
-  ): [string[], Error | null] {
+  private deleteNewlyUploadedFiles(ctx: unknown, app: App, record: RecordLike): [string[], Error | null] {
     const uploaded = (record.GetRaw(`${uploadedFilesPrefix}${this.Name}`) as File[]) ?? [];
     if (uploaded.length === 0) {
       return [[], null];
@@ -614,12 +591,7 @@ export class FileField
     return [failed, err];
   }
 
-  private deleteFilesByNamesList(
-    ctx: unknown,
-    app: App,
-    record: RecordLike,
-    filenames: string[],
-  ): [string[], Error | null] {
+  private deleteFilesByNamesList(ctx: unknown, app: App, record: RecordLike, filenames: string[]): [string[], Error | null] {
     if (filenames.length === 0) {
       return [[], null];
     }

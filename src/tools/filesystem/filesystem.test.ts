@@ -4,9 +4,9 @@ import { describe, expect, it } from "bun:test";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { NewFileFromPath } from "./file.ts";
+import { detectMimeTypeFromBytes } from "./file.ts";
 import { NewLocal, NotFoundError, metadataOriginalName, type Attributes } from "./filesystem.ts";
 import { createTestDir } from "./test_utils.ts";
-import { detectMimeTypeFromBytes } from "./file.ts";
 
 class ResponseRecorder {
   statusCode = 200;
@@ -179,10 +179,7 @@ describe("filesystem system", () => {
     try {
       const fsys = NewLocal(dir);
       const fileKey = "newdir/newkey.txt";
-      fsys.UploadMultipart(
-        { filename: "test", size: 4, buffer: new TextEncoder().encode("demo") },
-        fileKey,
-      );
+      fsys.UploadMultipart({ filename: "test", size: 4, buffer: new TextEncoder().encode("demo") }, fileKey);
 
       expect(fsys.Exists(fileKey)).toBe(true);
 
@@ -363,12 +360,7 @@ describe("filesystem system", () => {
         }
         const query = new URLSearchParams(scenario.query).toString();
         const url = query ? `/?${query}` : "/";
-        const err = fsys.Serve(
-          res,
-          { url, headers: {} },
-          scenario.path,
-          scenario.name,
-        );
+        const err = fsys.Serve(res, { url, headers: {} }, scenario.path, scenario.name);
 
         expect(Boolean(err)).toBe(scenario.expectError);
         if (scenario.expectError || !scenario.expected) {
@@ -523,12 +515,7 @@ describe("filesystem system", () => {
     try {
       const fsys = NewLocal(dir);
       const res = new ResponseRecorder();
-      const err = fsys.Serve(
-        res,
-        { url: "/", headers: { Range: "bytes=0-20, 25-30" } },
-        "image.png",
-        "image.png",
-      );
+      const err = fsys.Serve(res, { url: "/", headers: { Range: "bytes=0-20, 25-30" } }, "image.png", "image.png");
       expect(err).toBeNull();
       expect(res.statusCode).toBe(206);
       expect(res.header("Content-Type").startsWith("multipart/byteranges; boundary=")).toBe(true);
@@ -555,7 +542,12 @@ describe("filesystem system", () => {
         { file: "image.png", thumb: "thumb_WxHf", size: "100x100f", expectMime: "image/png" },
         { file: "image.jpg", thumb: "thumb.jpg", size: "100x100", expectMime: "image/jpeg" },
         { file: "image.webp", thumb: "thumb.webp", size: "100x100", expectMime: "image/png" },
-        { file: "image_noext", thumb: "image_noext.jpeg", size: "100x100", expectMime: "image/jpeg" },
+        {
+          file: "image_noext",
+          thumb: "image_noext.jpeg",
+          size: "100x100",
+          expectMime: "image/jpeg",
+        },
       ];
 
       for (const scenario of scenarios) {

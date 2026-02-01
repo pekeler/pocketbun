@@ -1,17 +1,13 @@
 // Ported from pocketbase/core/field_autodate_test.go
 
 import { describe, expect, it } from "bun:test";
-import { AutodateField, FieldTypeAutodate } from "./field_autodate.ts";
-import { NewBaseCollection } from "./collection.ts";
-import { NewRecord } from "./record.ts";
-import { NowDateTime, ParseDateTime } from "../tools/types/index.ts";
 import { newTestApp } from "../../tests/test_app.ts";
 import { testValidationErrors } from "../../tests/validation_errors.ts";
-import {
-  testDefaultFieldIdValidation,
-  testDefaultFieldNameValidation,
-  testFieldBaseMethods,
-} from "./field_test.ts";
+import { NowDateTime, ParseDateTime } from "../tools/types/index.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { AutodateField, FieldTypeAutodate } from "./field_autodate.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
+import { NewRecord } from "./record.ts";
 
 describe("autodate field", () => {
   it("base methods", () => {
@@ -117,14 +113,12 @@ describe("autodate field", () => {
         },
         {
           name: "with onCreate",
-          build: () =>
-            Object.assign(new AutodateField(), { Id: "test", Name: "test", OnCreate: true }),
+          build: () => Object.assign(new AutodateField(), { Id: "test", Name: "test", OnCreate: true }),
           expectErrors: [],
         },
         {
           name: "with onUpdate",
-          build: () =>
-            Object.assign(new AutodateField(), { Id: "test", Name: "test", OnUpdate: true }),
+          build: () => Object.assign(new AutodateField(), { Id: "test", Name: "test", OnUpdate: true }),
           expectErrors: [],
         },
         {

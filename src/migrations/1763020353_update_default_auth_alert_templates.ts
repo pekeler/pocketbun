@@ -55,10 +55,7 @@ function updateAuthAlertTemplate(app: App, from: string, to: string): void {
     authAlert.emailTemplate = emailTemplate;
     options.authAlert = authAlert;
 
-    db.query("update _collections set options = ? where id = ?").run(
-      JSON.stringify(options),
-      row.id,
-    );
+    db.query("update _collections set options = ? where id = ?").run(JSON.stringify(options), row.id);
   }
 }
 

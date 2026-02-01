@@ -2,14 +2,9 @@
 
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
-import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { toBoolValue } from "../internal/compat/cast.ts";
-import {
-  Fields,
-  type Field,
-  defaultFieldIdValidationRule,
-  defaultFieldNameValidationRule,
-} from "./field.ts";
+import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
+import { Fields, type Field, defaultFieldIdValidationRule, defaultFieldNameValidationRule } from "./field.ts";
 import { ErrUnsupportedValueType } from "./validators/validators.ts";
 
 export const FieldTypeBool = "bool";

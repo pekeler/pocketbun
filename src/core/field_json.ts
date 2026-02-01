@@ -3,6 +3,7 @@
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
 import { ErrRequired, ValidationErrors, newError } from "../internal/compat/validation.ts";
+import { JSONRaw } from "../tools/types/json_raw.ts";
 import {
   Fields,
   type Field,
@@ -12,7 +13,6 @@ import {
   maxSafeJSONInt,
 } from "./field.ts";
 import { ErrUnsupportedValueType } from "./validators/validators.ts";
-import { JSONRaw } from "../tools/types/json_raw.ts";
 
 export const FieldTypeJSON = "json";
 export const DefaultJSONFieldMaxSize = 1 << 20;
@@ -77,14 +77,7 @@ export class JSONField implements Field, MaxBodySizeCalculator {
         value = raw;
       } else {
         const first = raw[0];
-        if (
-          first &&
-          ((first >= "0" && first <= "9") ||
-            first === "-" ||
-            first === '"' ||
-            first === "[" ||
-            first === "{")
-        ) {
+        if (first && ((first >= "0" && first <= "9") || first === "-" || first === '"' || first === "[" || first === "{")) {
           if (isJson(raw)) {
             value = raw;
           } else {
@@ -107,10 +100,9 @@ export class JSONField implements Field, MaxBodySizeCalculator {
 
     const maxSize = this.CalculateMaxBodySize();
     if (raw.toString().length > maxSize) {
-      return newError(
-        "validation_json_size_limit",
-        "The maximum allowed JSON size is {{.maxSize}} bytes",
-      ).setParams({ maxSize });
+      return newError("validation_json_size_limit", "The maximum allowed JSON size is {{.maxSize}} bytes").setParams({
+        maxSize,
+      });
     }
 
     if (!isJson(raw.toString())) {

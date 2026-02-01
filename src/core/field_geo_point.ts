@@ -4,12 +4,7 @@ import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
 import { ValidationErrors, ErrRequired, newError } from "../internal/compat/validation.ts";
 import { GeoPoint } from "../tools/types/index.ts";
-import {
-  Fields,
-  type Field,
-  defaultFieldIdValidationRule,
-  defaultFieldNameValidationRule,
-} from "./field.ts";
+import { Fields, type Field, defaultFieldIdValidationRule, defaultFieldNameValidationRule } from "./field.ts";
 import { ErrUnsupportedValueType } from "./validators/validators.ts";
 
 export const FieldTypeGeoPoint = "geoPoint";
@@ -82,17 +77,11 @@ export class GeoPointField implements Field {
     }
 
     if (value.Lat < -90 || value.Lat > 90) {
-      return newError(
-        "validation_invalid_latitude",
-        "Latitude must be between -90 and 90 degrees.",
-      );
+      return newError("validation_invalid_latitude", "Latitude must be between -90 and 90 degrees.");
     }
 
     if (value.Lon < -180 || value.Lon > 180) {
-      return newError(
-        "validation_invalid_longitude",
-        "Longitude must be between -180 and 180 degrees.",
-      );
+      return newError("validation_invalid_longitude", "Longitude must be between -180 and 180 degrees.");
     }
 
     return null;

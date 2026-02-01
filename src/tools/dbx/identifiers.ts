@@ -141,14 +141,7 @@ export function rewriteDbxIdentifiers(sql: string): string {
   return result;
 }
 
-type QuoteMode =
-  | "none"
-  | "single"
-  | "double"
-  | "backtick"
-  | "bracket"
-  | "line_comment"
-  | "block_comment";
+type QuoteMode = "none" | "single" | "double" | "backtick" | "bracket" | "line_comment" | "block_comment";
 
 function quoteDbxIdentifier(value: string): string {
   const trimmed = value.trim();
@@ -175,10 +168,7 @@ function stripIdentifierQuotes(value: string): string {
   if (value.startsWith("[") && value.endsWith("]")) {
     return value.slice(1, -1);
   }
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("`") && value.endsWith("`"))
-  ) {
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("`") && value.endsWith("`"))) {
     return value.slice(1, -1);
   }
   return value;

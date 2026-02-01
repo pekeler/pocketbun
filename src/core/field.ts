@@ -1,9 +1,9 @@
 // Ported from pocketbase/core/field.go
 // Note: validation aggregation is simplified compared to ozzo-validation.
 
+import type { Collection } from "./collection.ts";
 import { newError } from "../internal/compat/validation.ts";
 import { ErrUnsupportedValueType } from "./validators/validators.ts";
-import type { Collection } from "./collection.ts";
 
 const fieldNameRegex = /^\w+$/;
 
@@ -19,11 +19,7 @@ export const FieldNameVerified = "verified";
 export const FieldNameTokenKey = "tokenKey";
 export const FieldNamePassword = "password";
 
-export const SystemDynamicFieldNames = [
-  FieldNameCollectionId,
-  FieldNameCollectionName,
-  FieldNameExpand,
-];
+export const SystemDynamicFieldNames = [FieldNameCollectionId, FieldNameCollectionName, FieldNameExpand];
 
 export const InterceptorActionValidate = "validate";
 export const InterceptorActionDelete = "delete";
@@ -39,27 +35,15 @@ export const InterceptorActionUpdateExecute = "updateExecute";
 export const InterceptorActionAfterUpdate = "afterUpdate";
 export const InterceptorActionAfterUpdateError = "afterUpdateError";
 
-const excludeFieldNames = new Set<string>([
-  "null",
-  "true",
-  "false",
-  "_rowid_",
-  ...SystemDynamicFieldNames,
-]);
+const excludeFieldNames = new Set<string>(["null", "true", "false", "_rowid_", ...SystemDynamicFieldNames]);
 
 export const ErrUnknownField = newError("validation_unknown_field", "Unknown or invalid field.");
-export const ErrInvalidFieldValue = newError(
-  "validation_invalid_field_value",
-  "Invalid field value.",
-);
+export const ErrInvalidFieldValue = newError("validation_invalid_field_value", "Invalid field value.");
 export const ErrMustBeSystemAndHidden = newError(
   "validation_must_be_system_and_hidden",
   'The field must be marked as "System" and "Hidden".',
 );
-export const ErrMustBeSystem = newError(
-  "validation_must_be_system",
-  'The field must be marked as "System".',
-);
+export const ErrMustBeSystem = newError("validation_must_be_system", 'The field must be marked as "System".');
 
 export type FieldFactoryFunc = () => Field;
 
@@ -105,13 +89,7 @@ export interface MultiValuer {
 }
 
 export interface RecordInterceptor {
-  Intercept(
-    ctx: unknown,
-    app: unknown,
-    record: RecordLike,
-    actionName: string,
-    actionFunc: () => Error | null,
-  ): Error | null;
+  Intercept(ctx: unknown, app: unknown, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null;
 }
 
 export type RecordLike = {

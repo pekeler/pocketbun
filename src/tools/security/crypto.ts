@@ -4,11 +4,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 export function S256Challenge(code: string): string {
   const digest = createHash("sha256").update(code).digest();
-  return digest
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
+  return digest.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
 export function MD5(text: string): string {

@@ -1,6 +1,9 @@
 // Ported from pocketbase/core/collection_validate_test.go
 
 import { describe, it } from "bun:test";
+import { newTestApp } from "../../tests/test_app.ts";
+import { testValidationErrors } from "../../tests/validation_errors.ts";
+import { CollectionNameAuthOrigins } from "./auth_origin_model.ts";
 import {
   Collection,
   CollectionNameSuperusers,
@@ -9,14 +12,11 @@ import {
   NewBaseCollection,
   NewViewCollection,
 } from "./collection.ts";
-import { CollectionNameAuthOrigins } from "./auth_origin_model.ts";
-import { TextField } from "./field_text.ts";
 import { BoolField } from "./field_bool.ts";
-import { PasswordField } from "./field_password.ts";
 import { EmailField } from "./field_email.ts";
+import { PasswordField } from "./field_password.ts";
+import { TextField } from "./field_text.ts";
 import { NewFieldsList } from "./fields_list.ts";
-import { newTestApp } from "../../tests/test_app.ts";
-import { testValidationErrors } from "../../tests/validation_errors.ts";
 
 describe("collection validate", () => {
   it("scenarios", async () => {
@@ -404,15 +404,7 @@ describe("collection validate", () => {
           c.AuthRule = "1 = 1";
           return c;
         },
-        expectedErrors: [
-          "listRule",
-          "viewRule",
-          "createRule",
-          "updateRule",
-          "deleteRule",
-          "manageRule",
-          "authRule",
-        ],
+        expectedErrors: ["listRule", "viewRule", "createRule", "updateRule", "deleteRule", "manageRule", "authRule"],
       },
       {
         name: "invalid index expression",
@@ -421,10 +413,7 @@ describe("collection validate", () => {
           if (!c) {
             throw new Error("Missing demo1 collection");
           }
-          c.indexes = [
-            "create index invalid",
-            "create index idx_test_demo2 on anything (text)",
-          ];
+          c.indexes = ["create index invalid", "create index idx_test_demo2 on anything (text)"];
           return c;
         },
         expectedErrors: ["indexes"],
@@ -451,10 +440,7 @@ describe("collection validate", () => {
           if (!c) {
             throw new Error("Missing demo1 collection");
           }
-          c.indexes = [
-            "create index idx_test_demo1 on demo1 (id)",
-            "create index idx_test_demo1 on anything (text)",
-          ];
+          c.indexes = ["create index idx_test_demo1 on demo1 (id)", "create index idx_test_demo1 on anything (text)"];
           return c;
         },
         expectedErrors: ["indexes"],
@@ -466,10 +452,7 @@ describe("collection validate", () => {
           if (!c) {
             throw new Error("Missing demo1 collection");
           }
-          c.indexes = [
-            "create index idx_test_demo1 on demo1 (id)",
-            "create index idx_test_demo2 on demo1 (id)",
-          ];
+          c.indexes = ["create index idx_test_demo1 on demo1 (id)", "create index idx_test_demo2 on demo1 (id)"];
           return c;
         },
         expectedErrors: ["indexes"],
@@ -493,10 +476,7 @@ describe("collection validate", () => {
           if (!c) {
             throw new Error("Missing demo1 collection");
           }
-          c.indexes = [
-            "create index idx_test_demo1 on demo1 (id)",
-            "create index idx_test_demo2 on anything (text)",
-          ];
+          c.indexes = ["create index idx_test_demo1 on demo1 (id)", "create index idx_test_demo2 on anything (text)"];
           return c;
         },
         expectedErrors: [],
@@ -541,10 +521,7 @@ describe("collection validate", () => {
         name: "auth collection with non-unique required indexes",
         collection: () => {
           const c = NewAuthCollection("new_auth");
-          c.indexes = [
-            "create index test_idx1 on new_auth (tokenKey)",
-            "create index test_idx2 on new_auth (email)",
-          ];
+          c.indexes = ["create index test_idx1 on new_auth (tokenKey)", "create index test_idx2 on new_auth (email)"];
           return c;
         },
         expectedErrors: ["indexes", "passwordAuth"],

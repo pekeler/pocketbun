@@ -2,11 +2,37 @@
 
 import "../migrations/index.ts";
 import "./fields_register.ts";
-
 import type { Database, SQLQueryBindings } from "bun:sqlite";
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import type { SqlExpr } from "../tools/search/types.ts";
 import type { App, Logger } from "./app.ts";
+import type { PostValidator, PreValidator } from "./db.ts";
+import type { RequestInfo } from "./event_request.ts";
+import type {
+  CollectionErrorEvent,
+  CollectionEvent,
+  CollectionRequestEvent,
+  CollectionsImportRequestEvent,
+  CollectionsListRequestEvent,
+  RecordErrorEvent,
+  RecordEvent,
+} from "./events.ts";
+import type { RecordProxy } from "./record_proxy.ts";
+import { ValidationErrors, newError } from "../internal/compat/validation.ts";
+import { findSingleColumnUniqueIndex, parseIndex } from "../tools/dbutils/index.ts";
+import { DbxDatabase } from "../tools/dbx/database.ts";
+import { NewLocal } from "../tools/filesystem/filesystem.ts";
+import { Hook } from "../tools/hook/hook.ts";
+import { NewTaggedHook } from "../tools/hook/tagged.ts";
+import { columnify } from "../tools/inflector/inflector.ts";
+import { buildFilterExpr } from "../tools/search/filter.ts";
+import { buildSortExpr, parseSortFromString } from "../tools/search/sort.ts";
+import { DefaultFilterExprLimit } from "../tools/search/types.ts";
+import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
+import { randomString } from "../tools/security/random.ts";
+import { DateTime, GeoPoint, JSONRaw, NowDateTime } from "../tools/types/index.ts";
+import { AuthOrigin, CollectionNameAuthOrigins, recordRefHooks } from "./auth_origin_model.ts";
 import {
   Collection,
   CollectionTypeAuth,
@@ -18,76 +44,8 @@ import {
   parseCollectionFields,
   type CollectionRow,
 } from "./collection.ts";
-import { FieldsList, NewFieldsList } from "./fields_list.ts";
-import { AppMigrations, MigrationsRunner, SystemMigrations } from "./migrations_runner.ts";
-import { MigrationsList } from "./migrations_list.ts";
-import {
-  TokenClaimCollectionId,
-  TokenClaimId,
-  TokenClaimType,
-  TokenTypeAuth,
-  TokenTypeEmailChange,
-  TokenTypeFile,
-  TokenTypePasswordReset,
-  TokenTypeVerification,
-} from "./record_tokens.ts";
-import {
-  FieldNameEmail,
-  FieldNamePassword,
-  Record as RecordModel,
-  type RecordData,
-} from "./record.ts";
-import type { RecordProxy } from "./record_proxy.ts";
-import type { SqlExpr } from "../tools/search/types.ts";
-import { Settings } from "./settings.ts";
-import { Store } from "./store.ts";
-import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
-import { DbxDatabase } from "../tools/dbx/database.ts";
-import { Hook } from "../tools/hook/hook.ts";
-import { NewTaggedHook } from "../tools/hook/tagged.ts";
-import { findSingleColumnUniqueIndex, parseIndex } from "../tools/dbutils/index.ts";
-import { RecordFieldResolver } from "./record_field_resolver.ts";
-import {
-  RecordQuery,
-  buildRecordFilterExpr,
-  combineSqlExprs,
-  type RecordQueryFilter,
-} from "./record_query.ts";
-import { AuthOrigin, CollectionNameAuthOrigins, recordRefHooks } from "./auth_origin_model.ts";
-import { buildFilterExpr } from "../tools/search/filter.ts";
-import { buildSortExpr, parseSortFromString } from "../tools/search/sort.ts";
-import { DefaultFilterExprLimit } from "../tools/search/types.ts";
-import { columnify } from "../tools/inflector/inflector.ts";
-import {
-  InterceptorActionAfterDelete,
-  InterceptorActionAfterDeleteError,
-  InterceptorActionAfterCreate,
-  InterceptorActionAfterCreateError,
-  InterceptorActionAfterUpdate,
-  InterceptorActionAfterUpdateError,
-  InterceptorActionDelete,
-  InterceptorActionDeleteExecute,
-  InterceptorActionCreate,
-  InterceptorActionCreateExecute,
-  InterceptorActionUpdate,
-  InterceptorActionUpdateExecute,
-  InterceptorActionValidate,
-} from "./field.ts";
-import { ValidationErrors, newError } from "../internal/compat/validation.ts";
-import type { PostValidator, PreValidator } from "./db.ts";
-import { DateTime, GeoPoint, JSONRaw, NowDateTime } from "../tools/types/index.ts";
-import { NewLocal } from "../tools/filesystem/filesystem.ts";
-import { randomString } from "../tools/security/random.ts";
-import type {
-  CollectionErrorEvent,
-  CollectionEvent,
-  CollectionRequestEvent,
-  CollectionsImportRequestEvent,
-  CollectionsListRequestEvent,
-  RecordErrorEvent,
-  RecordEvent,
-} from "./events.ts";
-import type { RequestInfo } from "./event_request.ts";
+import { validateCollection } from "./collection_validate.ts";
+import { TableInfo } from "./db_table.ts";
 import {
   ModelErrorEvent,
   ModelEvent,
@@ -108,8 +66,39 @@ import {
   syncRecordErrorEventWithModelErrorEvent,
   syncRecordEventWithModelEvent,
 } from "./events.ts";
-import { validateCollection } from "./collection_validate.ts";
-import { TableInfo } from "./db_table.ts";
+import {
+  InterceptorActionAfterDelete,
+  InterceptorActionAfterDeleteError,
+  InterceptorActionAfterCreate,
+  InterceptorActionAfterCreateError,
+  InterceptorActionAfterUpdate,
+  InterceptorActionAfterUpdateError,
+  InterceptorActionDelete,
+  InterceptorActionDeleteExecute,
+  InterceptorActionCreate,
+  InterceptorActionCreateExecute,
+  InterceptorActionUpdate,
+  InterceptorActionUpdateExecute,
+  InterceptorActionValidate,
+} from "./field.ts";
+import { FieldsList, NewFieldsList } from "./fields_list.ts";
+import { MigrationsList } from "./migrations_list.ts";
+import { AppMigrations, MigrationsRunner, SystemMigrations } from "./migrations_runner.ts";
+import { FieldNameEmail, FieldNamePassword, Record as RecordModel, type RecordData } from "./record.ts";
+import { RecordFieldResolver } from "./record_field_resolver.ts";
+import { RecordQuery, buildRecordFilterExpr, combineSqlExprs, type RecordQueryFilter } from "./record_query.ts";
+import {
+  TokenClaimCollectionId,
+  TokenClaimId,
+  TokenClaimType,
+  TokenTypeAuth,
+  TokenTypeEmailChange,
+  TokenTypeFile,
+  TokenTypePasswordReset,
+  TokenTypeVerification,
+} from "./record_tokens.ts";
+import { Settings } from "./settings.ts";
+import { Store } from "./store.ts";
 import { CreateViewFields, DeleteView, SaveView } from "./view.ts";
 
 export type BaseAppConfig = {
@@ -346,9 +335,7 @@ export class BaseApp implements App {
     return NewTaggedHook(this.#onRecordAfterCreateSuccess, ...tags);
   }
 
-  OnRecordAfterCreateError(
-    tags: string[] = [],
-  ): ReturnType<typeof NewTaggedHook<RecordErrorEvent>> {
+  OnRecordAfterCreateError(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordErrorEvent>> {
     return NewTaggedHook(this.#onRecordAfterCreateError, ...tags);
   }
 
@@ -364,9 +351,7 @@ export class BaseApp implements App {
     return NewTaggedHook(this.#onRecordAfterUpdateSuccess, ...tags);
   }
 
-  OnRecordAfterUpdateError(
-    tags: string[] = [],
-  ): ReturnType<typeof NewTaggedHook<RecordErrorEvent>> {
+  OnRecordAfterUpdateError(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordErrorEvent>> {
     return NewTaggedHook(this.#onRecordAfterUpdateError, ...tags);
   }
 
@@ -382,9 +367,7 @@ export class BaseApp implements App {
     return NewTaggedHook(this.#onRecordAfterDeleteSuccess, ...tags);
   }
 
-  OnRecordAfterDeleteError(
-    tags: string[] = [],
-  ): ReturnType<typeof NewTaggedHook<RecordErrorEvent>> {
+  OnRecordAfterDeleteError(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordErrorEvent>> {
     return NewTaggedHook(this.#onRecordAfterDeleteError, ...tags);
   }
 
@@ -396,21 +379,15 @@ export class BaseApp implements App {
     return NewTaggedHook(this.#onCollectionCreate, ...tags);
   }
 
-  OnCollectionCreateExecute(
-    tags: string[] = [],
-  ): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+  OnCollectionCreateExecute(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
     return NewTaggedHook(this.#onCollectionCreateExecute, ...tags);
   }
 
-  OnCollectionAfterCreateSuccess(
-    tags: string[] = [],
-  ): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+  OnCollectionAfterCreateSuccess(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
     return NewTaggedHook(this.#onCollectionAfterCreateSuccess, ...tags);
   }
 
-  OnCollectionAfterCreateError(
-    tags: string[] = [],
-  ): ReturnType<typeof NewTaggedHook<CollectionErrorEvent>> {
+  OnCollectionAfterCreateError(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionErrorEvent>> {
     return NewTaggedHook(this.#onCollectionAfterCreateError, ...tags);
   }
 
@@ -418,21 +395,15 @@ export class BaseApp implements App {
     return NewTaggedHook(this.#onCollectionUpdate, ...tags);
   }
 
-  OnCollectionUpdateExecute(
-    tags: string[] = [],
-  ): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+  OnCollectionUpdateExecute(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
     return NewTaggedHook(this.#onCollectionUpdateExecute, ...tags);
   }
 
-  OnCollectionAfterUpdateSuccess(
-    tags: string[] = [],
-  ): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+  OnCollectionAfterUpdateSuccess(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
     return NewTaggedHook(this.#onCollectionAfterUpdateSuccess, ...tags);
   }
 
-  OnCollectionAfterUpdateError(
-    tags: string[] = [],
-  ): ReturnType<typeof NewTaggedHook<CollectionErrorEvent>> {
+  OnCollectionAfterUpdateError(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionErrorEvent>> {
     return NewTaggedHook(this.#onCollectionAfterUpdateError, ...tags);
   }
 
@@ -440,21 +411,15 @@ export class BaseApp implements App {
     return NewTaggedHook(this.#onCollectionDelete, ...tags);
   }
 
-  OnCollectionDeleteExecute(
-    tags: string[] = [],
-  ): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+  OnCollectionDeleteExecute(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
     return NewTaggedHook(this.#onCollectionDeleteExecute, ...tags);
   }
 
-  OnCollectionAfterDeleteSuccess(
-    tags: string[] = [],
-  ): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
+  OnCollectionAfterDeleteSuccess(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
     return NewTaggedHook(this.#onCollectionAfterDeleteSuccess, ...tags);
   }
 
-  OnCollectionAfterDeleteError(
-    tags: string[] = [],
-  ): ReturnType<typeof NewTaggedHook<CollectionErrorEvent>> {
+  OnCollectionAfterDeleteError(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionErrorEvent>> {
     return NewTaggedHook(this.#onCollectionAfterDeleteError, ...tags);
   }
 
@@ -509,9 +474,7 @@ export class BaseApp implements App {
 
   auxHasTable(name: string): boolean {
     const row = this.auxDb()
-      .query(
-        "select name from sqlite_master where type in ('table','view') and lower(name) = lower(?)",
-      )
+      .query("select name from sqlite_master where type in ('table','view') and lower(name) = lower(?)")
       .get(name) as { name?: string } | undefined;
     return Boolean(row?.name);
   }
@@ -533,9 +496,7 @@ export class BaseApp implements App {
 
   reloadSettings(): void {
     try {
-      const row = this.db().query("select value from _params where id = 'settings'").get() as
-        | { value?: string }
-        | undefined;
+      const row = this.db().query("select value from _params where id = 'settings'").get() as { value?: string } | undefined;
       if (!row?.value || typeof row.value !== "string") {
         return;
       }
@@ -648,11 +609,7 @@ export class BaseApp implements App {
     return rows.map((row) => RecordModel.fromRow(collection, row));
   }
 
-  FindFirstRecordByData(
-    collectionModelOrIdentifier: Collection | string,
-    key: string,
-    value: unknown,
-  ): RecordModel {
+  FindFirstRecordByData(collectionModelOrIdentifier: Collection | string, key: string, value: unknown): RecordModel {
     const collection =
       typeof collectionModelOrIdentifier === "string"
         ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
@@ -744,14 +701,7 @@ export class BaseApp implements App {
     filter: string,
     ...params: Array<Record<string, unknown>>
   ): RecordModel {
-    const records = this.FindRecordsByFilter(
-      collectionModelOrIdentifier,
-      filter,
-      "",
-      1,
-      0,
-      ...params,
-    );
+    const records = this.FindRecordsByFilter(collectionModelOrIdentifier, filter, "", 1, 0, ...params);
     if (records.length === 0) {
       throw new Error("record not found");
     }
@@ -786,11 +736,7 @@ export class BaseApp implements App {
     return Number(row?.total ?? 0);
   }
 
-  CanAccessRecord(
-    record: RecordModel,
-    requestInfo: RequestInfo,
-    accessRule: string | null,
-  ): [boolean, Error | null] {
+  CanAccessRecord(record: RecordModel, requestInfo: RequestInfo, accessRule: string | null): [boolean, Error | null] {
     if (requestInfo.auth?.isSuperuser()) {
       return [true, null];
     }
@@ -836,18 +782,13 @@ export class BaseApp implements App {
     return this.findAuthRecordByToken(token, validTypes);
   }
 
-  FindAuthRecordByEmail(
-    collectionModelOrIdentifier: Collection | string,
-    email: string,
-  ): RecordModel {
+  FindAuthRecordByEmail(collectionModelOrIdentifier: Collection | string, email: string): RecordModel {
     const collection =
       typeof collectionModelOrIdentifier === "string"
         ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
         : collectionModelOrIdentifier;
     if (!collection) {
-      throw new Error(
-        "failed to fetch auth collection: unknown collection identifier - must be collection model, id or name",
-      );
+      throw new Error("failed to fetch auth collection: unknown collection identifier - must be collection model, id or name");
     }
 
     if (!collection.IsAuth()) {
@@ -886,10 +827,7 @@ export class BaseApp implements App {
   FindAllAuthOriginsByCollection(collection: Collection): AuthOrigin[] {
     const result: AuthOrigin[] = [new AuthOrigin()];
 
-    this.RecordQuery(CollectionNameAuthOrigins)
-      .AndWhere({ collectionRef: collection.id })
-      .OrderBy("created DESC")
-      .All(result);
+    this.RecordQuery(CollectionNameAuthOrigins).AndWhere({ collectionRef: collection.id }).OrderBy("created DESC").All(result);
 
     return result;
   }
@@ -951,8 +889,7 @@ export class BaseApp implements App {
 
     const claims = parseUnverifiedJWT(token);
     const id = typeof claims[TokenClaimId] === "string" ? claims[TokenClaimId] : "";
-    const collectionId =
-      typeof claims[TokenClaimCollectionId] === "string" ? claims[TokenClaimCollectionId] : "";
+    const collectionId = typeof claims[TokenClaimCollectionId] === "string" ? claims[TokenClaimCollectionId] : "";
     const tokenType = typeof claims[TokenClaimType] === "string" ? claims[TokenClaimType] : "";
 
     if (!id || !collectionId || !tokenType) {
@@ -1012,11 +949,7 @@ export class BaseApp implements App {
     return collectionFromRow(row);
   }
 
-  findRecordById(
-    collection: Collection,
-    id: string,
-    rule: SqlExpr | null = null,
-  ): RecordModel | null {
+  findRecordById(collection: Collection, id: string, rule: SqlExpr | null = null): RecordModel | null {
     const table = collection.name;
     if (!isSafeIdentifier(table)) {
       throw new Error(`unsafe table name ${table}`);
@@ -1075,19 +1008,11 @@ export class BaseApp implements App {
     if (recordInfo) {
       const { record, model: eventModel } = recordInfo;
       const isNew = record.IsNew();
-      const modelEvent = new ModelEvent(
-        this,
-        eventModel,
-        isNew ? ModelEventTypeCreate : ModelEventTypeUpdate,
-      );
+      const modelEvent = new ModelEvent(this, eventModel, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
       const action = isNew ? InterceptorActionCreate : InterceptorActionUpdate;
-      const executeAction = record.IsNew()
-        ? InterceptorActionCreateExecute
-        : InterceptorActionUpdateExecute;
+      const executeAction = record.IsNew() ? InterceptorActionCreateExecute : InterceptorActionUpdateExecute;
       const afterSuccess = isNew ? InterceptorActionAfterCreate : InterceptorActionAfterUpdate;
-      const afterError = isNew
-        ? InterceptorActionAfterCreateError
-        : InterceptorActionAfterUpdateError;
+      const afterError = isNew ? InterceptorActionAfterCreateError : InterceptorActionAfterUpdateError;
 
       const runPersist = () =>
         record.callFieldInterceptors(null, this, action, () => {
@@ -1096,25 +1021,16 @@ export class BaseApp implements App {
             return validateErr;
           }
 
-          return record.callFieldInterceptors(null, this, executeAction, () =>
-            this.persistRecord(record),
-          );
+          return record.callFieldInterceptors(null, this, executeAction, () => this.persistRecord(record));
         });
 
-      const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
-        modelEvent,
-        () =>
-          (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(
-            modelEvent,
-            runPersist,
-          ),
+      const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(modelEvent, () =>
+        (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, runPersist),
       ) as Error | null;
 
       if (saveErr) {
         const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
-        const afterErr = (
-          isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()
-        ).Trigger(errorEvent, () =>
+        const afterErr = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(errorEvent, () =>
           record.callFieldInterceptors(null, this, afterError, () => errorEvent.Error),
         ) as Error | null;
         return afterErr ?? errorEvent.Error;
@@ -1127,16 +1043,12 @@ export class BaseApp implements App {
               record.markNew(true);
             }
             const errorEvent = new ModelErrorEvent(modelEvent, txErr);
-            const result = (
-              isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()
-            ).Trigger(errorEvent, () =>
+            const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(errorEvent, () =>
               record.callFieldInterceptors(null, this, afterError, () => errorEvent.Error),
             ) as Error | null;
             return result ?? null;
           }
-          const result = (
-            isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()
-          ).Trigger(modelEvent, () =>
+          const result = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(modelEvent, () =>
             record.callFieldInterceptors(null, this, afterSuccess, () => null),
           ) as Error | null;
           return result ?? null;
@@ -1144,9 +1056,7 @@ export class BaseApp implements App {
         return null;
       }
 
-      const afterErr = (
-        isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()
-      ).Trigger(modelEvent, () =>
+      const afterErr = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(modelEvent, () =>
         record.callFieldInterceptors(null, this, afterSuccess, () => null),
       ) as Error | null;
       return afterErr ?? null;
@@ -1157,42 +1067,40 @@ export class BaseApp implements App {
     }
 
     const isNew = model.isNew();
-    const modelEvent = new ModelEvent(
-      this,
-      model,
-      isNew ? ModelEventTypeCreate : ModelEventTypeUpdate,
-    );
+    const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
     const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(modelEvent, () =>
-      (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () =>
-        this.saveCollection(model),
-      ),
+      (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () => this.saveCollection(model)),
     ) as Error | null;
     if (saveErr) {
       const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
-      const afterErr = (
-        isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()
-      ).Trigger(errorEvent, () => errorEvent.Error) as Error | null;
+      const afterErr = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+        errorEvent,
+        () => errorEvent.Error,
+      ) as Error | null;
       return afterErr ?? errorEvent.Error;
     }
     if (this.#txInfo) {
       this.#txInfo.OnComplete((txErr) => {
         if (txErr) {
           const errorEvent = new ModelErrorEvent(modelEvent, txErr);
-          const result = (
-            isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()
-          ).Trigger(errorEvent, () => errorEvent.Error) as Error | null;
+          const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+            errorEvent,
+            () => errorEvent.Error,
+          ) as Error | null;
           return result ?? null;
         }
-        const result = (
-          isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()
-        ).Trigger(modelEvent, () => null) as Error | null;
+        const result = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+          modelEvent,
+          () => null,
+        ) as Error | null;
         return result ?? null;
       });
       return null;
     }
-    const afterErr = (
-      isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()
-    ).Trigger(modelEvent, () => null) as Error | null;
+    const afterErr = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+      modelEvent,
+      () => null,
+    ) as Error | null;
     return afterErr ?? null;
   }
 
@@ -1289,34 +1197,22 @@ export class BaseApp implements App {
     ) as Error | null;
     if (deleteErr) {
       const errorEvent = new ModelErrorEvent(modelEvent, deleteErr);
-      const afterErr = this.OnModelAfterDeleteError().Trigger(
-        errorEvent,
-        () => errorEvent.Error,
-      ) as Error | null;
+      const afterErr = this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error) as Error | null;
       return afterErr ?? errorEvent.Error;
     }
     if (this.#txInfo) {
       this.#txInfo.OnComplete((txErr) => {
         if (txErr) {
           const errorEvent = new ModelErrorEvent(modelEvent, txErr);
-          const result = this.OnModelAfterDeleteError().Trigger(
-            errorEvent,
-            () => errorEvent.Error,
-          ) as Error | null;
+          const result = this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error) as Error | null;
           return result ?? null;
         }
-        const result = this.OnModelAfterDeleteSuccess().Trigger(
-          modelEvent,
-          () => null,
-        ) as Error | null;
+        const result = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null) as Error | null;
         return result ?? null;
       });
       return null;
     }
-    const afterErr = this.OnModelAfterDeleteSuccess().Trigger(
-      modelEvent,
-      () => null,
-    ) as Error | null;
+    const afterErr = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null) as Error | null;
     return afterErr ?? null;
   }
 
@@ -1364,10 +1260,7 @@ export class BaseApp implements App {
     return null;
   }
 
-  ImportCollections(
-    toImport: Array<Record<string, unknown>>,
-    deleteMissing: boolean,
-  ): Error | null {
+  ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Error | null {
     return this.RunInTransaction((txApp) => {
       const names = new Set<string>();
       for (const data of toImport) {
@@ -1380,9 +1273,11 @@ export class BaseApp implements App {
       }
 
       if (deleteMissing) {
-        const existing = this.db()
-          .query("select id, name, system from _collections")
-          .all() as Array<{ id: string; name: string; system: number }>;
+        const existing = this.db().query("select id, name, system from _collections").all() as Array<{
+          id: string;
+          name: string;
+          system: number;
+        }>;
         for (const row of existing) {
           if (row.system) {
             continue;
@@ -1571,10 +1466,7 @@ export class BaseApp implements App {
     return validateCollection(this, collection, original);
   }
 
-  private syncRecordTableSchema(
-    newCollection: Collection,
-    oldCollection: Collection | null,
-  ): Error | null {
+  private syncRecordTableSchema(newCollection: Collection, oldCollection: Collection | null): Error | null {
     if (newCollection.isView()) {
       return null;
     }
@@ -1584,9 +1476,7 @@ export class BaseApp implements App {
       const hasOldTable = oldCollection ? (txApp as BaseApp).HasTable(oldCollection.name) : false;
 
       if (!hasOldTable) {
-        const columns = newCollection.Fields.map(
-          (field) => `"${field.GetName()}" ${field.ColumnType(txApp)}`,
-        );
+        const columns = newCollection.Fields.map((field) => `"${field.GetName()}" ${field.ColumnType(txApp)}`);
         db.run(`create table if not exists {{${newCollection.name}}} (${columns.join(", ")})`);
         return (txApp as BaseApp).createCollectionIndexes(newCollection);
       }
@@ -1604,8 +1494,7 @@ export class BaseApp implements App {
       const newIndexesJson = JSON.stringify(newCollection.indexes ?? []);
       const oldFieldsJson = JSON.stringify(oldFields.toJSON());
       const newFieldsJson = JSON.stringify(newFields.toJSON());
-      const needIndexesUpdate =
-        needTableRename || oldFieldsJson !== newFieldsJson || oldIndexesJson !== newIndexesJson;
+      const needIndexesUpdate = needTableRename || oldFieldsJson !== newFieldsJson || oldIndexesJson !== newIndexesJson;
 
       if (needIndexesUpdate && oldCollection) {
         const dropErr = (txApp as BaseApp).dropCollectionIndexes(oldCollection);
@@ -1626,15 +1515,11 @@ export class BaseApp implements App {
         if (!oldField) {
           const tempName = `${field.GetName()}${randomString(5)}`;
           toRename[tempName] = field.GetName();
-          db.run(
-            `alter table {{${newTableName}}} add column "${tempName}" ${field.ColumnType(txApp)}`,
-          );
+          db.run(`alter table {{${newTableName}}} add column "${tempName}" ${field.ColumnType(txApp)}`);
         } else if (oldField.GetName() !== field.GetName()) {
           const tempName = `${field.GetName()}${randomString(5)}`;
           toRename[tempName] = field.GetName();
-          db.run(
-            `alter table {{${newTableName}}} rename column "${oldField.GetName()}" to "${tempName}"`,
-          );
+          db.run(`alter table {{${newTableName}}} rename column "${oldField.GetName()}" to "${tempName}"`);
         }
       }
 
@@ -1669,19 +1554,13 @@ export class BaseApp implements App {
       parsed.tableName = collection.name;
 
       if (!parsed.isValid()) {
-        errors[String(i)] = newError(
-          "validation_invalid_index_expression",
-          "Invalid CREATE INDEX expression.",
-        );
+        errors[String(i)] = newError("validation_invalid_index_expression", "Invalid CREATE INDEX expression.");
         continue;
       }
 
       const sql = parsed.build();
       if (!sql) {
-        errors[String(i)] = newError(
-          "validation_invalid_index_expression",
-          "Invalid CREATE INDEX expression.",
-        );
+        errors[String(i)] = newError("validation_invalid_index_expression", "Invalid CREATE INDEX expression.");
         continue;
       }
 
@@ -2231,8 +2110,7 @@ export class BaseApp implements App {
         const record = e.Record;
         const isAuth = record?.collection().IsAuth() ?? false;
         // Deviation: capture the original hash before e.Next() because PostScan updates originals during save.
-        const oldHash =
-          isAuth && record ? record.Original().GetString(`${FieldNamePassword}:hash`) : "";
+        const oldHash = isAuth && record ? record.Original().GetString(`${FieldNamePassword}:hash`) : "";
 
         const err = e.Next() as Error | null;
         if (err || !isAuth || !record) {
@@ -2290,17 +2168,15 @@ export class BaseApp implements App {
 
   HasTable(name: string): boolean {
     const row = this.db()
-      .query(
-        "select name from sqlite_master where type in ('table','view') and lower(name) = lower(?)",
-      )
+      .query("select name from sqlite_master where type in ('table','view') and lower(name) = lower(?)")
       .get(name) as { name?: string } | undefined;
     return Boolean(row?.name);
   }
 
   IsCollectionNameUnique(name: string, excludeId?: string): boolean {
-    const row = this.db()
-      .query("select id from _collections where lower(name) = lower(?)")
-      .get(name) as { id?: string } | undefined;
+    const row = this.db().query("select id from _collections where lower(name) = lower(?)").get(name) as
+      | { id?: string }
+      | undefined;
     if (!row?.id) {
       return true;
     }

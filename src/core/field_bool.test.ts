@@ -1,15 +1,11 @@
 // Ported from pocketbase/core/field_bool_test.go
 
 import { describe, expect, it } from "bun:test";
-import { BoolField, FieldTypeBool } from "./field_bool.ts";
-import { NewBaseCollection } from "./collection.ts";
-import { NewRecord } from "./record.ts";
 import { newTestApp } from "../../tests/test_app.ts";
-import {
-  testDefaultFieldIdValidation,
-  testDefaultFieldNameValidation,
-  testFieldBaseMethods,
-} from "./field_test.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { BoolField, FieldTypeBool } from "./field_bool.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
+import { NewRecord } from "./record.ts";
 
 describe("bool field", () => {
   it("base methods", () => {

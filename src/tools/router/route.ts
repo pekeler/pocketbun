@@ -6,10 +6,7 @@ export type RouteMatch = {
   params: Record<string, string>;
 };
 
-type Segment =
-  | { type: "static"; value: string }
-  | { type: "param"; name: string }
-  | { type: "wildcard"; name: string };
+type Segment = { type: "static"; value: string } | { type: "param"; name: string } | { type: "wildcard"; name: string };
 
 function parsePattern(pattern: string): Segment[] {
   const trimmed = pattern.replace(/^\/+|\/+$/g, "");

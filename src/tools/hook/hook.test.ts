@@ -179,10 +179,7 @@ describe("hook", () => {
     }> = [
       {
         name: "without error",
-        handlers: [
-          async (event) => event.Next(),
-          async (event) => event.Next(),
-        ],
+        handlers: [async (event) => event.Next(), async (event) => event.Next()],
         expectedError: null,
       },
       {
@@ -206,9 +203,7 @@ describe("hook", () => {
       }
       const result = await hook.Trigger(new Event());
       if (result !== scenario.expectedError) {
-        throw new Error(
-          `Expected ${String(scenario.expectedError)}, got ${String(result)}`,
-        );
+        throw new Error(`Expected ${String(scenario.expectedError)}, got ${String(result)}`);
       }
     }
   });

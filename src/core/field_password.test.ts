@@ -1,16 +1,12 @@
 // Ported from pocketbase/core/field_password_test.go
 
 import { describe, expect, it } from "bun:test";
-import { PasswordField, FieldTypePassword, PasswordFieldValue } from "./field_password.ts";
-import { NewBaseCollection } from "./collection.ts";
-import { NewRecord } from "./record.ts";
 import { newTestApp } from "../../tests/test_app.ts";
-import {
-  testDefaultFieldIdValidation,
-  testDefaultFieldNameValidation,
-  testFieldBaseMethods,
-} from "./field_test.ts";
 import { testValidationErrors } from "../../tests/validation_errors.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { PasswordField, FieldTypePassword, PasswordFieldValue } from "./field_password.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
+import { NewRecord } from "./record.ts";
 
 describe("password field", () => {
   it("base methods", () => {
@@ -268,14 +264,12 @@ describe("password field", () => {
         },
         {
           name: "invalid pattern",
-          build: () =>
-            Object.assign(new PasswordField(), { Id: "test", Name: "test", Pattern: "(invalid" }),
+          build: () => Object.assign(new PasswordField(), { Id: "test", Name: "test", Pattern: "(invalid" }),
           expectErrors: ["pattern"],
         },
         {
           name: "valid pattern",
-          build: () =>
-            Object.assign(new PasswordField(), { Id: "test", Name: "test", Pattern: "\\d+" }),
+          build: () => Object.assign(new PasswordField(), { Id: "test", Name: "test", Pattern: "\\d+" }),
           expectErrors: [],
         },
         {
@@ -295,14 +289,12 @@ describe("password field", () => {
         },
         {
           name: "Max < Min",
-          build: () =>
-            Object.assign(new PasswordField(), { Id: "test", Name: "test", Min: 2, Max: 1 }),
+          build: () => Object.assign(new PasswordField(), { Id: "test", Name: "test", Min: 2, Max: 1 }),
           expectErrors: ["max"],
         },
         {
           name: "Min > Min",
-          build: () =>
-            Object.assign(new PasswordField(), { Id: "test", Name: "test", Min: 2, Max: 3 }),
+          build: () => Object.assign(new PasswordField(), { Id: "test", Name: "test", Min: 2, Max: 3 }),
           expectErrors: [],
         },
         {
@@ -423,10 +415,7 @@ describe("password field", () => {
       }
 
       const record = NewRecord(collection);
-      record.SetRaw(
-        scenario.field.GetName(),
-        Object.assign(new PasswordFieldValue("", "test_hash"), { Plain: "test_plain" }),
-      );
+      record.SetRaw(scenario.field.GetName(), Object.assign(new PasswordFieldValue("", "test_hash"), { Plain: "test_plain" }));
 
       const result = getter(record);
       expect(result).toBe(scenario.expected);

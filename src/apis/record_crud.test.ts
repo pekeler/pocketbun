@@ -53,7 +53,7 @@ describe("record CRUD write", () => {
     const invalid = await fetch(`${baseUrl}/api/collections/demo2/records`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: "{\"",
+      body: '{"',
     });
     expect(invalid.status).toBe(400);
 
@@ -93,7 +93,7 @@ describe("record CRUD write", () => {
     const invalid = await fetch(`${baseUrl}/api/collections/demo2/records/0yxhwia2amd8gec`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: "{\"",
+      body: '{"',
     });
     expect(invalid.status).toBe(400);
 

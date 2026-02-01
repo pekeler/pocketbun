@@ -13,9 +13,9 @@ SystemMigrations.register(up, undefined, FILE_NAME);
 function up(app: App): void {
   const db = app.db();
   const fieldsColumn = hasColumn(db, "_collections", "fields") ? "fields" : "schema";
-  const row = db
-    .query(`select id, ${fieldsColumn} as fields from _collections where name = ?`)
-    .get("_otps") as { id: string; fields: string } | undefined;
+  const row = db.query(`select id, ${fieldsColumn} as fields from _collections where name = ?`).get("_otps") as
+    | { id: string; fields: string }
+    | undefined;
   if (!row) {
     throw new Error("missing _otps collection");
   }
@@ -33,10 +33,7 @@ function up(app: App): void {
     }),
   );
 
-  db.query(`update _collections set ${fieldsColumn} = ? where id = ?`).run(
-    JSON.stringify(fields),
-    row.id,
-  );
+  db.query(`update _collections set ${fieldsColumn} = ? where id = ?`).run(JSON.stringify(fields), row.id);
 
   if (!hasColumn(db, "_otps", "sentTo")) {
     db.run("ALTER TABLE _otps ADD COLUMN sentTo TEXT DEFAULT '' NOT NULL;");

@@ -1,9 +1,9 @@
 // Ported from pocketbase/core/collection_model_view_options_test.go
 
 import { describe, it } from "bun:test";
-import { NewViewCollection } from "./collection.ts";
 import { newTestApp } from "../../tests/test_app.ts";
 import { testValidationErrors } from "../../tests/validation_errors.ts";
+import { NewViewCollection } from "./collection.ts";
 
 describe("collection view options validate", () => {
   it("scenarios", async () => {

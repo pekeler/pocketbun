@@ -1,17 +1,13 @@
 // Ported from pocketbase/core/field_select_test.go
 
 import { describe, expect, it } from "bun:test";
-import { NewBaseCollection } from "./collection.ts";
-import { SelectField, FieldTypeSelect } from "./field_select.ts";
-import { NewRecord } from "./record.ts";
-import { JSONArray } from "../tools/types/index.ts";
 import { newTestApp } from "../../tests/test_app.ts";
 import { testValidationErrors } from "../../tests/validation_errors.ts";
-import {
-  testDefaultFieldIdValidation,
-  testDefaultFieldNameValidation,
-  testFieldBaseMethods,
-} from "./field_test.ts";
+import { JSONArray } from "../tools/types/index.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { SelectField, FieldTypeSelect } from "./field_select.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
+import { NewRecord } from "./record.ts";
 
 describe("select field", () => {
   it("base methods", () => {
@@ -431,9 +427,7 @@ describe("select field", () => {
       const record = NewRecord(collection);
       record.SetRaw(scenario.field.GetName(), ["c", "d"]);
       setter(record, scenario.value);
-      expect(JSON.stringify(record.Get(scenario.field.GetName())), scenario.name).toBe(
-        scenario.expected,
-      );
+      expect(JSON.stringify(record.Get(scenario.field.GetName())), scenario.name).toBe(scenario.expected);
     }
   });
 });

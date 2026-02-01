@@ -1,17 +1,13 @@
 // Ported from pocketbase/core/field_json_test.go
 
 import { describe, expect, it } from "bun:test";
-import { JSONField, FieldTypeJSON, DefaultJSONFieldMaxSize } from "./field_json.ts";
-import { NewBaseCollection } from "./collection.ts";
-import { NewRecord } from "./record.ts";
-import { JSONRaw } from "../tools/types/index.ts";
 import { newTestApp } from "../../tests/test_app.ts";
-import {
-  testDefaultFieldIdValidation,
-  testDefaultFieldNameValidation,
-  testFieldBaseMethods,
-} from "./field_test.ts";
 import { testValidationErrors } from "../../tests/validation_errors.ts";
+import { JSONRaw } from "../tools/types/index.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { JSONField, FieldTypeJSON, DefaultJSONFieldMaxSize } from "./field_json.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
+import { NewRecord } from "./record.ts";
 
 describe("json field", () => {
   it("base methods", () => {
@@ -188,8 +184,7 @@ describe("json field", () => {
         },
         {
           name: "MaxSize > safe json int",
-          build: () =>
-            Object.assign(new JSONField(), { Id: "test", Name: "test", MaxSize: 2 ** 53 }),
+          build: () => Object.assign(new JSONField(), { Id: "test", Name: "test", MaxSize: 2 ** 53 }),
           expectErrors: ["maxSize"],
         },
       ];

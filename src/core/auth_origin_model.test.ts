@@ -3,10 +3,10 @@
 import { describe, expect, it } from "bun:test";
 import { newTestApp } from "../../tests/test_app.ts";
 import { testValidationErrors } from "../../tests/validation_errors.ts";
+import { NowDateTime } from "../tools/types/index.ts";
 import { CollectionNameAuthOrigins, NewAuthOrigin, AuthOrigin } from "./auth_origin_model.ts";
 import { CollectionNameSuperusers, NewBaseCollection } from "./collection.ts";
 import { NewRecord } from "./record.ts";
-import { NowDateTime } from "../tools/types/index.ts";
 
 describe("auth origin", () => {
   it("NewAuthOrigin", async () => {
@@ -214,10 +214,7 @@ describe("auth origin", () => {
     const { app: testApp, cleanup: testCleanup } = await newTestApp();
     try {
       const user1 = testApp.FindAuthRecordByEmail("users", "test@example.com");
-      const superuser2 = testApp.FindAuthRecordByEmail(
-        CollectionNameSuperusers,
-        "test2@example.com",
-      );
+      const superuser2 = testApp.FindAuthRecordByEmail(CollectionNameSuperusers, "test2@example.com");
       const client1 = testApp.FindAuthRecordByEmail("clients", "test@example.com");
 
       const scenarios = [

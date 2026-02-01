@@ -3,28 +3,23 @@
 
 import type { SQLQueryBindings } from "bun:sqlite";
 import type { App } from "../core/app.ts";
-import { Collection } from "../core/collection.ts";
 import type { RequestEvent, RequestInfo } from "../core/event_request.ts";
-import { RecordFieldResolver } from "../core/record_field_resolver.ts";
-import {
-  FieldNamePassword,
-  NewRecord,
-  Record as RecordModel,
-  type RecordData,
-} from "../core/record.ts";
-import { FieldTypeFile } from "../core/field_file.ts";
-import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";
-import { toUniqueStringSlice } from "../tools/list/list.ts";
-import { randomString } from "../tools/security/random.ts";
-import { columnify } from "../tools/inflector/inflector.ts";
 import type { RouterGroup } from "../tools/router/group.ts";
+import { Collection } from "../core/collection.ts";
+import { FieldTypeFile } from "../core/field_file.ts";
+import { FieldNamePassword, NewRecord, Record as RecordModel, type RecordData } from "../core/record.ts";
+import { RecordFieldResolver } from "../core/record_field_resolver.ts";
+import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";
+import { NewFileFromBytes, type File as LocalFile } from "../tools/filesystem/file.ts";
+import { columnify } from "../tools/inflector/inflector.ts";
+import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { JSONPayloadKey, unmarshalRequestData } from "../tools/router/unmarshal_request_data.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { Provider } from "../tools/search/provider.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
-import { checkForSuperuserOnlyRuleFields } from "./record_helpers.ts";
-import { NewFileFromBytes, type File as LocalFile } from "../tools/filesystem/file.ts";
+import { randomString } from "../tools/security/random.ts";
 import { DateTime, GeoPoint, JSONRaw } from "../tools/types/index.ts";
+import { checkForSuperuserOnlyRuleFields } from "./record_helpers.ts";
 
 type RecordsListResult = {
   page: number;
@@ -377,10 +372,7 @@ async function parseRequestData(request: RequestLike): Promise<ParsedRequestData
     }
 
     const data: RecordData = {};
-    const err = unmarshalRequestData(
-      Object.keys(raw).length === 0 && files.size > 0 ? { [JSONPayloadKey]: [] } : raw,
-      data,
-    );
+    const err = unmarshalRequestData(Object.keys(raw).length === 0 && files.size > 0 ? { [JSONPayloadKey]: [] } : raw, data);
     if (err) {
       return { data, files, error: err };
     }
@@ -413,11 +405,7 @@ async function parseRequestData(request: RequestLike): Promise<ParsedRequestData
   return { data: {}, files, error: new Error("unsupported content type") };
 }
 
-function resolveRecordData(
-  record: RecordModel,
-  requestInfo: RequestInfo,
-  uploadedFiles: Map<string, LocalFile[]>,
-): RecordData {
+function resolveRecordData(record: RecordModel, requestInfo: RequestInfo, uploadedFiles: Map<string, LocalFile[]>): RecordData {
   let data = record.ReplaceModifiers(requestInfo.body as RecordData);
   const files = extractUploadedFiles(record.collection(), uploadedFiles);
 
@@ -425,12 +413,7 @@ function resolveRecordData(
     for (const [key, fileList] of files.entries()) {
       const uploaded: unknown[] = [];
 
-      if (
-        requestInfo.body[key] != null &&
-        !key.startsWith("+") &&
-        !key.endsWith("+") &&
-        !key.endsWith("-")
-      ) {
+      if (requestInfo.body[key] != null && !key.startsWith("+") && !key.endsWith("+") && !key.endsWith("-")) {
         const existing = toUniqueStringSlice(requestInfo.body[key]);
         for (const name of existing) {
           uploaded.push(name);
@@ -493,12 +476,7 @@ function extractUploadedFiles(
   return result;
 }
 
-function checkCreateRule(
-  app: App,
-  collection: Collection,
-  record: RecordModel,
-  requestInfo: RequestInfo,
-): Error | null {
+function checkCreateRule(app: App, collection: Collection, record: RecordModel, requestInfo: RequestInfo): Error | null {
   const rule = collection.createRule;
   if (!rule || rule === "") {
     return null;
@@ -540,7 +518,10 @@ function checkCreateRule(
       params.splice(0, params.length, ...(updated.params ?? []));
     }
 
-    const row = app.db().query(selectSql).get(...(params as SQLQueryBindings[]));
+    const row = app
+      .db()
+      .query(selectSql)
+      .get(...(params as SQLQueryBindings[]));
     if (!row) {
       return new Error("create rule failure");
     }
@@ -578,7 +559,10 @@ function findRecordForRule(
     params.splice(0, params.length, ...((updated.params ?? []) as SQLQueryBindings[]));
   }
 
-  const row = app.db().query(selectSql).get(...params) as Record<string, unknown> | undefined;
+  const row = app
+    .db()
+    .query(selectSql)
+    .get(...params) as Record<string, unknown> | undefined;
   if (!row) {
     return null;
   }

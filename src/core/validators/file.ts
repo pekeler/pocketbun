@@ -1,9 +1,9 @@
 // Ported from pocketbase/core/validators/file.go
 
 import { newError } from "../../internal/compat/validation.ts";
-import { ErrUnsupportedValueType } from "./validators.ts";
 import { File } from "../../tools/filesystem/file.ts";
 import { detectMimeTypeFromBytes } from "../../tools/filesystem/file.ts";
+import { ErrUnsupportedValueType } from "./validators.ts";
 
 export function UploadedFileSize(maxBytes: number) {
   return (value: unknown): Error | null => {

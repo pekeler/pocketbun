@@ -3,8 +3,8 @@
 // Note: upstream FieldResolver exposes UpdateQuery and multi-match behavior.
 // This port implements UpdateQuery selectively for record field resolver joins.
 
-import type { SqlExpr } from "./types.ts";
 import type { MultiMatchSubquery } from "./multi_match_subquery.ts";
+import type { SqlExpr } from "./types.ts";
 
 export type NullFallbackPreference = "auto" | "disabled" | "enforced";
 

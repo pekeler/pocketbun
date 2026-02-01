@@ -1,12 +1,12 @@
 // Ported from pocketbase/core/auth_origin_model.go.
 
+import type { DateTime } from "../tools/types/index.ts";
 import type { App } from "./app.ts";
+import { ValidationErrors, required } from "../internal/compat/validation.ts";
 import { NewBaseCollection } from "./collection.ts";
 import { validateCollectionId, validateRecordId } from "./db.ts";
-import { ValidationErrors, required } from "../internal/compat/validation.ts";
 import { Record as RecordModel, NewRecord } from "./record.ts";
 import { BaseRecordProxy } from "./record_proxy.ts";
-import type { DateTime } from "../tools/types/index.ts";
 
 export const CollectionNameAuthOrigins = "_authOrigins";
 
@@ -81,11 +81,7 @@ export function NewAuthOrigin(app: App): AuthOrigin {
 
 // recordRefHooks registers common hooks that are usually used with record proxies
 // that have polymorphic record relations (aka. "collectionRef" and "recordRef" fields).
-export function recordRefHooks(
-  app: App,
-  collectionName: string,
-  ...optCollectionTypes: string[]
-): void {
+export function recordRefHooks(app: App, collectionName: string, ...optCollectionTypes: string[]): void {
   app.OnRecordValidate([collectionName]).Bind({
     Func: (e) => {
       if (!e.Record) {
@@ -93,8 +89,7 @@ export function recordRefHooks(
       }
 
       const collectionId = e.Record.GetString("collectionRef");
-      const collectionErr =
-        required(collectionId) ?? validateCollectionId(e.App, ...optCollectionTypes)(collectionId);
+      const collectionErr = required(collectionId) ?? validateCollectionId(e.App, ...optCollectionTypes)(collectionId);
       if (collectionErr) {
         return new ValidationErrors({ collectionRef: collectionErr });
       }

@@ -6,9 +6,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BaseApp } from "../src/core/base_app.ts";
 
-export async function newTestApp(
-  dataDir?: string,
-): Promise<{ app: BaseApp; cleanup: () => Promise<void> }> {
+export async function newTestApp(dataDir?: string): Promise<{ app: BaseApp; cleanup: () => Promise<void> }> {
   const source = dataDir ?? resolve(fileURLToPath(new URL("./data", import.meta.url)));
   const tempDir = await mkdtemp(join(tmpdir(), "pocketbun-test-"));
   await cp(source, tempDir, { recursive: true });

@@ -1,23 +1,10 @@
 // Ported from pocketbase/core/collection_model.go
 
-import { FieldsList, NewFieldsList } from "./fields_list.ts";
 import type { App } from "./app.ts";
-import { TextField, defaultLowercaseRecordIdPattern } from "./field_text.ts";
-import {
-  FieldNameEmail,
-  FieldNameEmailVisibility,
-  FieldNameId,
-  FieldNamePassword,
-  FieldNameTokenKey,
-  FieldNameVerified,
-} from "./field.ts";
-import { BoolField } from "./field_bool.ts";
-import { EmailField } from "./field_email.ts";
-import { PasswordField } from "./field_password.ts";
+import { toBoolValue, toNumberValue, toStringValue } from "../internal/compat/cast.ts";
 import { parseIndex, findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
-import { JSONRaw, ParseDateTime, DateTime } from "../tools/types/index.ts";
 import { pseudorandomStringWithAlphabet } from "../tools/security/random.ts";
-import { DefaultIdAlphabet } from "./db.ts";
+import { JSONRaw, ParseDateTime, DateTime } from "../tools/types/index.ts";
 import {
   AuthAlertConfig,
   EmailTemplate,
@@ -35,7 +22,20 @@ import {
   normalizePasswordAuthConfig,
   type CollectionAuthOptions,
 } from "./collection_model_auth_options.ts";
-import { toBoolValue, toNumberValue, toStringValue } from "../internal/compat/cast.ts";
+import { DefaultIdAlphabet } from "./db.ts";
+import {
+  FieldNameEmail,
+  FieldNameEmailVisibility,
+  FieldNameId,
+  FieldNamePassword,
+  FieldNameTokenKey,
+  FieldNameVerified,
+} from "./field.ts";
+import { BoolField } from "./field_bool.ts";
+import { EmailField } from "./field_email.ts";
+import { PasswordField } from "./field_password.ts";
+import { TextField, defaultLowercaseRecordIdPattern } from "./field_text.ts";
+import { FieldsList, NewFieldsList } from "./fields_list.ts";
 
 export const CollectionNameSuperusers = "_superusers";
 export const CollectionTypeBase = "base";
@@ -409,10 +409,9 @@ export class Collection {
     let newId = this.idChecksum();
 
     for (let i = 2; i < 1000; i += 1) {
-      const exists = app
-        .db()
-        .query("select id from _collections where id = ? limit 1")
-        .get(newId) as { id?: string } | undefined;
+      const exists = app.db().query("select id from _collections where id = ? limit 1").get(newId) as
+        | { id?: string }
+        | undefined;
       if (!exists?.id) {
         break;
       }
@@ -712,36 +711,23 @@ export class Collection {
       this.AuthToken = mergeTokenConfig(this.AuthToken, raw.authToken ?? raw.AuthToken);
     }
     if (raw.passwordResetToken || raw.PasswordResetToken) {
-      this.PasswordResetToken = mergeTokenConfig(
-        this.PasswordResetToken,
-        raw.passwordResetToken ?? raw.PasswordResetToken,
-      );
+      this.PasswordResetToken = mergeTokenConfig(this.PasswordResetToken, raw.passwordResetToken ?? raw.PasswordResetToken);
     }
     if (raw.emailChangeToken || raw.EmailChangeToken) {
-      this.EmailChangeToken = mergeTokenConfig(
-        this.EmailChangeToken,
-        raw.emailChangeToken ?? raw.EmailChangeToken,
-      );
+      this.EmailChangeToken = mergeTokenConfig(this.EmailChangeToken, raw.emailChangeToken ?? raw.EmailChangeToken);
     }
     if (raw.verificationToken || raw.VerificationToken) {
-      this.VerificationToken = mergeTokenConfig(
-        this.VerificationToken,
-        raw.verificationToken ?? raw.VerificationToken,
-      );
+      this.VerificationToken = mergeTokenConfig(this.VerificationToken, raw.verificationToken ?? raw.VerificationToken);
     }
     if (raw.fileToken || raw.FileToken) {
       this.FileToken = mergeTokenConfig(this.FileToken, raw.fileToken ?? raw.FileToken);
     }
 
     if (raw.verificationTemplate || raw.VerificationTemplate) {
-      this.VerificationTemplate = normalizeEmailTemplate(
-        raw.verificationTemplate ?? raw.VerificationTemplate,
-      );
+      this.VerificationTemplate = normalizeEmailTemplate(raw.verificationTemplate ?? raw.VerificationTemplate);
     }
     if (raw.resetPasswordTemplate || raw.ResetPasswordTemplate) {
-      this.ResetPasswordTemplate = normalizeEmailTemplate(
-        raw.resetPasswordTemplate ?? raw.ResetPasswordTemplate,
-      );
+      this.ResetPasswordTemplate = normalizeEmailTemplate(raw.resetPasswordTemplate ?? raw.ResetPasswordTemplate);
     }
     if (raw.confirmEmailChangeTemplate || raw.ConfirmEmailChangeTemplate) {
       this.ConfirmEmailChangeTemplate = normalizeEmailTemplate(
@@ -868,23 +854,13 @@ export function parseCollectionFields(raw: unknown): CollectionField[] {
       continue;
     }
     const record = entry as Record<string, unknown>;
-    const name =
-      typeof record.name === "string"
-        ? record.name
-        : typeof record.Name === "string"
-          ? record.Name
-          : "";
+    const name = typeof record.name === "string" ? record.name : typeof record.Name === "string" ? record.Name : "";
     if (!name) {
       continue;
     }
     fields.push({
       name,
-      type:
-        typeof record.type === "string"
-          ? record.type
-          : typeof record.Type === "string"
-            ? record.Type
-            : "",
+      type: typeof record.type === "string" ? record.type : typeof record.Type === "string" ? record.Type : "",
       system: Boolean(record.system ?? record.System),
       hidden: Boolean(record.hidden ?? record.Hidden),
       raw: record,
@@ -926,9 +902,7 @@ export function collectionFromRow(row: CollectionRow): Collection {
     system: toBoolValue(row.system),
     fields: parseCollectionFields(fieldsRaw),
     Fields: fieldsList,
-    indexes: Array.isArray(indexes)
-      ? (indexes.filter((value) => typeof value === "string") as string[])
-      : [],
+    indexes: Array.isArray(indexes) ? (indexes.filter((value) => typeof value === "string") as string[]) : [],
     listRule: row.listRule ?? null,
     viewRule: row.viewRule ?? null,
     createRule: row.createRule ?? null,
@@ -998,10 +972,7 @@ function mergeTokenConfig(current: TokenConfigValue, raw: unknown): TokenConfigV
   if (Object.prototype.hasOwnProperty.call(record, "secret") || Object.prototype.hasOwnProperty.call(record, "Secret")) {
     merged.Secret = toStringValue(record.secret ?? record.Secret);
   }
-  if (
-    Object.prototype.hasOwnProperty.call(record, "duration") ||
-    Object.prototype.hasOwnProperty.call(record, "Duration")
-  ) {
+  if (Object.prototype.hasOwnProperty.call(record, "duration") || Object.prototype.hasOwnProperty.call(record, "Duration")) {
     merged.Duration = toNumberValue(record.duration ?? record.Duration);
   }
   return merged;

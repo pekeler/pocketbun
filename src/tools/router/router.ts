@@ -2,8 +2,8 @@
 
 // Note: this is a minimal router implementation without upstream middleware features yet.
 
-import { Route, type Handler } from "./route.ts";
 import { RouterGroup } from "./group.ts";
+import { Route, type Handler } from "./route.ts";
 
 export type EventFactory<E> = (options: {
   request: Request;
@@ -86,9 +86,7 @@ export class Router<E> {
 }
 
 function getRemoteAddress(req: Request, server?: unknown): string | null {
-  const bunServer = server as
-    | { requestIP?: (req: Request) => { address: string } | null }
-    | undefined;
+  const bunServer = server as { requestIP?: (req: Request) => { address: string } | null } | undefined;
   if (bunServer?.requestIP) {
     return bunServer.requestIP(req)?.address ?? null;
   }

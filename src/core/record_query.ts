@@ -1,11 +1,11 @@
 // Ported from pocketbase/core/record_query.go (partial: record query helpers and filters).
 
 import type { SQLQueryBindings } from "bun:sqlite";
+import type { SqlExpr } from "../tools/search/types.ts";
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
-import { Record as RecordModel, type RecordData } from "./record.ts";
 import { HashExp } from "../tools/dbx/expr.ts";
-import type { SqlExpr } from "../tools/search/types.ts";
+import { Record as RecordModel, type RecordData } from "./record.ts";
 
 export type RecordQueryBuilder = {
   AndWhere(expr: SqlExpr | Record<string, unknown>): void;
@@ -13,9 +13,7 @@ export type RecordQueryBuilder = {
 
 export type RecordQueryFilter = (q: RecordQueryBuilder) => Error | null;
 
-export function buildRecordFilterExpr(
-  filters: Array<RecordQueryFilter | null | undefined>,
-): SqlExpr | null {
+export function buildRecordFilterExpr(filters: Array<RecordQueryFilter | null | undefined>): SqlExpr | null {
   const builder = new RecordQueryFilterBuilder();
 
   for (const filter of filters) {
@@ -55,9 +53,7 @@ class RecordQueryFilterBuilder implements RecordQueryBuilder {
   }
 }
 
-export function combineSqlExprs(
-  exprs: Array<SqlExpr | Record<string, unknown> | null | undefined>,
-): SqlExpr | null {
+export function combineSqlExprs(exprs: Array<SqlExpr | Record<string, unknown> | null | undefined>): SqlExpr | null {
   const clauses: string[] = [];
   const params: SQLQueryBindings[] = [];
 
@@ -90,18 +86,14 @@ export class RecordQuery {
     this.#app = app;
 
     if (!collectionModelOrIdentifier) {
-      this.#collectionErr = new Error(
-        "unknown collection identifier - must be collection model, id or name",
-      );
+      this.#collectionErr = new Error("unknown collection identifier - must be collection model, id or name");
       return;
     }
 
     if (typeof collectionModelOrIdentifier === "string") {
       const resolved = app.findCollectionByNameOrId(collectionModelOrIdentifier);
       if (!resolved) {
-        this.#collectionErr = new Error(
-          "unknown collection identifier - must be collection model, id or name",
-        );
+        this.#collectionErr = new Error("unknown collection identifier - must be collection model, id or name");
         return;
       }
       this.#collection = resolved;
@@ -206,9 +198,7 @@ export class RecordQuery {
   }
 }
 
-function normalizeSqlExpr(
-  expr: SqlExpr | Record<string, unknown> | null | undefined,
-): SqlExpr | null {
+function normalizeSqlExpr(expr: SqlExpr | Record<string, unknown> | null | undefined): SqlExpr | null {
   if (!expr) {
     return null;
   }
@@ -225,11 +215,7 @@ function normalizeSqlExpr(
   return hashExpr;
 }
 
-function mapRows(
-  rows: RecordData[],
-  target: unknown[] | undefined,
-  collection: Collection,
-): unknown[] {
+function mapRows(rows: RecordData[], target: unknown[] | undefined, collection: Collection): unknown[] {
   if (!target) {
     return rows.map((row) => RecordModel.fromRow(collection, row));
   }
@@ -338,18 +324,12 @@ function appendOrderBy(baseSql: string, clause: string): string {
   return `${baseSql} ORDER BY ${clause}`;
 }
 
-function applyLimitOffset(
-  sql: string,
-  limit: number | null | undefined,
-  offset: number | null | undefined,
-): string {
+function applyLimitOffset(sql: string, limit: number | null | undefined, offset: number | null | undefined): string {
   const safeLimit = typeof limit === "number" ? limit : null;
   const safeOffset = typeof offset === "number" ? offset : null;
 
   if (safeLimit !== null && safeLimit > 0) {
-    return safeOffset && safeOffset > 0
-      ? `${sql} LIMIT ${safeLimit} OFFSET ${safeOffset}`
-      : `${sql} LIMIT ${safeLimit}`;
+    return safeOffset && safeOffset > 0 ? `${sql} LIMIT ${safeLimit} OFFSET ${safeOffset}` : `${sql} LIMIT ${safeLimit}`;
   }
 
   if (safeOffset && safeOffset > 0) {

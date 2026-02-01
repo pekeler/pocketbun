@@ -1,7 +1,15 @@
 // Ported from pocketbase/core/record_field_resolver_runner.go
 
+import type { ResolverResult } from "../tools/search/field_resolver.ts";
 import type { Collection, CollectionField } from "./collection.ts";
 import type { RecordFieldResolver } from "./record_field_resolver.ts";
+import { findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
+import { JSONArrayLength, JSONEach, JSONExtract } from "../tools/dbutils/json.ts";
+import { columnify } from "../tools/inflector/inflector.ts";
+import { existInSliceWithRegex, toUniqueStringSlice } from "../tools/list/list.ts";
+import { buildFilterExpr } from "../tools/search/filter.ts";
+import { MultiMatchSubquery } from "../tools/search/multi_match_subquery.ts";
+import { DefaultFilterExprLimit } from "../tools/search/types.ts";
 import {
   FieldNameCollectionId,
   FieldNameCollectionName,
@@ -10,14 +18,6 @@ import {
   FieldNameId,
   FieldNameVerified,
 } from "./record.ts";
-import { columnify } from "../tools/inflector/inflector.ts";
-import { JSONArrayLength, JSONEach, JSONExtract } from "../tools/dbutils/json.ts";
-import { findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
-import { existInSliceWithRegex, toUniqueStringSlice } from "../tools/list/list.ts";
-import { buildFilterExpr } from "../tools/search/filter.ts";
-import type { ResolverResult } from "../tools/search/field_resolver.ts";
-import { DefaultFilterExprLimit } from "../tools/search/types.ts";
-import { MultiMatchSubquery } from "../tools/search/multi_match_subquery.ts";
 
 export const eachModifier = "each";
 export const issetModifier = "isset";
@@ -72,10 +72,7 @@ class Runner {
       throw new Error("the runner was already used");
     }
 
-    if (
-      this.resolver.allowedFields.length > 0 &&
-      !existInSliceWithRegex(this.fieldName, this.resolver.allowedFields)
-    ) {
+    if (this.resolver.allowedFields.length > 0 && !existInSliceWithRegex(this.fieldName, this.resolver.allowedFields)) {
       throw new Error(`failed to resolve field "${this.fieldName}"`);
     }
 
@@ -108,8 +105,7 @@ class Runner {
   prepare(): void {
     this.activeProps = this.fieldName.split(".");
     this.activeCollectionName = this.resolver.baseCollection.name;
-    this.activeTableAlias =
-      this.resolver.baseCollectionAlias || columnify(this.activeCollectionName);
+    this.activeTableAlias = this.resolver.baseCollectionAlias || columnify(this.activeCollectionName);
     this.nullifyMissingField = this.activeProps[0] === "@request";
 
     this.multiMatch.targetTableAlias = this.activeTableAlias;
@@ -132,11 +128,9 @@ class Runner {
 
     this.activeCollectionName = collection.name;
     if (alias) {
-      this.activeTableAlias =
-        columnify(`__collection_alias_${alias}`) + this.resolver.joinAliasSuffix;
+      this.activeTableAlias = columnify(`__collection_alias_${alias}`) + this.resolver.joinAliasSuffix;
     } else {
-      this.activeTableAlias =
-        columnify(`__collection_${this.activeCollectionName}`) + this.resolver.joinAliasSuffix;
+      this.activeTableAlias = columnify(`__collection_${this.activeCollectionName}`) + this.resolver.joinAliasSuffix;
     }
 
     this.withMultiMatch = true;
@@ -287,9 +281,7 @@ class Runner {
     const relCollectionId = toStringValue((bodyField.raw as Record<string, unknown>).collectionId);
     const relCollection = this.resolver.loadCollection(relCollectionId);
     if (!relCollection) {
-      throw new Error(
-        `failed to load collection "${relCollectionId}" from data field "${bodyField.name}"`,
-      );
+      throw new Error(`failed to load collection "${relCollectionId}" from data field "${bodyField.name}"`);
     }
 
     const dataRelIds = toUniqueStringSlice(this.resolver.requestInfo?.body[bodyField.name]);
@@ -298,8 +290,7 @@ class Runner {
     }
 
     this.activeCollectionName = relCollection.name;
-    this.activeTableAlias =
-      columnify(`__data_${relCollection.name}_${bodyField.name}`) + this.resolver.joinAliasSuffix;
+    this.activeTableAlias = columnify(`__data_${relCollection.name}_${bodyField.name}`) + this.resolver.joinAliasSuffix;
 
     this.resolver.registerJoin(this.activeCollectionName, this.activeTableAlias, {
       sql: buildInExpr(`[[${this.activeTableAlias}.id]]`, dataRelIds.length),
@@ -356,10 +347,7 @@ class Runner {
         };
 
         if (this.withMultiMatch) {
-          this.multiMatch.valueIdentifier = JSONExtract(
-            `${this.multiMatchActiveTableAlias}.${columnify(prop)}`,
-            jsonPath,
-          );
+          this.multiMatch.valueIdentifier = JSONExtract(`${this.multiMatchActiveTableAlias}.${columnify(prop)}`, jsonPath);
           result.multiMatchSubquery = this.multiMatch;
         }
 
@@ -406,16 +394,12 @@ class Runner {
           throw new Error(`non-filterable back relation field "${backField.name}"`);
         }
 
-        const backRelCollectionId = toStringValue(
-          (backField.raw as Record<string, unknown>).collectionId,
-        );
+        const backRelCollectionId = toStringValue((backField.raw as Record<string, unknown>).collectionId);
         if (backRelCollectionId !== collection.id) {
           if (this.nullifyMissingField) {
             return { identifier: "NULL", params: [], nullFallback: "auto" };
           }
-          throw new Error(
-            `invalid collection reference of a back relation field "${backField.name}"`,
-          );
+          throw new Error(`invalid collection reference of a back relation field "${backField.name}"`);
         }
 
         const cleanProp = columnify(prop);
@@ -446,10 +430,7 @@ class Runner {
         if (isBackRelMultiple) {
           this.withMultiMatch = true;
         } else if (!this.withMultiMatch) {
-          const hasUniqueIndex = findSingleColumnUniqueIndex(
-            backCollection.indexes,
-            backField.name,
-          )[1];
+          const hasUniqueIndex = findSingleColumnUniqueIndex(backCollection.indexes, backField.name)[1];
           this.withMultiMatch = !hasUniqueIndex;
         }
 
@@ -492,11 +473,7 @@ class Runner {
         throw new Error(`failed to load field "${prop}" collection`);
       }
 
-      if (
-        !isMultiValuerField(field) &&
-        i === totalProps - 2 &&
-        this.activeProps[i + 1] === FieldNameId
-      ) {
+      if (!isMultiValuerField(field) && i === totalProps - 2 && this.activeProps[i + 1] === FieldNameId) {
         return this.finalizeActivePropsProcessing(collection, field.name);
       }
 
@@ -587,9 +564,7 @@ class Runner {
       };
 
       if (this.withMultiMatch) {
-        this.multiMatch.valueIdentifier = JSONArrayLength(
-          `${this.multiMatchActiveTableAlias}.${cleanFieldName}`,
-        );
+        this.multiMatch.valueIdentifier = JSONArrayLength(`${this.multiMatchActiveTableAlias}.${cleanFieldName}`);
         result.multiMatchSubquery = this.multiMatch;
       }
 
@@ -598,11 +573,7 @@ class Runner {
 
     if (modifier === eachModifier && isMultiValuerField(field)) {
       const jeAlias = `__je_${this.activeTableAlias}_${cleanFieldName}${this.resolver.joinAliasSuffix}`;
-      this.resolver.registerJoin(
-        JSONEach(`${this.activeTableAlias}.${cleanFieldName}`),
-        jeAlias,
-        null,
-      );
+      this.resolver.registerJoin(JSONEach(`${this.activeTableAlias}.${cleanFieldName}`), jeAlias, null);
 
       const result: ResolverResult = {
         identifier: `[[${jeAlias}.value]]`,
@@ -638,11 +609,7 @@ class Runner {
       result.multiMatchSubquery = this.multiMatch;
     }
 
-    if (
-      field.name === FieldNameEmail &&
-      !this.resolver.allowHiddenFields &&
-      collection.type === "auth"
-    ) {
+    if (field.name === FieldNameEmail && !this.resolver.allowHiddenFields && collection.type === "auth") {
       result.afterBuild = (expr) => ({
         sql: `(${expr.sql} AND [[${this.activeTableAlias}.${FieldNameEmailVisibility}]] = TRUE)`,
         params: expr.params,
@@ -653,10 +620,7 @@ class Runner {
       result.nullFallback = "disabled";
       result.identifier = JSONExtract(`${this.activeTableAlias}.${cleanFieldName}`, "");
       if (this.withMultiMatch) {
-        this.multiMatch.valueIdentifier = JSONExtract(
-          `${this.multiMatchActiveTableAlias}.${cleanFieldName}`,
-          "",
-        );
+        this.multiMatch.valueIdentifier = JSONExtract(`${this.multiMatchActiveTableAlias}.${cleanFieldName}`, "");
       }
     }
 

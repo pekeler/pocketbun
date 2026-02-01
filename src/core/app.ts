@@ -1,19 +1,13 @@
 // Ported from pocketbase/core/app.go
 
 import type { Database, SQLQueryBindings } from "bun:sqlite";
-import type { Settings } from "./settings.ts";
-import type { Store } from "./store.ts";
-import type { Record as RecordModel } from "./record.ts";
-import type { RecordProxy } from "./record_proxy.ts";
-import type { Collection } from "./collection.ts";
-import type { FieldsList } from "./fields_list.ts";
-import type { SqlExpr } from "../tools/search/types.ts";
 import type { System } from "../tools/filesystem/filesystem.ts";
 import type { Hook } from "../tools/hook/hook.ts";
 import type { TaggedHook } from "../tools/hook/tagged.ts";
+import type { SqlExpr } from "../tools/search/types.ts";
 import type { AuthOrigin } from "./auth_origin_model.ts";
-import type { RecordQueryFilter } from "./record_query.ts";
-import type { RecordQuery } from "./record_query.ts";
+import type { Collection } from "./collection.ts";
+import type { TableInfoRow } from "./db_table.ts";
 import type { RequestInfo } from "./event_request.ts";
 import type {
   CollectionRequestEvent,
@@ -26,7 +20,13 @@ import type {
   RecordErrorEvent,
   RecordEvent,
 } from "./events.ts";
-import type { TableInfoRow } from "./db_table.ts";
+import type { FieldsList } from "./fields_list.ts";
+import type { Record as RecordModel } from "./record.ts";
+import type { RecordProxy } from "./record_proxy.ts";
+import type { RecordQueryFilter } from "./record_query.ts";
+import type { RecordQuery } from "./record_query.ts";
+import type { Settings } from "./settings.ts";
+import type { Store } from "./store.ts";
 
 export type Logger = {
   Warn: (message: string, ...args: unknown[]) => void;
@@ -77,11 +77,7 @@ export interface App {
     collectionModelOrIdentifier: Collection | string,
     ...exprs: Array<SqlExpr | Record<string, unknown> | null | undefined>
   ): RecordModel[];
-  FindFirstRecordByData(
-    collectionModelOrIdentifier: Collection | string,
-    key: string,
-    value: unknown,
-  ): RecordModel;
+  FindFirstRecordByData(collectionModelOrIdentifier: Collection | string, key: string, value: unknown): RecordModel;
   FindRecordsByFilter(
     collectionModelOrIdentifier: Collection | string,
     filter: string,
@@ -99,16 +95,9 @@ export interface App {
     collectionModelOrIdentifier: Collection | string,
     ...exprs: Array<SqlExpr | Record<string, unknown> | null | undefined>
   ): number;
-  CanAccessRecord(
-    record: RecordModel,
-    requestInfo: RequestInfo,
-    accessRule: string | null,
-  ): [boolean, Error | null];
+  CanAccessRecord(record: RecordModel, requestInfo: RequestInfo, accessRule: string | null): [boolean, Error | null];
   FindAuthRecordByToken(token: string, ...validTypes: string[]): RecordModel;
-  FindAuthRecordByEmail(
-    collectionModelOrIdentifier: Collection | string,
-    email: string,
-  ): RecordModel;
+  FindAuthRecordByEmail(collectionModelOrIdentifier: Collection | string, email: string): RecordModel;
   FindAllAuthOriginsByRecord(authRecord: RecordModel): AuthOrigin[];
   FindAllAuthOriginsByCollection(collection: Collection): AuthOrigin[];
   FindAuthOriginById(id: string): AuthOrigin;

@@ -14,9 +14,7 @@ export type TableInfoRow = {
 export function TableInfo(db: Database, tableName: string): TableInfoRow[] {
   // bun:sqlite doesn't reliably bind PRAGMA table names; inline a quoted name instead.
   const safeName = tableName.replace(/'/g, "''");
-  const rows = db
-    .query(`select * from pragma_table_info('${safeName}')`)
-    .all() as Array<{
+  const rows = db.query(`select * from pragma_table_info('${safeName}')`).all() as Array<{
     pk: number;
     cid: number;
     name: string;
@@ -42,8 +40,8 @@ export function TableInfo(db: Database, tableName: string): TableInfoRow[] {
 export function TableColumns(db: Database, tableName: string): string[] {
   // bun:sqlite doesn't reliably bind PRAGMA table names; inline a quoted name instead.
   const safeName = tableName.replace(/'/g, "''");
-  const rows = db
-    .query(`select name from pragma_table_info('${safeName}')`)
-    .all() as Array<{ name: string }>;
+  const rows = db.query(`select name from pragma_table_info('${safeName}')`).all() as Array<{
+    name: string;
+  }>;
   return rows.map((row) => row.name);
 }

@@ -1,9 +1,9 @@
 // Ported from pocketbase/core/collection_model_auth_options.go
 
-import { ValidationErrors, ErrRequired, newError, required } from "../internal/compat/validation.ts";
 import { toNumberValue, toStringValue } from "../internal/compat/cast.ts";
-import { toUniqueStringSlice } from "../tools/list/list.ts";
+import { ValidationErrors, ErrRequired, newError, required } from "../internal/compat/validation.ts";
 import { newProviderByName } from "../tools/auth/index.ts";
+import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { randomString } from "../tools/security/random.ts";
 import {
   defaultAuthAlertTemplate,
@@ -77,7 +77,10 @@ export class EmailTemplate implements EmailTemplateData {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
-  Resolve(placeholders: Record<string, unknown> | null | undefined): { subject: string; body: string } {
+  Resolve(placeholders: Record<string, unknown> | null | undefined): {
+    subject: string;
+    body: string;
+  } {
     let subject = this.Subject;
     let body = this.Body;
 
@@ -285,7 +288,10 @@ export class OAuth2ProviderConfig {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
-  InitProvider(): { provider: import("../tools/auth/auth.ts").Provider | null; error: Error | null } {
+  InitProvider(): {
+    provider: import("../tools/auth/auth.ts").Provider | null;
+    error: Error | null;
+  } {
     let provider: import("../tools/auth/auth.ts").Provider;
     try {
       provider = newProviderByName(this.Name);
@@ -518,10 +524,9 @@ export function checkForDuplicatedProviders(configs: OAuth2ProviderConfig[]): Er
     }
     const key = c.Name;
     if (existing.has(key)) {
-      const err = newError(
-        "validation_duplicated_provider",
-        "The provider {{.name}} is already registered.",
-      ).setParams({ name: c.Name });
+      const err = newError("validation_duplicated_provider", "The provider {{.name}} is already registered.").setParams({
+        name: c.Name,
+      });
       return new ValidationErrors({ [String(i)]: new ValidationErrors({ name: err }) });
     }
     existing.add(key);

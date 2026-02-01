@@ -5,11 +5,11 @@
 
 import type { FieldResolver, ResolverResult } from "./field_resolver.ts";
 import type { MultiMatchSubquery } from "./multi_match_subquery.ts";
+import type { SqlExpr } from "./types.ts";
+import { randomString } from "../security/random.ts";
 import { resolveIdentifierMacro } from "./identifier_macros.ts";
 import { tokenFunctions, type Token } from "./token_functions.ts";
 import { ErrFilterExprLimit } from "./types.ts";
-import type { SqlExpr } from "./types.ts";
-import { randomString } from "../security/random.ts";
 
 export type FilterData = string;
 
@@ -170,12 +170,7 @@ function buildComparison(op: string, left: ResolverResult, right: ResolverResult
   return buildComparisonInternal(op, left, right, true);
 }
 
-function buildComparisonInternal(
-  op: string,
-  left: ResolverResult,
-  right: ResolverResult,
-  allowMultiMatch: boolean,
-): SqlExpr {
+function buildComparisonInternal(op: string, left: ResolverResult, right: ResolverResult, allowMultiMatch: boolean): SqlExpr {
   const anyMatch = op.startsWith("?");
   const normalized = normalizeOperator(op);
   let expr: SqlExpr;
@@ -258,11 +253,9 @@ function resolveEqualExpr(equal: boolean, left: ResolverResult, right: ResolverR
   }
 
   const isLeftEmpty =
-    isEmptyIdentifier(left) ||
-    (leftFallback === "auto" && left.params.length === 1 && hasEmptyParamValue(left));
+    isEmptyIdentifier(left) || (leftFallback === "auto" && left.params.length === 1 && hasEmptyParamValue(left));
   const isRightEmpty =
-    isEmptyIdentifier(right) ||
-    (rightFallback === "auto" && right.params.length === 1 && hasEmptyParamValue(right));
+    isEmptyIdentifier(right) || (rightFallback === "auto" && right.params.length === 1 && hasEmptyParamValue(right));
 
   if (isLeftEmpty && isRightEmpty) {
     return { sql: `'' ${equalOp} ''`, params: [] };
@@ -336,12 +329,7 @@ function mergeParams(...params: unknown[][]): unknown[] {
   return params.flatMap((item) => item);
 }
 
-function applyMultiMatch(
-  expr: SqlExpr,
-  op: string,
-  left: ResolverResult,
-  right: ResolverResult,
-): SqlExpr {
+function applyMultiMatch(expr: SqlExpr, op: string, left: ResolverResult, right: ResolverResult): SqlExpr {
   if (left.multiMatchSubquery && right.multiMatchSubquery) {
     const mm = buildManyVsMany(op, left, right);
     return andExpr(expr, mm);
@@ -409,9 +397,7 @@ function buildManyVsOne(
     nullFallback: otherOperand.nullFallback ?? "auto",
   };
 
-  const whereExpr = inverse
-    ? buildComparisonInternal(op, r2, r1, false)
-    : buildComparisonInternal(op, r1, r2, false);
+  const whereExpr = inverse ? buildComparisonInternal(op, r2, r1, false) : buildComparisonInternal(op, r1, r2, false);
 
   const sub = subQuery.build();
   const sql = `NOT EXISTS (SELECT 1 FROM (${sub.sql}) {{${alias}}} WHERE ${whereExpr.sql})`;
@@ -785,24 +771,7 @@ class Lexer {
 }
 
 function readOperator(input: string, position: number): string | null {
-  const candidates = [
-    "?!=",
-    ">=",
-    "<=",
-    "!~",
-    "!=",
-    "?<=",
-    "?>=",
-    "?!~",
-    "?=",
-    "?>",
-    "?<",
-    "?~",
-    "=",
-    ">",
-    "<",
-    "~",
-  ];
+  const candidates = ["?!=", ">=", "<=", "!~", "!=", "?<=", "?>=", "?!~", "?=", "?>", "?<", "?~", "=", ">", "<", "~"];
   for (const candidate of candidates) {
     if (input.startsWith(candidate, position)) {
       return candidate;

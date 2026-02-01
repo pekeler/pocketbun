@@ -1,20 +1,16 @@
 // Ported from pocketbase/core/field_file_test.go
 
 import { describe, expect, it } from "bun:test";
-import { FieldTypeFile, FileField, DefaultFileFieldMaxSize } from "./field_file.ts";
 import type { App } from "./app.ts";
-import { NewBaseCollection } from "./collection.ts";
-import { NewRecord } from "./record.ts";
 import { newTestApp } from "../../tests/test_app.ts";
-import {
-  testDefaultFieldIdValidation,
-  testDefaultFieldNameValidation,
-  testFieldBaseMethods,
-} from "./field_test.ts";
 import { testValidationErrors } from "../../tests/validation_errors.ts";
 import { NewFileFromBytes } from "../tools/filesystem/file.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { JSONArray } from "../tools/types/json_array.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { FieldTypeFile, FileField, DefaultFileFieldMaxSize } from "./field_file.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
+import { NewRecord } from "./record.ts";
 
 describe("file field", () => {
   it("base methods", () => {
@@ -26,8 +22,14 @@ describe("file field", () => {
     try {
       const scenarios = [
         { field: new FileField(), expected: "TEXT DEFAULT '' NOT NULL" },
-        { field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "TEXT DEFAULT '' NOT NULL" },
-        { field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "JSON DEFAULT '[]' NOT NULL" },
+        {
+          field: Object.assign(new FileField(), { MaxSelect: 1 }),
+          expected: "TEXT DEFAULT '' NOT NULL",
+        },
+        {
+          field: Object.assign(new FileField(), { MaxSelect: 2 }),
+          expected: "JSON DEFAULT '[]' NOT NULL",
+        },
       ];
 
       for (const scenario of scenarios) {
@@ -57,26 +59,42 @@ describe("file field", () => {
       const f1 = NewFileFromBytes(new TextEncoder().encode("test"), "test1.txt");
 
       const scenarios = [
-        { raw: null, field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "\"\"" },
-        { raw: "", field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "\"\"" },
-        { raw: 123, field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "\"123\"" },
-        { raw: "a", field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "\"a\"" },
-        { raw: "[\"a\"]", field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "\"a\"" },
-        { raw: f1, field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: JSON.stringify(f1) },
-        { raw: [], field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "\"\"" },
-        { raw: ["a", "b"], field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "\"b\"" },
+        { raw: null, field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: '""' },
+        { raw: "", field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: '""' },
+        { raw: 123, field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: '"123"' },
+        { raw: "a", field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: '"a"' },
+        { raw: '["a"]', field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: '"a"' },
+        {
+          raw: f1,
+          field: Object.assign(new FileField(), { MaxSelect: 1 }),
+          expected: JSON.stringify(f1),
+        },
+        { raw: [], field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: '""' },
+        {
+          raw: ["a", "b"],
+          field: Object.assign(new FileField(), { MaxSelect: 1 }),
+          expected: '"b"',
+        },
         { raw: null, field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[]" },
         { raw: "", field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[]" },
-        { raw: 123, field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[\"123\"]" },
-        { raw: "a", field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[\"a\"]" },
-        { raw: "[\"a\"]", field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[\"a\"]" },
+        { raw: 123, field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: '["123"]' },
+        { raw: "a", field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: '["a"]' },
+        {
+          raw: '["a"]',
+          field: Object.assign(new FileField(), { MaxSelect: 2 }),
+          expected: '["a"]',
+        },
         {
           raw: [f1],
           field: Object.assign(new FileField(), { MaxSelect: 2 }),
           expected: `[${JSON.stringify(f1)}]`,
         },
         { raw: [], field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[]" },
-        { raw: ["a", "b", "c"], field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[\"a\",\"b\",\"c\"]" },
+        {
+          raw: ["a", "b", "c"],
+          field: Object.assign(new FileField(), { MaxSelect: 2 }),
+          expected: '["a","b","c"]',
+        },
       ];
 
       for (const scenario of scenarios) {
@@ -94,22 +112,42 @@ describe("file field", () => {
       const f1 = NewFileFromBytes(new TextEncoder().encode("test"), "test.txt");
 
       const scenarios = [
-        { raw: null, field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "\"\"" },
-        { raw: "", field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "\"\"" },
-        { raw: 123, field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "\"123\"" },
-        { raw: "a", field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "\"a\"" },
-        { raw: "[\"a\"]", field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "\"a\"" },
-        { raw: f1, field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: `"${f1.Name}"` },
-        { raw: [], field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "\"\"" },
-        { raw: ["a", "b"], field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: "\"b\"" },
+        { raw: null, field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: '""' },
+        { raw: "", field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: '""' },
+        { raw: 123, field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: '"123"' },
+        { raw: "a", field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: '"a"' },
+        { raw: '["a"]', field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: '"a"' },
+        {
+          raw: f1,
+          field: Object.assign(new FileField(), { MaxSelect: 1 }),
+          expected: `"${f1.Name}"`,
+        },
+        { raw: [], field: Object.assign(new FileField(), { MaxSelect: 1 }), expected: '""' },
+        {
+          raw: ["a", "b"],
+          field: Object.assign(new FileField(), { MaxSelect: 1 }),
+          expected: '"b"',
+        },
         { raw: null, field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[]" },
         { raw: "", field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[]" },
-        { raw: 123, field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[\"123\"]" },
-        { raw: "a", field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[\"a\"]" },
-        { raw: "[\"a\"]", field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[\"a\"]" },
-        { raw: ["a", f1], field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: `["a","${f1.Name}"]` },
+        { raw: 123, field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: '["123"]' },
+        { raw: "a", field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: '["a"]' },
+        {
+          raw: '["a"]',
+          field: Object.assign(new FileField(), { MaxSelect: 2 }),
+          expected: '["a"]',
+        },
+        {
+          raw: ["a", f1],
+          field: Object.assign(new FileField(), { MaxSelect: 2 }),
+          expected: `["a","${f1.Name}"]`,
+        },
         { raw: [], field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[]" },
-        { raw: ["a", "b", "c"], field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[\"a\",\"b\",\"c\"]" },
+        {
+          raw: ["a", "b", "c"],
+          field: Object.assign(new FileField(), { MaxSelect: 2 }),
+          expected: '["a","b","c"]',
+        },
       ];
 
       for (const scenario of scenarios) {
@@ -153,7 +191,12 @@ describe("file field", () => {
         },
         {
           name: "zero field value (required)",
-          field: Object.assign(new FileField(), { Name: "test", MaxSize: 9999, MaxSelect: 1, Required: true }),
+          field: Object.assign(new FileField(), {
+            Name: "test",
+            MaxSize: 9999,
+            MaxSelect: 1,
+            Required: true,
+          }),
           record: () => {
             const record = NewRecord(collection);
             record.SetRaw("test", "");
@@ -243,7 +286,12 @@ describe("file field", () => {
         },
         {
           name: "non-matching MimeType",
-          field: Object.assign(new FileField(), { Name: "test", MaxSize: 999, MaxSelect: 3, MimeTypes: ["a", "b"] }),
+          field: Object.assign(new FileField(), {
+            Name: "test",
+            MaxSize: 999,
+            MaxSelect: 3,
+            MimeTypes: ["a", "b"],
+          }),
           record: () => {
             const record = NewRecord(collection);
             record.SetRaw("test", [f1, f2]);
@@ -274,7 +322,12 @@ describe("file field", () => {
         },
         {
           name: "existing files should ignore the MaxSize and Mimetypes checks",
-          field: Object.assign(new FileField(), { Name: "file_many", MaxSize: 1, MaxSelect: 5, MimeTypes: ["a", "b"] }),
+          field: Object.assign(new FileField(), {
+            Name: "file_many",
+            MaxSize: 1,
+            MaxSelect: 5,
+            MimeTypes: ["a", "b"],
+          }),
           record: () => app.findRecordById(app.findCollectionByNameOrId("demo1")!, "84nmscqy84lsi1t")!,
           expectError: false,
         },
@@ -334,43 +387,82 @@ describe("file field", () => {
         {
           name: "0x0 thumb",
           field: () =>
-            Object.assign(new FileField(), { Id: "test", Name: "test", MaxSelect: 1, Thumbs: ["100x200", "0x0"] }),
+            Object.assign(new FileField(), {
+              Id: "test",
+              Name: "test",
+              MaxSelect: 1,
+              Thumbs: ["100x200", "0x0"],
+            }),
           expectErrors: ["thumbs"],
         },
         {
           name: "0x0t thumb",
           field: () =>
-            Object.assign(new FileField(), { Id: "test", Name: "test", MaxSelect: 1, MaxSize: 1, Thumbs: ["100x200", "0x0t"] }),
+            Object.assign(new FileField(), {
+              Id: "test",
+              Name: "test",
+              MaxSelect: 1,
+              MaxSize: 1,
+              Thumbs: ["100x200", "0x0t"],
+            }),
           expectErrors: ["thumbs"],
         },
         {
           name: "0x0b thumb",
           field: () =>
-            Object.assign(new FileField(), { Id: "test", Name: "test", MaxSelect: 1, MaxSize: 1, Thumbs: ["100x200", "0x0b"] }),
+            Object.assign(new FileField(), {
+              Id: "test",
+              Name: "test",
+              MaxSelect: 1,
+              MaxSize: 1,
+              Thumbs: ["100x200", "0x0b"],
+            }),
           expectErrors: ["thumbs"],
         },
         {
           name: "0x0f thumb",
           field: () =>
-            Object.assign(new FileField(), { Id: "test", Name: "test", MaxSelect: 1, MaxSize: 1, Thumbs: ["100x200", "0x0f"] }),
+            Object.assign(new FileField(), {
+              Id: "test",
+              Name: "test",
+              MaxSelect: 1,
+              MaxSize: 1,
+              Thumbs: ["100x200", "0x0f"],
+            }),
           expectErrors: ["thumbs"],
         },
         {
           name: "invalid format",
           field: () =>
-            Object.assign(new FileField(), { Id: "test", Name: "test", MaxSelect: 1, MaxSize: 1, Thumbs: ["100x200", "100x"] }),
+            Object.assign(new FileField(), {
+              Id: "test",
+              Name: "test",
+              MaxSelect: 1,
+              MaxSize: 1,
+              Thumbs: ["100x200", "100x"],
+            }),
           expectErrors: ["thumbs"],
         },
         {
           name: "valid thumbs",
           field: () =>
-            Object.assign(new FileField(), { Id: "test", Name: "test", MaxSelect: 1, MaxSize: 1, Thumbs: ["100x200", "100x40", "100x200"] }),
+            Object.assign(new FileField(), {
+              Id: "test",
+              Name: "test",
+              MaxSelect: 1,
+              MaxSize: 1,
+              Thumbs: ["100x200", "100x40", "100x200"],
+            }),
           expectErrors: [],
         },
         {
           name: "MaxSize > safe json int",
           field: () =>
-            Object.assign(new FileField(), { Id: "test", Name: "test", MaxSize: Number.MAX_SAFE_INTEGER + 1 }),
+            Object.assign(new FileField(), {
+              Id: "test",
+              Name: "test",
+              MaxSize: Number.MAX_SAFE_INTEGER + 1,
+            }),
           expectErrors: ["maxSize"],
         },
         {
@@ -381,7 +473,11 @@ describe("file field", () => {
         {
           name: "MaxSelect > safe json int",
           field: () =>
-            Object.assign(new FileField(), { Id: "test", Name: "test", MaxSelect: Number.MAX_SAFE_INTEGER + 1 }),
+            Object.assign(new FileField(), {
+              Id: "test",
+              Name: "test",
+              MaxSelect: Number.MAX_SAFE_INTEGER + 1,
+            }),
           expectErrors: ["maxSelect"],
         },
         {
@@ -407,7 +503,10 @@ describe("file field", () => {
   it("calculate max body size", () => {
     const scenarios = [
       { field: new FileField(), expected: DefaultFileFieldMaxSize },
-      { field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: 2 * DefaultFileFieldMaxSize },
+      {
+        field: Object.assign(new FileField(), { MaxSelect: 2 }),
+        expected: 2 * DefaultFileFieldMaxSize,
+      },
       { field: Object.assign(new FileField(), { MaxSize: 10 }), expected: 10 },
       { field: Object.assign(new FileField(), { MaxSize: 10, MaxSelect: 1 }), expected: 10 },
       { field: Object.assign(new FileField(), { MaxSize: 10, MaxSelect: 2 }), expected: 20 },
@@ -462,15 +561,69 @@ describe("file field", () => {
 
   it("find setter", () => {
     const scenarios = [
-      { key: "example", value: "b", field: Object.assign(new FileField(), { Name: "test", MaxSelect: 1 }), hasSetter: false, expected: "" },
-      { key: "test", value: "b", field: Object.assign(new FileField(), { Name: "test", MaxSelect: 1 }), hasSetter: true, expected: "\"b\"" },
-      { key: "test", value: ["a", "b", "b"], field: Object.assign(new FileField(), { Name: "test", MaxSelect: 2 }), hasSetter: true, expected: "[\"a\",\"b\"]" },
-      { key: "test+", value: "b", field: Object.assign(new FileField(), { Name: "test", MaxSelect: 1 }), hasSetter: true, expected: "\"b\"" },
-      { key: "test+", value: ["a"], field: Object.assign(new FileField(), { Name: "test", MaxSelect: 2 }), hasSetter: true, expected: "[\"c\",\"d\",\"a\"]" },
-      { key: "+test", value: "b", field: Object.assign(new FileField(), { Name: "test", MaxSelect: 1 }), hasSetter: true, expected: "\"d\"" },
-      { key: "+test", value: ["a"], field: Object.assign(new FileField(), { Name: "test", MaxSelect: 2 }), hasSetter: true, expected: "[\"a\",\"c\",\"d\"]" },
-      { key: "test-", value: "d", field: Object.assign(new FileField(), { Name: "test", MaxSelect: 1 }), hasSetter: true, expected: "\"c\"" },
-      { key: "test-", value: ["unknown", "c"], field: Object.assign(new FileField(), { Name: "test", MaxSelect: 2 }), hasSetter: true, expected: "[\"d\"]" },
+      {
+        key: "example",
+        value: "b",
+        field: Object.assign(new FileField(), { Name: "test", MaxSelect: 1 }),
+        hasSetter: false,
+        expected: "",
+      },
+      {
+        key: "test",
+        value: "b",
+        field: Object.assign(new FileField(), { Name: "test", MaxSelect: 1 }),
+        hasSetter: true,
+        expected: '"b"',
+      },
+      {
+        key: "test",
+        value: ["a", "b", "b"],
+        field: Object.assign(new FileField(), { Name: "test", MaxSelect: 2 }),
+        hasSetter: true,
+        expected: '["a","b"]',
+      },
+      {
+        key: "test+",
+        value: "b",
+        field: Object.assign(new FileField(), { Name: "test", MaxSelect: 1 }),
+        hasSetter: true,
+        expected: '"b"',
+      },
+      {
+        key: "test+",
+        value: ["a"],
+        field: Object.assign(new FileField(), { Name: "test", MaxSelect: 2 }),
+        hasSetter: true,
+        expected: '["c","d","a"]',
+      },
+      {
+        key: "+test",
+        value: "b",
+        field: Object.assign(new FileField(), { Name: "test", MaxSelect: 1 }),
+        hasSetter: true,
+        expected: '"d"',
+      },
+      {
+        key: "+test",
+        value: ["a"],
+        field: Object.assign(new FileField(), { Name: "test", MaxSelect: 2 }),
+        hasSetter: true,
+        expected: '["a","c","d"]',
+      },
+      {
+        key: "test-",
+        value: "d",
+        field: Object.assign(new FileField(), { Name: "test", MaxSelect: 1 }),
+        hasSetter: true,
+        expected: '"c"',
+      },
+      {
+        key: "test-",
+        value: ["unknown", "c"],
+        field: Object.assign(new FileField(), { Name: "test", MaxSelect: 2 }),
+        hasSetter: true,
+        expected: '["d"]',
+      },
     ];
 
     for (const scenario of scenarios) {

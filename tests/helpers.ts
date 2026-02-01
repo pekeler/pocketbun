@@ -5,8 +5,8 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { BaseApp } from "../src/core/base_app.ts";
 import { serve } from "../src/apis/serve.ts";
+import { BaseApp } from "../src/core/base_app.ts";
 
 export async function startTestServer(): Promise<{
   server: ReturnType<typeof serve>;

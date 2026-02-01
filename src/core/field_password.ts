@@ -3,8 +3,8 @@
 
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
-import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { toStringValue } from "../internal/compat/cast.ts";
+import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import {
   Fields,
   type Field,
@@ -17,8 +17,8 @@ import {
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
 } from "./field.ts";
-import { ErrUnsupportedValueType } from "./validators/validators.ts";
 import { isRegex } from "./validators/string.ts";
+import { ErrUnsupportedValueType } from "./validators/validators.ts";
 
 export const FieldTypePassword = "password";
 
@@ -26,9 +26,7 @@ const bcryptMinCost = 4;
 const bcryptMaxCost = 31;
 const bcryptDefaultCost = 12;
 
-export class PasswordField
-  implements Field, GetterFinder, SetterFinder, DriverValuer, RecordInterceptor
-{
+export class PasswordField implements Field, GetterFinder, SetterFinder, DriverValuer, RecordInterceptor {
   Name = "";
   Id = "";
   System = false;
@@ -109,10 +107,7 @@ export class PasswordField
 
     const length = Array.from(raw.Plain).length;
     if (length < this.Min) {
-      return newError(
-        "validation_min_text_constraint",
-        `Must be at least ${this.Min} character(s)`,
-      );
+      return newError("validation_min_text_constraint", `Must be at least ${this.Min} character(s)`);
     }
 
     let maxLength = this.Max;
@@ -120,10 +115,7 @@ export class PasswordField
       maxLength = 71;
     }
     if (length > maxLength) {
-      return newError(
-        "validation_max_text_constraint",
-        `Must be less than ${maxLength} character(s)`,
-      );
+      return newError("validation_max_text_constraint", `Must be less than ${maxLength} character(s)`);
     }
 
     if (this.Pattern !== "") {
@@ -164,13 +156,7 @@ export class PasswordField
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
-  Intercept(
-    _ctx: unknown,
-    _app: App,
-    record: RecordLike,
-    actionName: string,
-    actionFunc: () => Error | null,
-  ): Error | null {
+  Intercept(_ctx: unknown, _app: App, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null {
     if (actionName === "afterCreate" || actionName === "afterUpdate") {
       const value = this.getPasswordValue(record);
       value.Plain = "";

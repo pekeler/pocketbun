@@ -224,18 +224,15 @@ function parseFieldsJSON(rawJSON: string | Uint8Array): Field[] {
     try {
       parsed = JSON.parse(`[${text}]`);
     } catch (inner) {
-      throw new Error(
-        "failed to unmarshal the provided JSON - expects array of objects or just single object",
-        { cause: inner ?? error },
-      );
+      throw new Error("failed to unmarshal the provided JSON - expects array of objects or just single object", {
+        cause: inner ?? error,
+      });
     }
   }
 
   const entries = Array.isArray(parsed) ? parsed : null;
   if (!entries) {
-    throw new Error(
-      "failed to unmarshal the provided JSON - expects array of objects or just single object",
-    );
+    throw new Error("failed to unmarshal the provided JSON - expects array of objects or just single object");
   }
 
   return entries.map((item) => fieldFromRaw(item));

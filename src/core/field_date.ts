@@ -3,14 +3,9 @@
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
-import {
-  Fields,
-  type Field,
-  defaultFieldIdValidationRule,
-  defaultFieldNameValidationRule,
-} from "./field.ts";
-import { ErrUnsupportedValueType } from "./validators/validators.ts";
 import { DateTime, parseDateTime } from "../tools/types/datetime.ts";
+import { Fields, type Field, defaultFieldIdValidationRule, defaultFieldNameValidationRule } from "./field.ts";
+import { ErrUnsupportedValueType } from "./validators/validators.ts";
 
 export const FieldTypeDate = "date";
 

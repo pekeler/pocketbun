@@ -1,14 +1,14 @@
 // Ported from pocketbase/core/record_model.go
 // Note: includes Record auth helpers from pocketbase/core/record_model_auth.go.
 
-import { Collection, CollectionNameSuperusers } from "./collection.ts";
+import type { DriverValuer, Field, GetterFinder, RecordInterceptor, SetterFinder } from "./field.ts";
 import { toBoolValue, toStringValue } from "../internal/compat/cast.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
-import { GeoPoint, ParseDateTime } from "../tools/types/index.ts";
-import type { DriverValuer, Field, GetterFinder, RecordInterceptor, SetterFinder } from "./field.ts";
-import { autogenerateModifier } from "./field_text.ts";
-import { PasswordFieldValue } from "./field_password.ts";
 import { randomString } from "../tools/security/random.ts";
+import { GeoPoint, ParseDateTime } from "../tools/types/index.ts";
+import { Collection, CollectionNameSuperusers } from "./collection.ts";
+import { PasswordFieldValue } from "./field_password.ts";
+import { autogenerateModifier } from "./field_text.ts";
 
 export type RecordData = { [key: string]: unknown };
 
@@ -344,12 +344,7 @@ export class Record {
     return `${this.#collection.BaseFilesPath()}/${id}`;
   }
 
-  callFieldInterceptors(
-    ctx: unknown,
-    app: unknown,
-    actionName: string,
-    actionFunc: () => Error | null,
-  ): Error | null {
+  callFieldInterceptors(ctx: unknown, app: unknown, actionName: string, actionFunc: () => Error | null): Error | null {
     let next = actionFunc;
     for (const field of this.#collection.Fields) {
       const interceptor = field as unknown as RecordInterceptor;
@@ -396,8 +391,7 @@ export class Record {
     const includeHidden = Boolean(options.includeHidden);
     const ignoreEmailVisibility = Boolean(options.ignoreEmailVisibility);
 
-    const fields =
-      this.#collection.Fields.length > 0 ? this.#collection.Fields : this.#collection.fields;
+    const fields = this.#collection.Fields.length > 0 ? this.#collection.Fields : this.#collection.fields;
     for (const field of fields) {
       if (typeof (field as any)?.GetName === "function") {
         const typed = field as unknown as { GetName: () => string; GetHidden: () => boolean };

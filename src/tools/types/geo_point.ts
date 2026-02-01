@@ -78,9 +78,7 @@ export class GeoPoint {
 
       return this.scanFromJSON(JSON.stringify(value));
     } catch (error) {
-      return new Error(
-        `[GeoPoint] unable to scan value ${String(value)}: ${(error as Error).message}`,
-      );
+      return new Error(`[GeoPoint] unable to scan value ${String(value)}: ${(error as Error).message}`);
     }
   }
 

@@ -1,16 +1,7 @@
 // Ported from pocketbase/tools/filesystem/filesystem.go
 // Deviation: CreateThumb is async because Bun image processing relies on async libraries.
 
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import sharp from "sharp";
 import { File, detectMimeTypeFromBytes, normalizeName, openFuncAsReader } from "./file.ts";
@@ -271,7 +262,12 @@ export class System {
   }
 
   Serve(
-    res: { statusCode?: number; setHeader: (k: string, v: string) => void; getHeader: (k: string) => string | undefined; end: (body?: Uint8Array) => void },
+    res: {
+      statusCode?: number;
+      setHeader: (k: string, v: string) => void;
+      getHeader: (k: string) => string | undefined;
+      end: (body?: Uint8Array) => void;
+    },
     req: { headers?: Record<string, string | string[]>; url?: string },
     fileKey: string,
     name: string,
@@ -316,7 +312,10 @@ export class System {
     const rangeHeader = req.headers?.Range ?? req.headers?.range;
     const rangeValue = Array.isArray(rangeHeader) ? rangeHeader[0] : rangeHeader;
     if (rangeValue && rangeValue.startsWith("bytes=")) {
-      const ranges = rangeValue.slice(6).split(",").map((part) => part.trim());
+      const ranges = rangeValue
+        .slice(6)
+        .split(",")
+        .map((part) => part.trim());
       if (ranges.length > 1) {
         statusCode = 206;
         res.setHeader("Content-Type", `multipart/byteranges; boundary=BOUNDARY`);
@@ -341,11 +340,7 @@ export class System {
     return null;
   }
 
-  async CreateThumb(
-    originalKey: string,
-    thumbKey: string,
-    thumbSize: string,
-  ): Promise<Error | null> {
+  async CreateThumb(originalKey: string, thumbKey: string, thumbSize: string): Promise<Error | null> {
     const sizeParts = ThumbSizeRegex.exec(thumbSize);
     if (!sizeParts) {
       return new Error("thumb size must be in WxH, WxHt, WxHb or WxHf format");
@@ -377,8 +372,7 @@ export class System {
         transformer = transformer.resize(targetWidth, targetHeight, { fit: "inside" });
       } else {
         const fit = resizeType === "f" ? "inside" : "cover";
-        const position =
-          resizeType === "t" ? "north" : resizeType === "b" ? "south" : "centre";
+        const position = resizeType === "t" ? "north" : resizeType === "b" ? "south" : "centre";
         transformer = transformer.resize(width, height, { fit, position });
       }
 
@@ -444,9 +438,7 @@ export class System {
             continue;
           }
           const stat = statSync(full);
-          const rel = posix
-            .join(...full.slice(this.#root.length + 1).split("/"))
-            .replace(/\\/g, "/");
+          const rel = posix.join(...full.slice(this.#root.length + 1).split("/")).replace(/\\/g, "/");
           results.push({ key: rel, size: stat.size, mtime: stat.mtime });
         }
       }
@@ -464,9 +456,7 @@ export class System {
     try {
       const raw = JSON.parse(readFileSync(attrsPath, "utf8")) as Record<string, unknown>;
       const contentType =
-        typeof raw["user.content_type"] === "string"
-          ? (raw["user.content_type"] as string)
-          : "application/octet-stream";
+        typeof raw["user.content_type"] === "string" ? (raw["user.content_type"] as string) : "application/octet-stream";
       const metadataRaw = raw["user.metadata"];
       const metadata: Record<string, string> = {};
       if (metadataRaw && typeof metadataRaw === "object") {
@@ -482,11 +472,7 @@ export class System {
     }
   }
 
-  private writeAttrs(
-    filePath: string,
-    contentType: string,
-    metadata: Record<string, string> | null,
-  ): void {
+  private writeAttrs(filePath: string, contentType: string, metadata: Record<string, string> | null): void {
     const attrs = {
       "user.cache_control": "",
       "user.content_disposition": "",
@@ -497,7 +483,6 @@ export class System {
     };
     writeFileSync(`${filePath}.attrs`, JSON.stringify(attrs));
   }
-
 }
 
 export function NewLocal(dirPath: string): System {
@@ -523,8 +508,7 @@ export class SystemReader {
     if (this.#offset >= this.#buffer.length) {
       return null;
     }
-    const end =
-      size && size > 0 ? Math.min(this.#buffer.length, this.#offset + size) : this.#buffer.length;
+    const end = size && size > 0 ? Math.min(this.#buffer.length, this.#offset + size) : this.#buffer.length;
     const chunk = this.#buffer.slice(this.#offset, end);
     this.#offset = end;
     return chunk;

@@ -4,9 +4,9 @@
 // This port uses UpdateQuery to inject joins into raw SQL strings.
 
 import type { Database, SQLQueryBindings } from "bun:sqlite";
+import type { FieldResolver } from "./field_resolver.ts";
 import { columnify } from "../inflector/inflector.ts";
 import { buildFilterExpr, type FilterData } from "./filter.ts";
-import type { FieldResolver } from "./field_resolver.ts";
 import { buildSortExpr, parseSortFromString, type SortField } from "./sort.ts";
 import {
   DefaultFilterExprLimit,
@@ -238,9 +238,7 @@ export class Provider {
       };
     }
 
-    const countRow = db.query(countSql).get(...baseParamsWithFilter) as
-      | { total?: number }
-      | undefined;
+    const countRow = db.query(countSql).get(...baseParamsWithFilter) as { total?: number } | undefined;
 
     const totalItems = countRow?.total ?? 0;
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / this.#perPage);
@@ -331,10 +329,7 @@ function stripIdentifierQuotes(value: string): string {
   if (value.startsWith("[") && value.endsWith("]")) {
     return value.slice(1, -1);
   }
-  if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("`") && value.endsWith("`"))
-  ) {
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("`") && value.endsWith("`"))) {
     return value.slice(1, -1);
   }
   return value;

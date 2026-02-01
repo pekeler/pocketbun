@@ -22,8 +22,6 @@ describe("dbx identifier quoting", () => {
     const sql = "select 1 -- [[ignored]]\n/* {{also_ignored}} */ select [[id]] from {{users}}";
     const rewritten = rewriteDbxIdentifiers(sql);
 
-    expect(rewritten).toBe(
-      "select 1 -- [[ignored]]\n/* {{also_ignored}} */ select [id] from [users]",
-    );
+    expect(rewritten).toBe("select 1 -- [[ignored]]\n/* {{also_ignored}} */ select [id] from [users]");
   });
 });

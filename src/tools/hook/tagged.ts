@@ -1,8 +1,8 @@
 // Ported from pocketbase/tools/hook/tagged.go
 
-import { existInSlice } from "../list/list.ts";
 import type { Resolver } from "./event.ts";
 import type { Handler, HandlerFunc } from "./hook.ts";
+import { existInSlice } from "../list/list.ts";
 import { Hook } from "./hook.ts";
 
 export interface Tagger extends Resolver {

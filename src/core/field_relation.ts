@@ -4,6 +4,8 @@
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
+import { toUniqueStringSlice } from "../tools/list/list.ts";
+import { JSONArray } from "../tools/types/json_array.ts";
 import {
   Fields,
   type Field,
@@ -14,8 +16,6 @@ import {
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
 } from "./field.ts";
-import { toUniqueStringSlice } from "../tools/list/list.ts";
-import { JSONArray } from "../tools/types/json_array.ts";
 
 export const FieldTypeRelation = "relation";
 
@@ -104,19 +104,14 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
 
     const maxSelect = Math.max(this.MaxSelect, 1);
     if (ids.length > maxSelect) {
-      return newError("validation_too_many_values", "Select no more than {{.maxSelect}}").setParams(
-        {
-          maxSelect,
-        },
-      );
+      return newError("validation_too_many_values", "Select no more than {{.maxSelect}}").setParams({
+        maxSelect,
+      });
     }
 
     const relCollection = app.findCollectionByNameOrId(this.CollectionId);
     if (!relCollection) {
-      return newError(
-        "validation_missing_rel_collection",
-        "Relation connection is missing or cannot be accessed",
-      );
+      return newError("validation_missing_rel_collection", "Relation connection is missing or cannot be accessed");
     }
 
     const placeholders = ids.map(() => "?").join(", ");
@@ -126,10 +121,7 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
       .query(sql)
       .get(...ids) as { total?: number } | undefined;
     if ((row?.total ?? 0) !== ids.length) {
-      return newError(
-        "validation_missing_rel_records",
-        "Failed to find all relation records with the provided ids",
-      );
+      return newError("validation_missing_rel_records", "Failed to find all relation records with the provided ids");
     }
 
     return null;
@@ -146,10 +138,7 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
       errors.name = nameErr;
     }
     if (!this.CollectionId) {
-      errors.collectionId = newError(
-        "validation_missing_rel_collection",
-        "Relation collection is required.",
-      );
+      errors.collectionId = newError("validation_missing_rel_collection", "Relation collection is required.");
     } else {
       const collectionErr = this.checkCollectionId(app, collection);
       if (collectionErr) {
@@ -217,8 +206,7 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
     }
 
     if (oldCollection) {
-      const oldFields =
-        oldCollection.Fields.length > 0 ? oldCollection.Fields : oldCollection.fields;
+      const oldFields = oldCollection.Fields.length > 0 ? oldCollection.Fields : oldCollection.fields;
       const oldField = oldFields.find(
         (field) =>
           (field as any)?.Id === this.Id ||
@@ -227,19 +215,13 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
       ) as { collectionId?: string; CollectionId?: string } | undefined;
       const oldCollectionId = oldField?.collectionId ?? oldField?.CollectionId ?? "";
       if (oldCollectionId && oldCollectionId !== this.CollectionId) {
-        return newError(
-          "validation_field_relation_change",
-          "The relation collection cannot be changed.",
-        );
+        return newError("validation_field_relation_change", "The relation collection cannot be changed.");
       }
     }
 
     const relCollection = app.findCollectionByNameOrId(this.CollectionId);
     if (!relCollection || relCollection.id !== this.CollectionId) {
-      return newError(
-        "validation_field_relation_missing_collection",
-        "The relation collection doesn't exist.",
-      );
+      return newError("validation_field_relation_missing_collection", "The relation collection doesn't exist.");
     }
 
     if (!collection.isView() && relCollection.isView()) {

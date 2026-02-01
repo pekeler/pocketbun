@@ -1,15 +1,8 @@
 // Ported from pocketbase/tools/search/token_functions.go
 
-import {
-  NullFallbackDisabled,
-  NullFallbackEnforced,
-  type ResolverResult,
-} from "./field_resolver.ts";
+import { NullFallbackDisabled, NullFallbackEnforced, type ResolverResult } from "./field_resolver.ts";
 
-export type TokenFunction = (
-  resolveToken: (token: Token) => ResolverResult,
-  args: Token[],
-) => ResolverResult;
+export type TokenFunction = (resolveToken: (token: Token) => ResolverResult, args: Token[]) => ResolverResult;
 
 export type Token = {
   type: "identifier" | "number" | "string" | "boolean" | "null";
@@ -68,12 +61,7 @@ export const tokenFunctions: Record<string, TokenFunction> = {
     }
 
     const timeValue = args[1];
-    if (
-      !timeValue ||
-      (timeValue.type !== "string" &&
-        timeValue.type !== "identifier" &&
-        timeValue.type !== "number")
-    ) {
+    if (!timeValue || (timeValue.type !== "string" && timeValue.type !== "identifier" && timeValue.type !== "number")) {
       throw new Error("[strftime] expects the second argument to be of a valid time-value type");
     }
 
@@ -94,11 +82,7 @@ export const tokenFunctions: Record<string, TokenFunction> = {
 
     const result: ResolverResult = {
       identifier: `strftime(${identifiers.join(", ")})`,
-      params: mergeParams(
-        formatResult.params,
-        timeValueResult.params,
-        ...resolvedModifiers.map((item) => item.params),
-      ),
+      params: mergeParams(formatResult.params, timeValueResult.params, ...resolvedModifiers.map((item) => item.params)),
       nullFallback: NullFallbackEnforced,
     };
 

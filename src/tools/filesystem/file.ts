@@ -150,8 +150,7 @@ class BufferReadSeekCloser implements ReadSeekCloser {
     if (this.#offset >= this.#buffer.length) {
       return null;
     }
-    const end =
-      size && size > 0 ? Math.min(this.#buffer.length, this.#offset + size) : this.#buffer.length;
+    const end = size && size > 0 ? Math.min(this.#buffer.length, this.#offset + size) : this.#buffer.length;
     const chunk = this.#buffer.slice(this.#offset, end);
     this.#offset = end;
     return chunk;

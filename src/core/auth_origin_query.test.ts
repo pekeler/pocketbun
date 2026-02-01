@@ -139,14 +139,8 @@ describe("auth origin queries", () => {
     const { app: testApp, cleanup: testCleanup } = await newTestApp();
     try {
       const demo1 = testApp.FindRecordById("demo1", "84nmscqy84lsi1t");
-      const superuser2 = testApp.FindAuthRecordByEmail(
-        CollectionNameSuperusers,
-        "test2@example.com",
-      );
-      const superuser4 = testApp.FindAuthRecordByEmail(
-        CollectionNameSuperusers,
-        "test4@example.com",
-      );
+      const superuser2 = testApp.FindAuthRecordByEmail(CollectionNameSuperusers, "test2@example.com");
+      const superuser4 = testApp.FindAuthRecordByEmail(CollectionNameSuperusers, "test4@example.com");
       const client1 = testApp.FindAuthRecordByEmail("clients", "test@example.com");
 
       const scenarios = [

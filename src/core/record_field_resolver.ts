@@ -3,14 +3,14 @@
 // Note: this is a partial port; advanced rule modifiers and multi-match join optimizations
 // are implemented incrementally as related APIs are brought online.
 
+import type { FieldResolver, QueryUpdate, ResolverResult } from "../tools/search/field_resolver.ts";
+import type { Join } from "../tools/search/multi_match_subquery.ts";
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
 import type { RequestInfo } from "./event_request.ts";
-import { randomString } from "../tools/security/random.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
-import type { FieldResolver, QueryUpdate, ResolverResult } from "../tools/search/field_resolver.ts";
-import type { Join } from "../tools/search/multi_match_subquery.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
+import { randomString } from "../tools/security/random.ts";
 
 export class RecordFieldResolver implements FieldResolver {
   app: App;
@@ -24,12 +24,7 @@ export class RecordFieldResolver implements FieldResolver {
   joinAliasSuffix: string;
   baseCollectionAlias: string;
 
-  constructor(
-    app: App,
-    baseCollection: Collection,
-    requestInfo: RequestInfo | null,
-    allowHiddenFields: boolean,
-  ) {
+  constructor(app: App, baseCollection: Collection, requestInfo: RequestInfo | null, allowHiddenFields: boolean) {
     this.app = app;
     this.baseCollection = baseCollection;
     this.requestInfo = requestInfo;
@@ -166,11 +161,7 @@ export class RecordFieldResolver implements FieldResolver {
           resultVal = parsed;
         }
       }
-    } else if (
-      typeof resultVal !== "number" &&
-      typeof resultVal !== "boolean" &&
-      resultVal !== null
-    ) {
+    } else if (typeof resultVal !== "number" && typeof resultVal !== "boolean" && resultVal !== null) {
       try {
         resultVal = JSON.stringify(resultVal);
       } catch {
@@ -194,10 +185,7 @@ export class RecordFieldResolver implements FieldResolver {
   }
 
   loadCollection(collectionNameOrId: string): Collection | null {
-    if (
-      collectionNameOrId === this.baseCollection.name ||
-      collectionNameOrId === this.baseCollection.id
-    ) {
+    if (collectionNameOrId === this.baseCollection.name || collectionNameOrId === this.baseCollection.id) {
       return this.baseCollection;
     }
     return this.app.findCollectionByNameOrId(collectionNameOrId);
@@ -248,14 +236,7 @@ import {
   issetModifier,
   lowerModifier,
 } from "./record_field_resolver_runner.ts";
-export {
-  extractNestedVal,
-  getCollectionField,
-  parseAndRun,
-  splitModifier,
-  issetModifier,
-  lowerModifier,
-};
+export { extractNestedVal, getCollectionField, parseAndRun, splitModifier, issetModifier, lowerModifier };
 
 export const FieldTypeNumber = "number";
 
@@ -308,12 +289,7 @@ function quoteTableName(name: string): string {
   if (!trimmed) {
     return trimmed;
   }
-  if (
-    trimmed.includes("(") ||
-    /\s/.test(trimmed) ||
-    trimmed.includes("{{") ||
-    trimmed.includes("[[")
-  ) {
+  if (trimmed.includes("(") || /\s/.test(trimmed) || trimmed.includes("{{") || trimmed.includes("[[")) {
     return trimmed;
   }
   return `{{${trimmed}}}`;

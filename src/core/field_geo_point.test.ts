@@ -1,16 +1,12 @@
 // Ported from pocketbase/core/field_geo_point_test.go
 
 import { describe, expect, it } from "bun:test";
-import { GeoPointField, FieldTypeGeoPoint } from "./field_geo_point.ts";
-import { NewBaseCollection } from "./collection.ts";
-import { NewRecord } from "./record.ts";
-import { GeoPoint } from "../tools/types/index.ts";
 import { newTestApp } from "../../tests/test_app.ts";
-import {
-  testDefaultFieldIdValidation,
-  testDefaultFieldNameValidation,
-  testFieldBaseMethods,
-} from "./field_test.ts";
+import { GeoPoint } from "../tools/types/index.ts";
+import { NewBaseCollection } from "./collection.ts";
+import { GeoPointField, FieldTypeGeoPoint } from "./field_geo_point.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
+import { NewRecord } from "./record.ts";
 
 describe("geoPoint field", () => {
   it("base methods", () => {

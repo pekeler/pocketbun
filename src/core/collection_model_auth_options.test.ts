@@ -1,10 +1,10 @@
 // Ported from pocketbase/core/collection_model_auth_options_test.go
 
 import { describe, expect, it } from "bun:test";
-import { NewAuthCollection } from "./collection.ts";
-import { TextField } from "./field_text.ts";
 import { newTestApp } from "../../tests/test_app.ts";
 import { testValidationErrors } from "../../tests/validation_errors.ts";
+import { Providers } from "../tools/auth/index.ts";
+import { NewAuthCollection } from "./collection.ts";
 import {
   AuthAlertConfig,
   EmailTemplate,
@@ -15,7 +15,7 @@ import {
   PasswordAuthConfig,
   TokenConfigValue,
 } from "./collection_model_auth_options.ts";
-import { Providers } from "../tools/auth/index.ts";
+import { TextField } from "./field_text.ts";
 
 describe("collection auth options validate", () => {
   it("scenarios", async () => {
