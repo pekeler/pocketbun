@@ -5,6 +5,7 @@ import type { Cron } from "../tools/cron/cron.ts";
 import type { System } from "../tools/filesystem/filesystem.ts";
 import type { Hook } from "../tools/hook/hook.ts";
 import type { TaggedHook } from "../tools/hook/tagged.ts";
+import type { Mailer } from "../tools/mailer/mailer.ts";
 import type { SqlExpr } from "../tools/search/types.ts";
 import type { AuthOrigin } from "./auth_origin_model.ts";
 import type { Collection } from "./collection.ts";
@@ -16,10 +17,25 @@ import type {
   CollectionsListRequestEvent,
   CollectionEvent,
   CollectionErrorEvent,
+  MailerEvent,
+  MailerRecordEvent,
   ModelErrorEvent,
   ModelEvent,
+  RecordAuthRefreshRequestEvent,
+  RecordAuthRequestEvent,
+  RecordAuthWithOAuth2RequestEvent,
+  RecordAuthWithOTPRequestEvent,
+  RecordAuthWithPasswordRequestEvent,
+  RecordConfirmEmailChangeRequestEvent,
+  RecordConfirmPasswordResetRequestEvent,
+  RecordConfirmVerificationRequestEvent,
+  RecordCreateOTPRequestEvent,
+  RecordEnrichEvent,
   RecordErrorEvent,
   RecordEvent,
+  RecordRequestEmailChangeRequestEvent,
+  RecordRequestPasswordResetRequestEvent,
+  RecordRequestVerificationRequestEvent,
 } from "./events.ts";
 import type { ExternalAuth } from "./external_auth_model.ts";
 import type { FieldsList } from "./fields_list.ts";
@@ -29,11 +45,13 @@ import type { Record as RecordModel } from "./record.ts";
 import type { RecordProxy } from "./record_proxy.ts";
 import type { RecordQueryFilter } from "./record_query.ts";
 import type { RecordQuery } from "./record_query.ts";
+import type { ExpandFetchFunc } from "./record_query_expand.ts";
 import type { Settings } from "./settings.ts";
 import type { Store } from "./store.ts";
 
 export type Logger = {
   Warn: (message: string, ...args: unknown[]) => void;
+  Error: (message: string, ...args: unknown[]) => void;
 };
 
 export interface App {
@@ -47,11 +65,13 @@ export interface App {
   resetBootstrapState(): void;
   db(): Database;
   auxDb(): Database;
+  TxInfo(): { OnComplete: (fn: (txErr: Error | null) => Error | null) => void } | null;
   auxHasTable(name: string): boolean;
   reloadSettings(): void;
   runSystemMigrations(): void;
   runAppMigrations(): void;
   runAllMigrations(): void;
+  NewMailClient(): Mailer;
   NewFilesystem(): System;
   Save(model: RecordModel | Collection | RecordProxy): Error | null;
   SaveNoValidate(model: RecordModel | Collection | RecordProxy): Error | null;
@@ -102,6 +122,8 @@ export interface App {
     collectionModelOrIdentifier: Collection | string,
     ...exprs: Array<SqlExpr | Record<string, unknown> | null | undefined>
   ): number;
+  ExpandRecord(record: RecordModel, expands: string[], optFetchFunc?: ExpandFetchFunc | null): Record<string, Error>;
+  ExpandRecords(records: RecordModel[], expands: string[], optFetchFunc?: ExpandFetchFunc | null): Record<string, Error>;
   CanAccessRecord(record: RecordModel, requestInfo: RequestInfo, accessRule: string | null): [boolean, Error | null];
   FindAuthRecordByToken(token: string, ...validTypes: string[]): RecordModel;
   FindAuthRecordByEmail(collectionModelOrIdentifier: Collection | string, email: string): RecordModel;
@@ -162,6 +184,26 @@ export interface App {
   OnRecordDeleteExecute(tags?: string[]): TaggedHook<RecordEvent>;
   OnRecordAfterDeleteSuccess(tags?: string[]): TaggedHook<RecordEvent>;
   OnRecordAfterDeleteError(tags?: string[]): TaggedHook<RecordErrorEvent>;
+  OnRecordEnrich(tags?: string[]): TaggedHook<RecordEnrichEvent>;
+  OnRecordAuthWithPasswordRequest(tags?: string[]): TaggedHook<RecordAuthWithPasswordRequestEvent>;
+  OnRecordAuthWithOAuth2Request(tags?: string[]): TaggedHook<RecordAuthWithOAuth2RequestEvent>;
+  OnRecordAuthWithOTPRequest(tags?: string[]): TaggedHook<RecordAuthWithOTPRequestEvent>;
+  OnRecordAuthRequest(tags?: string[]): TaggedHook<RecordAuthRequestEvent>;
+  OnRecordAuthRefreshRequest(tags?: string[]): TaggedHook<RecordAuthRefreshRequestEvent>;
+  OnRecordCreateOTPRequest(tags?: string[]): TaggedHook<RecordCreateOTPRequestEvent>;
+  OnRecordRequestPasswordResetRequest(tags?: string[]): TaggedHook<RecordRequestPasswordResetRequestEvent>;
+  OnRecordConfirmPasswordResetRequest(tags?: string[]): TaggedHook<RecordConfirmPasswordResetRequestEvent>;
+  OnRecordRequestVerificationRequest(tags?: string[]): TaggedHook<RecordRequestVerificationRequestEvent>;
+  OnRecordConfirmVerificationRequest(tags?: string[]): TaggedHook<RecordConfirmVerificationRequestEvent>;
+  OnRecordRequestEmailChangeRequest(tags?: string[]): TaggedHook<RecordRequestEmailChangeRequestEvent>;
+  OnRecordConfirmEmailChangeRequest(tags?: string[]): TaggedHook<RecordConfirmEmailChangeRequestEvent>;
+
+  OnMailerSend(): Hook<MailerEvent>;
+  OnMailerRecordAuthAlertSend(tags?: string[]): TaggedHook<MailerRecordEvent>;
+  OnMailerRecordPasswordResetSend(tags?: string[]): TaggedHook<MailerRecordEvent>;
+  OnMailerRecordVerificationSend(tags?: string[]): TaggedHook<MailerRecordEvent>;
+  OnMailerRecordEmailChangeSend(tags?: string[]): TaggedHook<MailerRecordEvent>;
+  OnMailerRecordOTPSend(tags?: string[]): TaggedHook<MailerRecordEvent>;
 
   OnCollectionValidate(tags?: string[]): TaggedHook<CollectionEvent>;
   OnCollectionCreate(tags?: string[]): TaggedHook<CollectionEvent>;

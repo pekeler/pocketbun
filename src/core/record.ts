@@ -5,6 +5,7 @@ import type { DriverValuer, Field, GetterFinder, RecordInterceptor, SetterFinder
 import { toBoolValue, toStringValue } from "../internal/compat/cast.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { randomString } from "../tools/security/random.ts";
+import { Store } from "../tools/store/store.ts";
 import { GeoPoint, ParseDateTime } from "../tools/types/index.ts";
 import { Collection, CollectionNameSuperusers } from "./collection.ts";
 import { PasswordFieldValue } from "./field_password.ts";
@@ -35,6 +36,10 @@ export class Record {
   #data: RecordData;
   #originalData: RecordData;
   #isNew: boolean;
+  #exportCustomData = false;
+  #ignoreEmailVisibility = false;
+  #customVisibility = new Store<string, boolean>();
+  #expand: Store<string, unknown> | null = null;
 
   static fromRow(collection: Collection, row: RecordData): Record {
     const record = new Record(collection, {}, false);
@@ -101,6 +106,9 @@ export class Record {
   }
 
   GetRaw(field: string): unknown {
+    if (field === FieldNameExpand) {
+      return this.Expand();
+    }
     if (field === FieldNameId) {
       return this.id;
     }
@@ -114,6 +122,14 @@ export class Record {
   }
 
   SetRaw(field: string, value: unknown): void {
+    if (field === FieldNameExpand) {
+      if (value && typeof value === "object") {
+        this.SetExpand(value as RecordData);
+      } else {
+        this.SetExpand(null);
+      }
+      return;
+    }
     this.#data[field] = value;
     if (field === "id") {
       this.id = toStringValue(value);
@@ -132,14 +148,15 @@ export class Record {
     if (!this.id) {
       return new Error("missing record primary key");
     }
-    this.#originalData = { ...this.#data };
+    this.#originalData = { ...this.#originalData, ...this.#data };
+    this.#data = {};
     this.#isNew = false;
     return null;
   }
 
   Get(field: string): unknown {
     if (field === FieldNameExpand) {
-      return this.get(field);
+      return this.Expand();
     }
 
     for (const f of this.#collection.Fields) {
@@ -276,8 +293,152 @@ export class Record {
     clone.#data = { ...this.#data };
     clone.#originalData = { ...this.#originalData };
     clone.#isNew = this.#isNew;
+    clone.#exportCustomData = this.#exportCustomData;
+    clone.#ignoreEmailVisibility = this.#ignoreEmailVisibility;
+    clone.#customVisibility.reset(Object.fromEntries(this.#customVisibility.getAll()));
+    if (this.#expand) {
+      clone.SetExpand(Object.fromEntries(this.#expand.getAll()));
+    }
     clone.Id = this.id;
     return clone;
+  }
+
+  FieldsData(): RecordData {
+    const result: RecordData = {};
+    for (const field of this.#collection.Fields) {
+      const name = field.GetName();
+      result[name] = this.Get(name);
+    }
+    return result;
+  }
+
+  CustomData(): RecordData {
+    const result: RecordData = {};
+    const knownFields = new Set<string>();
+    for (const field of this.#collection.Fields) {
+      knownFields.add(field.GetName());
+    }
+
+    const merged = { ...this.#originalData, ...this.#data };
+    for (const [key, value] of Object.entries(merged)) {
+      if (knownFields.has(key)) {
+        continue;
+      }
+      if (key.startsWith(internalCustomFieldKeyPrefix)) {
+        continue;
+      }
+      result[key] = value;
+    }
+
+    return result;
+  }
+
+  Expand(): RecordData {
+    if (!this.#expand) {
+      return {};
+    }
+    return Object.fromEntries(this.#expand.getAll());
+  }
+
+  HasExpand(): boolean {
+    return this.#expand !== null;
+  }
+
+  SetExpand(expand: RecordData | null): void {
+    if (!this.#expand) {
+      this.#expand = new Store<string, unknown>();
+    }
+    this.#expand.reset(expand ?? {});
+  }
+
+  MergeExpand(expand: RecordData): void {
+    if (!expand || Object.keys(expand).length === 0) {
+      return;
+    }
+
+    if (!this.#expand) {
+      this.#expand = new Store(expand);
+      return;
+    }
+
+    const oldExpand = Object.fromEntries(this.#expand.getAll()) as RecordData;
+
+    for (const [key, next] of Object.entries(expand)) {
+      const old = oldExpand[key];
+      if (!old) {
+        oldExpand[key] = next;
+        continue;
+      }
+
+      let wasOldSlice = false;
+      let oldSlice: Record[] = [];
+      if (old instanceof Record) {
+        oldSlice = [old];
+      } else if (Array.isArray(old)) {
+        wasOldSlice = true;
+        oldSlice = old.filter((item): item is Record => item instanceof Record);
+      } else {
+        oldExpand[key] = next;
+        continue;
+      }
+
+      let wasNewSlice = false;
+      let newSlice: Record[] = [];
+      if (next instanceof Record) {
+        newSlice = [next];
+      } else if (Array.isArray(next)) {
+        wasNewSlice = true;
+        newSlice = next.filter((item): item is Record => item instanceof Record);
+      } else {
+        continue;
+      }
+
+      const oldIndexed = new Map<string, Record>();
+      for (const oldRecord of oldSlice) {
+        oldIndexed.set(oldRecord.Id, oldRecord);
+      }
+
+      for (const newRecord of newSlice) {
+        const oldRecord = oldIndexed.get(newRecord.Id);
+        if (oldRecord) {
+          oldRecord.MergeExpand(newRecord.Expand());
+        } else {
+          oldSlice.push(newRecord);
+        }
+      }
+
+      if (wasOldSlice || wasNewSlice || oldSlice.length === 0) {
+        oldExpand[key] = oldSlice;
+      } else {
+        oldExpand[key] = oldSlice[0];
+      }
+    }
+
+    this.#expand.reset(oldExpand);
+  }
+
+  Hide(...fieldNames: string[]): this {
+    for (const name of fieldNames) {
+      this.#customVisibility.set(name, false);
+    }
+    return this;
+  }
+
+  Unhide(...fieldNames: string[]): this {
+    for (const name of fieldNames) {
+      this.#customVisibility.set(name, true);
+    }
+    return this;
+  }
+
+  WithCustomData(state: boolean): this {
+    this.#exportCustomData = state;
+    return this;
+  }
+
+  IgnoreEmailVisibility(state: boolean): this {
+    this.#ignoreEmailVisibility = state;
+    return this;
   }
 
   SetIfFieldExists(key: string, value: unknown): Field | null {
@@ -389,25 +550,31 @@ export class Record {
   export(options: RecordExportOptions = {}): RecordData {
     const exportData: RecordData = {};
     const includeHidden = Boolean(options.includeHidden);
-    const ignoreEmailVisibility = Boolean(options.ignoreEmailVisibility);
+    const ignoreEmailVisibility = Boolean(options.ignoreEmailVisibility) || this.#ignoreEmailVisibility;
+    const customVisibility = this.#customVisibility.getAll();
 
-    const fields = this.#collection.Fields.length > 0 ? this.#collection.Fields : this.#collection.fields;
-    for (const field of fields) {
-      if (typeof (field as any)?.GetName === "function") {
-        const typed = field as unknown as { GetName: () => string; GetHidden: () => boolean };
-        if (typed.GetHidden() && !includeHidden) {
+    for (const field of this.#collection.Fields) {
+      const name = field.GetName();
+      let isVisible = customVisibility.get(name);
+      if (isVisible === undefined) {
+        isVisible = !field.GetHidden();
+      }
+      if (!isVisible && includeHidden) {
+        isVisible = true;
+      }
+      if (!isVisible) {
+        continue;
+      }
+      exportData[name] = this.Get(name);
+    }
+
+    if (this.#exportCustomData) {
+      for (const [key, value] of Object.entries(this.CustomData())) {
+        const customFlag = customVisibility.get(key);
+        if (customFlag === false) {
           continue;
         }
-        const name = typed.GetName();
-        exportData[name] = this.Get(name);
-        continue;
-      }
-      const raw = field as { name?: string; hidden?: boolean };
-      if (raw.hidden && !includeHidden) {
-        continue;
-      }
-      if (raw.name) {
-        exportData[raw.name] = this.get(raw.name);
+        exportData[key] = value;
       }
     }
 
@@ -424,12 +591,18 @@ export class Record {
       }
     }
 
-    exportData[FieldNameCollectionId] = this.#collection.id;
-    exportData[FieldNameCollectionName] = this.#collection.name;
+    const collectionIdVisible = customVisibility.get(FieldNameCollectionId);
+    if (collectionIdVisible !== false) {
+      exportData[FieldNameCollectionId] = this.#collection.id;
+    }
+    const collectionNameVisible = customVisibility.get(FieldNameCollectionName);
+    if (collectionNameVisible !== false) {
+      exportData[FieldNameCollectionName] = this.#collection.name;
+    }
 
-    const expand = this.get(FieldNameExpand);
-    if (expand && typeof expand === "object") {
-      exportData[FieldNameExpand] = expand;
+    const expandVisible = customVisibility.get(FieldNameExpand);
+    if (expandVisible !== false && this.#expand) {
+      exportData[FieldNameExpand] = Object.fromEntries(this.#expand.getAll());
     }
 
     return exportData;

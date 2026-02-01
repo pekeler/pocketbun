@@ -16,7 +16,6 @@ import { CollectionRequestEvent, CollectionsImportRequestEvent, CollectionsListR
 import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";
 import { Provider } from "../tools/search/provider.ts";
 import { SimpleFieldResolver } from "../tools/search/simple_field_resolver.ts";
-import { recordAuthMethods } from "./record_auth_methods.ts";
 
 const COLLECTION_FIELDS = new Set(["id", "created", "updated", "name", "system", "type"]);
 
@@ -66,7 +65,6 @@ export function bindCollectionApi(app: App, rg: RouterGroup<RequestEvent>): void
   const group = rg.group("/collections");
   group.get("", (event) => collectionsList(app, event));
   group.post("", (event) => collectionCreate(app, event));
-  group.get("/{collection}/auth-methods", (event) => recordAuthMethods(app, event));
   group.get("/{collection}", (event) => collectionView(app, event));
   group.patch("/{collection}", (event) => collectionUpdate(app, event));
   group.delete("/{collection}", (event) => collectionDelete(app, event));

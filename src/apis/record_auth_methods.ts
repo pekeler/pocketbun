@@ -8,6 +8,7 @@ import { NameApple } from "../tools/auth/apple.ts";
 import { SetAuthURLParam } from "../tools/auth/oauth2.ts";
 import { S256Challenge } from "../tools/security/crypto.ts";
 import { randomString } from "../tools/security/random.ts";
+import { authCollectionNotFound, findAuthCollection } from "./record_auth_utils.ts";
 
 type OTPResponse = {
   enabled: boolean;
@@ -53,7 +54,7 @@ type AuthMethodsResponse = {
 export async function recordAuthMethods(app: App, event: RequestEvent): Promise<Response> {
   const collection = findAuthCollection(app, event);
   if (!collection) {
-    return notFound(event);
+    return authCollectionNotFound(event);
   }
 
   const result: AuthMethodsResponse = {
@@ -147,24 +148,4 @@ function fillLegacyFields(result: AuthMethodsResponse): void {
   if (result.oauth2.enabled) {
     result.authProviders = result.oauth2.providers;
   }
-}
-
-function findAuthCollection(app: App, event: RequestEvent) {
-  const collectionId = event.params.collection ?? "";
-  if (!collectionId) {
-    return null;
-  }
-  const collection = app.findCollectionByNameOrId(collectionId);
-  if (!collection || !collection.isAuth()) {
-    return null;
-  }
-  return collection;
-}
-
-function notFound(event: RequestEvent): Response {
-  return event.json(404, {
-    status: 404,
-    message: "Missing or invalid auth collection context.",
-    data: {},
-  });
 }

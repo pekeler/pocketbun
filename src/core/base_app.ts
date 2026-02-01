@@ -15,8 +15,22 @@ import type {
   CollectionRequestEvent,
   CollectionsImportRequestEvent,
   CollectionsListRequestEvent,
+  MailerRecordEvent,
+  RecordAuthRefreshRequestEvent,
+  RecordAuthRequestEvent,
+  RecordAuthWithOAuth2RequestEvent,
+  RecordAuthWithOTPRequestEvent,
+  RecordAuthWithPasswordRequestEvent,
+  RecordConfirmEmailChangeRequestEvent,
+  RecordConfirmPasswordResetRequestEvent,
+  RecordConfirmVerificationRequestEvent,
+  RecordCreateOTPRequestEvent,
+  RecordEnrichEvent,
   RecordErrorEvent,
   RecordEvent,
+  RecordRequestEmailChangeRequestEvent,
+  RecordRequestPasswordResetRequestEvent,
+  RecordRequestVerificationRequestEvent,
 } from "./events.ts";
 import type { RecordProxy } from "./record_proxy.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
@@ -29,6 +43,8 @@ import { NewLocal } from "../tools/filesystem/filesystem.ts";
 import { Hook } from "../tools/hook/hook.ts";
 import { NewTaggedHook } from "../tools/hook/tagged.ts";
 import { columnify } from "../tools/inflector/inflector.ts";
+import { Sendmail } from "../tools/mailer/sendmail.ts";
+import { SMTPClient } from "../tools/mailer/smtp.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { buildSortExpr, parseSortFromString } from "../tools/search/sort.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
@@ -50,6 +66,7 @@ import {
 import { validateCollection } from "./collection_validate.ts";
 import { TableInfo } from "./db_table.ts";
 import {
+  MailerEvent,
   ModelErrorEvent,
   ModelEvent,
   ModelEventTypeCreate,
@@ -93,6 +110,7 @@ import { CollectionNameOTPs, OTP } from "./otp_model.ts";
 import { FieldNameEmail, FieldNamePassword, Record as RecordModel, type RecordData } from "./record.ts";
 import { RecordFieldResolver } from "./record_field_resolver.ts";
 import { RecordQuery, buildRecordFilterExpr, combineSqlExprs, type RecordQueryFilter } from "./record_query.ts";
+import { expandRecord as expandRecordHelper, expandRecords as expandRecordsHelper } from "./record_query_expand.ts";
 import {
   TokenClaimCollectionId,
   TokenClaimId,
@@ -155,6 +173,25 @@ export class BaseApp implements App {
   #onRecordDeleteExecute: Hook<RecordEvent>;
   #onRecordAfterDeleteSuccess: Hook<RecordEvent>;
   #onRecordAfterDeleteError: Hook<RecordErrorEvent>;
+  #onRecordEnrich: Hook<RecordEnrichEvent>;
+  #onRecordAuthWithPasswordRequest: Hook<RecordAuthWithPasswordRequestEvent>;
+  #onRecordAuthWithOAuth2Request: Hook<RecordAuthWithOAuth2RequestEvent>;
+  #onRecordAuthWithOTPRequest: Hook<RecordAuthWithOTPRequestEvent>;
+  #onRecordAuthRequest: Hook<RecordAuthRequestEvent>;
+  #onRecordAuthRefreshRequest: Hook<RecordAuthRefreshRequestEvent>;
+  #onRecordCreateOTPRequest: Hook<RecordCreateOTPRequestEvent>;
+  #onRecordRequestPasswordResetRequest: Hook<RecordRequestPasswordResetRequestEvent>;
+  #onRecordConfirmPasswordResetRequest: Hook<RecordConfirmPasswordResetRequestEvent>;
+  #onRecordRequestVerificationRequest: Hook<RecordRequestVerificationRequestEvent>;
+  #onRecordConfirmVerificationRequest: Hook<RecordConfirmVerificationRequestEvent>;
+  #onRecordRequestEmailChangeRequest: Hook<RecordRequestEmailChangeRequestEvent>;
+  #onRecordConfirmEmailChangeRequest: Hook<RecordConfirmEmailChangeRequestEvent>;
+  #onMailerSend: Hook<MailerEvent>;
+  #onMailerRecordAuthAlertSend: Hook<MailerRecordEvent>;
+  #onMailerRecordPasswordResetSend: Hook<MailerRecordEvent>;
+  #onMailerRecordVerificationSend: Hook<MailerRecordEvent>;
+  #onMailerRecordEmailChangeSend: Hook<MailerRecordEvent>;
+  #onMailerRecordOTPSend: Hook<MailerRecordEvent>;
   #onCollectionValidate: Hook<CollectionEvent>;
   #onCollectionCreate: Hook<CollectionEvent>;
   #onCollectionCreateExecute: Hook<CollectionEvent>;
@@ -178,6 +215,9 @@ export class BaseApp implements App {
     this.#logger = {
       Warn: (message: string, ...args: unknown[]) => {
         console.warn(message, ...args);
+      },
+      Error: (message: string, ...args: unknown[]) => {
+        console.error(message, ...args);
       },
     };
     this.#onCollectionsListRequest = new Hook();
@@ -212,6 +252,25 @@ export class BaseApp implements App {
     this.#onRecordDeleteExecute = new Hook();
     this.#onRecordAfterDeleteSuccess = new Hook();
     this.#onRecordAfterDeleteError = new Hook();
+    this.#onRecordEnrich = new Hook();
+    this.#onRecordAuthWithPasswordRequest = new Hook();
+    this.#onRecordAuthWithOAuth2Request = new Hook();
+    this.#onRecordAuthWithOTPRequest = new Hook();
+    this.#onRecordAuthRequest = new Hook();
+    this.#onRecordAuthRefreshRequest = new Hook();
+    this.#onRecordCreateOTPRequest = new Hook();
+    this.#onRecordRequestPasswordResetRequest = new Hook();
+    this.#onRecordConfirmPasswordResetRequest = new Hook();
+    this.#onRecordRequestVerificationRequest = new Hook();
+    this.#onRecordConfirmVerificationRequest = new Hook();
+    this.#onRecordRequestEmailChangeRequest = new Hook();
+    this.#onRecordConfirmEmailChangeRequest = new Hook();
+    this.#onMailerSend = new Hook();
+    this.#onMailerRecordAuthAlertSend = new Hook();
+    this.#onMailerRecordPasswordResetSend = new Hook();
+    this.#onMailerRecordVerificationSend = new Hook();
+    this.#onMailerRecordEmailChangeSend = new Hook();
+    this.#onMailerRecordOTPSend = new Hook();
     this.#onCollectionValidate = new Hook();
     this.#onCollectionCreate = new Hook();
     this.#onCollectionCreateExecute = new Hook();
@@ -386,6 +445,94 @@ export class BaseApp implements App {
     return NewTaggedHook(this.#onRecordAfterDeleteError, ...tags);
   }
 
+  OnRecordEnrich(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordEnrichEvent>> {
+    return NewTaggedHook(this.#onRecordEnrich, ...tags);
+  }
+
+  OnRecordAuthWithPasswordRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordAuthWithPasswordRequestEvent>> {
+    return NewTaggedHook(this.#onRecordAuthWithPasswordRequest, ...tags);
+  }
+
+  OnRecordAuthWithOAuth2Request(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordAuthWithOAuth2RequestEvent>> {
+    return NewTaggedHook(this.#onRecordAuthWithOAuth2Request, ...tags);
+  }
+
+  OnRecordAuthWithOTPRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordAuthWithOTPRequestEvent>> {
+    return NewTaggedHook(this.#onRecordAuthWithOTPRequest, ...tags);
+  }
+
+  OnRecordAuthRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordAuthRequestEvent>> {
+    return NewTaggedHook(this.#onRecordAuthRequest, ...tags);
+  }
+
+  OnRecordAuthRefreshRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordAuthRefreshRequestEvent>> {
+    return NewTaggedHook(this.#onRecordAuthRefreshRequest, ...tags);
+  }
+
+  OnRecordCreateOTPRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordCreateOTPRequestEvent>> {
+    return NewTaggedHook(this.#onRecordCreateOTPRequest, ...tags);
+  }
+
+  OnRecordRequestPasswordResetRequest(
+    tags: string[] = [],
+  ): ReturnType<typeof NewTaggedHook<RecordRequestPasswordResetRequestEvent>> {
+    return NewTaggedHook(this.#onRecordRequestPasswordResetRequest, ...tags);
+  }
+
+  OnRecordConfirmPasswordResetRequest(
+    tags: string[] = [],
+  ): ReturnType<typeof NewTaggedHook<RecordConfirmPasswordResetRequestEvent>> {
+    return NewTaggedHook(this.#onRecordConfirmPasswordResetRequest, ...tags);
+  }
+
+  OnRecordRequestVerificationRequest(
+    tags: string[] = [],
+  ): ReturnType<typeof NewTaggedHook<RecordRequestVerificationRequestEvent>> {
+    return NewTaggedHook(this.#onRecordRequestVerificationRequest, ...tags);
+  }
+
+  OnRecordConfirmVerificationRequest(
+    tags: string[] = [],
+  ): ReturnType<typeof NewTaggedHook<RecordConfirmVerificationRequestEvent>> {
+    return NewTaggedHook(this.#onRecordConfirmVerificationRequest, ...tags);
+  }
+
+  OnRecordRequestEmailChangeRequest(
+    tags: string[] = [],
+  ): ReturnType<typeof NewTaggedHook<RecordRequestEmailChangeRequestEvent>> {
+    return NewTaggedHook(this.#onRecordRequestEmailChangeRequest, ...tags);
+  }
+
+  OnRecordConfirmEmailChangeRequest(
+    tags: string[] = [],
+  ): ReturnType<typeof NewTaggedHook<RecordConfirmEmailChangeRequestEvent>> {
+    return NewTaggedHook(this.#onRecordConfirmEmailChangeRequest, ...tags);
+  }
+
+  OnMailerSend(): Hook<MailerEvent> {
+    return this.#onMailerSend;
+  }
+
+  OnMailerRecordAuthAlertSend(tags: string[] = []): ReturnType<typeof NewTaggedHook<MailerRecordEvent>> {
+    return NewTaggedHook(this.#onMailerRecordAuthAlertSend, ...tags);
+  }
+
+  OnMailerRecordPasswordResetSend(tags: string[] = []): ReturnType<typeof NewTaggedHook<MailerRecordEvent>> {
+    return NewTaggedHook(this.#onMailerRecordPasswordResetSend, ...tags);
+  }
+
+  OnMailerRecordVerificationSend(tags: string[] = []): ReturnType<typeof NewTaggedHook<MailerRecordEvent>> {
+    return NewTaggedHook(this.#onMailerRecordVerificationSend, ...tags);
+  }
+
+  OnMailerRecordEmailChangeSend(tags: string[] = []): ReturnType<typeof NewTaggedHook<MailerRecordEvent>> {
+    return NewTaggedHook(this.#onMailerRecordEmailChangeSend, ...tags);
+  }
+
+  OnMailerRecordOTPSend(tags: string[] = []): ReturnType<typeof NewTaggedHook<MailerRecordEvent>> {
+    return NewTaggedHook(this.#onMailerRecordOTPSend, ...tags);
+  }
+
   OnCollectionValidate(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionEvent>> {
     return NewTaggedHook(this.#onCollectionValidate, ...tags);
   }
@@ -487,6 +634,10 @@ export class BaseApp implements App {
     return this.#auxDb;
   }
 
+  TxInfo(): TxAppInfo | null {
+    return this.#txInfo;
+  }
+
   auxHasTable(name: string): boolean {
     const row = this.auxDb()
       .query("select name from sqlite_master where type in ('table','view') and lower(name) = lower(?)")
@@ -523,8 +674,54 @@ export class BaseApp implements App {
     }
   }
 
+  NewMailClient() {
+    let client: Sendmail | SMTPClient;
+
+    if (this.#settings.smtp.enabled) {
+      client = new SMTPClient();
+      client.Host = this.#settings.smtp.host;
+      client.Port = this.#settings.smtp.port;
+      client.Username = this.#settings.smtp.username;
+      client.Password = this.#settings.smtp.password;
+      client.TLS = this.#settings.smtp.tls;
+      client.AuthMethod = this.#settings.smtp.authMethod;
+      client.LocalName = this.#settings.smtp.localName;
+    } else {
+      client = new Sendmail();
+    }
+
+    if (typeof (client as Sendmail | SMTPClient).OnSend === "function") {
+      client.OnSend().Bind({
+        Id: "__pbMailerOnSend__",
+        Func: (e) => {
+          const appEvent = new MailerEvent(this, client, e.Message);
+
+          return this.OnMailerSend().Trigger(appEvent, (ae) => {
+            e.Message = ae.Message;
+
+            if (ae.Mailer !== client) {
+              return ae.Mailer.Send(e.Message);
+            }
+
+            return e.Next();
+          });
+        },
+      });
+    }
+
+    return client;
+  }
+
   RecordQuery(collectionModelOrIdentifier: Collection | string | null | undefined): RecordQuery {
     return new RecordQuery(this, collectionModelOrIdentifier);
+  }
+
+  ExpandRecord(record: RecordModel, expands: string[], optFetchFunc = null): Record<string, Error> {
+    return expandRecordHelper(this, record, expands, optFetchFunc);
+  }
+
+  ExpandRecords(records: RecordModel[], expands: string[], optFetchFunc = null): Record<string, Error> {
+    return expandRecordsHelper(this, records, expands, optFetchFunc);
   }
 
   FindRecordById(
@@ -2418,7 +2615,7 @@ export class BaseApp implements App {
         const providerNames = Object.keys(Providers);
         const provider = e.Record.GetString("provider");
         const providerErr =
-          required(provider) ?? (providerNames.includes(provider) ? null : newError("validation_in", "Invalid value."));
+          required(provider) ?? (providerNames.includes(provider) ? null : newError("validation_in_invalid", "Invalid value."));
         if (providerErr) {
           return new ValidationErrors({ provider: providerErr });
         }

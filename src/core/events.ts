@@ -1,9 +1,11 @@
 // Ported from pocketbase/core/events.go (partial: model/record/collection + collection request events).
 
+import type { Mailer, Message } from "../tools/mailer/mailer.ts";
 import type { SearchResult } from "../tools/search/types.ts";
 import type { App } from "./app.ts";
 import type { Collection } from "./collection.ts";
 import type { RequestEvent } from "./event_request.ts";
+import type { RequestInfo } from "./event_request.ts";
 import type { Record as RecordModel } from "./record.ts";
 import type { RecordProxy } from "./record_proxy.ts";
 import { Event } from "../tools/hook/event.ts";
@@ -59,6 +61,43 @@ class BaseCollectionEventData {
       tags.push(this.Collection.name);
     }
     return tags;
+  }
+}
+
+export class MailerEvent extends Event {
+  App: App;
+  Mailer: Mailer;
+  Message: Message;
+
+  constructor(app: App, mailer: Mailer, message: Message) {
+    super();
+    this.App = app;
+    this.Mailer = mailer;
+    this.Message = message;
+  }
+}
+
+export class MailerRecordEvent extends Event {
+  App: App;
+  Mailer: Mailer;
+  Message: Message;
+  Record: RecordModel | null;
+  Meta: Record<string, unknown> | null;
+  #base: BaseRecordEventData;
+
+  constructor(app: App, mailer: Mailer, message: Message, record: RecordModel | null, meta: Record<string, unknown> | null) {
+    super();
+    this.App = app;
+    this.Mailer = mailer;
+    this.Message = message;
+    this.Record = record;
+    this.Meta = meta;
+    this.#base = new BaseRecordEventData();
+    this.#base.Record = record;
+  }
+
+  Tags(): string[] {
+    return this.#base.Tags();
   }
 }
 
@@ -315,6 +354,14 @@ export class CollectionsListRequestEvent extends Event {
   Collections: Collection[];
   Result: SearchResult<unknown> | null;
 
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
   constructor(requestEvent: RequestEvent, collections: Collection[], result: SearchResult<unknown> | null) {
     super();
     this.RequestEvent = requestEvent;
@@ -327,6 +374,14 @@ export class CollectionsImportRequestEvent extends Event {
   RequestEvent: RequestEvent;
   CollectionsData: Array<Record<string, unknown>>;
   DeleteMissing: boolean;
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
 
   constructor(requestEvent: RequestEvent, collectionsData: Array<Record<string, unknown>>, deleteMissing: boolean) {
     super();
@@ -341,10 +396,356 @@ export class CollectionRequestEvent extends Event {
   Collection: Collection;
   Tags: () => string[];
 
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
   constructor(requestEvent: RequestEvent, collection: Collection) {
     super();
     this.RequestEvent = requestEvent;
     this.Collection = collection;
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
+}
+
+export class RecordEnrichEvent extends Event {
+  App: App;
+  RequestInfo: RequestInfo | null;
+  Record: RecordModel | null;
+  #base: BaseRecordEventData;
+
+  constructor(app: App, requestInfo: RequestInfo | null, record: RecordModel | null) {
+    super();
+    this.App = app;
+    this.RequestInfo = requestInfo;
+    this.Record = record;
+    this.#base = new BaseRecordEventData();
+    this.#base.Record = record;
+  }
+
+  Tags(): string[] {
+    return this.#base.Tags();
+  }
+}
+
+export class RecordCreateOTPRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  Record: RecordModel | null;
+  Password: string;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, collection: Collection, record: RecordModel | null) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.Record = record;
+    this.Password = "";
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
+}
+
+export class RecordAuthWithOTPRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  Record: RecordModel | null;
+  OTP: unknown;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, collection: Collection, record: RecordModel | null) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.Record = record;
+    this.OTP = null;
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
+}
+
+export class RecordAuthRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  Record: RecordModel | null;
+  Token: string;
+  Meta: unknown;
+  AuthMethod: string;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, collection: Collection, record: RecordModel | null) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.Record = record;
+    this.Token = "";
+    this.Meta = null;
+    this.AuthMethod = "";
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
+}
+
+export class RecordAuthWithPasswordRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  Record: RecordModel | null;
+  Identity: string;
+  IdentityField: string;
+  Password: string;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, collection: Collection, record: RecordModel | null) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.Record = record;
+    this.Identity = "";
+    this.IdentityField = "";
+    this.Password = "";
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
+}
+
+export class RecordAuthWithOAuth2RequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  ProviderName: string;
+  ProviderClient: unknown;
+  Record: RecordModel | null;
+  OAuth2User: unknown;
+  CreateData: Record<string, unknown>;
+  IsNewRecord: boolean;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, collection: Collection, record: RecordModel | null) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.ProviderName = "";
+    this.ProviderClient = null;
+    this.Record = record;
+    this.OAuth2User = null;
+    this.CreateData = {};
+    this.IsNewRecord = false;
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
+}
+
+export class RecordAuthRefreshRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  Record: RecordModel | null;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, collection: Collection, record: RecordModel | null) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.Record = record;
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
+}
+
+export class RecordRequestPasswordResetRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  Record: RecordModel | null;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, collection: Collection, record: RecordModel | null) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.Record = record;
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
+}
+
+export class RecordConfirmPasswordResetRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  Record: RecordModel | null;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, collection: Collection, record: RecordModel | null) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.Record = record;
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
+}
+
+export class RecordRequestVerificationRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  Record: RecordModel | null;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, collection: Collection, record: RecordModel | null) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.Record = record;
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
+}
+
+export class RecordConfirmVerificationRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  Record: RecordModel | null;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, collection: Collection, record: RecordModel | null) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.Record = record;
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
+}
+
+export class RecordRequestEmailChangeRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  Record: RecordModel | null;
+  NewEmail: string;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, collection: Collection, record: RecordModel | null) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.Record = record;
+    this.NewEmail = "";
+    const base = newBaseCollectionEventData(collection);
+    this.Tags = base.Tags;
+  }
+}
+
+export class RecordConfirmEmailChangeRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Collection: Collection;
+  Record: RecordModel | null;
+  NewEmail: string;
+  Tags: () => string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, collection: Collection, record: RecordModel | null) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Collection = collection;
+    this.Record = record;
+    this.NewEmail = "";
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
   }

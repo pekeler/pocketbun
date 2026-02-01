@@ -26,6 +26,7 @@ export class RequestEvent extends Event {
   app: App;
   auth: RecordModel | null;
   #cachedRequestInfo: RequestInfo | null = null;
+  #cachedBody: Record<string, unknown> | null = null;
 
   constructor(options: { app: App; request: Request; params?: Record<string, string>; remoteAddress?: string | null }) {
     super({
@@ -115,6 +116,35 @@ export class RequestEvent extends Event {
 
     this.#cachedRequestInfo = info;
     return info;
+  }
+
+  override async bindBody<T extends object>(target: T): Promise<void> {
+    if (this.#cachedRequestInfo) {
+      Object.assign(target, this.#cachedRequestInfo.body);
+      return;
+    }
+
+    if (this.#cachedBody) {
+      Object.assign(target, this.#cachedBody);
+      return;
+    }
+
+    const contentType = this.request.headers.get("Content-Type") ?? "";
+    if (!this.request.body) {
+      return;
+    }
+
+    if (contentType.includes("application/json")) {
+      try {
+        const parsed = await this.request.clone().json();
+        if (parsed && typeof parsed === "object") {
+          this.#cachedBody = parsed as Record<string, unknown>;
+          Object.assign(target, this.#cachedBody);
+        }
+      } catch {
+        // ignore malformed JSON for now; upstream returns error later in request validation
+      }
+    }
   }
 }
 

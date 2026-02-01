@@ -1,22 +1,115 @@
-// Ported from pocketbase/tests/app.go (simplified: only clones data dir and bootstraps BaseApp).
+// Ported from pocketbase/tests/app.go (simplified for Bun).
 
 import { cp, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { MailerEvent } from "../src/core/events.ts";
 import { BaseApp } from "../src/core/base_app.ts";
+import { TestMailer } from "./test_mailer.ts";
 
-export async function newTestApp(dataDir?: string): Promise<{ app: BaseApp; cleanup: () => Promise<void> }> {
+export class TestApp extends BaseApp {
+  eventCalls: Record<string, number> = {};
+  testMailer: TestMailer = new TestMailer();
+
+  resetEventCalls(): void {
+    this.eventCalls = {};
+  }
+
+  registerEventCall(name: string): void {
+    this.eventCalls[name] = (this.eventCalls[name] ?? 0) + 1;
+  }
+
+  bindEventCounters(): void {
+    const bindTagged = <T extends { Next: () => unknown }>(
+      name: string,
+      hook: { BindFunc: (fn: (e: T) => unknown) => string },
+    ) => {
+      hook.BindFunc((e) => {
+        this.registerEventCall(name);
+        return e.Next();
+      });
+    };
+
+    bindTagged("OnCollectionsListRequest", this.OnCollectionsListRequest());
+    bindTagged("OnCollectionViewRequest", this.OnCollectionViewRequest());
+    bindTagged("OnCollectionCreateRequest", this.OnCollectionCreateRequest());
+    bindTagged("OnCollectionUpdateRequest", this.OnCollectionUpdateRequest());
+    bindTagged("OnCollectionDeleteRequest", this.OnCollectionDeleteRequest());
+    bindTagged("OnCollectionsImportRequest", this.OnCollectionsImportRequest());
+
+    bindTagged("OnModelCreate", this.OnModelCreate());
+    bindTagged("OnModelCreateExecute", this.OnModelCreateExecute());
+    bindTagged("OnModelAfterCreateSuccess", this.OnModelAfterCreateSuccess());
+    bindTagged("OnModelAfterCreateError", this.OnModelAfterCreateError());
+    bindTagged("OnModelUpdate", this.OnModelUpdate());
+    bindTagged("OnModelUpdateExecute", this.OnModelUpdateExecute());
+    bindTagged("OnModelAfterUpdateSuccess", this.OnModelAfterUpdateSuccess());
+    bindTagged("OnModelAfterUpdateError", this.OnModelAfterUpdateError());
+    bindTagged("OnModelValidate", this.OnModelValidate());
+    bindTagged("OnModelDelete", this.OnModelDelete());
+    bindTagged("OnModelDeleteExecute", this.OnModelDeleteExecute());
+    bindTagged("OnModelAfterDeleteSuccess", this.OnModelAfterDeleteSuccess());
+    bindTagged("OnModelAfterDeleteError", this.OnModelAfterDeleteError());
+
+    bindTagged("OnRecordValidate", this.OnRecordValidate());
+    bindTagged("OnRecordCreate", this.OnRecordCreate());
+    bindTagged("OnRecordCreateExecute", this.OnRecordCreateExecute());
+    bindTagged("OnRecordAfterCreateSuccess", this.OnRecordAfterCreateSuccess());
+    bindTagged("OnRecordAfterCreateError", this.OnRecordAfterCreateError());
+    bindTagged("OnRecordUpdate", this.OnRecordUpdate());
+    bindTagged("OnRecordUpdateExecute", this.OnRecordUpdateExecute());
+    bindTagged("OnRecordAfterUpdateSuccess", this.OnRecordAfterUpdateSuccess());
+    bindTagged("OnRecordAfterUpdateError", this.OnRecordAfterUpdateError());
+    bindTagged("OnRecordDelete", this.OnRecordDelete());
+    bindTagged("OnRecordDeleteExecute", this.OnRecordDeleteExecute());
+    bindTagged("OnRecordAfterDeleteSuccess", this.OnRecordAfterDeleteSuccess());
+    bindTagged("OnRecordAfterDeleteError", this.OnRecordAfterDeleteError());
+
+    bindTagged("OnRecordEnrich", this.OnRecordEnrich());
+    bindTagged("OnRecordAuthWithPasswordRequest", this.OnRecordAuthWithPasswordRequest());
+    bindTagged("OnRecordAuthWithOAuth2Request", this.OnRecordAuthWithOAuth2Request());
+    bindTagged("OnRecordAuthWithOTPRequest", this.OnRecordAuthWithOTPRequest());
+    bindTagged("OnRecordAuthRequest", this.OnRecordAuthRequest());
+    bindTagged("OnRecordAuthRefreshRequest", this.OnRecordAuthRefreshRequest());
+    bindTagged("OnRecordCreateOTPRequest", this.OnRecordCreateOTPRequest());
+    bindTagged("OnRecordRequestPasswordResetRequest", this.OnRecordRequestPasswordResetRequest());
+    bindTagged("OnRecordConfirmPasswordResetRequest", this.OnRecordConfirmPasswordResetRequest());
+    bindTagged("OnRecordRequestVerificationRequest", this.OnRecordRequestVerificationRequest());
+    bindTagged("OnRecordConfirmVerificationRequest", this.OnRecordConfirmVerificationRequest());
+    bindTagged("OnRecordRequestEmailChangeRequest", this.OnRecordRequestEmailChangeRequest());
+    bindTagged("OnRecordConfirmEmailChangeRequest", this.OnRecordConfirmEmailChangeRequest());
+
+    this.OnMailerSend().BindFunc((e: MailerEvent) => {
+      this.registerEventCall("OnMailerSend");
+      e.Mailer = this.testMailer;
+      return e.Next();
+    });
+
+    bindTagged("OnMailerRecordAuthAlertSend", this.OnMailerRecordAuthAlertSend());
+    bindTagged("OnMailerRecordPasswordResetSend", this.OnMailerRecordPasswordResetSend());
+    bindTagged("OnMailerRecordVerificationSend", this.OnMailerRecordVerificationSend());
+    bindTagged("OnMailerRecordEmailChangeSend", this.OnMailerRecordEmailChangeSend());
+    bindTagged("OnMailerRecordOTPSend", this.OnMailerRecordOTPSend());
+  }
+}
+
+export async function newTestApp(dataDir?: string): Promise<{ app: TestApp; cleanup: () => Promise<void> }> {
   const source = dataDir ?? resolve(fileURLToPath(new URL("./data", import.meta.url)));
   const tempDir = await mkdtemp(join(tmpdir(), "pocketbun-test-"));
   await cp(source, tempDir, { recursive: true });
 
-  const app = new BaseApp({ dataDir: tempDir, encryptionEnv: "pb_test_env" });
+  const app = new TestApp({ dataDir: tempDir, encryptionEnv: "pb_test_env" });
   app.bootstrap();
+  app.runAllMigrations();
+  app.settings().logs.maxDays = 0;
+  app.bindEventCounters();
 
   return {
     app,
     cleanup: async () => {
+      app.resetEventCalls();
+      app.testMailer.reset();
       app.resetBootstrapState();
       await rm(tempDir, { recursive: true, force: true });
     },
