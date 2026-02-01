@@ -83,7 +83,7 @@ export class System {
     return new System(dirPath);
   }
 
-  static NewS3(..._args: unknown[]): never {
+  static NewS3(..._args: unknown[]): System {
     throw new Error("S3 filesystem support is not implemented in PocketBun yet.");
   }
 
@@ -489,7 +489,7 @@ export function NewLocal(dirPath: string): System {
   return System.NewLocal(dirPath);
 }
 
-export function NewS3(...args: unknown[]): never {
+export function NewS3(...args: unknown[]): System {
   return System.NewS3(...args);
 }
 

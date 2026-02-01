@@ -81,6 +81,10 @@ export function safeErrorsData(err: unknown): Record<string, unknown> {
   if (err instanceof ValidationErrors) {
     const data: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(err.errors)) {
+      if (value instanceof ValidationErrors) {
+        data[key] = safeErrorsData(value);
+        continue;
+      }
       data[key] = resolveSafeErrorItem(value as Error);
     }
     return data;

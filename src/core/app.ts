@@ -43,7 +43,9 @@ import type {
   RecordRequestPasswordResetRequestEvent,
   RecordRequestVerificationRequestEvent,
   RecordsListRequestEvent,
+  SettingsListRequestEvent,
   SettingsReloadEvent,
+  SettingsUpdateRequestEvent,
 } from "./events.ts";
 import type { ExternalAuth } from "./external_auth_model.ts";
 import type { Field } from "./field.ts";
@@ -86,13 +88,13 @@ export interface App {
   runAllMigrations(): void;
   NewMailClient(): Mailer;
   NewFilesystem(): System;
-  Save(model: RecordModel | Collection | RecordProxy): Error | null;
-  SaveNoValidate(model: RecordModel | Collection | RecordProxy): Error | null;
-  SaveWithContext(ctx: unknown, model: RecordModel | Collection | RecordProxy): Error | null;
-  SaveNoValidateWithContext(ctx: unknown, model: RecordModel | Collection | RecordProxy): Error | null;
+  Save(model: RecordModel | Collection | RecordProxy | Settings): Error | null;
+  SaveNoValidate(model: RecordModel | Collection | RecordProxy | Settings): Error | null;
+  SaveWithContext(ctx: unknown, model: RecordModel | Collection | RecordProxy | Settings): Error | null;
+  SaveNoValidateWithContext(ctx: unknown, model: RecordModel | Collection | RecordProxy | Settings): Error | null;
   Delete(model: RecordModel | Collection | RecordProxy): Error | null;
   DeleteWithContext(ctx: unknown, model: RecordModel | Collection | RecordProxy): Error | null;
-  Validate(model: RecordModel | Collection | RecordProxy): Error | null;
+  Validate(model: RecordModel | Collection | RecordProxy | Settings): Error | null;
   TruncateCollection(collection: Collection): Error | null;
   ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Error | null;
   RunInTransaction(fn: (txApp: App) => Error | null): Error | null;
@@ -188,6 +190,8 @@ export interface App {
   OnCollectionDeleteRequest(): Hook<CollectionRequestEvent>;
   OnCollectionsImportRequest(): Hook<CollectionsImportRequestEvent>;
   OnBatchRequest(): Hook<BatchRequestEvent>;
+  OnSettingsListRequest(): Hook<SettingsListRequestEvent>;
+  OnSettingsUpdateRequest(): Hook<SettingsUpdateRequestEvent>;
 
   OnModelCreate(tags?: string[]): TaggedHook<ModelEvent>;
   OnModelCreateExecute(tags?: string[]): TaggedHook<ModelEvent>;

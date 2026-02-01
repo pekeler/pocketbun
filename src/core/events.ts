@@ -9,13 +9,14 @@ import type { RequestInfo } from "./event_request.ts";
 import type { FileField } from "./field_file.ts";
 import type { Record as RecordModel } from "./record.ts";
 import type { RecordProxy } from "./record_proxy.ts";
+import type { Settings } from "./settings.ts";
 import { Event } from "../tools/hook/event.ts";
 
 export type HookTagger = {
   HookTags(): string[];
 };
 
-type Model = RecordModel | Collection | RecordProxy;
+type Model = RecordModel | Collection | RecordProxy | Settings;
 
 class BaseModelEventData {
   Model: Model | null = null;
@@ -78,6 +79,48 @@ export class SettingsReloadEvent extends Event {
   constructor(app: App) {
     super();
     this.App = app;
+  }
+}
+
+export class SettingsListRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Settings: Settings;
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, settings: Settings) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Settings = settings;
+    syncStopSignal(this, requestEvent);
+  }
+}
+
+export class SettingsUpdateRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  OldSettings: Settings;
+  NewSettings: Settings;
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent, oldSettings: Settings, newSettings: Settings) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.OldSettings = oldSettings;
+    this.NewSettings = newSettings;
+    syncStopSignal(this, requestEvent);
   }
 }
 

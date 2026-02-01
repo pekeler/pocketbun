@@ -63,7 +63,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-01 20:10Z) Port file API (token + download + thumb generation), add file request hooks, and port upstream file API tests.
 - [x] (2026-02-01 22:35Z) Port batch API (internal requests + body limit), add picker fields/excerpt modifiers with tests, and align record enrich + cascade delete behavior to upstream.
 - [x] (2026-02-01 22:50Z) Port logs API (list/view/stats), log model/query helpers, activity logger middleware, and add log query/API tests with a SelectQuery shim.
-- [ ] Implement remaining collection/record CRUD coverage, then port missing API endpoints/middleware (settings, backups, realtime) and hooks (completed: core auth flows, batch, logs; remaining: realtime + remaining APIs).
+- [x] (2026-02-01 23:45Z) Port settings API (list/update/test s3/email/apple secret), add settings forms/tests, and align settings JSON to omit secrets with corresponding hooks/events.
+- [ ] Implement remaining collection/record CRUD coverage, then port missing API endpoints/middleware (backups, realtime) and hooks (completed: core auth flows, batch, logs, settings; remaining: realtime + remaining APIs).
 
 ## Surprises & Discoveries
 

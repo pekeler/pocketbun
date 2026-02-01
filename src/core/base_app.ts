@@ -28,6 +28,7 @@ import { SMTPClient } from "../tools/mailer/smtp.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { buildSortExpr, parseSortFromString } from "../tools/search/sort.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
+import { decrypt, encrypt } from "../tools/security/encrypt.ts";
 import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
 import { randomString } from "../tools/security/random.ts";
 import { Broker } from "../tools/subscriptions/broker.ts";
@@ -47,7 +48,9 @@ import {
 import { validateCollection } from "./collection_validate.ts";
 import { TableInfo } from "./db_table.ts";
 import {
+  SettingsListRequestEvent,
   SettingsReloadEvent,
+  SettingsUpdateRequestEvent,
   type CollectionErrorEvent,
   type CollectionEvent,
   type CollectionRequestEvent,
@@ -209,6 +212,8 @@ export class BaseApp implements App {
   #onRecordConfirmVerificationRequest!: Hook<RecordConfirmVerificationRequestEvent>;
   #onRecordRequestEmailChangeRequest!: Hook<RecordRequestEmailChangeRequestEvent>;
   #onRecordConfirmEmailChangeRequest!: Hook<RecordConfirmEmailChangeRequestEvent>;
+  #onSettingsListRequest!: Hook<SettingsListRequestEvent>;
+  #onSettingsUpdateRequest!: Hook<SettingsUpdateRequestEvent>;
   #onSettingsReload!: Hook<SettingsReloadEvent>;
   #onFileDownloadRequest!: Hook<FileDownloadRequestEvent>;
   #onFileTokenRequest!: Hook<FileTokenRequestEvent>;
@@ -312,6 +317,8 @@ export class BaseApp implements App {
     this.#onRecordConfirmVerificationRequest = new Hook();
     this.#onRecordRequestEmailChangeRequest = new Hook();
     this.#onRecordConfirmEmailChangeRequest = new Hook();
+    this.#onSettingsListRequest = new Hook();
+    this.#onSettingsUpdateRequest = new Hook();
     this.#onSettingsReload = new Hook();
     this.#onFileDownloadRequest = new Hook();
     this.#onFileTokenRequest = new Hook();
@@ -418,6 +425,14 @@ export class BaseApp implements App {
 
   OnBatchRequest(): Hook<BatchRequestEvent> {
     return this.#onBatchRequest;
+  }
+
+  OnSettingsListRequest(): Hook<SettingsListRequestEvent> {
+    return this.#onSettingsListRequest;
+  }
+
+  OnSettingsUpdateRequest(): Hook<SettingsUpdateRequestEvent> {
+    return this.#onSettingsUpdateRequest;
   }
 
   OnModelCreate(tags: string[] = []): ReturnType<typeof NewTaggedHook<ModelEvent>> {
@@ -796,15 +811,40 @@ export class BaseApp implements App {
 
   reloadSettings(): void {
     try {
-      const row = this.db().query("select value from _params where id = 'settings'").get() as { value?: string } | undefined;
-      if (!row?.value || typeof row.value !== "string") {
+      const row = this.db().query("select value from _params where id = 'settings'").get() as
+        | { value?: string | Uint8Array }
+        | undefined;
+      if (!row?.value) {
         return;
       }
 
-      const parsed = JSON.parse(row.value) as Record<string, unknown>;
+      let rawValue = "";
+      if (typeof row.value === "string") {
+        rawValue = row.value;
+      } else if (row.value instanceof Uint8Array) {
+        rawValue = new TextDecoder().decode(row.value);
+      }
+
+      if (!rawValue) {
+        return;
+      }
+
+      const encryptionKey = process.env[this.#encryptionEnv] ?? "";
+      let payload = rawValue;
+      if (encryptionKey) {
+        try {
+          const decrypted = decrypt(rawValue, encryptionKey);
+          payload = new TextDecoder().decode(decrypted);
+        } catch {
+          payload = rawValue;
+        }
+      }
+
+      const parsed = JSON.parse(payload) as Record<string, unknown>;
       const event = new SettingsReloadEvent(this);
       const result = this.OnSettingsReload().Trigger(event, () => {
         this.#settings.loadFromJSON(parsed);
+        this.#settings.MarkAsNotNew();
         return null;
       });
       if (result instanceof Promise) {
@@ -1612,19 +1652,19 @@ export class BaseApp implements App {
     return NewLocal(join(this.#dataDir, "storage"));
   }
 
-  Save(model: RecordModel | Collection | RecordProxy): Error | null {
+  Save(model: RecordModel | Collection | RecordProxy | Settings): Error | null {
     return this.saveModel(model, true);
   }
 
-  SaveNoValidate(model: RecordModel | Collection | RecordProxy): Error | null {
+  SaveNoValidate(model: RecordModel | Collection | RecordProxy | Settings): Error | null {
     return this.saveModel(model, false);
   }
 
-  SaveWithContext(_ctx: unknown, model: RecordModel | Collection | RecordProxy): Error | null {
+  SaveWithContext(_ctx: unknown, model: RecordModel | Collection | RecordProxy | Settings): Error | null {
     return this.saveModel(model, true);
   }
 
-  SaveNoValidateWithContext(_ctx: unknown, model: RecordModel | Collection | RecordProxy): Error | null {
+  SaveNoValidateWithContext(_ctx: unknown, model: RecordModel | Collection | RecordProxy | Settings): Error | null {
     return this.saveModel(model, false);
   }
 
@@ -1635,7 +1675,7 @@ export class BaseApp implements App {
     return record.callFieldInterceptors(null, this, action, actionFunc);
   }
 
-  private saveModel(model: RecordModel | Collection | RecordProxy, runValidation: boolean): Error | null {
+  private saveModel(model: RecordModel | Collection | RecordProxy | Settings, runValidation: boolean): Error | null {
     const recordInfo = resolveRecordProxy(model);
     if (recordInfo) {
       const { record, model: eventModel } = recordInfo;
@@ -1711,6 +1751,59 @@ export class BaseApp implements App {
       return afterErr ?? null;
     }
 
+    if (model instanceof Settings) {
+      const isNew = model.IsNew();
+      const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
+      const runValidatedExecute = (): Error | null => {
+        if (runValidation) {
+          const validateErr = this.Validate(model);
+          if (validateErr) {
+            return validateErr;
+          }
+        }
+
+        return (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () =>
+          this.saveSettings(model),
+        ) as Error | null;
+      };
+
+      const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
+        modelEvent,
+        runValidatedExecute,
+      ) as Error | null;
+      if (saveErr) {
+        const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
+        const afterErr = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+          errorEvent,
+          () => errorEvent.Error,
+        ) as Error | null;
+        return afterErr ?? errorEvent.Error;
+      }
+      if (this.#txInfo) {
+        this.#txInfo.OnComplete((txErr) => {
+          if (txErr) {
+            const errorEvent = new ModelErrorEvent(modelEvent, txErr);
+            const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+              errorEvent,
+              () => errorEvent.Error,
+            ) as Error | null;
+            return result ?? null;
+          }
+          const result = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+            modelEvent,
+            () => null,
+          ) as Error | null;
+          return result ?? null;
+        });
+        return null;
+      }
+      const afterErr = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+        modelEvent,
+        () => null,
+      ) as Error | null;
+      return afterErr ?? null;
+    }
+
     if (!(model instanceof Collection)) {
       throw new Error("unknown model type");
     }
@@ -1755,7 +1848,7 @@ export class BaseApp implements App {
     return afterErr ?? null;
   }
 
-  Validate(model: RecordModel | Collection | RecordProxy): Error | null {
+  Validate(model: RecordModel | Collection | RecordProxy | Settings): Error | null {
     const preValidator = model as Partial<PreValidator>;
     if (typeof preValidator.PreValidate === "function") {
       const preErr = preValidator.PreValidate(null, this);
@@ -2086,6 +2179,33 @@ export class BaseApp implements App {
       return new Error("missing record id");
     }
     this.db().run(`delete from {{${record.TableName()}}} where id = ?`, [record.Id]);
+    return null;
+  }
+
+  private saveSettings(settings: Settings): Error | null {
+    const now = NowDateTime().String();
+    const raw = JSON.stringify(settings.toRaw());
+    const encryptionKey = process.env[this.#encryptionEnv] ?? "";
+    const value = encryptionKey ? encrypt(Buffer.from(raw, "utf8"), encryptionKey) : raw;
+
+    if (settings.IsNew()) {
+      this.db().run("insert into _params (id, value, created, updated) values (?, ?, ?, ?)", [settings.PK(), value, now, now]);
+      settings.MarkAsNotNew();
+    } else {
+      const changes = this.db().run("update _params set value = ?, updated = ? where id = ?", [value, now, settings.PK()]);
+      if (changes.changes === 0) {
+        this.db().run("insert into _params (id, value, created, updated) values (?, ?, ?, ?)", [
+          settings.PK(),
+          value,
+          now,
+          now,
+        ]);
+      }
+      settings.MarkAsNotNew();
+    }
+
+    this.reloadSettings();
+
     return null;
   }
 
@@ -3038,7 +3158,7 @@ function isRecordProxy(value: unknown): value is RecordProxy {
 }
 
 function resolveRecordProxy(
-  model: RecordModel | Collection | RecordProxy,
+  model: RecordModel | Collection | RecordProxy | Settings,
 ): { record: RecordModel; model: RecordModel | RecordProxy } | null {
   if (model instanceof RecordModel) {
     return { record: model, model };
