@@ -678,9 +678,17 @@ function buildJsonPath(parts: string[]): string {
       continue;
     }
     if (/^\d+$/.test(part)) {
-      jsonPath += `[${columnify(part)}]`;
+      if (jsonPath === "") {
+        jsonPath = `[${columnify(part)}]`;
+      } else {
+        jsonPath += `[${columnify(part)}]`;
+      }
     } else {
-      jsonPath += `.${columnify(part)}`;
+      if (jsonPath === "") {
+        jsonPath = columnify(part);
+      } else {
+        jsonPath += `.${columnify(part)}`;
+      }
     }
   }
   return jsonPath;

@@ -39,7 +39,12 @@ import { DbxDatabase } from "../tools/dbx/database.ts";
 import { Hook } from "../tools/hook/hook.ts";
 import { NewTaggedHook } from "../tools/hook/tagged.ts";
 import { findSingleColumnUniqueIndex, parseIndex } from "../tools/dbutils/index.ts";
-import { buildRecordFilterExpr, type RecordQueryFilter } from "./record_query.ts";
+import { RecordFieldResolver } from "./record_field_resolver.ts";
+import { RecordQuery, buildRecordFilterExpr, combineSqlExprs, type RecordQueryFilter } from "./record_query.ts";
+import { buildFilterExpr } from "../tools/search/filter.ts";
+import { buildSortExpr, parseSortFromString } from "../tools/search/sort.ts";
+import { DefaultFilterExprLimit } from "../tools/search/types.ts";
+import { columnify } from "../tools/inflector/inflector.ts";
 import {
   InterceptorActionAfterDelete,
   InterceptorActionAfterDeleteError,
@@ -68,6 +73,7 @@ import type {
   RecordErrorEvent,
   RecordEvent,
 } from "./events.ts";
+import type { RequestInfo } from "./event_request.ts";
 import {
   ModelErrorEvent,
   ModelEvent,
@@ -500,6 +506,10 @@ export class BaseApp implements App {
     }
   }
 
+  RecordQuery(collectionModelOrIdentifier: Collection | string | null | undefined): RecordQuery {
+    return new RecordQuery(this, collectionModelOrIdentifier);
+  }
+
   FindRecordById(
     collectionModelOrIdentifier: Collection | string,
     id: string,
@@ -521,6 +531,245 @@ export class BaseApp implements App {
     }
 
     return record;
+  }
+
+  FindRecordsByIds(
+    collectionModelOrIdentifier: Collection | string,
+    ids: string[],
+    ...filters: Array<RecordQueryFilter | null | undefined>
+  ): RecordModel[] {
+    const collection =
+      typeof collectionModelOrIdentifier === "string"
+        ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
+        : collectionModelOrIdentifier;
+
+    if (!collection) {
+      throw new Error("unknown collection identifier - must be collection model, id or name");
+    }
+
+    const filteredIds = ids.filter((id) => id !== "");
+    if (filteredIds.length === 0) {
+      return [];
+    }
+
+    let sql = `select * from {{${collection.name}}}`;
+    const params: SQLQueryBindings[] = [];
+
+    const placeholders = filteredIds.map(() => "?").join(", ");
+    sql = appendWhere(sql, `[[${collection.name}.id]] IN (${placeholders})`);
+    params.push(...(filteredIds as SQLQueryBindings[]));
+
+    const rule = buildRecordFilterExpr(filters);
+    if (rule?.sql) {
+      sql = appendWhere(sql, rule.sql);
+      params.push(...(rule.params as SQLQueryBindings[]));
+    }
+
+    const rows = this.db().query(sql).all(...params) as RecordData[] | undefined;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    return rows.map((row) => RecordModel.fromRow(collection, row));
+  }
+
+  FindAllRecords(
+    collectionModelOrIdentifier: Collection | string,
+    ...exprs: Array<SqlExpr | Record<string, unknown> | null | undefined>
+  ): RecordModel[] {
+    const collection =
+      typeof collectionModelOrIdentifier === "string"
+        ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
+        : collectionModelOrIdentifier;
+
+    if (!collection) {
+      throw new Error("unknown collection identifier - must be collection model, id or name");
+    }
+
+    let sql = `select * from {{${collection.name}}}`;
+    const params: SQLQueryBindings[] = [];
+
+    const combined = combineSqlExprs(exprs);
+    if (combined?.sql) {
+      sql = appendWhere(sql, combined.sql);
+      params.push(...(combined.params as SQLQueryBindings[]));
+    }
+
+    const rows = this.db().query(sql).all(...params) as RecordData[] | undefined;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    return rows.map((row) => RecordModel.fromRow(collection, row));
+  }
+
+  FindFirstRecordByData(
+    collectionModelOrIdentifier: Collection | string,
+    key: string,
+    value: unknown,
+  ): RecordModel {
+    const collection =
+      typeof collectionModelOrIdentifier === "string"
+        ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
+        : collectionModelOrIdentifier;
+
+    if (!collection) {
+      throw new Error("unknown collection identifier - must be collection model, id or name");
+    }
+
+    const field = collection.Fields.GetByName(key);
+    if (!field) {
+      throw new Error(`invalid or missing field ${key}`);
+    }
+
+    let sql = `select * from {{${collection.name}}}`;
+    sql = appendWhere(sql, `[[${columnify(key)}]] = ?`);
+    const row = this.db().query(sql).get(value as SQLQueryBindings);
+    if (!row || typeof row !== "object") {
+      throw new Error("record not found");
+    }
+
+    return RecordModel.fromRow(collection, row as RecordData);
+  }
+
+  FindRecordsByFilter(
+    collectionModelOrIdentifier: Collection | string,
+    filter: string,
+    sort: string,
+    limit: number,
+    offset: number,
+    ...params: Array<Record<string, unknown>>
+  ): RecordModel[] {
+    const collection =
+      typeof collectionModelOrIdentifier === "string"
+        ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
+        : collectionModelOrIdentifier;
+
+    if (!collection) {
+      throw new Error("unknown collection identifier - must be collection model, id or name");
+    }
+
+    const resolver = new RecordFieldResolver(this, collection, null, true);
+    let sql = `select * from {{${collection.name}}}`;
+    const bindings: SQLQueryBindings[] = [];
+
+    if (filter) {
+      const expr = buildFilterExpr(filter, resolver, DefaultFilterExprLimit, params);
+      if (expr.sql) {
+        sql = appendWhere(sql, expr.sql);
+        bindings.push(...(expr.params as SQLQueryBindings[]));
+      }
+    }
+
+    if (sort) {
+      const orderParts: string[] = [];
+      for (const sortField of parseSortFromString(sort)) {
+        const expr = buildSortExpr(sortField, resolver);
+        if (expr) {
+          orderParts.push(expr);
+        }
+      }
+      if (orderParts.length > 0) {
+        sql = appendOrderBy(sql, orderParts.join(", "));
+      }
+    }
+
+    if (resolver.updateQuery) {
+      const updated = resolver.updateQuery({ select: sql, params: bindings });
+      sql = updated.select;
+      bindings.splice(0, bindings.length, ...((updated.params ?? []) as SQLQueryBindings[]));
+    }
+
+    sql = applyLimitOffset(sql, limit, offset);
+
+    const rows = this.db().query(sql).all(...bindings) as RecordData[] | undefined;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    return rows.map((row) => RecordModel.fromRow(collection, row));
+  }
+
+  FindFirstRecordByFilter(
+    collectionModelOrIdentifier: Collection | string,
+    filter: string,
+    ...params: Array<Record<string, unknown>>
+  ): RecordModel {
+    const records = this.FindRecordsByFilter(collectionModelOrIdentifier, filter, "", 1, 0, ...params);
+    if (records.length === 0) {
+      throw new Error("record not found");
+    }
+    return records[0]!;
+  }
+
+  CountRecords(
+    collectionModelOrIdentifier: Collection | string,
+    ...exprs: Array<SqlExpr | Record<string, unknown> | null | undefined>
+  ): number {
+    const collection =
+      typeof collectionModelOrIdentifier === "string"
+        ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
+        : collectionModelOrIdentifier;
+
+    if (!collection) {
+      throw new Error("unknown collection identifier - must be collection model, id or name");
+    }
+
+    let sql = `select count(*) as total from {{${collection.name}}}`;
+    const params: SQLQueryBindings[] = [];
+
+    const combined = combineSqlExprs(exprs);
+    if (combined?.sql) {
+      sql = appendWhere(sql, combined.sql);
+      params.push(...(combined.params as SQLQueryBindings[]));
+    }
+
+    const row = this.db().query(sql).get(...params) as { total?: number } | undefined;
+    return Number(row?.total ?? 0);
+  }
+
+  CanAccessRecord(
+    record: RecordModel,
+    requestInfo: RequestInfo,
+    accessRule: string | null,
+  ): [boolean, Error | null] {
+    if (requestInfo.auth?.isSuperuser()) {
+      return [true, null];
+    }
+
+    if (accessRule === null) {
+      return [false, null];
+    }
+
+    if (accessRule === "") {
+      return [true, null];
+    }
+
+    let expr: SqlExpr;
+    try {
+      const resolver = new RecordFieldResolver(this, record.collection(), requestInfo, true);
+      expr = buildFilterExpr(accessRule, resolver, DefaultFilterExprLimit);
+
+      let sql = `select (1) as ok from {{${record.collection().name}}}`;
+      sql = appendWhere(sql, `[[${record.collection().name}.id]] = ?`);
+      const params: SQLQueryBindings[] = [record.Id];
+
+      if (expr.sql) {
+        sql = appendWhere(sql, expr.sql);
+        params.push(...(expr.params as SQLQueryBindings[]));
+      }
+
+      if (resolver.updateQuery) {
+        const updated = resolver.updateQuery({ select: sql, params });
+        sql = updated.select;
+        params.splice(0, params.length, ...((updated.params ?? []) as SQLQueryBindings[]));
+      }
+
+      const row = this.db().query(sql).get(...params) as { ok?: number } | undefined;
+      return [Boolean(row?.ok), null];
+    } catch (error) {
+      return [false, error as Error];
+    }
   }
 
   FindAuthRecordByToken(token: string, ...validTypes: string[]): RecordModel {
@@ -1841,6 +2090,26 @@ function appendWhere(baseSql: string, clause: string): string {
     return `${baseSql} AND ${clause}`;
   }
   return `${baseSql} WHERE ${clause}`;
+}
+
+function appendOrderBy(baseSql: string, clause: string): string {
+  if (!clause) {
+    return baseSql;
+  }
+  if (/\border\s+by\b/i.test(baseSql)) {
+    return `${baseSql}, ${clause}`;
+  }
+  return `${baseSql} ORDER BY ${clause}`;
+}
+
+function applyLimitOffset(sql: string, limit: number, offset: number): string {
+  if (limit > 0) {
+    return offset > 0 ? `${sql} LIMIT ${limit} OFFSET ${offset}` : `${sql} LIMIT ${limit}`;
+  }
+  if (offset > 0) {
+    return `${sql} LIMIT -1 OFFSET ${offset}`;
+  }
+  return sql;
 }
 
 function resolveBaseTokenKey(collection: Collection, tokenType: string): string {

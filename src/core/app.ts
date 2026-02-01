@@ -11,6 +11,8 @@ import type { System } from "../tools/filesystem/filesystem.ts";
 import type { Hook } from "../tools/hook/hook.ts";
 import type { TaggedHook } from "../tools/hook/tagged.ts";
 import type { RecordQueryFilter } from "./record_query.ts";
+import type { RecordQuery } from "./record_query.ts";
+import type { RequestInfo } from "./event_request.ts";
 import type {
   CollectionRequestEvent,
   CollectionsImportRequestEvent,
@@ -52,6 +54,7 @@ export interface App {
   RunInTransaction(fn: (txApp: App) => Error | null): Error | null;
   IsTransactional(): boolean;
   Logger(): Logger;
+  RecordQuery(collectionModelOrIdentifier: Collection | string | null | undefined): RecordQuery;
   findAuthRecordByToken(token: string, validTypes?: string[]): RecordModel;
   findCollectionById(id: string): Collection | null;
   findCollectionByNameOrId(identifier: string): Collection | null;
@@ -63,6 +66,34 @@ export interface App {
     id: string,
     ...filters: Array<RecordQueryFilter | null | undefined>
   ): RecordModel;
+  FindRecordsByIds(
+    collectionModelOrIdentifier: Collection | string,
+    ids: string[],
+    ...filters: Array<RecordQueryFilter | null | undefined>
+  ): RecordModel[];
+  FindAllRecords(
+    collectionModelOrIdentifier: Collection | string,
+    ...exprs: Array<SqlExpr | Record<string, unknown> | null | undefined>
+  ): RecordModel[];
+  FindFirstRecordByData(collectionModelOrIdentifier: Collection | string, key: string, value: unknown): RecordModel;
+  FindRecordsByFilter(
+    collectionModelOrIdentifier: Collection | string,
+    filter: string,
+    sort: string,
+    limit: number,
+    offset: number,
+    ...params: Array<Record<string, unknown>>
+  ): RecordModel[];
+  FindFirstRecordByFilter(
+    collectionModelOrIdentifier: Collection | string,
+    filter: string,
+    ...params: Array<Record<string, unknown>>
+  ): RecordModel;
+  CountRecords(
+    collectionModelOrIdentifier: Collection | string,
+    ...exprs: Array<SqlExpr | Record<string, unknown> | null | undefined>
+  ): number;
+  CanAccessRecord(record: RecordModel, requestInfo: RequestInfo, accessRule: string | null): [boolean, Error | null];
   FindAuthRecordByToken(token: string, ...validTypes: string[]): RecordModel;
   FindAuthRecordByEmail(collectionModelOrIdentifier: Collection | string, email: string): RecordModel;
   findFirstRecordByFilter(
