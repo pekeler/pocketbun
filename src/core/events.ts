@@ -195,7 +195,7 @@ export function newRecordEventFromModelEvent(
 ): { event: RecordEvent | null; ok: boolean } {
   const model = modelEvent.Model;
   let record: RecordModel | null = null;
-  if (model && (model as RecordModel).collection) {
+  if (model && typeof (model as RecordModel).collection === "function") {
     record = model as RecordModel;
   } else if (model && typeof (model as RecordProxy).ProxyRecord === "function") {
     try {

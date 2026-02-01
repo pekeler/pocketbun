@@ -13,7 +13,9 @@ export type RecordQueryBuilder = {
 
 export type RecordQueryFilter = (q: RecordQueryBuilder) => Error | null;
 
-export function buildRecordFilterExpr(filters: Array<RecordQueryFilter | null | undefined>): SqlExpr | null {
+export function buildRecordFilterExpr(
+  filters: Array<RecordQueryFilter | null | undefined>,
+): SqlExpr | null {
   const builder = new RecordQueryFilterBuilder();
 
   for (const filter of filters) {
@@ -80,6 +82,7 @@ export class RecordQuery {
   #collection: Collection | null = null;
   #collectionErr: Error | null = null;
   #where: SqlExpr[] = [];
+  #orderBy: string | null = null;
   #limit: number | null = null;
   #offset: number | null = null;
 
@@ -87,14 +90,18 @@ export class RecordQuery {
     this.#app = app;
 
     if (!collectionModelOrIdentifier) {
-      this.#collectionErr = new Error("unknown collection identifier - must be collection model, id or name");
+      this.#collectionErr = new Error(
+        "unknown collection identifier - must be collection model, id or name",
+      );
       return;
     }
 
     if (typeof collectionModelOrIdentifier === "string") {
       const resolved = app.findCollectionByNameOrId(collectionModelOrIdentifier);
       if (!resolved) {
-        this.#collectionErr = new Error("unknown collection identifier - must be collection model, id or name");
+        this.#collectionErr = new Error(
+          "unknown collection identifier - must be collection model, id or name",
+        );
         return;
       }
       this.#collection = resolved;
@@ -114,6 +121,11 @@ export class RecordQuery {
 
   AndWhere(expr: SqlExpr | Record<string, unknown>): this {
     return this.Where(expr);
+  }
+
+  OrderBy(expr: string): this {
+    this.#orderBy = expr;
+    return this;
   }
 
   Limit(limit: number): this {
@@ -141,7 +153,10 @@ export class RecordQuery {
 
   #fetchOne(): RecordData | null {
     const { sql, params } = this.#buildQuerySql(1);
-    const row = this.#app.db().query(sql).get(...params);
+    const row = this.#app
+      .db()
+      .query(sql)
+      .get(...params);
     if (!row || typeof row !== "object") {
       return null;
     }
@@ -150,7 +165,10 @@ export class RecordQuery {
 
   #fetchAll(): RecordData[] {
     const { sql, params } = this.#buildQuerySql();
-    const rows = this.#app.db().query(sql).all(...params);
+    const rows = this.#app
+      .db()
+      .query(sql)
+      .all(...params);
     if (!Array.isArray(rows)) {
       return [];
     }
@@ -174,6 +192,10 @@ export class RecordQuery {
     if (combined?.sql) {
       sql = appendWhere(sql, combined.sql);
       params.push(...(combined.params as SQLQueryBindings[]));
+    }
+
+    if (this.#orderBy) {
+      sql = appendOrderBy(sql, this.#orderBy);
     }
 
     const limit = limitOverride ?? this.#limit;
@@ -203,7 +225,11 @@ function normalizeSqlExpr(
   return hashExpr;
 }
 
-function mapRows(rows: RecordData[], target: unknown[] | undefined, collection: Collection): unknown[] {
+function mapRows(
+  rows: RecordData[],
+  target: unknown[] | undefined,
+  collection: Collection,
+): unknown[] {
   if (!target) {
     return rows.map((row) => RecordModel.fromRow(collection, row));
   }
@@ -302,12 +328,28 @@ function appendWhere(baseSql: string, clause: string): string {
   return `${baseSql} WHERE ${clause}`;
 }
 
-function applyLimitOffset(sql: string, limit: number | null | undefined, offset: number | null | undefined): string {
+function appendOrderBy(baseSql: string, clause: string): string {
+  if (!clause) {
+    return baseSql;
+  }
+  if (/\border\s+by\b/i.test(baseSql)) {
+    return `${baseSql}, ${clause}`;
+  }
+  return `${baseSql} ORDER BY ${clause}`;
+}
+
+function applyLimitOffset(
+  sql: string,
+  limit: number | null | undefined,
+  offset: number | null | undefined,
+): string {
   const safeLimit = typeof limit === "number" ? limit : null;
   const safeOffset = typeof offset === "number" ? offset : null;
 
   if (safeLimit !== null && safeLimit > 0) {
-    return safeOffset && safeOffset > 0 ? `${sql} LIMIT ${safeLimit} OFFSET ${safeOffset}` : `${sql} LIMIT ${safeLimit}`;
+    return safeOffset && safeOffset > 0
+      ? `${sql} LIMIT ${safeLimit} OFFSET ${safeOffset}`
+      : `${sql} LIMIT ${safeLimit}`;
   }
 
   if (safeOffset && safeOffset > 0) {
