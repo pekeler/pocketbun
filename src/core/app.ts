@@ -20,6 +20,7 @@ import type {
   RecordErrorEvent,
   RecordEvent,
 } from "./events.ts";
+import type { ExternalAuth } from "./external_auth_model.ts";
 import type { FieldsList } from "./fields_list.ts";
 import type { Record as RecordModel } from "./record.ts";
 import type { RecordProxy } from "./record_proxy.ts";
@@ -98,6 +99,9 @@ export interface App {
   CanAccessRecord(record: RecordModel, requestInfo: RequestInfo, accessRule: string | null): [boolean, Error | null];
   FindAuthRecordByToken(token: string, ...validTypes: string[]): RecordModel;
   FindAuthRecordByEmail(collectionModelOrIdentifier: Collection | string, email: string): RecordModel;
+  FindAllExternalAuthsByRecord(authRecord: RecordModel): ExternalAuth[];
+  FindAllExternalAuthsByCollection(collection: Collection): ExternalAuth[];
+  FindFirstExternalAuthByExpr(expr: SqlExpr | Record<string, unknown>): ExternalAuth;
   FindAllAuthOriginsByRecord(authRecord: RecordModel): AuthOrigin[];
   FindAllAuthOriginsByCollection(collection: Collection): AuthOrigin[];
   FindAuthOriginById(id: string): AuthOrigin;

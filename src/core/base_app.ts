@@ -19,9 +19,11 @@ import type {
   RecordEvent,
 } from "./events.ts";
 import type { RecordProxy } from "./record_proxy.ts";
-import { ValidationErrors, newError } from "../internal/compat/validation.ts";
+import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
+import { Providers } from "../tools/auth/auth.ts";
 import { findSingleColumnUniqueIndex, parseIndex } from "../tools/dbutils/index.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
+import { HashExp, Not } from "../tools/dbx/expr.ts";
 import { NewLocal } from "../tools/filesystem/filesystem.ts";
 import { Hook } from "../tools/hook/hook.ts";
 import { NewTaggedHook } from "../tools/hook/tagged.ts";
@@ -66,6 +68,7 @@ import {
   syncRecordErrorEventWithModelErrorEvent,
   syncRecordEventWithModelEvent,
 } from "./events.ts";
+import { CollectionNameExternalAuths, ExternalAuth } from "./external_auth_model.ts";
 import {
   InterceptorActionAfterDelete,
   InterceptorActionAfterDeleteError,
@@ -220,6 +223,7 @@ export class BaseApp implements App {
 
     this.registerCollectionHooks();
     this.registerRecordHooks();
+    this.registerExternalAuthHooks();
     this.registerAuthOriginHooks();
   }
 
@@ -808,6 +812,47 @@ export class BaseApp implements App {
     }
 
     return RecordModel.fromRow(collection, row as RecordData);
+  }
+
+  // Ported from pocketbase/core/external_auth_query.go.
+  FindAllExternalAuthsByRecord(authRecord: RecordModel): ExternalAuth[] {
+    const result: ExternalAuth[] = [new ExternalAuth()];
+
+    this.RecordQuery(CollectionNameExternalAuths)
+      .AndWhere({
+        collectionRef: authRecord.collection().id,
+        recordRef: authRecord.Id,
+      })
+      .OrderBy("created DESC")
+      .All(result);
+
+    return result;
+  }
+
+  // Ported from pocketbase/core/external_auth_query.go.
+  FindAllExternalAuthsByCollection(collection: Collection): ExternalAuth[] {
+    const result: ExternalAuth[] = [new ExternalAuth()];
+
+    this.RecordQuery(CollectionNameExternalAuths)
+      .AndWhere({ collectionRef: collection.id })
+      .OrderBy("created DESC")
+      .All(result);
+
+    return result;
+  }
+
+  // Ported from pocketbase/core/external_auth_query.go.
+  FindFirstExternalAuthByExpr(expr: SqlExpr | Record<string, unknown>): ExternalAuth {
+    const result = new ExternalAuth();
+
+    this.RecordQuery(CollectionNameExternalAuths)
+      .AndWhere(Not(HashExp({ providerId: "" })))
+      .AndWhere(expr)
+      .OrderBy("created DESC")
+      .Limit(1)
+      .One(result);
+
+    return result;
   }
 
   FindAllAuthOriginsByRecord(authRecord: RecordModel): AuthOrigin[] {
@@ -2098,6 +2143,30 @@ export class BaseApp implements App {
           return e.Next() as Error | null;
         });
       },
+    });
+  }
+
+  // Ported from pocketbase/core/external_auth_model.go.
+  private registerExternalAuthHooks(): void {
+    recordRefHooks(this, CollectionNameExternalAuths, CollectionTypeAuth);
+
+    this.OnRecordValidate([CollectionNameExternalAuths]).Bind({
+      Func: (e) => {
+        if (!e.Record) {
+          return e.Next();
+        }
+
+        const providerNames = Object.keys(Providers);
+        const provider = e.Record.GetString("provider");
+        const providerErr =
+          required(provider) ?? (providerNames.includes(provider) ? null : newError("validation_in", "Invalid value."));
+        if (providerErr) {
+          return new ValidationErrors({ provider: providerErr });
+        }
+
+        return e.Next();
+      },
+      Priority: 99,
     });
   }
 
