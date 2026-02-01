@@ -61,7 +61,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-01 16:30Z) Port rate limiting middleware + settings rules, update router hook chaining and request pattern tracking, and complete rate limit auth tests.
 - [x] (2026-02-01 18:10Z) Port view helpers (save/delete/create fields + FindRecordByViewFile), align collection default new-state handling, and add upstream view tests.
 - [x] (2026-02-01 20:10Z) Port file API (token + download + thumb generation), add file request hooks, and port upstream file API tests.
-- [ ] Implement remaining collection/record CRUD coverage, then port missing API endpoints/middleware (batch, logs, settings, backups, realtime) and hooks (completed: core auth flows; remaining: realtime + remaining APIs).
+- [x] (2026-02-01 22:35Z) Port batch API (internal requests + body limit), add picker fields/excerpt modifiers with tests, and align record enrich + cascade delete behavior to upstream.
+- [x] (2026-02-01 22:50Z) Port logs API (list/view/stats), log model/query helpers, activity logger middleware, and add log query/API tests with a SelectQuery shim.
+- [ ] Implement remaining collection/record CRUD coverage, then port missing API endpoints/middleware (settings, backups, realtime) and hooks (completed: core auth flows, batch, logs; remaining: realtime + remaining APIs).
 
 ## Surprises & Discoveries
 
@@ -81,6 +83,10 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Evidence: added dbx quoting tests that preserve `[[...]]`/`{{...}}` inside `--` and `/* */` comments.
 - Observation: record validation order must match upstream so hook counters and auth flow tests behave as expected.
   Evidence: upstream auth tests expect hook counters to reflect validation failures, which required validation to run before model execute hooks in BaseApp.
+- Observation: picker field selection must stop recursive pruning once a field is fully matched, and excluded HTML tag contents must be ignored.
+  Evidence: upstream picker tests failed until exact field matches skipped recursion and excerpt stripping skipped script/style contents.
+- Observation: expanded records require enrich hooks even for superusers to match upstream counts.
+  Evidence: batch tests expecting OnRecordEnrich 5 vs. 2 when expanded records were not enriched for superusers.
 
 ## Decision Log
 
@@ -147,10 +153,16 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - Decision: Run record validation before OnModelCreateExecute/OnModelUpdateExecute to mirror upstream hook ordering during auth/record flows.
   Rationale: Upstream tests (OAuth2 auth flows) rely on hook counters and side effects that only match when validation happens before model execute hooks.
   Date/Author: 2026-02-01 / Codex
+- Decision: Apply picker semantics exactly as upstream, including short-circuiting recursive field pruning on exact matches and treating excluded tag contents as non-text in excerpts.
+  Rationale: Upstream picker tests enforce these behaviors and they affect public fields selection.
+  Date/Author: 2026-02-01 / Codex
+- Decision: Always run enrich hooks for expanded records regardless of auth role.
+  Rationale: Upstream expand flow enriches related records even for superusers, and hook counters depend on it.
+  Date/Author: 2026-02-01 / Codex
 
 ## Outcomes & Retrospective
 
-Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. The remaining work is to port collections/records/auth APIs, realtime, and hooks while expanding tests to match upstream behavior.
+Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. The remaining work is to port logs, settings, backups, realtime, and remaining collection/record CRUD coverage while expanding tests to match upstream behavior.
 
 ## Context and Orientation
 
@@ -171,6 +183,8 @@ Milestone 3 ports collections, records, and auth APIs, enabling CRUD and email/p
 Milestone 4 ports realtime (SSE) subscriptions, hook system, and hook loading from pb_hooks/, and completes server features like backups and admin operations needed by the Admin UI. Tests for SSE and hook effects are added.
 
 Each milestone keeps files 1:1 with upstream where possible, adds a header comment linking to the upstream file path (no version/hash; pocketbase_tag.txt is the source of truth), and includes Bun tests that verify behavior against upstream tests.
+
+Plan update (2026-02-01): recorded the batch + picker milestone, added related discoveries and decisions, and narrowed the remaining APIs list to exclude batch.
 
 ## Concrete Steps
 

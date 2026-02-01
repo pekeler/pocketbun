@@ -147,7 +147,12 @@ describe("Cron", () => {
     let test1 = 0;
     let test2 = 0;
 
-    c.SetInterval(250);
+    const intervalMs = 250;
+    c.SetInterval(intervalMs);
+
+    // Align start close to the next interval boundary to avoid timer edge flakiness in JS.
+    const alignDelay = intervalMs - (Date.now() % intervalMs);
+    await new Promise((resolve) => setTimeout(resolve, alignDelay + 5));
 
     c.Add("test1", "* * * * *", () => {
       test1 += 1;
@@ -166,6 +171,9 @@ describe("Cron", () => {
 
     expect(test1).toBe(2);
     expect(test2).toBe(2);
+
+    const alignDelay2 = intervalMs - (Date.now() % intervalMs);
+    await new Promise((resolve) => setTimeout(resolve, alignDelay2 + 5));
 
     c.Start();
 

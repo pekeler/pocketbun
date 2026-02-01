@@ -26,7 +26,9 @@ export type SMTPConfig = {
 
 export type LogsConfig = {
   maxDays: number;
+  minLevel: number;
   logIP: boolean;
+  logAuthId: boolean;
 };
 
 export type BatchConfig = {
@@ -136,7 +138,9 @@ export class Settings {
     };
     this.logs = {
       maxDays: 5,
+      minLevel: 0,
       logIP: true,
+      logAuthId: false,
     };
     this.rateLimits = new RateLimitsConfig();
     this.batch = {
@@ -222,8 +226,14 @@ export class Settings {
       if (typeof record.maxDays === "number" && Number.isFinite(record.maxDays)) {
         this.logs.maxDays = record.maxDays;
       }
+      if (typeof record.minLevel === "number" && Number.isFinite(record.minLevel)) {
+        this.logs.minLevel = record.minLevel;
+      }
       if (typeof record.logIP === "boolean") {
         this.logs.logIP = record.logIP;
+      }
+      if (typeof record.logAuthId === "boolean") {
+        this.logs.logAuthId = record.logAuthId;
       }
     }
 

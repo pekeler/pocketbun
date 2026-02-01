@@ -8,7 +8,8 @@ import { bindBatchApi } from "./batch.ts";
 import { bindCollectionApi } from "./collection.ts";
 import { bindFileApi } from "./file.ts";
 import { bindHealthApi } from "./health.ts";
-import { loadAuthToken, panicRecover, securityHeaders } from "./middlewares.ts";
+import { bindLogsApi } from "./logs.ts";
+import { activityLogger, loadAuthToken, panicRecover, securityHeaders } from "./middlewares.ts";
 import { BodyLimit, DefaultMaxBodySize } from "./middlewares_body_limit.ts";
 import { rateLimit } from "./middlewares_rate_limit.ts";
 import { bindRecordAuthApi } from "./record_auth.ts";
@@ -21,6 +22,7 @@ export type ServeConfig = {
 
 export function buildServeHandler(app: App): (req: Request, server?: unknown) => Promise<Response> {
   const router = new Router<RequestEvent>();
+  router.Bind(activityLogger());
   router.Bind(panicRecover());
   router.Bind(rateLimit());
   router.Bind(BodyLimit(DefaultMaxBodySize));
@@ -31,6 +33,7 @@ export function buildServeHandler(app: App): (req: Request, server?: unknown) =>
   bindCollectionApi(app, apiGroup);
   bindFileApi(app, apiGroup);
   bindHealthApi(app, apiGroup);
+  bindLogsApi(app, apiGroup);
   bindRecordAuthApi(app, apiGroup);
   bindRecordCrudApi(app, apiGroup);
   bindAdminUI(router);

@@ -18,6 +18,7 @@ import { findSingleColumnUniqueIndex, parseIndex } from "../tools/dbutils/index.
 import { JSONEach } from "../tools/dbutils/json.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
 import { HashExp, NewExp, Not } from "../tools/dbx/expr.ts";
+import { SelectQuery } from "../tools/dbx/select_query.ts";
 import { NewLocal } from "../tools/filesystem/filesystem.ts";
 import { Hook } from "../tools/hook/hook.ts";
 import { NewTaggedHook } from "../tools/hook/tagged.ts";
@@ -113,6 +114,7 @@ import {
 } from "./field.ts";
 import { RelationField } from "./field_relation.ts";
 import { FieldsList, NewFieldsList } from "./fields_list.ts";
+import { deleteOldLogs, findLogById, logQuery, logsStats, type LogsStatsItem } from "./log_query.ts";
 import { CollectionNameMFAs, MFA } from "./mfa_model.ts";
 import { MigrationsList } from "./migrations_list.ts";
 import { AppMigrations, MigrationsRunner, SystemMigrations } from "./migrations_runner.ts";
@@ -364,6 +366,30 @@ export class BaseApp implements App {
 
   Logger(): Logger {
     return this.#logger;
+  }
+
+  ModelQuery(model: { TableName: () => string }): SelectQuery {
+    return new SelectQuery(this.db(), model.TableName());
+  }
+
+  AuxModelQuery(model: { TableName: () => string }): SelectQuery {
+    return new SelectQuery(this.auxDb(), model.TableName());
+  }
+
+  LogQuery(): SelectQuery {
+    return logQuery(this);
+  }
+
+  FindLogById(id: string) {
+    return findLogById(this, id);
+  }
+
+  LogsStats(expr: SqlExpr | null): LogsStatsItem[] {
+    return logsStats(this, expr);
+  }
+
+  DeleteOldLogs(createdBefore: Date): Error | null {
+    return deleteOldLogs(this, createdBefore);
   }
 
   OnCollectionsListRequest(): Hook<CollectionsListRequestEvent> {

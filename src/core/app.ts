@@ -2,6 +2,7 @@
 
 import type { Database, SQLQueryBindings } from "bun:sqlite";
 import type { Cron } from "../tools/cron/cron.ts";
+import type { SelectQuery } from "../tools/dbx/select_query.ts";
 import type { System } from "../tools/filesystem/filesystem.ts";
 import type { Hook } from "../tools/hook/hook.ts";
 import type { TaggedHook } from "../tools/hook/tagged.ts";
@@ -47,6 +48,8 @@ import type {
 import type { ExternalAuth } from "./external_auth_model.ts";
 import type { Field } from "./field.ts";
 import type { FieldsList } from "./fields_list.ts";
+import type { Log } from "./log_model.ts";
+import type { LogsStatsItem } from "./log_query.ts";
 import type { MFA } from "./mfa_model.ts";
 import type { OTP } from "./otp_model.ts";
 import type { Record as RecordModel } from "./record.ts";
@@ -97,6 +100,12 @@ export interface App {
   IsTransactional(): boolean;
   UnsafeWithoutHooks(): App;
   Logger(): Logger;
+  ModelQuery(model: { TableName: () => string }): SelectQuery;
+  AuxModelQuery(model: { TableName: () => string }): SelectQuery;
+  LogQuery(): SelectQuery;
+  FindLogById(id: string): Log;
+  LogsStats(expr: SqlExpr | null): LogsStatsItem[];
+  DeleteOldLogs(createdBefore: Date): Error | null;
   RecordQuery(collectionModelOrIdentifier: Collection | string | null | undefined): RecordQuery;
   findAuthRecordByToken(token: string, validTypes?: string[]): RecordModel;
   findCollectionById(id: string): Collection | null;
