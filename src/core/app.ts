@@ -10,6 +10,7 @@ import type { SqlExpr } from "../tools/search/types.ts";
 import type { System } from "../tools/filesystem/filesystem.ts";
 import type { Hook } from "../tools/hook/hook.ts";
 import type { TaggedHook } from "../tools/hook/tagged.ts";
+import type { RecordQueryFilter } from "./record_query.ts";
 import type {
   CollectionRequestEvent,
   CollectionsImportRequestEvent,
@@ -57,6 +58,13 @@ export interface App {
   HasTable(name: string): boolean;
   IsCollectionNameUnique(name: string, excludeId?: string): boolean;
   findRecordById(collection: Collection, id: string, rule?: SqlExpr | null): RecordModel | null;
+  FindRecordById(
+    collectionModelOrIdentifier: Collection | string,
+    id: string,
+    ...filters: Array<RecordQueryFilter | null | undefined>
+  ): RecordModel;
+  FindAuthRecordByToken(token: string, ...validTypes: string[]): RecordModel;
+  FindAuthRecordByEmail(collectionModelOrIdentifier: Collection | string, email: string): RecordModel;
   findFirstRecordByFilter(
     collectionOrIdentifier: Collection | string,
     filter: string,

@@ -49,6 +49,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-31 22:18Z) Extend random-by-regex to support negated classes/flags guard and port security random tests.
 - [x] (2026-01-31 22:32Z) Extend BaseProvider with auth URL building and port base provider tests.
 - [x] (2026-01-31 23:10Z) Register all OAuth2 provider defaults and port upstream auth provider tests.
+- [x] (2026-01-31 23:45Z) Port record token generation helpers, add FindAuthRecordByEmail/FindRecordById wrappers, and add record token tests.
+- [x] (2026-01-31 23:58Z) Add record query filter helpers, extend FindRecordById with optional filters, and port record query tests for FindRecordById/FindAuthRecordByToken/FindAuthRecordByEmail.
 - [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries

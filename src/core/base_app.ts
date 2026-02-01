@@ -30,7 +30,7 @@ import {
   TokenTypePasswordReset,
   TokenTypeVerification,
 } from "./record_tokens.ts";
-import { Record as RecordModel, type RecordData } from "./record.ts";
+import { FieldNameEmail, Record as RecordModel, type RecordData } from "./record.ts";
 import type { SqlExpr } from "../tools/search/types.ts";
 import { Settings } from "./settings.ts";
 import { Store } from "./store.ts";
@@ -38,7 +38,8 @@ import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
 import { Hook } from "../tools/hook/hook.ts";
 import { NewTaggedHook } from "../tools/hook/tagged.ts";
-import { parseIndex } from "../tools/dbutils/index.ts";
+import { findSingleColumnUniqueIndex, parseIndex } from "../tools/dbutils/index.ts";
+import { buildRecordFilterExpr, type RecordQueryFilter } from "./record_query.ts";
 import {
   InterceptorActionAfterDelete,
   InterceptorActionAfterDeleteError,
@@ -497,6 +498,61 @@ export class BaseApp implements App {
     } catch {
       // ignore missing settings table or invalid JSON
     }
+  }
+
+  FindRecordById(
+    collectionModelOrIdentifier: Collection | string,
+    id: string,
+    ...filters: Array<RecordQueryFilter | null | undefined>
+  ): RecordModel {
+    const collection =
+      typeof collectionModelOrIdentifier === "string"
+        ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
+        : collectionModelOrIdentifier;
+
+    if (!collection) {
+      throw new Error("unknown collection identifier - must be collection model, id or name");
+    }
+
+    const rule = buildRecordFilterExpr(filters);
+    const record = this.findRecordById(collection, id, rule);
+    if (!record) {
+      throw new Error("record not found");
+    }
+
+    return record;
+  }
+
+  FindAuthRecordByToken(token: string, ...validTypes: string[]): RecordModel {
+    return this.findAuthRecordByToken(token, validTypes);
+  }
+
+  FindAuthRecordByEmail(collectionModelOrIdentifier: Collection | string, email: string): RecordModel {
+    const collection =
+      typeof collectionModelOrIdentifier === "string"
+        ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
+        : collectionModelOrIdentifier;
+    if (!collection) {
+      throw new Error("failed to fetch auth collection: unknown collection identifier - must be collection model, id or name");
+    }
+
+    if (!collection.IsAuth()) {
+      throw new Error(`"${collection.name}" is not an auth collection`);
+    }
+
+    const [index, ok] = findSingleColumnUniqueIndex(collection.indexes ?? [], FieldNameEmail);
+    const useNoCase = ok && (index.columns[0]?.collate ?? "").toLowerCase() === "nocase";
+
+    const sql = useNoCase
+      ? `select * from [[${collection.name}]] where [[${FieldNameEmail}]] = ? COLLATE NOCASE limit 1`
+      : `select * from [[${collection.name}]] where [[${FieldNameEmail}]] = ? limit 1`;
+
+    const row = this.db().query(sql).get(email);
+    if (!row || typeof row !== "object") {
+      throw new Error("record not found");
+    }
+
+    return RecordModel.fromRow(collection, row as RecordData);
   }
 
   findAuthRecordByToken(token: string, validTypes: string[] = []): RecordModel {
