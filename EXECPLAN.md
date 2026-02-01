@@ -53,6 +53,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-01-31 23:58Z) Add record query filter helpers, extend FindRecordById with optional filters, and port record query tests for FindRecordById/FindAuthRecordByToken/FindAuthRecordByEmail.
 - [x] (2026-02-01 00:45Z) Port RecordQuery, record query find helpers (FindRecordsByIds/All/Filter/Count/CanAccessRecord), add dbx expression helpers, and fix JSON path building for record filters.
 - [x] (2026-02-01 02:35Z) Port auth origin model/query + tests, add record-proxy validation support, and wire auth-origin hooks for password change cleanup.
+- [x] (2026-02-01 05:40Z) Port cron scheduler utilities + tests and add OTP/MFA models, queries, hooks, and stubs with SaveNoValidate support.
 - [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
 
 ## Surprises & Discoveries

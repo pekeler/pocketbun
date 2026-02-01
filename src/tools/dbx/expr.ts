@@ -41,6 +41,22 @@ export function HashExp(values: Record<string, unknown>): SqlExpr {
   };
 }
 
+export function NewExp(sql: string, params: Params = {}): SqlExpr {
+  const bindings: SQLQueryBindings[] = [];
+  const updated = sql.replace(/\{:([a-zA-Z0-9_]+)\}/g, (_match, key: string) => {
+    if (!(key in params)) {
+      throw new Error(`missing param :${key}`);
+    }
+    bindings.push(params[key] as SQLQueryBindings);
+    return "?";
+  });
+
+  return {
+    sql: updated,
+    params: bindings,
+  };
+}
+
 export type LikeExpr = SqlExpr & {
   Match: (left: boolean, right: boolean) => LikeExpr;
 };

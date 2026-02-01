@@ -21,9 +21,10 @@ import type {
 import type { RecordProxy } from "./record_proxy.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { Providers } from "../tools/auth/auth.ts";
+import { Cron } from "../tools/cron/cron.ts";
 import { findSingleColumnUniqueIndex, parseIndex } from "../tools/dbutils/index.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
-import { HashExp, Not } from "../tools/dbx/expr.ts";
+import { HashExp, NewExp, Not } from "../tools/dbx/expr.ts";
 import { NewLocal } from "../tools/filesystem/filesystem.ts";
 import { Hook } from "../tools/hook/hook.ts";
 import { NewTaggedHook } from "../tools/hook/tagged.ts";
@@ -33,7 +34,7 @@ import { buildSortExpr, parseSortFromString } from "../tools/search/sort.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
 import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
 import { randomString } from "../tools/security/random.ts";
-import { DateTime, GeoPoint, JSONRaw, NowDateTime } from "../tools/types/index.ts";
+import { DateTime, GeoPoint, JSONRaw, NowDateTime, ParseDateTime } from "../tools/types/index.ts";
 import { AuthOrigin, CollectionNameAuthOrigins, recordRefHooks } from "./auth_origin_model.ts";
 import {
   Collection,
@@ -85,8 +86,10 @@ import {
   InterceptorActionValidate,
 } from "./field.ts";
 import { FieldsList, NewFieldsList } from "./fields_list.ts";
+import { CollectionNameMFAs, MFA } from "./mfa_model.ts";
 import { MigrationsList } from "./migrations_list.ts";
 import { AppMigrations, MigrationsRunner, SystemMigrations } from "./migrations_runner.ts";
+import { CollectionNameOTPs, OTP } from "./otp_model.ts";
 import { FieldNameEmail, FieldNamePassword, Record as RecordModel, type RecordData } from "./record.ts";
 import { RecordFieldResolver } from "./record_field_resolver.ts";
 import { RecordQuery, buildRecordFilterExpr, combineSqlExprs, type RecordQueryFilter } from "./record_query.ts";
@@ -114,6 +117,7 @@ export class BaseApp implements App {
   #encryptionEnv: string;
   #settings: Settings;
   #store: Store<string, unknown>;
+  #cron: Cron;
   #bootstrapped = false;
   #db: DbxDatabase | null = null;
   #auxDb: DbxDatabase | null = null;
@@ -170,6 +174,7 @@ export class BaseApp implements App {
     this.#encryptionEnv = config.encryptionEnv ?? "";
     this.#settings = new Settings();
     this.#store = new Store();
+    this.#cron = new Cron();
     this.#logger = {
       Warn: (message: string, ...args: unknown[]) => {
         console.warn(message, ...args);
@@ -223,6 +228,8 @@ export class BaseApp implements App {
 
     this.registerCollectionHooks();
     this.registerRecordHooks();
+    this.registerOTPHooks();
+    this.registerMFAHooks();
     this.registerExternalAuthHooks();
     this.registerAuthOriginHooks();
   }
@@ -241,6 +248,10 @@ export class BaseApp implements App {
 
   store(): Store<string, unknown> {
     return this.#store;
+  }
+
+  Cron(): Cron {
+    return this.#cron;
   }
 
   Logger(): Logger {
@@ -855,6 +866,160 @@ export class BaseApp implements App {
     return result;
   }
 
+  // Ported from pocketbase/core/otp_query.go.
+  FindAllOTPsByRecord(authRecord: RecordModel): OTP[] {
+    const result: OTP[] = [new OTP()];
+
+    this.RecordQuery(CollectionNameOTPs)
+      .AndWhere({
+        collectionRef: authRecord.collection().id,
+        recordRef: authRecord.Id,
+      })
+      .OrderBy("created DESC")
+      .All(result);
+
+    return result;
+  }
+
+  // Ported from pocketbase/core/otp_query.go.
+  FindAllOTPsByCollection(collection: Collection): OTP[] {
+    const result: OTP[] = [new OTP()];
+
+    this.RecordQuery(CollectionNameOTPs).AndWhere({ collectionRef: collection.id }).OrderBy("created DESC").All(result);
+
+    return result;
+  }
+
+  // Ported from pocketbase/core/otp_query.go.
+  FindOTPById(id: string): OTP {
+    const result = new OTP();
+
+    this.RecordQuery(CollectionNameOTPs).AndWhere({ id }).Limit(1).One(result);
+
+    return result;
+  }
+
+  // Ported from pocketbase/core/otp_query.go.
+  DeleteAllOTPsByRecord(authRecord: RecordModel): Error | null {
+    const models = this.FindAllOTPsByRecord(authRecord);
+    const errors: Error[] = [];
+
+    for (const model of models) {
+      const err = this.Delete(model);
+      if (err) {
+        errors.push(err);
+      }
+    }
+
+    if (errors.length > 0) {
+      return new Error(errors.map((err) => err.message ?? String(err)).join("; "));
+    }
+
+    return null;
+  }
+
+  // Ported from pocketbase/core/otp_query.go.
+  DeleteExpiredOTPs(): Error | null {
+    const authCollections = this.FindAllCollections(CollectionTypeAuth);
+
+    for (const collection of authCollections) {
+      const durationMs = collection.OTP.DurationTime() * 1000;
+      const minValidDate = ParseDateTime(new Date(Date.now() - durationMs)).toString();
+
+      const items: RecordModel[] = [];
+      this.RecordQuery(CollectionNameOTPs)
+        .AndWhere({ collectionRef: collection.id })
+        .AndWhere(NewExp("[[created]] < {:date}", { date: minValidDate }))
+        .All(items);
+
+      for (const item of items) {
+        const err = this.Delete(item);
+        if (err) {
+          return err;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // Ported from pocketbase/core/mfa_query.go.
+  FindAllMFAsByRecord(authRecord: RecordModel): MFA[] {
+    const result: MFA[] = [new MFA()];
+
+    this.RecordQuery(CollectionNameMFAs)
+      .AndWhere({
+        collectionRef: authRecord.collection().id,
+        recordRef: authRecord.Id,
+      })
+      .OrderBy("created DESC")
+      .All(result);
+
+    return result;
+  }
+
+  // Ported from pocketbase/core/mfa_query.go.
+  FindAllMFAsByCollection(collection: Collection): MFA[] {
+    const result: MFA[] = [new MFA()];
+
+    this.RecordQuery(CollectionNameMFAs).AndWhere({ collectionRef: collection.id }).OrderBy("created DESC").All(result);
+
+    return result;
+  }
+
+  // Ported from pocketbase/core/mfa_query.go.
+  FindMFAById(id: string): MFA {
+    const result = new MFA();
+
+    this.RecordQuery(CollectionNameMFAs).AndWhere({ id }).Limit(1).One(result);
+
+    return result;
+  }
+
+  // Ported from pocketbase/core/mfa_query.go.
+  DeleteAllMFAsByRecord(authRecord: RecordModel): Error | null {
+    const models = this.FindAllMFAsByRecord(authRecord);
+    const errors: Error[] = [];
+
+    for (const model of models) {
+      const err = this.Delete(model);
+      if (err) {
+        errors.push(err);
+      }
+    }
+
+    if (errors.length > 0) {
+      return new Error(errors.map((err) => err.message ?? String(err)).join("; "));
+    }
+
+    return null;
+  }
+
+  // Ported from pocketbase/core/mfa_query.go.
+  DeleteExpiredMFAs(): Error | null {
+    const authCollections = this.FindAllCollections(CollectionTypeAuth);
+
+    for (const collection of authCollections) {
+      const durationMs = collection.MFA.DurationTime() * 1000;
+      const minValidDate = ParseDateTime(new Date(Date.now() - durationMs)).toString();
+
+      const items: RecordModel[] = [];
+      this.RecordQuery(CollectionNameMFAs)
+        .AndWhere({ collectionRef: collection.id })
+        .AndWhere(NewExp("[[created]] < {:date}", { date: minValidDate }))
+        .All(items);
+
+      for (const item of items) {
+        const err = this.Delete(item);
+        if (err) {
+          return err;
+        }
+      }
+    }
+
+    return null;
+  }
+
   FindAllAuthOriginsByRecord(authRecord: RecordModel): AuthOrigin[] {
     const result: AuthOrigin[] = [new AuthOrigin()];
 
@@ -966,6 +1131,31 @@ export class BaseApp implements App {
     return record;
   }
 
+  FindAllCollections(...collectionTypes: string[]): Collection[] {
+    const types = Array.from(new Set(collectionTypes.filter((type) => type)));
+    const params: SQLQueryBindings[] = [];
+    let sql =
+      "select id, name, system, type, fields, indexes, listRule, viewRule, createRule, updateRule, deleteRule, options, created, updated from _collections";
+
+    if (types.length > 0) {
+      const placeholders = types.map(() => "?").join(", ");
+      sql += ` where type in (${placeholders})`;
+      params.push(...types);
+    }
+
+    sql += " order by rowid asc";
+
+    const rows = this.db()
+      .query(sql)
+      .all(...params);
+
+    if (!Array.isArray(rows)) {
+      return [];
+    }
+
+    return rows.map((row) => collectionFromRow(row as CollectionRow));
+  }
+
   findCollectionById(id: string): Collection | null {
     const row = this.db()
       .query(
@@ -1049,6 +1239,14 @@ export class BaseApp implements App {
   }
 
   Save(model: RecordModel | Collection | RecordProxy): Error | null {
+    return this.saveModel(model, true);
+  }
+
+  SaveNoValidate(model: RecordModel | Collection | RecordProxy): Error | null {
+    return this.saveModel(model, false);
+  }
+
+  private saveModel(model: RecordModel | Collection | RecordProxy, runValidation: boolean): Error | null {
     const recordInfo = resolveRecordProxy(model);
     if (recordInfo) {
       const { record, model: eventModel } = recordInfo;
@@ -1061,9 +1259,11 @@ export class BaseApp implements App {
 
       const runPersist = () =>
         record.callFieldInterceptors(null, this, action, () => {
-          const validateErr = this.Validate(eventModel);
-          if (validateErr) {
-            return validateErr;
+          if (runValidation) {
+            const validateErr = this.Validate(eventModel);
+            if (validateErr) {
+              return validateErr;
+            }
           }
 
           return record.callFieldInterceptors(null, this, executeAction, () => this.persistRecord(record));
@@ -1114,7 +1314,9 @@ export class BaseApp implements App {
     const isNew = model.isNew();
     const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
     const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(modelEvent, () =>
-      (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () => this.saveCollection(model)),
+      (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () =>
+        this.saveCollection(model, runValidation),
+      ),
     ) as Error | null;
     if (saveErr) {
       const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
@@ -1398,7 +1600,7 @@ export class BaseApp implements App {
     return null;
   }
 
-  private saveCollection(collection: Collection): Error | null {
+  private saveCollection(collection: Collection, runValidation: boolean): Error | null {
     const original = collection.isNew() ? null : this.findCollectionById(collection.LastSavedPK());
 
     if (!collection.type) {
@@ -1420,9 +1622,11 @@ export class BaseApp implements App {
 
     normalizeCollectionFields(collection);
 
-    const validationErr = this.validateCollection(collection, original);
-    if (validationErr) {
-      return validationErr;
+    if (runValidation) {
+      const validationErr = this.validateCollection(collection, original);
+      if (validationErr) {
+        return validationErr;
+      }
     }
 
     const fieldsJson = JSON.stringify(collection.Fields.toJSON());
@@ -2143,6 +2347,61 @@ export class BaseApp implements App {
           return e.Next() as Error | null;
         });
       },
+    });
+  }
+
+  private registerOTPHooks(): void {
+    recordRefHooks(this, CollectionNameOTPs, CollectionTypeAuth);
+
+    this.Cron().Add("__pbOTPCleanup__", "0 * * * *", () => {
+      const err = this.DeleteExpiredOTPs();
+      if (err) {
+        this.Logger().Warn("Failed to delete expired OTP sessions", "error", err);
+      }
+    });
+  }
+
+  private registerMFAHooks(): void {
+    recordRefHooks(this, CollectionNameMFAs, CollectionTypeAuth);
+
+    this.Cron().Add("__pbMFACleanup__", "0 * * * *", () => {
+      const err = this.DeleteExpiredMFAs();
+      if (err) {
+        this.Logger().Warn("Failed to delete expired MFA sessions", "error", err);
+      }
+    });
+
+    this.OnRecordUpdate().Bind({
+      Func: (e) => {
+        const record = e.Record;
+        const isAuth = record?.collection().IsAuth() ?? false;
+        // Deviation: capture the original hash before e.Next() because PostScan updates originals during save.
+        const oldHash = isAuth && record ? record.Original().GetString(`${FieldNamePassword}:hash`) : "";
+
+        const err = e.Next() as Error | null;
+        if (err || !isAuth || !record) {
+          return err;
+        }
+
+        const newHash = record.GetString(`${FieldNamePassword}:hash`);
+        if (oldHash !== newHash) {
+          const deleteErr = e.App.DeleteAllMFAsByRecord(record);
+          if (deleteErr) {
+            e.App.Logger().Warn(
+              "Failed to delete all previous mfas",
+              "error",
+              deleteErr,
+              "recordId",
+              record.Id,
+              "collectionId",
+              record.collection().id,
+            );
+          }
+        }
+
+        return null;
+      },
+      Priority: 99,
     });
   }
 

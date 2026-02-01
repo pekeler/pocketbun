@@ -1,6 +1,7 @@
 // Ported from pocketbase/core/app.go
 
 import type { Database, SQLQueryBindings } from "bun:sqlite";
+import type { Cron } from "../tools/cron/cron.ts";
 import type { System } from "../tools/filesystem/filesystem.ts";
 import type { Hook } from "../tools/hook/hook.ts";
 import type { TaggedHook } from "../tools/hook/tagged.ts";
@@ -22,6 +23,8 @@ import type {
 } from "./events.ts";
 import type { ExternalAuth } from "./external_auth_model.ts";
 import type { FieldsList } from "./fields_list.ts";
+import type { MFA } from "./mfa_model.ts";
+import type { OTP } from "./otp_model.ts";
 import type { Record as RecordModel } from "./record.ts";
 import type { RecordProxy } from "./record_proxy.ts";
 import type { RecordQueryFilter } from "./record_query.ts";
@@ -38,6 +41,7 @@ export interface App {
   encryptionEnv(): string;
   settings(): Settings;
   store(): Store<string, unknown>;
+  Cron(): Cron;
   isBootstrapped(): boolean;
   bootstrap(): void;
   resetBootstrapState(): void;
@@ -50,6 +54,7 @@ export interface App {
   runAllMigrations(): void;
   NewFilesystem(): System;
   Save(model: RecordModel | Collection | RecordProxy): Error | null;
+  SaveNoValidate(model: RecordModel | Collection | RecordProxy): Error | null;
   Delete(model: RecordModel | Collection | RecordProxy): Error | null;
   Validate(model: RecordModel | Collection | RecordProxy): Error | null;
   TruncateCollection(collection: Collection): Error | null;
@@ -61,6 +66,7 @@ export interface App {
   findAuthRecordByToken(token: string, validTypes?: string[]): RecordModel;
   findCollectionById(id: string): Collection | null;
   findCollectionByNameOrId(identifier: string): Collection | null;
+  FindAllCollections(...collectionTypes: string[]): Collection[];
   HasTable(name: string): boolean;
   IsCollectionNameUnique(name: string, excludeId?: string): boolean;
   findRecordById(collection: Collection, id: string, rule?: SqlExpr | null): RecordModel | null;
@@ -102,6 +108,16 @@ export interface App {
   FindAllExternalAuthsByRecord(authRecord: RecordModel): ExternalAuth[];
   FindAllExternalAuthsByCollection(collection: Collection): ExternalAuth[];
   FindFirstExternalAuthByExpr(expr: SqlExpr | Record<string, unknown>): ExternalAuth;
+  FindAllOTPsByRecord(authRecord: RecordModel): OTP[];
+  FindAllOTPsByCollection(collection: Collection): OTP[];
+  FindOTPById(id: string): OTP;
+  DeleteAllOTPsByRecord(authRecord: RecordModel): Error | null;
+  DeleteExpiredOTPs(): Error | null;
+  FindAllMFAsByRecord(authRecord: RecordModel): MFA[];
+  FindAllMFAsByCollection(collection: Collection): MFA[];
+  FindMFAById(id: string): MFA;
+  DeleteAllMFAsByRecord(authRecord: RecordModel): Error | null;
+  DeleteExpiredMFAs(): Error | null;
   FindAllAuthOriginsByRecord(authRecord: RecordModel): AuthOrigin[];
   FindAllAuthOriginsByCollection(collection: Collection): AuthOrigin[];
   FindAuthOriginById(id: string): AuthOrigin;
