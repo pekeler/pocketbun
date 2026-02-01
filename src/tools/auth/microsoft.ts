@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameMicrosoft is the unique name of the Microsoft provider.
 export const NameMicrosoft = "microsoft";
 
+// Microsoft allows authentication via AzureADEndpoint OAuth2.
 export class Microsoft extends BaseProvider {
   constructor() {
     super();

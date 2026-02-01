@@ -8,6 +8,7 @@ const rowidSortKey = "@rowid";
 export const SortAsc = "ASC";
 export const SortDesc = "DESC";
 
+// SortField defines a single search sort field.
 export type SortField = {
   name: string;
   direction: string;

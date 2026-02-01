@@ -10,6 +10,12 @@ export const DefaultMaxBodySize = 32 << 20;
 export const DefaultBodyLimitMiddlewareId = "pbBodyLimit";
 export const DefaultBodyLimitMiddlewarePriority = DefaultRateLimitMiddlewarePriority + 10;
 
+// BodyLimit returns a middleware handler that changes the default request body size limit.
+//
+// If limitBytes <= 0, no limit is applied.
+//
+// Otherwise, if the request body size exceeds the configured limitBytes,
+// it sends 413 error response.
 export function BodyLimit(limitBytes: number): Handler<RequestEvent> {
   return {
     Id: DefaultBodyLimitMiddlewareId,

@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameGitea is the unique name of the Gitea provider.
 export const NameGitea = "gitea";
 
+// Gitea allows authentication via Gitea OAuth2.
 export class Gitea extends BaseProvider {
   constructor() {
     super();

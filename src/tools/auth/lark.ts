@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameLark is the unique name of the Lark provider.
 export const NameLark = "lark";
 
+// Lark allows authentication via Lark OAuth2.
 export class Lark extends BaseProvider {
   constructor() {
     super();

@@ -13,16 +13,22 @@ export interface ReadSeekCloser {
   size(): number;
 }
 
+// FileReader defines an interface for a file resource reader.
 export interface FileReader {
   Open(): ReadSeekCloser;
 }
 
+// File defines a single file [io.ReadSeekCloser] resource.
+//
+// The file could be from a local path, multipart/form-data header, etc.
 export class File {
   Reader: FileReader | null = null;
   Name = "";
   OriginalName = "";
   Size = 0;
 
+  // AsMap implements [core.mapExtractor] and returns a value suitable
+  // to be used in an API rule expression.
   AsMap(): Record<string, unknown> {
     return {
       name: this.Name,
@@ -42,6 +48,7 @@ export type MultipartFileHeader = {
   buffer: Uint8Array;
 };
 
+// NewFileFromPath creates a new File instance from the provided local file path.
 export function NewFileFromPath(path: string): File {
   const info = statSync(path);
 
@@ -53,6 +60,7 @@ export function NewFileFromPath(path: string): File {
   return f;
 }
 
+// NewFileFromBytes creates a new File instance from the provided byte slice.
 export function NewFileFromBytes(bytes: Uint8Array | null | undefined, name: string): File {
   const size = bytes?.length ?? 0;
   if (size === 0) {
@@ -67,6 +75,7 @@ export function NewFileFromBytes(bytes: Uint8Array | null | undefined, name: str
   return f;
 }
 
+// NewFileFromMultipart creates a new File from the provided multipart header.
 export function NewFileFromMultipart(header: MultipartFileHeader): File {
   const f = new File();
   f.Reader = new MultipartReader(header.buffer);
@@ -93,6 +102,7 @@ export async function NewFileFromURL(ctx: AbortSignal | null, url: string): Prom
   return NewFileFromBytes(data, originalName);
 }
 
+// MultipartReader defines a FileReader from [multipart.FileHeader].
 export class MultipartReader implements FileReader {
   #buffer: Uint8Array;
 
@@ -100,11 +110,13 @@ export class MultipartReader implements FileReader {
     this.#buffer = buffer;
   }
 
+  // Open implements the [filesystem.FileReader] interface.
   Open(): ReadSeekCloser {
     return new BufferReadSeekCloser(this.#buffer);
   }
 }
 
+// PathReader defines a FileReader from a local file path.
 export class PathReader implements FileReader {
   Path: string;
 
@@ -112,11 +124,13 @@ export class PathReader implements FileReader {
     this.Path = path;
   }
 
+  // Open implements the [filesystem.FileReader] interface.
   Open(): ReadSeekCloser {
     return new BufferReadSeekCloser(readFileSync(this.Path));
   }
 }
 
+// BytesReader defines a FileReader from bytes content.
 export class BytesReader implements FileReader {
   Bytes: Uint8Array;
 
@@ -124,6 +138,7 @@ export class BytesReader implements FileReader {
     this.Bytes = bytes;
   }
 
+  // Open implements the [filesystem.FileReader] interface.
   Open(): ReadSeekCloser {
     return new BufferReadSeekCloser(this.Bytes);
   }
@@ -131,6 +146,7 @@ export class BytesReader implements FileReader {
 
 export type OpenFuncAsReader = () => ReadSeekCloser;
 
+// openFuncAsReader defines a FileReader from a bare Open function.
 export function openFuncAsReader(fn: OpenFuncAsReader): FileReader {
   return {
     Open: fn,
@@ -221,6 +237,16 @@ export function normalizeName(fr: FileReader, name: string): string {
   return `${cleanName}_${randomStringWithAlphabet(10, randomAlphabet)}${cleanExt}`;
 }
 
+// extractExtension extracts the extension (with leading dot) from name.
+//
+// This differ from filepath.Ext() by supporting double extensions (eg. ".tar.gz").
+//
+// Returns an empty string if no match is found.
+//
+// Example:
+// extractExtension("test.txt")      // .txt
+// extractExtension("test.tar.gz")   // .tar.gz
+// extractExtension("test.a.tar.gz") // .tar.gz
 export function extractExtension(name: string): string {
   const primaryDot = name.lastIndexOf(".");
   if (primaryDot === -1) {
@@ -233,6 +259,7 @@ export function extractExtension(name: string): string {
   return name.slice(primaryDot);
 }
 
+// detectExtension tries to detect the extension from file mime type.
 export function detectExtension(fr: FileReader): string | null {
   const reader = fr.Open();
   const raw = reader.readAll();

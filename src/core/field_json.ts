@@ -19,6 +19,9 @@ export const DefaultJSONFieldMaxSize = 1 << 20;
 
 const emptyJSONValues = new Set(["null", '""', "[]", "{}", ""]);
 
+// JSONField defines "json" type field for storing any serialized JSON value.
+//
+// The respective zero record field value is the zero [types.JSONRaw].
 export class JSONField implements Field, MaxBodySizeCalculator {
   Name = "";
   Id = "";
@@ -28,46 +31,57 @@ export class JSONField implements Field, MaxBodySizeCalculator {
   MaxSize = 0;
   Required = false;
 
+  // Type implements [Field.Type] interface method.
   Type(): string {
     return FieldTypeJSON;
   }
 
+  // GetId implements [Field.GetId] interface method.
   GetId(): string {
     return this.Id;
   }
 
+  // SetId implements [Field.SetId] interface method.
   SetId(id: string): void {
     this.Id = id;
   }
 
+  // GetName implements [Field.GetName] interface method.
   GetName(): string {
     return this.Name;
   }
 
+  // SetName implements [Field.SetName] interface method.
   SetName(name: string): void {
     this.Name = name;
   }
 
+  // GetSystem implements [Field.GetSystem] interface method.
   GetSystem(): boolean {
     return this.System;
   }
 
+  // SetSystem implements [Field.SetSystem] interface method.
   SetSystem(system: boolean): void {
     this.System = system;
   }
 
+  // GetHidden implements [Field.GetHidden] interface method.
   GetHidden(): boolean {
     return this.Hidden;
   }
 
+  // SetHidden implements [Field.SetHidden] interface method.
   SetHidden(hidden: boolean): void {
     this.Hidden = hidden;
   }
 
+  // ColumnType implements [Field.ColumnType] interface method.
   ColumnType(_app: App): string {
     return "JSON DEFAULT NULL";
   }
 
+  // PrepareValue implements [Field.PrepareValue] interface method.
   PrepareValue(_record: unknown, raw: unknown): JSONRaw {
     let value = raw;
     if (typeof raw === "string") {
@@ -92,6 +106,7 @@ export class JSONField implements Field, MaxBodySizeCalculator {
     return JSONRaw.parse(value);
   }
 
+  // ValidateValue implements [Field.ValidateValue] interface method.
   ValidateValue(_ctx: unknown, _app: App, record: RecordLike): Error | null {
     const raw = record.GetRaw(this.Name);
     if (!(raw instanceof JSONRaw)) {
@@ -117,6 +132,7 @@ export class JSONField implements Field, MaxBodySizeCalculator {
     return null;
   }
 
+  // ValidateSettings implements [Field.ValidateSettings] interface method.
   ValidateSettings(_ctx: unknown, _app: App, _collection: Collection): Error | null {
     const errors: Record<string, Error> = {};
     const idErr = defaultFieldIdValidationRule(this.Id);
@@ -133,6 +149,7 @@ export class JSONField implements Field, MaxBodySizeCalculator {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
+  // CalculateMaxBodySize implements the [MaxBodySizeCalculator] interface.
   CalculateMaxBodySize(): number {
     return this.MaxSize > 0 ? this.MaxSize : DefaultJSONFieldMaxSize;
   }

@@ -5,6 +5,8 @@ import type { Handler, HandlerFunc } from "./hook.ts";
 import { existInSlice } from "../list/list.ts";
 import { Hook } from "./hook.ts";
 
+// Tagger defines an interface for event data structs that support tags/groups/categories/etc.
+// Usually used together with TaggedHook.
 export interface Tagger extends Resolver {
   Tags(): string[];
 }
@@ -17,6 +19,8 @@ class MainHook<T extends Tagger> {
   }
 }
 
+// TaggedHook defines a proxy hook which register handlers that are triggered only
+// if the TaggedHook.tags are empty or includes at least one of the event data tag(s).
 export class TaggedHook<T extends Tagger> {
   #main: MainHook<T>;
   #tags: string[];
@@ -75,6 +79,7 @@ export class TaggedHook<T extends Tagger> {
   }
 }
 
+// NewTaggedHook creates a new TaggedHook with the provided main hook and optional tags.
 export function NewTaggedHook<T extends Tagger>(hook: Hook<T>, ...tags: string[]): TaggedHook<T> {
   return new TaggedHook(hook, tags);
 }

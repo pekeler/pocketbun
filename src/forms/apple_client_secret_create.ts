@@ -6,6 +6,9 @@ import { ValidationErrors, newError, required } from "../internal/compat/validat
 
 const privateKeyRegex = /-----BEGIN PRIVATE KEY----[\s\S]+-----END PRIVATE KEY-----/m;
 
+// AppleClientSecretCreate is a form struct to generate a new Apple Client Secret.
+//
+// Reference: https://developer.apple.com/documentation/sign_in_with_apple/generate_and_validate_tokens
 export class AppleClientSecretCreate {
   app: App;
 
@@ -19,6 +22,7 @@ export class AppleClientSecretCreate {
     this.app = app;
   }
 
+  // Validate makes the form validatable by implementing [validation.Validatable] interface.
   Validate(): Error | null {
     const errors: Record<string, Error> = {};
 
@@ -60,6 +64,7 @@ export class AppleClientSecretCreate {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
+  // Submit validates the form and returns a new Apple Client Secret JWT.
   Submit(): { secret: string; error: Error | null } {
     const err = this.Validate();
     if (err) {
@@ -97,6 +102,8 @@ export class AppleClientSecretCreate {
   }
 }
 
+// NewAppleClientSecretCreate creates a new [AppleClientSecretCreate] form with initializer
+// config created from the provided [core.App] instances.
 export function NewAppleClientSecretCreate(app: App): AppleClientSecretCreate {
   return new AppleClientSecretCreate(app);
 }

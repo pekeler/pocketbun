@@ -82,6 +82,10 @@ export class ExcerptModifier implements Modifier {
   }
 }
 
+// newExcerptModifier validates the specified raw string arguments and
+// initializes a new excerptModifier.
+//
+// This method is usually invoked in initModifer().
 export function newExcerptModifier(...args: string[]): ExcerptModifier {
   if (args.length === 0) {
     throw new Error("max argument is required - expected (max, withEllipsis?)");

@@ -26,6 +26,23 @@ const bcryptMinCost = 4;
 const bcryptMaxCost = 31;
 const bcryptDefaultCost = 12;
 
+// PasswordField defines "password" type field for storing bcrypt hashed strings
+// (usually used only internally for the "password" auth collection system field).
+//
+// If you want to set a direct bcrypt hash as record field value you can use the SetRaw method, for example:
+//
+//	// generates a bcrypt hash of "123456" and set it as field value
+//	// (record.GetString("password") returns the plain password until persisted, otherwise empty string)
+//	record.Set("password", "123456")
+//
+//	// set directly a bcrypt hash of "123456" as field value
+//	// (record.GetString("password") returns empty string)
+//	record.SetRaw("password", "$2a$10$.5Elh8fgxypNUWhpUUr/xOa2sZm0VIaE0qWuGGl9otUfobb46T1Pq")
+//
+// The following additional getter keys are available:
+//
+//   - "fieldName:hash" - returns the bcrypt hash string of the record field value (if any). For example:
+//     record.GetString("password:hash")
 export class PasswordField implements Field, GetterFinder, SetterFinder, DriverValuer, RecordInterceptor {
   Name = "";
   Id = "";
@@ -38,55 +55,68 @@ export class PasswordField implements Field, GetterFinder, SetterFinder, DriverV
   Cost = 0;
   Required = false;
 
+  // Type implements [Field.Type] interface method.
   Type(): string {
     return FieldTypePassword;
   }
 
+  // GetId implements [Field.GetId] interface method.
   GetId(): string {
     return this.Id;
   }
 
+  // SetId implements [Field.SetId] interface method.
   SetId(id: string): void {
     this.Id = id;
   }
 
+  // GetName implements [Field.GetName] interface method.
   GetName(): string {
     return this.Name;
   }
 
+  // SetName implements [Field.SetName] interface method.
   SetName(name: string): void {
     this.Name = name;
   }
 
+  // GetSystem implements [Field.GetSystem] interface method.
   GetSystem(): boolean {
     return this.System;
   }
 
+  // SetSystem implements [Field.SetSystem] interface method.
   SetSystem(system: boolean): void {
     this.System = system;
   }
 
+  // GetHidden implements [Field.GetHidden] interface method.
   GetHidden(): boolean {
     return this.Hidden;
   }
 
+  // SetHidden implements [Field.SetHidden] interface method.
   SetHidden(hidden: boolean): void {
     this.Hidden = hidden;
   }
 
+  // ColumnType implements [Field.ColumnType] interface method.
   ColumnType(_app: App): string {
     return "TEXT DEFAULT '' NOT NULL";
   }
 
+  // DriverValue implements the [DriverValuer] interface.
   DriverValue(record: RecordLike): [string, Error | null] {
     const value = this.getPasswordValue(record);
     return [value.Hash, value.LastError];
   }
 
+  // PrepareValue implements [Field.PrepareValue] interface method.
   PrepareValue(_record: unknown, raw: unknown): PasswordFieldValue {
     return new PasswordFieldValue("", toStringValue(raw));
   }
 
+  // ValidateValue implements [Field.ValidateValue] interface method.
   ValidateValue(_ctx: unknown, _app: App, record: RecordLike): Error | null {
     const raw = record.GetRaw(this.Name);
     if (!(raw instanceof PasswordFieldValue)) {
@@ -128,6 +158,7 @@ export class PasswordField implements Field, GetterFinder, SetterFinder, DriverV
     return null;
   }
 
+  // ValidateSettings implements [Field.ValidateSettings] interface method.
   ValidateSettings(_ctx: unknown, _app: App, _collection: Collection): Error | null {
     const errors: Record<string, Error> = {};
     const idErr = defaultFieldIdValidationRule(this.Id);
@@ -156,6 +187,7 @@ export class PasswordField implements Field, GetterFinder, SetterFinder, DriverV
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
+  // Intercept implements the [RecordInterceptor] interface.
   Intercept(_ctx: unknown, _app: App, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null {
     if (actionName === "afterCreate" || actionName === "afterUpdate") {
       const value = this.getPasswordValue(record);
@@ -164,6 +196,7 @@ export class PasswordField implements Field, GetterFinder, SetterFinder, DriverV
     return actionFunc();
   }
 
+  // FindGetter implements the [GetterFinder] interface.
   FindGetter(key: string): GetterFunc | null {
     switch (key) {
       case this.Name:
@@ -175,6 +208,7 @@ export class PasswordField implements Field, GetterFinder, SetterFinder, DriverV
     }
   }
 
+  // FindSetter implements the [SetterFinder] interface.
   FindSetter(key: string): SetterFunc | null {
     switch (key) {
       case this.Name:

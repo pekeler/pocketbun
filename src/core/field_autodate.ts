@@ -19,8 +19,15 @@ import { internalCustomFieldKeyPrefix } from "./record.ts";
 import { Equal } from "./validators/equal.ts";
 
 export const FieldTypeAutodate = "autodate";
+// used to keep track of the last set autodate value
 const autodateLastKnownPrefix = `${internalCustomFieldKeyPrefix}_last_autodate_`;
 
+// AutodateField defines an "autodate" type field, aka.
+// field which datetime value could be auto set on record create/update.
+//
+// This field is usually used for defining timestamp fields like "created" and "updated".
+//
+// Requires either both or at least one of the OnCreate or OnUpdate options to be set.
 export class AutodateField implements Field, SetterFinder, RecordInterceptor {
   Name = "";
   Id = "";
@@ -30,54 +37,67 @@ export class AutodateField implements Field, SetterFinder, RecordInterceptor {
   OnCreate = false;
   OnUpdate = false;
 
+  // Type implements [Field.Type] interface method.
   Type(): string {
     return FieldTypeAutodate;
   }
 
+  // GetId implements [Field.GetId] interface method.
   GetId(): string {
     return this.Id;
   }
 
+  // SetId implements [Field.SetId] interface method.
   SetId(id: string): void {
     this.Id = id;
   }
 
+  // GetName implements [Field.GetName] interface method.
   GetName(): string {
     return this.Name;
   }
 
+  // SetName implements [Field.SetName] interface method.
   SetName(name: string): void {
     this.Name = name;
   }
 
+  // GetSystem implements [Field.GetSystem] interface method.
   GetSystem(): boolean {
     return this.System;
   }
 
+  // SetSystem implements [Field.SetSystem] interface method.
   SetSystem(system: boolean): void {
     this.System = system;
   }
 
+  // GetHidden implements [Field.GetHidden] interface method.
   GetHidden(): boolean {
     return this.Hidden;
   }
 
+  // SetHidden implements [Field.SetHidden] interface method.
   SetHidden(hidden: boolean): void {
     this.Hidden = hidden;
   }
 
+  // ColumnType implements [Field.ColumnType] interface method.
   ColumnType(_app: App): string {
     return "TEXT DEFAULT '' NOT NULL";
   }
 
+  // PrepareValue implements [Field.PrepareValue] interface method.
   PrepareValue(_record: unknown, raw: unknown) {
     return ParseDateTime(raw);
   }
 
+  // ValidateValue implements [Field.ValidateValue] interface method.
   ValidateValue(_ctx: unknown, _app: App, _record: RecordLike): Error | null {
     return null;
   }
 
+  // ValidateSettings implements [Field.ValidateSettings] interface method.
   ValidateSettings(_ctx: unknown, app: App, collection: Collection): Error | null {
     const errors: Record<string, Error> = {};
     const idErr = defaultFieldIdValidationRule(this.Id);
@@ -126,6 +146,7 @@ export class AutodateField implements Field, SetterFinder, RecordInterceptor {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
+  // FindSetter implements the [SetterFinder] interface.
   FindSetter(key: string): SetterFunc | null {
     switch (key) {
       case this.Name:
@@ -135,6 +156,7 @@ export class AutodateField implements Field, SetterFinder, RecordInterceptor {
     }
   }
 
+  // Intercept implements the [RecordInterceptor] interface.
   Intercept(_ctx: unknown, _app: App, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null {
     const typed = record as RecordLike & {
       GetDateTime: (field: string) => { IsZero: () => boolean; Equal: (other: unknown) => boolean };

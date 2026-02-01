@@ -116,6 +116,17 @@ function redirectResponse(status: number, location: string): Response {
   });
 }
 
+// parseAndStoreAppleRedirectName extracts the first and last name
+// from serializedNameData and temporary store them in the app.Store.
+//
+// This is hacky workaround to forward safely and seamlessly the Apple
+// redirect user's name back to the OAuth2 auth handler.
+//
+// Note that currently Apple is the only provider that behaves like this and
+// for now it is unnecessary to check whether the redirect is coming from Apple or not.
+//
+// Ideally this shouldn't be needed and will be removed in the future
+// once Apple adds a dedicated userinfo endpoint.
 function parseAndStoreAppleRedirectName(app: App, nameKey: string, serializedNameData: string): Error | null {
   if (!serializedNameData) {
     return null;

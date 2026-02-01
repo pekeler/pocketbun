@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameStrava is the unique name of the Strava provider.
 export const NameStrava = "strava";
 
+// Strava allows authentication via Strava OAuth2.
 export class Strava extends BaseProvider {
   constructor() {
     super();

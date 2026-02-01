@@ -11,6 +11,16 @@ import { resolveIdentifierMacro } from "./identifier_macros.ts";
 import { tokenFunctions, type Token } from "./token_functions.ts";
 import { ErrFilterExprLimit } from "./types.ts";
 
+// FilterData is a filter expression string following the `fexpr` package grammar.
+//
+// The filter string can also contain dbx placeholder parameters (eg. "title = {:name}"),
+// that will be safely replaced and properly quoted inplace with the placeholderReplacements values.
+//
+// Example:
+//
+//	var filter FilterData = "id = null || (name = 'test' && status = true) || (total >= {:min} && total <= {:max})"
+//	resolver := search.NewSimpleFieldResolver("id", "name", "status")
+//	expr, err := filter.BuildExpr(resolver, dbx.Params{"min": 100, "max": 200})
 export type FilterData = string;
 
 type AstNode =
@@ -230,6 +240,12 @@ function normalizeOperator(op: string): string {
   return op;
 }
 
+// Resolves = and != expressions in an attempt to minimize the COALESCE
+// usage and to gracefully handle null vs empty string normalizations.
+//
+// The expression `a = "" OR a is null` tends to perform better than
+// `COALESCE(a, "") = ""` since the direct match can be accomplished
+// with a seek while the COALESCE will induce a table scan.
 function resolveEqualExpr(equal: boolean, left: ResolverResult, right: ResolverResult): SqlExpr {
   const leftFallback = left.nullFallback ?? "auto";
   const rightFallback = right.nullFallback ?? "auto";
@@ -325,6 +341,8 @@ function isEmptyIdentifier(result: ResolverResult): boolean {
   }
 }
 
+// mergeParams returns new dbx.Params where each provided params item
+// is merged in the order they are specified.
 function mergeParams(...params: unknown[][]): unknown[] {
   return params.flatMap((item) => item);
 }
@@ -426,6 +444,10 @@ function repeatParams(params: unknown[], times: number): unknown[] {
   return result;
 }
 
+// @todo consider adding support for custom single character wildcard
+//
+// wrapLikeParams wraps each provided param value string with `%`
+// if the param doesn't contain an explicit wildcard (`%`) character already.
 function wrapLikeParams(params: unknown[]): unknown[] {
   return params.map((value) => {
     const stringValue = coerceToString(value);

@@ -12,6 +12,20 @@ import { buildFilterExpr } from "../tools/search/filter.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
 import { randomString } from "../tools/security/random.ts";
 
+// RecordFieldResolver defines a custom search resolver struct for
+// managing Record model search fields.
+//
+// Usually used together with `search.Provider`.
+// Example:
+//
+//	resolver := resolvers.NewRecordFieldResolver(
+//	    app,
+//	    myCollection,
+//	    &models.RequestInfo{...},
+//	    true,
+//	)
+//	provider := search.NewProvider(resolver)
+//	...
 export class RecordFieldResolver implements FieldResolver {
   app: App;
   baseCollection: Collection;

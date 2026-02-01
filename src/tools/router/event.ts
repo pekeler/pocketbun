@@ -4,6 +4,10 @@ import type { NextFunc, Resolver } from "../hook/event.ts";
 import { Pick } from "../picker/pick.ts";
 import { Store } from "../store/store.ts";
 
+// Event specifies based Route handler event that is usually intended
+// to be embedded as part of a custom event struct.
+//
+// NB! It is expected that the Response and Request fields are always set.
 export class Event implements Resolver {
   request: Request;
   params: Record<string, string>;
@@ -45,18 +49,22 @@ export class Event implements Resolver {
     return this.Next();
   }
 
+  // Get retrieves single value from the current event data store.
   Get(key: string): unknown {
     return this.#data.get(key);
   }
 
+  // GetAll returns a copy of the current event data store.
   GetAll(): Record<string, unknown> {
     return this.#data.toJSON();
   }
 
+  // Set saves single value into the current event data store.
   Set(key: string, value: unknown): void {
     this.#data.set(key, value);
   }
 
+  // SetAll saves all items from m into the current event data store.
   SetAll(data: Record<string, unknown>): void {
     for (const [key, value] of Object.entries(data)) {
       this.#data.set(key, value);

@@ -10,6 +10,7 @@ export type OAuth2Token = {
   [key: string]: unknown;
 };
 
+// AuthUser defines a standardized OAuth2 user data structure.
 export class AuthUser {
   Expiry: DateTime;
   RawUser: Record<string, unknown>;
@@ -51,8 +52,12 @@ export class AuthUser {
   }
 }
 
+// ProviderFactoryFunc defines a function for initializing a new OAuth2 provider.
 export type ProviderFactoryFunc = () => Provider;
 
+// Providers defines a map with all of the available OAuth2 providers.
+//
+// To register a new provider append a new entry in the map.
 export const Providers: Record<string, ProviderFactoryFunc> = {};
 
 export function newProviderByName(name: string): Provider {
@@ -63,6 +68,7 @@ export function newProviderByName(name: string): Provider {
   return factory();
 }
 
+// Provider defines a common interface for an OAuth2 client.
 export interface Provider {
   Context(): unknown;
   SetContext(ctx: unknown): void;
@@ -93,6 +99,8 @@ export interface Provider {
   FetchAuthUser(token: OAuth2Token): Promise<AuthUser>;
 }
 
+// wrapFactory is a helper that wraps a Provider specific factory
+// function and returns its result as Provider interface.
 export function wrapFactory<T extends Provider>(factory: () => T): ProviderFactoryFunc {
   return () => factory();
 }

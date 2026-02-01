@@ -61,6 +61,7 @@ type CollectionsListResult = {
   items: CollectionResponse[];
 };
 
+// bindCollectionApi registers the collection api endpoints and the corresponding handlers.
 export function bindCollectionApi(app: App, rg: RouterGroup<RequestEvent>): void {
   const group = rg.group("/collections");
   group.get("", (event) => collectionsList(app, event));

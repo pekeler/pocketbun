@@ -8,6 +8,7 @@ export const DefaultMigrationsTable = "_migrations";
 export const AppMigrations = new MigrationsList();
 export const SystemMigrations = new MigrationsList();
 
+// MigrationsRunner defines a simple struct for managing the execution of db migrations.
 export class MigrationsRunner {
   #app: App;
   #migrationsList: MigrationsList;

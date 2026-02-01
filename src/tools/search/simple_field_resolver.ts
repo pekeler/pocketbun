@@ -5,6 +5,10 @@ import { columnify } from "../inflector/inflector.ts";
 
 export type NullFallbackPreference = "auto" | "disabled" | "enforced";
 
+// SimpleFieldResolver defines a generic search resolver that allows
+// only its listed fields to be resolved and take part in a search query.
+//
+// If `allowedFields` are empty no fields filtering is applied.
 export class SimpleFieldResolver implements FieldResolver {
   #allowedFields: string[];
 

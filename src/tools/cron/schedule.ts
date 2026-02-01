@@ -2,6 +2,7 @@
 
 export type SlotMap = Record<number, Record<string, never>>;
 
+// Moment represents a parsed single time moment.
 export class Moment {
   Minute: number;
   Hour: number;
@@ -64,10 +65,12 @@ function momentFromDate(date: Date, timeZone: string): Moment {
   }
 }
 
+// NewMoment creates a new Moment from the specified time.
 export function NewMoment(date: Date, timeZone = "UTC"): Moment {
   return momentFromDate(date, timeZone);
 }
 
+// Schedule stores parsed information for each time component when a cron job should run.
 export class Schedule {
   minutes: SlotMap;
   hours: SlotMap;
@@ -85,6 +88,7 @@ export class Schedule {
     this.#rawExpr = rawExpr;
   }
 
+  // IsDue checks whether the provided Moment satisfies the current Schedule.
   IsDue(m: Moment): boolean {
     if (!this.minutes[m.Minute]) {
       return false;
@@ -119,6 +123,23 @@ const macros: Record<string, string> = {
   "@hourly": "0 * * * *",
 };
 
+// NewSchedule creates a new Schedule from a cron expression.
+//
+// A cron expression could be a macro OR 5 segments separated by space,
+// representing: minute, hour, day of the month, month and day of the week.
+//
+// The following segment formats are supported:
+//   - wildcard: *
+//   - range:    1-30
+//   - step:     */n or 1-30/n
+//   - list:     1,2,3,10-20/n
+//
+// The following macros are supported:
+//   - @yearly (or @annually)
+//   - @monthly
+//   - @weekly
+//   - @daily (or @midnight)
+//   - @hourly
 export function NewSchedule(cronExpr: string): Schedule {
   const mapped = macros[cronExpr];
   if (mapped) {
@@ -139,6 +160,8 @@ export function NewSchedule(cronExpr: string): Schedule {
   return new Schedule(minutes, hours, days, months, daysOfWeek, cronExpr);
 }
 
+// parseCronSegment parses a single cron expression segment and
+// returns its time schedule slots.
 function parseCronSegment(segment: string, min: number, max: number): SlotMap {
   const slots: SlotMap = {};
   const list = segment.split(",");

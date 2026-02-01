@@ -46,6 +46,14 @@ export function unmarshalRequestData(data: Record<string, string[]>, dest: Recor
 
 const inferNumberCharsRegex = /^[\\-\\.\\d]+$/;
 
+// In order to support more seamlessly both json and multipart/form-data requests,
+// the following normalization rules are applied for plain multipart string values:
+//   - "true" is converted to the json "true"
+//   - "false" is converted to the json "false"
+//   - numeric strings are converted to json number ONLY if the resulted
+//     minimal number string representation is the same as the provided raw string
+//     (aka. scientific notations, "Infinity", "0.0", "0001", etc. are kept as string)
+//   - any other string (empty string too) is left as it is
 function inferValue(raw: string): unknown {
   switch (raw) {
     case "":

@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameDiscord is the unique name of the Discord provider.
 export const NameDiscord = "discord";
 
+// Discord allows authentication via Discord OAuth2.
 export class Discord extends BaseProvider {
   constructor() {
     super();

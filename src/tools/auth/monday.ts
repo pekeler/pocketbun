@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameMonday is the unique name of the Monday provider.
 export const NameMonday = "monday";
 
+// Monday is an auth provider for monday.com.
 export class Monday extends BaseProvider {
   constructor() {
     super();

@@ -11,6 +11,7 @@ import { FilterQueryParam, DefaultFilterExprLimit } from "../tools/search/types.
 import { badRequest, notFound } from "./api_errors.ts";
 import { RequireSuperuserAuth, SkipSuccessActivityLog } from "./middlewares.ts";
 
+// bindLogsApi registers the request logs api endpoints.
 export function bindLogsApi(app: App, rg: RouterGroup<RequestEvent>): void {
   const sub = rg.group("/logs").bind(RequireSuperuserAuth(), SkipSuccessActivityLog());
   sub.get("", (event) => logsList(app, event));

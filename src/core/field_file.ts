@@ -42,6 +42,35 @@ const looseFilenameRegex = /^[^./\\][^/\\]+$/;
 const deletedFilesPrefix = `${internalCustomFieldKeyPrefix}_deletedFilesPrefix_`;
 const uploadedFilesPrefix = `${internalCustomFieldKeyPrefix}_uploadedFilesPrefix_`;
 
+// FileField defines "file" type field for managing record file(s).
+//
+// Only the file name is stored as part of the record value.
+// New files (aka. files to upload) are expected to be of *filesytem.File.
+//
+// If MaxSelect is not set or <= 1, then the field value is expected to be a single record id.
+//
+// If MaxSelect is > 1, then the field value is expected to be a slice of record ids.
+//
+// The respective zero record field value is either empty string (single) or empty string slice (multiple).
+//
+// ---
+//
+// The following additional setter keys are available:
+//
+//   - "fieldName+" - append one or more files to the existing record one. For example:
+//
+//     // []string{"old1.txt", "old2.txt", "new1_ajkvass.txt", "new2_klhfnwd.txt"}
+//     record.Set("documents+", []*filesystem.File{new1, new2})
+//
+//   - "+fieldName" - prepend one or more files to the existing record one. For example:
+//
+//     // []string{"new1_ajkvass.txt", "new2_klhfnwd.txt", "old1.txt", "old2.txt",}
+//     record.Set("+documents", []*filesystem.File{new1, new2})
+//
+//   - "fieldName-" - subtract/delete one or more files from the existing record one. For example:
+//
+//     // []string{"old2.txt",}
+//     record.Set("documents-", "old1.txt")
 export class FileField
   implements Field, MultiValuer, DriverValuer, GetterFinder, SetterFinder, RecordInterceptor, MaxBodySizeCalculator
 {
@@ -57,46 +86,58 @@ export class FileField
   Protected = false;
   Required = false;
 
+  // Type implements [Field.Type] interface method.
   Type(): string {
     return FieldTypeFile;
   }
 
+  // GetId implements [Field.GetId] interface method.
   GetId(): string {
     return this.Id;
   }
 
+  // SetId implements [Field.SetId] interface method.
   SetId(id: string): void {
     this.Id = id;
   }
 
+  // GetName implements [Field.GetName] interface method.
   GetName(): string {
     return this.Name;
   }
 
+  // SetName implements [Field.SetName] interface method.
   SetName(name: string): void {
     this.Name = name;
   }
 
+  // GetSystem implements [Field.GetSystem] interface method.
   GetSystem(): boolean {
     return this.System;
   }
 
+  // SetSystem implements [Field.SetSystem] interface method.
   SetSystem(system: boolean): void {
     this.System = system;
   }
 
+  // GetHidden implements [Field.GetHidden] interface method.
   GetHidden(): boolean {
     return this.Hidden;
   }
 
+  // SetHidden implements [Field.SetHidden] interface method.
   SetHidden(hidden: boolean): void {
     this.Hidden = hidden;
   }
 
+  // IsMultiple implements MultiValuer interface and checks whether the
+  // current field options support multiple values.
   IsMultiple(): boolean {
     return this.MaxSelect > 1;
   }
 
+  // ColumnType implements [Field.ColumnType] interface method.
   ColumnType(_app: App): string {
     if (this.IsMultiple()) {
       return "JSON DEFAULT '[]' NOT NULL";
@@ -104,10 +145,12 @@ export class FileField
     return "TEXT DEFAULT '' NOT NULL";
   }
 
+  // PrepareValue implements [Field.PrepareValue] interface method.
   PrepareValue(_record: RecordLike, raw: unknown): unknown {
     return this.normalizeValue(raw);
   }
 
+  // DriverValue implements the [DriverValuer] interface.
   DriverValue(record: RecordLike): [unknown, Error | null] {
     const files = this.toSliceValue(record.GetRaw(this.Name));
 
@@ -126,6 +169,7 @@ export class FileField
     return [this.getFileName(files[files.length - 1]), null];
   }
 
+  // ValidateSettings implements [Field.ValidateSettings] interface method.
   ValidateSettings(_ctx: unknown, _app: App, _collection: Collection): Error | null {
     const errors: Record<string, Error> = {};
     const idErr = defaultFieldIdValidationRule(this.Id);
@@ -160,6 +204,7 @@ export class FileField
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
+  // ValidateValue implements [Field.ValidateValue] interface method.
   ValidateValue(_ctx: unknown, app: App, record: RecordLike): Error | null {
     const files = this.toSliceValue(record.GetRaw(this.Name));
     if (files.length === 0) {
@@ -220,10 +265,14 @@ export class FileField
     return null;
   }
 
+  // CalculateMaxBodySize implements the [MaxBodySizeCalculator] interface.
   CalculateMaxBodySize(): number {
     return this.effectiveMaxSize() * this.effectiveMaxSelect();
   }
 
+  // Intercept implements the [RecordInterceptor] interface.
+  //
+  // note: files delete after records deletion is handled globally by the app FileManager hook
   Intercept(ctx: unknown, app: App, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null {
     switch (actionName) {
       case InterceptorActionCreateExecute:
@@ -294,6 +343,7 @@ export class FileField
     }
   }
 
+  // FindGetter implements the [GetterFinder] interface.
   FindGetter(key: string): GetterFunc | null {
     switch (key) {
       case this.Name:
@@ -308,6 +358,7 @@ export class FileField
     }
   }
 
+  // FindSetter implements the [SetterFinder] interface.
   FindSetter(key: string): SetterFunc | null {
     switch (key) {
       case this.Name:
@@ -591,6 +642,8 @@ export class FileField
     return [failed, err];
   }
 
+  // deleteFiles deletes a list of record files by their names.
+  // Returns the failed/remaining files.
   private deleteFilesByNamesList(ctx: unknown, app: App, record: RecordLike, filenames: string[]): [string[], Error | null] {
     if (filenames.length === 0) {
       return [[], null];

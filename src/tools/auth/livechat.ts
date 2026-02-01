@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameLivechat is the unique name of the Livechat provider.
 export const NameLivechat = "livechat";
 
+// Livechat allows authentication via Livechat OAuth2.
 export class Livechat extends BaseProvider {
   constructor() {
     super();

@@ -18,6 +18,9 @@ const rateLimitersStoreKey = "__pbRateLimiters__";
 const rateLimitersCronKey = "__pbRateLimitersCleanup__";
 const rateLimitersSettingsHookId = "__pbRateLimitersSettingsHook__";
 
+// rateLimit defines the global rate limit middleware.
+//
+// This middleware is registered by default for all routes.
 export function rateLimit(): Handler<RequestEvent> {
   return {
     Id: DefaultRateLimitMiddlewareId,
@@ -44,6 +47,7 @@ export function rateLimit(): Handler<RequestEvent> {
   };
 }
 
+// collectionPathRateLimit defines a rate limit middleware for the internal collection handlers.
 export function collectionPathRateLimit(collectionPathParam: string, ...baseTags: string[]): Handler<RequestEvent> {
   const param = collectionPathParam || "collection";
 
@@ -71,6 +75,10 @@ export function collectionPathRateLimit(collectionPathParam: string, ...baseTags
   };
 }
 
+// checkCollectionRateLimit checks whether the current request satisfy the
+// rate limit configuration for the specific collection.
+//
+// Each baseTags entry will be prefixed with the collection name and its wildcard variant.
 export function checkCollectionRateLimit(event: RequestEvent, collection: Collection, ...baseTags: string[]): Response | null {
   if (skipRateLimit(event)) {
     return null;
@@ -99,6 +107,7 @@ export function checkCollectionRateLimit(event: RequestEvent, collection: Collec
   return null;
 }
 
+// @todo consider exporting as helper?
 export function checkRateLimit(event: RequestEvent, rtId: string, rule: RateLimitRule): Response | null {
   const audience = rule.audience ?? RateLimitRuleAudienceAll;
 
@@ -146,6 +155,9 @@ export function checkRateLimit(event: RequestEvent, rtId: string, rule: RateLimi
   return null;
 }
 
+// @todo consider exporting as helper?
+//
+//nolint:unused
 export function isClientRateLimited(event: RequestEvent, rtId: string): boolean {
   const rateLimiters = event.app.store().get(rateLimitersStoreKey) as Store<string, RateLimiter> | undefined;
   if (!rateLimiters) {

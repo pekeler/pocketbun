@@ -2,6 +2,11 @@
 
 import { JSONRaw } from "./json_raw.ts";
 
+// GeoPoint defines a struct for storing geo coordinates as serialized json object
+// (e.g. {lon:0,lat:0}).
+//
+// Note: using object notation and not a plain array to avoid the confusion
+// as there doesn't seem to be a fixed standard for the coordinates order.
 export class GeoPoint {
   Lon: number;
   Lat: number;
@@ -11,6 +16,7 @@ export class GeoPoint {
     this.Lat = lat;
   }
 
+  // String returns the string representation of the current GeoPoint instance.
   String(): string {
     return JSON.stringify(this.toJSON());
   }
@@ -19,6 +25,8 @@ export class GeoPoint {
     return this.String();
   }
 
+  // AsMap implements [core.mapExtractor] and returns a value suitable
+  // to be used in an API rule expression.
   AsMap(): Record<string, number> {
     return {
       lon: this.Lon,
@@ -26,6 +34,7 @@ export class GeoPoint {
     };
   }
 
+  // Value implements the [driver.Valuer] interface.
   Value(): string {
     return this.String();
   }
@@ -37,6 +46,11 @@ export class GeoPoint {
     };
   }
 
+  // Scan implements [sql.Scanner] interface to scan the provided value
+  // into the current GeoPoint instance.
+  //
+  // The value argument could be nil (no-op), another GeoPoint instance,
+  // map or serialized json object with lat-lon props.
   Scan(value: unknown): Error | null {
     try {
       if (value == null) {

@@ -9,6 +9,9 @@ import { ErrUnsupportedValueType } from "./validators/validators.ts";
 
 export const FieldTypeEmail = "email";
 
+// EmailField defines "email" type field for storing a single email string address.
+//
+// The respective zero record field value is empty string.
 export class EmailField implements Field {
   Name = "";
   Id = "";
@@ -19,50 +22,62 @@ export class EmailField implements Field {
   OnlyDomains: string[] = [];
   Required = false;
 
+  // Type implements [Field.Type] interface method.
   Type(): string {
     return FieldTypeEmail;
   }
 
+  // GetId implements [Field.GetId] interface method.
   GetId(): string {
     return this.Id;
   }
 
+  // SetId implements [Field.SetId] interface method.
   SetId(id: string): void {
     this.Id = id;
   }
 
+  // GetName implements [Field.GetName] interface method.
   GetName(): string {
     return this.Name;
   }
 
+  // SetName implements [Field.SetName] interface method.
   SetName(name: string): void {
     this.Name = name;
   }
 
+  // GetSystem implements [Field.GetSystem] interface method.
   GetSystem(): boolean {
     return this.System;
   }
 
+  // SetSystem implements [Field.SetSystem] interface method.
   SetSystem(system: boolean): void {
     this.System = system;
   }
 
+  // GetHidden implements [Field.GetHidden] interface method.
   GetHidden(): boolean {
     return this.Hidden;
   }
 
+  // SetHidden implements [Field.SetHidden] interface method.
   SetHidden(hidden: boolean): void {
     this.Hidden = hidden;
   }
 
+  // ColumnType implements [Field.ColumnType] interface method.
   ColumnType(_app: App): string {
     return "TEXT DEFAULT '' NOT NULL";
   }
 
+  // PrepareValue implements [Field.PrepareValue] interface method.
   PrepareValue(_record: unknown, raw: unknown): string {
     return toStringValue(raw);
   }
 
+  // ValidateValue implements [Field.ValidateValue] interface method.
   ValidateValue(_ctx: unknown, _app: App, record: RecordLike): Error | null {
     const value = record.GetRaw(this.Name);
     if (typeof value !== "string") {
@@ -99,6 +114,7 @@ export class EmailField implements Field {
     return null;
   }
 
+  // ValidateSettings implements [Field.ValidateSettings] interface method.
   ValidateSettings(_ctx: unknown, _app: App, _collection: Collection): Error | null {
     const errors: Record<string, Error> = {};
 

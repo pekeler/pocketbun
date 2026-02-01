@@ -40,6 +40,10 @@ export const DefaultRequireSuperuserAuthMiddlewareId = "pbRequireSuperuserAuth";
 export const DefaultRequireSuperuserOrOwnerAuthMiddlewareId = "pbRequireSuperuserOrOwnerAuth";
 export const DefaultRequireSameCollectionContextAuthMiddlewareId = "pbRequireSameCollectionContextAuth";
 
+// RequireGuestOnly middleware requires a request to NOT have a valid
+// Authorization header.
+//
+// This middleware is the opposite of [apis.RequireAuth()].
 export function RequireGuestOnly(): Handler<RequestEvent> {
   return {
     Id: DefaultRequireGuestOnlyMiddlewareId,
@@ -52,6 +56,15 @@ export function RequireGuestOnly(): Handler<RequestEvent> {
   };
 }
 
+// RequireAuth middleware requires a request to have a valid record Authorization header.
+//
+// The auth record could be from any collection.
+// You can further filter the allowed record auth collections by specifying their names.
+//
+// Example:
+//
+//	apis.RequireAuth()                      // any auth collection
+//	apis.RequireAuth("_superusers", "users") // only the listed auth collections
 export function RequireAuth(...optCollectionNames: string[]): Handler<RequestEvent> {
   return {
     Id: DefaultRequireAuthMiddlewareId,
@@ -73,6 +86,8 @@ function requireAuth(optCollectionNames: string[]): (event: RequestEvent) => unk
   };
 }
 
+// RequireSuperuserAuth middleware requires a request to have
+// a valid superuser Authorization header.
 export function RequireSuperuserAuth(): Handler<RequestEvent> {
   return {
     Id: DefaultRequireSuperuserAuthMiddlewareId,
@@ -80,6 +95,12 @@ export function RequireSuperuserAuth(): Handler<RequestEvent> {
   };
 }
 
+// RequireSuperuserOrOwnerAuth middleware requires a request to have
+// a valid superuser or regular record owner Authorization header set.
+//
+// This middleware is similar to [apis.RequireAuth()] but
+// for the auth record token expects to have the same id as the path
+// parameter ownerIdPathParam (default to "id" if empty).
 export function RequireSuperuserOrOwnerAuth(ownerIdPathParam: string): Handler<RequestEvent> {
   return {
     Id: DefaultRequireSuperuserOrOwnerAuthMiddlewareId,
@@ -104,6 +125,9 @@ export function RequireSuperuserOrOwnerAuth(ownerIdPathParam: string): Handler<R
   };
 }
 
+// RequireSameCollectionContextAuth middleware requires a request to have
+// a valid record Authorization header and the auth record's collection to
+// match the one from the route path parameter (default to "collection" if collectionParam is empty).
 export function RequireSameCollectionContextAuth(collectionPathParam: string): Handler<RequestEvent> {
   return {
     Id: DefaultRequireSameCollectionContextAuthMiddlewareId,
@@ -154,6 +178,16 @@ export function loadAuthToken(): Handler<RequestEvent> {
   };
 }
 
+// activityLogger middleware takes care to save the request information
+// into the logs database.
+//
+// This middleware is registered by default for all routes.
+//
+// The middleware does nothing if the app logs retention period is zero
+// (aka. app.Settings().Logs.MaxDays = 0).
+//
+// Users can attach the [apis.SkipSuccessActivityLog()] middleware if
+// you want to log only the failed requests.
 export function activityLogger(): Handler<RequestEvent> {
   return {
     Id: DefaultActivityLoggerMiddlewareId,
@@ -184,6 +218,7 @@ export function activityLogger(): Handler<RequestEvent> {
   };
 }
 
+// panicRecover returns a default panic-recover handler.
 export function panicRecover(): Handler<RequestEvent> {
   return {
     Id: DefaultPanicRecoverMiddlewareId,
@@ -203,6 +238,9 @@ export function panicRecover(): Handler<RequestEvent> {
   };
 }
 
+// securityHeaders middleware adds common security headers to the response.
+//
+// This middleware is registered by default for all routes.
 export function securityHeaders(): Handler<RequestEvent> {
   return {
     Id: DefaultSecurityHeadersMiddlewareId,
@@ -216,6 +254,8 @@ export function securityHeaders(): Handler<RequestEvent> {
   };
 }
 
+// SkipSuccessActivityLog is a helper middleware that instructs the global
+// activity logger to log only requests that have failed/returned an error.
 export function SkipSuccessActivityLog(): Handler<RequestEvent> {
   return {
     Id: DefaultSkipSuccessActivityLogMiddlewareId,

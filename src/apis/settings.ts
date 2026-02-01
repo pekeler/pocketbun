@@ -13,6 +13,7 @@ import { RequireSuperuserAuth } from "./middlewares.ts";
 import { readJsonBody } from "./record_auth_utils.ts";
 import { execAfterSuccessTx } from "./record_helpers.ts";
 
+// bindSettingsApi registers the settings api endpoints.
 export function bindSettingsApi(app: App, rg: RouterGroup<RequestEvent>): void {
   const sub = rg.group("/settings").bind(RequireSuperuserAuth());
   sub.get("", (event) => settingsList(app, event));

@@ -7,6 +7,7 @@ import { HashExp } from "../tools/dbx/expr.ts";
 import { DateTime, ParseDateTime } from "../tools/types/index.ts";
 import { Log, LogsTableName, normalizeLogRow } from "./log_model.ts";
 
+// LogsStatsItem defines the total number of logs for a specific time period.
 export type LogsStatsItem = {
   date: DateTime;
   total: number;

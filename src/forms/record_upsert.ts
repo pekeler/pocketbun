@@ -33,34 +33,47 @@ export class RecordUpsert {
     this.accessLevel = accessLevelDefault;
   }
 
+  // SetContext assigns ctx as context of the current form.
   SetContext(ctx: unknown): void {
     this.ctx = ctx;
   }
 
+  // SetApp replaces the current form app instance.
+  //
+  // This could be used for example if you want to change at later stage
+  // before submission to change from regular -> transactional app instance.
   SetApp(app: App): void {
     this.app = app;
   }
 
+  // SetRecord replaces the current form record instance.
   SetRecord(record: RecordModel): void {
     this.record = record;
   }
 
+  // ResetAccess resets the form access level to the accessLevelDefault.
   ResetAccess(): void {
     this.accessLevel = accessLevelDefault;
   }
 
+  // GrantManagerAccess updates the form access level to "manager" allowing
+  // directly changing some system record fields (often used with auth collection records).
   GrantManagerAccess(): void {
     this.accessLevel = accessLevelManager;
   }
 
+  // GrantSuperuserAccess updates the form access level to "superuser" allowing
+  // directly changing all system record fields, including those marked as "Hidden".
   GrantSuperuserAccess(): void {
     this.accessLevel = accessLevelSuperuser;
   }
 
+  // HasManageAccess reports whether the form has "manager" or "superuser" level access.
   HasManageAccess(): boolean {
     return this.accessLevel === accessLevelManager || this.accessLevel === accessLevelSuperuser;
   }
 
+  // Load loads the provided data into the form and the related record.
   Load(data: Record<string, unknown>): void {
     const excludeFields = new Set<string>([FieldNameExpand]);
 
@@ -175,6 +188,12 @@ export class RecordUpsert {
     return null;
   }
 
+  // Deprecated: It was previously used as part of the record create action but it is not needed anymore and will be removed in the future.
+  //
+  // DrySubmit performs a temp form submit within a transaction and reverts it at the end.
+  // For actual record persistence, check the [RecordUpsert.Submit()] method.
+  //
+  // This method doesn't perform validations, handle file uploads/deletes or trigger app save events!
   DrySubmit(callback: ((txApp: App, drySavedRecord: RecordModel) => Error | null) | null): Error | null {
     const isNew = this.record.IsNew();
     const clone = this.record.Clone();
@@ -243,6 +262,7 @@ export class RecordUpsert {
     return manualRollback();
   }
 
+  // Submit validates the form specific validations and attempts to save the form record.
   Submit(): Error | null {
     const err = this.validateFormFields();
     if (err) {
@@ -252,6 +272,11 @@ export class RecordUpsert {
     return this.app.SaveWithContext(this.ctx, this.record);
   }
 
+  // syncPasswordFields syncs the form's auth password fields with their
+  // corresponding record field values.
+  //
+  // This could be useful in case the password fields were programmatically set
+  // directly by modifying the related record model.
   syncPasswordFields(): void {
     if (!this.record.collection().isAuth()) {
       return;

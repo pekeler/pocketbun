@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameFacebook is the unique name of the Facebook provider.
 export const NameFacebook = "facebook";
 
+// Facebook allows authentication via Facebook OAuth2.
 export class Facebook extends BaseProvider {
   constructor() {
     super();

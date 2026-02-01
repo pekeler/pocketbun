@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NamePlanningcenter is the unique name of the Planningcenter provider.
 export const NamePlanningcenter = "planningcenter";
 
+// Planningcenter allows authentication via Planningcenter OAuth2.
 export class Planningcenter extends BaseProvider {
   constructor() {
     super();

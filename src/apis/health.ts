@@ -5,11 +5,13 @@ import type { RequestEvent } from "../core/event_request.ts";
 import type { RouterGroup } from "../tools/router/group.ts";
 import { StoreKeyActiveBackup } from "../core/store.ts";
 
+// bindHealthApi registers the health api endpoint.
 export function bindHealthApi(app: App, rg: RouterGroup<RequestEvent>): void {
   const subGroup = rg.group("/health");
   subGroup.get("", (event) => healthCheck(app, event));
 }
 
+// healthCheck returns a 200 OK response if the server is healthy.
 export function healthCheck(app: App, event: RequestEvent): Response {
   const response: {
     message: string;

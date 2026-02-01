@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameBitbucket is the unique name of the Bitbucket provider.
 export const NameBitbucket = "bitbucket";
 
+// Bitbucket is an auth provider for Bitbucket.
 export class Bitbucket extends BaseProvider {
   constructor() {
     super();

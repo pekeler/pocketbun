@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameNotion is the unique name of the Notion provider.
 export const NameNotion = "notion";
 
+// Notion allows authentication via Notion OAuth2.
 export class Notion extends BaseProvider {
   constructor() {
     super();

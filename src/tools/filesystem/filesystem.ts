@@ -13,6 +13,7 @@ export class NotFoundError extends Error {
   }
 }
 
+// note: the same as blob.ErrNotFound for backward compatibility with earlier versions
 export const ErrNotFound = new NotFoundError();
 
 export type Attributes = {
@@ -60,6 +61,7 @@ const inlineServeContentTypes = new Set([
   "application/x-pdf",
 ]);
 
+// manualExtensionContentTypes is a map of file extensions to content types.
 const manualExtensionContentTypes: Record<string, string> = {
   ".svg": "image/svg+xml",
   ".css": "text/css",
@@ -67,6 +69,8 @@ const manualExtensionContentTypes: Record<string, string> = {
   ".mjs": "text/javascript",
 };
 
+// forceAttachmentParam is the name of the request query parameter to
+// force "Content-Disposition: attachment" header.
 const forceAttachmentParam = "download";
 
 export class System {
@@ -87,18 +91,24 @@ export class System {
     throw new Error("S3 filesystem support is not implemented in PocketBun yet.");
   }
 
+  // SetContext assigns the specified context to the current filesystem.
   SetContext(ctx: unknown): void {
     this.#ctx = ctx;
     void this.#ctx;
   }
 
+  // Close releases any resources used for the related filesystem.
   Close(): void {}
 
+  // Exists checks if file with fileKey path exists or not.
   Exists(fileKey: string): boolean {
     const full = this.resolvePath(fileKey);
     return existsSync(full);
   }
 
+  // Attributes returns the attributes for the file with fileKey path.
+  //
+  // If the file doesn't exist it returns ErrNotFound.
   Attributes(fileKey: string): Attributes {
     const full = this.resolvePath(fileKey);
     if (!existsSync(full)) {
@@ -116,6 +126,11 @@ export class System {
     };
   }
 
+  // GetReader returns a file content reader for the given fileKey.
+  //
+  // NB! Make sure to call Close() on the file after you are done working with it.
+  //
+  // If the file doesn't exist returns ErrNotFound.
   GetReader(fileKey: string): SystemReader {
     const full = this.resolvePath(fileKey);
     if (!existsSync(full)) {
@@ -125,11 +140,23 @@ export class System {
     return new SystemReader(readFileSync(full), attrs);
   }
 
+  // Deprecated: Please use GetReader(fileKey) instead.
   GetFile(fileKey: string): SystemReader {
     console.warn("Deprecated: Please replace GetFile with GetReader.");
     return this.GetReader(fileKey);
   }
 
+  // GetReuploadableFile constructs a new reuploadable File value
+  // from the associated fileKey blob.Reader.
+  //
+  // If preserveName is false then the returned File.Name will have
+  // a new randomly generated suffix, otherwise it will reuse the original one.
+  //
+  // This method could be useful in case you want to clone an existing
+  // Record file and assign it to a new Record (e.g. in a Record duplicate action).
+  //
+  // If you simply want to copy an existing file to a new location you
+  // could check the Copy(srcKey, dstKey) method.
   GetReuploadableFile(fileKey: string, preserveName: boolean): File {
     const attrs = this.Attributes(fileKey);
     const name = posix.basename(fileKey);
@@ -144,6 +171,11 @@ export class System {
     return file;
   }
 
+  // Copy copies the file stored at srcKey to dstKey.
+  //
+  // If srcKey file doesn't exist, it returns ErrNotFound.
+  //
+  // If dstKey file already exists, it is overwritten.
   Copy(srcKey: string, dstKey: string): void {
     const src = this.resolvePath(srcKey);
     const dst = this.resolvePath(dstKey);
@@ -161,6 +193,7 @@ export class System {
     }
   }
 
+  // List returns a flat list with info for all files under the specified prefix.
   List(prefix: string): ListObject[] {
     const files = this.walkFiles(this.#root);
     const filtered = files.filter((file) => file.key.startsWith(prefix));
@@ -171,6 +204,7 @@ export class System {
     }));
   }
 
+  // Upload writes content into the fileKey location.
   Upload(content: Uint8Array, fileKey: string): void {
     const full = this.resolvePath(fileKey);
     mkdirSync(dirname(full), { recursive: true });
@@ -180,6 +214,7 @@ export class System {
     this.writeAttrs(full, contentType, null);
   }
 
+  // UploadFile uploads the provided File to the fileKey location.
   UploadFile(file: File, fileKey: string): void {
     if (!file.Reader) {
       throw new Error("missing file reader");
@@ -201,6 +236,7 @@ export class System {
     this.writeAttrs(full, contentType, { [metadataOriginalName]: originalName });
   }
 
+  // UploadMultipart uploads the provided multipart file to the fileKey location.
   UploadMultipart(header: { filename: string; size: number; buffer: Uint8Array }, fileKey: string) {
     const contentType = detectMimeTypeFromBytes(header.buffer);
     const full = this.resolvePath(fileKey);
@@ -214,6 +250,9 @@ export class System {
     this.writeAttrs(full, contentType, { [metadataOriginalName]: originalName });
   }
 
+  // Delete deletes stored file at fileKey location.
+  //
+  // If the file doesn't exist returns ErrNotFound.
   Delete(fileKey: string): void {
     const full = this.resolvePath(fileKey);
     if (!existsSync(full)) {
@@ -226,6 +265,9 @@ export class System {
     }
   }
 
+  // DeletePrefix deletes everything starting with the specified prefix.
+  //
+  // The prefix could be subpath (ex. "/a/b/") or filename prefix (ex. "/a/b/file_").
   DeletePrefix(prefix: string): Error[] {
     const failed: Error[] = [];
     if (prefix === "") {
@@ -252,6 +294,12 @@ export class System {
     return failed;
   }
 
+  // Checks if the provided dir prefix doesn't have any files.
+  //
+  // A trailing slash will be appended to a non-empty dir string argument
+  // to ensure that the checked prefix is a "directory".
+  //
+  // Returns "false" in case the has at least one file, otherwise - "true".
   IsEmptyDir(dir: string): boolean {
     let prefix = dir;
     if (prefix !== "" && !prefix.endsWith("/")) {
@@ -261,6 +309,13 @@ export class System {
     return objects.length === 0;
   }
 
+  // Serve serves the file at fileKey location to an HTTP response.
+  //
+  // If the `download` query parameter is used the file will be always served for
+  // download no matter of its type (aka. with "Content-Disposition: attachment").
+  //
+  // Internally this method uses [http.ServeContent] so Range requests,
+  // If-Match, If-Unmodified-Since, etc. headers are handled transparently.
   Serve(
     res: {
       statusCode?: number;
@@ -340,6 +395,16 @@ export class System {
     return null;
   }
 
+  // CreateThumb creates a new thumb image for the file at originalKey location.
+  // The new thumb file is stored at thumbKey location.
+  //
+  // thumbSize is in the format:
+  // - 0xH  (eg. 0x100)    - resize to H height preserving the aspect ratio
+  // - Wx0  (eg. 300x0)    - resize to W width preserving the aspect ratio
+  // - WxH  (eg. 300x100)  - resize and crop to WxH viewbox (from center)
+  // - WxHt (eg. 300x100t) - resize and crop to WxH viewbox (from top)
+  // - WxHb (eg. 300x100b) - resize and crop to WxH viewbox (from bottom)
+  // - WxHf (eg. 300x100f) - fit inside a WxH viewbox (without cropping)
   async CreateThumb(originalKey: string, thumbKey: string, thumbSize: string): Promise<Error | null> {
     const sizeParts = ThumbSizeRegex.exec(thumbSize);
     if (!sizeParts) {
@@ -485,10 +550,16 @@ export class System {
   }
 }
 
+// NewLocal initializes a new local filesystem instance.
+//
+// NB! Make sure to call `Close()` after you are done working with it.
 export function NewLocal(dirPath: string): System {
   return System.NewLocal(dirPath);
 }
 
+// NewS3 initializes an S3 filesystem instance.
+//
+// NB! Make sure to call `Close()` after you are done working with it.
 export function NewS3(...args: unknown[]): System {
   return System.NewS3(...args);
 }
@@ -554,6 +625,7 @@ export class SystemReader {
   }
 }
 
+// note: expects key to be in a canonical form (eg. "accept-encoding" should be "Accept-Encoding").
 function setHeaderIfMissing(
   res: { getHeader: (k: string) => string | undefined; setHeader: (k: string, v: string) => void },
   key: string,

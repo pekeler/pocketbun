@@ -49,6 +49,10 @@ type RequestLike = {
   formData: () => Promise<{ entries: () => IterableIterator<[string, unknown]> }>;
 };
 
+// bindRecordCrudApi registers the record crud api endpoints and
+// the corresponding handlers.
+//
+// note: the rate limiter is "inlined" because some of the crud actions are also used in the batch APIs
 export function bindRecordCrudApi(app: App, rg: RouterGroup<RequestEvent>): void {
   const group = rg.group("/collections/{collection}/records").unbind(DefaultRateLimitMiddlewareId);
   group.get("", (event) => recordsList(app, event));

@@ -8,6 +8,7 @@ export type Address = {
   Address: string;
 };
 
+// Message defines a generic email message struct.
 export type Message = {
   From: Address;
   To: Address[];
@@ -21,10 +22,12 @@ export type Message = {
   InlineAttachments?: Record<string, unknown>;
 };
 
+// Mailer defines a base mail client interface.
 export interface Mailer {
   Send(message: Message): Error | null | Promise<Error | null | void> | void;
 }
 
+// SendInterceptor is optional interface for registering mail send hooks.
 export interface SendInterceptor {
   OnSend(): Hook<SendEvent>;
 }

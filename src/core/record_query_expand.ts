@@ -8,6 +8,7 @@ import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { RelationField } from "./field_relation.ts";
 import { Record as RecordModel } from "./record.ts";
 
+// ExpandFetchFunc defines the function that is used to fetch the expanded relation records.
 export type ExpandFetchFunc = (relCollection: Collection, relIds: string[]) => RecordModel[];
 
 const maxNestedRels = 6;
@@ -233,6 +234,8 @@ function prepareIndirectRelation(
   return null;
 }
 
+// normalizeExpands normalizes expand strings and merges self containing paths
+// (eg. ["a.b.c", "a.b", "   test  ", "  ", "test"] -> ["a.b.c", "test"]).
 function normalizeExpands(paths: string[]): string[] {
   const normalized: string[] = [];
   for (const p of paths) {

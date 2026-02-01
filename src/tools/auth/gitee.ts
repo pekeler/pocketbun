@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameGitee is the unique name of the Gitee provider.
 export const NameGitee = "gitee";
 
+// Gitee allows authentication via Gitee OAuth2.
 export class Gitee extends BaseProvider {
   constructor() {
     super();

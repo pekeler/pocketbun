@@ -28,6 +28,7 @@ import {
   type SearchResult,
 } from "./types.ts";
 
+// Provider represents a single configured search provider instance.
 export class Provider {
   #fieldResolver: FieldResolver;
   #query: SearchQuery | null = null;

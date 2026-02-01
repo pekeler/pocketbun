@@ -46,6 +46,7 @@ const forbiddenPKCharacters = [
   " ",
 ];
 
+// (see largestReservedPKLength)
 const caseInsensitiveReservedPKs = [
   "CON",
   "PRN",
@@ -73,6 +74,16 @@ const caseInsensitiveReservedPKs = [
 
 const largestReservedPKLength = 4;
 
+// TextField defines "text" type field for storing any string value.
+//
+// The respective zero record field value is empty string.
+//
+// The following additional setter keys are available:
+//
+// - "fieldName:autogenerate" - autogenerate field value if AutogeneratePattern is set. For example:
+//
+//	record.Set("slug:autogenerate", "") // [random value]
+//	record.Set("slug:autogenerate", "abc-") // abc-[random value]
 export class TextField implements Field, SetterFinder, RecordInterceptor {
   Name = "";
   Id = "";
@@ -86,42 +97,52 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
   Required = false;
   PrimaryKey = false;
 
+  // Type implements [Field.Type] interface method.
   Type(): string {
     return FieldTypeText;
   }
 
+  // GetId implements [Field.GetId] interface method.
   GetId(): string {
     return this.Id;
   }
 
+  // SetId implements [Field.SetId] interface method.
   SetId(id: string): void {
     this.Id = id;
   }
 
+  // GetName implements [Field.GetName] interface method.
   GetName(): string {
     return this.Name;
   }
 
+  // SetName implements [Field.SetName] interface method.
   SetName(name: string): void {
     this.Name = name;
   }
 
+  // GetSystem implements [Field.GetSystem] interface method.
   GetSystem(): boolean {
     return this.System;
   }
 
+  // SetSystem implements [Field.SetSystem] interface method.
   SetSystem(system: boolean): void {
     this.System = system;
   }
 
+  // GetHidden implements [Field.GetHidden] interface method.
   GetHidden(): boolean {
     return this.Hidden;
   }
 
+  // SetHidden implements [Field.SetHidden] interface method.
   SetHidden(hidden: boolean): void {
     this.Hidden = hidden;
   }
 
+  // ColumnType implements [Field.ColumnType] interface method.
   ColumnType(_app: App): string {
     if (this.PrimaryKey) {
       return "TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(randomblob(7)))) NOT NULL";
@@ -129,10 +150,12 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     return "TEXT DEFAULT '' NOT NULL";
   }
 
+  // PrepareValue implements [Field.PrepareValue] interface method.
   PrepareValue(_record: unknown, raw: unknown): string {
     return toStringValue(raw);
   }
 
+  // ValidateValue implements [Field.ValidateValue] interface method.
   ValidateValue(_ctx: unknown, app: App, record: RecordLike): Error | null {
     const newVal = record.GetRaw(this.Name);
     if (typeof newVal !== "string") {
@@ -162,6 +185,7 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     return this.ValidatePlainValue(newVal);
   }
 
+  // ValidatePlainValue validates the provided string against the field options.
   ValidatePlainValue(value: string): Error | null {
     if (this.Required || this.PrimaryKey) {
       const err = required(value);
@@ -222,6 +246,7 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     return null;
   }
 
+  // ValidateSettings implements [Field.ValidateSettings] interface method.
   ValidateSettings(_ctx: unknown, _app: App, collection: Collection): Error | null {
     const errors: Record<string, Error> = {};
 
@@ -327,6 +352,7 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     return null;
   }
 
+  // Intercept implements the [RecordInterceptor] interface.
   Intercept(_ctx: unknown, _app: App, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null {
     switch (actionName) {
       case "validate":
@@ -347,6 +373,7 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     return typeof value !== "string" || value === "";
   }
 
+  // FindSetter implements the [SetterFinder] interface.
   FindSetter(key: string): SetterFunc | null {
     switch (key) {
       case this.Name:

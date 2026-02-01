@@ -19,6 +19,32 @@ import {
 
 export const FieldTypeRelation = "relation";
 
+// RelationField defines "relation" type field for storing single or
+// multiple collection record references.
+//
+// Requires the CollectionId option to be set.
+//
+// If MaxSelect is not set or <= 1, then the field value is expected to be a single record id.
+//
+// If MaxSelect is > 1, then the field value is expected to be a slice of record ids.
+//
+// The respective zero record field value is either empty string (single) or empty string slice (multiple).
+//
+// ---
+//
+// The following additional setter keys are available:
+//
+//   - "fieldName+" - append one or more values to the existing record one. For example:
+//
+//     record.Set("categories+", []string{"new1", "new2"}) // []string{"old1", "old2", "new1", "new2"}
+//
+//   - "+fieldName" - prepend one or more values to the existing record one. For example:
+//
+//     record.Set("+categories", []string{"new1", "new2"}) // []string{"new1", "new2", "old1", "old2"}
+//
+//   - "fieldName-" - subtract one or more values from the existing record one. For example:
+//
+//     record.Set("categories-", "old1") // []string{"old2"}
 export class RelationField implements Field, MultiValuer, DriverValuer, SetterFinder {
   Name = "";
   Id = "";
@@ -31,54 +57,68 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
   MaxSelect = 0;
   Required = false;
 
+  // Type implements [Field.Type] interface method.
   Type(): string {
     return FieldTypeRelation;
   }
 
+  // GetId implements [Field.GetId] interface method.
   GetId(): string {
     return this.Id;
   }
 
+  // SetId implements [Field.SetId] interface method.
   SetId(id: string): void {
     this.Id = id;
   }
 
+  // GetName implements [Field.GetName] interface method.
   GetName(): string {
     return this.Name;
   }
 
+  // SetName implements [Field.SetName] interface method.
   SetName(name: string): void {
     this.Name = name;
   }
 
+  // GetSystem implements [Field.GetSystem] interface method.
   GetSystem(): boolean {
     return this.System;
   }
 
+  // SetSystem implements [Field.SetSystem] interface method.
   SetSystem(system: boolean): void {
     this.System = system;
   }
 
+  // GetHidden implements [Field.GetHidden] interface method.
   GetHidden(): boolean {
     return this.Hidden;
   }
 
+  // SetHidden implements [Field.SetHidden] interface method.
   SetHidden(hidden: boolean): void {
     this.Hidden = hidden;
   }
 
+  // IsMultiple implements [MultiValuer] interface and checks whether the
+  // current field options support multiple values.
   IsMultiple(): boolean {
     return this.MaxSelect > 1;
   }
 
+  // ColumnType implements [Field.ColumnType] interface method.
   ColumnType(_app: App): string {
     return this.IsMultiple() ? "JSON DEFAULT '[]' NOT NULL" : "TEXT DEFAULT '' NOT NULL";
   }
 
+  // PrepareValue implements [Field.PrepareValue] interface method.
   PrepareValue(_record: unknown, raw: unknown): unknown {
     return this.normalizeValue(raw);
   }
 
+  // DriverValue implements the [DriverValuer] interface.
   DriverValue(record: RecordLike): [string | JSONArray<string>, Error | null] {
     const values = toUniqueStringSlice(record.GetRaw(this.Name));
     if (!this.IsMultiple()) {
@@ -87,6 +127,7 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
     return [new JSONArray(...values), null];
   }
 
+  // ValidateValue implements [Field.ValidateValue] interface method.
   ValidateValue(_ctx: unknown, app: App, record: RecordLike): Error | null {
     const ids = toUniqueStringSlice(record.GetRaw(this.Name));
     if (ids.length === 0) {
@@ -127,6 +168,7 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
     return null;
   }
 
+  // ValidateSettings implements [Field.ValidateSettings] interface method.
   ValidateSettings(_ctx: unknown, app: App, collection: Collection): Error | null {
     const errors: Record<string, Error> = {};
     const idErr = defaultFieldIdValidationRule(this.Id);
@@ -157,6 +199,7 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
+  // FindSetter implements [SetterFinder] interface method.
   FindSetter(key: string): SetterFunc | null {
     switch (key) {
       case this.Name:

@@ -67,6 +67,14 @@ export type Logger = {
   Error: (message: string, ...args: unknown[]) => void;
 };
 
+// App defines the main PocketBase app interface.
+//
+// Note that the interface is not intended to be implemented manually by users
+// and instead they should use core.BaseApp (either directly or as embedded field in a custom struct).
+//
+// This interface exists to make testing easier and to allow users to
+// create common and pluggable helpers and methods that doesn't rely
+// on a specific wrapped app struct (hence the large interface size).
 export interface App {
   dataDir(): string;
   encryptionEnv(): string;

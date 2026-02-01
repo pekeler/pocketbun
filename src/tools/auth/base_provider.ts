@@ -4,6 +4,7 @@ import type { AuthCodeOption } from "./oauth2.ts";
 import { DateTime } from "../types/index.ts";
 import { AuthUser, type OAuth2Token, type Provider } from "./auth.ts";
 
+// BaseProvider defines common fields and methods used by OAuth2 client providers.
 export class BaseProvider implements Provider {
   #ctx: unknown = null;
   #clientId = "";
@@ -17,86 +18,107 @@ export class BaseProvider implements Provider {
   #pkce = false;
   #extra: Record<string, unknown> | null = null;
 
+  // Context implements Provider.Context() interface method.
   Context(): unknown {
     return this.#ctx;
   }
 
+  // SetContext implements Provider.SetContext() interface method.
   SetContext(ctx: unknown): void {
     this.#ctx = ctx;
   }
 
+  // PKCE implements Provider.PKCE() interface method.
   PKCE(): boolean {
     return this.#pkce;
   }
 
+  // SetPKCE implements Provider.SetPKCE() interface method.
   SetPKCE(enable: boolean): void {
     this.#pkce = enable;
   }
 
+  // DisplayName implements Provider.DisplayName() interface method.
   DisplayName(): string {
     return this.#displayName;
   }
 
+  // SetDisplayName implements Provider.SetDisplayName() interface method.
   SetDisplayName(displayName: string): void {
     this.#displayName = displayName;
   }
 
+  // Scopes implements Provider.Scopes() interface method.
   Scopes(): string[] | null {
     return this.#scopes;
   }
 
+  // SetScopes implements Provider.SetScopes() interface method.
   SetScopes(scopes: string[] | null): void {
     this.#scopes = Array.isArray(scopes) ? scopes : null;
   }
 
+  // ClientId implements Provider.ClientId() interface method.
   ClientId(): string {
     return this.#clientId;
   }
 
+  // SetClientId implements Provider.SetClientId() interface method.
   SetClientId(clientId: string): void {
     this.#clientId = clientId;
   }
 
+  // ClientSecret implements Provider.ClientSecret() interface method.
   ClientSecret(): string {
     return this.#clientSecret;
   }
 
+  // SetClientSecret implements Provider.SetClientSecret() interface method.
   SetClientSecret(secret: string): void {
     this.#clientSecret = secret;
   }
 
+  // RedirectURL implements Provider.RedirectURL() interface method.
   RedirectURL(): string {
     return this.#redirectURL;
   }
 
+  // SetRedirectURL implements Provider.SetRedirectURL() interface method.
   SetRedirectURL(url: string): void {
     this.#redirectURL = url;
   }
 
+  // AuthURL implements Provider.AuthURL() interface method.
   AuthURL(): string {
     return this.#authURL;
   }
 
+  // SetAuthURL implements Provider.SetAuthURL() interface method.
   SetAuthURL(url: string): void {
     this.#authURL = url;
   }
 
+  // TokenURL implements Provider.TokenURL() interface method.
   TokenURL(): string {
     return this.#tokenURL;
   }
 
+  // SetTokenURL implements Provider.SetTokenURL() interface method.
   SetTokenURL(url: string): void {
     this.#tokenURL = url;
   }
 
+  // UserInfoURL implements Provider.UserInfoURL() interface method.
   UserInfoURL(): string {
     return this.#userInfoURL;
   }
 
+  // SetUserInfoURL implements Provider.SetUserInfoURL() interface method.
   SetUserInfoURL(url: string): void {
     this.#userInfoURL = url;
   }
 
+  // Extra implements Provider.Extra() interface method.
   Extra(): Record<string, unknown> | null {
     if (!this.#extra) {
       return null;
@@ -104,14 +126,17 @@ export class BaseProvider implements Provider {
     return { ...this.#extra };
   }
 
+  // SetExtra implements Provider.SetExtra() interface method.
   SetExtra(data: Record<string, unknown> | null): void {
     this.#extra = data ? { ...data } : null;
   }
 
+  // Client implements Provider.Client() interface method.
   Client(_token: OAuth2Token | null): (input: Request | URL | string, init?: RequestInit) => Promise<Response> {
     return fetch;
   }
 
+  // BuildAuthURL implements Provider.BuildAuthURL() interface method.
   BuildAuthURL(state: string, ...opts: AuthCodeOption[]): string {
     return buildAuthURL(
       this.#authURL,
@@ -126,6 +151,7 @@ export class BaseProvider implements Provider {
     );
   }
 
+  // FetchToken implements Provider.FetchToken() interface method.
   async FetchToken(code: string, ...opts: AuthCodeOption[]): Promise<OAuth2Token> {
     if (!this.#tokenURL) {
       throw new Error("missing OAuth2 token url");
@@ -189,6 +215,7 @@ export class BaseProvider implements Provider {
     return token;
   }
 
+  // FetchRawUserInfo implements Provider.FetchRawUserInfo() interface method.
   async FetchRawUserInfo(token: OAuth2Token): Promise<Uint8Array> {
     if (!this.#userInfoURL) {
       throw new Error("missing OAuth2 user info url");
@@ -250,6 +277,7 @@ export class BaseProvider implements Provider {
     return user;
   }
 
+  // oauth2Config constructs a oauth2.Config instance based on the provider settings.
   protected oauth2Config(): {
     RedirectURL: string;
     ClientID: string;

@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameYandex is the unique name of the Yandex provider.
 export const NameYandex = "yandex";
 
+// Yandex allows authentication via Yandex OAuth2.
 export class Yandex extends BaseProvider {
   constructor() {
     super();

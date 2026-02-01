@@ -4,6 +4,8 @@ import type { Resolver } from "../hook/event.ts";
 import type { Handler as HookHandler } from "../hook/hook.ts";
 import { Route, type Handler } from "./route.ts";
 
+// RouterGroup represents a collection of routes and other sub groups
+// that share common pattern prefix and middlewares.
 export class RouterGroup<T extends Resolver> {
   excludedMiddlewares: Set<string> | null = null;
   children: Array<RouterGroup<T> | Route<T>> = [];

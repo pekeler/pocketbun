@@ -2,12 +2,14 @@
 
 import { toStringValue } from "../../internal/compat/cast.ts";
 
+// DefaultDateLayout specifies the default app date strings layout.
 export const DefaultDateLayout = "2006-01-02 15:04:05.000Z";
 
 export function nowDateTime(): DateTime {
   return new DateTime(new Date());
 }
 
+// NowDateTime returns new DateTime instance with the current local time.
 export function NowDateTime(): DateTime {
   return nowDateTime();
 }
@@ -18,10 +20,14 @@ export function parseDateTime(value: unknown): DateTime {
   return dt;
 }
 
+// ParseDateTime creates a new DateTime from the provided value
+// (could be [cast.ToTime] supported string, [time.Time], etc.).
 export function ParseDateTime(value: unknown): DateTime {
   return parseDateTime(value);
 }
 
+// DateTime represents a [time.Time] instance in UTC that is wrapped
+// and serialized using the app default date layout.
 export class DateTime {
   #date: Date | null;
 
@@ -41,6 +47,7 @@ export class DateTime {
     return this;
   }
 
+  // Add returns a new DateTime based on the current DateTime + the specified duration.
   Add(ms: number): DateTime {
     return this.add(ms);
   }
@@ -87,6 +94,9 @@ export class DateTime {
     return this.time().getTime() === other.time().getTime();
   }
 
+  // Equal reports whether the current DateTime and u represent the same time instant.
+  // Two DateTime can be equal even if they are in different locations.
+  // For example, 6:00 +0200 and 4:00 UTC are Equal.
   Equal(other: unknown): boolean {
     return this.equal(other);
   }
@@ -99,6 +109,7 @@ export class DateTime {
     return !this.#date || Number.isNaN(this.#date.getTime()) || this.#date.getTime() === 0;
   }
 
+  // IsZero checks whether the current DateTime instance has zero time value.
   IsZero(): boolean {
     return this.isZero();
   }
@@ -111,6 +122,10 @@ export class DateTime {
     return iso.replace("T", " ");
   }
 
+  // String serializes the current DateTime instance into a formatted
+  // UTC date string.
+  //
+  // The zero value is serialized to an empty string.
   String(): string {
     return this.toString();
   }

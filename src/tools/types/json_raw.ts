@@ -17,6 +17,7 @@ export class JSONRaw {
     return this.#raw === "" ? "null" : this.#raw;
   }
 
+  // String returns the current JSONRaw instance as a json encoded string.
   String(): string {
     return this.toString();
   }

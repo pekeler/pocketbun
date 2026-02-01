@@ -5,6 +5,17 @@ import { Tokenizer } from "../tokenizer/tokenizer.ts";
 import { initModifier, type Modifier } from "./modifiers.ts";
 import "./excerpt_modifier.ts";
 
+// Pick converts data into a []any, map[string]any, etc. (using json marshal->unmarshal)
+// containing only the fields from the parsed rawFields expression.
+//
+// rawFields is a comma separated string of the fields to include.
+// Nested fields should be listed with dot-notation.
+// Fields value modifiers are also supported using the `:modifier(args)` format (see Modifiers).
+//
+// Example:
+//
+//	data := map[string]any{"a": 1, "b": 2, "c": map[string]any{"c1": 11, "c2": 22}}
+//	Pick(data, "a,c.c1") // map[string]any{"a": 1, "c": map[string]any{"c1": 11}}
 export function Pick(data: unknown, rawFields: string): unknown {
   const parsedFields = parseFields(rawFields);
 

@@ -2,6 +2,7 @@
 
 export const ShrinkThreshold = 200;
 
+// Store defines a concurrent safe in memory key-value data store.
 export class Store<K, T> {
   #data: Map<K, T>;
   #deleted = 0;

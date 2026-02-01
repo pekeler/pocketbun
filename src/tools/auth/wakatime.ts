@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameWakatime is the unique name of the Wakatime provider.
 export const NameWakatime = "wakatime";
 
+// Wakatime is an auth provider for Wakatime.
 export class Wakatime extends BaseProvider {
   constructor() {
     super();

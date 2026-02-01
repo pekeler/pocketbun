@@ -2,6 +2,19 @@
 
 import { newError } from "../../internal/compat/validation.ts";
 
+// Equal checks whether the validated value matches another one from the same type.
+//
+// It expects the compared values to be from the same type and works
+// with booleans, numbers, strings and their pointer variants.
+//
+// If one of the value is pointer, the comparison is based on its
+// underlying value (when possible to determine).
+//
+// Note that empty/zero values are also compared (this differ from other validation.RuleFunc).
+//
+// Example:
+//
+//	validation.Field(&form.PasswordConfirm, validation.By(validators.Equal(form.Password)))
 export function Equal<T>(valueToCompare: T): (value: unknown) => Error | null {
   return (value: unknown) => {
     if (compareValues(value, valueToCompare)) {

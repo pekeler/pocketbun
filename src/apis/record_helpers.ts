@@ -32,6 +32,8 @@ export async function execAfterSuccessTx(
 const ruleQueryParams = [FilterQueryParam, SortQueryParam];
 const superuserOnlyRuleFields = ["@collection.", "@request."];
 
+// checkForSuperuserOnlyRuleFields loosely checks and returns an error if
+// the provided RequestInfo contains rule fields that only the superuser can use.
 export function checkForSuperuserOnlyRuleFields(requestInfo: RequestInfo): string | null {
   if (Object.keys(requestInfo.query).length === 0 || requestInfo.auth?.isSuperuser()) {
     return null;
@@ -257,6 +259,7 @@ function defaultEnrichRecords(app: App, requestInfo: RequestInfo, records: Recor
   return null;
 }
 
+// expandFetch is the records fetch function that is used to expand related records.
 function expandFetch(app: App, originalRequestInfo: RequestInfo) {
   const requestInfo: RequestInfo = {
     ...originalRequestInfo,
@@ -316,6 +319,13 @@ function expandFetch(app: App, originalRequestInfo: RequestInfo) {
   };
 }
 
+// autoResolveRecordsFlags resolves various visibility flags of the provided records.
+//
+// Currently it enables:
+// - export of hidden fields if the current auth model is a superuser
+// - email export ignoring the emailVisibity checks if the current auth model is superuser, owner or a "manager".
+//
+// Note: Expects all records to be from the same collection!
 function autoResolveRecordsFlags(app: App, records: RecordModel[], requestInfo: RequestInfo): Error | null {
   if (records.length === 0) {
     return null;

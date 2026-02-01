@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameVK is the unique name of the VK provider.
 export const NameVK = "vk";
 
+// VK allows authentication via VK OAuth2.
 export class VK extends BaseProvider {
   constructor() {
     super();

@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameGitlab is the unique name of the Gitlab provider.
 export const NameGitlab = "gitlab";
 
+// Gitlab allows authentication via Gitlab OAuth2.
 export class Gitlab extends BaseProvider {
   constructor() {
     super();

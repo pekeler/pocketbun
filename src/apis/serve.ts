@@ -16,6 +16,7 @@ import { bindRecordAuthApi } from "./record_auth.ts";
 import { bindRecordCrudApi } from "./record_crud.ts";
 import { bindSettingsApi } from "./settings.ts";
 
+// ServeConfig defines a configuration struct for apis.Serve().
 export type ServeConfig = {
   httpAddr?: string;
   showStartBanner?: boolean;

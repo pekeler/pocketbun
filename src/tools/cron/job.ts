@@ -2,6 +2,7 @@
 
 import { Schedule } from "./schedule.ts";
 
+// Job defines a single registered cron job.
 export class Job {
   #fn: (() => void) | null;
   #schedule: Schedule;
@@ -13,14 +14,17 @@ export class Job {
     this.#fn = fn;
   }
 
+  // Id returns the cron job id.
   Id(): string {
     return this.#id;
   }
 
+  // Expression returns the plain cron job schedule expression.
   Expression(): string {
     return this.#schedule.Expression();
   }
 
+  // Run runs the cron job function.
   Run(): void {
     if (this.#fn) {
       this.#fn();

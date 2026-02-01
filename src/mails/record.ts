@@ -23,6 +23,7 @@ import { Layout } from "./templates/layout.ts";
 
 const nonescapeTypes = [FieldTypeAutodate, FieldTypeDate, FieldTypeBool, FieldTypeNumber];
 
+// SendRecordAuthAlert sends a new device login alert to the specified auth record.
 export function SendRecordAuthAlert(app: App, authRecord: RecordModel, info: string): Error | null {
   const mailClient = app.NewMailClient();
 
@@ -57,6 +58,9 @@ export function SendRecordAuthAlert(app: App, authRecord: RecordModel, info: str
   return result instanceof Error ? result : null;
 }
 
+// SendRecordOTP sends OTP email to the specified auth record.
+//
+// This method will also update the "sentTo" field of the related OTP record to the mail sent To address (if the OTP exists and not already assigned).
 export function SendRecordOTP(app: App, authRecord: RecordModel, otpId: string, pass: string): Error | null {
   const mailClient = app.NewMailClient();
 
@@ -127,6 +131,7 @@ export function SendRecordOTP(app: App, authRecord: RecordModel, otpId: string, 
   return result instanceof Error ? result : null;
 }
 
+// SendRecordPasswordReset sends a password reset request email to the specified auth record.
 export function SendRecordPasswordReset(app: App, authRecord: RecordModel): Error | null {
   let token = "";
   try {
@@ -166,6 +171,7 @@ export function SendRecordPasswordReset(app: App, authRecord: RecordModel): Erro
   return result instanceof Error ? result : null;
 }
 
+// SendRecordVerification sends a verification request email to the specified auth record.
 export function SendRecordVerification(app: App, authRecord: RecordModel): Error | null {
   let token = "";
   try {
@@ -205,6 +211,7 @@ export function SendRecordVerification(app: App, authRecord: RecordModel): Error
   return result instanceof Error ? result : null;
 }
 
+// SendRecordChangeEmail sends a change email confirmation email to the specified auth record.
 export function SendRecordChangeEmail(app: App, authRecord: RecordModel, newEmail: string): Error | null {
   let token = "";
   try {

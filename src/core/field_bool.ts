@@ -9,6 +9,9 @@ import { ErrUnsupportedValueType } from "./validators/validators.ts";
 
 export const FieldTypeBool = "bool";
 
+// BoolField defines "bool" type field to store a single true/false value.
+//
+// The respective zero record field value is false.
 export class BoolField implements Field {
   Name = "";
   Id = "";
@@ -17,50 +20,62 @@ export class BoolField implements Field {
   Presentable = false;
   Required = false;
 
+  // Type implements [Field.Type] interface method.
   Type(): string {
     return FieldTypeBool;
   }
 
+  // GetId implements [Field.GetId] interface method.
   GetId(): string {
     return this.Id;
   }
 
+  // SetId implements [Field.SetId] interface method.
   SetId(id: string): void {
     this.Id = id;
   }
 
+  // GetName implements [Field.GetName] interface method.
   GetName(): string {
     return this.Name;
   }
 
+  // SetName implements [Field.SetName] interface method.
   SetName(name: string): void {
     this.Name = name;
   }
 
+  // GetSystem implements [Field.GetSystem] interface method.
   GetSystem(): boolean {
     return this.System;
   }
 
+  // SetSystem implements [Field.SetSystem] interface method.
   SetSystem(system: boolean): void {
     this.System = system;
   }
 
+  // GetHidden implements [Field.GetHidden] interface method.
   GetHidden(): boolean {
     return this.Hidden;
   }
 
+  // SetHidden implements [Field.SetHidden] interface method.
   SetHidden(hidden: boolean): void {
     this.Hidden = hidden;
   }
 
+  // ColumnType implements [Field.ColumnType] interface method.
   ColumnType(_app: App): string {
     return "BOOLEAN DEFAULT FALSE NOT NULL";
   }
 
+  // PrepareValue implements [Field.PrepareValue] interface method.
   PrepareValue(_record: unknown, raw: unknown): boolean {
     return toBoolValue(raw);
   }
 
+  // ValidateValue implements [Field.ValidateValue] interface method.
   ValidateValue(_ctx: unknown, _app: App, record: RecordLike): Error | null {
     const value = record.GetRaw(this.Name);
     if (typeof value !== "boolean") {
@@ -75,6 +90,7 @@ export class BoolField implements Field {
     return null;
   }
 
+  // ValidateSettings implements [Field.ValidateSettings] interface method.
   ValidateSettings(_ctx: unknown, _app: App, _collection: Collection): Error | null {
     const errors: Record<string, Error> = {};
     const idErr = defaultFieldIdValidationRule(this.Id);

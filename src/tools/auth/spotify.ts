@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameSpotify is the unique name of the Spotify provider.
 export const NameSpotify = "spotify";
 
+// Spotify allows authentication via Spotify OAuth2.
 export class Spotify extends BaseProvider {
   constructor() {
     super();

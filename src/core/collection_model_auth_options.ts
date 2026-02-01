@@ -66,6 +66,7 @@ export class EmailTemplate implements EmailTemplateData {
     this.Body = body;
   }
 
+  // Validate makes EmailTemplate validatable by implementing [validation.Validatable] interface.
   Validate(): Error | null {
     const errors: Record<string, Error> = {};
     if (required(this.Subject)) {
@@ -77,6 +78,8 @@ export class EmailTemplate implements EmailTemplateData {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
+  // Resolve replaces the placeholder parameters in the current email
+  // template and returns its components as ready-to-use strings.
   Resolve(placeholders: Record<string, unknown> | null | undefined): {
     subject: string;
     body: string;
@@ -102,6 +105,7 @@ export class AuthAlertConfig {
   Enabled = false;
   EmailTemplate = new EmailTemplate();
 
+  // Validate makes AuthAlertConfig validatable by implementing [validation.Validatable] interface.
   Validate(): Error | null {
     const templateErr = this.EmailTemplate.Validate();
     if (templateErr) {
@@ -117,6 +121,7 @@ export class OTPConfig {
   Length = 0;
   EmailTemplate = new EmailTemplate();
 
+  // Validate makes OTPConfig validatable by implementing [validation.Validatable] interface.
   Validate(): Error | null {
     const errors: Record<string, Error> = {};
 
@@ -144,6 +149,7 @@ export class OTPConfig {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
+  // DurationTime returns the current Duration as [time.Duration].
   DurationTime(): number {
     return this.Duration;
   }
@@ -154,6 +160,7 @@ export class MFAConfig {
   Duration = 0;
   Rule = "";
 
+  // Validate makes MFAConfig validatable by implementing [validation.Validatable] interface.
   Validate(): Error | null {
     if (!this.Enabled) {
       return null;
@@ -171,6 +178,7 @@ export class MFAConfig {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
+  // DurationTime returns the current Duration as [time.Duration].
   DurationTime(): number {
     return this.Duration;
   }
@@ -180,6 +188,7 @@ export class PasswordAuthConfig {
   Enabled = false;
   IdentityFields: string[] | null = null;
 
+  // Validate makes PasswordAuthConfig validatable by implementing [validation.Validatable] interface.
   Validate(): Error | null {
     if (!this.Enabled) {
       return null;
@@ -208,6 +217,9 @@ export class OAuth2Config {
   MappedFields: OAuth2KnownFields = { Id: "", Name: "", Username: "", AvatarURL: "" };
   Enabled = false;
 
+  // GetProviderConfig returns the first OAuth2ProviderConfig that matches the specified name.
+  //
+  // Returns false and zero config if no such provider is available in c.Providers.
   GetProviderConfig(name: string): { config: OAuth2ProviderConfig; exists: boolean } {
     const providers = this.Providers ?? [];
     for (const p of providers) {
@@ -218,6 +230,7 @@ export class OAuth2Config {
     return { config: new OAuth2ProviderConfig(), exists: false };
   }
 
+  // Validate makes OAuth2Config validatable by implementing [validation.Validatable] interface.
   Validate(): Error | null {
     if (!this.Enabled) {
       return null;
@@ -253,6 +266,7 @@ export class OAuth2ProviderConfig {
   DisplayName = "";
   Extra: Record<string, unknown> | null = null;
 
+  // Validate makes OAuth2ProviderConfig validatable by implementing [validation.Validatable] interface.
   Validate(): Error | null {
     const errors: Record<string, Error> = {};
 
@@ -288,6 +302,7 @@ export class OAuth2ProviderConfig {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
+  // InitProvider returns a new auth.Provider instance loaded with the current OAuth2ProviderConfig options.
   InitProvider(): {
     provider: import("../tools/auth/auth.ts").Provider | null;
     error: Error | null;

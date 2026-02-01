@@ -6,16 +6,23 @@ import { pseudorandomStringWithAlphabet } from "../tools/security/random.ts";
 
 export const DefaultIdLength = 15;
 export const DefaultIdAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+// DefaultIdRegex specifies the default regex pattern for an id value.
 export const DefaultIdRegex = /^\w+$/;
 
+// GenerateDefaultRandomId generates a default random id string
+// (note: the generated random string is not intended for security purposes).
 export function GenerateDefaultRandomId(): string {
   return pseudorandomStringWithAlphabet(DefaultIdLength, DefaultIdAlphabet);
 }
 
+// PreValidator defines an optional model interface for registering a
+// function that will run BEFORE firing the validation hooks (see [App.ValidateWithContext]).
 export type PreValidator = {
   PreValidate: (ctx: unknown, app: App) => Error | null;
 };
 
+// PostValidator defines an optional model interface for registering a
+// function that will run AFTER executing the validation hooks (see [App.ValidateWithContext]).
 export type PostValidator = {
   PostValidate: (ctx: unknown, app: App) => Error | null;
 };

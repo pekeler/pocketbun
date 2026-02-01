@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameLinear is the unique name of the Linear provider.
 export const NameLinear = "linear";
 
+// Linear allows authentication via Linear OAuth2.
 export class Linear extends BaseProvider {
   constructor() {
     super();

@@ -3,6 +3,11 @@
 import type { Database } from "bun:sqlite";
 import { ValidationErrors, newError } from "../../internal/compat/validation.ts";
 
+// UniqueId checks whether a field string id already exists in the specified table.
+//
+// Example:
+//
+//	validation.Field(&form.RelId, validation.By(validators.UniqueId(form.app.DB(), "tbl_example"))
 export function UniqueId(db: Database, tableName: string): (value: unknown) => Error | null {
   return (value: unknown) => {
     const v = typeof value === "string" ? value : "";
@@ -23,6 +28,13 @@ export function UniqueId(db: Database, tableName: string): (value: unknown) => E
   };
 }
 
+// NormalizeUniqueIndexError attempts to convert a
+// "unique constraint failed" error into a validation.Errors.
+//
+// The provided err is returned as it is without changes if:
+// - err is nil
+// - err is already validation.Errors
+// - err is not "unique constraint failed" error
 export function NormalizeUniqueIndexError(err: Error | null, tableOrAlias: string, fieldNames: string[]): Error | null {
   if (!err) {
     return err;

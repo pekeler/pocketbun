@@ -7,11 +7,14 @@ import { Message } from "./message.ts";
 
 const optionsParam = "options";
 
+// SubscriptionOptions defines the request options (query params, headers, etc.)
+// for a single subscription topic.
 export type SubscriptionOptions = {
   query: Record<string, string>;
   headers: Record<string, string>;
 };
 
+// Client is an interface for a generic subscription client.
 export interface Client {
   Id(): string;
   Channel(): Channel<Message>;
@@ -27,6 +30,7 @@ export interface Client {
   Send(m: Message): void;
 }
 
+// DefaultClient defines a generic subscription client.
 export class DefaultClient implements Client {
   #store = new Map<string, unknown>();
   #subscriptions = new Map<string, SubscriptionOptions>();
@@ -34,14 +38,20 @@ export class DefaultClient implements Client {
   #id = randomString(40);
   #isDiscarded = false;
 
+  // Id implements the [Client.Id] interface method.
   Id(): string {
     return this.#id;
   }
 
+  // Channel implements the [Client.Channel] interface method.
   Channel(): Channel<Message> {
     return this.#channel;
   }
 
+  // Subscriptions implements the [Client.Subscriptions] interface method.
+  //
+  // It returns a shallow copy of the client subscriptions matching the prefixes.
+  // If no prefix is specified, returns all subscriptions.
   Subscriptions(...prefixes: string[]): Record<string, SubscriptionOptions> {
     if (prefixes.length === 0) {
       return Object.fromEntries(this.#subscriptions);
@@ -59,6 +69,9 @@ export class DefaultClient implements Client {
     return result;
   }
 
+  // Subscribe implements the [Client.Subscribe] interface method.
+  //
+  // Empty subscriptions (aka. "") are ignored.
   Subscribe(...subs: string[]): void {
     for (const sub of subs) {
       if (!sub) {
@@ -114,6 +127,9 @@ export class DefaultClient implements Client {
     }
   }
 
+  // Unsubscribe implements the [Client.Unsubscribe] interface method.
+  //
+  // If subs is not set, this method removes all registered client's subscriptions.
   Unsubscribe(...subs: string[]): void {
     if (subs.length > 0) {
       for (const sub of subs) {
@@ -125,22 +141,27 @@ export class DefaultClient implements Client {
     this.#subscriptions.clear();
   }
 
+  // HasSubscription implements the [Client.HasSubscription] interface method.
   HasSubscription(sub: string): boolean {
     return this.#subscriptions.has(sub);
   }
 
+  // Set implements the [Client.Set] interface method.
   Set(key: string, value: unknown): void {
     this.#store.set(key, value);
   }
 
+  // Unset implements the [Client.Unset] interface method.
   Unset(key: string): void {
     this.#store.delete(key);
   }
 
+  // Get implements the [Client.Get] interface method.
   Get(key: string): unknown {
     return this.#store.get(key);
   }
 
+  // Discard implements the [Client.Discard] interface method.
   Discard(): void {
     if (this.#isDiscarded) {
       return;
@@ -149,10 +170,12 @@ export class DefaultClient implements Client {
     this.#channel.close();
   }
 
+  // IsDiscarded implements the [Client.IsDiscarded] interface method.
   IsDiscarded(): boolean {
     return this.#isDiscarded;
   }
 
+  // Send sends the specified message to the client's channel (if not discarded).
   Send(m: Message): void {
     if (this.#isDiscarded) {
       return;

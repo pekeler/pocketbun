@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameTwitter is the unique name of the Twitter provider.
 export const NameTwitter = "twitter";
 
+// Twitter allows authentication via Twitter OAuth2.
 export class Twitter extends BaseProvider {
   constructor() {
     super();

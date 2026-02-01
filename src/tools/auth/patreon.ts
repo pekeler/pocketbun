@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NamePatreon is the unique name of the Patreon provider.
 export const NamePatreon = "patreon";
 
+// Patreon allows authentication via Patreon OAuth2.
 export class Patreon extends BaseProvider {
   constructor() {
     super();

@@ -16,6 +16,10 @@ export const RequestInfoContextPasswordAuth = "password";
 // Common request store keys used by middlewares and handlers.
 export const RequestEventKeyInfoContext = "infoContext";
 
+// RequestInfo defines a HTTP request data struct, usually used
+// as part of the `@request.*` filter resolver.
+//
+// The Query and Headers fields contains only the first value for each found entry.
 export type RequestInfo = {
   query: Record<string, string>;
   headers: Record<string, string>;
@@ -25,6 +29,7 @@ export type RequestInfo = {
   context: string;
 };
 
+// RequestEvent defines the PocketBase router handler event.
 export class RequestEvent extends Event {
   app: App;
   auth: RecordModel | null;

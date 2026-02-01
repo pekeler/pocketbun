@@ -19,6 +19,7 @@ export const TestTemplateEmailChange = "email-change";
 export const TestTemplateOTP = "otp";
 export const TestTemplateAuthAlert = "login-alert";
 
+// TestEmailSend is a email template test request form.
 export class TestEmailSend {
   app: App;
 
@@ -30,6 +31,7 @@ export class TestEmailSend {
     this.app = app;
   }
 
+  // Validate makes the form validatable by implementing [validation.Validatable] interface.
   Validate(): Error | null {
     const errors: Record<string, Error> = {};
 
@@ -71,6 +73,7 @@ export class TestEmailSend {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
+  // Submit validates and sends a test email to the form.Email address.
   Submit(): Error | null {
     const err = this.Validate();
     if (err) {
@@ -129,6 +132,7 @@ export class TestEmailSend {
   }
 }
 
+// NewTestEmailSend creates and initializes new TestEmailSend form.
 export function NewTestEmailSend(app: App): TestEmailSend {
   return new TestEmailSend(app);
 }

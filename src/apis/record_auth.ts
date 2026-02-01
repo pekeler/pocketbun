@@ -20,6 +20,8 @@ import { oauth2SubscriptionRedirect } from "./record_auth_with_oauth2_redirect.t
 import { recordAuthWithOTP } from "./record_auth_with_otp.ts";
 import { recordAuthWithPassword } from "./record_auth_with_password.ts";
 
+// bindRecordAuthApi registers the auth record api endpoints and
+// the corresponding handlers.
 export function bindRecordAuthApi(app: App, rg: RouterGroup<RequestEvent>): void {
   rg.get("/oauth2-redirect", (event) => oauth2SubscriptionRedirect(app, event)).Bind(SkipSuccessActivityLog());
   rg.post("/oauth2-redirect", (event) => oauth2SubscriptionRedirect(app, event)).Bind(SkipSuccessActivityLog());

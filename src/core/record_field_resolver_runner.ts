@@ -31,8 +31,11 @@ export const FieldTypeFile = "file";
 export const FieldTypeJSON = "json";
 export const FieldTypeGeoPoint = "geoPoint";
 
+// maxNestedRels defines the max allowed nested relations depth.
 const maxNestedRels = 6;
 
+// list of auth filter fields that don't require join with the auth
+// collection or any other extra checks to be resolved.
 const plainRequestAuthFields = new Set<string>([
   `@request.auth.${FieldNameId}`,
   `@request.auth.${FieldNameCollectionId}`,
@@ -44,6 +47,7 @@ const plainRequestAuthFields = new Set<string>([
 
 const viaRegex = /^(\w+)_via_(\w+)$/;
 
+// parseAndRun starts a new one-off RecordFieldResolver.Resolve execution.
 export function parseAndRun(fieldName: string, resolver: RecordFieldResolver): ResolverResult {
   const runner = new Runner(fieldName, resolver);
   return runner.run();
@@ -749,6 +753,7 @@ function arrVal(raw: unknown[], keys: string[]): unknown {
   return extractNestedVal(result, ...keys.slice(1));
 }
 
+// note: nil value is returned as empty slice
 function toSlice(value: unknown): unknown[] {
   if (value == null) {
     return [];

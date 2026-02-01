@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameTrakt is the unique name of the Trakt provider.
 export const NameTrakt = "trakt";
 
+// Trakt allows authentication via Trakt OAuth2.
 export class Trakt extends BaseProvider {
   constructor() {
     super();

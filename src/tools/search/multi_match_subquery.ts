@@ -2,6 +2,7 @@
 
 import type { SqlExpr } from "./types.ts";
 
+// Join defines common fields required for a single SQL JOIN clause.
 export type Join = {
   tableName: string;
   tableAlias: string;
@@ -9,6 +10,7 @@ export type Join = {
   params?: unknown[];
 };
 
+// MultiMatchSubquery defines a multi-match record subquery expression.
 export class MultiMatchSubquery {
   targetTableAlias = "";
   fromTableName = "";

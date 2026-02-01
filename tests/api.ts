@@ -6,6 +6,7 @@ import { newTestApp, type TestApp } from "./test_app.ts";
 
 type BodyInput = string | Uint8Array | ArrayBuffer | null;
 
+// ApiScenario defines a single api request test case/scenario.
 export type ApiScenario = {
   name?: string;
   method: string;

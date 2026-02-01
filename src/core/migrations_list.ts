@@ -10,6 +10,7 @@ export type Migration = {
   reapplyCondition?: (txApp: App, runner: MigrationsRunner, fileName: string) => boolean;
 };
 
+// MigrationsList defines a list with migration definitions
 export class MigrationsList {
   #list: Migration[] = [];
 

@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameGoogle is the unique name of the Google provider.
 export const NameGoogle = "google";
 
+// Google allows authentication via Google OAuth2.
 export class Google extends BaseProvider {
   constructor() {
     super();

@@ -10,6 +10,7 @@ import { BaseRecordProxy } from "./record_proxy.ts";
 
 export const CollectionNameAuthOrigins = "_authOrigins";
 
+// AuthOrigin defines a Record proxy for working with the authOrigins collection.
 export class AuthOrigin extends BaseRecordProxy {
   constructor(record: RecordModel | null = null) {
     super();
@@ -18,6 +19,8 @@ export class AuthOrigin extends BaseRecordProxy {
     }
   }
 
+  // PreValidate implements the [PreValidator] interface and checks
+  // whether the proxy is properly loaded.
   PreValidate(_ctx: unknown, _app: App): Error | null {
     if (!this.Record || this.Record.collection().name !== CollectionNameAuthOrigins) {
       return new Error("missing or invalid AuthOrigin ProxyRecord");
@@ -34,39 +37,56 @@ export class AuthOrigin extends BaseRecordProxy {
     this.ProxyRecord().Id = value;
   }
 
+  // CollectionRef returns the "collectionRef" field value.
   CollectionRef(): string {
     return this.ProxyRecord().GetString("collectionRef");
   }
 
+  // SetCollectionRef updates the "collectionRef" record field value.
   SetCollectionRef(collectionId: string): void {
     this.ProxyRecord().Set("collectionRef", collectionId);
   }
 
+  // RecordRef returns the "recordRef" record field value.
   RecordRef(): string {
     return this.ProxyRecord().GetString("recordRef");
   }
 
+  // SetRecordRef updates the "recordRef" record field value.
   SetRecordRef(recordId: string): void {
     this.ProxyRecord().Set("recordRef", recordId);
   }
 
+  // Fingerprint returns the "fingerprint" record field value.
   Fingerprint(): string {
     return this.ProxyRecord().GetString("fingerprint");
   }
 
+  // SetFingerprint updates the "fingerprint" record field value.
   SetFingerprint(fingerprint: string): void {
     this.ProxyRecord().Set("fingerprint", fingerprint);
   }
 
+  // Created returns the "created" record field value.
   Created(): DateTime {
     return this.ProxyRecord().GetDateTime("created");
   }
 
+  // Updated returns the "updated" record field value.
   Updated(): DateTime {
     return this.ProxyRecord().GetDateTime("updated");
   }
 }
 
+// NewAuthOrigin instantiates and returns a new blank *AuthOrigin model.
+//
+// Example usage:
+//
+//	origin := core.NewOrigin(app)
+//	origin.SetRecordRef(user.Id)
+//	origin.SetCollectionRef(user.Collection().Id)
+//	origin.SetFingerprint("...")
+//	app.Save(origin)
 export function NewAuthOrigin(app: App): AuthOrigin {
   let collection = app.findCollectionByNameOrId(CollectionNameAuthOrigins);
 

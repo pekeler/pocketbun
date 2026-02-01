@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameBox is the unique name of the Box provider.
 export const NameBox = "box";
 
+// Box is an auth provider for Box.
 export class Box extends BaseProvider {
   constructor() {
     super();

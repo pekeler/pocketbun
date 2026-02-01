@@ -9,6 +9,7 @@ import { pseudorandomString } from "../tools/security/random.ts";
 const s3FilesystemStorage = "storage";
 const s3FilesystemBackups = "backups";
 
+// TestS3Filesystem defines a S3 filesystem connection test.
 export class TestS3Filesystem {
   app: App;
   Filesystem = "";
@@ -17,6 +18,7 @@ export class TestS3Filesystem {
     this.app = app;
   }
 
+  // Validate makes the form validatable by implementing [validation.Validatable] interface.
   Validate(): Error | null {
     const errors: Record<string, Error> = {};
 
@@ -30,6 +32,7 @@ export class TestS3Filesystem {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
+  // Submit validates and performs a S3 filesystem connection test.
   Submit(): Error | null {
     const err = this.Validate();
     if (err) {
@@ -84,6 +87,7 @@ export class TestS3Filesystem {
   }
 }
 
+// NewTestS3Filesystem creates and initializes new TestS3Filesystem form.
 export function NewTestS3Filesystem(app: App): TestS3Filesystem {
   return new TestS3Filesystem(app);
 }

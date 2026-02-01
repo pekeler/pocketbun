@@ -5,6 +5,12 @@ import { File } from "../../tools/filesystem/file.ts";
 import { detectMimeTypeFromBytes } from "../../tools/filesystem/file.ts";
 import { ErrUnsupportedValueType } from "./validators.ts";
 
+// UploadedFileSize checks whether the validated [*filesystem.File]
+// size is no more than the provided maxBytes.
+//
+// Example:
+//
+//	validation.Field(&form.File, validation.By(validators.UploadedFileSize(1000)))
 export function UploadedFileSize(maxBytes: number) {
   return (value: unknown): Error | null => {
     if (value == null) {
@@ -27,6 +33,13 @@ export function UploadedFileSize(maxBytes: number) {
   };
 }
 
+// UploadedFileMimeType checks whether the validated [*filesystem.File]
+// mimetype is within the provided allowed mime types.
+//
+// Example:
+//
+//	validMimeTypes := []string{"test/plain","image/jpeg"}
+//	validation.Field(&form.File, validation.By(validators.UploadedFileMimeType(validMimeTypes)))
 export function UploadedFileMimeType(validTypes: string[]) {
   return (value: unknown): Error | null => {
     if (value == null) {

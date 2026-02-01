@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameKakao is the unique name of the Kakao provider.
 export const NameKakao = "kakao";
 
+// Kakao allows authentication via Kakao OAuth2.
 export class Kakao extends BaseProvider {
   constructor() {
     super();

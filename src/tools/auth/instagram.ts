@@ -3,8 +3,10 @@
 import { Providers, wrapFactory } from "./auth.ts";
 import { BaseProvider } from "./base_provider.ts";
 
+// NameInstagram is the unique name of the Instagram provider.
 export const NameInstagram = "instagram2";
 
+// Instagram allows authentication via Instagram Login OAuth2.
 export class Instagram extends BaseProvider {
   constructor() {
     super();

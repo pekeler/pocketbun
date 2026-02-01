@@ -19,6 +19,7 @@ export const FieldNameVerified = "verified";
 export const FieldNameTokenKey = "tokenKey";
 export const FieldNamePassword = "password";
 
+// SystemFields returns special internal field names that are usually readonly.
 export const SystemDynamicFieldNames = [FieldNameCollectionId, FieldNameCollectionName, FieldNameExpand];
 
 export const InterceptorActionValidate = "validate";
@@ -45,10 +46,13 @@ export const ErrMustBeSystemAndHidden = newError(
 );
 export const ErrMustBeSystem = newError("validation_must_be_system", 'The field must be marked as "System".');
 
+// FieldFactoryFunc defines a simple function to construct a specific Field instance.
 export type FieldFactoryFunc = () => Field;
 
+// Fields holds all available collection fields.
 export const Fields: Record<string, FieldFactoryFunc> = {};
 
+// Field defines a common interface that all Collection fields should implement.
 export interface Field {
   GetId(): string;
   SetId(id: string): void;
@@ -65,6 +69,8 @@ export interface Field {
   ValidateSettings(ctx: unknown, app: unknown, collection: CollectionLike): Error | null;
 }
 
+// MaxBodySizeCalculator defines an optional field interface for
+// specifying the max size of a field value.
 export interface MaxBodySizeCalculator {
   CalculateMaxBodySize(): number;
 }
@@ -80,14 +86,19 @@ export interface GetterFinder {
   FindGetter(key: string): GetterFunc | null;
 }
 
+// DriverValuer defines a Field interface for exporting and formatting
+// a field value for the database.
 export interface DriverValuer {
   DriverValue(record: RecordLike): [unknown, Error | null];
 }
 
+// MultiValuer defines a field interface that every multi-valued (eg. with MaxSelect) field has.
 export interface MultiValuer {
   IsMultiple(): boolean;
 }
 
+// RecordInterceptor defines a field interface for reacting to various
+// Record related operations (create, delete, validate, etc.).
 export interface RecordInterceptor {
   Intercept(ctx: unknown, app: unknown, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null;
 }
