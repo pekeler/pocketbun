@@ -1,19 +1,27 @@
 # PocketBun
 
-An early-stage attempt to port **PocketBase** to JavaScript/TypeScript using Bun. **Work in progress.**
+An attempt to port **PocketBase** to JavaScript/TypeScript using Bun. **_Work in progress._**
 
-[PocketBase](https://github.com/pocketbase/pocketbase) © 2022–present Gani Georgiev.
+> [PocketBase](https://pocketbase.io) is an open source Go backend that includes:
+> 
+> - embedded database (_SQLite_) with **realtime subscriptions**
+> - built-in **files and users management**
+> - convenient **Admin dashboard UI**
+> - and simple **REST-ish API**
+> 
+> **For documentation and examples, please visit https://pocketbase.io/docs.**
+[PocketBase GitHub](https://github.com/pocketbase/pocketbase) © 2022–present Gani Georgiev.
 
 ## Why?
 
-PocketBase is an excellent, well-designed, self-hosted Backend-as-a-Service.  You can extend it with Go **or** JavaScript — but the embedded JS engine has limited ES6/Node compatibility, making complex custom logic difficult. Your project may end up running two backends.
+PocketBase is an excellent, well-designed, self-hosted Backend-as-a-Service. You can extend it with Go and JavaScript, but the embedded JS engine has limited ES6/Node compatibility, making complex customizations difficult. Your project may end up with a second backend.
 
-PocketBun is a semi-automated port to **Bun** that aims for maximum compatibility with PocketBase’s API and behavior.
+PocketBun is a semi-automated port to Bun that aims for maximum compatibility with PocketBase’s API and behavior. It's a version of PocketBase that feels more native to JS/TS developers.
 
 Key differences:
 
 - No Go extensions (only JavaScript/TypeScript)
-- Runs as an **npm library** (not a single binary)
+- Use as an **npm library** (not a single binary)
 - Full ES6+ compatibility + native npm package support
 - Built on Bun instead of Go + embedded JS VM
 
