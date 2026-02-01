@@ -57,7 +57,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-01 06:25Z) Port record auth methods endpoint + tests (rate limit scenarios left as TODO until middleware is ported).
 - [x] (2026-02-01 08:20Z) Port record auth with password + auth refresh endpoints, mailer stubs/templates, record expand helpers, and auth tests (rate limit scenarios left as TODO).
 - [x] (2026-02-01 09:40Z) Port record auth impersonate endpoint + tests and OAuth2 redirect tests with subscription notifications.
-- [ ] Implement collection/record CRUD and auth flows, then realtime and hooks.
+- [x] (2026-02-01 11:20Z) Port record auth with OAuth2 create flow, align record validation/hook ordering with upstream, and complete OAuth2 auth test coverage (rate limit scenarios still TODO).
+- [ ] Implement remaining collection/record CRUD coverage, then port missing API endpoints/middleware (batch, file, logs, settings, backups, rate limiting, realtime) and hooks (completed: core auth flows; remaining: rate limiting + realtime + remaining APIs).
 
 ## Surprises & Discoveries
 
@@ -75,6 +76,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Evidence: executing `select [[name]] from t` in bun:sqlite raises "unrecognized token: ]", while `[name]` works.
 - Observation: dbx placeholder rewrites should not touch SQL comments to avoid altering commented-out fragments.
   Evidence: added dbx quoting tests that preserve `[[...]]`/`{{...}}` inside `--` and `/* */` comments.
+- Observation: record validation order must match upstream so hook counters and auth flow tests behave as expected.
+  Evidence: upstream auth tests expect hook counters to reflect validation failures, which required validation to run before model execute hooks in BaseApp.
 
 ## Decision Log
 
@@ -138,6 +141,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - Decision: Implement a minimal collection save/delete path with basic validation and schema sync, deferring full collection options, view query handling, and single↔multiple field migrations.
   Rationale: Unblocks collection CRUD endpoints and basic tests while the full collection model/options/hook stack is ported.
   Date/Author: 2026-01-31 / Codex
+- Decision: Run record validation before OnModelCreateExecute/OnModelUpdateExecute to mirror upstream hook ordering during auth/record flows.
+  Rationale: Upstream tests (OAuth2 auth flows) rely on hook counters and side effects that only match when validation happens before model execute hooks.
+  Date/Author: 2026-02-01 / Codex
 
 ## Outcomes & Retrospective
 
@@ -315,3 +321,4 @@ Plan change note: 2026-01-31, added superuser-only record list/view endpoints wi
 Plan change note: 2026-01-31, reaffirmed mechanical upstream porting and updated Milestone 3 to port record field resolver/rule handling directly.
 Plan change note: 2026-01-31, ported a minimal RecordFieldResolver for list/view rule filtering; relation joins and advanced modifiers remain to be ported.
 Plan change note: 2026-01-31, recorded progress on collection options/view helpers and collection validation plus BaseApp view/table wiring.
+Plan change note: 2026-02-01, recorded OAuth2 auth create flow progress and the validation/hook ordering alignment required by upstream tests.
