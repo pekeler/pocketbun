@@ -79,6 +79,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-02 22:40Z) Port apis base/cron modules (WrapStdHandler/Middleware, Static, MustSubFS, cron routes) plus tests; start cron on serve and add DB optimize/log cleanup jobs.
 - [x] (2026-02-02 22:15Z) Port record_helpers tests and align MFA expiry duration units with upstream.
 - [x] (2026-02-02 22:20Z) Port record auth origin CRUD API tests.
+- [x] (2026-02-02 22:39Z) Port external auth/MFA/OTP/superuser record CRUD tests, register superuser hooks, and align delete error propagation.
 - [x] (2026-02-02 23:20Z) Tighten serve parity with CORS middleware, admin UI cache/CSP headers, and gzip support.
 
 ## Surprises & Discoveries

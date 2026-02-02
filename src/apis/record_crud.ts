@@ -496,6 +496,9 @@ export async function recordDelete(app: App, event: RequestEvent): Promise<Respo
     const recordRef = hookEvent.Record ?? record;
     const deleteErr = app.Delete(recordRef);
     if (deleteErr) {
+      if (deleteErr instanceof ApiError) {
+        return apiErrorResponse(event, deleteErr);
+      }
       return badRequest(
         event,
         "Failed to delete record. Make sure that the record is not part of a required relation reference.",

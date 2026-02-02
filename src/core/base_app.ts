@@ -127,6 +127,7 @@ import { AppMigrations, MigrationsRunner, SystemMigrations } from "./migrations_
 import { CollectionNameOTPs, OTP } from "./otp_model.ts";
 import { FieldNameEmail, FieldNamePassword, Record as RecordModel, type RecordData } from "./record.ts";
 import { RecordFieldResolver } from "./record_field_resolver.ts";
+import { registerSuperuserHooks } from "./record_model_superusers.ts";
 import { RecordQuery, buildRecordFilterExpr, combineSqlExprs, type RecordQueryFilter } from "./record_query.ts";
 import { expandRecord as expandRecordHelper, expandRecords as expandRecordsHelper } from "./record_query_expand.ts";
 import {
@@ -296,6 +297,7 @@ export class BaseApp implements App {
     this.registerAutobackupHooks();
     this.registerCollectionHooks();
     this.registerRecordHooks();
+    this.registerSuperuserHooks();
     this.registerOTPHooks();
     this.registerMFAHooks();
     this.registerExternalAuthHooks();
@@ -3884,6 +3886,11 @@ export class BaseApp implements App {
         });
       },
     });
+  }
+
+  // Ported from pocketbase/core/record_model_superusers.go.
+  private registerSuperuserHooks(): void {
+    registerSuperuserHooks(this);
   }
 
   private registerOTPHooks(): void {
