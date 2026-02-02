@@ -77,6 +77,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-02 21:05Z) Port migrations list/runner tests, add caller filename detection, and align applied-migrations filtering with upstream.
 - [x] (2026-02-02 21:45Z) Port middleware auth and body limit tests to cover panic recover and auth gate behavior.
 - [x] (2026-02-02 22:40Z) Port apis base/cron modules (WrapStdHandler/Middleware, Static, MustSubFS, cron routes) plus tests; start cron on serve and add DB optimize/log cleanup jobs.
+- [x] (2026-02-02 22:15Z) Port record_helpers tests and align MFA expiry duration units with upstream.
 - [x] (2026-02-02 23:20Z) Tighten serve parity with CORS middleware, admin UI cache/CSP headers, and gzip support.
 
 ## Surprises & Discoveries

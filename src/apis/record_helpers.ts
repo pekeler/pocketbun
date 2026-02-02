@@ -478,7 +478,7 @@ async function checkMFA(event: RequestEvent, authRecord: RecordModel, currentAut
     }
   };
 
-  if (!mfa || mfa.HasExpired(authRecord.collection().MFA.DurationTime())) {
+  if (!mfa || mfa.HasExpired(authRecord.collection().MFA.DurationTime() * 1000)) {
     deleteMFA();
     return { mfaId: "", response: badRequest(event, "Invalid or expired MFA session.") };
   }
