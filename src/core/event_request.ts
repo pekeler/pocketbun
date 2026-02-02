@@ -37,6 +37,7 @@ export class RequestEvent extends Event {
   #cachedRequestInfo: RequestInfo | null = null;
   #cachedBody: Record<string, unknown> | null = null;
   #stopSignal: { stopped: boolean; error?: Error } | null = null;
+  #rawHeaders: Record<string, string[]> | null = null;
 
   constructor(options: {
     app: App;
@@ -44,6 +45,7 @@ export class RequestEvent extends Event {
     params?: Record<string, string>;
     remoteAddress?: string | null;
     pattern?: string;
+    rawHeaders?: Record<string, string[]>;
   }) {
     super({
       request: options.request,
@@ -53,13 +55,21 @@ export class RequestEvent extends Event {
     this.app = options.app;
     this.auth = null;
     this.pattern = options.pattern ?? "";
+    if (options.rawHeaders) {
+      const normalized: Record<string, string[]> = {};
+      for (const [key, values] of Object.entries(options.rawHeaders)) {
+        normalized[key.toLowerCase()] = values;
+      }
+      this.#rawHeaders = normalized;
+    }
   }
 
   realIP(): string {
     const settings = this.app.settings();
 
     for (const header of settings.trustedProxy.headers) {
-      const headerValue = this.request.headers.get(header);
+      const rawValues = this.#rawHeaders?.[header.toLowerCase()];
+      const headerValue = rawValues?.length ? rawValues[rawValues.length - 1] : this.request.headers.get(header);
       if (!headerValue) {
         continue;
       }
@@ -115,12 +125,12 @@ export class RequestEvent extends Event {
       typeof infoContextRaw === "string" && infoContextRaw !== "" ? infoContextRaw : RequestInfoContextDefault;
 
     const info: RequestInfo = {
-      context: infoContext,
-      method: this.request.method,
       query: {},
       headers: {},
       body: {},
       auth: this.auth,
+      method: this.request.method,
+      context: infoContext,
     };
 
     await this.bindBody(info.body);
