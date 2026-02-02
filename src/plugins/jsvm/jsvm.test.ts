@@ -1,0 +1,68 @@
+// PocketBun-only: verify pb_hooks/pb_migrations loader behavior since upstream lacks coverage.
+
+import { describe, expect, it } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { newTestApp } from "../../../tests/test_app.ts";
+import { buildServeHandler } from "../../apis/serve.ts";
+import { Register } from "./jsvm.ts";
+
+describe("jsvm loader", () => {
+  it("loads hooks and migrations from pb_* directories", async () => {
+    const { app, cleanup } = await newTestApp();
+    const rootDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-"));
+    const hooksDir = join(rootDir, "pb_hooks");
+    const migrationsDir = join(rootDir, "pb_migrations");
+
+    await mkdir(hooksDir, { recursive: true });
+    await mkdir(migrationsDir, { recursive: true });
+
+    await writeFile(
+      join(hooksDir, "hooks.pb.js"),
+      `globalThis.__pbHooksCalls = 0;
+routerAdd("GET", "/hooks-test", (e) => {
+  return e.json(200, { ok: true });
+});
+onModelUpdate((e) => {
+  globalThis.__pbHooksCalls++;
+  e.next();
+}, "demo2");
+`,
+    );
+
+    await writeFile(
+      join(migrationsDir, "9999999999_pb_hooks_test.js"),
+      `migrate((app) => {
+  app.db().exec("CREATE TABLE IF NOT EXISTS pb_hooks_test (id TEXT)");
+});
+`,
+    );
+
+    const err = Register(app, {
+      HooksDir: hooksDir,
+      MigrationsDir: migrationsDir,
+      TypesDir: rootDir,
+    });
+    expect(err).toBeNull();
+
+    app.runAppMigrations();
+    const row = app.db().query("select name from sqlite_master where type='table' and name='pb_hooks_test'").get();
+    expect(row).not.toBeNull();
+
+    const handler = buildServeHandler(app);
+    const response = await handler(new Request("http://127.0.0.1/hooks-test"));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+
+    const record = app.FindFirstRecordByFilter("demo2", "1=1");
+    record.Set("title", "update");
+    const saveErr = app.Save(record);
+    expect(saveErr).toBeNull();
+    expect((globalThis as Record<string, unknown>).__pbHooksCalls).toBe(1);
+
+    delete (globalThis as Record<string, unknown>).__pbHooksCalls;
+    await cleanup();
+    await rm(rootDir, { recursive: true, force: true });
+  });
+});

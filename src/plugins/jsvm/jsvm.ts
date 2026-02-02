@@ -185,13 +185,14 @@ function executeModule(fileName: string, content: string, globals: Record<string
   globals.__filename = tmpPath;
   globals.__dirname = dirname(tmpPath);
 
-  const url = pathToFileURL(tmpPath).href + `?v=${Date.now()}`;
-
-  if (ext === ".cjs") {
+  if (ext === ".cjs" || ext === ".js" || ext === ".ts") {
+    delete (require as unknown as { cache?: Record<string, unknown> }).cache?.[tmpPath];
     require(tmpPath);
-  } else {
-    waitForPromise(import(url));
+    return;
   }
+
+  delete (require as unknown as { cache?: Record<string, unknown> }).cache?.[tmpPath];
+  require(tmpPath);
 }
 
 function writeTempModule(fileName: string, content: string): string {
@@ -208,7 +209,7 @@ function writeTempModule(fileName: string, content: string): string {
 function filesContent(dirPath: string, pattern: string): Map<string, string> | null {
   let entries: string[];
   try {
-    entries = readdirSync(dirPath);
+    entries = readdirSync(dirPath).sort();
   } catch {
     return new Map();
   }
@@ -240,30 +241,4 @@ function refreshTypesFile(typesDir: string): void {
     mkdirSync(typesDir, { recursive: true });
   }
   writeFileSync(destination, data);
-}
-
-function waitForPromise<T>(promise: Promise<T>): T {
-  let result: T | undefined;
-  let error: unknown;
-  const buffer = new SharedArrayBuffer(4);
-  const signal = new Int32Array(buffer);
-
-  promise
-    .then((value) => {
-      result = value;
-      Atomics.store(signal, 0, 1);
-      Atomics.notify(signal, 0);
-    })
-    .catch((err) => {
-      error = err;
-      Atomics.store(signal, 0, 1);
-      Atomics.notify(signal, 0);
-    });
-
-  Atomics.wait(signal, 0, 0);
-
-  if (error) {
-    throw error;
-  }
-  return result as T;
 }
