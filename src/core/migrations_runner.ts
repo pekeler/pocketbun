@@ -54,6 +54,10 @@ export class MigrationsRunner {
     return applied;
   }
 
+  Up(): string[] {
+    return this.up();
+  }
+
   down(toRevertCount: number): string[] {
     this.initMigrationsTable();
     const names = this.lastAppliedMigrations(toRevertCount);
@@ -83,10 +87,17 @@ export class MigrationsRunner {
     return reverted;
   }
 
+  Down(toRevertCount: number): string[] {
+    return this.down(toRevertCount);
+  }
+
   removeMissingAppliedMigrations(): void {
     this.initMigrationsTable();
 
-    const names = this.#migrationsList.items().map((migration) => migration.file);
+    const names = this.#migrationsList
+      .items()
+      .map((migration) => migration.file)
+      .filter((name): name is string => Boolean(name));
     if (names.length === 0) {
       this.#app
         .db()
@@ -100,6 +111,10 @@ export class MigrationsRunner {
       .db()
       .query(`delete from ${this.#tableName} where file not in (${placeholders})`)
       .run(...names);
+  }
+
+  RemoveMissingAppliedMigrations(): void {
+    this.removeMissingAppliedMigrations();
   }
 
   private initMigrationsTable(): void {
@@ -139,12 +154,18 @@ export class MigrationsRunner {
 
   private lastAppliedMigrations(limit: number): string[] {
     const files: string[] = [];
+    const names = this.#migrationsList.items().map((migration) => migration.file);
+    if (names.length === 0) {
+      return files;
+    }
+
+    const placeholders = names.map(() => "?").join(",");
     const rows = this.#app
       .db()
       .query(
-        `select file from ${this.#tableName} where applied is not null order by substr(applied || '0000000000000000', 0, 17) desc, file desc limit ?`,
+        `select file from ${this.#tableName} where applied is not null and file in (${placeholders}) order by substr(applied || '0000000000000000', 0, 17) desc, file desc limit ?`,
       )
-      .all(limit) as Array<{ file: string }>;
+      .all(...names, limit) as Array<{ file: string }>;
 
     for (const row of rows) {
       files.push(row.file);
@@ -152,4 +173,8 @@ export class MigrationsRunner {
 
     return files;
   }
+}
+
+export function NewMigrationsRunner(app: App, migrationsList: MigrationsList): MigrationsRunner {
+  return new MigrationsRunner(app, migrationsList);
 }
