@@ -64,7 +64,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-01 22:35Z) Port batch API (internal requests + body limit), add picker fields/excerpt modifiers with tests, and align record enrich + cascade delete behavior to upstream.
 - [x] (2026-02-01 22:50Z) Port logs API (list/view/stats), log model/query helpers, activity logger middleware, and add log query/API tests with a SelectQuery shim.
 - [x] (2026-02-01 23:45Z) Port settings API (list/update/test s3/email/apple secret), add settings forms/tests, and align settings JSON to omit secrets with corresponding hooks/events.
-- [ ] Implement remaining collection/record CRUD coverage, then port missing API endpoints/middleware (backups, realtime) and hooks (completed: core auth flows, batch, logs, settings; remaining: realtime + remaining APIs).
+- [x] (2026-02-02 01:15Z) Port backups API + archive/osutils helpers, align zip output with Go (data descriptor + extended timestamps), and add backup/archive tests.
+- [ ] Implement remaining collection/record CRUD coverage, then port missing API endpoints/middleware (realtime) and hooks (completed: core auth flows, batch, logs, settings, backups; remaining: realtime + remaining APIs).
 
 ## Surprises & Discoveries
 
@@ -88,6 +89,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Evidence: upstream picker tests failed until exact field matches skipped recursion and excerpt stripping skipped script/style contents.
 - Observation: expanded records require enrich hooks even for superusers to match upstream counts.
   Evidence: batch tests expecting OnRecordEnrich 5 vs. 2 when expanded records were not enriched for superusers.
+- Observation: Go’s archive/zip writer emits data descriptors and extended timestamp extra fields (UT), affecting byte-for-byte zip size expectations.
+  Evidence: archive create test expected 544 bytes; matching required UT extra + data descriptor and deflate best-speed semantics.
 
 ## Decision Log
 
@@ -160,10 +163,13 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - Decision: Always run enrich hooks for expanded records regardless of auth role.
   Rationale: Upstream expand flow enriches related records even for superusers, and hook counters depend on it.
   Date/Author: 2026-02-01 / Codex
+- Decision: Emit zip entries with data descriptors and extended timestamp extras (UT) and use best-speed deflate semantics to match upstream archive output.
+  Rationale: Tests and behavior depend on the exact zip structure produced by Go’s archive/zip with flate.BestSpeed.
+  Date/Author: 2026-02-02 / Codex
 
 ## Outcomes & Retrospective
 
-Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. The remaining work is to port logs, settings, backups, realtime, and remaining collection/record CRUD coverage while expanding tests to match upstream behavior.
+Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. The remaining work is to port realtime and the remaining collection/record CRUD coverage while expanding tests to match upstream behavior.
 
 ## Context and Orientation
 
@@ -186,6 +192,7 @@ Milestone 4 ports realtime (SSE) subscriptions, hook system, and hook loading fr
 Each milestone keeps files 1:1 with upstream where possible, adds a header comment linking to the upstream file path (no version/hash; pocketbase_tag.txt is the source of truth), and includes Bun tests that verify behavior against upstream tests.
 
 Plan update (2026-02-01): recorded the batch + picker milestone, added related discoveries and decisions, and narrowed the remaining APIs list to exclude batch.
+Plan update (2026-02-02): recorded backups + archive/osutils progress, plus the zip output discovery/decision, and updated the outcomes to reflect backups completion.
 
 ## Concrete Steps
 
