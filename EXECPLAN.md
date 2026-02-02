@@ -80,6 +80,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-02 22:15Z) Port record_helpers tests and align MFA expiry duration units with upstream.
 - [x] (2026-02-02 22:20Z) Port record auth origin CRUD API tests.
 - [x] (2026-02-02 22:39Z) Port external auth/MFA/OTP/superuser record CRUD tests, register superuser hooks, and align delete error propagation.
+- [x] (2026-02-02 22:57Z) Port mails/record tests, add ghupdate compareVersions/release helpers with tests, and add JWK fetch/signature validation utilities with tests.
 - [x] (2026-02-02 23:20Z) Tighten serve parity with CORS middleware, admin UI cache/CSP headers, and gzip support.
 
 ## Surprises & Discoveries
