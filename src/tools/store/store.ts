@@ -6,15 +6,28 @@ export const ShrinkThreshold = 200;
 export class Store<K, T> {
   #data: Map<K, T>;
   #deleted = 0;
+  #zeroValue: T | undefined;
 
-  constructor(data: Map<K, T> | Record<string, T> | null = null) {
+  constructor(data: Map<K, T> | Record<string, T> | null = null, zeroValue?: T) {
     // Note: upstream uses a mutex; Bun's single-threaded JS runtime makes this unnecessary here.
     // If we introduce worker/shared concurrency, revisit this and add locking.
+    // Deviation: Go maps return a type-specific zero value for missing keys. In TS we infer
+    // that zero value from provided data or use an explicit zeroValue when the store is empty.
     this.#data = new Map<K, T>();
-    this.reset(data);
+    this.#zeroValue = zeroValue;
+    this.reset(data, zeroValue);
   }
 
-  reset(newData: Map<K, T> | Record<string, T> | null = null): void {
+  reset(newData: Map<K, T> | Record<string, T> | null = null, zeroValue?: T): void {
+    if (zeroValue !== undefined) {
+      this.#zeroValue = zeroValue;
+    } else if (newData != null) {
+      const derived = deriveZeroValue(newData);
+      if (derived !== undefined) {
+        this.#zeroValue = derived;
+      }
+    }
+
     if (newData instanceof Map) {
       this.#data = new Map(newData);
     } else if (newData && typeof newData === "object") {
@@ -50,12 +63,15 @@ export class Store<K, T> {
   }
 
   get(key: K): T | undefined {
+    if (!this.#data.has(key)) {
+      return this.#zeroValue;
+    }
     return this.#data.get(key);
   }
 
   getOk(key: K): [T | undefined, boolean] {
     if (!this.#data.has(key)) {
-      return [undefined, false];
+      return [this.#zeroValue, false];
     }
     return [this.#data.get(key), true];
   }
@@ -73,7 +89,7 @@ export class Store<K, T> {
   }
 
   setFunc(key: K, fn: (old: T | undefined) => T): void {
-    const oldValue = this.#data.get(key);
+    const oldValue = this.get(key);
     this.#data.set(key, fn(oldValue));
   }
 
@@ -105,5 +121,44 @@ export class Store<K, T> {
 
   toJSON(): Record<string, T> {
     return Object.fromEntries(this.#data);
+  }
+}
+
+function deriveZeroValue<K, T>(data: Map<K, T> | Record<string, T>): T | undefined {
+  if (data instanceof Map) {
+    for (const value of data.values()) {
+      return zeroValueFromSample(value);
+    }
+    return undefined;
+  }
+
+  for (const key of Object.keys(data)) {
+    return zeroValueFromSample(data[key] as T);
+  }
+
+  return undefined;
+}
+
+function zeroValueFromSample<T>(sample: T): T | undefined {
+  if (sample === null) {
+    return sample;
+  }
+  if (sample === undefined) {
+    return undefined;
+  }
+
+  switch (typeof sample) {
+    case "string":
+      return "" as T;
+    case "number":
+      return 0 as T;
+    case "boolean":
+      return false as T;
+    case "bigint":
+      return 0n as T;
+    case "object":
+      return null as T;
+    default:
+      return undefined;
   }
 }

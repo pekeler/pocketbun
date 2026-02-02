@@ -70,6 +70,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-02 10:48Z) Port record CRUD create/update tests and add manage-rule access checks for auth record create/update.
 - [x] (2026-02-02 13:30Z) Port collection CRUD/import API tests and align collection behaviors (auth options merge, field validation codes, hook firing).
 - [x] (2026-02-02 15:51Z) Implement pb_hooks loading/tests (added loader tests and aligned hook/migration loading behavior).
+- [x] (2026-02-02 16:45Z) Port store/list helper tests and align Store missing-key zero value handling with upstream semantics.
 
 ## Surprises & Discoveries
 
@@ -182,6 +183,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Date/Author: 2026-02-02 / Codex
 - Decision: Merge auth option updates instead of replacing defaults during collection updates/imports.
   Rationale: Upstream binding merges partial option payloads; replacing caused missing identity fields and failed validations.
+  Date/Author: 2026-02-02 / Codex
+- Decision: Infer Store missing-key zero values from provided data or explicit zeroValue when available.
+  Rationale: Go maps return a type-specific zero value, which TypeScript cannot infer for empty stores.
   Date/Author: 2026-02-02 / Codex
 
 ## Outcomes & Retrospective
