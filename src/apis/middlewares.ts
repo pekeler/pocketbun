@@ -5,6 +5,7 @@ import type { Handler } from "../tools/hook/hook.ts";
 import { CollectionNameSuperusers } from "../core/collection.ts";
 import { GenerateDefaultRandomId } from "../core/db.ts";
 import { TokenTypeAuth } from "../core/record_tokens.ts";
+import { ApiError, apiErrorResponse } from "../tools/router/api_error.ts";
 import { NowDateTime } from "../tools/types/index.ts";
 import { badRequest, forbidden, unauthorized } from "./api_errors.ts";
 
@@ -227,6 +228,9 @@ export function panicRecover(): Handler<RequestEvent> {
       try {
         return await event.Next();
       } catch (error) {
+        if (error instanceof ApiError) {
+          return apiErrorResponse(event, error);
+        }
         event.app.Logger().Error("panic recover", "error", error);
         return event.json(500, {
           status: 500,

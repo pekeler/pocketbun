@@ -269,6 +269,10 @@ export class Record {
     }
   }
 
+  set(field: string, value: unknown): void {
+    this.Set(field, value);
+  }
+
   Load(data: RecordData): void {
     for (const [key, value] of Object.entries(data)) {
       this.Set(key, value);

@@ -68,7 +68,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-02 03:20Z) Port realtime API (SSE) + model support, add realtime tests, and align hook event propagation with upstream.
 - [x] (2026-02-02 09:10Z) Port record CRUD view + delete tests, fix list/view selection to avoid join column collisions, add delete file cleanup hook, and unwrap hook responses for tx overrides.
 - [x] (2026-02-02 10:48Z) Port record CRUD create/update tests and add manage-rule access checks for auth record create/update.
-- [ ] Implement remaining collection CRUD coverage and port pb_hooks loading/tests.
+- [x] (2026-02-02 13:30Z) Port collection CRUD/import API tests and align collection behaviors (auth options merge, field validation codes, hook firing).
+- [ ] Implement pb_hooks loading/tests (completed: hooks loader research; remaining: OnServe/ServeEvent hooks, loader, router/cron binds, test ports).
 
 ## Surprises & Discoveries
 
@@ -88,6 +89,10 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Evidence: added dbx quoting tests that preserve `[[...]]`/`{{...}}` inside `--` and `/* */` comments.
 - Observation: record validation order must match upstream so hook counters and auth flow tests behave as expected.
   Evidence: upstream auth tests expect hook counters to reflect validation failures, which required validation to run before model execute hooks in BaseApp.
+- Observation: collection model validations were not firing OnCollectionValidate until Save used App.Validate for collections.
+  Evidence: collection API tests reported OnCollectionValidate=0 while OnModelValidate was firing.
+- Observation: field name validation errors in TS differed from upstream ozzo-validation codes.
+  Evidence: collection create/update tests expected validation_not_in_invalid/validation_match_invalid but received validation_invalid_field_name.
 - Observation: picker field selection must stop recursive pruning once a field is fully matched, and excluded HTML tag contents must be ignored.
   Evidence: upstream picker tests failed until exact field matches skipped recursion and excerpt stripping skipped script/style contents.
 - Observation: expanded records require enrich hooks even for superusers to match upstream counts.
@@ -169,10 +174,19 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - Decision: Emit zip entries with data descriptors and extended timestamp extras (UT) and use best-speed deflate semantics to match upstream archive output.
   Rationale: Tests and behavior depend on the exact zip structure produced by Go’s archive/zip with flate.BestSpeed.
   Date/Author: 2026-02-02 / Codex
+- Decision: Use App.Validate() inside collection saves so OnModelValidate/OnCollectionValidate fire consistently.
+  Rationale: Upstream hook counters expect validation hooks on both success and failure paths.
+  Date/Author: 2026-02-02 / Codex
+- Decision: Map field name validation errors to required/length/match/not-in codes to match ozzo-validation output.
+  Rationale: Upstream tests assert specific validation codes for reserved/system field names.
+  Date/Author: 2026-02-02 / Codex
+- Decision: Merge auth option updates instead of replacing defaults during collection updates/imports.
+  Rationale: Upstream binding merges partial option payloads; replacing caused missing identity fields and failed validations.
+  Date/Author: 2026-02-02 / Codex
 
 ## Outcomes & Retrospective
 
-Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. Realtime (SSE) support is now ported with tests. The remaining work is to finish collection/record CRUD coverage and port pb_hooks loading while expanding tests to match upstream behavior.
+Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. Realtime (SSE) support is now ported with tests. Collection CRUD/import parity is now in place. The remaining work is to add pb_hooks loading and port the jsvm hook/utility bind tests.
 
 ## Context and Orientation
 
@@ -196,6 +210,7 @@ Each milestone keeps files 1:1 with upstream where possible, adds a header comme
 
 Plan update (2026-02-01): recorded the batch + picker milestone, added related discoveries and decisions, and narrowed the remaining APIs list to exclude batch.
 Plan update (2026-02-02): recorded backups + archive/osutils progress, plus the zip output discovery/decision, and updated the outcomes to reflect backups completion.
+Plan update (2026-02-02): recorded collection CRUD/import parity work, added validation/merge/hook decisions, and clarified remaining pb_hooks scope.
 
 ## Concrete Steps
 
@@ -350,3 +365,4 @@ Plan change note: 2026-01-31, reaffirmed mechanical upstream porting and updated
 Plan change note: 2026-01-31, ported a minimal RecordFieldResolver for list/view rule filtering; relation joins and advanced modifiers remain to be ported.
 Plan change note: 2026-01-31, recorded progress on collection options/view helpers and collection validation plus BaseApp view/table wiring.
 Plan change note: 2026-02-01, recorded OAuth2 auth create flow progress and the validation/hook ordering alignment required by upstream tests.
+Plan change note: 2026-02-02, recorded collection CRUD/import parity completion, updated discovery/decision logs, and narrowed remaining work to pb_hooks loading/tests.

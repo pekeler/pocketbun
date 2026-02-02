@@ -43,6 +43,11 @@ export class Event implements Resolver {
     return null;
   }
 
+  // next is a lowercase alias for Next to match JS hook bindings.
+  next(): unknown {
+    return this.Next();
+  }
+
   // nextFunc returns the function that Next calls.
   nextFunc(): NextFunc | null {
     return this.#next;

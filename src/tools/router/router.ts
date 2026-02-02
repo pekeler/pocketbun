@@ -3,6 +3,7 @@
 import type { Resolver } from "../hook/event.ts";
 import type { Handler } from "./route.ts";
 import { Hook } from "../hook/hook.ts";
+import { ApiError, ToApiError, apiErrorResponse } from "./api_error.ts";
 import { RouterGroup } from "./group.ts";
 
 type Segment = { type: "static"; value: string } | { type: "param"; name: string } | { type: "wildcard"; name: string };
@@ -97,17 +98,40 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
 
       try {
         const result = await route.hook.Trigger(event, route.action);
-        const response = result instanceof Response ? result : new Response(null, { status: 204 });
 
+        if (result instanceof Response) {
+          if (method === "HEAD") {
+            return new Response(null, {
+              status: result.status,
+              headers: result.headers,
+            });
+          }
+          return result;
+        }
+
+        if (result instanceof ApiError) {
+          return apiErrorResponse(event, result);
+        }
+
+        if (result instanceof Error) {
+          return apiErrorResponse(event, ToApiError(result));
+        }
+
+        const response = new Response(null, { status: 200 });
         if (method === "HEAD") {
           return new Response(null, {
             status: response.status,
             headers: response.headers,
           });
         }
-
         return response;
-      } catch {
+      } catch (error) {
+        if (error instanceof ApiError) {
+          return apiErrorResponse(event, error);
+        }
+        if (error instanceof Error) {
+          return apiErrorResponse(event, ToApiError(error));
+        }
         return new Response(null, { status: 500 });
       }
     };

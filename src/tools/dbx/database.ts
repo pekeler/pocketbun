@@ -2,6 +2,7 @@
 
 import { Database, type Changes, type DatabaseOptions, type SQLQueryBindings, type Statement } from "bun:sqlite";
 import { rewriteDbxIdentifiers } from "./identifiers.ts";
+import { DbxQuery, DbxSelectQuery } from "./query.ts";
 
 export class DbxDatabase extends Database {
   constructor(filename?: string, options?: number | DatabaseOptions) {
@@ -27,5 +28,13 @@ export class DbxDatabase extends Database {
     params?: ParamsType,
   ): Statement<ReturnType, ParamsType extends any[] ? ParamsType : [ParamsType]> {
     return super.prepare(rewriteDbxIdentifiers(sql), params);
+  }
+
+  newQuery(sql: string, ...params: SQLQueryBindings[]): DbxQuery {
+    return new DbxQuery(this, sql, params);
+  }
+
+  select(...fields: string[]): DbxSelectQuery {
+    return new DbxSelectQuery(this, fields);
   }
 }

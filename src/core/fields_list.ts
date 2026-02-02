@@ -1,5 +1,6 @@
 // Ported from pocketbase/core/fields_list.go
 
+import { DateTime, parseDateTime } from "../tools/types/datetime.ts";
 import { Fields, type Field } from "./field.ts";
 
 // NewFieldsList creates a new FieldsList instance with the provided fields.
@@ -312,6 +313,18 @@ function fieldFromRaw(raw: unknown): Field {
       mapped[upperKey] = value;
     }
   }
+
+  if ((field as unknown as Record<string, unknown>).Min instanceof DateTime && "Min" in mapped) {
+    const parsed = parseDateTime(mapped.Min);
+    mapped.Min = parsed;
+    mapped.min = parsed;
+  }
+  if ((field as unknown as Record<string, unknown>).Max instanceof DateTime && "Max" in mapped) {
+    const parsed = parseDateTime(mapped.Max);
+    mapped.Max = parsed;
+    mapped.max = parsed;
+  }
+
   Object.assign(field as unknown as Record<string, unknown>, mapped);
   return field;
 }

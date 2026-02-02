@@ -1,0 +1,1515 @@
+// Ported from pocketbase/plugins/jsvm/binds.go (Bun-native hooks bindings).
+
+import { AsyncLocalStorage } from "node:async_hooks";
+import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, rmSync, renameSync, truncateSync } from "node:fs";
+import { basename, dirname, extname, isAbsolute, join, relative, sep, normalize } from "node:path";
+import type { App } from "../../core/app.ts";
+import type { ServeEvent } from "../../core/events.ts";
+import {
+  RequireAuth,
+  RequireGuestOnly,
+  RequireSuperuserAuth,
+  RequireSuperuserOrOwnerAuth,
+  SkipSuccessActivityLog,
+} from "../../apis/middlewares.ts";
+import { BodyLimit } from "../../apis/middlewares_body_limit.ts";
+import { DefaultMaxBodySize } from "../../apis/middlewares_body_limit.ts";
+import { RecordAuthResponse, EnrichRecord, EnrichRecords } from "../../apis/record_helpers.ts";
+import { Collection } from "../../core/collection.ts";
+import { RequestInfoContextDefault, type RequestInfo as RequestInfoShape } from "../../core/event_request.ts";
+import { AutodateField } from "../../core/field_autodate.ts";
+import { BoolField } from "../../core/field_bool.ts";
+import { DateField } from "../../core/field_date.ts";
+import { EditorField } from "../../core/field_editor.ts";
+import { EmailField } from "../../core/field_email.ts";
+import { FileField } from "../../core/field_file.ts";
+import { GeoPointField } from "../../core/field_geo_point.ts";
+import { JSONField } from "../../core/field_json.ts";
+import { NumberField } from "../../core/field_number.ts";
+import { PasswordField } from "../../core/field_password.ts";
+import { RelationField } from "../../core/field_relation.ts";
+import { SelectField } from "../../core/field_select.ts";
+import { TextField } from "../../core/field_text.ts";
+import { URLField } from "../../core/field_url.ts";
+import { FieldsList, NewFieldsList } from "../../core/fields_list.ts";
+import { Record as RecordModel } from "../../core/record.ts";
+import { AppleClientSecretCreate } from "../../forms/apple_client_secret_create.ts";
+import { RecordUpsert } from "../../forms/record_upsert.ts";
+import { TestEmailSend } from "../../forms/test_email_send.ts";
+import { TestS3Filesystem } from "../../forms/test_s3_filesystem.ts";
+import { ValidationError } from "../../internal/compat/validation.ts";
+import {
+  SendRecordAuthAlert,
+  SendRecordChangeEmail,
+  SendRecordOTP,
+  SendRecordPasswordReset,
+  SendRecordVerification,
+} from "../../mails/record.ts";
+import {
+  HashExp,
+  NewExp,
+  Not,
+  And,
+  Or,
+  In,
+  NotIn,
+  Like,
+  OrLike,
+  NotLike,
+  OrNotLike,
+  Exists,
+  NotExists,
+  Between,
+  NotBetween,
+} from "../../tools/dbx/expr.ts";
+import { NewFileFromBytes, NewFileFromMultipart, NewFileFromPath } from "../../tools/filesystem/file.ts";
+import {
+  ApiError,
+  NewBadRequestError,
+  NewForbiddenError,
+  NewInternalServerError,
+  NewNotFoundError,
+  NewTooManyRequestsError,
+  NewUnauthorizedError,
+} from "../../tools/router/api_error.ts";
+import { MD5, SHA256, SHA512, HS256, HS512, Equal } from "../../tools/security/crypto.ts";
+import { decrypt, encrypt } from "../../tools/security/encrypt.ts";
+import { parseJWT, parseUnverifiedJWT, newJWT } from "../../tools/security/jwt.ts";
+import {
+  randomStringByRegex,
+  randomStringWithAlphabet,
+  pseudorandomString,
+  pseudorandomStringWithAlphabet,
+  randomString,
+} from "../../tools/security/random.ts";
+import { JSONRaw, JSONArray, JSONMap, DateTime, NowDateTime } from "../../tools/types/index.ts";
+import { FormData as HooksFormData } from "./form_data.ts";
+import { convertGoToJSName } from "./mapper.ts";
+
+const DynamicModelShapeKey = "__pbDynamicModelShape";
+const DynamicModelFactoryKey = "__pbDynamicModelFactory";
+
+type BindTarget = Record<string, unknown>;
+
+type DynamicShape = Record<string, DynamicShapeValue>;
+type DynamicShapeValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JSONArray<unknown>
+  | JSONMap<unknown>
+  | JSONRaw
+  | unknown[]
+  | Record<string, unknown>
+  | NullPlaceholder;
+
+class NullPlaceholder {
+  kind: string;
+  constructor(kind: string) {
+    this.kind = kind;
+  }
+}
+
+const hooksStorage = new AsyncLocalStorage<App>();
+
+function runWithApp<T>(app: App, fn: () => T | Promise<T>): T | Promise<T> {
+  return hooksStorage.run(app, fn);
+}
+
+function defineAppAccessor(target: BindTarget, app: App): void {
+  const proxyCache = new WeakMap<object, object>();
+  const getProxy = (value: App): object => {
+    const existing = proxyCache.get(value as object);
+    if (existing) {
+      return existing;
+    }
+    const proxy = wrapApp(value as object);
+    proxyCache.set(value as object, proxy);
+    return proxy;
+  };
+
+  Object.defineProperty(target, "$app", {
+    configurable: true,
+    enumerable: false,
+    get() {
+      const current = hooksStorage.getStore() ?? app;
+      return getProxy(current);
+    },
+    set(value) {
+      if (value) {
+        app = value as App;
+      }
+    },
+  });
+}
+
+export function appBinds(target: BindTarget, app: App): void {
+  defineAppAccessor(target, app);
+}
+
+function wrapApp<T extends object>(app: T): T {
+  return new Proxy(app, {
+    get(target, prop, receiver) {
+      const value = resolveMappedProperty(target, prop, receiver);
+      if (typeof value === "function") {
+        return (...args: unknown[]) => {
+          const result = (value as (...args: unknown[]) => unknown).apply(target, args);
+          if (result instanceof Error) {
+            throw result;
+          }
+          return result;
+        };
+      }
+      return value as unknown;
+    },
+    set(target, prop, value, receiver) {
+      return setMappedProperty(target, prop, value, receiver);
+    },
+  });
+}
+
+function wrapEvent<T extends object>(event: T): T {
+  return new Proxy(event, {
+    get(target, prop, receiver) {
+      const value = resolveMappedProperty(target, prop, receiver);
+      if (typeof value === "function") {
+        return (...args: unknown[]) => {
+          const result = (value as (...args: unknown[]) => unknown).apply(target, args);
+          if (result instanceof Error) {
+            throw result;
+          }
+          return result;
+        };
+      }
+      return value as unknown;
+    },
+    set(target, prop, value, receiver) {
+      return setMappedProperty(target, prop, value, receiver);
+    },
+  });
+}
+
+function resolveMappedProperty(target: object, prop: string | symbol, receiver: unknown): unknown {
+  if (Reflect.has(target, prop)) {
+    return Reflect.get(target, prop, receiver);
+  }
+  if (typeof prop === "string") {
+    const candidate = prop.slice(0, 1).toUpperCase() + prop.slice(1);
+    if (candidate in target) {
+      return (target as Record<string, unknown>)[candidate];
+    }
+  }
+  return undefined;
+}
+
+function setMappedProperty(target: object, prop: string | symbol, value: unknown, receiver: unknown): boolean {
+  if (Reflect.has(target, prop)) {
+    return Reflect.set(target, prop, value, receiver);
+  }
+  if (typeof prop === "string") {
+    const candidate = prop.slice(0, 1).toUpperCase() + prop.slice(1);
+    if (candidate in target) {
+      (target as Record<string, unknown>)[candidate] = value;
+      return true;
+    }
+  }
+  (target as Record<string, unknown>)[String(prop)] = value;
+  return true;
+}
+
+function toBytes(raw: unknown, _maxReaderBytes = DefaultMaxBodySize): number[] {
+  if (raw == null) {
+    return [];
+  }
+  if (typeof raw === "string") {
+    return Array.from(new TextEncoder().encode(raw));
+  }
+  if (typeof raw === "number" || typeof raw === "boolean" || typeof raw === "bigint") {
+    return Array.from(new TextEncoder().encode(String(raw)));
+  }
+  if (raw instanceof Uint8Array) {
+    return Array.from(raw);
+  }
+  if (raw instanceof ArrayBuffer) {
+    return Array.from(new Uint8Array(raw));
+  }
+  if (raw instanceof JSONRaw) {
+    const jsonVal = raw.toJSON();
+    if (Array.isArray(jsonVal)) {
+      return jsonVal.map((item) => Number(item));
+    }
+    return Array.from(new TextEncoder().encode(raw.toString()));
+  }
+  if (Array.isArray(raw) && raw.every((item) => typeof item === "number")) {
+    return raw as number[];
+  }
+  const json = JSON.stringify(raw);
+  return Array.from(new TextEncoder().encode(json));
+}
+
+function toPrimitiveString(value: unknown): string {
+  return String(value as string | number | boolean | bigint | symbol);
+}
+
+function toStringValue(raw: unknown, _maxReaderBytes = DefaultMaxBodySize): string {
+  if (raw == null) {
+    return "";
+  }
+  if (typeof raw === "string") {
+    return raw;
+  }
+  if (raw instanceof Uint8Array) {
+    return new TextDecoder().decode(raw);
+  }
+  if (raw instanceof ArrayBuffer) {
+    return new TextDecoder().decode(new Uint8Array(raw));
+  }
+  if (raw instanceof JSONRaw) {
+    return raw.toString();
+  }
+  if (typeof raw === "object") {
+    return JSON.stringify(raw);
+  }
+  return toPrimitiveString(raw);
+}
+
+function sleep(ms: number): void {
+  const buf = new SharedArrayBuffer(4);
+  const arr = new Int32Array(buf);
+  Atomics.wait(arr, 0, 0, ms);
+}
+
+function unmarshal(data: unknown, dst: Record<string, unknown>): void {
+  const raw = JSON.stringify(data ?? {});
+  const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  for (const [key, value] of Object.entries(parsed)) {
+    dst[key] = value;
+  }
+}
+
+class Context {
+  #parent: Context | null;
+  #key: unknown;
+  #value: unknown;
+
+  constructor(parent: Context | null, key: unknown, value: unknown) {
+    this.#parent = parent;
+    this.#key = key;
+    this.#value = value;
+  }
+
+  value(key: unknown): unknown {
+    if (this.#key === key) {
+      return this.#value;
+    }
+    return this.#parent ? this.#parent.value(key) : null;
+  }
+}
+
+function createDynamicModel(shape: DynamicShape): Record<string, unknown> {
+  const model: Record<string, unknown> = {};
+  const meta: Record<string, string> = {};
+
+  const keys = Object.keys(shape).sort();
+  for (const key of keys) {
+    const rawValue = shape[key];
+
+    if (rawValue instanceof NullPlaceholder) {
+      meta[key] = rawValue.kind;
+      model[key] = null;
+      continue;
+    }
+
+    if (Array.isArray(rawValue)) {
+      meta[key] = "array";
+      model[key] = new JSONArray(...rawValue);
+      continue;
+    }
+
+    if (rawValue instanceof JSONArray) {
+      meta[key] = "array";
+      model[key] = new JSONArray(...rawValue);
+      continue;
+    }
+
+    if (rawValue instanceof JSONMap) {
+      meta[key] = "object";
+      model[key] = new JSONMap(rawValue.toJSON());
+      continue;
+    }
+
+    if (rawValue && typeof rawValue === "object") {
+      meta[key] = "object";
+      model[key] = new JSONMap(rawValue as Record<string, unknown>);
+      continue;
+    }
+
+    if (typeof rawValue === "string") {
+      meta[key] = "string";
+      model[key] = rawValue;
+      continue;
+    }
+
+    if (typeof rawValue === "boolean") {
+      meta[key] = "bool";
+      model[key] = rawValue;
+      continue;
+    }
+
+    if (typeof rawValue === "number") {
+      meta[key] = "number";
+      model[key] = rawValue;
+      continue;
+    }
+
+    model[key] = rawValue as unknown;
+  }
+
+  Object.defineProperty(model, DynamicModelShapeKey, {
+    value: meta,
+    enumerable: false,
+    configurable: false,
+  });
+
+  return model;
+}
+
+class Timezone {
+  name: string;
+
+  constructor(name = "UTC") {
+    this.name = isValidTimeZone(name) ? name : "UTC";
+  }
+
+  string(): string {
+    return this.name;
+  }
+}
+
+function isValidTimeZone(name: string): boolean {
+  if (!name) {
+    return false;
+  }
+  try {
+    Intl.DateTimeFormat("en-US", { timeZone: name }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function parseZonedDate(raw: string, timeZone: string): Date {
+  const hasOffset = /[+-]\d{2}:?\d{2}$/.test(raw) || raw.endsWith("Z");
+  if (hasOffset) {
+    const normalized = raw.replace(" ", "T").replace(/ ([+-]\d{2}:?\d{2})$/, "$1");
+    return new Date(normalized);
+  }
+
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$/);
+  if (!match) {
+    return new Date(raw.replace(" ", "T"));
+  }
+
+  const [_, yearStr, monthStr, dayStr, hourStr, minuteStr, secondStr, msStr] = match;
+  const year = Number(yearStr);
+  const month = Number(monthStr) - 1;
+  const day = Number(dayStr);
+  const hour = Number(hourStr);
+  const minute = Number(minuteStr);
+  const second = Number(secondStr);
+  const millisecond = msStr ? Number(msStr.padEnd(3, "0").slice(0, 3)) : 0;
+
+  const utcDate = new Date(Date.UTC(year, month, day, hour, minute, second, millisecond));
+  const targetParts = { year, month: month + 1, day, hour, minute, second };
+
+  const candidateOffsets = [
+    getTimeZoneOffsetMs(timeZone, utcDate),
+    getTimeZoneOffsetMs(timeZone, new Date(utcDate.getTime() - 60 * 60 * 1000)),
+    getTimeZoneOffsetMs(timeZone, new Date(utcDate.getTime() + 60 * 60 * 1000)),
+  ];
+
+  const candidates: Array<{ date: Date; offset: number }> = [];
+  for (const offset of candidateOffsets) {
+    const candidate = new Date(utcDate.getTime() - offset);
+    const parts = getTimeZoneParts(timeZone, candidate);
+    if (
+      parts.year === targetParts.year &&
+      parts.month === targetParts.month &&
+      parts.day === targetParts.day &&
+      parts.hour === targetParts.hour &&
+      parts.minute === targetParts.minute &&
+      parts.second === targetParts.second
+    ) {
+      candidates.push({ date: candidate, offset });
+    }
+  }
+
+  if (candidates.length > 0) {
+    candidates.sort((a, b) => b.offset - a.offset);
+    return candidates[0]!.date;
+  }
+
+  const offset = candidateOffsets[0] ?? 0;
+  return new Date(utcDate.getTime() - offset);
+}
+
+function getTimeZoneParts(
+  timeZone: string,
+  date: Date,
+): { year: number; month: number; day: number; hour: number; minute: number; second: number } {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+
+  const parts = formatter.formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      map[part.type] = part.value;
+    }
+  }
+
+  return {
+    year: Number(map.year),
+    month: Number(map.month),
+    day: Number(map.day),
+    hour: Number(map.hour),
+    minute: Number(map.minute),
+    second: Number(map.second),
+  };
+}
+
+function getTimeZoneOffsetMs(timeZone: string, date: Date): number {
+  const parts = getTimeZoneParts(timeZone, date);
+  const zoned = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  return zoned - date.getTime();
+}
+
+class Cookie {
+  name = "";
+  value = "";
+  path = "";
+  domain = "";
+  maxAge = 0;
+  secure = false;
+  httpOnly = false;
+  sameSite = 0;
+
+  constructor(init: Partial<Cookie> = {}) {
+    Object.assign(this, init);
+  }
+
+  string(): string {
+    const parts: string[] = [];
+    parts.push(`${this.name}=${this.value}`);
+    if (this.path) {
+      parts.push(`Path=${this.path}`);
+    }
+    if (this.domain) {
+      parts.push(`Domain=${this.domain}`);
+    }
+    if (this.maxAge) {
+      parts.push(`Max-Age=${this.maxAge}`);
+    }
+    if (this.httpOnly) {
+      parts.push("HttpOnly");
+    }
+    if (this.secure) {
+      parts.push("Secure");
+    }
+    const sameSite = sameSiteValue(this.sameSite);
+    if (sameSite) {
+      parts.push(`SameSite=${sameSite}`);
+    }
+    return parts.join("; ");
+  }
+}
+
+function sameSiteValue(mode: number): string {
+  switch (mode) {
+    case 2:
+      return "Lax";
+    case 3:
+      return "Strict";
+    case 4:
+      return "None";
+    default:
+      return "";
+  }
+}
+
+class Middleware {
+  Func: (event: unknown) => unknown;
+  Priority?: number;
+  Id?: string;
+
+  constructor(func: (event: unknown) => unknown, priority?: number, id?: string) {
+    this.Func = func;
+    this.Priority = priority;
+    this.Id = id;
+  }
+}
+
+class RequestInfo implements RequestInfoShape {
+  query: Record<string, string> = {};
+  headers: Record<string, string> = {};
+  body: Record<string, unknown> = {};
+  auth: RecordModel | null = null;
+  method = "";
+  context = RequestInfoContextDefault;
+
+  constructor(data: Partial<RequestInfoShape> = {}) {
+    Object.assign(this, data);
+  }
+}
+
+type MailerAddress = {
+  Name?: string;
+  Address: string;
+};
+
+function normalizeMailerAddress(raw: unknown): MailerAddress {
+  const normalized = {} as MailerAddress;
+  if (raw && typeof raw === "object") {
+    const source = raw as Record<string, unknown>;
+    const name = source.Name ?? source.name ?? "";
+    const address = source.Address ?? source.address ?? "";
+    if (name) {
+      normalized.Name = toPrimitiveString(name);
+    }
+    normalized.Address = toPrimitiveString(address ?? "");
+  } else {
+    normalized.Address = "";
+  }
+  Object.defineProperty(normalized, "name", {
+    enumerable: false,
+    configurable: true,
+    get() {
+      return normalized.Name ?? "";
+    },
+    set(value) {
+      normalized.Name = toPrimitiveString(value ?? "");
+    },
+  });
+  Object.defineProperty(normalized, "address", {
+    enumerable: false,
+    configurable: true,
+    get() {
+      return normalized.Address;
+    },
+    set(value) {
+      normalized.Address = toPrimitiveString(value ?? "");
+    },
+  });
+  return normalized;
+}
+
+function normalizeMailerAddressList(raw: unknown): MailerAddress[] {
+  if (!raw) {
+    return [];
+  }
+  if (Array.isArray(raw)) {
+    return raw.map(normalizeMailerAddress);
+  }
+  return [normalizeMailerAddress(raw)];
+}
+
+function assignStructValues(target: Record<string, unknown>, values: Record<string, unknown>): void {
+  for (const [key, value] of Object.entries(values)) {
+    if (key in target) {
+      target[key] = value;
+      continue;
+    }
+    const candidate = `${key.slice(0, 1).toUpperCase()}${key.slice(1)}`;
+    if (candidate in target) {
+      (target as Record<string, unknown>)[candidate] = value;
+      continue;
+    }
+    target[key] = value;
+  }
+}
+
+function wrapFieldCtor<T extends new (...args: any[]) => any>(Ctor: T): T {
+  return class extends Ctor {
+    constructor(...args: any[]) {
+      super(...args);
+      const values = (args[0] ?? {}) as Record<string, unknown>;
+      assignStructValues(this as Record<string, unknown>, values);
+    }
+  } as T;
+}
+
+export function baseBinds(target: BindTarget): void {
+  target.readerToString = (reader: unknown, maxBytes = DefaultMaxBodySize): string => {
+    return toStringValue(reader, maxBytes);
+  };
+  target.toBytes = (raw: unknown, maxBytes = DefaultMaxBodySize): number[] => toBytes(raw, maxBytes);
+  target["toString"] = (raw: unknown, maxBytes = DefaultMaxBodySize): string => toStringValue(raw, maxBytes);
+  target.sleep = (milliseconds: number): void => sleep(milliseconds);
+  target.arrayOf = (model: unknown): unknown[] => {
+    const list: unknown[] = [];
+    if (model && typeof model === "object") {
+      const shape = (model as Record<string, unknown>)[DynamicModelShapeKey];
+      if (shape && typeof shape === "object") {
+        Object.defineProperty(list, DynamicModelShapeKey, { value: shape, enumerable: false });
+        Object.defineProperty(list, DynamicModelFactoryKey, {
+          value: () => createDynamicModelWithShape(shape as Record<string, string>),
+          enumerable: false,
+        });
+      }
+    }
+    return list;
+  };
+  target.unmarshal = (data: unknown, dst: Record<string, unknown>): void => unmarshal(data, dst);
+  target.Context = Context;
+  target.DynamicModel = class DynamicModel {
+    constructor(shape: DynamicShape) {
+      if (!shape || typeof shape !== "object" || Object.keys(shape).length === 0) {
+        throw new Error("[DynamicModel] missing shape data");
+      }
+      const model = createDynamicModel(shape);
+      Object.assign(this, model);
+      Object.defineProperty(this, DynamicModelShapeKey, {
+        value: (model as Record<string, unknown>)[DynamicModelShapeKey],
+        enumerable: false,
+      });
+    }
+  };
+  target.nullString = (): NullPlaceholder => new NullPlaceholder("string");
+  target.nullFloat = (): NullPlaceholder => new NullPlaceholder("number");
+  target.nullInt = (): NullPlaceholder => new NullPlaceholder("number");
+  target.nullBool = (): NullPlaceholder => new NullPlaceholder("bool");
+  target.nullArray = (): NullPlaceholder => new NullPlaceholder("array");
+  target.nullObject = (): NullPlaceholder => new NullPlaceholder("object");
+  target.Record = class RecordWrapper extends RecordModel {
+    constructor(collection?: Collection, data?: Record<string, unknown>) {
+      if (collection instanceof Collection) {
+        super(collection, data ?? {}, true);
+      } else {
+        super(new Collection(), {}, true);
+      }
+    }
+  };
+  target.Collection = class CollectionWrapper extends Collection {
+    constructor(values: Record<string, unknown> = {}) {
+      super(values);
+      if (Array.isArray(values.fields)) {
+        this.Fields = NewFieldsList();
+        this.Fields.AddMarshaledJSON(JSON.stringify(values.fields));
+      }
+    }
+  };
+  target.FieldsList = class FieldsListWrapper extends FieldsList {
+    constructor(values: unknown[] = []) {
+      super();
+      if (Array.isArray(values) && values.length > 0) {
+        this.AddMarshaledJSON(JSON.stringify(values));
+      }
+    }
+  };
+  target.Field = class FieldWrapper {
+    constructor(values: Record<string, unknown> = {}) {
+      const raw = JSON.stringify([values]);
+      const list = NewFieldsList();
+      list.unmarshalJSON(raw);
+      if (list.length === 0) {
+        throw new Error("invalid field data");
+      }
+      return list[0] as unknown as FieldWrapper;
+    }
+  };
+  target.NumberField = wrapFieldCtor(NumberField);
+  target.BoolField = wrapFieldCtor(BoolField);
+  target.TextField = wrapFieldCtor(TextField);
+  target.URLField = wrapFieldCtor(URLField);
+  target.EmailField = wrapFieldCtor(EmailField);
+  target.EditorField = wrapFieldCtor(EditorField);
+  target.PasswordField = wrapFieldCtor(PasswordField);
+  target.DateField = wrapFieldCtor(DateField);
+  target.AutodateField = wrapFieldCtor(AutodateField);
+  target.JSONField = wrapFieldCtor(JSONField);
+  target.RelationField = wrapFieldCtor(RelationField);
+  target.SelectField = wrapFieldCtor(SelectField);
+  target.FileField = wrapFieldCtor(FileField);
+  target.GeoPointField = wrapFieldCtor(GeoPointField);
+  target.MailerMessage = class MailerMessage {
+    From: MailerAddress = normalizeMailerAddress(null);
+    To: MailerAddress[] = [];
+    Bcc: MailerAddress[] = [];
+    Cc: MailerAddress[] = [];
+    Subject = "";
+    HTML = "";
+    Text = "";
+    Headers: Record<string, string> | null = null;
+    Attachments: Record<string, unknown> | null = null;
+    InlineAttachments: Record<string, unknown> | null = null;
+
+    constructor(values: Record<string, unknown> = {}) {
+      const source = values ?? {};
+
+      if ("From" in source || "from" in source) {
+        this.From = normalizeMailerAddress(source.From ?? source.from);
+      }
+      if ("To" in source || "to" in source) {
+        this.To = normalizeMailerAddressList(source.To ?? source.to);
+      }
+      if ("Bcc" in source || "bcc" in source) {
+        this.Bcc = normalizeMailerAddressList(source.Bcc ?? source.bcc);
+      }
+      if ("Cc" in source || "cc" in source) {
+        this.Cc = normalizeMailerAddressList(source.Cc ?? source.cc);
+      }
+      if ("Subject" in source || "subject" in source) {
+        this.Subject = toPrimitiveString(source.Subject ?? source.subject ?? "");
+      }
+      if ("HTML" in source || "html" in source) {
+        this.HTML = toPrimitiveString(source.HTML ?? source.html ?? "");
+      }
+      if ("Text" in source || "text" in source) {
+        this.Text = toPrimitiveString(source.Text ?? source.text ?? "");
+      }
+      if ("Headers" in source || "headers" in source) {
+        this.Headers = (source.Headers ?? source.headers ?? null) as Record<string, string> | null;
+      }
+      if ("Attachments" in source || "attachments" in source) {
+        this.Attachments = (source.Attachments ?? source.attachments ?? null) as Record<string, unknown> | null;
+      }
+      if ("InlineAttachments" in source || "inlineAttachments" in source) {
+        this.InlineAttachments = (source.InlineAttachments ?? source.inlineAttachments ?? null) as Record<
+          string,
+          unknown
+        > | null;
+      }
+    }
+
+    get from(): MailerAddress {
+      return this.From;
+    }
+
+    set from(value: MailerAddress) {
+      this.From = normalizeMailerAddress(value);
+    }
+
+    get to(): MailerAddress[] {
+      return this.To;
+    }
+
+    set to(value: MailerAddress[]) {
+      this.To = normalizeMailerAddressList(value);
+    }
+
+    get bcc(): MailerAddress[] {
+      return this.Bcc;
+    }
+
+    set bcc(value: MailerAddress[]) {
+      this.Bcc = normalizeMailerAddressList(value);
+    }
+
+    get cc(): MailerAddress[] {
+      return this.Cc;
+    }
+
+    set cc(value: MailerAddress[]) {
+      this.Cc = normalizeMailerAddressList(value);
+    }
+
+    get subject(): string {
+      return this.Subject;
+    }
+
+    set subject(value: string) {
+      this.Subject = toPrimitiveString(value ?? "");
+    }
+
+    get html(): string {
+      return this.HTML;
+    }
+
+    set html(value: string) {
+      this.HTML = toPrimitiveString(value ?? "");
+    }
+
+    get text(): string {
+      return this.Text;
+    }
+
+    set text(value: string) {
+      this.Text = toPrimitiveString(value ?? "");
+    }
+
+    get headers(): Record<string, string> | null {
+      return this.Headers;
+    }
+
+    set headers(value: Record<string, string> | null) {
+      this.Headers = value ?? null;
+    }
+
+    get attachments(): Record<string, unknown> | null {
+      return this.Attachments;
+    }
+
+    set attachments(value: Record<string, unknown> | null) {
+      this.Attachments = value ?? null;
+    }
+
+    get inlineAttachments(): Record<string, unknown> | null {
+      return this.InlineAttachments;
+    }
+
+    set inlineAttachments(value: Record<string, unknown> | null) {
+      this.InlineAttachments = value ?? null;
+    }
+
+    toJSON(): Record<string, unknown> {
+      return {
+        from: this.From,
+        to: this.To,
+        bcc: this.Bcc,
+        cc: this.Cc,
+        subject: this.Subject,
+        html: this.HTML,
+        text: this.Text,
+        headers: this.Headers,
+        attachments: this.Attachments,
+        inlineAttachments: this.InlineAttachments,
+      };
+    }
+  };
+  target.Command = class Command {
+    use = "";
+    run?: (cmd: unknown, args: unknown[]) => void;
+
+    constructor(values: Record<string, unknown> = {}) {
+      Object.assign(this, values);
+    }
+  };
+  target.RequestInfo = RequestInfo;
+  target.Middleware = Middleware;
+  target.Timezone = Timezone;
+  target.DateTime = class DateTimeWrapper extends DateTime {
+    constructor(raw?: string, timezoneName?: string) {
+      if (!raw) {
+        super(NowDateTime().time());
+        return;
+      }
+      if (timezoneName) {
+        const tz = isValidTimeZone(timezoneName) ? timezoneName : "UTC";
+        super(parseZonedDate(raw, tz));
+        return;
+      }
+      super(new Date(raw.replace(" ", "T")));
+    }
+  };
+  target.ValidationError = class ValidationErrorWrapper extends ValidationError {
+    constructor(code = "", message = "") {
+      super(code, message);
+    }
+  };
+  target.Cookie = Cookie;
+  target.SubscriptionMessage = class SubscriptionMessageWrapper {
+    name = "";
+    data: Uint8Array<ArrayBufferLike> = new Uint8Array();
+
+    constructor(values: { name?: string; data?: string | Uint8Array } = {}) {
+      this.name = values.name ?? "";
+      const raw = values.data ?? new Uint8Array();
+      this.data = typeof raw === "string" ? new TextEncoder().encode(raw) : (raw as Uint8Array);
+    }
+  };
+}
+
+function createDynamicModelWithShape(shape: Record<string, string>): Record<string, unknown> {
+  const model: Record<string, unknown> = {};
+  const keys = Object.keys(shape).sort();
+  for (const key of keys) {
+    const kind = shape[key];
+    if (kind === "array") {
+      model[key] = new JSONArray();
+    } else if (kind === "object") {
+      model[key] = new JSONMap();
+    } else {
+      model[key] = null;
+    }
+  }
+  Object.defineProperty(model, DynamicModelShapeKey, {
+    value: shape,
+    enumerable: false,
+  });
+  return model;
+}
+
+export function dbxBinds(target: BindTarget): void {
+  target.$dbx = {
+    exp: (sql: string, params: Record<string, unknown> = {}) => NewExp(sql, params),
+    hashExp: (data: Record<string, unknown>) => HashExp(data),
+    not: Not,
+    and: And,
+    or: Or,
+    in: In,
+    notIn: NotIn,
+    like: Like,
+    orLike: OrLike,
+    notLike: NotLike,
+    orNotLike: OrNotLike,
+    exists: Exists,
+    notExists: NotExists,
+    between: Between,
+    notBetween: NotBetween,
+  };
+}
+
+export function mailsBinds(target: BindTarget): void {
+  target.$mails = {
+    sendRecordPasswordReset: SendRecordPasswordReset,
+    sendRecordVerification: SendRecordVerification,
+    sendRecordChangeEmail: SendRecordChangeEmail,
+    sendRecordOTP: SendRecordOTP,
+    sendRecordAuthAlert: SendRecordAuthAlert,
+  };
+}
+
+export function securityBinds(target: BindTarget): void {
+  target.$security = {
+    md5: MD5,
+    sha256: SHA256,
+    sha512: SHA512,
+    hs256: HS256,
+    hs512: HS512,
+    equal: Equal,
+    randomString,
+    randomStringByRegex,
+    randomStringWithAlphabet,
+    pseudorandomString,
+    pseudorandomStringWithAlphabet,
+    parseUnverifiedJWT,
+    parseJWT,
+    createJWT: (payload: Record<string, unknown>, signingKey: string, secDuration: number) =>
+      newJWT(payload, signingKey, secDuration),
+    encrypt,
+    decrypt: (cipherText: string, key: string) => new TextDecoder().decode(decrypt(cipherText, key)),
+  };
+}
+
+type SyncFetchPayload = {
+  status: number;
+  headers: Array<[string, string]>;
+  setCookie: string | null;
+  bodyBase64: string;
+};
+
+type SyncFetchResponse = {
+  status: number;
+  headers: Array<[string, string]>;
+  setCookie: string | null;
+  body: Uint8Array;
+};
+
+const syncFetchScript = String.raw`
+const { request: httpRequest } = require("node:http");
+const { request: httpsRequest } = require("node:https");
+
+const rawUrl = process.env.PB_SYNC_URL ?? "";
+const method = process.env.PB_SYNC_METHOD ?? "GET";
+const headers = JSON.parse(process.env.PB_SYNC_HEADERS ?? "{}");
+const timeout = Math.max(1, Number(process.env.PB_SYNC_TIMEOUT ?? "120"));
+const hasBody = process.env.PB_SYNC_HAS_BODY === "1";
+
+if (!rawUrl) {
+  console.error("missing url");
+  process.exit(1);
+}
+
+(async () => {
+  try {
+    let body;
+    if (hasBody) {
+      const input = await new Response(Bun.stdin).arrayBuffer();
+      body = new Uint8Array(input);
+    }
+
+    const lowerHeaders = {};
+    for (const [key, value] of Object.entries(headers)) {
+      lowerHeaders[key.toLowerCase()] = value;
+    }
+    if (body && !("content-length" in lowerHeaders)) {
+      headers["content-length"] = String(body.length);
+    }
+
+    const url = new URL(rawUrl);
+    const requestFn = url.protocol === "https:" ? httpsRequest : httpRequest;
+
+    const req = requestFn(
+      url,
+      { method, headers },
+      (res) => {
+        const chunks = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => {
+          const resBytes = Buffer.concat(chunks);
+          const headerEntries = [];
+          for (const [key, value] of Object.entries(res.headers)) {
+            if (Array.isArray(value)) {
+              for (const item of value) {
+                headerEntries.push([key, String(item)]);
+              }
+              continue;
+            }
+            if (value != null) {
+              headerEntries.push([key, String(value)]);
+            }
+          }
+          const setCookieHeader = res.headers["set-cookie"];
+          const setCookie = Array.isArray(setCookieHeader)
+            ? setCookieHeader.join("\n")
+            : setCookieHeader ?? null;
+          const payload = {
+            status: res.statusCode ?? 0,
+            headers: headerEntries,
+            setCookie,
+            bodyBase64: Buffer.from(resBytes).toString("base64"),
+          };
+          process.stdout.write(JSON.stringify(payload));
+        });
+      },
+    );
+
+    req.setTimeout(timeout * 1000, () => {
+      req.destroy(new Error("timeout"));
+    });
+
+    req.on("error", (err) => {
+      console.error(String(err));
+      process.exit(1);
+    });
+
+    if (body) {
+      req.write(body);
+    }
+    req.end();
+  } catch (err) {
+    console.error(String(err));
+    process.exit(1);
+  }
+})();`;
+
+function runSyncFetch(
+  url: string,
+  options: { method: string; headers: Record<string, string>; body?: Uint8Array | string; timeoutSeconds: number },
+): SyncFetchResponse {
+  const bodyBytes =
+    options.body instanceof Uint8Array
+      ? options.body
+      : options.body != null
+        ? new TextEncoder().encode(toPrimitiveString(options.body))
+        : undefined;
+  const env = {
+    ...process.env,
+    PB_SYNC_URL: url,
+    PB_SYNC_METHOD: options.method,
+    PB_SYNC_HEADERS: JSON.stringify(options.headers ?? {}),
+    PB_SYNC_TIMEOUT: String(options.timeoutSeconds),
+    PB_SYNC_HAS_BODY: bodyBytes ? "1" : "0",
+  };
+  const result = Bun.spawnSync({
+    cmd: [process.execPath, "-e", syncFetchScript],
+    env,
+    stdin: bodyBytes,
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  if (result.exitCode !== 0) {
+    const stderr = new TextDecoder().decode(result.stderr ?? new Uint8Array()).trim();
+    const stdout = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
+    const message = stderr || stdout || "sync fetch failed";
+    throw new Error(message);
+  }
+
+  const output = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
+  if (!output) {
+    throw new Error("sync fetch failed: empty response");
+  }
+  const payload = JSON.parse(output) as SyncFetchPayload;
+  const body = Uint8Array.from(Buffer.from(payload.bodyBase64 ?? "", "base64"));
+  return {
+    status: payload.status,
+    headers: payload.headers ?? [],
+    setCookie: payload.setCookie ?? null,
+    body,
+  };
+}
+
+export function filesystemBinds(target: BindTarget): void {
+  target.$filesystem = {
+    fileFromPath: NewFileFromPath,
+    fileFromBytes: (bytes: unknown, name: string) => {
+      let normalized: Uint8Array | null = null;
+      if (bytes instanceof Uint8Array) {
+        normalized = bytes;
+      } else if (bytes instanceof ArrayBuffer) {
+        normalized = new Uint8Array(bytes);
+      } else if (Array.isArray(bytes)) {
+        normalized = Uint8Array.from(bytes.map((value) => Number(value)));
+      }
+      return NewFileFromBytes(normalized, name);
+    },
+    fileFromMultipart: NewFileFromMultipart,
+    fileFromURL: (url: string, secTimeout = 120) => {
+      const headers = {
+        "user-agent": "Go-http-client/1.1",
+        "accept-encoding": "gzip",
+      };
+      const response = runSyncFetch(url, {
+        method: "GET",
+        headers,
+        timeoutSeconds: secTimeout,
+      });
+      if (response.status < 200 || response.status >= 300) {
+        throw new Error(`failed to download url ${url} (${response.status})`);
+      }
+
+      const rawName = basename(new URL(url).pathname);
+      let originalName = rawName;
+      try {
+        originalName = decodeURIComponent(rawName);
+      } catch {
+        // Keep rawName if decoding fails.
+      }
+      return NewFileFromBytes(response.body, originalName);
+    },
+  };
+}
+
+export function filepathBinds(target: BindTarget): void {
+  target.$filepath = {
+    base: basename,
+    clean: normalize,
+    dir: dirname,
+    ext: extname,
+    fromSlash: (path: string) => path.split("/").join(sep),
+    glob: (_pattern: string) => [],
+    isAbs: isAbsolute,
+    join,
+    match: () => false,
+    rel: relative,
+    split: (path: string) => [dirname(path), basename(path)] as [string, string],
+    splitList: (path: string) => path.split(sep),
+    toSlash: (path: string) => path.split(sep).join("/"),
+    walk: (_root: string) => [],
+    walkDir: (_root: string) => [],
+  };
+}
+
+export function osBinds(target: BindTarget): void {
+  target.$os = {
+    args: process.argv,
+    exec: () => {
+      throw new Error("exec is not supported in Bun hooks");
+    },
+    cmd: () => {
+      throw new Error("cmd is not supported in Bun hooks");
+    },
+    exit: (code: number) => process.exit(code),
+    getenv: (key: string) => process.env[key],
+    dirFS: (path: string) => ({ root: path }),
+    stat: (path: string) => statSync(path),
+    readFile: (path: string) => readFileSync(path),
+    writeFile: (path: string, data: string | Uint8Array) => writeFileSync(path, data),
+    readDir: (path: string) => readdirSync(path),
+    tempDir: () => process.env.TMPDIR ?? "/tmp",
+    truncate: (path: string, size: number) => truncateSync(path, size),
+    getwd: () => process.cwd(),
+    mkdir: (path: string) => mkdirSync(path),
+    mkdirAll: (path: string) => mkdirSync(path, { recursive: true }),
+    rename: (oldPath: string, newPath: string) => renameSync(oldPath, newPath),
+    remove: (path: string) => rmSync(path),
+    removeAll: (path: string) => rmSync(path, { recursive: true, force: true }),
+    openRoot: () => {
+      throw new Error("openRoot is not supported in Bun hooks");
+    },
+    openInRoot: () => {
+      throw new Error("openInRoot is not supported in Bun hooks");
+    },
+  };
+}
+
+export function formsBinds(target: BindTarget): void {
+  target.AppleClientSecretCreateForm = AppleClientSecretCreate;
+  target.RecordUpsertForm = RecordUpsert;
+  target.TestEmailSendForm = TestEmailSend;
+  target.TestS3FilesystemForm = TestS3Filesystem;
+}
+
+export function apisBinds(target: BindTarget): void {
+  target.$apis = {
+    static: (dir: string, indexFallback: boolean) => {
+      return async (event: { request: Request }) => {
+        const url = new URL(event.request.url);
+        const filePath = join(dir, decodeURIComponent(url.pathname));
+        const file = Bun.file(filePath);
+        if (!(await file.exists())) {
+          if (indexFallback) {
+            const index = Bun.file(join(dir, "index.html"));
+            if (await index.exists()) {
+              return new Response(index);
+            }
+          }
+          return new Response("Not Found", { status: 404 });
+        }
+        return new Response(file);
+      };
+    },
+    requireGuestOnly: RequireGuestOnly,
+    requireAuth: RequireAuth,
+    requireSuperuserAuth: RequireSuperuserAuth,
+    requireSuperuserOrOwnerAuth: RequireSuperuserOrOwnerAuth,
+    skipSuccessActivityLog: SkipSuccessActivityLog,
+    gzip: () => ({ Func: (event: { Next: () => unknown }) => event.Next() }),
+    bodyLimit: BodyLimit,
+    recordAuthResponse: RecordAuthResponse,
+    enrichRecord: EnrichRecord,
+    enrichRecords: EnrichRecords,
+  };
+
+  target.ApiError = ApiError;
+  target.NotFoundError = NewNotFoundError;
+  target.BadRequestError = NewBadRequestError;
+  target.ForbiddenError = NewForbiddenError;
+  target.UnauthorizedError = NewUnauthorizedError;
+  target.TooManyRequestsError = NewTooManyRequestsError;
+  target.InternalServerError = NewInternalServerError;
+}
+
+export function httpClientBinds(target: BindTarget): void {
+  target.FormData = HooksFormData;
+
+  target.$http = {
+    send: (params: Record<string, unknown>) => {
+      const method = toPrimitiveString(params.method ?? "GET").toUpperCase();
+      const url = toPrimitiveString(params.url ?? "");
+      const headers: Record<string, string> = {};
+      const providedHeaders = params.headers as Record<string, string> | undefined;
+      if (providedHeaders) {
+        for (const [key, value] of Object.entries(providedHeaders)) {
+          headers[key.toLowerCase()] = toPrimitiveString(value);
+        }
+      }
+      if (!("user-agent" in headers)) {
+        headers["user-agent"] = "Go-http-client/1.1";
+      }
+      if (!("accept-encoding" in headers)) {
+        headers["accept-encoding"] = "gzip";
+      }
+
+      let body: Uint8Array | string | undefined;
+      let contentTypeOverride: string | null = headers["content-type"] ?? null;
+
+      if (params.body instanceof HooksFormData) {
+        const { body: multipartBody, contentType } = params.body.toMultipart();
+        body = multipartBody;
+        contentTypeOverride = contentType;
+      } else if (params.body != null) {
+        body = toPrimitiveString(params.body);
+      } else if (params.data && typeof params.data === "object") {
+        body = JSON.stringify(params.data);
+        if (!contentTypeOverride) {
+          contentTypeOverride = "application/json";
+        }
+      }
+
+      if (contentTypeOverride) {
+        headers["content-type"] = contentTypeOverride;
+      }
+
+      const timeoutSeconds = Number(params.timeout ?? 120);
+      const response = runSyncFetch(url, { method, headers, body, timeoutSeconds });
+
+      const raw = new TextDecoder().decode(response.body);
+      let json: unknown = null;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        // ignore
+      }
+
+      const headerMap: Record<string, string[]> = {};
+      for (const [key, value] of response.headers) {
+        const canonical = canonicalHeaderName(key);
+        headerMap[canonical] = headerMap[canonical] ?? [];
+        headerMap[canonical].push(value);
+      }
+      if (response.setCookie) {
+        headerMap["Set-Cookie"] = headerMap["Set-Cookie"] ?? [];
+        headerMap["Set-Cookie"].push(response.setCookie);
+      }
+
+      const cookies = parseCookies(headerMap["Set-Cookie"] ?? []);
+
+      return {
+        json,
+        headers: headerMap,
+        cookies,
+        raw,
+        body: response.body,
+        statusCode: response.status,
+      };
+    },
+  };
+}
+
+function canonicalHeaderName(name: string): string {
+  return name
+    .split("-")
+    .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : part))
+    .join("-");
+}
+
+function parseCookies(values: string[]): Record<string, { value: string }> {
+  const result: Record<string, { value: string }> = {};
+  for (const header of values) {
+    const [pair] = header.split(";");
+    if (!pair) {
+      continue;
+    }
+    const [name, value] = pair.split("=");
+    if (!name) {
+      continue;
+    }
+    result[name] = { value: value ?? "" };
+  }
+  return result;
+}
+
+export function hooksBinds(app: App, target: BindTarget): void {
+  defineAppAccessor(target, app);
+
+  const methodNames = new Set<string>();
+  let proto: object | null = Object.getPrototypeOf(app);
+  while (proto && proto !== Object.prototype) {
+    for (const name of Object.getOwnPropertyNames(proto)) {
+      methodNames.add(name);
+    }
+    proto = Object.getPrototypeOf(proto);
+  }
+
+  for (const methodName of methodNames) {
+    if (!methodName.startsWith("On")) {
+      continue;
+    }
+    if (methodName === "OnServe") {
+      continue;
+    }
+    const hookMethod = (app as unknown as Record<string, unknown>)[methodName];
+    if (typeof hookMethod !== "function") {
+      continue;
+    }
+
+    const jsName = convertGoToJSName(methodName);
+
+    target[jsName] = (callback: (event: unknown) => unknown, ...tags: string[]) => {
+      const hook = (hookMethod as (args?: string[]) => { BindFunc: (fn: (event: unknown) => unknown) => void }).call(app, tags);
+
+      hook.BindFunc((event: unknown) => {
+        const scopedApp = (event as { App?: App; app?: App }).App ?? (event as { app?: App }).app ?? app;
+        return runWithApp(scopedApp, () => {
+          const wrapped = wrapEvent(event as object);
+          try {
+            const result = callback(wrapped);
+            if (result instanceof Promise) {
+              throw new Error("Async hook handlers are not supported in JSVM bindings.");
+            }
+            return result;
+          } catch (err) {
+            return err;
+          }
+        });
+      });
+    };
+  }
+}
+
+export function cronBinds(app: App, target: BindTarget): void {
+  const cronAdd = (jobId: string, cronExpr: string, handler: () => void): void => {
+    const err = app.Cron().Add(jobId, cronExpr, () => {
+      try {
+        handler();
+      } catch (error) {
+        app.Logger().Error("[cronAdd] failed to execute cron job", "jobId", jobId, "error", String(error));
+      }
+    });
+    if (err) {
+      throw new Error(`[cronAdd] failed to register cron job ${jobId}: ${err.message}`);
+    }
+  };
+
+  target.cronAdd = cronAdd;
+  target.cronRemove = (jobId: string): void => {
+    app.Cron().Remove(jobId);
+  };
+}
+
+export function routerBinds(app: App, target: BindTarget): void {
+  target.routerAdd = (method: string, path: string, handler: (event: unknown) => unknown, ...middlewares: unknown[]) => {
+    app.OnServe().BindFunc((e: ServeEvent) => {
+      const wrappedHandler = (event: unknown) =>
+        runWithApp(app, () => {
+          const wrapped = wrapEvent(event as object);
+          try {
+            return handler(wrapped);
+          } catch (err) {
+            return err;
+          }
+        });
+
+      const wrappedMiddlewares = middlewares.map((m) => wrapMiddleware(app, m));
+
+      e.Router.Route(method.toUpperCase(), path, wrappedHandler as unknown as (event: unknown) => unknown).Bind(
+        ...wrappedMiddlewares,
+      );
+
+      return e.Next();
+    });
+  };
+
+  target.routerUse = (...middlewares: unknown[]) => {
+    app.OnServe().BindFunc((e: ServeEvent) => {
+      const wrappedMiddlewares = middlewares.map((m) => wrapMiddleware(app, m));
+      e.Router.Bind(...wrappedMiddlewares);
+      return e.Next();
+    });
+  };
+}
+
+function wrapMiddleware(app: App, middleware: unknown): { Func: (event: unknown) => unknown; Id?: string; Priority?: number } {
+  if (middleware instanceof Middleware) {
+    return {
+      Func: (event: unknown) =>
+        runWithApp(app, () => {
+          const wrapped = wrapEvent(event as object);
+          return middleware.Func(wrapped);
+        }),
+      Id: middleware.Id,
+      Priority: middleware.Priority,
+    };
+  }
+  if (typeof middleware === "function") {
+    return {
+      Func: (event: unknown) =>
+        runWithApp(app, () => {
+          const wrapped = wrapEvent(event as object);
+          return middleware(wrapped);
+        }),
+    };
+  }
+  throw new Error("unsupported middleware type");
+}

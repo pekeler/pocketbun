@@ -122,6 +122,11 @@ export class DateTime {
     return iso.replace("T", " ");
   }
 
+  // string is a lowercase alias for String to match JS hook bindings.
+  string(): string {
+    return this.toString();
+  }
+
   // String serializes the current DateTime instance into a formatted
   // UTC date string.
   //

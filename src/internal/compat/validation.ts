@@ -10,6 +10,14 @@ export class ValidationError extends Error {
     this.params = null;
   }
 
+  Code(): string {
+    return this.code;
+  }
+
+  Message(): string {
+    return this.message;
+  }
+
   setParams(params: Record<string, unknown>): this {
     this.params = params;
     return this;

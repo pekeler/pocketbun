@@ -45,6 +45,8 @@ import { TableInfo, TableIndexes } from "./db_table.ts";
 import {
   BackupEvent,
   BootstrapEvent,
+  ServeEvent,
+  TerminateEvent,
   SettingsListRequestEvent,
   SettingsReloadEvent,
   SettingsUpdateRequestEvent,
@@ -174,6 +176,8 @@ export class BaseApp implements App {
   #hooksEnabled = false;
   // app event hooks
   #onBootstrap!: Hook<BootstrapEvent>;
+  #onServe!: Hook<ServeEvent>;
+  #onTerminate!: Hook<TerminateEvent>;
   // collection API event hooks
   #onCollectionsListRequest!: Hook<CollectionsListRequestEvent>;
   #onCollectionViewRequest!: Hook<CollectionRequestEvent>;
@@ -303,6 +307,8 @@ export class BaseApp implements App {
   private resetHooks(): void {
     this.#hooksEnabled = false;
     this.#onBootstrap = new Hook();
+    this.#onServe = new Hook();
+    this.#onTerminate = new Hook();
     this.#onCollectionsListRequest = new Hook();
     this.#onCollectionViewRequest = new Hook();
     this.#onCollectionCreateRequest = new Hook();
@@ -447,6 +453,14 @@ export class BaseApp implements App {
 
   OnBootstrap(): Hook<BootstrapEvent> {
     return this.#onBootstrap;
+  }
+
+  OnServe(): Hook<ServeEvent> {
+    return this.#onServe;
+  }
+
+  OnTerminate(): Hook<TerminateEvent> {
+    return this.#onTerminate;
   }
 
   OnCollectionsListRequest(): Hook<CollectionsListRequestEvent> {
@@ -786,12 +800,9 @@ export class BaseApp implements App {
   }
 
   bootstrap(): void {
-    if (this.#bootstrapped) {
-      return;
-    }
-
     const event = new BootstrapEvent(this);
     const result = this.OnBootstrap().Trigger(event, () => {
+      this.resetBootstrapState();
       if (!existsSync(this.#dataDir)) {
         mkdirSync(this.#dataDir, { recursive: true });
       }

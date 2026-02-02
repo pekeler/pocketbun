@@ -3,6 +3,7 @@
 import { resolve, sep } from "node:path";
 import type { App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
+import { ServeEvent } from "../core/events.ts";
 import { Router } from "../tools/router/router.ts";
 import { bindBackupApi } from "./backup.ts";
 import { bindBatchApi } from "./batch.ts";
@@ -44,6 +45,19 @@ export function buildServeHandler(app: App): (req: Request, server?: unknown) =>
   bindRecordAuthApi(app, apiGroup);
   bindRecordCrudApi(app, apiGroup);
   bindAdminUI(router);
+
+  const serveEvent = new ServeEvent(app, router);
+  let initialized = false;
+  const triggerResult = app.OnServe().Trigger(serveEvent, () => {
+    initialized = true;
+    return null;
+  });
+  if (triggerResult instanceof Promise) {
+    throw new Error("Async OnServe hooks are not supported in buildServeHandler.");
+  }
+  if (!initialized) {
+    throw new Error("The OnServe listener was not initialized. Did you forget to call the ServeEvent.Next() method?");
+  }
 
   return router.buildHandler(({ request, params, remoteAddress, pattern }) => {
     return new RequestEvent({ app, request, params, remoteAddress, pattern });

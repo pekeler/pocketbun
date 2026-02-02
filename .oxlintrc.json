@@ -4,7 +4,7 @@
   "categories": {
     "correctness": "error"
   },
-  "ignorePatterns": [],
+  "ignorePatterns": ["src/plugins/jsvm/internal/types/generated/types.d.ts"],
   "rules": {
     "typescript/no-deprecated": "warn",
     "no-unused-vars": [

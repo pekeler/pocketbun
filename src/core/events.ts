@@ -1,6 +1,7 @@
 // Ported from pocketbase/core/events.go (partial: app + model/record/collection + collection request + realtime + file events).
 
 import type { Mailer, Message } from "../tools/mailer/mailer.ts";
+import type { Router } from "../tools/router/router.ts";
 import type { SearchResult } from "../tools/search/types.ts";
 import type { Client as RealtimeClient } from "../tools/subscriptions/client.ts";
 import type { Message as RealtimeMessage } from "../tools/subscriptions/message.ts";
@@ -85,6 +86,17 @@ export class BootstrapEvent extends Event {
   }
 }
 
+export class TerminateEvent extends Event {
+  App: App;
+  IsRestart: boolean;
+
+  constructor(app: App, isRestart = false) {
+    super();
+    this.App = app;
+    this.IsRestart = isRestart;
+  }
+}
+
 export class BackupEvent extends Event {
   App: App;
   Context: unknown;
@@ -97,6 +109,23 @@ export class BackupEvent extends Event {
     this.Context = ctx;
     this.Name = name;
     this.Exclude = exclude;
+  }
+}
+
+export type ServeInstallerFunc = (app: App, systemSuperuser: RecordModel, baseURL: string) => Error | null;
+
+export class ServeEvent extends Event {
+  App: App;
+  Router: Router<RequestEvent>;
+  Server: ReturnType<typeof Bun.serve> | null = null;
+  CertManager: unknown = null;
+  Listener: unknown = null;
+  InstallerFunc: ServeInstallerFunc | null = null;
+
+  constructor(app: App, router: Router<RequestEvent>) {
+    super();
+    this.App = app;
+    this.Router = router;
   }
 }
 

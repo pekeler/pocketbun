@@ -3,5 +3,6 @@
 export { DefaultDateLayout, DateTime, nowDateTime, NowDateTime, parseDateTime, ParseDateTime } from "./datetime.ts";
 export { JSONRaw } from "./json_raw.ts";
 export { JSONArray } from "./json_array.ts";
+export { JSONMap } from "./json_map.ts";
 export { GeoPoint } from "./geo_point.ts";
 export { pointer, Pointer } from "./types.ts";

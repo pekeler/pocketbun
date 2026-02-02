@@ -36,6 +36,7 @@ import type {
   RealtimeConnectRequestEvent,
   RealtimeMessageEvent,
   RealtimeSubscribeRequestEvent,
+  ServeEvent,
   RecordAuthRefreshRequestEvent,
   RecordAuthRequestEvent,
   RecordAuthWithOAuth2RequestEvent,
@@ -56,6 +57,7 @@ import type {
   SettingsListRequestEvent,
   SettingsReloadEvent,
   SettingsUpdateRequestEvent,
+  TerminateEvent,
 } from "./events.ts";
 import type { ExternalAuth } from "./external_auth_model.ts";
 import type { Field } from "./field.ts";
@@ -244,6 +246,8 @@ export interface App {
     ...params: SQLQueryBindings[]
   ): RecordModel | null;
   OnBootstrap(): Hook<BootstrapEvent>;
+  OnServe(): Hook<ServeEvent>;
+  OnTerminate(): Hook<TerminateEvent>;
   OnCollectionsListRequest(): Hook<CollectionsListRequestEvent>;
   OnCollectionViewRequest(): Hook<CollectionRequestEvent>;
   OnCollectionCreateRequest(): Hook<CollectionRequestEvent>;
