@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/view_test.go
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../../tests/test_app.ts";
+import { newTestApp } from "../tests/app.ts";
 import { Collection, CollectionNameSuperusers, CollectionTypeView } from "./collection.ts";
 import { FieldTypeAutodate } from "./field_autodate.ts";
 import { FieldTypeBool } from "./field_bool.ts";

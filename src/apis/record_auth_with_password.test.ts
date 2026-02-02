@@ -1,10 +1,10 @@
 // Ported from pocketbase/apis/record_auth_with_password_test.go.
 
 import { describe, it } from "bun:test";
-import type { TestApp } from "../../tests/test_app.ts";
-import { runApiScenario, type ApiScenario } from "../../tests/api.ts";
+import type { TestApp } from "../tests/app.ts";
 import { RequestInfoContextPasswordAuth } from "../core/event_request.ts";
 import { NewMFA } from "../core/mfa_model.ts";
+import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 import { findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
 
 const regularUserToken =

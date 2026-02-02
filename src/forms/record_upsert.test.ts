@@ -4,9 +4,9 @@ import { describe, it } from "bun:test";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { App } from "../core/app.ts";
-import { newTestApp } from "../../tests/test_app.ts";
-import { testValidationErrors } from "../../tests/validation_errors.ts";
 import { NewRecord, type Record as RecordModel } from "../core/record.ts";
+import { newTestApp } from "../tests/app.ts";
+import { testValidationErrors } from "../tests/validation_errors.ts";
 import { NewFileFromBytes } from "../tools/filesystem/file.ts";
 import { RecordUpsert } from "./record_upsert.ts";
 

@@ -1,8 +1,8 @@
 // Ported from pocketbase/core/otp_model_test.go.
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../../tests/test_app.ts";
-import { testValidationErrors } from "../../tests/validation_errors.ts";
+import { newTestApp } from "../tests/app.ts";
+import { testValidationErrors } from "../tests/validation_errors.ts";
 import { DateTime, NowDateTime } from "../tools/types/index.ts";
 import { NewBaseCollection } from "./collection.ts";
 import { CollectionNameOTPs, NewOTP, OTP } from "./otp_model.ts";

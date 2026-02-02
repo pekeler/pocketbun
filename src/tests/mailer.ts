@@ -1,6 +1,6 @@
 // Ported from pocketbase/tests/mailer.go
 
-import type { Mailer, Message } from "../src/tools/mailer/mailer.ts";
+import type { Mailer, Message } from "../tools/mailer/mailer.ts";
 
 export class TestMailer implements Mailer {
   #messages: Message[] = [];

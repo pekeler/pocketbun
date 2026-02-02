@@ -4,10 +4,10 @@ import { cp, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Logger } from "../src/core/app.ts";
-import type { MailerEvent } from "../src/core/events.ts";
-import { BaseApp } from "../src/core/base_app.ts";
-import { TestMailer } from "./test_mailer.ts";
+import type { Logger } from "../core/app.ts";
+import type { MailerEvent } from "../core/events.ts";
+import { BaseApp } from "../core/base_app.ts";
+import { TestMailer } from "./mailer.ts";
 
 export class TestApp extends BaseApp {
   eventCalls: Record<string, number> = {};

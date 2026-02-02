@@ -1,8 +1,8 @@
 // Ported from pocketbase/core/log_query_test.go.
 
 import { describe, expect, it } from "bun:test";
-import { StubLogsData } from "../../tests/dynamic_stubs.ts";
-import { newTestApp } from "../../tests/test_app.ts";
+import { newTestApp } from "../tests/app.ts";
+import { StubLogsData } from "../tests/dynamic_stubs.ts";
 import { NewExp } from "../tools/dbx/expr.ts";
 import { NowDateTime, ParseDateTime } from "../tools/types/index.ts";
 import { Log } from "./log_model.ts";

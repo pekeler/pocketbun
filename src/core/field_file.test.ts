@@ -2,8 +2,8 @@
 
 import { describe, expect, it } from "bun:test";
 import type { App } from "./app.ts";
-import { newTestApp } from "../../tests/test_app.ts";
-import { testValidationErrors } from "../../tests/validation_errors.ts";
+import { newTestApp } from "../tests/app.ts";
+import { testValidationErrors } from "../tests/validation_errors.ts";
 import { NewFileFromBytes } from "../tools/filesystem/file.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { JSONArray } from "../tools/types/json_array.ts";

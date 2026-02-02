@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/event_request_test.go.
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../../tests/test_app.ts";
+import { newTestApp } from "../tests/app.ts";
 import { CollectionNameSuperusers } from "./collection.ts";
 import { RequestEvent, RequestEventKeyInfoContext } from "./event_request.ts";
 import { NewRecord } from "./record.ts";

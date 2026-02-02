@@ -1,8 +1,8 @@
 // Ported from pocketbase/core/field_test.go
 
 import { expect } from "bun:test";
-import { newTestApp } from "../../tests/test_app.ts";
 import { ValidationErrors } from "../internal/compat/validation.ts";
+import { newTestApp } from "../tests/app.ts";
 import { NewBaseCollection } from "./collection.ts";
 import { Fields } from "./field.ts";
 

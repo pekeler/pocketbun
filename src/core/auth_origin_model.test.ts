@@ -1,8 +1,8 @@
 // Ported from pocketbase/core/auth_origin_model_test.go.
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../../tests/test_app.ts";
-import { testValidationErrors } from "../../tests/validation_errors.ts";
+import { newTestApp } from "../tests/app.ts";
+import { testValidationErrors } from "../tests/validation_errors.ts";
 import { NowDateTime } from "../tools/types/index.ts";
 import { CollectionNameAuthOrigins, NewAuthOrigin, AuthOrigin } from "./auth_origin_model.ts";
 import { CollectionNameSuperusers, NewBaseCollection } from "./collection.ts";

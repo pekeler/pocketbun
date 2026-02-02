@@ -1,9 +1,9 @@
 // Ported from pocketbase/apis/record_auth_password_reset_confirm_test.go.
 
 import { describe, it } from "bun:test";
-import type { TestApp } from "../../tests/test_app.ts";
-import { runApiScenario, type ApiScenario } from "../../tests/api.ts";
+import type { TestApp } from "../tests/app.ts";
 import { TokenTypePasswordReset } from "../core/record_tokens.ts";
+import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 
 type Scenario = ApiScenario & { todo?: boolean };
 

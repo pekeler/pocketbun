@@ -3,13 +3,13 @@
 import { describe, it } from "bun:test";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { TestApp } from "../../tests/test_app.ts";
-import { runApiScenario, type ApiScenario } from "../../tests/api.ts";
-import { MockMultipartData } from "../../tests/request.ts";
+import type { TestApp } from "../tests/app.ts";
 import { NewAuthOrigin } from "../core/auth_origin_model.ts";
 import { FileField } from "../core/field_file.ts";
 import { JSONField } from "../core/field_json.ts";
 import { NewRecord } from "../core/record.ts";
+import { runApiScenario, type ApiScenario } from "../tests/api.ts";
+import { MockMultipartData } from "../tests/request.ts";
 import { JSONPayloadKey } from "../tools/router/unmarshal_request_data.ts";
 import { Pointer } from "../tools/types/types.ts";
 import { DefaultMaxBodySize } from "./middlewares_body_limit.ts";

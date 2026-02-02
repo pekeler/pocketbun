@@ -1,8 +1,8 @@
 // Ported from pocketbase/core/otp_query_test.go.
 
 import { describe, expect, it } from "bun:test";
-import { StubOTPRecords } from "../../tests/dynamic_stubs.ts";
-import { newTestApp } from "../../tests/test_app.ts";
+import { newTestApp } from "../tests/app.ts";
+import { StubOTPRecords } from "../tests/dynamic_stubs.ts";
 import { CollectionNameSuperusers } from "./collection.ts";
 
 describe("otp queries", () => {

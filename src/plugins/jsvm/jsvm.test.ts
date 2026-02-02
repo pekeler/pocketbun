@@ -4,8 +4,8 @@ import { describe, expect, it } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { newTestApp } from "../../../tests/test_app.ts";
 import { buildServeHandler } from "../../apis/serve.ts";
+import { newTestApp } from "../../tests/app.ts";
 import { Register } from "./jsvm.ts";
 
 describe("jsvm loader", () => {

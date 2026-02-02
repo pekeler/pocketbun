@@ -3,7 +3,7 @@
 import { describe, expect, it } from "bun:test";
 import type { RequestInfo } from "./event_request.ts";
 import type { RecordQueryFilter } from "./record_query.ts";
-import { newTestApp } from "../../tests/test_app.ts";
+import { newTestApp } from "../tests/app.ts";
 import { findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
 import { HashExp, Like, Not } from "../tools/dbx/expr.ts";
 import { Collection, CollectionNameSuperusers } from "./collection.ts";

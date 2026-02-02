@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "bun:test";
 import type { Record as RecordModel } from "./record.ts";
-import { newTestApp } from "../../tests/test_app.ts";
+import { newTestApp } from "../tests/app.ts";
 import { parseUnverifiedJWT } from "../tools/security/jwt.ts";
 import { Collection, CollectionTypeAuth } from "./collection.ts";
 import {

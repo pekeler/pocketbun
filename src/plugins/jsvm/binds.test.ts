@@ -2,7 +2,6 @@
 
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
-import { newTestApp } from "../../../tests/test_app.ts";
 import { buildServeHandler } from "../../apis/serve.ts";
 import { Collection } from "../../core/collection.ts";
 import { AutodateField } from "../../core/field_autodate.ts";
@@ -22,6 +21,7 @@ import { URLField } from "../../core/field_url.ts";
 import { FieldsList } from "../../core/fields_list.ts";
 import { Record as RecordModel } from "../../core/record.ts";
 import { ValidationError } from "../../internal/compat/validation.ts";
+import { newTestApp } from "../../tests/app.ts";
 import { File } from "../../tools/filesystem/file.ts";
 import { ApiError } from "../../tools/router/api_error.ts";
 import { JSONRaw } from "../../tools/types/index.ts";

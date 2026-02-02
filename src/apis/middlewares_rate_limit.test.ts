@@ -2,8 +2,8 @@
 
 import { afterAll, describe, it } from "bun:test";
 import { setTimeout as delay } from "node:timers/promises";
-import { newTestApp } from "../../tests/test_app.ts";
 import { RequestEvent } from "../core/event_request.ts";
+import { newTestApp } from "../tests/app.ts";
 import { Router } from "../tools/router/router.ts";
 import { loadAuthToken, panicRecover, securityHeaders } from "./middlewares.ts";
 import { rateLimit } from "./middlewares_rate_limit.ts";

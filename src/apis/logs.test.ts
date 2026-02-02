@@ -1,9 +1,9 @@
 // Ported from pocketbase/apis/logs_test.go
 
 import { describe, it } from "bun:test";
-import type { ApiScenario } from "../../tests/api.ts";
-import { runApiScenario } from "../../tests/api.ts";
-import { StubLogsData } from "../../tests/dynamic_stubs.ts";
+import type { ApiScenario } from "../tests/api.ts";
+import { runApiScenario } from "../tests/api.ts";
+import { StubLogsData } from "../tests/dynamic_stubs.ts";
 
 const scenarios: ApiScenario[] = [
   {

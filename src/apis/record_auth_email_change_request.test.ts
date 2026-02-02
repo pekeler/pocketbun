@@ -1,7 +1,7 @@
 // Ported from pocketbase/apis/record_auth_email_change_request_test.go.
 
 import { describe, it } from "bun:test";
-import { runApiScenario, type ApiScenario } from "../../tests/api.ts";
+import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 
 const regularUserToken =
   "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoiX3BiX3VzZXJzX2F1dGhfIiwiZXhwIjoyNTI0NjA0NDYxLCJyZWZyZXNoYWJsZSI6dHJ1ZX0.ZT3F0Z3iM-xbGgSG3LEKiEzHrPHr8t8IuHLZGGNuxLo";

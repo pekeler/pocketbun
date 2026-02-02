@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/event_request_batch_test.go
 
 import { describe, it } from "bun:test";
-import { testValidationErrors } from "../../tests/validation_errors.ts";
+import { testValidationErrors } from "../tests/validation_errors.ts";
 import { InternalRequest } from "./event_request_batch.ts";
 
 describe("InternalRequest", () => {

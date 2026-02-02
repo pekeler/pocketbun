@@ -2,9 +2,9 @@
 
 import { describe, it } from "bun:test";
 import { setTimeout as delay } from "node:timers/promises";
-import type { TestApp } from "../../tests/test_app.ts";
-import { runApiScenario, type ApiScenario } from "../../tests/api.ts";
-import { MockMultipartData } from "../../tests/request.ts";
+import type { TestApp } from "../tests/app.ts";
+import { runApiScenario, type ApiScenario } from "../tests/api.ts";
+import { MockMultipartData } from "../tests/request.ts";
 import { JSONPayloadKey } from "../tools/router/unmarshal_request_data.ts";
 
 const multipart = await MockMultipartData(

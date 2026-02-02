@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/external_auth_query_test.go.
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../../tests/test_app.ts";
+import { newTestApp } from "../tests/app.ts";
 import { HashExp } from "../tools/dbx/expr.ts";
 import { CollectionNameSuperusers } from "./collection.ts";
 

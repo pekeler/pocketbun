@@ -1,8 +1,8 @@
 // Ported from pocketbase/forms/test_email_send_test.go
 
 import { describe, it } from "bun:test";
-import { newTestApp } from "../../tests/test_app.ts";
 import { ValidationErrors } from "../internal/compat/validation.ts";
+import { newTestApp } from "../tests/app.ts";
 import {
   NewTestEmailSend,
   TestTemplateAuthAlert,

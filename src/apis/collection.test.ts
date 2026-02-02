@@ -3,14 +3,14 @@
 import { describe, it } from "bun:test";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { ApiScenario } from "../../tests/api.ts";
-import type { TestApp } from "../../tests/test_app.ts";
-import { runApiScenario } from "../../tests/api.ts";
+import type { ApiScenario } from "../tests/api.ts";
+import type { TestApp } from "../tests/app.ts";
 import { CollectionNameAuthOrigins } from "../core/auth_origin_model.ts";
 import { CollectionNameSuperusers } from "../core/collection.ts";
 import { CollectionNameExternalAuths } from "../core/external_auth_model.ts";
 import { CollectionNameMFAs } from "../core/mfa_model.ts";
 import { CollectionNameOTPs } from "../core/otp_model.ts";
+import { runApiScenario } from "../tests/api.ts";
 import { existInSlice } from "../tools/list/list.ts";
 
 const regularUserToken =

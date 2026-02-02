@@ -2,7 +2,7 @@
 
 import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
-import { attachDbxRewrite } from "../src/tools/dbx/wrap.ts";
+import { attachDbxRewrite } from "./wrap.ts";
 
 describe("dbx database wrapper", () => {
   it("rewrites placeholders for an existing Database instance", () => {

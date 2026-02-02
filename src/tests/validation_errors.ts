@@ -1,6 +1,6 @@
 // Ported from pocketbase/tests/validation_errors.go
 
-import { ValidationErrors } from "../src/internal/compat/validation.ts";
+import { ValidationErrors } from "../internal/compat/validation.ts";
 
 export function testValidationErrors(rawErrors: Error | null, expectedErrors: string[]): void {
   let errs: ValidationErrors | null = null;

@@ -1,8 +1,8 @@
 // Ported from pocketbase/apis/record_auth_methods_test.go.
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { runApiScenario } from "../../tests/api.ts";
-import { startTestServer } from "../../tests/helpers.ts";
+import { runApiScenario } from "../tests/api.ts";
+import { startTestServer } from "../tests/helpers.ts";
 
 type StartedServer = Awaited<ReturnType<typeof startTestServer>>;
 

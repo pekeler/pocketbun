@@ -1,10 +1,10 @@
 // Ported from pocketbase/apis/record_auth_with_oauth2_test.go
 
 import { afterAll, beforeAll, describe, it } from "bun:test";
-import { runApiScenario, type ApiScenario } from "../../tests/api.ts";
 import { OAuth2ProviderConfig } from "../core/collection_model_auth_options.ts";
 import { RequestInfoContextOAuth2 } from "../core/event_request.ts";
 import { NewExternalAuth } from "../core/external_auth_model.ts";
+import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 import { AuthUser, Providers, type OAuth2Token } from "../tools/auth/auth.ts";
 import { BaseProvider } from "../tools/auth/base_provider.ts";
 import { NameApple } from "../tools/auth/index.ts";

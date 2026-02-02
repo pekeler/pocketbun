@@ -1,8 +1,8 @@
 // Ported from pocketbase/tests/api.go.
 
 import { setTimeout as delay } from "node:timers/promises";
-import { buildServeHandler } from "../src/apis/serve.ts";
-import { newTestApp, type TestApp } from "./test_app.ts";
+import { buildServeHandler } from "../apis/serve.ts";
+import { newTestApp, type TestApp } from "./app.ts";
 
 type BodyInput = string | Uint8Array | ArrayBuffer | null;
 

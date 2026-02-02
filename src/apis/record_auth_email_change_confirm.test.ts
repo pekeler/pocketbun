@@ -1,7 +1,7 @@
 // Ported from pocketbase/apis/record_auth_email_change_confirm_test.go.
 
 import { describe, it } from "bun:test";
-import { runApiScenario, type ApiScenario } from "../../tests/api.ts";
+import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 
 type Scenario = ApiScenario & { todo?: boolean };
 

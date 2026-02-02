@@ -1,8 +1,8 @@
 // Ported from pocketbase/apis/collection_import_test.go
 
 import { describe, it } from "bun:test";
-import type { ApiScenario } from "../../tests/api.ts";
-import { runApiScenario } from "../../tests/api.ts";
+import type { ApiScenario } from "../tests/api.ts";
+import { runApiScenario } from "../tests/api.ts";
 
 const regularUserToken =
   "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoiX3BiX3VzZXJzX2F1dGhfIiwiZXhwIjoyNTI0NjA0NDYxLCJyZWZyZXNoYWJsZSI6dHJ1ZX0.ZT3F0Z3iM-xbGgSG3LEKiEzHrPHr8t8IuHLZGGNuxLo";

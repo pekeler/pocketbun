@@ -1,8 +1,8 @@
 // Ported from pocketbase/cmd/superuser_test.go
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../../tests/test_app.ts";
 import { CollectionNameSuperusers } from "../core/collection.ts";
+import { newTestApp } from "../tests/app.ts";
 import { superuserCreate, superuserDelete, superuserOTP, superuserUpdate, superuserUpsert } from "./superuser.ts";
 
 describe("superuser helpers", () => {

@@ -1,6 +1,6 @@
 // Ported from pocketbase/tests/request.go
 
-import { randomString } from "../src/tools/security/random.ts";
+import { randomString } from "../tools/security/random.ts";
 
 export async function MockMultipartData(
   data: Record<string, string>,

@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BaseApp } from "../src/core/base_app.ts";
+import { BaseApp } from "../core/base_app.ts";
 
 describe("migrations", () => {
   let app: BaseApp;

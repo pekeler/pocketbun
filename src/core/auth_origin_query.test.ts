@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/auth_origin_query_test.go.
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../../tests/test_app.ts";
+import { newTestApp } from "../tests/app.ts";
 import { CollectionNameSuperusers } from "./collection.ts";
 
 describe("auth origin queries", () => {

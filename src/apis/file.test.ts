@@ -4,9 +4,9 @@ import { describe, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runApiScenario, type ApiScenario } from "../../tests/api.ts";
-import { newTestApp, type TestApp } from "../../tests/test_app.ts";
 import { FileField } from "../core/field_file.ts";
+import { runApiScenario, type ApiScenario } from "../tests/api.ts";
+import { newTestApp, type TestApp } from "../tests/app.ts";
 import { Pointer } from "../tools/types/index.ts";
 import { buildServeHandler } from "./serve.ts";
 
@@ -78,7 +78,7 @@ type FileScenario = {
   beforeTest?: (app: TestApp) => void | Promise<void>;
 };
 
-const dataDir = fileURLToPath(new URL("../../tests/data/", import.meta.url));
+const dataDir = fileURLToPath(new URL("../tests/data/", import.meta.url));
 
 const testFile = readFileSync(join(dataDir, "storage/_pb_users_auth_/oap640cot4yru2s/test_kfd2wYLxkz.txt"));
 const testImg = readFileSync(join(dataDir, "storage/_pb_users_auth_/4q1xlclmfloku33/300_1SEi6Q6U72.png"));

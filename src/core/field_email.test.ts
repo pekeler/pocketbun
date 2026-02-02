@@ -1,8 +1,8 @@
 // Ported from pocketbase/core/field_email_test.go
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../../tests/test_app.ts";
-import { testValidationErrors } from "../../tests/validation_errors.ts";
+import { newTestApp } from "../tests/app.ts";
+import { testValidationErrors } from "../tests/validation_errors.ts";
 import { NewBaseCollection } from "./collection.ts";
 import { EmailField, FieldTypeEmail } from "./field_email.ts";
 import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";

@@ -2,10 +2,10 @@
 
 import { describe, it } from "bun:test";
 import { setTimeout as delay } from "node:timers/promises";
-import type { TestApp } from "../../tests/test_app.ts";
+import type { TestApp } from "../tests/app.ts";
 import type { Client } from "../tools/subscriptions/client.ts";
 import type { Message } from "../tools/subscriptions/message.ts";
-import { runApiScenario, type ApiScenario } from "../../tests/api.ts";
+import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 import { DefaultClient } from "../tools/subscriptions/client.ts";
 
 type ClientStubs = {

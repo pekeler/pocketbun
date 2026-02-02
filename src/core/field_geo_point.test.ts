@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_geo_point_test.go
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../../tests/test_app.ts";
+import { newTestApp } from "../tests/app.ts";
 import { GeoPoint } from "../tools/types/index.ts";
 import { NewBaseCollection } from "./collection.ts";
 import { GeoPointField, FieldTypeGeoPoint } from "./field_geo_point.ts";

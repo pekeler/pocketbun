@@ -2,7 +2,7 @@
 
 import { describe, it } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
-import { newTestApp } from "../../tests/test_app.ts";
+import { newTestApp } from "../tests/app.ts";
 import { NewAppleClientSecretCreate } from "./apple_client_secret_create.ts";
 
 describe("AppleClientSecretCreate", () => {

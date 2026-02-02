@@ -1,8 +1,8 @@
 // Ported from pocketbase/core/mfa_query_test.go.
 
 import { describe, expect, it } from "bun:test";
-import { StubMFARecords } from "../../tests/dynamic_stubs.ts";
-import { newTestApp } from "../../tests/test_app.ts";
+import { newTestApp } from "../tests/app.ts";
+import { StubMFARecords } from "../tests/dynamic_stubs.ts";
 import { CollectionNameSuperusers } from "./collection.ts";
 
 describe("mfa queries", () => {

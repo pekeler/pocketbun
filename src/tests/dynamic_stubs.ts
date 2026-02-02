@@ -1,10 +1,10 @@
 // Ported from pocketbase/tests/dynamic_stubs.go (OTP/MFA/logs stubs only).
 
-import type { App } from "../src/core/app.ts";
-import { CollectionNameSuperusers } from "../src/core/collection.ts";
-import { MFAMethodOAuth2, MFAMethodOTP, MFAMethodPassword, NewMFA } from "../src/core/mfa_model.ts";
-import { NewOTP } from "../src/core/otp_model.ts";
-import { DateTime, NowDateTime } from "../src/tools/types/index.ts";
+import type { App } from "../core/app.ts";
+import { CollectionNameSuperusers } from "../core/collection.ts";
+import { MFAMethodOAuth2, MFAMethodOTP, MFAMethodPassword, NewMFA } from "../core/mfa_model.ts";
+import { NewOTP } from "../core/otp_model.ts";
+import { DateTime, NowDateTime } from "../tools/types/index.ts";
 
 function cloneDateTime(dt: DateTime): DateTime {
   return new DateTime(dt.time());

@@ -1,7 +1,7 @@
 // Ported from pocketbase/apis/record_auth_refresh_test.go.
 
 import { describe, it } from "bun:test";
-import { runApiScenario, type ApiScenario } from "../../tests/api.ts";
+import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 
 const superuserToken =
   "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6InN5d2JoZWNuaDQ2cmhtMCIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoicGJjXzMxNDI2MzU4MjMiLCJleHAiOjI1MjQ2MDQ0NjEsInJlZnJlc2hhYmxlIjp0cnVlfQ.UXgO3j-0BumcugrFjbd7j0M4MQvbrLggLlcu_YNGjoY";

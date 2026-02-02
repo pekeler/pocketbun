@@ -1,7 +1,7 @@
-// PocketBun-only: Bun test for /api/health compatibility.
+// Ported from pocketbase/apis/health_test.go.
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
-import { startTestServer } from "./helpers.ts";
+import { startTestServer } from "../tests/helpers.ts";
 
 describe("health api", () => {
   type StartedServer = Awaited<ReturnType<typeof startTestServer>>;

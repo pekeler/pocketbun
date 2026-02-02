@@ -1,8 +1,8 @@
 // Ported from pocketbase/core/collection_validate_test.go
 
 import { describe, it } from "bun:test";
-import { newTestApp } from "../../tests/test_app.ts";
-import { testValidationErrors } from "../../tests/validation_errors.ts";
+import { newTestApp } from "../tests/app.ts";
+import { testValidationErrors } from "../tests/validation_errors.ts";
 import { CollectionNameAuthOrigins } from "./auth_origin_model.ts";
 import {
   Collection,
