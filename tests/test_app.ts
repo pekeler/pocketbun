@@ -54,6 +54,8 @@ export class TestApp extends BaseApp {
     bindTagged("OnSettingsListRequest", this.OnSettingsListRequest());
     bindTagged("OnSettingsUpdateRequest", this.OnSettingsUpdateRequest());
     bindTagged("OnSettingsReload", this.OnSettingsReload());
+    bindTagged("OnBackupCreate", this.OnBackupCreate());
+    bindTagged("OnBackupRestore", this.OnBackupRestore());
 
     bindTagged("OnModelCreate", this.OnModelCreate());
     bindTagged("OnModelCreateExecute", this.OnModelCreateExecute());

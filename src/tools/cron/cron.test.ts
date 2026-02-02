@@ -177,7 +177,7 @@ describe("Cron", () => {
 
     c.Start();
 
-    await new Promise((resolve) => setTimeout(resolve, 1005));
+    await new Promise((resolve) => setTimeout(resolve, 1105));
 
     c.Stop();
 

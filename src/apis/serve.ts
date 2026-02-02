@@ -4,6 +4,7 @@ import { resolve, sep } from "node:path";
 import type { App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { Router } from "../tools/router/router.ts";
+import { bindBackupApi } from "./backup.ts";
 import { bindBatchApi } from "./batch.ts";
 import { bindCollectionApi } from "./collection.ts";
 import { bindFileApi } from "./file.ts";
@@ -32,6 +33,7 @@ export function buildServeHandler(app: App): (req: Request, server?: unknown) =>
   router.Bind(securityHeaders());
   const apiGroup = router.group("/api");
   bindBatchApi(app, apiGroup);
+  bindBackupApi(app, apiGroup);
   bindCollectionApi(app, apiGroup);
   bindFileApi(app, apiGroup);
   bindHealthApi(app, apiGroup);

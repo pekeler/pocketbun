@@ -1,4 +1,8 @@
 // Ported from pocketbase/core/app.go
+//
+// Package core is the backbone of PocketBase.
+//
+// It defines the main PocketBase App interface and its base implementation.
 
 import type { Database, SQLQueryBindings } from "bun:sqlite";
 import type { Cron } from "../tools/cron/cron.ts";
@@ -15,6 +19,8 @@ import type { TableInfoRow } from "./db_table.ts";
 import type { RequestInfo } from "./event_request.ts";
 import type { BatchRequestEvent } from "./event_request_batch.ts";
 import type {
+  BackupEvent,
+  BootstrapEvent,
   CollectionRequestEvent,
   CollectionsImportRequestEvent,
   CollectionsListRequestEvent,
@@ -94,8 +100,44 @@ export interface App {
   runSystemMigrations(): void;
   runAppMigrations(): void;
   runAllMigrations(): void;
+  // NewMailClient creates and returns a new SMTP or Sendmail client
+  // based on the current app settings.
   NewMailClient(): Mailer;
+  // NewFilesystem creates a new local or S3 filesystem instance
+  // for managing regular app files (ex. record uploads)
+  // based on the current app settings.
+  //
+  // NB! Make sure to call Close() on the returned result
+  // after you are done working with it.
   NewFilesystem(): System;
+  // NewBackupsFilesystem creates a new local or S3 filesystem instance
+  // for managing app backups based on the current app settings.
+  //
+  // NB! Make sure to call Close() on the returned result
+  // after you are done working with it.
+  NewBackupsFilesystem(): System;
+  // CreateBackup creates a new backup of the current app pb_data directory.
+  //
+  // Backups can be stored on S3 if it is configured in app.Settings().Backups.
+  //
+  // Please refer to the godoc of the specific core.App implementation
+  // for details on the backup procedures.
+  CreateBackup(ctx: unknown, name: string): Error | null;
+  // RestoreBackup restores the backup with the specified name and restarts
+  // the current running application process.
+  //
+  // The safely perform the restore it is recommended to have free disk space
+  // for at least 2x the size of the restored pb_data backup.
+  //
+  // Please refer to the godoc of the specific core.App implementation
+  // for details on the restore procedures.
+  //
+  // NB! This feature is experimental and currently is expected to work only on UNIX based systems.
+  RestoreBackup(ctx: unknown, name: string): Error | null;
+  // Restart restarts (aka. replaces) the current running application process.
+  //
+  // NB! It relies on execve which is supported only on UNIX based systems.
+  Restart(): Error | null;
   Save(model: RecordModel | Collection | RecordProxy | Settings): Error | null;
   SaveNoValidate(model: RecordModel | Collection | RecordProxy | Settings): Error | null;
   SaveWithContext(ctx: unknown, model: RecordModel | Collection | RecordProxy | Settings): Error | null;
@@ -106,6 +148,9 @@ export interface App {
   TruncateCollection(collection: Collection): Error | null;
   ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Error | null;
   RunInTransaction(fn: (txApp: App) => Error | null): Error | null;
+  // AuxRunInTransaction wraps fn into a transaction for the auxiliary app database.
+  AuxRunInTransaction(fn: (txApp: App) => Error | null): Error | null;
+  // RunInTransactionAsync is PocketBun-only helper for async transaction work.
   RunInTransactionAsync(fn: (txApp: App) => Promise<Error | null> | Error | null): Promise<Error | null>;
   IsTransactional(): boolean;
   UnsafeWithoutHooks(): App;
@@ -191,6 +236,7 @@ export interface App {
     filter: string,
     ...params: SQLQueryBindings[]
   ): RecordModel | null;
+  OnBootstrap(): Hook<BootstrapEvent>;
   OnCollectionsListRequest(): Hook<CollectionsListRequestEvent>;
   OnCollectionViewRequest(): Hook<CollectionRequestEvent>;
   OnCollectionCreateRequest(): Hook<CollectionRequestEvent>;
@@ -247,6 +293,10 @@ export interface App {
   OnRecordRequestEmailChangeRequest(tags?: string[]): TaggedHook<RecordRequestEmailChangeRequestEvent>;
   OnRecordConfirmEmailChangeRequest(tags?: string[]): TaggedHook<RecordConfirmEmailChangeRequestEvent>;
   OnSettingsReload(): Hook<SettingsReloadEvent>;
+  // OnBackupCreate hook is triggered on each [App.CreateBackup] call.
+  OnBackupCreate(): Hook<BackupEvent>;
+  // OnBackupRestore hook is triggered before app backup restore (aka. [App.RestoreBackup] call).
+  OnBackupRestore(): Hook<BackupEvent>;
   OnFileDownloadRequest(tags?: string[]): TaggedHook<FileDownloadRequestEvent>;
   OnFileTokenRequest(tags?: string[]): TaggedHook<FileTokenRequestEvent>;
 

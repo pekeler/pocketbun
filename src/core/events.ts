@@ -1,4 +1,4 @@
-// Ported from pocketbase/core/events.go (partial: model/record/collection + collection request + file events).
+// Ported from pocketbase/core/events.go (partial: app + model/record/collection + collection request + file events).
 
 import type { Mailer, Message } from "../tools/mailer/mailer.ts";
 import type { SearchResult } from "../tools/search/types.ts";
@@ -70,6 +70,30 @@ function syncStopSignal(target: Event, requestEvent: RequestEvent): void {
   const stopSignal = requestEvent.getStopSignal();
   if (stopSignal) {
     target.setStopSignal(stopSignal);
+  }
+}
+
+export class BootstrapEvent extends Event {
+  App: App;
+
+  constructor(app: App) {
+    super();
+    this.App = app;
+  }
+}
+
+export class BackupEvent extends Event {
+  App: App;
+  Context: unknown;
+  Name: string; // the name of the backup to create/restore.
+  Exclude: string[]; // list of dir entries to exclude from the backup create/restore.
+
+  constructor(app: App, ctx: unknown, name: string, exclude: string[]) {
+    super();
+    this.App = app;
+    this.Context = ctx;
+    this.Name = name;
+    this.Exclude = exclude;
   }
 }
 

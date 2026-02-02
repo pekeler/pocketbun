@@ -85,6 +85,13 @@ export function NewFileFromMultipart(header: MultipartFileHeader): File {
   return f;
 }
 
+// NewFileFromURL creates a new File from the provided url by
+// downloading the resource and load it as BytesReader.
+//
+// Example
+//
+//  const controller = new AbortController();
+//  const file = await NewFileFromURL(controller.signal, "https://example.com/image.png");
 export async function NewFileFromURL(ctx: AbortSignal | null, url: string): Promise<File> {
   const res = await fetch(url, { signal: ctx ?? undefined });
   if (!res.ok) {
@@ -204,23 +211,34 @@ const extInvalidCharsRegex = /[^\w.*\-+=#]+/g;
 const randomAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
 
 export function normalizeName(fr: FileReader, name: string): string {
+  // cut the name even if it is not multibyte safe to avoid operating on too large strings
+  // ---
   const originalLength = name.length;
   if (originalLength > 300) {
     name = name.slice(originalLength - 300);
   }
 
+  // extension
+  // ---
   const originalExt = extractExtension(name);
   let cleanExt = `.${originalExt.replace(extInvalidCharsRegex, "").replace(/^\.+|\.+$/g, "")}`;
   if (cleanExt === ".") {
+    // try to detect the extension from the file content
     cleanExt = detectExtension(fr) ?? ".";
   }
   if (cleanExt === ".") {
     cleanExt = ".";
   }
   if (cleanExt.length > 20) {
+    // keep only the last 20 characters (it is multibyte safe after the regex replace)
     cleanExt = `.${cleanExt.slice(cleanExt.length - 20).replace(/^\.+|\.+$/g, "")}`;
   }
 
+  // name
+  //
+  // note: leading dot is trimmed to prevent various subtle issues with files
+  // sync programs as they sometimes have special handling for "invisible" files
+  // ---
   let baseName = name;
   if (originalExt && baseName.endsWith(originalExt)) {
     baseName = baseName.slice(0, -originalExt.length);
@@ -229,12 +247,14 @@ export function normalizeName(fr: FileReader, name: string): string {
   let cleanName = snakecase(baseName);
 
   if (cleanName.length < 3) {
+    // the name is too short so we concatenate an additional random part
     cleanName += randomStringWithAlphabet(10, randomAlphabet);
   } else if (cleanName.length > 100) {
+    // keep only the first 100 characters (it is multibyte safe after Snakecase)
     cleanName = cleanName.slice(0, 100);
   }
 
-  return `${cleanName}_${randomStringWithAlphabet(10, randomAlphabet)}${cleanExt}`;
+  return `${cleanName}_${randomStringWithAlphabet(10, randomAlphabet)}${cleanExt}`; // ensure that there is always a random part
 }
 
 // extractExtension extracts the extension (with leading dot) from name.
@@ -300,6 +320,14 @@ export function detectMimeTypeFromBytes(raw: Uint8Array): string {
     const webp = new TextDecoder().decode(raw.slice(8, 12));
     if (riff === "RIFF" && webp === "WEBP") {
       return "image/webp";
+    }
+  }
+
+  if (raw.length >= 4 && raw[0] === 0x50 && raw[1] === 0x4b) {
+    const sig1 = raw[2];
+    const sig2 = raw[3];
+    if ((sig1 === 0x03 || sig1 === 0x05 || sig1 === 0x07) && (sig2 === 0x04 || sig2 === 0x06 || sig2 === 0x08)) {
+      return "application/zip";
     }
   }
 

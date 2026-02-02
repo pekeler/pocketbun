@@ -1,10 +1,11 @@
-// Ported from pocketbase/core/base_app.go
+// Ported from pocketbase/core/base.go.
+// Includes backup-related methods from pocketbase/core/base_backup.go (merged to keep BaseApp in one file).
 
 import "../migrations/index.ts";
 import "./fields_register.ts";
 import type { Database, SQLQueryBindings } from "bun:sqlite";
-import { existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
 import type { SqlExpr } from "../tools/search/types.ts";
 import type { App, Logger } from "./app.ts";
 import type { PostValidator, PreValidator } from "./db.ts";
@@ -12,6 +13,7 @@ import type { RequestInfo } from "./event_request.ts";
 import type { BatchRequestEvent } from "./event_request_batch.ts";
 import type { RecordProxy } from "./record_proxy.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
+import { Create, Extract } from "../tools/archive/index.ts";
 import { Providers } from "../tools/auth/auth.ts";
 import { Cron } from "../tools/cron/cron.ts";
 import { findSingleColumnUniqueIndex, parseIndex } from "../tools/dbutils/index.ts";
@@ -19,18 +21,20 @@ import { JSONEach } from "../tools/dbutils/json.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
 import { HashExp, NewExp, Not } from "../tools/dbx/expr.ts";
 import { SelectQuery } from "../tools/dbx/select_query.ts";
-import { NewLocal } from "../tools/filesystem/filesystem.ts";
+import { NewFileFromPath } from "../tools/filesystem/file.ts";
+import { NewLocal, NewS3 } from "../tools/filesystem/filesystem.ts";
 import { Hook } from "../tools/hook/hook.ts";
 import { NewTaggedHook } from "../tools/hook/tagged.ts";
-import { columnify } from "../tools/inflector/inflector.ts";
+import { columnify, snakecase } from "../tools/inflector/inflector.ts";
 import { Sendmail } from "../tools/mailer/sendmail.ts";
 import { SMTPClient } from "../tools/mailer/smtp.ts";
+import { MoveDirContent } from "../tools/osutils/dir.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { buildSortExpr, parseSortFromString } from "../tools/search/sort.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
 import { decrypt, encrypt } from "../tools/security/encrypt.ts";
 import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
-import { randomString } from "../tools/security/random.ts";
+import { pseudorandomString, randomString } from "../tools/security/random.ts";
 import { Broker } from "../tools/subscriptions/broker.ts";
 import { DateTime, GeoPoint, JSONRaw, NowDateTime, ParseDateTime } from "../tools/types/index.ts";
 import { AuthOrigin, CollectionNameAuthOrigins, recordRefHooks } from "./auth_origin_model.ts";
@@ -48,6 +52,8 @@ import {
 import { validateCollection } from "./collection_validate.ts";
 import { TableInfo } from "./db_table.ts";
 import {
+  BackupEvent,
+  BootstrapEvent,
   SettingsListRequestEvent,
   SettingsReloadEvent,
   SettingsUpdateRequestEvent,
@@ -137,16 +143,26 @@ import {
   TokenTypeVerification,
 } from "./record_tokens.ts";
 import { Settings } from "./settings.ts";
-import { Store } from "./store.ts";
+import { Store, StoreKeyActiveBackup } from "./store.ts";
 import { NormalizeUniqueIndexError } from "./validators/db.ts";
 import { CreateViewFields, DeleteView, SaveView, FindRecordByViewFile as findRecordByViewFile } from "./view.ts";
 
+// BaseAppConfig defines a BaseApp configuration option.
 export type BaseAppConfig = {
   dataDir?: string;
   encryptionEnv?: string;
   isDev?: boolean;
 };
 
+export const LocalStorageDirName = "storage";
+export const LocalBackupsDirName = "backups";
+export const LocalTempDirName = ".pb_temp_to_delete"; // temp pb_data sub directory that will be deleted on each app.Bootstrap()
+export const LocalAutocertCacheDirName = ".autocert_cache";
+
+// @todo consider removing after backups refactoring
+const lostFoundDirName = "lost+found";
+
+// BaseApp implements core.App and defines the base PocketBase app structure.
 export class BaseApp implements App {
   #dataDir: string;
   #encryptionEnv: string;
@@ -161,13 +177,18 @@ export class BaseApp implements App {
   #logger: Logger;
   #txInfo: TxAppInfo | null = null;
   #hooksEnabled = false;
+  // app event hooks
+  #onBootstrap!: Hook<BootstrapEvent>;
+  // collection API event hooks
   #onCollectionsListRequest!: Hook<CollectionsListRequestEvent>;
   #onCollectionViewRequest!: Hook<CollectionRequestEvent>;
   #onCollectionCreateRequest!: Hook<CollectionRequestEvent>;
   #onCollectionUpdateRequest!: Hook<CollectionRequestEvent>;
   #onCollectionDeleteRequest!: Hook<CollectionRequestEvent>;
   #onCollectionsImportRequest!: Hook<CollectionsImportRequestEvent>;
+  // batch API event hooks
   #onBatchRequest!: Hook<BatchRequestEvent>;
+  // db model hooks
   #onModelCreate!: Hook<ModelEvent>;
   #onModelCreateExecute!: Hook<ModelEvent>;
   #onModelAfterCreateSuccess!: Hook<ModelEvent>;
@@ -181,6 +202,7 @@ export class BaseApp implements App {
   #onModelDeleteExecute!: Hook<ModelEvent>;
   #onModelAfterDeleteSuccess!: Hook<ModelEvent>;
   #onModelAfterDeleteError!: Hook<ModelErrorEvent>;
+  // db record hooks
   #onRecordValidate!: Hook<RecordEvent>;
   #onRecordCreate!: Hook<RecordEvent>;
   #onRecordCreateExecute!: Hook<RecordEvent>;
@@ -195,14 +217,10 @@ export class BaseApp implements App {
   #onRecordAfterDeleteSuccess!: Hook<RecordEvent>;
   #onRecordAfterDeleteError!: Hook<RecordErrorEvent>;
   #onRecordEnrich!: Hook<RecordEnrichEvent>;
+  // record auth API event hooks
   #onRecordAuthWithPasswordRequest!: Hook<RecordAuthWithPasswordRequestEvent>;
   #onRecordAuthWithOAuth2Request!: Hook<RecordAuthWithOAuth2RequestEvent>;
   #onRecordAuthWithOTPRequest!: Hook<RecordAuthWithOTPRequestEvent>;
-  #onRecordsListRequest!: Hook<RecordsListRequestEvent>;
-  #onRecordViewRequest!: Hook<RecordRequestEvent>;
-  #onRecordCreateRequest!: Hook<RecordRequestEvent>;
-  #onRecordUpdateRequest!: Hook<RecordRequestEvent>;
-  #onRecordDeleteRequest!: Hook<RecordRequestEvent>;
   #onRecordAuthRequest!: Hook<RecordAuthRequestEvent>;
   #onRecordAuthRefreshRequest!: Hook<RecordAuthRefreshRequestEvent>;
   #onRecordCreateOTPRequest!: Hook<RecordCreateOTPRequestEvent>;
@@ -212,17 +230,30 @@ export class BaseApp implements App {
   #onRecordConfirmVerificationRequest!: Hook<RecordConfirmVerificationRequestEvent>;
   #onRecordRequestEmailChangeRequest!: Hook<RecordRequestEmailChangeRequestEvent>;
   #onRecordConfirmEmailChangeRequest!: Hook<RecordConfirmEmailChangeRequestEvent>;
+  // record crud API event hooks
+  #onRecordsListRequest!: Hook<RecordsListRequestEvent>;
+  #onRecordViewRequest!: Hook<RecordRequestEvent>;
+  #onRecordCreateRequest!: Hook<RecordRequestEvent>;
+  #onRecordUpdateRequest!: Hook<RecordRequestEvent>;
+  #onRecordDeleteRequest!: Hook<RecordRequestEvent>;
+  // settings event hooks
   #onSettingsListRequest!: Hook<SettingsListRequestEvent>;
   #onSettingsUpdateRequest!: Hook<SettingsUpdateRequestEvent>;
   #onSettingsReload!: Hook<SettingsReloadEvent>;
+  // app event hooks
+  #onBackupCreate!: Hook<BackupEvent>;
+  #onBackupRestore!: Hook<BackupEvent>;
+  // file api event hooks
   #onFileDownloadRequest!: Hook<FileDownloadRequestEvent>;
   #onFileTokenRequest!: Hook<FileTokenRequestEvent>;
+  // mailer event hooks
   #onMailerSend!: Hook<MailerEvent>;
   #onMailerRecordAuthAlertSend!: Hook<MailerRecordEvent>;
   #onMailerRecordPasswordResetSend!: Hook<MailerRecordEvent>;
   #onMailerRecordVerificationSend!: Hook<MailerRecordEvent>;
   #onMailerRecordEmailChangeSend!: Hook<MailerRecordEvent>;
   #onMailerRecordOTPSend!: Hook<MailerRecordEvent>;
+  // db collection hooks
   #onCollectionValidate!: Hook<CollectionEvent>;
   #onCollectionCreate!: Hook<CollectionEvent>;
   #onCollectionCreateExecute!: Hook<CollectionEvent>;
@@ -255,6 +286,7 @@ export class BaseApp implements App {
     };
     this.resetHooks();
 
+    this.registerAutobackupHooks();
     this.registerCollectionHooks();
     this.registerRecordHooks();
     this.registerOTPHooks();
@@ -264,8 +296,10 @@ export class BaseApp implements App {
     this.#hooksEnabled = true;
   }
 
+  // resetHooks initializes all app hook handlers.
   private resetHooks(): void {
     this.#hooksEnabled = false;
+    this.#onBootstrap = new Hook();
     this.#onCollectionsListRequest = new Hook();
     this.#onCollectionViewRequest = new Hook();
     this.#onCollectionCreateRequest = new Hook();
@@ -303,11 +337,6 @@ export class BaseApp implements App {
     this.#onRecordAuthWithPasswordRequest = new Hook();
     this.#onRecordAuthWithOAuth2Request = new Hook();
     this.#onRecordAuthWithOTPRequest = new Hook();
-    this.#onRecordsListRequest = new Hook();
-    this.#onRecordViewRequest = new Hook();
-    this.#onRecordCreateRequest = new Hook();
-    this.#onRecordUpdateRequest = new Hook();
-    this.#onRecordDeleteRequest = new Hook();
     this.#onRecordAuthRequest = new Hook();
     this.#onRecordAuthRefreshRequest = new Hook();
     this.#onRecordCreateOTPRequest = new Hook();
@@ -317,9 +346,16 @@ export class BaseApp implements App {
     this.#onRecordConfirmVerificationRequest = new Hook();
     this.#onRecordRequestEmailChangeRequest = new Hook();
     this.#onRecordConfirmEmailChangeRequest = new Hook();
+    this.#onRecordsListRequest = new Hook();
+    this.#onRecordViewRequest = new Hook();
+    this.#onRecordCreateRequest = new Hook();
+    this.#onRecordUpdateRequest = new Hook();
+    this.#onRecordDeleteRequest = new Hook();
     this.#onSettingsListRequest = new Hook();
     this.#onSettingsUpdateRequest = new Hook();
     this.#onSettingsReload = new Hook();
+    this.#onBackupCreate = new Hook();
+    this.#onBackupRestore = new Hook();
     this.#onFileDownloadRequest = new Hook();
     this.#onFileTokenRequest = new Hook();
     this.#onMailerSend = new Hook();
@@ -397,6 +433,10 @@ export class BaseApp implements App {
 
   DeleteOldLogs(createdBefore: Date): Error | null {
     return deleteOldLogs(this, createdBefore);
+  }
+
+  OnBootstrap(): Hook<BootstrapEvent> {
+    return this.#onBootstrap;
   }
 
   OnCollectionsListRequest(): Hook<CollectionsListRequestEvent> {
@@ -627,6 +667,14 @@ export class BaseApp implements App {
     return this.#onSettingsReload;
   }
 
+  OnBackupCreate(): Hook<BackupEvent> {
+    return this.#onBackupCreate;
+  }
+
+  OnBackupRestore(): Hook<BackupEvent> {
+    return this.#onBackupRestore;
+  }
+
   OnFileDownloadRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<FileDownloadRequestEvent>> {
     return NewTaggedHook(this.#onFileDownloadRequest, ...tags);
   }
@@ -720,14 +768,24 @@ export class BaseApp implements App {
       return;
     }
 
-    if (!existsSync(this.#dataDir)) {
-      mkdirSync(this.#dataDir, { recursive: true });
-    }
+    const event = new BootstrapEvent(this);
+    const result = this.OnBootstrap().Trigger(event, () => {
+      if (!existsSync(this.#dataDir)) {
+        mkdirSync(this.#dataDir, { recursive: true });
+      }
 
-    this.#db = new DbxDatabase(join(this.#dataDir, "data.db"));
-    this.#auxDb = new DbxDatabase(join(this.#dataDir, "auxiliary.db"));
-    this.reloadSettings();
-    this.#bootstrapped = true;
+      this.#db = new DbxDatabase(join(this.#dataDir, "data.db"));
+      this.#auxDb = new DbxDatabase(join(this.#dataDir, "auxiliary.db"));
+      this.reloadSettings();
+      this.#bootstrapped = true;
+      return null;
+    });
+
+    if (result instanceof Promise) {
+      void result.catch((err) => this.Logger().Error("Failed to bootstrap app", "error", err));
+    } else if (result instanceof Error) {
+      throw result;
+    }
   }
 
   resetBootstrapState(): void {
@@ -1649,7 +1707,341 @@ export class BaseApp implements App {
   }
 
   NewFilesystem() {
-    return NewLocal(join(this.#dataDir, "storage"));
+    if (this.#settings.s3.enabled) {
+      return NewS3(
+        this.#settings.s3.bucket,
+        this.#settings.s3.region,
+        this.#settings.s3.endpoint,
+        this.#settings.s3.accessKey,
+        this.#settings.s3.secret,
+        this.#settings.s3.forcePathStyle,
+      );
+    }
+
+    return NewLocal(join(this.#dataDir, LocalStorageDirName));
+  }
+
+  NewBackupsFilesystem() {
+    if (this.#settings.backups.s3.enabled) {
+      return NewS3(
+        this.#settings.backups.s3.bucket,
+        this.#settings.backups.s3.region,
+        this.#settings.backups.s3.endpoint,
+        this.#settings.backups.s3.accessKey,
+        this.#settings.backups.s3.secret,
+        this.#settings.backups.s3.forcePathStyle,
+      );
+    }
+
+    return NewLocal(join(this.#dataDir, LocalBackupsDirName));
+  }
+
+  // CreateBackup creates a new backup of the current app pb_data directory.
+  //
+  // If name is empty, it will be autogenerated.
+  // If backup with the same name exists, the new backup file will replace it.
+  //
+  // The backup is executed within a transaction, meaning that new writes
+  // will be temporary "blocked" until the backup file is generated.
+  //
+  // To safely perform the backup, it is recommended to have free disk space
+  // for at least 2x the size of the pb_data directory.
+  //
+  // By default backups are stored in pb_data/backups
+  // (the backups directory itself is excluded from the generated backup).
+  //
+  // When using S3 storage for the uploaded collection files, you have to
+  // take care manually to backup those since they are not part of the pb_data.
+  //
+  // Backups can be stored on S3 if it is configured in app.Settings().Backups.
+  CreateBackup(ctx: unknown, name: string): Error | null {
+    if (this.store().has(StoreKeyActiveBackup)) {
+      return new Error("try again later - another backup/restore operation has already been started");
+    }
+
+    this.store().set(StoreKeyActiveBackup, name);
+    try {
+      // default root dir entries to exclude from the backup generation
+      // default root dir entries to exclude from the backup restore
+      const event = new BackupEvent(this, ctx, name, [
+        LocalBackupsDirName,
+        LocalTempDirName,
+        LocalAutocertCacheDirName,
+        lostFoundDirName,
+      ]);
+
+      return this.OnBackupCreate().Trigger(event, (e) => {
+        // generate a default name if missing
+        if (!e.Name) {
+          e.Name = generateBackupName(e.App, "pb_backup_");
+        }
+
+        // make sure that the special temp directory exists
+        // note: it needs to be inside the current pb_data to avoid "cross-device link" errors
+        // make sure that the special temp directory exists
+        // note: it needs to be inside the current pb_data to avoid "cross-device link" errors
+        const localTempDir = join(e.App.dataDir(), LocalTempDirName);
+        mkdirSync(localTempDir, { recursive: true });
+
+        // archive pb_data in a temp directory, exluding the "backups" and the temp dirs
+        //
+        // run in transaction to temporary block other writes (transactions uses the NonconcurrentDB connection)
+        // ---
+        const tempPath = join(localTempDir, `pb_backup_${pseudorandomString(6)}`);
+
+        const createErr = e.App.RunInTransaction((txApp) => {
+          return txApp.AuxRunInTransaction((auxApp) => {
+            // run manual checkpoint and truncate the WAL files
+            // (errors are ignored because it is not that important and the PRAGMA may not be supported by the used driver)
+            try {
+              auxApp.db().query("PRAGMA wal_checkpoint(TRUNCATE)").run();
+            } catch {
+              // ignore
+            }
+
+            try {
+              auxApp.auxDb().query("PRAGMA wal_checkpoint(TRUNCATE)").run();
+            } catch {
+              // ignore
+            }
+
+            try {
+              Create(auxApp.dataDir(), tempPath, ...e.Exclude);
+              return null;
+            } catch (error) {
+              return error as Error;
+            }
+          });
+        });
+
+        if (createErr) {
+          return createErr;
+        }
+
+        // persist the backup in the backups filesystem
+        // ---
+        try {
+          const fsys = e.App.NewBackupsFilesystem();
+          try {
+            fsys.SetContext(e.Context);
+            const file = NewFileFromPath(tempPath);
+            file.OriginalName = e.Name;
+            file.Name = file.OriginalName;
+            fsys.UploadFile(file, file.Name);
+          } finally {
+            fsys.Close();
+          }
+        } catch (error) {
+          return error as Error;
+        } finally {
+          rmSync(tempPath, { force: true });
+        }
+
+        return null;
+      }) as Error | null;
+    } finally {
+      this.store().remove(StoreKeyActiveBackup);
+    }
+  }
+
+  // RestoreBackup restores the backup with the specified name and restarts
+  // the current running application process.
+  //
+  // NB! This feature is experimental and currently is expected to work only on UNIX based systems.
+  //
+  // To safely perform the restore it is recommended to have free disk space
+  // for at least 2x the size of the restored pb_data backup.
+  //
+  // The performed steps are:
+  //
+  //  1. Download the backup with the specified name in a temp location
+  //     (this is in case of S3; otherwise it creates a temp copy of the zip)
+  //
+  //  2. Extract the backup in a temp directory inside the app "pb_data"
+  //     (eg. "pb_data/.pb_temp_to_delete/pb_restore").
+  //
+  //  3. Move the current app "pb_data" content (excluding the local backups and the special temp dir)
+  //     under another temp sub dir that will be deleted on the next app start up
+  //     (eg. "pb_data/.pb_temp_to_delete/old_pb_data").
+  //     This is because on some environments it may not be allowed
+  //     to delete the currently open "pb_data" files.
+  //
+  //  4. Move the extracted dir content to the app "pb_data".
+  //
+  //  5. Restart the app (on successful app bootstap it will also remove the old pb_data).
+  //
+  // If a failure occure during the restore process the dir changes are reverted.
+  // If for whatever reason the revert is not possible, it panics.
+  //
+  // Note that if your pb_data has custom network mounts as subdirectories, then
+  // it is possible the restore to fail during the `os.Rename` operations
+  // (see https://github.com/pocketbase/pocketbase/issues/4647).
+  RestoreBackup(ctx: unknown, name: string): Error | null {
+    if (this.store().has(StoreKeyActiveBackup)) {
+      return new Error("try again later - another backup/restore operation has already been started");
+    }
+
+    this.store().set(StoreKeyActiveBackup, name);
+    try {
+      const event = new BackupEvent(this, ctx, name, [
+        LocalBackupsDirName,
+        LocalTempDirName,
+        LocalAutocertCacheDirName,
+        lostFoundDirName,
+      ]);
+
+      return this.OnBackupRestore().Trigger(event, (e) => {
+        if (process.platform === "win32") {
+          return new Error("restore is not supported on Windows");
+        }
+
+        const localTempDir = join(e.App.dataDir(), LocalTempDirName);
+        mkdirSync(localTempDir, { recursive: true });
+
+        let fsys;
+        try {
+          fsys = e.App.NewBackupsFilesystem();
+        } catch (error) {
+          return error as Error;
+        }
+
+        try {
+          fsys.SetContext(e.Context);
+          if (!fsys.Exists(name)) {
+            return new Error(`missing or invalid backup file ${JSON.stringify(name)} to restore`);
+          }
+
+          const extractedDataDir = join(localTempDir, `pb_restore_${pseudorandomString(8)}`);
+          try {
+            // extract the zip
+            if (e.App.settings().backups.s3.enabled) {
+              const reader = fsys.GetReader(name);
+              const tempZipPath = join(localTempDir, `pb_restore_zip_${pseudorandomString(6)}`);
+              try {
+                // create a temp zip file from the blob.Reader and try to extract it
+                writeFileSync(tempZipPath, reader.readAll());
+                Extract(tempZipPath, extractedDataDir);
+              } finally {
+                reader.close();
+                try {
+                  // remove the temp zip file since we no longer need it
+                  // (this is in case the app restarts and the defer calls are not called)
+                  rmSync(tempZipPath, { force: true });
+                } catch (error) {
+                  e.App.Logger().Warn(
+                    "[RestoreBackup] Failed to remove the temp zip backup file",
+                    "file",
+                    tempZipPath,
+                    "error",
+                    String(error),
+                  );
+                }
+              }
+            } else {
+              // manually construct the local path to avoid creating a copy of the zip file
+              // since the blob reader currently doesn't implement ReaderAt
+              const zipPath = join(e.App.dataDir(), LocalBackupsDirName, basename(name));
+              Extract(zipPath, extractedDataDir);
+            }
+
+            // ensure that at least a database file exists
+            try {
+              statSync(join(extractedDataDir, "data.db"));
+            } catch (error) {
+              return new Error(`data.db file is missing or invalid: ${(error as Error).message}`);
+            }
+
+            const oldTempDataDir = join(localTempDir, `old_pb_data_${pseudorandomString(8)}`);
+
+            const replaceErr = e.App.RunInTransaction((txApp) => {
+              return txApp.AuxRunInTransaction((auxApp) => {
+                // move the current pb_data content to a special temp location
+                // that will hold the old data between dirs replace
+                // (the temp dir will be automatically removed on the next app start)
+                try {
+                  MoveDirContent(auxApp.dataDir(), oldTempDataDir, ...e.Exclude);
+                } catch (error) {
+                  return new Error(
+                    `failed to move the current pb_data content to a temp location: ${(error as Error).message}`,
+                  );
+                }
+
+                // move the extracted archive content to the app's pb_data
+                try {
+                  MoveDirContent(extractedDataDir, auxApp.dataDir(), ...e.Exclude);
+                } catch (error) {
+                  return new Error(`failed to move the extracted archive content to pb_data: ${(error as Error).message}`);
+                }
+
+                return null;
+              });
+            });
+
+            if (replaceErr) {
+              return replaceErr;
+            }
+
+            const revertDataDirChanges = (): Error | null => {
+              return e.App.RunInTransaction((txApp) => {
+                return txApp.AuxRunInTransaction((auxApp) => {
+                  try {
+                    MoveDirContent(auxApp.dataDir(), extractedDataDir, ...e.Exclude);
+                  } catch (error) {
+                    return new Error(`failed to revert the extracted dir change: ${(error as Error).message}`);
+                  }
+
+                  try {
+                    MoveDirContent(oldTempDataDir, auxApp.dataDir(), ...e.Exclude);
+                  } catch (error) {
+                    return new Error(`failed to revert old pb_data dir change: ${(error as Error).message}`);
+                  }
+
+                  return null;
+                });
+              });
+            };
+
+            // restart the app
+            const restartErr = e.App.Restart();
+            if (restartErr) {
+              const revertErr = revertDataDirChanges();
+              if (revertErr) {
+                throw revertErr;
+              }
+
+              return new Error(`failed to restart the app process: ${restartErr.message}`);
+            }
+          } finally {
+            rmSync(extractedDataDir, { recursive: true, force: true });
+          }
+        } finally {
+          fsys.Close();
+        }
+
+        return null;
+      }) as Error | null;
+    } finally {
+      this.store().remove(StoreKeyActiveBackup);
+    }
+  }
+
+  // Restart restarts (aka. replaces) the current running application process.
+  //
+  // NB! It relies on execve which is supported only on UNIX based systems.
+  Restart(): Error | null {
+    if (process.platform === "win32") {
+      return new Error("restart is not supported on windows");
+    }
+
+    // Deviation: Bun can't execve the current process, so we rebootstrap in-process.
+    try {
+      this.resetBootstrapState();
+      this.bootstrap();
+    } catch (error) {
+      return error as Error;
+    }
+
+    return null;
   }
 
   Save(model: RecordModel | Collection | RecordProxy | Settings): Error | null {
@@ -1984,6 +2376,24 @@ export class BaseApp implements App {
     this.#txInfo = null;
     const afterErr = txInfo.runAfterFuncs(txErr);
     return joinErrors(txErr, afterErr);
+  }
+
+  AuxRunInTransaction(fn: (txApp: App) => Error | null): Error | null {
+    let txErr: Error | null = null;
+    this.auxDb().run("BEGIN");
+    try {
+      txErr = fn(this) ?? null;
+    } catch (error) {
+      txErr = error as Error;
+    }
+
+    if (txErr) {
+      this.auxDb().run("ROLLBACK");
+    } else {
+      this.auxDb().run("COMMIT");
+    }
+
+    return txErr;
   }
 
   // Bun port adds an async variant to accommodate request parsing and hook delays.
@@ -2461,6 +2871,84 @@ export class BaseApp implements App {
     }
 
     return null;
+  }
+
+  // registerAutobackupHooks registers the autobackup app serve hooks.
+  private registerAutobackupHooks(): void {
+    const jobId = "__pbAutoBackup__";
+
+    const loadJob = () => {
+      const rawSchedule = this.#settings.backups.cron;
+      if (!rawSchedule) {
+        this.#cron.Remove(jobId);
+        return;
+      }
+
+      this.#cron.Add(jobId, rawSchedule, () => {
+        const autoPrefix = "@auto_pb_backup_";
+        const name = generateBackupName(this, autoPrefix);
+
+        const backupErr = this.CreateBackup(null, name);
+        if (backupErr) {
+          this.Logger().Error("[Backup cron] Failed to create backup", "name", name, "error", backupErr.message);
+        }
+
+        const maxKeep = this.#settings.backups.cronMaxKeep;
+        if (maxKeep === 0) {
+          return; // no explicit limit
+        }
+
+        let fsys;
+        try {
+          fsys = this.NewBackupsFilesystem();
+        } catch (error) {
+          this.Logger().Error("[Backup cron] Failed to initialize the backup filesystem", "error", String(error));
+          return;
+        }
+
+        try {
+          const files = fsys.List(autoPrefix);
+          if (maxKeep >= files.length) {
+            return; // nothing to remove
+          }
+
+          // sort desc
+          files.sort((a, b) => b.ModTime.getTime() - a.ModTime.getTime());
+          // keep only the most recent n auto backup files
+          const toRemove = files.slice(maxKeep);
+
+          for (const file of toRemove) {
+            try {
+              fsys.Delete(file.Key);
+            } catch (error) {
+              this.Logger().Error(
+                "[Backup cron] Failed to remove old autogenerated backup",
+                "key",
+                file.Key,
+                "error",
+                String(error),
+              );
+            }
+          }
+        } catch (error) {
+          this.Logger().Error("[Backup cron] Failed to list autogenerated backups", "error", String(error));
+        } finally {
+          fsys.Close();
+        }
+      });
+    };
+
+    this.OnBootstrap().BindFunc((event) => {
+      const result = event.Next();
+      loadJob();
+      return result;
+    });
+
+    this.OnSettingsReload().BindFunc((event) => {
+      const result = event.Next();
+      loadJob();
+      return result;
+    });
   }
 
   private registerCollectionHooks(): void {
@@ -3204,6 +3692,29 @@ function applyLimitOffset(sql: string, limit: number, offset: number): string {
     return `${sql} LIMIT -1 OFFSET ${offset}`;
   }
   return sql;
+}
+
+function generateBackupName(app: App, prefix: string): string {
+  let appName = snakecase(app.settings().meta.appName);
+  if (appName.length > 50) {
+    appName = appName.slice(0, 50);
+  }
+
+  const now = new Date();
+  const stamp = [
+    now.getUTCFullYear(),
+    pad2(now.getUTCMonth() + 1),
+    pad2(now.getUTCDate()),
+    pad2(now.getUTCHours()),
+    pad2(now.getUTCMinutes()),
+    pad2(now.getUTCSeconds()),
+  ].join("");
+
+  return `${prefix}${appName}_${stamp}.zip`;
+}
+
+function pad2(value: number): string {
+  return value < 10 ? `0${value}` : String(value);
 }
 
 function resolveBaseTokenKey(collection: Collection, tokenType: string): string {
