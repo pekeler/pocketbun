@@ -16,3 +16,5 @@ rm -rf vendor/pocketbase-admin-ui/dist
 mkdir -p vendor/pocketbase-admin-ui
 cp -R .upstream/pocketbase/ui/dist vendor/pocketbase-admin-ui/dist
 git add -A -- vendor/pocketbase-admin-ui
+
+rm -rf "$DIR/.git"
