@@ -1,8 +1,75 @@
 // Ported from pocketbase/tools/router/event.go
+// Deviation: Bun uses Request/Response instead of net/http ResponseWriter, so response helpers return Response values.
 
+import type { BodyInit } from "bun";
+import { readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import type { NextFunc, Resolver } from "../hook/event.ts";
+import { File as FilesystemFile, NewFileFromMultipart } from "../filesystem/file.ts";
 import { Pick } from "../picker/pick.ts";
 import { Store } from "../store/store.ts";
+import {
+  ApiError,
+  NewApiError,
+  NewBadRequestError,
+  NewForbiddenError,
+  NewInternalServerError,
+  NewNotFoundError,
+  NewTooManyRequestsError,
+  NewUnauthorizedError,
+} from "./api_error.ts";
+import { unmarshalRequestData } from "./unmarshal_request_data.ts";
+
+export const ErrUnsupportedContentType = NewBadRequestError("Unsupported Content-Type", null);
+export const ErrInvalidRedirectStatusCode = NewInternalServerError("Invalid redirect status code", null);
+export const ErrFileNotFound = NewNotFoundError("File not found", null);
+
+export const IndexPage = "index.html";
+export const DefaultMaxMemory = 32 << 20;
+
+const headerContentType = "Content-Type";
+const jsonFieldsParam = "fields";
+
+export type CookieLike = {
+  Name?: string;
+  Value?: string;
+  Path?: string;
+  Domain?: string;
+  Expires?: Date;
+  MaxAge?: number;
+  Secure?: boolean;
+  HttpOnly?: boolean;
+  SameSite?: "Strict" | "Lax" | "None";
+};
+
+type FormDataLike = {
+  entries(): IterableIterator<[string, unknown]>;
+};
+
+type XmlChildNode = {
+  tagName?: string;
+  textContent?: string | null;
+};
+
+type XmlElementNode = {
+  children?: Iterable<XmlChildNode> | ArrayLike<XmlChildNode> | null;
+};
+
+type XmlDocument = {
+  documentElement: XmlElementNode | null;
+};
+
+type DomParserLike = {
+  parseFromString: (raw: string, mime: string) => XmlDocument;
+};
+
+type EventOptions = {
+  request: Request;
+  params?: Record<string, string>;
+  remoteAddress?: string | null;
+  next?: NextFunc | null;
+  flush?: (() => void) | null;
+};
 
 // Event specifies based Route handler event that is usually intended
 // to be embedded as part of a custom event struct.
@@ -15,19 +82,18 @@ export class Event implements Resolver {
   #next: NextFunc | null;
   #remoteAddress: string | null;
   #data: Store<string, unknown>;
+  #written = false;
+  #status = 0;
+  #flushHandler: (() => void) | null;
 
-  constructor(options: {
-    request: Request;
-    params?: Record<string, string>;
-    remoteAddress?: string | null;
-    next?: NextFunc | null;
-  }) {
+  constructor(options: EventOptions) {
     this.request = options.request;
     this.params = options.params ?? {};
     this.responseHeaders = new Headers();
     this.#next = options.next ?? null;
     this.#remoteAddress = options.remoteAddress ?? null;
     this.#data = new Store();
+    this.#flushHandler = options.flush ?? null;
   }
 
   Next(): unknown {
@@ -48,6 +114,94 @@ export class Event implements Resolver {
   async next(): Promise<unknown> {
     return this.Next();
   }
+
+  Written(): boolean {
+    return this.#written;
+  }
+
+  Status(): number {
+    return this.#status;
+  }
+
+  Flush(): Error | null {
+    if (this.#flushHandler) {
+      this.#flushHandler();
+      return null;
+    }
+    return new Error("response doesn't support flush");
+  }
+
+  IsTLS(): boolean {
+    try {
+      return new URL(this.request.url).protocol === "https:";
+    } catch {
+      return false;
+    }
+  }
+
+  SetCookie(cookie: CookieLike): void {
+    const serialized = serializeCookie(cookie);
+    if (!serialized) {
+      return;
+    }
+    this.responseHeaders.append("Set-Cookie", serialized);
+  }
+
+  RemoteIP(): string {
+    const raw = this.#remoteAddress ?? "";
+    if (!raw) {
+      return "invalid IP";
+    }
+
+    const host = extractHost(raw);
+    if (!host) {
+      return "invalid IP";
+    }
+
+    if (isIPv4(host)) {
+      return host;
+    }
+
+    const expanded = expandIPv6(host);
+    return expanded ?? "invalid IP";
+  }
+
+  remoteIP(): string {
+    return this.RemoteIP();
+  }
+
+  async FindUploadedFiles(key: string): Promise<FilesystemFile[]> {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Bun supports Request.formData() for multipart parsing.
+    const form = await this.request.clone().formData();
+    const entries = form.getAll(key);
+    if (!entries.length) {
+      throw ErrFileNotFound;
+    }
+
+    const files: FilesystemFile[] = [];
+    for (const entry of entries) {
+      if (!(entry instanceof globalThis.File)) {
+        continue;
+      }
+      const buffer = new Uint8Array(await entry.arrayBuffer());
+      files.push(
+        NewFileFromMultipart({
+          filename: entry.name,
+          size: entry.size,
+          buffer,
+        }),
+      );
+    }
+
+    if (files.length === 0) {
+      throw ErrFileNotFound;
+    }
+
+    return files;
+  }
+
+  // Store
+  // -------------------------------------------------------------------
 
   // Get retrieves single value from the current event data store.
   Get(key: string): unknown {
@@ -71,44 +225,454 @@ export class Event implements Resolver {
     }
   }
 
-  json(status: number, body: unknown): Response {
-    if (!this.responseHeaders.has("Content-Type")) {
-      this.responseHeaders.set("Content-Type", "application/json");
-    }
+  // Response writers
+  // -------------------------------------------------------------------
 
-    let output = body;
+  String(status: number, data: string): Response {
+    this.setResponseHeaderIfEmpty(headerContentType, "text/plain; charset=utf-8");
+    return this.buildResponse(status, data);
+  }
+
+  HTML(status: number, data: string): Response {
+    this.setResponseHeaderIfEmpty(headerContentType, "text/html; charset=utf-8");
+    return this.buildResponse(status, data);
+  }
+
+  JSON(status: number, data: unknown): Response {
+    this.setResponseHeaderIfEmpty(headerContentType, "application/json");
+
+    let output = data;
     if (status >= 200 && status <= 299) {
-      const rawFields = new URL(this.request.url).searchParams.get("fields") ?? "";
+      const rawFields = new URL(this.request.url).searchParams.get(jsonFieldsParam) ?? "";
       if (rawFields) {
-        output = Pick(body, rawFields);
+        output = Pick(data, rawFields);
       }
     }
 
-    return new Response(JSON.stringify(output), {
-      status,
-      headers: this.responseHeaders,
-    });
+    return this.buildResponse(status, `${JSON.stringify(output)}\n`);
   }
 
+  XML(status: number, data: unknown): Response {
+    this.setResponseHeaderIfEmpty(headerContentType, "application/xml; charset=utf-8");
+    const payload = `${xmlHeader()}${serializeXml(data)}`;
+    return this.buildResponse(status, payload);
+  }
+
+  Stream(status: number, contentType: string, reader: BodyInit): Response {
+    this.responseHeaders.set(headerContentType, contentType);
+    return this.buildResponse(status, reader);
+  }
+
+  Blob(status: number, contentType: string, blob: Uint8Array): Response {
+    this.setResponseHeaderIfEmpty(headerContentType, contentType);
+    return this.buildResponse(status, blob);
+  }
+
+  async FileFS(fsys: string | { root: string }, filename: string): Promise<Response | ApiError> {
+    if (!filename) {
+      return ErrFileNotFound;
+    }
+
+    const root = typeof fsys === "string" ? fsys : fsys.root;
+    if (!root) {
+      return ErrFileNotFound;
+    }
+
+    let resolved = join(root, filename);
+    let stats: { isDirectory: () => boolean };
+
+    try {
+      stats = statSync(resolved);
+    } catch {
+      return ErrFileNotFound;
+    }
+
+    if (stats.isDirectory()) {
+      resolved = join(resolved, IndexPage);
+      try {
+        stats = statSync(resolved);
+      } catch {
+        return ErrFileNotFound;
+      }
+    }
+
+    const content = readFileSync(resolved);
+    this.responseHeaders.set("Content-Length", String(content.length));
+    return this.buildResponse(200, content);
+  }
+
+  NoContent(status: number): Response {
+    return this.buildResponse(status, null);
+  }
+
+  Redirect(status: number, url: string): Response | ApiError {
+    if (status < 300 || status > 399) {
+      return ErrInvalidRedirectStatusCode;
+    }
+    this.responseHeaders.set("Location", url);
+    return this.buildResponse(status, null);
+  }
+
+  json(status: number, body: unknown): Response {
+    return this.JSON(status, body);
+  }
+
+  html(status: number, body: string): Response {
+    return this.HTML(status, body);
+  }
+
+  string(status: number, body: string): Response {
+    return this.String(status, body);
+  }
+
+  xml(status: number, body: unknown): Response {
+    return this.XML(status, body);
+  }
+
+  stream(status: number, contentType: string, reader: BodyInit): Response {
+    return this.Stream(status, contentType, reader);
+  }
+
+  blob(status: number, contentType: string, blob: Uint8Array): Response {
+    return this.Blob(status, contentType, blob);
+  }
+
+  noContent(status: number): Response {
+    return this.NoContent(status);
+  }
+
+  redirect(status: number, url: string): Response | ApiError {
+    return this.Redirect(status, url);
+  }
+
+  // ApiError helpers
+  // -------------------------------------------------------------------
+
+  Error(status: number, message: string, errData: unknown): ApiError {
+    return NewApiError(status, message, errData);
+  }
+
+  BadRequestError(message: string, errData: unknown): ApiError {
+    return NewBadRequestError(message, errData);
+  }
+
+  NotFoundError(message: string, errData: unknown): ApiError {
+    return NewNotFoundError(message, errData);
+  }
+
+  ForbiddenError(message: string, errData: unknown): ApiError {
+    return NewForbiddenError(message, errData);
+  }
+
+  UnauthorizedError(message: string, errData: unknown): ApiError {
+    return NewUnauthorizedError(message, errData);
+  }
+
+  TooManyRequestsError(message: string, errData: unknown): ApiError {
+    return NewTooManyRequestsError(message, errData);
+  }
+
+  InternalServerError(message: string, errData: unknown): ApiError {
+    return NewInternalServerError(message, errData);
+  }
+
+  // Binders
+  // -------------------------------------------------------------------
+
   async bindBody<T extends object>(target: T): Promise<void> {
-    const contentType = this.request.headers.get("Content-Type") ?? "";
     if (!this.request.body) {
       return;
     }
 
-    if (contentType.includes("application/json")) {
-      try {
-        const parsed = await this.request.json();
-        if (parsed && typeof parsed === "object") {
-          Object.assign(target, parsed as object);
-        }
-      } catch {
-        // ignore malformed JSON for now; upstream returns error later in request validation
+    const contentLengthRaw = this.request.headers.get("content-length");
+    if (contentLengthRaw !== null) {
+      const contentLength = Number(contentLengthRaw);
+      if (!Number.isNaN(contentLength) && contentLength === 0) {
+        return;
+      }
+    }
+
+    const contentType = (this.request.headers.get(headerContentType) ?? "").toLowerCase();
+
+    if (contentType.startsWith("application/json")) {
+      const parsed = await this.request.clone().json();
+      if (parsed && typeof parsed === "object") {
+        Object.assign(target, parsed as object);
+      }
+      return;
+    }
+
+    if (contentType.startsWith("multipart/form-data")) {
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- Bun supports Request.formData() for multipart parsing.
+      const form = await this.request.clone().formData();
+      const data = collectFormData(form);
+      const err = unmarshalRequestData(data, target as Record<string, unknown>);
+      if (err) {
+        throw err;
+      }
+      return;
+    }
+
+    if (contentType.startsWith("application/x-www-form-urlencoded")) {
+      const raw = await this.request.clone().text();
+      const params = new URLSearchParams(raw);
+      const data: Record<string, string[]> = {};
+      for (const [key, value] of params.entries()) {
+        data[key] = data[key] ?? [];
+        data[key]?.push(value);
+      }
+      const err = unmarshalRequestData(data, target as Record<string, unknown>);
+      if (err) {
+        throw err;
+      }
+      return;
+    }
+
+    if (contentType.startsWith("text/xml") || contentType.startsWith("application/xml")) {
+      const raw = await this.request.clone().text();
+      const data = parseXmlBody(raw);
+      const err = unmarshalRequestData(data, target as Record<string, unknown>);
+      if (err) {
+        throw err;
+      }
+      return;
+    }
+
+    throw ErrUnsupportedContentType;
+  }
+
+  async BindBody<T extends object>(target: T): Promise<void> {
+    return this.bindBody(target);
+  }
+
+  private setResponseHeaderIfEmpty(key: string, value: string): void {
+    if (!this.responseHeaders.has(key)) {
+      this.responseHeaders.set(key, value);
+    }
+  }
+
+  private buildResponse(status: number, body: BodyInit | null): Response {
+    this.#written = true;
+    this.#status = status;
+    try {
+      return new Response(body, {
+        status,
+        headers: this.responseHeaders,
+      });
+    } catch (error) {
+      if (error instanceof RangeError) {
+        const fallback = new Response(body, {
+          status: 200,
+          headers: this.responseHeaders,
+        });
+        Object.defineProperty(fallback, "status", { value: status });
+        return fallback;
+      }
+      throw error;
+    }
+  }
+}
+
+function serializeCookie(cookie: CookieLike): string {
+  const name = cookie.Name ?? "";
+  const value = cookie.Value ?? "";
+  if (!name) {
+    return "";
+  }
+
+  const parts = [`${name}=${value}`];
+  if (cookie.Path) {
+    parts.push(`Path=${cookie.Path}`);
+  }
+  if (cookie.Domain) {
+    parts.push(`Domain=${cookie.Domain}`);
+  }
+  if (cookie.MaxAge != null) {
+    parts.push(`Max-Age=${cookie.MaxAge}`);
+  }
+  if (cookie.Expires instanceof Date) {
+    parts.push(`Expires=${cookie.Expires.toUTCString()}`);
+  }
+  if (cookie.Secure) {
+    parts.push("Secure");
+  }
+  if (cookie.HttpOnly) {
+    parts.push("HttpOnly");
+  }
+  if (cookie.SameSite) {
+    parts.push(`SameSite=${cookie.SameSite}`);
+  }
+
+  return parts.join("; ");
+}
+
+function extractHost(remoteAddr: string): string | null {
+  if (!remoteAddr) {
+    return null;
+  }
+  if (remoteAddr.startsWith("[")) {
+    const end = remoteAddr.indexOf("]");
+    if (end === -1) {
+      return null;
+    }
+    return remoteAddr.slice(1, end);
+  }
+
+  const lastColon = remoteAddr.lastIndexOf(":");
+  if (lastColon === -1) {
+    return null;
+  }
+
+  const host = remoteAddr.slice(0, lastColon);
+  return host || null;
+}
+
+function isIPv4(ip: string): boolean {
+  const parts = ip.split(".");
+  if (parts.length !== 4) {
+    return false;
+  }
+  return parts.every((part) => {
+    if (!/^[0-9]+$/.test(part)) {
+      return false;
+    }
+    const value = Number(part);
+    return value >= 0 && value <= 255;
+  });
+}
+
+function expandIPv6(input: string): string | null {
+  let ip = input.toLowerCase();
+  const zoneIndex = ip.indexOf("%");
+  if (zoneIndex >= 0) {
+    ip = ip.slice(0, zoneIndex);
+  }
+
+  const hasIPv4 = ip.includes(".");
+  let ipv4Part = "";
+  if (hasIPv4) {
+    const lastColon = ip.lastIndexOf(":");
+    ipv4Part = ip.slice(lastColon + 1);
+    ip = ip.slice(0, lastColon);
+  }
+
+  const [leftRaw, rightRaw] = ip.split("::");
+  const left = leftRaw ? leftRaw.split(":").filter(Boolean) : [];
+  const right = rightRaw ? rightRaw.split(":").filter(Boolean) : [];
+
+  const ipv4Groups = hasIPv4 ? 1 : 0;
+  const missing = 8 - (left.length + right.length + ipv4Groups);
+  if (missing < 0) {
+    return null;
+  }
+
+  const parts = [...left, ...Array.from({ length: missing }, () => "0"), ...right];
+
+  if (hasIPv4) {
+    const nums = ipv4Part.split(".").map((part) => Number(part));
+    if (nums.length !== 4 || nums.some((n) => Number.isNaN(n) || n < 0 || n > 255)) {
+      return null;
+    }
+    const [n0, n1, n2, n3] = nums;
+    if (n0 === undefined || n1 === undefined || n2 === undefined || n3 === undefined) {
+      return null;
+    }
+    const high = ((n0 << 8) | n1).toString(16);
+    const low = ((n2 << 8) | n3).toString(16);
+    parts.push(high, low);
+  }
+
+  if (parts.length !== 8) {
+    return null;
+  }
+
+  return parts.map((part) => part.padStart(4, "0")).join(":");
+}
+
+function collectFormData(form: FormDataLike): Record<string, string[]> {
+  const data: Record<string, string[]> = {};
+  for (const [key, value] of form.entries()) {
+    if (typeof value !== "string") {
+      continue;
+    }
+    data[key] = data[key] ?? [];
+    data[key]?.push(value);
+  }
+  return data;
+}
+
+function parseXmlBody(raw: string): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+
+  const domParserCtor = (globalThis as { DOMParser?: { new (): DomParserLike } }).DOMParser;
+  if (domParserCtor) {
+    const parser = new domParserCtor();
+    const doc = parser.parseFromString(raw, "application/xml");
+    const root = doc.documentElement;
+    if (root) {
+      const children = root.children ?? [];
+      for (const child of Array.from(children as ArrayLike<XmlChildNode>)) {
+        const key = typeof child.tagName === "string" ? child.tagName : "";
+        const value = typeof child.textContent === "string" ? child.textContent : "";
+        result[key] = result[key] ?? [];
+        result[key]?.push(value);
+      }
+      if (Object.keys(result).length > 0) {
+        return result;
       }
     }
   }
 
-  remoteIP(): string {
-    return this.#remoteAddress ?? "";
+  const regex = new RegExp("<([A-Za-z0-9_:-]+)>([^<]*)</\\1>", "g");
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(raw)) !== null) {
+    const key = match[1] ?? "";
+    const value = match[2] ?? "";
+    if (!key) {
+      continue;
+    }
+    result[key] = result[key] ?? [];
+    result[key]?.push(value);
   }
+
+  return result;
+}
+
+function xmlHeader(): string {
+  return '<?xml version="1.0" encoding="UTF-8"?>\n';
+}
+
+function serializeXml(value: unknown): string {
+  if (typeof value === "string") {
+    return `<string>${escapeXml(value)}</string>`;
+  }
+  if (typeof value === "number") {
+    return `<number>${value}</number>`;
+  }
+  if (typeof value === "boolean") {
+    return `<boolean>${value}</boolean>`;
+  }
+  if (value && typeof value === "object") {
+    const parts: string[] = [];
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      const raw =
+        entry == null
+          ? ""
+          : typeof entry === "string" || typeof entry === "number" || typeof entry === "boolean"
+            ? String(entry)
+            : JSON.stringify(entry);
+      parts.push(`<${key}>${escapeXml(raw)}</${key}>`);
+    }
+    return parts.join("");
+  }
+  return "<null></null>";
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }

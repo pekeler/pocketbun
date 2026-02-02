@@ -1,6 +1,7 @@
 // Ported from pocketbase/core/events.go (partial: app + model/record/collection + collection request + realtime + file events).
 
 import type { Mailer, Message } from "../tools/mailer/mailer.ts";
+import type { ApiError } from "../tools/router/api_error.ts";
 import type { Router } from "../tools/router/router.ts";
 import type { SearchResult } from "../tools/search/types.ts";
 import type { Client as RealtimeClient } from "../tools/subscriptions/client.ts";
@@ -783,7 +784,7 @@ export class RecordsListRequestEvent extends Event {
     this.RequestEvent.app = app;
   }
 
-  BadRequestError(message: string, errData: unknown = null): Response {
+  BadRequestError(message: string, errData: unknown = null): ApiError {
     return this.RequestEvent.BadRequestError(message, errData);
   }
 
@@ -813,7 +814,7 @@ export class RecordRequestEvent extends Event {
     this.RequestEvent.app = app;
   }
 
-  BadRequestError(message: string, errData: unknown = null): Response {
+  BadRequestError(message: string, errData: unknown = null): ApiError {
     return this.RequestEvent.BadRequestError(message, errData);
   }
 

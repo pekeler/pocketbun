@@ -63,7 +63,6 @@ export async function recordAuthWithOAuth2(app: App, event: RequestEvent): Promi
   }
 
   event.Set(RequestEventKeyInfoContext, RequestInfoContextOAuth2);
-  await event.requestInfo();
 
   const formResult = await parseOAuth2Form(event);
   if (formResult.error) {

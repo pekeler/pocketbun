@@ -442,7 +442,11 @@ async function checkMFA(event: RequestEvent, authRecord: RecordModel, currentAut
   let mfaId = new URL(event.request.url).searchParams.get("mfaId") ?? "";
   if (!mfaId) {
     const data = { mfaId: "" };
-    await event.bindBody(data);
+    try {
+      await event.bindBody(data);
+    } catch (error) {
+      return { mfaId: "", response: badRequest(event, "Failed to read MFA Id", error as Error) };
+    }
     mfaId = data.mfaId;
   }
 

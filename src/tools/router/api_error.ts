@@ -24,8 +24,9 @@ export class ApiError extends Error {
   Status: number;
 
   constructor(status = 0, message = "", rawData: unknown = null) {
-    const sentenized = message ? sentenize(message) : "";
-    super(sentenized);
+    const normalized = message || statusText(status);
+    const sentenized = normalized ? sentenize(normalized).trim() : "";
+    super(sentenized, rawData instanceof Error ? { cause: rawData } : undefined);
     this.name = "ApiError";
     this.Status = status;
     this.Message = sentenized;
@@ -42,10 +43,24 @@ export class ApiError extends Error {
   }
 
   Is(target: unknown): boolean {
-    if (this.rawData instanceof Error && target instanceof Error) {
-      return this.rawData === target;
+    if (target == null) {
+      return false;
     }
-    return target === this;
+    if (this === target) {
+      return true;
+    }
+    if (this.rawData instanceof Error && target instanceof Error) {
+      return errorsIs(this.rawData, target);
+    }
+    return false;
+  }
+
+  toJSON(): Record<string, unknown> {
+    return {
+      data: this.Data ?? {},
+      message: this.Message,
+      status: this.Status,
+    };
   }
 }
 
@@ -84,16 +99,17 @@ export function NewApiError(status = 0, message = "", rawErrData: unknown = null
 }
 
 export function ToApiError(err: unknown): ApiError {
-  if (err instanceof ApiError) {
-    return err;
-  }
-  if (err instanceof NotFoundError) {
-    return NewNotFoundError("", err);
-  }
   if (err instanceof Error) {
+    const nestedApiErr = unwrapApiError(err);
+    if (nestedApiErr) {
+      return nestedApiErr;
+    }
+    if (err instanceof NotFoundError || isFsNotExist(err) || isSqlNoRows(err)) {
+      return NewNotFoundError("", err);
+    }
     return NewBadRequestError("", err);
   }
-  return NewBadRequestError("", null);
+  return err instanceof ApiError ? err : NewBadRequestError("", null);
 }
 
 export function apiErrorResponse(event: { json: (status: number, body: unknown) => Response }, apiErr: ApiError): Response {
@@ -104,7 +120,7 @@ export function apiErrorResponse(event: { json: (status: number, body: unknown) 
   });
 }
 
-function safeErrorsData(err: unknown): Record<string, unknown> {
+export function safeErrorsData(err: unknown): Record<string, unknown> {
   if (!err) {
     return {};
   }
@@ -124,29 +140,58 @@ function safeErrorsData(err: unknown): Record<string, unknown> {
   }
 
   if (err instanceof ValidationErrors) {
-    const data: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(err.errors)) {
-      if (value instanceof ValidationErrors) {
-        data[key] = safeErrorsData(value);
-        continue;
-      }
-      data[key] = resolveSafeErrorItem(value as Error);
-    }
-    return data;
+    return resolveSafeErrorsData(err.errors);
   }
 
   if (err instanceof ValidationError) {
-    return resolveSafeErrorItem(err);
+    return resolveSafeErrorItem(err) as Record<string, unknown>;
   }
 
   if (err instanceof Error) {
-    return { message: err.message };
+    if (err instanceof ValidationErrors) {
+      return resolveSafeErrorsData(err.errors);
+    }
+    return {};
   }
 
-  return typeof err === "object" ? (err as Record<string, unknown>) : {};
+  if (typeof err === "object" && err) {
+    return resolveSafeErrorsData(err as Record<string, unknown>);
+  }
+
+  return {};
 }
 
-function resolveSafeErrorItem(err: Error): Record<string, unknown> {
+function resolveSafeErrorsData(data: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(data)) {
+    if (isNestedError(value)) {
+      result[key] = safeErrorsData(value);
+    } else {
+      result[key] = resolveSafeErrorItem(value);
+    }
+  }
+
+  return result;
+}
+
+function isNestedError(err: unknown): boolean {
+  if (err instanceof ValidationErrors) {
+    return true;
+  }
+  if (!err || typeof err !== "object" || Array.isArray(err)) {
+    return false;
+  }
+  if (err instanceof Error) {
+    return false;
+  }
+  if (isSafeErrorItem(err) || isSafeErrorParamsResolver(err) || isSafeErrorResolver(err)) {
+    return false;
+  }
+  return true;
+}
+
+function resolveSafeErrorItem(err: unknown): unknown {
   const data: Record<string, unknown> = {
     code: "validation_invalid_value",
     message: "Invalid value.",
@@ -154,16 +199,85 @@ function resolveSafeErrorItem(err: Error): Record<string, unknown> {
 
   if (err instanceof ValidationError) {
     data.code = err.code;
-    data.message = err.message;
-    if (err.params && Object.keys(err.params).length > 0) {
-      data.params = err.params;
-    }
-    return data;
+    data.message = sentenize(err.message);
+  } else if (isSafeErrorItem(err)) {
+    data.code = err.Code();
+    data.message = sentenize(err.Error());
   }
 
-  if (err.message) {
-    data.message = err.message;
+  if (isSafeErrorParamsResolver(err)) {
+    const params = err.Params();
+    if (Object.keys(params ?? {}).length > 0) {
+      data.params = params;
+    }
+  }
+
+  if (isSafeErrorResolver(err)) {
+    return err.Resolve(data);
   }
 
   return data;
+}
+
+function isSafeErrorItem(err: unknown): err is SafeErrorItem {
+  return (
+    Boolean(err) && typeof (err as SafeErrorItem).Code === "function" && typeof (err as SafeErrorItem).Error === "function"
+  );
+}
+
+function isSafeErrorParamsResolver(err: unknown): err is SafeErrorParamsResolver {
+  return Boolean(err) && typeof (err as SafeErrorParamsResolver).Params === "function";
+}
+
+function isSafeErrorResolver(err: unknown): err is SafeErrorResolver {
+  return Boolean(err) && typeof (err as SafeErrorResolver).Resolve === "function";
+}
+
+function unwrapApiError(err: Error): ApiError | null {
+  if (err instanceof ApiError) {
+    return err;
+  }
+  const cause = (err as { cause?: unknown }).cause;
+  if (cause instanceof Error) {
+    return unwrapApiError(cause);
+  }
+  return null;
+}
+
+function errorsIs(err: Error, target: Error): boolean {
+  if (err === target) {
+    return true;
+  }
+  const cause = (err as { cause?: unknown }).cause;
+  if (cause instanceof Error) {
+    return errorsIs(cause, target);
+  }
+  return false;
+}
+
+function isFsNotExist(err: Error): boolean {
+  return (err as { code?: string }).code === "ENOENT";
+}
+
+function isSqlNoRows(err: Error): boolean {
+  return err.message === "sql: no rows in result set";
+}
+
+function statusText(status: number): string {
+  switch (status) {
+    case 400:
+      return "Bad Request";
+    case 401:
+      return "Unauthorized";
+    case 403:
+      return "Forbidden";
+    case 404:
+      return "Not Found";
+    case 429:
+      return "Too Many Requests";
+    case 500:
+      return "Internal Server Error";
+    default:
+      return "";
+  }
 }

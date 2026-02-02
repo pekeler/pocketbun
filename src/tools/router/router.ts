@@ -3,7 +3,7 @@
 import type { Resolver } from "../hook/event.ts";
 import type { Handler } from "./route.ts";
 import { Hook } from "../hook/hook.ts";
-import { ApiError, ToApiError, apiErrorResponse } from "./api_error.ts";
+import { ApiError, NewNotFoundError, ToApiError, apiErrorResponse } from "./api_error.ts";
 import { RouterGroup } from "./group.ts";
 
 type Segment = { type: "static"; value: string } | { type: "param"; name: string } | { type: "wildcard"; name: string };
@@ -12,12 +12,14 @@ type RouterEvent = Resolver & {
   json: (status: number, body: unknown) => Response;
 };
 
+type EventFactoryResult<E extends RouterEvent> = E | { event: E; cleanup?: () => void };
+
 export type EventFactory<E extends RouterEvent> = (options: {
   request: Request;
   params: Record<string, string>;
   remoteAddress: string | null;
   pattern: string;
-}) => E;
+}) => EventFactoryResult<E>;
 
 type ResolvedRoute<E extends RouterEvent> = {
   method: string;
@@ -52,9 +54,7 @@ type ResolvedRoute<E extends RouterEvent> = {
 export class Router<E extends RouterEvent> extends RouterGroup<E> {
   buildHandler(factory: EventFactory<E>): (req: Request, server?: unknown) => Promise<Response> {
     if (!this.HasRoute("", "/")) {
-      this.Any("/{path...}", (event) =>
-        event.json(404, { status: 404, message: "The requested resource wasn't found.", data: {} }),
-      );
+      this.Any("/{path...}", () => NewNotFoundError("", null));
     }
 
     const routes = this.resolveRoutes();
@@ -63,7 +63,7 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
       const url = new URL(req.url);
       const method = req.method.toUpperCase();
       // Fallback to localhost when no server is available (ex. buildServeHandler tests).
-      const remoteAddress = getRemoteAddress(req, server) ?? "127.0.0.1";
+      const remoteAddress = getRemoteAddress(req, server) ?? "127.0.0.1:0";
 
       let bestMatch: { route: ResolvedRoute<E>; params: Record<string, string>; score: number } | null = null;
 
@@ -89,12 +89,14 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
       }
 
       const { route, params } = bestMatch;
-      const event = factory({
+      const created = factory({
         request: req,
         params,
         remoteAddress,
         pattern: route.pattern,
       });
+
+      const { event, cleanup } = unwrapEventFactoryResult(created);
 
       try {
         const result = await route.hook.Trigger(event, route.action);
@@ -110,11 +112,19 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
         }
 
         if (result instanceof ApiError) {
-          return apiErrorResponse(event, result);
+          const response = apiErrorResponse(event, result);
+          if (method === "HEAD") {
+            return new Response(null, { status: response.status, headers: response.headers });
+          }
+          return response;
         }
 
         if (result instanceof Error) {
-          return apiErrorResponse(event, ToApiError(result));
+          const response = apiErrorResponse(event, ToApiError(result));
+          if (method === "HEAD") {
+            return new Response(null, { status: response.status, headers: response.headers });
+          }
+          return response;
         }
 
         const response = new Response(null, { status: 200 });
@@ -127,12 +137,22 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
         return response;
       } catch (error) {
         if (error instanceof ApiError) {
-          return apiErrorResponse(event, error);
+          const response = apiErrorResponse(event, error);
+          if (method === "HEAD") {
+            return new Response(null, { status: response.status, headers: response.headers });
+          }
+          return response;
         }
         if (error instanceof Error) {
-          return apiErrorResponse(event, ToApiError(error));
+          const response = apiErrorResponse(event, ToApiError(error));
+          if (method === "HEAD") {
+            return new Response(null, { status: response.status, headers: response.headers });
+          }
+          return response;
         }
         return new Response(null, { status: 500 });
+      } finally {
+        cleanup?.();
       }
     };
   }
@@ -298,9 +318,30 @@ function computeScore(methodScore: number, segments: Segment[]): number {
 }
 
 function getRemoteAddress(req: Request, server?: unknown): string | null {
-  const bunServer = server as { requestIP?: (req: Request) => { address: string } | null } | undefined;
+  const bunServer = server as { requestIP?: (req: Request) => { address: string; port?: number } | null } | undefined;
   if (bunServer?.requestIP) {
-    return bunServer.requestIP(req)?.address ?? null;
+    const info = bunServer.requestIP(req);
+    if (!info) {
+      return null;
+    }
+    if (typeof info.port === "number") {
+      const host = info.address.includes(":") ? `[${info.address}]` : info.address;
+      return `${host}:${info.port}`;
+    }
+    return info.address;
   }
   return null;
+}
+
+function unwrapEventFactoryResult<E extends RouterEvent>(
+  result: EventFactoryResult<E>,
+): {
+  event: E;
+  cleanup: (() => void) | null;
+} {
+  if (result && typeof result === "object" && "event" in result) {
+    const wrapped = result as { event: E; cleanup?: () => void };
+    return { event: wrapped.event, cleanup: wrapped.cleanup ?? null };
+  }
+  return { event: result as E, cleanup: null };
 }

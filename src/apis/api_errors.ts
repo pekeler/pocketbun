@@ -1,7 +1,7 @@
 // PocketBun-only: shared API error helpers to keep JSON response shapes consistent.
 
 import type { RequestEvent } from "../core/event_request.ts";
-import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";
+import { safeErrorsData } from "../tools/router/api_error.ts";
 
 export function noContent(event: RequestEvent, status = 204): Response {
   return new Response(null, {
@@ -51,74 +51,10 @@ export function notFound(event: RequestEvent, message: string): Response {
 }
 
 export function internalServerError(event: RequestEvent, message: string, err: unknown = null): Response {
-  const data = err && err instanceof Error ? { message: err.message } : {};
+  const data = safeErrorsData(err);
   return event.json(500, {
     status: 500,
     message: message || "Something went wrong while processing your request.",
     data,
   });
-}
-
-export function safeErrorsData(err: unknown): Record<string, unknown> {
-  if (!err) {
-    return {};
-  }
-
-  if (err instanceof AggregateError) {
-    for (const inner of err.errors) {
-      if (inner instanceof ValidationErrors || inner instanceof ValidationError) {
-        return safeErrorsData(inner);
-      }
-    }
-    for (const inner of err.errors) {
-      if (inner instanceof Error) {
-        return safeErrorsData(inner);
-      }
-    }
-    return {};
-  }
-
-  if (err instanceof ValidationErrors) {
-    const data: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(err.errors)) {
-      if (value instanceof ValidationErrors) {
-        data[key] = safeErrorsData(value);
-        continue;
-      }
-      data[key] = resolveSafeErrorItem(value as Error);
-    }
-    return data;
-  }
-
-  if (err instanceof ValidationError) {
-    return resolveSafeErrorItem(err);
-  }
-
-  if (err instanceof Error) {
-    return { message: err.message };
-  }
-
-  return typeof err === "object" ? (err as Record<string, unknown>) : {};
-}
-
-function resolveSafeErrorItem(err: Error): Record<string, unknown> {
-  const data: Record<string, unknown> = {
-    code: "validation_invalid_value",
-    message: "Invalid value.",
-  };
-
-  if (err instanceof ValidationError) {
-    data.code = err.code;
-    data.message = err.message;
-    if (err.params && Object.keys(err.params).length > 0) {
-      data.params = err.params;
-    }
-    return data;
-  }
-
-  if (err.message) {
-    data.message = err.message;
-  }
-
-  return data;
 }

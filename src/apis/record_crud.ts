@@ -17,6 +17,7 @@ import { ValidationError, ValidationErrors } from "../internal/compat/validation
 import { NewFileFromBytes, type File as LocalFile } from "../tools/filesystem/file.ts";
 import { columnify } from "../tools/inflector/inflector.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
+import { ApiError, ToApiError, apiErrorResponse } from "../tools/router/api_error.ts";
 import { JSONPayloadKey, unmarshalRequestData } from "../tools/router/unmarshal_request_data.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { Provider } from "../tools/search/provider.ts";
@@ -143,7 +144,7 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
     return event.json(200, hookEvent.Result);
   });
 
-  const listResponse = unwrapHookResponse(out);
+  const listResponse = unwrapHookResponse(event, out);
   if (listResponse) {
     return listResponse;
   }
@@ -227,7 +228,7 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
       return event.json(200, recordRef.publicExport());
     });
 
-    const viewResponse = unwrapHookResponse(out);
+    const viewResponse = unwrapHookResponse(event, out);
     if (viewResponse) {
       return viewResponse;
     }
@@ -341,7 +342,7 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
     return event.json(200, recordRef.publicExport());
   });
 
-  const createResponse = unwrapHookResponse(out);
+  const createResponse = unwrapHookResponse(event, out);
   if (createResponse) {
     return createResponse;
   }
@@ -438,7 +439,7 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
     return event.json(200, recordRef.publicExport());
   });
 
-  const updateResponse = unwrapHookResponse(out);
+  const updateResponse = unwrapHookResponse(event, out);
   if (updateResponse) {
     return updateResponse;
   }
@@ -505,7 +506,7 @@ export async function recordDelete(app: App, event: RequestEvent): Promise<Respo
     return noContent(event);
   });
 
-  const deleteResponse = unwrapHookResponse(out);
+  const deleteResponse = unwrapHookResponse(event, out);
   if (deleteResponse) {
     return deleteResponse;
   }
@@ -957,16 +958,19 @@ function normalizeDbValue(value: unknown): SQLQueryBindings {
   return value as SQLQueryBindings;
 }
 
-function unwrapHookResponse(result: unknown): Response | null {
+function unwrapHookResponse(event: RequestEvent, result: unknown): Response | null {
   if (!result) {
     return null;
   }
   if (result instanceof Response) {
     return result;
   }
+  if (result instanceof ApiError) {
+    return apiErrorResponse(event, result);
+  }
   if (result instanceof AggregateError) {
     for (const inner of result.errors) {
-      const found = unwrapHookResponse(inner);
+      const found = unwrapHookResponse(event, inner);
       if (found) {
         return found;
       }
@@ -977,6 +981,7 @@ function unwrapHookResponse(result: unknown): Response | null {
     if (response instanceof Response) {
       return response;
     }
+    return apiErrorResponse(event, ToApiError(result));
   }
   return null;
 }

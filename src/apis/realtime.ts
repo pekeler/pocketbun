@@ -206,7 +206,11 @@ function validateRealtimeSubscribeForm(form: RealtimeSubscribeForm): Error | nul
 async function realtimeSetSubscriptions(event: RequestEvent): Promise<Response> {
   const form = new RealtimeSubscribeForm();
 
-  await event.bindBody(form);
+  try {
+    await event.bindBody(form);
+  } catch (error) {
+    return badRequest(event, "", error as Error);
+  }
 
   if (!Array.isArray(form.subscriptions)) {
     form.subscriptions = [];

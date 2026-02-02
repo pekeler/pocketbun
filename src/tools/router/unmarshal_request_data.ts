@@ -44,8 +44,6 @@ export function unmarshalRequestData(data: Record<string, string[]>, dest: Recor
   return null;
 }
 
-const inferNumberCharsRegex = /^[\\-\\.\\d]+$/;
-
 // In order to support more seamlessly both json and multipart/form-data requests,
 // the following normalization rules are applied for plain multipart string values:
 //   - "true" is converted to the json "true"
@@ -63,12 +61,9 @@ function inferValue(raw: string): unknown {
     case "false":
       return false;
     default: {
-      const first = raw[0] ?? "";
-      if (raw.length > 0 && (first === "-" || (first >= "0" && first <= "9")) && inferNumberCharsRegex.test(raw)) {
-        const value = Number.parseFloat(raw);
-        if (Number.isFinite(value) && String(value) === raw) {
-          return value;
-        }
+      const value = Number(raw);
+      if (Number.isFinite(value) && String(value) === raw) {
+        return value;
       }
       return raw;
     }
