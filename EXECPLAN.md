@@ -76,6 +76,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-02 20:05Z) Port RequestEvent tests and align RealIP handling with raw header values for proxy scenarios.
 - [x] (2026-02-02 21:05Z) Port migrations list/runner tests, add caller filename detection, and align applied-migrations filtering with upstream.
 - [x] (2026-02-02 21:45Z) Port middleware auth and body limit tests to cover panic recover and auth gate behavior.
+- [x] (2026-02-02 22:40Z) Port apis base/cron modules (WrapStdHandler/Middleware, Static, MustSubFS, cron routes) plus tests; start cron on serve and add DB optimize/log cleanup jobs.
 
 ## Surprises & Discoveries
 
