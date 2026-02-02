@@ -13,7 +13,7 @@ import { badRequest, forbidden, unauthorized } from "./api_errors.ts";
 export const RequestEventKeyLogMeta = "pbLogMeta";
 
 const requestEventKeyExecStart = "__execStart";
-const requestEventKeySkipSuccessActivityLog = "__skipSuccessActivityLogger";
+export const RequestEventKeySkipSuccessActivityLog = "__skipSuccessActivityLogger";
 
 export const DefaultWWWRedirectMiddlewarePriority = -99999;
 export const DefaultWWWRedirectMiddlewareId = "pbWWWRedirect";
@@ -264,7 +264,7 @@ export function SkipSuccessActivityLog(): Handler<RequestEvent> {
   return {
     Id: DefaultSkipSuccessActivityLogMiddlewareId,
     Func: (event) => {
-      event.Set(requestEventKeySkipSuccessActivityLog, true);
+      event.Set(RequestEventKeySkipSuccessActivityLog, true);
       return event.Next();
     },
   };
@@ -314,7 +314,7 @@ function logRequest(
   const status = response?.status ?? (err ? 500 : 0);
   const hasError = Boolean(err) || status >= 400;
 
-  if (!hasError && event.Get(requestEventKeySkipSuccessActivityLog) != null) {
+  if (!hasError && event.Get(RequestEventKeySkipSuccessActivityLog) != null) {
     return;
   }
 

@@ -5,19 +5,7 @@ import type { App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { ServeEvent } from "../core/events.ts";
 import { Router } from "../tools/router/router.ts";
-import { bindBackupApi } from "./backup.ts";
-import { bindBatchApi } from "./batch.ts";
-import { bindCollectionApi } from "./collection.ts";
-import { bindFileApi } from "./file.ts";
-import { bindHealthApi } from "./health.ts";
-import { bindLogsApi } from "./logs.ts";
-import { activityLogger, loadAuthToken, panicRecover, securityHeaders } from "./middlewares.ts";
-import { BodyLimit, DefaultMaxBodySize } from "./middlewares_body_limit.ts";
-import { rateLimit } from "./middlewares_rate_limit.ts";
-import { bindRealtimeApi } from "./realtime.ts";
-import { bindRecordAuthApi } from "./record_auth.ts";
-import { bindRecordCrudApi } from "./record_crud.ts";
-import { bindSettingsApi } from "./settings.ts";
+import { NewRouter } from "./base.ts";
 
 // ServeConfig defines a configuration struct for apis.Serve().
 export type ServeConfig = {
@@ -26,24 +14,7 @@ export type ServeConfig = {
 };
 
 export function buildServeHandler(app: App): (req: Request, server?: unknown) => Promise<Response> {
-  const router = new Router<RequestEvent>();
-  router.Bind(activityLogger());
-  router.Bind(panicRecover());
-  router.Bind(rateLimit());
-  router.Bind(BodyLimit(DefaultMaxBodySize));
-  router.Bind(loadAuthToken());
-  router.Bind(securityHeaders());
-  const apiGroup = router.group("/api");
-  bindBatchApi(app, apiGroup);
-  bindBackupApi(app, apiGroup);
-  bindCollectionApi(app, apiGroup);
-  bindFileApi(app, apiGroup);
-  bindHealthApi(app, apiGroup);
-  bindLogsApi(app, apiGroup);
-  bindRealtimeApi(app, apiGroup);
-  bindSettingsApi(app, apiGroup);
-  bindRecordAuthApi(app, apiGroup);
-  bindRecordCrudApi(app, apiGroup);
+  const router = NewRouter(app);
   bindAdminUI(router);
 
   const serveEvent = new ServeEvent(app, router);

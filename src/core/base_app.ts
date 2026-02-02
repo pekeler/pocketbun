@@ -3242,6 +3242,45 @@ export class BaseApp implements App {
         return event.Next();
       },
     });
+
+    this.OnServe().Bind({
+      Id: "__pbCronStart__",
+      Priority: 999,
+      Func: (event) => {
+        this.Cron().Start();
+        return event.Next();
+      },
+    });
+
+    this.Cron().Add("__pbDBOptimize__", "0 0 * * *", () => {
+      try {
+        this.db().query("PRAGMA wal_checkpoint(TRUNCATE)").run();
+      } catch (error) {
+        this.Logger().Warn("Failed to run periodic PRAGMA wal_checkpoint for the main DB", "error", String(error));
+      }
+
+      try {
+        this.auxDb().query("PRAGMA wal_checkpoint(TRUNCATE)").run();
+      } catch (error) {
+        this.Logger().Warn("Failed to run periodic PRAGMA wal_checkpoint for the auxiliary DB", "error", String(error));
+      }
+
+      try {
+        this.db().query("PRAGMA optimize").run();
+      } catch (error) {
+        this.Logger().Warn("Failed to run periodic PRAGMA optimize", "error", String(error));
+      }
+    });
+
+    this.Cron().Add("__pbLogsCleanup__", "0 */6 * * *", () => {
+      const createdBefore = NowDateTime()
+        .addDate(0, 0, -1 * this.settings().logs.maxDays)
+        .time();
+      const deleteErr = this.DeleteOldLogs(createdBefore);
+      if (deleteErr) {
+        this.Logger().Warn("Failed to delete old logs", "error", deleteErr);
+      }
+    });
   }
 
   // registerAutobackupHooks registers the autobackup app serve hooks.
