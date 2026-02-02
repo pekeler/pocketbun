@@ -87,6 +87,7 @@ export type Logger = {
 // on a specific wrapped app struct (hence the large interface size).
 export interface App {
   dataDir(): string;
+  DataDir(): string;
   encryptionEnv(): string;
   settings(): Settings;
   store(): Store<string, unknown>;
@@ -150,6 +151,7 @@ export interface App {
   DeleteWithContext(ctx: unknown, model: Model): Error | null;
   Validate(model: Model): Error | null;
   TruncateCollection(collection: Collection): Error | null;
+  ImportCollectionsByMarshaledJSON(rawSliceOfMaps: string | Uint8Array, deleteMissing: boolean): Error | null;
   ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Error | null;
   RunInTransaction(fn: (txApp: App) => Error | null): Error | null;
   // AuxRunInTransaction wraps fn into a transaction for the auxiliary app database.
@@ -173,6 +175,7 @@ export interface App {
   FindAllCollections(...collectionTypes: string[]): Collection[];
   FindCachedCollectionReferences(collection: Collection, ...excludeIds: string[]): Map<Collection, Field[]>;
   HasTable(name: string): boolean;
+  TableIndexes(tableName: string): Record<string, string>;
   IsCollectionNameUnique(name: string, excludeId?: string): boolean;
   findRecordById(collection: Collection, id: string, rule?: SqlExpr | null): RecordModel | null;
   FindRecordById(

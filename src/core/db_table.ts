@@ -45,3 +45,22 @@ export function TableColumns(db: Database, tableName: string): string[] {
   }>;
   return rows.map((row) => row.name);
 }
+
+// TableIndexes returns a name grouped map with all non empty index of the specified table.
+//
+// Note: This method doesn't return an error on nonexisting table.
+export function TableIndexes(db: Database, tableName: string): Record<string, string> {
+  const rows = db
+    .query("select name, sql from sqlite_master where sql is not null and type = 'index' and tbl_name = ?")
+    .all(tableName) as Array<{ name: string; sql: string | null }>;
+
+  const result: Record<string, string> = {};
+  for (const row of rows ?? []) {
+    if (!row?.name || !row.sql) {
+      continue;
+    }
+    result[row.name] = row.sql;
+  }
+
+  return result;
+}

@@ -2,7 +2,7 @@
 // Note: validation aggregation is simplified compared to ozzo-validation.
 
 import type { Collection } from "./collection.ts";
-import { newError } from "../internal/compat/validation.ts";
+import { ErrRequired, newError } from "../internal/compat/validation.ts";
 import { ErrUnsupportedValueType } from "./validators/validators.ts";
 
 const fieldNameRegex = /^\w+$/;
@@ -119,8 +119,11 @@ export function defaultFieldIdValidationRule(value: unknown): Error | null {
   if (typeof value !== "string") {
     return ErrUnsupportedValueType;
   }
-  if (value.length < 1 || value.length > 100) {
-    return newError("validation_invalid_field_id", "Invalid or missing field id.");
+  if (value.length === 0) {
+    return ErrRequired;
+  }
+  if (value.length > 100) {
+    return newError("validation_length", "The length must be between 1 and 100.");
   }
   return null;
 }
@@ -129,14 +132,17 @@ export function defaultFieldNameValidationRule(value: unknown): Error | null {
   if (typeof value !== "string") {
     return ErrUnsupportedValueType;
   }
-  if (value.length < 1 || value.length > 100) {
-    return newError("validation_invalid_field_name", "Invalid or missing field name.");
+  if (value.length === 0) {
+    return ErrRequired;
+  }
+  if (value.length > 100) {
+    return newError("validation_length", "The length must be between 1 and 100.");
   }
   if (!fieldNameRegex.test(value)) {
-    return newError("validation_invalid_field_name", "Invalid or missing field name.");
+    return newError("validation_match_invalid", "Must be in a valid format.");
   }
   if (excludeFieldNames.has(value)) {
-    return newError("validation_invalid_field_name", "Invalid or missing field name.");
+    return newError("validation_not_in_invalid", "The value is invalid.");
   }
   if (value.toLowerCase().includes("_via_")) {
     return newError("validation_found_via", 'The value cannot contain "_via_".');

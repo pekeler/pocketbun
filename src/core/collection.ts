@@ -3,6 +3,7 @@
 import type { App } from "./app.ts";
 import { toBoolValue, toNumberValue, toStringValue } from "../internal/compat/cast.ts";
 import { parseIndex, findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
+import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { pseudorandomStringWithAlphabet } from "../tools/security/random.ts";
 import { JSONRaw, ParseDateTime, DateTime } from "../tools/types/index.ts";
 import {
@@ -14,12 +15,8 @@ import {
   PasswordAuthConfig,
   TokenConfigValue,
   createDefaultAuthOptions,
-  normalizeAuthAlertConfig,
   normalizeEmailTemplate,
-  normalizeMFAConfig,
-  normalizeOAuth2Config,
-  normalizeOTPConfig,
-  normalizePasswordAuthConfig,
+  normalizeOAuth2ProviderConfig,
   type CollectionAuthOptions,
 } from "./collection_model_auth_options.ts";
 import { DefaultIdAlphabet } from "./db.ts";
@@ -256,6 +253,10 @@ export class Collection {
 
   IntegrityChecks(enable: boolean): void {
     this.#disableIntegrityChecks = !enable;
+  }
+
+  integrityChecksEnabled(): boolean {
+    return !this.#disableIntegrityChecks;
   }
 
   PostScan(): Error | null {
@@ -703,46 +704,77 @@ export class Collection {
       this.ManageRule = raw.ManageRule === null ? null : toStringValue(raw.ManageRule);
     }
 
-    if (raw.authAlert || raw.AuthAlert) {
-      this.AuthAlert = normalizeAuthAlertConfig(raw.authAlert ?? raw.AuthAlert);
+    if (Object.prototype.hasOwnProperty.call(raw, "authAlert") || Object.prototype.hasOwnProperty.call(raw, "AuthAlert")) {
+      this.AuthAlert = mergeAuthAlertConfig(this.AuthAlert, raw.authAlert ?? raw.AuthAlert);
     }
-    if (raw.oauth2 || raw.OAuth2) {
-      this.OAuth2 = normalizeOAuth2Config(raw.oauth2 ?? raw.OAuth2);
+    if (Object.prototype.hasOwnProperty.call(raw, "oauth2") || Object.prototype.hasOwnProperty.call(raw, "OAuth2")) {
+      this.OAuth2 = mergeOAuth2Config(this.OAuth2, raw.oauth2 ?? raw.OAuth2);
     }
-    if (raw.passwordAuth || raw.PasswordAuth) {
-      this.PasswordAuth = normalizePasswordAuthConfig(raw.passwordAuth ?? raw.PasswordAuth);
+    if (
+      Object.prototype.hasOwnProperty.call(raw, "passwordAuth") ||
+      Object.prototype.hasOwnProperty.call(raw, "PasswordAuth")
+    ) {
+      this.PasswordAuth = mergePasswordAuthConfig(this.PasswordAuth, raw.passwordAuth ?? raw.PasswordAuth);
     }
-    if (raw.mfa || raw.MFA) {
-      this.MFA = normalizeMFAConfig(raw.mfa ?? raw.MFA);
+    if (Object.prototype.hasOwnProperty.call(raw, "mfa") || Object.prototype.hasOwnProperty.call(raw, "MFA")) {
+      this.MFA = mergeMFAConfig(this.MFA, raw.mfa ?? raw.MFA);
     }
-    if (raw.otp || raw.OTP) {
-      this.OTP = normalizeOTPConfig(raw.otp ?? raw.OTP);
-    }
-
-    if (raw.authToken || raw.AuthToken) {
-      this.AuthToken = mergeTokenConfig(this.AuthToken, raw.authToken ?? raw.AuthToken);
-    }
-    if (raw.passwordResetToken || raw.PasswordResetToken) {
-      this.PasswordResetToken = mergeTokenConfig(this.PasswordResetToken, raw.passwordResetToken ?? raw.PasswordResetToken);
-    }
-    if (raw.emailChangeToken || raw.EmailChangeToken) {
-      this.EmailChangeToken = mergeTokenConfig(this.EmailChangeToken, raw.emailChangeToken ?? raw.EmailChangeToken);
-    }
-    if (raw.verificationToken || raw.VerificationToken) {
-      this.VerificationToken = mergeTokenConfig(this.VerificationToken, raw.verificationToken ?? raw.VerificationToken);
-    }
-    if (raw.fileToken || raw.FileToken) {
-      this.FileToken = mergeTokenConfig(this.FileToken, raw.fileToken ?? raw.FileToken);
+    if (Object.prototype.hasOwnProperty.call(raw, "otp") || Object.prototype.hasOwnProperty.call(raw, "OTP")) {
+      this.OTP = mergeOTPConfig(this.OTP, raw.otp ?? raw.OTP);
     }
 
-    if (raw.verificationTemplate || raw.VerificationTemplate) {
-      this.VerificationTemplate = normalizeEmailTemplate(raw.verificationTemplate ?? raw.VerificationTemplate);
+    if (Object.prototype.hasOwnProperty.call(raw, "authToken") || Object.prototype.hasOwnProperty.call(raw, "AuthToken")) {
+      this.AuthToken = mergeTokenConfigFromRaw(this.AuthToken, raw.authToken ?? raw.AuthToken);
     }
-    if (raw.resetPasswordTemplate || raw.ResetPasswordTemplate) {
-      this.ResetPasswordTemplate = normalizeEmailTemplate(raw.resetPasswordTemplate ?? raw.ResetPasswordTemplate);
+    if (
+      Object.prototype.hasOwnProperty.call(raw, "passwordResetToken") ||
+      Object.prototype.hasOwnProperty.call(raw, "PasswordResetToken")
+    ) {
+      this.PasswordResetToken = mergeTokenConfigFromRaw(
+        this.PasswordResetToken,
+        raw.passwordResetToken ?? raw.PasswordResetToken,
+      );
     }
-    if (raw.confirmEmailChangeTemplate || raw.ConfirmEmailChangeTemplate) {
-      this.ConfirmEmailChangeTemplate = normalizeEmailTemplate(
+    if (
+      Object.prototype.hasOwnProperty.call(raw, "emailChangeToken") ||
+      Object.prototype.hasOwnProperty.call(raw, "EmailChangeToken")
+    ) {
+      this.EmailChangeToken = mergeTokenConfigFromRaw(this.EmailChangeToken, raw.emailChangeToken ?? raw.EmailChangeToken);
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(raw, "verificationToken") ||
+      Object.prototype.hasOwnProperty.call(raw, "VerificationToken")
+    ) {
+      this.VerificationToken = mergeTokenConfigFromRaw(this.VerificationToken, raw.verificationToken ?? raw.VerificationToken);
+    }
+    if (Object.prototype.hasOwnProperty.call(raw, "fileToken") || Object.prototype.hasOwnProperty.call(raw, "FileToken")) {
+      this.FileToken = mergeTokenConfigFromRaw(this.FileToken, raw.fileToken ?? raw.FileToken);
+    }
+
+    if (
+      Object.prototype.hasOwnProperty.call(raw, "verificationTemplate") ||
+      Object.prototype.hasOwnProperty.call(raw, "VerificationTemplate")
+    ) {
+      this.VerificationTemplate = mergeEmailTemplate(
+        this.VerificationTemplate,
+        raw.verificationTemplate ?? raw.VerificationTemplate,
+      );
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(raw, "resetPasswordTemplate") ||
+      Object.prototype.hasOwnProperty.call(raw, "ResetPasswordTemplate")
+    ) {
+      this.ResetPasswordTemplate = mergeEmailTemplate(
+        this.ResetPasswordTemplate,
+        raw.resetPasswordTemplate ?? raw.ResetPasswordTemplate,
+      );
+    }
+    if (
+      Object.prototype.hasOwnProperty.call(raw, "confirmEmailChangeTemplate") ||
+      Object.prototype.hasOwnProperty.call(raw, "ConfirmEmailChangeTemplate")
+    ) {
+      this.ConfirmEmailChangeTemplate = mergeEmailTemplate(
+        this.ConfirmEmailChangeTemplate,
         raw.confirmEmailChangeTemplate ?? raw.ConfirmEmailChangeTemplate,
       );
     }
@@ -973,6 +1005,7 @@ export function applyCollectionData(collection: Collection, data: Record<string,
   if (typeof data.options === "object" && data.options) {
     collection.options = data.options as Record<string, unknown>;
   }
+  collection.options = data;
 }
 
 function mergeTokenConfig(current: TokenConfigValue, raw: unknown): TokenConfigValue {
@@ -987,6 +1020,164 @@ function mergeTokenConfig(current: TokenConfigValue, raw: unknown): TokenConfigV
   if (Object.prototype.hasOwnProperty.call(record, "duration") || Object.prototype.hasOwnProperty.call(record, "Duration")) {
     merged.Duration = toNumberValue(record.duration ?? record.Duration);
   }
+  return merged;
+}
+
+function mergeTokenConfigFromRaw(current: TokenConfigValue, raw: unknown): TokenConfigValue {
+  if (!raw || typeof raw !== "object") {
+    return new TokenConfigValue();
+  }
+  return mergeTokenConfig(current, raw);
+}
+
+function mergeEmailTemplate(current: EmailTemplate, raw: unknown): EmailTemplate {
+  if (!raw || typeof raw !== "object") {
+    return new EmailTemplate();
+  }
+  const record = raw as Record<string, unknown>;
+  const merged = new EmailTemplate();
+  merged.Subject = current.Subject;
+  merged.Body = current.Body;
+  if (Object.prototype.hasOwnProperty.call(record, "subject") || Object.prototype.hasOwnProperty.call(record, "Subject")) {
+    merged.Subject = toStringValue(record.subject ?? record.Subject);
+  }
+  if (Object.prototype.hasOwnProperty.call(record, "body") || Object.prototype.hasOwnProperty.call(record, "Body")) {
+    merged.Body = toStringValue(record.body ?? record.Body);
+  }
+  return merged;
+}
+
+function mergeAuthAlertConfig(current: AuthAlertConfig, raw: unknown): AuthAlertConfig {
+  if (!raw || typeof raw !== "object") {
+    return new AuthAlertConfig();
+  }
+  const record = raw as Record<string, unknown>;
+  const merged = new AuthAlertConfig();
+  merged.Enabled = current.Enabled;
+  merged.EmailTemplate = current.EmailTemplate;
+  if (Object.prototype.hasOwnProperty.call(record, "enabled") || Object.prototype.hasOwnProperty.call(record, "Enabled")) {
+    merged.Enabled = Boolean(record.enabled ?? record.Enabled);
+  }
+  if (
+    Object.prototype.hasOwnProperty.call(record, "emailTemplate") ||
+    Object.prototype.hasOwnProperty.call(record, "EmailTemplate")
+  ) {
+    merged.EmailTemplate = normalizeEmailTemplate(record.emailTemplate ?? record.EmailTemplate);
+  }
+  return merged;
+}
+
+function mergePasswordAuthConfig(current: PasswordAuthConfig, raw: unknown): PasswordAuthConfig {
+  if (!raw || typeof raw !== "object") {
+    return new PasswordAuthConfig();
+  }
+  const record = raw as Record<string, unknown>;
+  const merged = new PasswordAuthConfig();
+  merged.Enabled = current.Enabled;
+  merged.IdentityFields = current.IdentityFields ? [...current.IdentityFields] : current.IdentityFields;
+  if (Object.prototype.hasOwnProperty.call(record, "enabled") || Object.prototype.hasOwnProperty.call(record, "Enabled")) {
+    merged.Enabled = Boolean(record.enabled ?? record.Enabled);
+  }
+  if (
+    Object.prototype.hasOwnProperty.call(record, "identityFields") ||
+    Object.prototype.hasOwnProperty.call(record, "IdentityFields")
+  ) {
+    const fields = record.identityFields ?? record.IdentityFields;
+    merged.IdentityFields = fields == null ? null : toUniqueStringSlice(fields);
+  }
+  return merged;
+}
+
+function mergeMFAConfig(current: MFAConfig, raw: unknown): MFAConfig {
+  if (!raw || typeof raw !== "object") {
+    return new MFAConfig();
+  }
+  const record = raw as Record<string, unknown>;
+  const merged = new MFAConfig();
+  merged.Enabled = current.Enabled;
+  merged.Duration = current.Duration;
+  merged.Rule = current.Rule;
+  if (Object.prototype.hasOwnProperty.call(record, "enabled") || Object.prototype.hasOwnProperty.call(record, "Enabled")) {
+    merged.Enabled = Boolean(record.enabled ?? record.Enabled);
+  }
+  if (Object.prototype.hasOwnProperty.call(record, "duration") || Object.prototype.hasOwnProperty.call(record, "Duration")) {
+    merged.Duration = toNumberValue(record.duration ?? record.Duration);
+  }
+  if (Object.prototype.hasOwnProperty.call(record, "rule") || Object.prototype.hasOwnProperty.call(record, "Rule")) {
+    merged.Rule = toStringValue(record.rule ?? record.Rule);
+  }
+  return merged;
+}
+
+function mergeOTPConfig(current: OTPConfig, raw: unknown): OTPConfig {
+  if (!raw || typeof raw !== "object") {
+    return new OTPConfig();
+  }
+  const record = raw as Record<string, unknown>;
+  const merged = new OTPConfig();
+  merged.Enabled = current.Enabled;
+  merged.Duration = current.Duration;
+  merged.Length = current.Length;
+  merged.EmailTemplate = current.EmailTemplate;
+  if (Object.prototype.hasOwnProperty.call(record, "enabled") || Object.prototype.hasOwnProperty.call(record, "Enabled")) {
+    merged.Enabled = Boolean(record.enabled ?? record.Enabled);
+  }
+  if (Object.prototype.hasOwnProperty.call(record, "duration") || Object.prototype.hasOwnProperty.call(record, "Duration")) {
+    merged.Duration = toNumberValue(record.duration ?? record.Duration);
+  }
+  if (Object.prototype.hasOwnProperty.call(record, "length") || Object.prototype.hasOwnProperty.call(record, "Length")) {
+    merged.Length = toNumberValue(record.length ?? record.Length);
+  }
+  if (
+    Object.prototype.hasOwnProperty.call(record, "emailTemplate") ||
+    Object.prototype.hasOwnProperty.call(record, "EmailTemplate")
+  ) {
+    merged.EmailTemplate = normalizeEmailTemplate(record.emailTemplate ?? record.EmailTemplate);
+  }
+  return merged;
+}
+
+function mergeOAuth2Config(current: OAuth2Config, raw: unknown): OAuth2Config {
+  if (!raw || typeof raw !== "object") {
+    return new OAuth2Config();
+  }
+  const record = raw as Record<string, unknown>;
+  const merged = new OAuth2Config();
+  merged.Enabled = current.Enabled;
+  merged.Providers = current.Providers;
+  merged.MappedFields = { ...current.MappedFields };
+
+  if (Object.prototype.hasOwnProperty.call(record, "enabled") || Object.prototype.hasOwnProperty.call(record, "Enabled")) {
+    merged.Enabled = Boolean(record.enabled ?? record.Enabled);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(record, "providers") || Object.prototype.hasOwnProperty.call(record, "Providers")) {
+    const providers = record.providers ?? record.Providers;
+    if (Array.isArray(providers)) {
+      merged.Providers = providers.map((item) => normalizeOAuth2ProviderConfig(item));
+    } else {
+      merged.Providers = null;
+    }
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(record, "mappedFields") ||
+    Object.prototype.hasOwnProperty.call(record, "MappedFields")
+  ) {
+    const fields = record.mappedFields ?? record.MappedFields;
+    if (fields && typeof fields === "object") {
+      const mapped = fields as Record<string, unknown>;
+      merged.MappedFields = {
+        Id: toStringValue(mapped.id ?? mapped.Id),
+        Name: toStringValue(mapped.name ?? mapped.Name),
+        Username: toStringValue(mapped.username ?? mapped.Username),
+        AvatarURL: toStringValue(mapped.avatarURL ?? mapped.AvatarURL),
+      };
+    } else {
+      merged.MappedFields = { Id: "", Name: "", Username: "", AvatarURL: "" };
+    }
+  }
+
   return merged;
 }
 

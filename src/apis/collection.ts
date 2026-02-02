@@ -12,10 +12,12 @@ import {
   collectionFromRow,
   parseCollectionFields,
 } from "../core/collection.ts";
+import { DefaultIdAlphabet } from "../core/db.ts";
 import { CollectionRequestEvent, CollectionsImportRequestEvent, CollectionsListRequestEvent } from "../core/events.ts";
 import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";
 import { Provider } from "../tools/search/provider.ts";
 import { SimpleFieldResolver } from "../tools/search/simple_field_resolver.ts";
+import { randomStringWithAlphabet } from "../tools/security/random.ts";
 
 const COLLECTION_FIELDS = new Set(["id", "created", "updated", "name", "system", "type"]);
 
@@ -150,7 +152,11 @@ async function collectionCreate(app: App, event: RequestEvent): Promise<Response
   const out = await app.OnCollectionCreateRequest().Trigger(hookEvent, async () => {
     const err = app.Save(hookEvent.Collection);
     if (err) {
-      return badRequest(event, "Failed to create collection.", err);
+      const validationErr = extractValidationErrors(err);
+      if (validationErr) {
+        return badRequest(event, "Failed to create collection.", validationErr);
+      }
+      return badRequest(event, `Failed to create collection. Raw error: \n${err.message}`, null);
     }
     const row = fetchCollectionRow(app, hookEvent.Collection.id);
     if (row) {
@@ -184,7 +190,11 @@ async function collectionUpdate(app: App, event: RequestEvent): Promise<Response
   const out = await app.OnCollectionUpdateRequest().Trigger(hookEvent, async () => {
     const err = app.Save(hookEvent.Collection);
     if (err) {
-      return badRequest(event, "Failed to update collection.", err);
+      const validationErr = extractValidationErrors(err);
+      if (validationErr) {
+        return badRequest(event, "Failed to update collection.", validationErr);
+      }
+      return badRequest(event, `Failed to update collection. Raw error: \n${err.message}`, null);
     }
     const row = fetchCollectionRow(app, hookEvent.Collection.id);
     if (row) {
@@ -214,7 +224,16 @@ async function collectionDelete(app: App, event: RequestEvent): Promise<Response
   const out = await app.OnCollectionDeleteRequest().Trigger(hookEvent, async () => {
     const err = app.Delete(hookEvent.Collection);
     if (err) {
-      return badRequest(event, "Failed to delete collection.", err);
+      let message = "Failed to delete collection.";
+      const refs = app.FindCachedCollectionReferences(hookEvent.Collection, hookEvent.Collection.id);
+      if (refs.size > 0) {
+        const names = Array.from(refs.keys()).map((ref) => ref.name);
+        message += ` probably due to existing reference in ${names.join(", ")}`;
+      }
+      if (err instanceof ValidationErrors) {
+        return badRequest(event, message, err);
+      }
+      return badRequest(event, message, null);
     }
     return noContent(event);
   });
@@ -245,7 +264,7 @@ function collectionTruncate(app: App, event: RequestEvent): Response {
     return badRequest(
       event,
       "Failed to truncate collection (most likely due to required cascade delete record references).",
-      err,
+      null,
     );
   }
 
@@ -260,7 +279,7 @@ async function collectionsImport(app: App, event: RequestEvent): Promise<Respons
 
   const data = await readRequestData(event);
   const collections = Array.isArray(data.collections) ? data.collections : null;
-  if (!collections) {
+  if (!collections || collections.length === 0) {
     return badRequest(event, "An error occurred while validating the submitted data.", {
       collections: new ValidationError("validation_required", "Cannot be blank."),
     });
@@ -272,7 +291,21 @@ async function collectionsImport(app: App, event: RequestEvent): Promise<Respons
   const out = await app.OnCollectionsImportRequest().Trigger(hookEvent, async () => {
     const err = app.ImportCollections(hookEvent.CollectionsData, hookEvent.DeleteMissing);
     if (err) {
-      return badRequest(event, "Failed to import collections.", err);
+      const validationErr = extractValidationErrors(err);
+      if (validationErr) {
+        return badRequest(event, "Failed to import collections.", validationErr);
+      }
+
+      return badRequest(
+        event,
+        "Failed to import collections.",
+        new ValidationErrors({
+          collections: new ValidationError(
+            "validation_collections_import_failure",
+            `Failed to import the collections configuration. Raw error:\n${err.message}`,
+          ),
+        }),
+      );
     }
     return noContent(event);
   });
@@ -288,9 +321,10 @@ function collectionScaffolds(app: App, event: RequestEvent): Response {
     return authResponse;
   }
 
-  const base = NewBaseCollection("", "");
-  const auth = NewAuthCollection("", "");
-  const view = NewViewCollection("", "");
+  const randomId = randomStringWithAlphabet(10, DefaultIdAlphabet);
+  const base = NewBaseCollection("", randomId);
+  const auth = NewAuthCollection("", randomId);
+  const view = NewViewCollection("", randomId);
   base.id = "";
   auth.id = "";
   view.id = "";
@@ -395,6 +429,33 @@ function resolveSafeErrorsMap(data: Record<string, unknown>): Record<string, unk
     }
   }
   return result;
+}
+
+function extractValidationErrors(err: unknown): ValidationErrors | null {
+  if (err instanceof ValidationErrors) {
+    return err;
+  }
+  if (err instanceof AggregateError) {
+    for (const inner of err.errors) {
+      const found = extractValidationErrors(inner);
+      if (found) {
+        return found;
+      }
+    }
+    return null;
+  }
+  if (err && typeof err === "object") {
+    const maybeErrors = (err as { errors?: unknown }).errors;
+    if (Array.isArray(maybeErrors)) {
+      for (const inner of maybeErrors) {
+        const found = extractValidationErrors(inner);
+        if (found) {
+          return found;
+        }
+      }
+    }
+  }
+  return null;
 }
 
 function isNestedError(err: unknown): boolean {

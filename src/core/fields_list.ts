@@ -148,7 +148,7 @@ export class FieldsList extends Array<Field> {
     const wrapper: Record<string, unknown>[] = [];
     for (const field of this) {
       const raw = JSON.parse(JSON.stringify(field)) as Record<string, unknown>;
-      const normalized: Record<string, unknown> = {};
+      const normalizedEntries = new Map<string, unknown>();
 
       for (const [key, value] of Object.entries(raw)) {
         if (!key) {
@@ -159,13 +159,19 @@ export class FieldsList extends Array<Field> {
         }
         const lowerKey = key[0]!.toLowerCase() + key.slice(1);
         if (key[0]!.toLowerCase() !== key[0]!) {
-          normalized[lowerKey] = value;
-        } else if (!(lowerKey in normalized)) {
-          normalized[lowerKey] = value;
+          normalizedEntries.set(lowerKey, value);
+        } else if (!normalizedEntries.has(lowerKey)) {
+          normalizedEntries.set(lowerKey, value);
         }
       }
 
-      normalized.type = field.Type();
+      normalizedEntries.set("type", field.Type());
+
+      const normalized: Record<string, unknown> = {};
+      const orderedKeys = [...normalizedEntries.keys()].sort();
+      for (const key of orderedKeys) {
+        normalized[key] = normalizedEntries.get(key);
+      }
       wrapper.push(normalized);
     }
     return wrapper;
