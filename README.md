@@ -30,7 +30,9 @@ Key differences:
 
 todo
 
-## Library Usage (no CLI)
+## Known Differences
+
+### Library Usage (no CLI)
 
 PocketBun does not ship a CLI binary. Use the library exports to run migrations, start the server, and manage superusers:
 
@@ -44,8 +46,6 @@ serve(app, { httpAddr: "127.0.0.1:8090" });
 
 superuser.upsert(app, "admin@example.com", "change-me");
 ```
-
-## Known Differences
 
 ### Thumbnails
 
