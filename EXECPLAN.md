@@ -72,6 +72,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-02 15:51Z) Implement pb_hooks loading/tests (added loader tests and aligned hook/migration loading behavior).
 - [x] (2026-02-02 16:45Z) Port store/list helper tests and align Store missing-key zero value handling with upstream semantics.
 - [x] (2026-02-02 17:02Z) Port inflector, tokenizer, and dbutils helper tests; add singularize + dbutils alias parsing support.
+- [x] (2026-02-02 19:25Z) Port router event helpers/tests, align API error mapping and hook response handling, and add rereadable reader coverage.
 
 ## Surprises & Discoveries
 
