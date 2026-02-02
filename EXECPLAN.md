@@ -71,6 +71,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-02 13:30Z) Port collection CRUD/import API tests and align collection behaviors (auth options merge, field validation codes, hook firing).
 - [x] (2026-02-02 15:51Z) Implement pb_hooks loading/tests (added loader tests and aligned hook/migration loading behavior).
 - [x] (2026-02-02 16:45Z) Port store/list helper tests and align Store missing-key zero value handling with upstream semantics.
+- [x] (2026-02-02 17:02Z) Port inflector, tokenizer, and dbutils helper tests; add singularize + dbutils alias parsing support.
 
 ## Surprises & Discoveries
 
@@ -186,6 +187,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Date/Author: 2026-02-02 / Codex
 - Decision: Infer Store missing-key zero values from provided data or explicit zeroValue when available.
   Rationale: Go maps return a type-specific zero value, which TypeScript cannot infer for empty stores.
+  Date/Author: 2026-02-02 / Codex
+- Decision: Convert Go regex inline flags and replacement syntax when porting inflector singularize rules to JS.
+  Rationale: JavaScript RegExp doesn't support Go's (?i) inline flags or ${1} replacement syntax.
   Date/Author: 2026-02-02 / Codex
 
 ## Outcomes & Retrospective

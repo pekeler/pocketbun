@@ -1,6 +1,7 @@
 // Ported from pocketbase/tools/dbutils/index.go
 
 import { Tokenizer } from "../tokenizer/tokenizer.ts";
+import { aliasOrIdentifier } from "./select.ts";
 
 const indexRegex =
   /create\s+(unique\s+)?\s*index\s*(if\s+not\s+exists\s+)?(\S*)\s+on\s+(\S*)\s*\(([\s\S]*)\)(?:\s*where\s+([\s\S]*))?/im;
@@ -175,6 +176,8 @@ export function findSingleColumnUniqueIndex(indexes: string[], column: string): 
 export function hasSingleColumnUniqueIndex(column: string, indexes: string[]): boolean {
   return findSingleColumnUniqueIndex(indexes, column)[1];
 }
+
+export { aliasOrIdentifier };
 
 function trimByCutset(value: string, cutset: string): string {
   if (value === "") {

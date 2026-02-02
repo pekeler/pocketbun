@@ -29,7 +29,12 @@ export function sentenize(value: string): string {
 }
 
 export function sanitize(value: string, removePattern: string): string {
-  const regex = new RegExp(removePattern);
+  let regex: RegExp;
+  try {
+    regex = new RegExp(removePattern, "g");
+  } catch (error) {
+    throw error instanceof Error ? error : new Error("invalid regex pattern");
+  }
   return value.replace(regex, "");
 }
 
@@ -79,3 +84,5 @@ export function camelize(value: string): string {
 
   return result;
 }
+
+export { singularize } from "./singularize.ts";
