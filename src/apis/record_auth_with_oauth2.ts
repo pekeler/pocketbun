@@ -24,7 +24,7 @@ import { NewFileFromURL } from "../tools/filesystem/file.ts";
 import { randomString } from "../tools/security/random.ts";
 import { badRequest, forbidden, internalServerError } from "./api_errors.ts";
 import { authCollectionNotFound, findAuthCollection } from "./record_auth_utils.ts";
-import { checkCreateRule, resolveRecordData } from "./record_crud.ts";
+import { buildCreateRuleContext, checkCreateRule, resolveRecordData } from "./record_crud.ts";
 import { EnrichRecord, RecordAuthResponse } from "./record_helpers.ts";
 
 const oauth2RedirectAppleNameStoreKeyPrefix = "@redirect_name_";
@@ -279,7 +279,11 @@ async function oauth2Submit(event: RecordAuthWithOAuth2RequestEvent, optExternal
       }
 
       if (!createContext.hasSuperuser && event.Collection.createRule && event.Collection.createRule !== "") {
-        const ruleErr = checkCreateRule(txApp, event.Collection, createContext.record, createContext.requestInfo);
+        const ruleContext = buildCreateRuleContext(event.Collection, createContext.record);
+        if (ruleContext instanceof Error) {
+          return ruleContext;
+        }
+        const ruleErr = checkCreateRule(txApp, ruleContext, createContext.requestInfo);
         if (ruleErr) {
           return ruleErr;
         }

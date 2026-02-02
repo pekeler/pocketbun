@@ -67,7 +67,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-02 01:15Z) Port backups API + archive/osutils helpers, align zip output with Go (data descriptor + extended timestamps), and add backup/archive tests.
 - [x] (2026-02-02 03:20Z) Port realtime API (SSE) + model support, add realtime tests, and align hook event propagation with upstream.
 - [x] (2026-02-02 09:10Z) Port record CRUD view + delete tests, fix list/view selection to avoid join column collisions, add delete file cleanup hook, and unwrap hook responses for tx overrides.
-- [ ] Implement remaining collection/record CRUD coverage and port pb_hooks loading (remaining: CRUD list/view/create/update/delete coverage + hooks loader/tests).
+- [x] (2026-02-02 10:48Z) Port record CRUD create/update tests and add manage-rule access checks for auth record create/update.
+- [ ] Implement remaining collection CRUD coverage and port pb_hooks loading/tests.
 
 ## Surprises & Discoveries
 

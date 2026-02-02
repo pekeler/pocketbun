@@ -1,5 +1,5 @@
 // Ported from pocketbase/apis/record_crud.go
-// Note: record upsert form logic (auth manage rules, file handling parity) is not yet ported.
+// Note: record upsert form logic (file handling parity) is not yet ported.
 
 import type { SQLQueryBindings } from "bun:sqlite";
 import type { App } from "../core/app.ts";
@@ -301,10 +301,24 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
     }
   }
 
-  if (!hasSuperuser && collection.createRule && collection.createRule !== "") {
-    const ruleErr = checkCreateRule(app, collection, record, requestInfo);
-    if (ruleErr) {
-      return badRequest(event, "Failed to create record", ruleErr);
+  if (!hasSuperuser && collection.createRule !== null) {
+    const createContext = buildCreateRuleContext(collection, record);
+    if (createContext instanceof Error) {
+      return badRequest(event, "Failed to create record", createContext);
+    }
+
+    if (collection.createRule && collection.createRule !== "") {
+      const ruleErr = checkCreateRule(app, createContext, requestInfo);
+      if (ruleErr) {
+        return badRequest(event, "Failed to create record", ruleErr);
+      }
+    }
+
+    if (
+      !form.HasManageAccess() &&
+      hasAuthManageAccess(app, requestInfo, createContext.collection, createContext.selectSql, createContext.params)
+    ) {
+      form.GrantManagerAccess();
     }
   }
 
@@ -396,6 +410,14 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
     form.GrantSuperuserAccess();
   }
   form.Load(data);
+  if (!form.HasManageAccess()) {
+    let manageSelect = `select 1 from {{${collection.name}}}`;
+    const manageParams: SQLQueryBindings[] = [record.Id];
+    manageSelect = appendWhere(manageSelect, `[[${collection.name}.id]] = ?`);
+    if (hasAuthManageAccess(app, requestInfo, collection, manageSelect, manageParams)) {
+      form.GrantManagerAccess();
+    }
+  }
 
   const hookEvent = new RecordRequestEvent(event, collection, record);
   const out = await app.OnRecordUpdateRequest().Trigger(hookEvent, async () => {
@@ -648,11 +670,13 @@ function extractUploadedFiles(
   return result;
 }
 
-export function checkCreateRule(app: App, collection: Collection, record: RecordModel, requestInfo: RequestInfo): Error | null {
-  const rule = collection.createRule;
-  if (!rule || rule === "") {
-    return null;
-  }
+export type CreateRuleContext = {
+  collection: Collection;
+  selectSql: string;
+  params: SQLQueryBindings[];
+};
+
+export function buildCreateRuleContext(collection: Collection, record: RecordModel): CreateRuleContext | Error {
   try {
     const dummyRecord = record.Clone();
     const randomPart = `__pb_create__${randomString(6)}`;
@@ -663,37 +687,54 @@ export function checkCreateRule(app: App, collection: Collection, record: Record
 
     const dummyExport = dummyRecord.DBExport();
 
-    const entries = Object.entries(dummyExport);
     const selects: string[] = [];
-    const params: unknown[] = [];
-    for (const [key, value] of entries) {
+    const params: SQLQueryBindings[] = [];
+    for (const [key, value] of Object.entries(dummyExport)) {
       const column = columnify(key);
       selects.push(`? as [[${column}]]`);
       params.push(normalizeDbValue(value));
     }
 
     const dummyCollection = cloneCollectionForRule(collection, randomPart);
-    let selectSql = `WITH {{${dummyCollection.name}}} as (SELECT ${selects.join(
+    const selectSql = `WITH {{${dummyCollection.name}}} as (SELECT ${selects.join(
       ", ",
     )}) SELECT 1 FROM {{${dummyCollection.name}}}`;
 
-    const resolver = new RecordFieldResolver(app, dummyCollection, requestInfo, true);
+    return {
+      collection: dummyCollection,
+      selectSql,
+      params,
+    };
+  } catch (error) {
+    return error as Error;
+  }
+}
+
+export function checkCreateRule(app: App, context: CreateRuleContext, requestInfo: RequestInfo): Error | null {
+  const rule = context.collection.createRule;
+  if (!rule || rule === "") {
+    return null;
+  }
+
+  try {
+    let selectSql = context.selectSql;
+    const params = [...context.params];
+
+    const resolver = new RecordFieldResolver(app, context.collection, requestInfo, true);
     const expr = buildFilterExpr(rule, resolver, DefaultFilterExprLimit);
     if (expr.sql) {
       selectSql = appendWhere(selectSql, expr.sql);
-      params.push(...expr.params);
+      params.push(...(expr.params as SQLQueryBindings[]));
     }
 
-    if (resolver.updateQuery) {
-      const updated = resolver.updateQuery({ select: selectSql, params });
-      selectSql = updated.select;
-      params.splice(0, params.length, ...(updated.params ?? []));
-    }
+    const updated = resolver.updateQuery({ select: selectSql, params });
+    selectSql = updated.select;
+    params.splice(0, params.length, ...((updated.params ?? []) as SQLQueryBindings[]));
 
     const row = app
       .db()
       .query(selectSql)
-      .get(...(params as SQLQueryBindings[]));
+      .get(...params) as Record<string, unknown> | undefined;
     if (!row) {
       return new Error("create rule failure");
     }
@@ -741,6 +782,52 @@ function findRecordForRule(
   return RecordModel.fromRow(collection, row as RecordData);
 }
 
+function hasAuthManageAccess(
+  app: App,
+  requestInfo: RequestInfo,
+  collection: Collection,
+  selectSql: string,
+  params: SQLQueryBindings[],
+): boolean {
+  if (!collection.IsAuth()) {
+    return false;
+  }
+
+  const manageRule = collection.ManageRule;
+  if (!manageRule || manageRule === "") {
+    return false;
+  }
+
+  if (!requestInfo.auth) {
+    return false;
+  }
+
+  let sql = selectSql;
+  const bindings: SQLQueryBindings[] = [...params];
+
+  const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
+  try {
+    const expr = buildFilterExpr(manageRule, resolver, DefaultFilterExprLimit);
+    if (expr.sql) {
+      sql = appendWhere(sql, expr.sql);
+      bindings.push(...(expr.params as SQLQueryBindings[]));
+    }
+
+    const updated = resolver.updateQuery({ select: sql, params: bindings });
+    sql = updated.select;
+    bindings.splice(0, bindings.length, ...((updated.params ?? []) as SQLQueryBindings[]));
+  } catch (error) {
+    app.Logger().Error("Manage rule build expression error", "error", error, "collectionId", collection.id);
+    return false;
+  }
+
+  const row = app
+    .db()
+    .query(sql)
+    .get(...bindings) as Record<string, unknown> | undefined;
+  return Boolean(row);
+}
+
 function cloneCollectionForRule(collection: Collection, suffix: string): Collection {
   const clone = new Collection({
     id: `${collection.id}${suffix}`,
@@ -757,6 +844,22 @@ function cloneCollectionForRule(collection: Collection, suffix: string): Collect
     deleteRule: collection.deleteRule,
     options: collection.options,
   });
+  clone.AuthRule = collection.AuthRule;
+  clone.ManageRule = collection.ManageRule;
+  clone.AuthAlert = collection.AuthAlert;
+  clone.OAuth2 = collection.OAuth2;
+  clone.PasswordAuth = collection.PasswordAuth;
+  clone.MFA = collection.MFA;
+  clone.OTP = collection.OTP;
+  clone.AuthToken = collection.AuthToken;
+  clone.PasswordResetToken = collection.PasswordResetToken;
+  clone.EmailChangeToken = collection.EmailChangeToken;
+  clone.VerificationToken = collection.VerificationToken;
+  clone.FileToken = collection.FileToken;
+  clone.VerificationTemplate = collection.VerificationTemplate;
+  clone.ResetPasswordTemplate = collection.ResetPasswordTemplate;
+  clone.ConfirmEmailChangeTemplate = collection.ConfirmEmailChangeTemplate;
+  clone.ViewQuery = collection.ViewQuery;
   return clone;
 }
 
