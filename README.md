@@ -22,13 +22,28 @@ PocketBun is a semi-automated port to Bun that aims for maximum compatibility wi
 Key differences:
 
 - No Go extensions (only JavaScript/TypeScript)
-- Use as an **npm library** (not a single binary)
+- Library-first API (no CLI/binary; use exported helpers)
 - Full ES6+ compatibility + native npm package support
 - Built on Bun instead of Go + embedded JS VM
 
 ## Installation
 
 todo
+
+## Library Usage (no CLI)
+
+PocketBun does not ship a CLI binary. Use the library exports to run migrations, start the server, and manage superusers:
+
+```ts
+import { BaseApp, migrate, serve, superuser } from "pocketbun";
+
+const app = new BaseApp({ dataDir: "pb_data" });
+
+migrate(app);
+serve(app, { httpAddr: "127.0.0.1:8090" });
+
+superuser.upsert(app, "admin@example.com", "change-me");
+```
 
 ## Known Differences
 

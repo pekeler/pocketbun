@@ -1,7 +1,13 @@
-// Ported from pocketbase/pocketbase.go
+// Ported from pocketbase/pocketbase.go (CLI removed; PocketBun is library-first).
 
-export class PocketBase {
-  constructor() {
-    throw new Error("PocketBase is not implemented yet.");
+import { BaseApp, type BaseAppConfig } from "./core/base_app.ts";
+
+export type PocketBaseConfig = BaseAppConfig;
+
+// PocketBase defines the main PocketBun app wrapper.
+// Deviation: PocketBase does not embed CLI/launcher wiring because PocketBun ships as a library.
+export class PocketBase extends BaseApp {
+  constructor(config: PocketBaseConfig = {}) {
+    super(config);
   }
 }
