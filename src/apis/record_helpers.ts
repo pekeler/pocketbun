@@ -279,7 +279,7 @@ export function expandFetch(app: App, originalRequestInfo: RequestInfo) {
         throw new Error(`only superusers can view collection ${JSON.stringify(relCollection.name)} records`);
       }
 
-      let sql = `select * from {{${relCollection.name}}}`;
+      let sql = `select {{${relCollection.name}}}.* from {{${relCollection.name}}}`;
       const params: SQLQueryBindings[] = [];
       sql = appendWhere(sql, inClause(`[[${relCollection.name}.id]]`, relIds.length));
       params.push(...relIds);

@@ -1,6 +1,7 @@
 // Ported from pocketbase/core/event_request.go
 
 import type { App } from "./app.ts";
+import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";
 import { Event } from "../tools/router/event.ts";
 import { Record as RecordModel } from "./record.ts";
 
@@ -96,6 +97,14 @@ export class RequestEvent extends Event {
 
   hasSuperuserAuth(): boolean {
     return this.auth !== null && this.auth.isSuperuser();
+  }
+
+  BadRequestError(message: string, errData: unknown = null): Response {
+    return this.json(400, {
+      status: 400,
+      message: message || "Something went wrong while processing your request.",
+      data: safeErrorsData(errData),
+    });
   }
 
   async requestInfo(): Promise<RequestInfo> {
@@ -207,4 +216,68 @@ function isValidIP(ip: string): boolean {
     const value = Number(part);
     return value >= 0 && value <= 255;
   });
+}
+
+function safeErrorsData(err: unknown): Record<string, unknown> {
+  if (!err) {
+    return {};
+  }
+
+  if (err instanceof AggregateError) {
+    for (const inner of err.errors) {
+      if (inner instanceof ValidationErrors || inner instanceof ValidationError) {
+        return safeErrorsData(inner);
+      }
+    }
+    for (const inner of err.errors) {
+      if (inner instanceof Error) {
+        return safeErrorsData(inner);
+      }
+    }
+    return {};
+  }
+
+  if (err instanceof ValidationErrors) {
+    const data: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(err.errors)) {
+      if (value instanceof ValidationErrors) {
+        data[key] = safeErrorsData(value);
+        continue;
+      }
+      data[key] = resolveSafeErrorItem(value as Error);
+    }
+    return data;
+  }
+
+  if (err instanceof ValidationError) {
+    return resolveSafeErrorItem(err);
+  }
+
+  if (err instanceof Error) {
+    return { message: err.message };
+  }
+
+  return typeof err === "object" ? (err as Record<string, unknown>) : {};
+}
+
+function resolveSafeErrorItem(err: Error): Record<string, unknown> {
+  const data: Record<string, unknown> = {
+    code: "validation_invalid_value",
+    message: "Invalid value.",
+  };
+
+  if (err instanceof ValidationError) {
+    data.code = err.code;
+    data.message = err.message;
+    if (err.params && Object.keys(err.params).length > 0) {
+      data.params = err.params;
+    }
+    return data;
+  }
+
+  if (err.message) {
+    data.message = err.message;
+  }
+
+  return data;
 }

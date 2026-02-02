@@ -743,7 +743,7 @@ export class RecordsListRequestEvent extends Event {
   RequestEvent: RequestEvent;
   Collection: Collection;
   Records: RecordModel[];
-  Result: SearchResult<Record<string, unknown>> | null;
+  Result: SearchResult<RecordModel> | null;
   Tags: () => string[];
 
   get App(): App {
@@ -752,6 +752,10 @@ export class RecordsListRequestEvent extends Event {
 
   set App(app: App) {
     this.RequestEvent.app = app;
+  }
+
+  BadRequestError(message: string, errData: unknown = null): Response {
+    return this.RequestEvent.BadRequestError(message, errData);
   }
 
   constructor(requestEvent: RequestEvent, collection: Collection) {
@@ -778,6 +782,10 @@ export class RecordRequestEvent extends Event {
 
   set App(app: App) {
     this.RequestEvent.app = app;
+  }
+
+  BadRequestError(message: string, errData: unknown = null): Response {
+    return this.RequestEvent.BadRequestError(message, errData);
   }
 
   constructor(requestEvent: RequestEvent, collection: Collection, record: RecordModel | null) {

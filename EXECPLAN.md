@@ -65,7 +65,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-01 22:50Z) Port logs API (list/view/stats), log model/query helpers, activity logger middleware, and add log query/API tests with a SelectQuery shim.
 - [x] (2026-02-01 23:45Z) Port settings API (list/update/test s3/email/apple secret), add settings forms/tests, and align settings JSON to omit secrets with corresponding hooks/events.
 - [x] (2026-02-02 01:15Z) Port backups API + archive/osutils helpers, align zip output with Go (data descriptor + extended timestamps), and add backup/archive tests.
-- [ ] Implement remaining collection/record CRUD coverage, then port missing API endpoints/middleware (realtime) and hooks (completed: core auth flows, batch, logs, settings, backups; remaining: realtime + remaining APIs).
+- [x] (2026-02-02 03:20Z) Port realtime API (SSE) + model support, add realtime tests, and align hook event propagation with upstream.
+- [x] (2026-02-02 09:10Z) Port record CRUD view + delete tests, fix list/view selection to avoid join column collisions, add delete file cleanup hook, and unwrap hook responses for tx overrides.
+- [ ] Implement remaining collection/record CRUD coverage and port pb_hooks loading (remaining: CRUD list/view/create/update/delete coverage + hooks loader/tests).
 
 ## Surprises & Discoveries
 
@@ -169,7 +171,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 
 ## Outcomes & Retrospective
 
-Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. The remaining work is to port realtime and the remaining collection/record CRUD coverage while expanding tests to match upstream behavior.
+Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. Realtime (SSE) support is now ported with tests. The remaining work is to finish collection/record CRUD coverage and port pb_hooks loading while expanding tests to match upstream behavior.
 
 ## Context and Orientation
 

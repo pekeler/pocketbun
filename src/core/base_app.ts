@@ -125,6 +125,7 @@ import {
   InterceptorActionValidate,
   type Field,
 } from "./field.ts";
+import { FieldTypeFile } from "./field_file.ts";
 import { RelationField } from "./field_relation.ts";
 import { FieldsList, NewFieldsList } from "./fields_list.ts";
 import { deleteOldLogs, findLogById, logQuery, logsStats, type LogsStatsItem } from "./log_query.ts";
@@ -297,6 +298,7 @@ export class BaseApp implements App {
     };
     this.resetHooks();
 
+    this.registerBaseHooks();
     this.registerAutobackupHooks();
     this.registerCollectionHooks();
     this.registerRecordHooks();
@@ -1041,7 +1043,7 @@ export class BaseApp implements App {
       return [];
     }
 
-    let sql = `select * from {{${collection.name}}}`;
+    let sql = `select {{${collection.name}}}.* from {{${collection.name}}}`;
     const params: SQLQueryBindings[] = [];
 
     const placeholders = filteredIds.map(() => "?").join(", ");
@@ -1077,7 +1079,7 @@ export class BaseApp implements App {
       throw new Error("unknown collection identifier - must be collection model, id or name");
     }
 
-    let sql = `select * from {{${collection.name}}}`;
+    let sql = `select {{${collection.name}}}.* from {{${collection.name}}}`;
     const params: SQLQueryBindings[] = [];
 
     const combined = combineSqlExprs(exprs);
@@ -1111,7 +1113,7 @@ export class BaseApp implements App {
       throw new Error(`invalid or missing field ${key}`);
     }
 
-    let sql = `select * from {{${collection.name}}}`;
+    let sql = `select {{${collection.name}}}.* from {{${collection.name}}}`;
     sql = appendWhere(sql, `[[${columnify(key)}]] = ?`);
     const row = this.db()
       .query(sql)
@@ -1141,7 +1143,7 @@ export class BaseApp implements App {
     }
 
     const resolver = new RecordFieldResolver(this, collection, null, true);
-    let sql = `select * from {{${collection.name}}}`;
+    let sql = `select {{${collection.name}}}.* from {{${collection.name}}}`;
     const bindings: SQLQueryBindings[] = [];
 
     if (filter) {
@@ -1718,7 +1720,7 @@ export class BaseApp implements App {
       return null;
     }
 
-    let sql = `select * from {{${collection.name}}}`;
+    let sql = `select {{${collection.name}}}.* from {{${collection.name}}}`;
     if (filter) {
       sql = appendWhere(sql, filter);
     }
@@ -3052,6 +3054,44 @@ export class BaseApp implements App {
   }
 
   // registerAutobackupHooks registers the autobackup app serve hooks.
+  private registerBaseHooks(): void {
+    this.OnModelAfterDeleteSuccess().Bind({
+      Id: "__pbFilesManagerDelete__",
+      Func: (event) => {
+        const model = event.Model;
+        if (!model) {
+          return event.Next();
+        }
+
+        const baseFilesPath = resolveBaseFilesPath(model);
+        if (!baseFilesPath || !supportFiles(model)) {
+          return event.Next();
+        }
+
+        let fsys;
+        try {
+          fsys = this.NewFilesystem();
+        } catch (error) {
+          this.Logger().Error("Failed to initialize filesystem for delete hook", "error", String(error));
+          return event.Next();
+        }
+
+        try {
+          const prefix = baseFilesPath.replace(/\/+$/g, "") + "/";
+          const failed = fsys.DeletePrefix(prefix);
+          if (failed.length > 0) {
+            this.Logger().Error("Failed to delete storage prefix", "prefix", prefix);
+          }
+        } finally {
+          fsys.Close();
+        }
+
+        return event.Next();
+      },
+    });
+  }
+
+  // registerAutobackupHooks registers the autobackup app serve hooks.
   private registerAutobackupHooks(): void {
     const jobId = "__pbAutoBackup__";
 
@@ -4085,6 +4125,46 @@ function joinErrors(...errors: Array<Error | null | undefined>): Error | null {
   }
 
   return new AggregateError(flattened, flattened.map((err) => err.message).join("\n"));
+}
+
+function resolveBaseFilesPath(model: Model): string {
+  const manager = model as { BaseFilesPath?: () => string };
+  if (typeof manager.BaseFilesPath !== "function") {
+    return "";
+  }
+  return manager.BaseFilesPath();
+}
+
+function resolveCollectionForFiles(model: Model): Collection | null {
+  if (model instanceof Collection) {
+    return model;
+  }
+  if (model instanceof RecordModel) {
+    return model.collection();
+  }
+  const proxy = model as RecordProxy;
+  if (typeof proxy.ProxyRecord === "function") {
+    try {
+      const record = proxy.ProxyRecord();
+      return record ? record.collection() : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function supportFiles(model: Model): boolean {
+  const collection = resolveCollectionForFiles(model);
+  if (!collection) {
+    return true;
+  }
+  for (const field of collection.Fields) {
+    if (field.Type() === FieldTypeFile) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function normalizeCollectionFields(collection: Collection): void {

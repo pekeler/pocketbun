@@ -20,7 +20,7 @@ import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { JSONPayloadKey, unmarshalRequestData } from "../tools/router/unmarshal_request_data.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { Provider } from "../tools/search/provider.ts";
-import { DefaultFilterExprLimit } from "../tools/search/types.ts";
+import { DefaultFilterExprLimit, type SearchResult } from "../tools/search/types.ts";
 import { randomString } from "../tools/security/random.ts";
 import { DateTime, GeoPoint, JSONRaw } from "../tools/types/index.ts";
 import { DefaultRateLimitMiddlewareId } from "./middlewares.ts";
@@ -28,13 +28,7 @@ import { dynamicCollectionBodyLimit } from "./middlewares_body_limit.ts";
 import { checkCollectionRateLimit } from "./middlewares_rate_limit.ts";
 import { checkForSuperuserOnlyRuleFields, EnrichRecord, EnrichRecords } from "./record_helpers.ts";
 
-type RecordsListResult = {
-  page: number;
-  perPage: number;
-  totalItems: number;
-  totalPages: number;
-  items: Record<string, unknown>[];
-};
+type RecordsListResult = SearchResult<RecordModel>;
 
 type ParsedRequestData = {
   data: RecordData;
@@ -74,68 +68,88 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
     return rateLimitResponse;
   }
 
-  const hookEvent = new RecordsListRequestEvent(event, collection);
+  const requestInfo = await event.requestInfo();
 
-  const out = await app.OnRecordsListRequest().Trigger(hookEvent, async () => {
-    const requestInfo = await event.requestInfo();
+  if (collection.listRule === null && !requestInfo.auth?.isSuperuser()) {
+    return forbidden(event, "Only superusers can perform this action.");
+  }
 
-    if (collection.listRule === null && !requestInfo.auth?.isSuperuser()) {
-      return forbidden(event, "Only superusers can perform this action.");
+  const superuserFieldError = checkForSuperuserOnlyRuleFields(requestInfo);
+  if (superuserFieldError) {
+    return forbidden(event, superuserFieldError);
+  }
+
+  const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
+
+  let selectSql = `select {{${collection.name}}}.* from {{${collection.name}}}`;
+  let countSql = `select count(distinct [[${collection.name}.id]]) as total from {{${collection.name}}}`;
+  if (collection.type !== "view") {
+    countSql = `select count(distinct [[${collection.name}]].[[_rowid_]]) as total from {{${collection.name}}}`;
+  }
+  const params: unknown[] = [];
+
+  if (!requestInfo.auth?.isSuperuser() && collection.listRule && collection.listRule !== "") {
+    const expr = buildFilterExpr(collection.listRule, resolver, DefaultFilterExprLimit);
+    if (expr.sql) {
+      selectSql = appendWhere(selectSql, expr.sql);
+      countSql = appendWhere(countSql, expr.sql);
+      params.push(...expr.params);
     }
+  }
 
-    const superuserFieldError = checkForSuperuserOnlyRuleFields(requestInfo);
-    if (superuserFieldError) {
-      return forbidden(event, superuserFieldError);
-    }
+  resolver.setAllowHiddenFields(Boolean(requestInfo.auth?.isSuperuser()));
 
-    const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
-
-    let selectSql = `select * from {{${collection.name}}}`;
-    let countSql = `select count(distinct [[${collection.name}.id]]) as total from {{${collection.name}}}`;
-    if (collection.type !== "view") {
-      countSql = `select count(distinct [[${collection.name}]].[[_rowid_]]) as total from {{${collection.name}}}`;
-    }
-    const params: unknown[] = [];
-
-    if (!requestInfo.auth?.isSuperuser() && collection.listRule && collection.listRule !== "") {
-      const expr = buildFilterExpr(collection.listRule, resolver, DefaultFilterExprLimit);
-      if (expr.sql) {
-        selectSql = appendWhere(selectSql, expr.sql);
-        countSql = appendWhere(countSql, expr.sql);
-        params.push(...expr.params);
-      }
-    }
-
-    resolver.setAllowHiddenFields(Boolean(requestInfo.auth?.isSuperuser()));
-
-    const provider = new Provider(resolver).query({
-      select: selectSql,
-      count: countSql,
-      params,
-    });
-
-    try {
-      const query = new URL(event.request.url).searchParams.toString();
-      const result = provider.parseAndExec<Record<string, unknown>>(query, app.db());
-      const records = result.items.map((row) => new RecordModel(collection, row));
-      const enrichErr = await EnrichRecords(event, records);
-      if (enrichErr) {
-        return internalServerError(event, "Failed to enrich records", enrichErr);
-      }
-      const response: RecordsListResult = {
-        ...result,
-        items: records.map((record) => record.publicExport()),
-      };
-      hookEvent.Records = records;
-      hookEvent.Result = result;
-      return event.json(200, response);
-    } catch {
-      return badRequest(event, "");
-    }
+  const provider = new Provider(resolver).query({
+    select: selectSql,
+    count: countSql,
+    params,
   });
 
-  if (out instanceof Response) {
-    return out;
+  let result: RecordsListResult | null = null;
+  let records: RecordModel[] = [];
+  try {
+    const query = new URL(event.request.url).searchParams.toString();
+    const rawResult = provider.parseAndExec<Record<string, unknown>>(query, app.db());
+    records = rawResult.items.map((row) => RecordModel.fromRow(collection, row as RecordData));
+    result = {
+      ...rawResult,
+      items: records,
+    };
+  } catch {
+    return badRequest(event, "");
+  }
+
+  if (!result) {
+    return badRequest(event, "");
+  }
+
+  const hookEvent = new RecordsListRequestEvent(event, collection);
+  hookEvent.Records = records;
+  hookEvent.Result = result;
+
+  const out = await app.OnRecordsListRequest().Trigger(hookEvent, async () => {
+    const enrichErr = await EnrichRecords(event, hookEvent.Records);
+    if (enrichErr) {
+      return internalServerError(event, "Failed to enrich records", enrichErr);
+    }
+
+    if (!hookEvent.Result) {
+      hookEvent.Result = {
+        ...result,
+        items: hookEvent.Records,
+      };
+    }
+
+    return event.json(200, hookEvent.Result);
+  });
+
+  const listResponse = unwrapHookResponse(out);
+  if (listResponse) {
+    return listResponse;
+  }
+
+  if (hookEvent.Result) {
+    return event.json(200, hookEvent.Result);
   }
 
   return badRequest(event, "");
@@ -164,11 +178,12 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
   }
 
   try {
+    let record: RecordModel | null = null;
     if (!requestInfo.auth?.isSuperuser() && collection.viewRule && collection.viewRule !== "") {
       const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
       const ruleExpr = buildFilterExpr(collection.viewRule, resolver, DefaultFilterExprLimit);
 
-      let selectSql = `select * from {{${collection.name}}}`;
+      let selectSql = `select {{${collection.name}}}.* from {{${collection.name}}}`;
       const params: SQLQueryBindings[] = [recordId];
       selectSql = appendWhere(selectSql, `[[${collection.name}.id]] = ?`);
       if (ruleExpr.sql) {
@@ -194,22 +209,12 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
         return notFound(event, "");
       }
 
-      const record = new RecordModel(collection, row);
-      const hookEvent = new RecordRequestEvent(event, collection, record);
-      const out = await app.OnRecordViewRequest().Trigger(hookEvent, async () => {
-        return event.json(200, record.publicExport());
-      });
-
-      if (out instanceof Response) {
-        return out;
+      record = RecordModel.fromRow(collection, row as RecordData);
+    } else {
+      record = app.findRecordById(collection, recordId);
+      if (!record) {
+        return notFound(event, "");
       }
-
-      return event.json(200, record.publicExport());
-    }
-
-    const record = app.findRecordById(collection, recordId);
-    if (!record) {
-      return notFound(event, "");
     }
 
     const hookEvent = new RecordRequestEvent(event, collection, record);
@@ -222,8 +227,9 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
       return event.json(200, recordRef.publicExport());
     });
 
-    if (out instanceof Response) {
-      return out;
+    const viewResponse = unwrapHookResponse(out);
+    if (viewResponse) {
+      return viewResponse;
     }
 
     const recordRef = hookEvent.Record ?? record;
@@ -234,7 +240,7 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
 
     return event.json(200, recordRef.publicExport());
   } catch {
-    return notFound(event, "");
+    return badRequest(event, "");
   }
 }
 
@@ -321,8 +327,9 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
     return event.json(200, recordRef.publicExport());
   });
 
-  if (out instanceof Response) {
-    return out;
+  const createResponse = unwrapHookResponse(out);
+  if (createResponse) {
+    return createResponse;
   }
 
   const enrichErr = await EnrichRecord(event, record);
@@ -409,8 +416,9 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
     return event.json(200, recordRef.publicExport());
   });
 
-  if (out instanceof Response) {
-    return out;
+  const updateResponse = unwrapHookResponse(out);
+  if (updateResponse) {
+    return updateResponse;
   }
 
   const enrichErr = await EnrichRecord(event, record);
@@ -475,8 +483,9 @@ export async function recordDelete(app: App, event: RequestEvent): Promise<Respo
     return noContent(event);
   });
 
-  if (out instanceof Response) {
-    return out;
+  const deleteResponse = unwrapHookResponse(out);
+  if (deleteResponse) {
+    return deleteResponse;
   }
 
   return noContent(event);
@@ -705,7 +714,7 @@ function findRecordForRule(
   const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
   const expr = buildFilterExpr(rule, resolver, DefaultFilterExprLimit);
 
-  let selectSql = `select * from {{${collection.name}}}`;
+  let selectSql = `select {{${collection.name}}}.* from {{${collection.name}}}`;
   const params: SQLQueryBindings[] = [recordId];
   selectSql = appendWhere(selectSql, `[[${collection.name}.id]] = ?`);
   if (expr.sql) {
@@ -729,7 +738,7 @@ function findRecordForRule(
   if (!row) {
     return null;
   }
-  return new RecordModel(collection, row);
+  return RecordModel.fromRow(collection, row as RecordData);
 }
 
 function cloneCollectionForRule(collection: Collection, suffix: string): Collection {
@@ -843,6 +852,30 @@ function normalizeDbValue(value: unknown): SQLQueryBindings {
     return JSON.stringify(value);
   }
   return value as SQLQueryBindings;
+}
+
+function unwrapHookResponse(result: unknown): Response | null {
+  if (!result) {
+    return null;
+  }
+  if (result instanceof Response) {
+    return result;
+  }
+  if (result instanceof AggregateError) {
+    for (const inner of result.errors) {
+      const found = unwrapHookResponse(inner);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  if (result instanceof Error) {
+    const response = (result as { response?: unknown }).response;
+    if (response instanceof Response) {
+      return response;
+    }
+  }
+  return null;
 }
 
 function noContent(event: RequestEvent): Response {

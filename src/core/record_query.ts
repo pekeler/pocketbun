@@ -177,7 +177,7 @@ export class RecordQuery {
       throw new Error(`unsafe table name ${table}`);
     }
 
-    let sql = `select * from {{${table}}}`;
+    let sql = `select {{${table}}}.* from {{${table}}}`;
     const params: SQLQueryBindings[] = [];
 
     const combined = combineSqlExprs(this.#where);
