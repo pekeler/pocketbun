@@ -14,6 +14,7 @@ import {
 } from "../../apis/middlewares.ts";
 import { BodyLimit } from "../../apis/middlewares_body_limit.ts";
 import { DefaultMaxBodySize } from "../../apis/middlewares_body_limit.ts";
+import { Gzip } from "../../apis/middlewares_gzip.ts";
 import { RecordAuthResponse, EnrichRecord, EnrichRecords } from "../../apis/record_helpers.ts";
 import { Collection } from "../../core/collection.ts";
 import { RequestInfoContextDefault, type RequestInfo as RequestInfoShape } from "../../core/event_request.ts";
@@ -1274,7 +1275,7 @@ export function apisBinds(target: BindTarget): void {
     requireSuperuserAuth: RequireSuperuserAuth,
     requireSuperuserOrOwnerAuth: RequireSuperuserOrOwnerAuth,
     skipSuccessActivityLog: SkipSuccessActivityLog,
-    gzip: () => ({ Func: (event: { Next: () => unknown }) => event.Next() }),
+    gzip: Gzip,
     bodyLimit: BodyLimit,
     recordAuthResponse: RecordAuthResponse,
     enrichRecord: EnrichRecord,
