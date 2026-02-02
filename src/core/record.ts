@@ -280,6 +280,18 @@ export class Record {
     return typeof pk === "string" ? pk : "";
   }
 
+  PK(): string {
+    return this.Id;
+  }
+
+  MarkAsNew(): void {
+    this.markNew(true);
+  }
+
+  MarkAsNotNew(): void {
+    this.markNew(false);
+  }
+
   Original(): Record {
     const original = new Record(this.#collection, {}, true);
     original.#data = {};

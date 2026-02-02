@@ -31,11 +31,11 @@ export class MFA extends BaseRecordProxy {
     return null;
   }
 
-  get Id(): string {
+  override get Id(): string {
     return this.ProxyRecord().Id;
   }
 
-  set Id(value: string) {
+  override set Id(value: string) {
     this.ProxyRecord().Id = value;
   }
 

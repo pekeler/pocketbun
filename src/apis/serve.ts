@@ -13,6 +13,7 @@ import { bindLogsApi } from "./logs.ts";
 import { activityLogger, loadAuthToken, panicRecover, securityHeaders } from "./middlewares.ts";
 import { BodyLimit, DefaultMaxBodySize } from "./middlewares_body_limit.ts";
 import { rateLimit } from "./middlewares_rate_limit.ts";
+import { bindRealtimeApi } from "./realtime.ts";
 import { bindRecordAuthApi } from "./record_auth.ts";
 import { bindRecordCrudApi } from "./record_crud.ts";
 import { bindSettingsApi } from "./settings.ts";
@@ -38,6 +39,7 @@ export function buildServeHandler(app: App): (req: Request, server?: unknown) =>
   bindFileApi(app, apiGroup);
   bindHealthApi(app, apiGroup);
   bindLogsApi(app, apiGroup);
+  bindRealtimeApi(app, apiGroup);
   bindSettingsApi(app, apiGroup);
   bindRecordAuthApi(app, apiGroup);
   bindRecordCrudApi(app, apiGroup);

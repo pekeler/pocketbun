@@ -60,10 +60,6 @@ export async function runApiScenario(scenario: ApiScenario): Promise<void> {
     const requestUrl = new URL(scenario.url, "http://localhost").toString();
     const response = await handler(new Request(requestUrl, init));
 
-    if (timeoutHandle) {
-      clearTimeout(timeoutHandle);
-    }
-
     if (response.status !== scenario.expectedStatus) {
       throw new Error(`Expected status ${scenario.expectedStatus}, got ${response.status}`);
     }
@@ -72,7 +68,14 @@ export async function runApiScenario(scenario: ApiScenario): Promise<void> {
       await delay(scenario.delayMs);
     }
 
-    const bodyText = await response.text();
+    let bodyText = "";
+    try {
+      bodyText = await response.text();
+    } finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+    }
     const expectedContent = scenario.expectedContent ?? [];
     const notExpectedContent = scenario.notExpectedContent ?? [];
 

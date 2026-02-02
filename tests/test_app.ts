@@ -13,6 +13,7 @@ export class TestApp extends BaseApp {
   eventCalls: Record<string, number> = {};
   testMailer: TestMailer = new TestMailer();
   #logger: Logger = {
+    Debug: () => {},
     Warn: () => {},
     Error: () => {},
   };
@@ -51,6 +52,9 @@ export class TestApp extends BaseApp {
     bindTagged("OnCollectionDeleteRequest", this.OnCollectionDeleteRequest());
     bindTagged("OnCollectionsImportRequest", this.OnCollectionsImportRequest());
     bindTagged("OnBatchRequest", this.OnBatchRequest());
+    bindTagged("OnRealtimeConnectRequest", this.OnRealtimeConnectRequest());
+    bindTagged("OnRealtimeMessageSend", this.OnRealtimeMessageSend());
+    bindTagged("OnRealtimeSubscribeRequest", this.OnRealtimeSubscribeRequest());
     bindTagged("OnSettingsListRequest", this.OnSettingsListRequest());
     bindTagged("OnSettingsUpdateRequest", this.OnSettingsUpdateRequest());
     bindTagged("OnSettingsReload", this.OnSettingsReload());

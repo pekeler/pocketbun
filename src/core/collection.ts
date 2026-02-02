@@ -242,6 +242,18 @@ export class Collection {
     return this.#lastSavedId;
   }
 
+  PK(): string {
+    return this.id;
+  }
+
+  MarkAsNew(): void {
+    this.markNew(true);
+  }
+
+  MarkAsNotNew(): void {
+    this.markNew(false);
+  }
+
   IntegrityChecks(enable: boolean): void {
     this.#disableIntegrityChecks = !enable;
   }

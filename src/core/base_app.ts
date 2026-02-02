@@ -9,6 +9,7 @@ import { basename, join } from "node:path";
 import type { SqlExpr } from "../tools/search/types.ts";
 import type { App, Logger } from "./app.ts";
 import type { PostValidator, PreValidator } from "./db.ts";
+import type { Model } from "./db_model.ts";
 import type { RequestInfo } from "./event_request.ts";
 import type { BatchRequestEvent } from "./event_request_batch.ts";
 import type { RecordProxy } from "./record_proxy.ts";
@@ -65,6 +66,9 @@ import {
   type FileDownloadRequestEvent,
   type FileTokenRequestEvent,
   type MailerRecordEvent,
+  type RealtimeConnectRequestEvent,
+  type RealtimeMessageEvent,
+  type RealtimeSubscribeRequestEvent,
   type RecordAuthRefreshRequestEvent,
   type RecordAuthRequestEvent,
   type RecordAuthWithOAuth2RequestEvent,
@@ -188,6 +192,10 @@ export class BaseApp implements App {
   #onCollectionsImportRequest!: Hook<CollectionsImportRequestEvent>;
   // batch API event hooks
   #onBatchRequest!: Hook<BatchRequestEvent>;
+  // realtime API event hooks
+  #onRealtimeConnectRequest!: Hook<RealtimeConnectRequestEvent>;
+  #onRealtimeMessageSend!: Hook<RealtimeMessageEvent>;
+  #onRealtimeSubscribeRequest!: Hook<RealtimeSubscribeRequestEvent>;
   // db model hooks
   #onModelCreate!: Hook<ModelEvent>;
   #onModelCreateExecute!: Hook<ModelEvent>;
@@ -277,6 +285,9 @@ export class BaseApp implements App {
     this.#cron = new Cron();
     this.#subscriptionsBroker = new Broker();
     this.#logger = {
+      Debug: (message: string, ...args: unknown[]) => {
+        console.debug(message, ...args);
+      },
       Warn: (message: string, ...args: unknown[]) => {
         console.warn(message, ...args);
       },
@@ -307,6 +318,9 @@ export class BaseApp implements App {
     this.#onCollectionDeleteRequest = new Hook();
     this.#onCollectionsImportRequest = new Hook();
     this.#onBatchRequest = new Hook();
+    this.#onRealtimeConnectRequest = new Hook();
+    this.#onRealtimeMessageSend = new Hook();
+    this.#onRealtimeSubscribeRequest = new Hook();
     this.#onModelCreate = new Hook();
     this.#onModelCreateExecute = new Hook();
     this.#onModelAfterCreateSuccess = new Hook();
@@ -465,6 +479,18 @@ export class BaseApp implements App {
 
   OnBatchRequest(): Hook<BatchRequestEvent> {
     return this.#onBatchRequest;
+  }
+
+  OnRealtimeConnectRequest(): Hook<RealtimeConnectRequestEvent> {
+    return this.#onRealtimeConnectRequest;
+  }
+
+  OnRealtimeMessageSend(): Hook<RealtimeMessageEvent> {
+    return this.#onRealtimeMessageSend;
+  }
+
+  OnRealtimeSubscribeRequest(): Hook<RealtimeSubscribeRequestEvent> {
+    return this.#onRealtimeSubscribeRequest;
   }
 
   OnSettingsListRequest(): Hook<SettingsListRequestEvent> {
@@ -2044,19 +2070,19 @@ export class BaseApp implements App {
     return null;
   }
 
-  Save(model: RecordModel | Collection | RecordProxy | Settings): Error | null {
+  Save(model: Model): Error | null {
     return this.saveModel(model, true);
   }
 
-  SaveNoValidate(model: RecordModel | Collection | RecordProxy | Settings): Error | null {
+  SaveNoValidate(model: Model): Error | null {
     return this.saveModel(model, false);
   }
 
-  SaveWithContext(_ctx: unknown, model: RecordModel | Collection | RecordProxy | Settings): Error | null {
+  SaveWithContext(_ctx: unknown, model: Model): Error | null {
     return this.saveModel(model, true);
   }
 
-  SaveNoValidateWithContext(_ctx: unknown, model: RecordModel | Collection | RecordProxy | Settings): Error | null {
+  SaveNoValidateWithContext(_ctx: unknown, model: Model): Error | null {
     return this.saveModel(model, false);
   }
 
@@ -2067,7 +2093,7 @@ export class BaseApp implements App {
     return record.callFieldInterceptors(null, this, action, actionFunc);
   }
 
-  private saveModel(model: RecordModel | Collection | RecordProxy | Settings, runValidation: boolean): Error | null {
+  private saveModel(model: Model, runValidation: boolean): Error | null {
     const recordInfo = resolveRecordProxy(model);
     if (recordInfo) {
       const { record, model: eventModel } = recordInfo;
@@ -2197,7 +2223,7 @@ export class BaseApp implements App {
     }
 
     if (!(model instanceof Collection)) {
-      throw new Error("unknown model type");
+      return this.saveGenericModel(model, runValidation);
     }
 
     const isNew = model.isNew();
@@ -2240,7 +2266,69 @@ export class BaseApp implements App {
     return afterErr ?? null;
   }
 
-  Validate(model: RecordModel | Collection | RecordProxy | Settings): Error | null {
+  private saveGenericModel(model: Model, runValidation: boolean): Error | null {
+    const isNew = model.IsNew();
+    const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
+
+    const runValidatedExecute = (): Error | null => {
+      if (runValidation) {
+        const validateErr = this.Validate(model);
+        if (validateErr) {
+          return validateErr;
+        }
+      }
+
+      return (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () =>
+        this.persistGenericModel(model),
+      ) as Error | null;
+    };
+
+    const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
+      modelEvent,
+      runValidatedExecute,
+    ) as Error | null;
+    if (saveErr) {
+      if (isNew) {
+        model.MarkAsNew();
+      }
+      const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
+      const afterErr = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+        errorEvent,
+        () => errorEvent.Error,
+      ) as Error | null;
+      return afterErr ?? errorEvent.Error;
+    }
+
+    if (this.#txInfo) {
+      this.#txInfo.OnComplete((txErr) => {
+        if (txErr) {
+          if (isNew) {
+            model.MarkAsNew();
+          }
+          const errorEvent = new ModelErrorEvent(modelEvent, txErr);
+          const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+            errorEvent,
+            () => errorEvent.Error,
+          ) as Error | null;
+          return result ?? null;
+        }
+        const result = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+          modelEvent,
+          () => null,
+        ) as Error | null;
+        return result ?? null;
+      });
+      return null;
+    }
+
+    const afterErr = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+      modelEvent,
+      () => null,
+    ) as Error | null;
+    return afterErr ?? null;
+  }
+
+  Validate(model: Model): Error | null {
     const preValidator = model as Partial<PreValidator>;
     if (typeof preValidator.PreValidate === "function") {
       const preErr = preValidator.PreValidate(null, this);
@@ -2274,7 +2362,7 @@ export class BaseApp implements App {
     return result ?? null;
   }
 
-  Delete(model: RecordModel | Collection | RecordProxy): Error | null {
+  Delete(model: Model): Error | null {
     const recordInfo = resolveRecordProxy(model);
     if (recordInfo) {
       const { record, model: eventModel } = recordInfo;
@@ -2324,7 +2412,7 @@ export class BaseApp implements App {
     }
 
     if (!(model instanceof Collection)) {
-      throw new Error("unknown model type");
+      return this.deleteGenericModel(model);
     }
 
     const modelEvent = new ModelEvent(this, model, ModelEventTypeDelete);
@@ -2423,7 +2511,7 @@ export class BaseApp implements App {
     return joinErrors(txErr, afterErr);
   }
 
-  DeleteWithContext(_ctx: unknown, model: RecordModel | Collection | RecordProxy): Error | null {
+  DeleteWithContext(_ctx: unknown, model: Model): Error | null {
     return this.Delete(model);
   }
 
@@ -2584,12 +2672,102 @@ export class BaseApp implements App {
     return record.PostScan();
   }
 
+  private persistGenericModel(model: Model): Error | null {
+    const data: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(model as Record<string, unknown>)) {
+      if (typeof value === "function" || value === undefined) {
+        continue;
+      }
+      data[snakecase(key)] = value;
+    }
+
+    if (!("id" in data) || !data.id) {
+      data.id = model.PK();
+    }
+
+    if (!data.id) {
+      return new Error("empty primary key is not allowed");
+    }
+
+    const keys = Object.keys(data);
+    if (keys.length === 0) {
+      return null;
+    }
+
+    try {
+      if (model.IsNew()) {
+        const columns = keys.map((key) => `"${key}"`).join(", ");
+        const placeholders = keys.map(() => "?").join(", ");
+        const values = keys.map((key) => normalizeDbValue(data[key]));
+        const sql = `insert into {{${model.TableName()}}} (${columns}) values (${placeholders})`;
+        this.db().run(sql, values);
+        model.MarkAsNotNew();
+      } else {
+        const columns = keys.filter((key) => key !== "id");
+        if (columns.length > 0) {
+          const assignments = columns.map((key) => `"${key}" = ?`).join(", ");
+          const values = columns.map((key) => normalizeDbValue(data[key]));
+          values.push(normalizeDbValue(model.PK() ?? data.id));
+          const sql = `update {{${model.TableName()}}} set ${assignments} where [[id]] = ?`;
+          this.db().run(sql, values);
+        }
+        model.MarkAsNotNew();
+      }
+    } catch (error) {
+      return error as Error;
+    }
+
+    return null;
+  }
+
   private deleteRecord(record: RecordModel): Error | null {
     if (!record.Id) {
       return new Error("missing record id");
     }
     this.db().run(`delete from {{${record.TableName()}}} where id = ?`, [record.Id]);
     return null;
+  }
+
+  private deleteGenericModel(model: Model): Error | null {
+    const pk = model.PK();
+    if (!pk) {
+      return new Error("the model can be deleted only if it is existing and has a non-empty primary key");
+    }
+
+    const modelEvent = new ModelEvent(this, model, ModelEventTypeDelete);
+
+    const deleteErr = this.OnModelDelete().Trigger(modelEvent, () =>
+      this.OnModelDeleteExecute().Trigger(modelEvent, () => {
+        try {
+          this.db().run(`delete from {{${model.TableName()}}} where [[id]] = ?`, [normalizeDbValue(pk)]);
+          return null;
+        } catch (error) {
+          return error as Error;
+        }
+      }),
+    ) as Error | null;
+
+    if (deleteErr) {
+      const errorEvent = new ModelErrorEvent(modelEvent, deleteErr);
+      const afterErr = this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error) as Error | null;
+      return afterErr ?? errorEvent.Error;
+    }
+
+    if (this.#txInfo) {
+      this.#txInfo.OnComplete((txErr) => {
+        if (txErr) {
+          const errorEvent = new ModelErrorEvent(modelEvent, txErr);
+          const result = this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error) as Error | null;
+          return result ?? null;
+        }
+        const result = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null) as Error | null;
+        return result ?? null;
+      });
+      return null;
+    }
+
+    const afterErr = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null) as Error | null;
+    return afterErr ?? null;
   }
 
   private saveSettings(settings: Settings): Error | null {
@@ -3645,9 +3823,7 @@ function isRecordProxy(value: unknown): value is RecordProxy {
   return typeof (value as RecordProxy | null)?.ProxyRecord === "function";
 }
 
-function resolveRecordProxy(
-  model: RecordModel | Collection | RecordProxy | Settings,
-): { record: RecordModel; model: RecordModel | RecordProxy } | null {
+function resolveRecordProxy(model: Model): { record: RecordModel; model: RecordModel | RecordProxy } | null {
   if (model instanceof RecordModel) {
     return { record: model, model };
   }

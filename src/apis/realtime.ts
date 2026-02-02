@@ -1,0 +1,970 @@
+// Ported from pocketbase/apis/realtime.go
+
+import type { SQLQueryBindings } from "bun:sqlite";
+import type { App } from "../core/app.ts";
+import type { Collection } from "../core/collection.ts";
+import type { Model } from "../core/db_model.ts";
+import type { RequestEvent, RequestInfo } from "../core/event_request.ts";
+import type { RecordProxy } from "../core/record_proxy.ts";
+import type { RouterGroup } from "../tools/router/group.ts";
+import type { Client } from "../tools/subscriptions/client.ts";
+import type { MessageWriter } from "../tools/subscriptions/message.ts";
+import { CollectionTypeAuth } from "../core/collection.ts";
+import { RequestInfoContextRealtime } from "../core/event_request.ts";
+import { RealtimeConnectRequestEvent, RealtimeMessageEvent, RealtimeSubscribeRequestEvent } from "../core/events.ts";
+import { LogsTableName } from "../core/log_model.ts";
+import { Record as RecordModel } from "../core/record.ts";
+import { RecordFieldResolver } from "../core/record_field_resolver.ts";
+import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
+import { Pick } from "../tools/picker/pick.ts";
+import { FireAndForget } from "../tools/routine/routine.ts";
+import { buildFilterExpr } from "../tools/search/filter.ts";
+import { DefaultFilterExprLimit, FilterQueryParam } from "../tools/search/types.ts";
+import { DefaultClient } from "../tools/subscriptions/client.ts";
+import { Message } from "../tools/subscriptions/message.ts";
+import { badRequest, forbidden, noContent, notFound } from "./api_errors.ts";
+import { SkipSuccessActivityLog } from "./middlewares.ts";
+import {
+  checkForSuperuserOnlyRuleFields,
+  execAfterSuccessTx,
+  expandFetch,
+  triggerRecordEnrichHooks,
+} from "./record_helpers.ts";
+
+// note: the chunk size is arbitrary chosen and may change in the future
+const clientsChunkSize = 150;
+
+// RealtimeClientAuthKey is the name of the realtime client store key that holds its auth state.
+export const RealtimeClientAuthKey = "auth";
+
+const expandQueryParam = "expand";
+const fieldsQueryParam = "fields";
+
+// bindRealtimeApi registers the realtime api endpoints.
+export function bindRealtimeApi(app: App, rg: RouterGroup<RequestEvent>): void {
+  const sub = rg.group("/realtime");
+  sub.get("", (event) => realtimeConnect(event)).Bind(SkipSuccessActivityLog());
+  sub.post("", (event) => realtimeSetSubscriptions(event));
+
+  bindRealtimeEvents(app);
+}
+
+function realtimeConnect(event: RequestEvent): Response {
+  // Note: Bun doesn't expose an equivalent to http.ResponseController.SetWriteDeadline,
+  // so we rely on streaming + request abort signals to keep connections responsive.
+  event.responseHeaders.set("Content-Type", "text/event-stream");
+  event.responseHeaders.set("Cache-Control", "no-store");
+  // https://github.com/pocketbase/pocketbase/discussions/480#discussioncomment-3657640
+  // https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering
+  event.responseHeaders.set("X-Accel-Buffering", "no");
+
+  const connectEvent = new RealtimeConnectRequestEvent(event);
+  connectEvent.Client = new DefaultClient();
+  connectEvent.IdleTimeout = 5 * 60 * 1000;
+
+  const stream = new ReadableStream<Uint8Array>({
+    start: async (controller) => {
+      const encoder = new TextEncoder();
+      let closed = false;
+
+      const closeStream = () => {
+        if (closed) {
+          return;
+        }
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          // ignore double close attempts
+        }
+      };
+
+      const writer: MessageWriter = {
+        write: (chunk) => {
+          if (closed) {
+            throw new Error("realtime stream is closed");
+          }
+          if (typeof chunk === "string") {
+            controller.enqueue(encoder.encode(chunk));
+          } else {
+            controller.enqueue(chunk);
+          }
+        },
+      };
+
+      const signal = event.request.signal;
+      if (signal) {
+        const abortHandler = () => closeStream();
+        if (signal.aborted) {
+          abortHandler();
+          return;
+        }
+        signal.addEventListener("abort", abortHandler, { once: true });
+      }
+
+      const result = await event.app.OnRealtimeConnectRequest().Trigger(connectEvent, async (ce) => {
+        const client = ce.Client ?? new DefaultClient();
+        ce.Client = client;
+
+        ce.App.SubscriptionsBroker().Register(client);
+        try {
+          ce.App.Logger().Debug("Realtime connection established.", "clientId", client.Id());
+
+          const connectMsgEvent = new RealtimeMessageEvent(ce.RequestEvent);
+          connectMsgEvent.Client = client;
+          connectMsgEvent.Message = new Message("PB_CONNECT", `{"clientId":"${client.Id()}"}`);
+
+          const connectMsgErr = await ce.App.OnRealtimeMessageSend().Trigger(connectMsgEvent, (me) => {
+            if (!me.Message || !me.Client) {
+              return null;
+            }
+            return writeMessage(writer, me.Message, me.Client.Id());
+          });
+
+          if (connectMsgErr instanceof Error) {
+            ce.App.Logger().Debug(
+              "Realtime connection closed (failed to deliver PB_CONNECT)",
+              "clientId",
+              client.Id(),
+              "error",
+              connectMsgErr.message,
+            );
+            return null;
+          }
+
+          await waitForRealtimeMessages(ce, writer);
+        } finally {
+          ce.App.SubscriptionsBroker().Unregister(client.Id());
+        }
+
+        return null;
+      });
+
+      if (result instanceof Error) {
+        event.app.Logger().Warn("Realtime connection failed.", "error", result);
+      }
+
+      closeStream();
+    },
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: event.responseHeaders,
+  });
+}
+
+class RealtimeSubscribeForm {
+  clientId = "";
+  subscriptions: string[] = [];
+
+  get ClientId(): string {
+    return this.clientId;
+  }
+
+  set ClientId(value: string) {
+    this.clientId = value;
+  }
+
+  get Subscriptions(): string[] {
+    return this.subscriptions;
+  }
+
+  set Subscriptions(value: string[]) {
+    this.subscriptions = value;
+  }
+}
+
+function validateRealtimeSubscribeForm(form: RealtimeSubscribeForm): Error | null {
+  const errors: Record<string, Error> = {};
+
+  if (required(form.clientId)) {
+    errors.clientId = newError("validation_required", "Cannot be blank.");
+  } else if (form.clientId.length < 1 || form.clientId.length > 255) {
+    errors.clientId = newError("validation_length_out_of_range", "The length must be between 1 and 255.");
+  }
+
+  if (form.subscriptions.length > 1000) {
+    errors.subscriptions = newError("validation_length_too_long", "The length must be no more than 1000.");
+  } else {
+    const itemErrors: Record<string, Error> = {};
+    for (let i = 0; i < form.subscriptions.length; i += 1) {
+      const item = form.subscriptions[i] ?? "";
+      if (item.length > 2500) {
+        itemErrors[String(i)] = newError("validation_length_too_long", "The length must be no more than 2500.");
+      }
+    }
+    if (Object.keys(itemErrors).length > 0) {
+      errors.subscriptions = new ValidationErrors(itemErrors);
+    }
+  }
+
+  return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+}
+
+// note: in case of reconnect, clients will have to resubmit all subscriptions again
+async function realtimeSetSubscriptions(event: RequestEvent): Promise<Response> {
+  const form = new RealtimeSubscribeForm();
+
+  await event.bindBody(form);
+
+  if (!Array.isArray(form.subscriptions)) {
+    form.subscriptions = [];
+  } else {
+    form.subscriptions = form.subscriptions.map((item) => (typeof item === "string" ? item : String(item)));
+  }
+
+  if (typeof form.clientId !== "string") {
+    form.clientId = "";
+  }
+
+  const validationErr = validateRealtimeSubscribeForm(form);
+  if (validationErr) {
+    return badRequest(event, "", validationErr);
+  }
+
+  let client: Client;
+  try {
+    client = event.app.SubscriptionsBroker().ClientById(form.ClientId);
+  } catch (_error) {
+    return notFound(event, "Missing or invalid client id.");
+  }
+
+  const clientAuth = client.Get(RealtimeClientAuthKey) as RecordModel | null;
+  if (clientAuth && !isSameAuth(clientAuth, event.auth)) {
+    return forbidden(event, "The current and the previous request authorization don't match.");
+  }
+
+  const hookEvent = new RealtimeSubscribeRequestEvent(event);
+  hookEvent.Client = client;
+  hookEvent.Subscriptions = form.Subscriptions;
+
+  const out = await event.app.OnRealtimeSubscribeRequest().Trigger(hookEvent, async (e) => {
+    if (!e.Client) {
+      return forbidden(event, "Missing subscription client.");
+    }
+
+    // update auth state
+    e.Client.Set(RealtimeClientAuthKey, e.RequestEvent.auth ?? null);
+
+    // unsubscribe from any previous existing subscriptions
+    e.Client.Unsubscribe();
+
+    // subscribe to the new subscriptions
+    e.Client.Subscribe(...e.Subscriptions);
+
+    e.App.Logger().Debug("Realtime subscriptions updated.", "clientId", e.Client.Id(), "subscriptions", e.Subscriptions);
+
+    return execAfterSuccessTx(true, e.App, () => noContent(event, 204));
+  });
+
+  if (out instanceof Response) {
+    return out;
+  }
+
+  return badRequest(event, "", out as Error);
+}
+
+// updateClientsAuth updates the existing clients auth record with the new one (matched by ID).
+function realtimeUpdateClientsAuth(app: App, newAuthRecord: RecordModel): Error | null {
+  const chunks = app.SubscriptionsBroker().ChunkedClients(clientsChunkSize);
+
+  for (const chunk of chunks) {
+    for (const client of chunk) {
+      const clientAuth = client.Get(RealtimeClientAuthKey) as RecordModel | null;
+      if (
+        clientAuth &&
+        clientAuth.Id === newAuthRecord.Id &&
+        clientAuth.collection().name === newAuthRecord.collection().name
+      ) {
+        client.Set(RealtimeClientAuthKey, newAuthRecord);
+      }
+    }
+  }
+
+  return null;
+}
+
+// realtimeUnsetClientsAuthState unsets the auth state of all clients that have the provided auth model.
+function realtimeUnsetClientsAuthState(app: App, authModel: Model): Error | null {
+  const pk = authModel.PK();
+  if (typeof pk !== "string") {
+    return null;
+  }
+
+  const chunks = app.SubscriptionsBroker().ChunkedClients(clientsChunkSize);
+
+  for (const chunk of chunks) {
+    for (const client of chunk) {
+      const clientAuth = client.Get(RealtimeClientAuthKey) as RecordModel | null;
+      if (clientAuth && clientAuth.Id === pk && clientAuth.collection().name === authModel.TableName()) {
+        client.Unset(RealtimeClientAuthKey);
+      }
+    }
+  }
+
+  return null;
+}
+
+function bindRealtimeEvents(app: App): void {
+  // update the clients that has auth record association
+  app.OnModelAfterUpdateSuccess().Bind({
+    Func: (e) => {
+      const authRecord = realtimeResolveRecord(e.App, e.Model as Model, CollectionTypeAuth);
+      if (authRecord) {
+        const err = realtimeUpdateClientsAuth(e.App, authRecord);
+        if (err) {
+          app
+            .Logger()
+            .Warn(
+              "Failed to update client(s) associated to the updated auth record",
+              "id",
+              authRecord.Id,
+              "collectionName",
+              authRecord.collection().name,
+              "error",
+              err.message,
+            );
+        }
+      }
+
+      return e.Next();
+    },
+    Priority: -99,
+  });
+
+  // remove the client(s) associated to the deleted auth model
+  // (note: works also with custom model for backward compatibility)
+  app.OnModelAfterDeleteSuccess().Bind({
+    Func: (e) => {
+      const collection = realtimeResolveRecordCollection(e.App, e.Model as Model);
+      if (collection && collection.IsAuth()) {
+        const err = realtimeUnsetClientsAuthState(e.App, e.Model as Model);
+        if (err) {
+          app
+            .Logger()
+            .Warn(
+              "Failed to remove client(s) associated to the deleted auth model",
+              "id",
+              e.Model?.PK(),
+              "collectionName",
+              e.Model?.TableName(),
+              "error",
+              err.message,
+            );
+        }
+      }
+
+      return e.Next();
+    },
+    Priority: -99,
+  });
+
+  app.OnModelAfterCreateSuccess().Bind({
+    Func: (e) => {
+      const record = realtimeResolveRecord(e.App, e.Model as Model, "");
+      if (record) {
+        const err = realtimeBroadcastRecord(e.App, "create", record, false);
+        if (err) {
+          app
+            .Logger()
+            .Debug(
+              "Failed to broadcast record create",
+              "id",
+              record.Id,
+              "collectionName",
+              record.collection().name,
+              "error",
+              err.message,
+            );
+        }
+      }
+
+      return e.Next();
+    },
+    Priority: -99,
+  });
+
+  app.OnModelAfterUpdateSuccess().Bind({
+    Func: (e) => {
+      const record = realtimeResolveRecord(e.App, e.Model as Model, "");
+      if (record) {
+        const err = realtimeBroadcastRecord(e.App, "update", record, false);
+        if (err) {
+          app
+            .Logger()
+            .Debug(
+              "Failed to broadcast record update",
+              "id",
+              record.Id,
+              "collectionName",
+              record.collection().name,
+              "error",
+              err.message,
+            );
+        }
+      }
+
+      return e.Next();
+    },
+    Priority: -99,
+  });
+
+  // delete: dry cache
+  app.OnModelDelete().Bind({
+    Func: (e) => {
+      const record = realtimeResolveRecord(e.App, e.Model as Model, "");
+      if (record) {
+        // note: use the outside scoped app instance for the access checks so that the API rules
+        // are performed out of the delete transaction ensuring that they would still work even if
+        // a cascade-deleted record's API rule relies on an already deleted parent record
+        const err = realtimeBroadcastRecord(e.App, "delete", record, true, app);
+        if (err) {
+          app
+            .Logger()
+            .Debug(
+              "Failed to dry cache record delete",
+              "id",
+              record.Id,
+              "collectionName",
+              record.collection().name,
+              "error",
+              err.message,
+            );
+        }
+      }
+
+      return e.Next();
+    },
+    Priority: 99, // execute as later as possible
+  });
+
+  // delete: broadcast
+  app.OnModelAfterDeleteSuccess().Bind({
+    Func: (e) => {
+      // note: only ensure that it is a collection record
+      // and don't use realtimeResolveRecord because in case of a
+      // custom model it'll fail to resolve since the record is already deleted
+      const collection = realtimeResolveRecordCollection(e.App, e.Model as Model);
+      if (collection) {
+        const err = realtimeBroadcastDryCacheKey(e.App, getDryCacheKey("delete", e.Model as Model));
+        if (err) {
+          app
+            .Logger()
+            .Debug(
+              "Failed to broadcast record delete",
+              "id",
+              e.Model?.PK(),
+              "collectionName",
+              collection.name,
+              "error",
+              err.message,
+            );
+        }
+      }
+
+      return e.Next();
+    },
+    Priority: -99,
+  });
+
+  // delete: failure
+  app.OnModelAfterDeleteError().Bind({
+    Func: (e) => {
+      const record = realtimeResolveRecord(e.App, e.Model as Model, "");
+      if (record) {
+        const err = realtimeUnsetDryCacheKey(e.App, getDryCacheKey("delete", record));
+        if (err) {
+          app
+            .Logger()
+            .Debug(
+              "Failed to cleanup after broadcast record delete failure",
+              "id",
+              record.Id,
+              "collectionName",
+              record.collection().name,
+              "error",
+              err.message,
+            );
+        }
+      }
+
+      return e.Next();
+    },
+    Priority: -99,
+  });
+}
+
+// resolveRecord converts *if possible* the provided model interface to a Record.
+// This is usually helpful if the provided model is a custom Record model struct.
+function realtimeResolveRecord(app: App, model: Model, optCollectionType: string): RecordModel | null {
+  let record: RecordModel | null = null;
+  if (model instanceof RecordModel) {
+    record = model;
+  } else if (isRecordProxy(model)) {
+    try {
+      record = model.ProxyRecord();
+    } catch {
+      record = null;
+    }
+  }
+
+  if (record) {
+    if (!optCollectionType || record.collection().type === optCollectionType) {
+      return record;
+    }
+    return null;
+  }
+
+  const tableName = model.TableName();
+
+  // skip Log model checks
+  if (tableName === LogsTableName) {
+    return null;
+  }
+
+  // check if it is custom Record model struct
+  const collection = app.FindCachedCollectionByNameOrId(tableName);
+  if (collection && (!optCollectionType || collection.type === optCollectionType)) {
+    const pk = model.PK();
+    if (typeof pk === "string") {
+      try {
+        return app.FindRecordById(collection, pk);
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  return record;
+}
+
+// realtimeResolveRecordCollection extracts *if possible* the Collection model from the provided model interface.
+// This is usually helpful if the provided model is a custom Record model struct.
+function realtimeResolveRecordCollection(app: App, model: Model): Collection | null {
+  if (model instanceof RecordModel) {
+    return model.collection();
+  }
+  if (isRecordProxy(model)) {
+    return model.ProxyRecord().collection();
+  }
+
+  return app.FindCachedCollectionByNameOrId(model.TableName());
+}
+
+// recordData represents the broadcasted record subscrition message data.
+type RecordDataPayload = {
+  record: unknown;
+  action: string;
+};
+
+// Note: the optAccessCheckApp is there in case you want the access check
+// to be performed against different db app context (e.g. out of a transaction).
+// If set, it is expected that optAccessCheckApp instance is used for read-only operations to avoid deadlocks.
+// If not set, it fallbacks to app.
+function realtimeBroadcastRecord(
+  app: App,
+  action: string,
+  record: RecordModel,
+  dryCache: boolean,
+  ...optAccessCheckApp: App[]
+): Error | null {
+  const collection = record.collection();
+  if (!collection) {
+    return new Error("[broadcastRecord] Record collection not set");
+  }
+
+  const chunks = app.SubscriptionsBroker().ChunkedClients(clientsChunkSize);
+  if (chunks.length === 0) {
+    return null; // no subscribers
+  }
+
+  const subscriptionRuleMap: Record<string, string | null> = {
+    [`${collection.name}/${record.Id}?`]: collection.viewRule,
+    [`${collection.id}/${record.Id}?`]: collection.viewRule,
+    [`${collection.name}/*?`]: collection.listRule,
+    [`${collection.id}/*?`]: collection.listRule,
+
+    // @deprecated: the same as the wildcard topic but kept for backward compatibility
+    [`${collection.name}?`]: collection.listRule,
+    [`${collection.id}?`]: collection.listRule,
+  };
+
+  const dryCacheKey = getDryCacheKey(action, record);
+
+  const accessCheckApp = optAccessCheckApp[0] ?? app;
+
+  for (const chunk of chunks) {
+    let clientAuth: RecordModel | null = null;
+
+    for (const client of chunk) {
+      // note: not executed concurrently to avoid races and to ensure
+      // that the access checks are applied for the current record db state
+      for (const [prefix, rule] of Object.entries(subscriptionRuleMap)) {
+        const subs = client.Subscriptions(prefix);
+        if (Object.keys(subs).length === 0) {
+          continue;
+        }
+
+        clientAuth = (client.Get(RealtimeClientAuthKey) as RecordModel | null) ?? null;
+
+        for (const [sub, options] of Object.entries(subs)) {
+          // mock request data
+          const requestInfo: RequestInfo = {
+            context: RequestInfoContextRealtime,
+            method: "GET",
+            query: options.query,
+            headers: options.headers,
+            body: {},
+            auth: clientAuth,
+          };
+
+          if (!realtimeCanAccessRecord(accessCheckApp, record, requestInfo, rule)) {
+            continue;
+          }
+
+          // create a clean record copy without expand and unknown fields because we don't know yet
+          // which exact fields the client subscription requested or has permissions to access
+          const cleanRecord = record.Fresh();
+
+          // trigger the enrich hooks
+          const enrichErr = triggerRecordEnrichHooks(app, requestInfo, [cleanRecord], () => {
+            // apply expand
+            const rawExpand = options.query[expandQueryParam] ?? "";
+            if (rawExpand !== "") {
+              const expandErrs = app.ExpandRecord(cleanRecord, rawExpand.split(","), expandFetch(app, requestInfo));
+              if (Object.keys(expandErrs).length > 0) {
+                app
+                  .Logger()
+                  .Debug(
+                    "[broadcastRecord] expand errors",
+                    "id",
+                    cleanRecord.Id,
+                    "collectionName",
+                    cleanRecord.collection().name,
+                    "sub",
+                    sub,
+                    "expand",
+                    rawExpand,
+                    "errors",
+                    expandErrs,
+                  );
+              }
+            }
+
+            // ignore the auth record email visibility checks
+            // for auth owner, superuser or manager
+            if (collection.IsAuth()) {
+              if (
+                isSameAuth(clientAuth, cleanRecord) ||
+                realtimeCanAccessRecord(accessCheckApp, cleanRecord, requestInfo, collection.ManageRule)
+              ) {
+                cleanRecord.IgnoreEmailVisibility(true);
+              }
+            }
+
+            return null;
+          });
+
+          if (enrichErr) {
+            app
+              .Logger()
+              .Debug(
+                "[broadcastRecord] record enrich error",
+                "id",
+                cleanRecord.Id,
+                "collectionName",
+                cleanRecord.collection().name,
+                "sub",
+                sub,
+                "error",
+                enrichErr,
+              );
+            continue;
+          }
+
+          const data: RecordDataPayload = {
+            action,
+            record: cleanRecord,
+          };
+
+          // check fields
+          const rawFields = options.query[fieldsQueryParam] ?? "";
+          if (rawFields !== "") {
+            try {
+              data.record = Pick(cleanRecord, rawFields);
+            } catch (error) {
+              app
+                .Logger()
+                .Debug(
+                  "[broadcastRecord] pick fields error",
+                  "id",
+                  cleanRecord.Id,
+                  "collectionName",
+                  cleanRecord.collection().name,
+                  "sub",
+                  sub,
+                  "fields",
+                  rawFields,
+                  "error",
+                  (error as Error).message,
+                );
+            }
+          }
+
+          let dataText = "";
+          try {
+            dataText = JSON.stringify(data);
+          } catch (error) {
+            app
+              .Logger()
+              .Debug(
+                "[broadcastRecord] data marshal error",
+                "id",
+                cleanRecord.Id,
+                "collectionName",
+                cleanRecord.collection().name,
+                "error",
+                (error as Error).message,
+              );
+            continue;
+          }
+
+          const msg = new Message(sub, dataText);
+
+          if (dryCache) {
+            const stored = client.Get(dryCacheKey);
+            if (Array.isArray(stored)) {
+              stored.push(msg);
+              client.Set(dryCacheKey, stored);
+            } else {
+              client.Set(dryCacheKey, [msg]);
+            }
+          } else {
+            FireAndForget(() => {
+              client.Send(msg);
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+// realtimeBroadcastDryCacheKey broadcasts the dry cached key related messages.
+function realtimeBroadcastDryCacheKey(app: App, key: string): Error | null {
+  const chunks = app.SubscriptionsBroker().ChunkedClients(clientsChunkSize);
+  if (chunks.length === 0) {
+    return null; // no subscribers
+  }
+
+  for (const chunk of chunks) {
+    for (const client of chunk) {
+      const messages = client.Get(key);
+      if (!Array.isArray(messages)) {
+        continue;
+      }
+
+      client.Unset(key);
+
+      const target = client;
+
+      FireAndForget(() => {
+        for (const msg of messages) {
+          target.Send(msg as Message);
+        }
+      });
+    }
+  }
+
+  return null;
+}
+
+// realtimeUnsetDryCacheKey removes the dry cached key related messages.
+function realtimeUnsetDryCacheKey(app: App, key: string): Error | null {
+  const chunks = app.SubscriptionsBroker().ChunkedClients(clientsChunkSize);
+  if (chunks.length === 0) {
+    return null; // no subscribers
+  }
+
+  for (const chunk of chunks) {
+    for (const client of chunk) {
+      if (client.Get(key) != null) {
+        client.Unset(key);
+      }
+    }
+  }
+
+  return null;
+}
+
+function getDryCacheKey(action: string, model: Model): string {
+  const pk = model.PK();
+  const pkStr = typeof pk === "string" ? pk : String(pk);
+  return `${action}/${model.TableName()}/${pkStr}`;
+}
+
+function isSameAuth(authA: RecordModel | null, authB: RecordModel | null): boolean {
+  if (!authA) {
+    return authB === null;
+  }
+  if (!authB) {
+    return false;
+  }
+  return authA.Id === authB.Id && authA.collection().id === authB.collection().id;
+}
+
+// realtimeCanAccessRecord checks if the subscription client has access to the specified record model.
+function realtimeCanAccessRecord(app: App, record: RecordModel, requestInfo: RequestInfo, accessRule: string | null): boolean {
+  // check the access rule
+  // ---
+  const [ok] = app.CanAccessRecord(record, requestInfo, accessRule);
+  if (!ok) {
+    return false;
+  }
+
+  // check the subscription client-side filter (if any)
+  // ---
+  const filter = requestInfo.query[FilterQueryParam];
+  if (!filter) {
+    return true; // no further checks needed
+  }
+
+  const ruleError = checkForSuperuserOnlyRuleFields(requestInfo);
+  if (ruleError) {
+    return false;
+  }
+
+  let sql = `select (1) from {{${record.collection().name}}}`;
+  const params: SQLQueryBindings[] = [];
+  sql = appendWhere(sql, `[[${record.collection().name}.id]] = ?`);
+  params.push(record.Id);
+
+  const resolver = new RecordFieldResolver(app, record.collection(), requestInfo, false);
+  let expr;
+  try {
+    expr = buildFilterExpr(filter, resolver, DefaultFilterExprLimit);
+  } catch {
+    return false;
+  }
+
+  if (expr.sql) {
+    sql = appendWhere(sql, expr.sql);
+    params.push(...(expr.params as SQLQueryBindings[]));
+  }
+
+  const updated = resolver.updateQuery({ select: sql, params });
+  sql = updated.select;
+  params.splice(0, params.length, ...((updated.params ?? []) as SQLQueryBindings[]));
+
+  const row = app
+    .db()
+    .query(sql)
+    .get(...params);
+
+  return Boolean(row);
+}
+
+function appendWhere(baseSql: string, clause: string): string {
+  if (!clause) {
+    return baseSql;
+  }
+  if (/\bwhere\b/i.test(baseSql)) {
+    return `${baseSql} AND ${clause}`;
+  }
+  return `${baseSql} WHERE ${clause}`;
+}
+
+function isRecordProxy(model: Model): model is RecordProxy {
+  return typeof (model as RecordProxy | null)?.ProxyRecord === "function";
+}
+
+async function waitForRealtimeMessages(event: RealtimeConnectRequestEvent, writer: MessageWriter): Promise<void> {
+  const client = event.Client;
+  if (!client) {
+    return;
+  }
+
+  const iterator = client.Channel()[Symbol.asyncIterator]();
+
+  const abortPromise = new Promise<{ type: "abort" }>((resolve) => {
+    const signal = event.RequestEvent.request.signal;
+    if (!signal) {
+      return;
+    }
+    if (signal.aborted) {
+      resolve({ type: "abort" });
+      return;
+    }
+    signal.addEventListener(
+      "abort",
+      () => {
+        resolve({ type: "abort" });
+      },
+      { once: true },
+    );
+  });
+
+  while (true) {
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    const idlePromise = new Promise<{ type: "idle" }>((resolve) => {
+      idleTimer = setTimeout(() => resolve({ type: "idle" }), event.IdleTimeout);
+    });
+
+    const nextPromise = iterator.next().then((result) => ({ type: "message" as const, result }));
+
+    const winner = await Promise.race([abortPromise, idlePromise, nextPromise]);
+
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+    }
+
+    if (winner.type === "idle") {
+      event.App.Logger().Debug("Realtime connection closed (idle timeout)", "clientId", client.Id());
+      return;
+    }
+
+    if (winner.type === "abort") {
+      event.App.Logger().Debug("Realtime connection closed (cancelled request)", "clientId", client.Id());
+      return;
+    }
+
+    if (winner.result.done) {
+      event.App.Logger().Debug("Realtime connection closed (closed channel)", "clientId", client.Id());
+      return;
+    }
+
+    const msgEvent = new RealtimeMessageEvent(event.RequestEvent);
+    msgEvent.Client = client;
+    msgEvent.Message = winner.result.value as Message;
+
+    const msgErr = await event.App.OnRealtimeMessageSend().Trigger(msgEvent, (me) => {
+      if (!me.Message || !me.Client) {
+        return null;
+      }
+      return writeMessage(writer, me.Message, me.Client.Id());
+    });
+
+    if (msgErr instanceof Error) {
+      event.App.Logger().Debug(
+        "Realtime connection closed (failed to deliver message)",
+        "clientId",
+        client.Id(),
+        "error",
+        msgErr.message,
+      );
+      return;
+    }
+  }
+}
+
+function writeMessage(writer: MessageWriter, message: Message, clientId: string): Error | null {
+  try {
+    message.WriteSSE(writer, clientId);
+    return null;
+  } catch (error) {
+    return error as Error;
+  }
+}

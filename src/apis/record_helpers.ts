@@ -191,7 +191,7 @@ export async function EnrichRecords(
   });
 }
 
-function triggerRecordEnrichHooks(
+export function triggerRecordEnrichHooks(
   app: App,
   requestInfo: RequestInfo,
   records: RecordModel[],
@@ -260,7 +260,7 @@ function defaultEnrichRecords(app: App, requestInfo: RequestInfo, records: Recor
 }
 
 // expandFetch is the records fetch function that is used to expand related records.
-function expandFetch(app: App, originalRequestInfo: RequestInfo) {
+export function expandFetch(app: App, originalRequestInfo: RequestInfo) {
   const requestInfo: RequestInfo = {
     ...originalRequestInfo,
     context: RequestInfoContextExpand,

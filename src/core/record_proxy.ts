@@ -1,5 +1,6 @@
 // Ported from pocketbase/core/record_proxy.go
 
+import type { Model } from "./db_model.ts";
 import type { Record } from "./record.ts";
 
 // RecordProxy defines an interface for a Record proxy/project model,
@@ -7,7 +8,7 @@ import type { Record } from "./record.ts";
 // allow for example typed getter/setters for the Record fields.
 //
 // To implement the interface it is usually enough to embed the [BaseRecordProxy] struct.
-export interface RecordProxy {
+export interface RecordProxy extends Model {
   ProxyRecord(): Record;
   SetProxyRecord(record: Record): void;
 }
@@ -30,6 +31,14 @@ export class BaseRecordProxy implements RecordProxy {
     this.Record = record;
   }
 
+  get Id(): string {
+    return this.ProxyRecord().Id;
+  }
+
+  set Id(value: string) {
+    this.ProxyRecord().Id = value;
+  }
+
   TableName(): string {
     return this.ProxyRecord().TableName();
   }
@@ -44,6 +53,10 @@ export class BaseRecordProxy implements RecordProxy {
 
   LastSavedPK(): string {
     return this.ProxyRecord().LastSavedPK();
+  }
+
+  PK(): string {
+    return this.ProxyRecord().Id;
   }
 
   MarkAsNew(): void {

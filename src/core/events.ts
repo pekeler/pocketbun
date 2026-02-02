@@ -1,9 +1,11 @@
-// Ported from pocketbase/core/events.go (partial: app + model/record/collection + collection request + file events).
+// Ported from pocketbase/core/events.go (partial: app + model/record/collection + collection request + realtime + file events).
 
 import type { Mailer, Message } from "../tools/mailer/mailer.ts";
 import type { SearchResult } from "../tools/search/types.ts";
+import type { Client as RealtimeClient } from "../tools/subscriptions/client.ts";
+import type { Message as RealtimeMessage } from "../tools/subscriptions/message.ts";
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
+import type { Model as DbModel } from "./db_model.ts";
 import type { RequestEvent } from "./event_request.ts";
 import type { RequestInfo } from "./event_request.ts";
 import type { FileField } from "./field_file.ts";
@@ -11,12 +13,13 @@ import type { Record as RecordModel } from "./record.ts";
 import type { RecordProxy } from "./record_proxy.ts";
 import type { Settings } from "./settings.ts";
 import { Event } from "../tools/hook/event.ts";
+import { Collection } from "./collection.ts";
 
 export type HookTagger = {
   HookTags(): string[];
 };
 
-type Model = RecordModel | Collection | RecordProxy | Settings;
+type Model = DbModel;
 
 class BaseModelEventData {
   Model: Model | null = null;
@@ -222,6 +225,38 @@ export class ModelErrorEvent extends Event {
     this.Error = error;
   }
 
+  get App(): App {
+    return this.ModelEvent.App;
+  }
+
+  set App(app: App) {
+    this.ModelEvent.App = app;
+  }
+
+  get Context(): unknown {
+    return this.ModelEvent.Context;
+  }
+
+  set Context(context: unknown) {
+    this.ModelEvent.Context = context;
+  }
+
+  get Type(): string {
+    return this.ModelEvent.Type;
+  }
+
+  set Type(type: string) {
+    this.ModelEvent.Type = type;
+  }
+
+  get Model(): Model | null {
+    return this.ModelEvent.Model;
+  }
+
+  set Model(model: Model | null) {
+    this.ModelEvent.Model = model;
+  }
+
   Tags(): string[] {
     return this.ModelEvent.Tags();
   }
@@ -259,6 +294,38 @@ export class RecordErrorEvent extends Event {
     this.Error = error;
   }
 
+  get App(): App {
+    return this.RecordEvent.App;
+  }
+
+  set App(app: App) {
+    this.RecordEvent.App = app;
+  }
+
+  get Context(): unknown {
+    return this.RecordEvent.Context;
+  }
+
+  set Context(context: unknown) {
+    this.RecordEvent.Context = context;
+  }
+
+  get Type(): string {
+    return this.RecordEvent.Type;
+  }
+
+  set Type(type: string) {
+    this.RecordEvent.Type = type;
+  }
+
+  get Record(): RecordModel | null {
+    return this.RecordEvent.Record;
+  }
+
+  set Record(record: RecordModel | null) {
+    this.RecordEvent.Record = record;
+  }
+
   Tags(): string[] {
     return this.RecordEvent.Tags();
   }
@@ -294,6 +361,38 @@ export class CollectionErrorEvent extends Event {
     super();
     this.CollectionEvent = collectionEvent;
     this.Error = error;
+  }
+
+  get App(): App {
+    return this.CollectionEvent.App;
+  }
+
+  set App(app: App) {
+    this.CollectionEvent.App = app;
+  }
+
+  get Context(): unknown {
+    return this.CollectionEvent.Context;
+  }
+
+  set Context(context: unknown) {
+    this.CollectionEvent.Context = context;
+  }
+
+  get Type(): string {
+    return this.CollectionEvent.Type;
+  }
+
+  set Type(type: string) {
+    this.CollectionEvent.Type = type;
+  }
+
+  get Collection(): Collection | null {
+    return this.CollectionEvent.Collection;
+  }
+
+  set Collection(collection: Collection | null) {
+    this.CollectionEvent.Collection = collection;
   }
 
   Tags(): string[] {
@@ -375,7 +474,7 @@ export function syncCollectionEventWithModelEvent(collectionEvent: CollectionEve
   collectionEvent.App = modelEvent.App;
   collectionEvent.Context = modelEvent.Context;
   collectionEvent.Type = modelEvent.Type;
-  if (modelEvent.Model && (modelEvent.Model as Collection).TableName) {
+  if (modelEvent.Model instanceof Collection) {
     collectionEvent.Collection = modelEvent.Model as Collection;
   }
 }
@@ -384,8 +483,8 @@ export function newCollectionEventFromModelEvent(modelEvent: ModelEvent): {
   event: CollectionEvent | null;
   ok: boolean;
 } {
-  const collection = modelEvent.Model as Collection | null;
-  if (!collection || typeof collection.TableName !== "function") {
+  const collection = modelEvent.Model instanceof Collection ? modelEvent.Model : null;
+  if (!collection) {
     return { event: null, ok: false };
   }
   return {
@@ -566,6 +665,76 @@ export class CollectionRequestEvent extends Event {
     this.Collection = collection;
     const base = newBaseCollectionEventData(collection);
     this.Tags = base.Tags;
+    syncStopSignal(this, requestEvent);
+  }
+}
+
+// -------------------------------------------------------------------
+// Realtime API events data
+// -------------------------------------------------------------------
+
+export class RealtimeConnectRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Client: RealtimeClient | null;
+  IdleTimeout: number;
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Client = null;
+    this.IdleTimeout = 0;
+    syncStopSignal(this, requestEvent);
+  }
+}
+
+export class RealtimeMessageEvent extends Event {
+  RequestEvent: RequestEvent;
+  Client: RealtimeClient | null;
+  Message: RealtimeMessage | null;
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Client = null;
+    this.Message = null;
+    syncStopSignal(this, requestEvent);
+  }
+}
+
+export class RealtimeSubscribeRequestEvent extends Event {
+  RequestEvent: RequestEvent;
+  Client: RealtimeClient | null;
+  Subscriptions: string[];
+
+  get App(): App {
+    return this.RequestEvent.app;
+  }
+
+  set App(app: App) {
+    this.RequestEvent.app = app;
+  }
+
+  constructor(requestEvent: RequestEvent) {
+    super();
+    this.RequestEvent = requestEvent;
+    this.Client = null;
+    this.Subscriptions = [];
     syncStopSignal(this, requestEvent);
   }
 }

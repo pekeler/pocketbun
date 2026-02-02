@@ -15,6 +15,7 @@ import type { SqlExpr } from "../tools/search/types.ts";
 import type { Broker } from "../tools/subscriptions/broker.ts";
 import type { AuthOrigin } from "./auth_origin_model.ts";
 import type { Collection } from "./collection.ts";
+import type { Model } from "./db_model.ts";
 import type { TableInfoRow } from "./db_table.ts";
 import type { RequestInfo } from "./event_request.ts";
 import type { BatchRequestEvent } from "./event_request_batch.ts";
@@ -32,6 +33,9 @@ import type {
   MailerRecordEvent,
   ModelErrorEvent,
   ModelEvent,
+  RealtimeConnectRequestEvent,
+  RealtimeMessageEvent,
+  RealtimeSubscribeRequestEvent,
   RecordAuthRefreshRequestEvent,
   RecordAuthRequestEvent,
   RecordAuthWithOAuth2RequestEvent,
@@ -61,7 +65,6 @@ import type { LogsStatsItem } from "./log_query.ts";
 import type { MFA } from "./mfa_model.ts";
 import type { OTP } from "./otp_model.ts";
 import type { Record as RecordModel } from "./record.ts";
-import type { RecordProxy } from "./record_proxy.ts";
 import type { RecordQueryFilter } from "./record_query.ts";
 import type { RecordQuery } from "./record_query.ts";
 import type { ExpandFetchFunc } from "./record_query_expand.ts";
@@ -69,6 +72,7 @@ import type { Settings } from "./settings.ts";
 import type { Store } from "./store.ts";
 
 export type Logger = {
+  Debug: (message: string, ...args: unknown[]) => void;
   Warn: (message: string, ...args: unknown[]) => void;
   Error: (message: string, ...args: unknown[]) => void;
 };
@@ -138,13 +142,13 @@ export interface App {
   //
   // NB! It relies on execve which is supported only on UNIX based systems.
   Restart(): Error | null;
-  Save(model: RecordModel | Collection | RecordProxy | Settings): Error | null;
-  SaveNoValidate(model: RecordModel | Collection | RecordProxy | Settings): Error | null;
-  SaveWithContext(ctx: unknown, model: RecordModel | Collection | RecordProxy | Settings): Error | null;
-  SaveNoValidateWithContext(ctx: unknown, model: RecordModel | Collection | RecordProxy | Settings): Error | null;
-  Delete(model: RecordModel | Collection | RecordProxy): Error | null;
-  DeleteWithContext(ctx: unknown, model: RecordModel | Collection | RecordProxy): Error | null;
-  Validate(model: RecordModel | Collection | RecordProxy | Settings): Error | null;
+  Save(model: Model): Error | null;
+  SaveNoValidate(model: Model): Error | null;
+  SaveWithContext(ctx: unknown, model: Model): Error | null;
+  SaveNoValidateWithContext(ctx: unknown, model: Model): Error | null;
+  Delete(model: Model): Error | null;
+  DeleteWithContext(ctx: unknown, model: Model): Error | null;
+  Validate(model: Model): Error | null;
   TruncateCollection(collection: Collection): Error | null;
   ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Error | null;
   RunInTransaction(fn: (txApp: App) => Error | null): Error | null;
@@ -306,6 +310,10 @@ export interface App {
   OnMailerRecordVerificationSend(tags?: string[]): TaggedHook<MailerRecordEvent>;
   OnMailerRecordEmailChangeSend(tags?: string[]): TaggedHook<MailerRecordEvent>;
   OnMailerRecordOTPSend(tags?: string[]): TaggedHook<MailerRecordEvent>;
+
+  OnRealtimeConnectRequest(): Hook<RealtimeConnectRequestEvent>;
+  OnRealtimeMessageSend(): Hook<RealtimeMessageEvent>;
+  OnRealtimeSubscribeRequest(): Hook<RealtimeSubscribeRequestEvent>;
 
   OnCollectionValidate(tags?: string[]): TaggedHook<CollectionEvent>;
   OnCollectionCreate(tags?: string[]): TaggedHook<CollectionEvent>;
