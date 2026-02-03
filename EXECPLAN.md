@@ -87,7 +87,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-03 18:10Z) Wrap model create/update/delete DB writes with lock retry handling to match upstream baseLockRetry behavior.
 - [x] (2026-02-03 12:57Z) Port tools/search tests (filter/provider/sort/token functions/simple resolver/identifier macros/multi-match) and align filter parsing + LIKE wrapping to upstream behavior.
 - [x] (2026-02-03 12:57Z) Port tools/types tests (DateTime/JSONRaw/JSONMap/JSONArray) and align DateTime + JSON* helper semantics with upstream Scan/Value/Marshal behavior.
-- [ ] (2026-02-03 18:20Z) Restore 1:1 file mapping where practical by un-merging merged TS files and adding missing upstream files/tests (completed: analysis of missing files/tests, merged-header rule, low-risk un-merges like api_error_aliases/router error/collection_import + auth_origin/otp/mfa/external_auth query splits, base_backup helper extraction + base_paths constants, db_connect helper, syscall stub, collection_query module + tests + DbxDatabase query logging, db_tx module + tests, db_retry/db_builder modules with tests for db_retry, and tools/search + tools/types tests; remaining: larger splits and missing modules/tests).
+- [x] (2026-02-03 13:04Z) Port tools/security encrypt/jwt tests, align AES-GCM key handling with Go (128/192/256), and expose claims on parseUnverifiedJWT errors.
+- [ ] (2026-02-03 18:20Z) Restore 1:1 file mapping where practical by un-merging merged TS files and adding missing upstream files/tests (completed: analysis of missing files/tests, merged-header rule, low-risk un-merges like api_error_aliases/router error/collection_import + auth_origin/otp/mfa/external_auth query splits, base_backup helper extraction + base_paths constants, db_connect helper, syscall stub, collection_query module + tests + DbxDatabase query logging, db_tx module + tests, db_retry/db_builder modules with tests for db_retry, and tools/search + tools/types + tools/security tests; remaining: larger splits and missing modules/tests).
 
 ## Surprises & Discoveries
 
@@ -206,6 +207,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Date/Author: 2026-02-02 / Codex
 - Decision: Align JSONRaw/JSONMap/JSONArray/DateTime helpers with upstream Scan/Value/Marshal behavior.
   Rationale: Upstream tools/types tests depend on Scan/Value/Marshal JSON behavior; matching them keeps dbx and type utility semantics in sync with PocketBase.
+  Date/Author: 2026-02-03 / Codex
+- Decision: Select AES-GCM algorithm based on key length (128/192/256) to match Go's aes.NewCipher behavior.
+  Rationale: Go accepts 16/24/32 byte keys; choosing the corresponding AES-GCM variant preserves compatibility for non-32-byte keys.
   Date/Author: 2026-02-03 / Codex
 - Decision: Merge auth option updates instead of replacing defaults during collection updates/imports.
   Rationale: Upstream binding merges partial option payloads; replacing caused missing identity fields and failed validations.
@@ -412,3 +416,4 @@ Plan change note: 2026-02-01, recorded OAuth2 auth create flow progress and the 
 Plan change note: 2026-02-02, recorded collection CRUD/import parity completion, updated discovery/decision logs, and narrowed remaining work to pb_hooks loading/tests.
 Plan change note: 2026-02-03, added the 1:1 file mapping/missing tests milestone and recorded the file-count discrepancy plus mapping scan results.
 Plan change note: 2026-02-03, recorded tools/search + tools/types test ports and helper parity updates during the 1:1 file mapping milestone.
+Plan change note: 2026-02-03, recorded tools/security encrypt/jwt test ports and AES-GCM key handling alignment.

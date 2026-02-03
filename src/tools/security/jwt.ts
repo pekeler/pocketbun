@@ -6,8 +6,14 @@ export type JwtClaims = Record<string, unknown>;
 
 export function parseUnverifiedJWT(token: string): JwtClaims {
   const { payload } = decodeToken(token);
-  validateClaims(payload);
-  return payload;
+  try {
+    validateClaims(payload);
+    return payload;
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error("invalid jwt claims");
+    (err as Error & { claims?: JwtClaims }).claims = payload;
+    throw err;
+  }
 }
 
 export function decodeUnverifiedJWT(token: string): JwtClaims {
