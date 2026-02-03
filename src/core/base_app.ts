@@ -19,7 +19,7 @@ import { Cron } from "../tools/cron/cron.ts";
 import { findSingleColumnUniqueIndex, parseIndex } from "../tools/dbutils/index.ts";
 import { JSONEach } from "../tools/dbutils/json.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
-import { HashExp, NewExp, Not } from "../tools/dbx/expr.ts";
+import { HashExp, Not } from "../tools/dbx/expr.ts";
 import { SelectQuery } from "../tools/dbx/select_query.ts";
 import { NewFileFromPath } from "../tools/filesystem/file.ts";
 import { NewLocal, NewS3 } from "../tools/filesystem/filesystem.ts";
@@ -38,6 +38,13 @@ import { pseudorandomString, randomString } from "../tools/security/random.ts";
 import { Broker } from "../tools/subscriptions/broker.ts";
 import { DateTime, GeoPoint, JSONRaw, NowDateTime, ParseDateTime } from "../tools/types/index.ts";
 import { AuthOrigin, CollectionNameAuthOrigins, recordRefHooks } from "./auth_origin_model.ts";
+import {
+  DeleteAllAuthOriginsByRecord as DeleteAllAuthOriginsByRecordQuery,
+  FindAllAuthOriginsByCollection as FindAllAuthOriginsByCollectionQuery,
+  FindAllAuthOriginsByRecord as FindAllAuthOriginsByRecordQuery,
+  FindAuthOriginById as FindAuthOriginByIdQuery,
+  FindAuthOriginByRecordAndFingerprint as FindAuthOriginByRecordAndFingerprintQuery,
+} from "./auth_origin_query.ts";
 import { Collection, CollectionTypeAuth, collectionFromRow, parseCollectionFields, type CollectionRow } from "./collection.ts";
 import { validateCollection } from "./collection_validate.ts";
 import { TableInfo, TableIndexes } from "./db_table.ts";
@@ -121,9 +128,23 @@ import { RelationField } from "./field_relation.ts";
 import { FieldsList, NewFieldsList } from "./fields_list.ts";
 import { deleteOldLogs, findLogById, logQuery, logsStats, type LogsStatsItem } from "./log_query.ts";
 import { CollectionNameMFAs, MFA } from "./mfa_model.ts";
+import {
+  DeleteAllMFAsByRecord as DeleteAllMFAsByRecordQuery,
+  DeleteExpiredMFAs as DeleteExpiredMFAsQuery,
+  FindAllMFAsByCollection as FindAllMFAsByCollectionQuery,
+  FindAllMFAsByRecord as FindAllMFAsByRecordQuery,
+  FindMFAById as FindMFAByIdQuery,
+} from "./mfa_query.ts";
 import { MigrationsList } from "./migrations_list.ts";
 import { AppMigrations, MigrationsRunner, SystemMigrations } from "./migrations_runner.ts";
 import { CollectionNameOTPs, OTP } from "./otp_model.ts";
+import {
+  DeleteAllOTPsByRecord as DeleteAllOTPsByRecordQuery,
+  DeleteExpiredOTPs as DeleteExpiredOTPsQuery,
+  FindAllOTPsByCollection as FindAllOTPsByCollectionQuery,
+  FindAllOTPsByRecord as FindAllOTPsByRecordQuery,
+  FindOTPById as FindOTPByIdQuery,
+} from "./otp_query.ts";
 import { FieldNameEmail, FieldNamePassword, Record as RecordModel, type RecordData } from "./record.ts";
 import { RecordFieldResolver } from "./record_field_resolver.ts";
 import { registerSuperuserHooks } from "./record_model_superusers.ts";
@@ -1348,228 +1369,72 @@ export class BaseApp implements App {
 
   // Ported from pocketbase/core/otp_query.go.
   FindAllOTPsByRecord(authRecord: RecordModel): OTP[] {
-    const result: OTP[] = [new OTP()];
-
-    this.RecordQuery(CollectionNameOTPs)
-      .AndWhere({
-        collectionRef: authRecord.collection().id,
-        recordRef: authRecord.Id,
-      })
-      .OrderBy("created DESC")
-      .All(result);
-
-    return result;
+    return FindAllOTPsByRecordQuery(this, authRecord);
   }
 
   // Ported from pocketbase/core/otp_query.go.
   FindAllOTPsByCollection(collection: Collection): OTP[] {
-    const result: OTP[] = [new OTP()];
-
-    this.RecordQuery(CollectionNameOTPs).AndWhere({ collectionRef: collection.id }).OrderBy("created DESC").All(result);
-
-    return result;
+    return FindAllOTPsByCollectionQuery(this, collection);
   }
 
   // Ported from pocketbase/core/otp_query.go.
   FindOTPById(id: string): OTP {
-    const result = new OTP();
-
-    this.RecordQuery(CollectionNameOTPs).AndWhere({ id }).Limit(1).One(result);
-
-    return result;
+    return FindOTPByIdQuery(this, id);
   }
 
   // Ported from pocketbase/core/otp_query.go.
   async DeleteAllOTPsByRecord(authRecord: RecordModel): Promise<Error | null> {
-    const models = this.FindAllOTPsByRecord(authRecord);
-    const errors: Error[] = [];
-
-    for (const model of models) {
-      const err = await this.Delete(model);
-      if (err) {
-        errors.push(err);
-      }
-    }
-
-    if (errors.length > 0) {
-      return new Error(errors.map((err) => err.message ?? String(err)).join("; "));
-    }
-
-    return null;
+    return await DeleteAllOTPsByRecordQuery(this, authRecord);
   }
 
   // Ported from pocketbase/core/otp_query.go.
   async DeleteExpiredOTPs(): Promise<Error | null> {
-    const authCollections = this.FindAllCollections(CollectionTypeAuth);
-
-    for (const collection of authCollections) {
-      const durationMs = collection.OTP.DurationTime() * 1000;
-      const minValidDate = ParseDateTime(new Date(Date.now() - durationMs)).toString();
-
-      const items: RecordModel[] = [];
-      this.RecordQuery(CollectionNameOTPs)
-        .AndWhere({ collectionRef: collection.id })
-        .AndWhere(NewExp("[[created]] < {:date}", { date: minValidDate }))
-        .All(items);
-
-      for (const item of items) {
-        const err = await this.Delete(item);
-        if (err) {
-          return err;
-        }
-      }
-    }
-
-    return null;
+    return await DeleteExpiredOTPsQuery(this);
   }
 
   // Ported from pocketbase/core/mfa_query.go.
   FindAllMFAsByRecord(authRecord: RecordModel): MFA[] {
-    const result: MFA[] = [new MFA()];
-
-    this.RecordQuery(CollectionNameMFAs)
-      .AndWhere({
-        collectionRef: authRecord.collection().id,
-        recordRef: authRecord.Id,
-      })
-      .OrderBy("created DESC")
-      .All(result);
-
-    return result;
+    return FindAllMFAsByRecordQuery(this, authRecord);
   }
 
   // Ported from pocketbase/core/mfa_query.go.
   FindAllMFAsByCollection(collection: Collection): MFA[] {
-    const result: MFA[] = [new MFA()];
-
-    this.RecordQuery(CollectionNameMFAs).AndWhere({ collectionRef: collection.id }).OrderBy("created DESC").All(result);
-
-    return result;
+    return FindAllMFAsByCollectionQuery(this, collection);
   }
 
   // Ported from pocketbase/core/mfa_query.go.
   FindMFAById(id: string): MFA {
-    const result = new MFA();
-
-    this.RecordQuery(CollectionNameMFAs).AndWhere({ id }).Limit(1).One(result);
-
-    return result;
+    return FindMFAByIdQuery(this, id);
   }
 
   // Ported from pocketbase/core/mfa_query.go.
   async DeleteAllMFAsByRecord(authRecord: RecordModel): Promise<Error | null> {
-    const models = this.FindAllMFAsByRecord(authRecord);
-    const errors: Error[] = [];
-
-    for (const model of models) {
-      const err = await this.Delete(model);
-      if (err) {
-        errors.push(err);
-      }
-    }
-
-    if (errors.length > 0) {
-      return new Error(errors.map((err) => err.message ?? String(err)).join("; "));
-    }
-
-    return null;
+    return await DeleteAllMFAsByRecordQuery(this, authRecord);
   }
 
   // Ported from pocketbase/core/mfa_query.go.
   async DeleteExpiredMFAs(): Promise<Error | null> {
-    const authCollections = this.FindAllCollections(CollectionTypeAuth);
-
-    for (const collection of authCollections) {
-      const durationMs = collection.MFA.DurationTime() * 1000;
-      const minValidDate = ParseDateTime(new Date(Date.now() - durationMs)).toString();
-
-      const items: RecordModel[] = [];
-      this.RecordQuery(CollectionNameMFAs)
-        .AndWhere({ collectionRef: collection.id })
-        .AndWhere(NewExp("[[created]] < {:date}", { date: minValidDate }))
-        .All(items);
-
-      for (const item of items) {
-        const err = await this.Delete(item);
-        if (err) {
-          return err;
-        }
-      }
-    }
-
-    return null;
+    return await DeleteExpiredMFAsQuery(this);
   }
 
   FindAllAuthOriginsByRecord(authRecord: RecordModel): AuthOrigin[] {
-    const result: AuthOrigin[] = [new AuthOrigin()];
-
-    this.RecordQuery(CollectionNameAuthOrigins)
-      .AndWhere({
-        collectionRef: authRecord.collection().id,
-        recordRef: authRecord.Id,
-      })
-      .OrderBy("created DESC")
-      .All(result);
-
-    return result;
+    return FindAllAuthOriginsByRecordQuery(this, authRecord);
   }
 
   FindAllAuthOriginsByCollection(collection: Collection): AuthOrigin[] {
-    const result: AuthOrigin[] = [new AuthOrigin()];
-
-    this.RecordQuery(CollectionNameAuthOrigins).AndWhere({ collectionRef: collection.id }).OrderBy("created DESC").All(result);
-
-    return result;
+    return FindAllAuthOriginsByCollectionQuery(this, collection);
   }
 
   FindAuthOriginById(id: string): AuthOrigin {
-    const result = new AuthOrigin();
-
-    this.RecordQuery(CollectionNameAuthOrigins).AndWhere({ id }).Limit(1).One(result);
-
-    return result;
+    return FindAuthOriginByIdQuery(this, id);
   }
 
   FindAuthOriginByRecordAndFingerprint(authRecord: RecordModel, fingerprint: string): AuthOrigin {
-    const result = new AuthOrigin();
-
-    this.RecordQuery(CollectionNameAuthOrigins)
-      .AndWhere({
-        collectionRef: authRecord.collection().id,
-        recordRef: authRecord.Id,
-        fingerprint,
-      })
-      .Limit(1)
-      .One(result);
-
-    return result;
+    return FindAuthOriginByRecordAndFingerprintQuery(this, authRecord, fingerprint);
   }
 
   async DeleteAllAuthOriginsByRecord(authRecord: RecordModel): Promise<Error | null> {
-    let models: AuthOrigin[];
-    try {
-      models = this.FindAllAuthOriginsByRecord(authRecord);
-    } catch (error) {
-      return error as Error;
-    }
-
-    const errors: Error[] = [];
-    for (const model of models) {
-      const err = await this.Delete(model);
-      if (err) {
-        errors.push(err);
-      }
-    }
-
-    if (errors.length === 0) {
-      return null;
-    }
-
-    if (errors.length === 1) {
-      return errors[0]!;
-    }
-
-    return new Error(errors.map((err) => err.message ?? String(err)).join("\n"));
+    return await DeleteAllAuthOriginsByRecordQuery(this, authRecord);
   }
 
   findAuthRecordByToken(token: string, validTypes: string[] = []): RecordModel {
