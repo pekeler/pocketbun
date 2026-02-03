@@ -20,7 +20,7 @@ import { BytesBody, type Body, ResponseError, S3, type HttpRequest, Uploader } f
 
 const defaultPageSize = 1000;
 
-export async function New(s3Client: S3): Promise<Driver> {
+export function New(s3Client: S3): Driver {
   if (!s3Client.Bucket) {
     throw new Error("s3blob.New: missing bucket name");
   }

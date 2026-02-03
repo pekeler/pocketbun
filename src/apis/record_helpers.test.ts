@@ -30,7 +30,7 @@ describe("record helpers", () => {
         throw new Error("Missing demo4 collection");
       }
       demo4.viewRule = Pointer("@request.context = 'expand'");
-      const demo4SaveErr = baseApp.Save(demo4);
+      const demo4SaveErr = await baseApp.Save(demo4);
       if (demo4SaveErr) {
         throw demo4SaveErr;
       }
@@ -265,7 +265,7 @@ describe("record helpers", () => {
         user.collection().AuthRule = Pointer("");
         user.collection().AuthAlert.Enabled = scenario.enabled;
 
-        const deleteErr = app.DeleteAllAuthOriginsByRecord(user);
+        const deleteErr = await app.DeleteAllAuthOriginsByRecord(user);
         if (deleteErr) {
           throw deleteErr;
         }
@@ -279,7 +279,7 @@ describe("record helpers", () => {
           origin.SetFingerprint(fingerprint);
           origin.ProxyRecord().SetRaw("created", mockCreated);
           origin.ProxyRecord().SetRaw("updated", mockCreated);
-          const saveErr = app.Save(origin);
+          const saveErr = await app.Save(origin);
           if (saveErr) {
             throw saveErr;
           }
@@ -318,14 +318,14 @@ describe("record helpers", () => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
       const user2 = app.FindAuthRecordByEmail("users", "test2@example.com");
 
-      const resetMFAs = (authRecord: RecordModel) => {
+      const resetMFAs = async (authRecord: RecordModel) => {
         authRecord.collection().MFA.Enabled = true;
         authRecord.collection().MFA.Duration = 5;
         authRecord.collection().MFA.Rule = "";
 
         const mfas = app.FindAllMFAsByRecord(authRecord);
         for (const mfa of mfas) {
-          const err = app.Delete(mfa);
+          const err = await app.Delete(mfa);
           if (err) {
             throw err;
           }
@@ -361,7 +361,7 @@ describe("record helpers", () => {
       };
 
       {
-        resetMFAs(user);
+        await resetMFAs(user);
         user.collection().MFA.Enabled = false;
 
         const event = new RequestEvent({ app, request: new Request("http://localhost/") });
@@ -374,7 +374,7 @@ describe("record helpers", () => {
       }
 
       {
-        resetMFAs(user);
+        await resetMFAs(user);
 
         const event = new RequestEvent({ app, request: new Request("http://localhost/") });
         const response = await RecordAuthResponse(event, user, "", null);
@@ -386,7 +386,7 @@ describe("record helpers", () => {
       }
 
       {
-        resetMFAs(user);
+        await resetMFAs(user);
         user.collection().MFA.Rule = "1=2";
 
         const event = new RequestEvent({ app, request: new Request("http://localhost/") });
@@ -399,7 +399,7 @@ describe("record helpers", () => {
       }
 
       {
-        resetMFAs(user);
+        await resetMFAs(user);
         user.collection().MFA.Rule = "1=1";
 
         const event = new RequestEvent({ app, request: new Request("http://localhost/") });
@@ -412,7 +412,7 @@ describe("record helpers", () => {
       }
 
       {
-        resetMFAs(user);
+        await resetMFAs(user);
 
         const event = new RequestEvent({ app, request: new Request("http://localhost/") });
         const response = await RecordAuthResponse(event, user, "example", null);
@@ -424,13 +424,13 @@ describe("record helpers", () => {
       }
 
       {
-        resetMFAs(user);
+        await resetMFAs(user);
 
         const mfa = NewMFA(app);
         mfa.SetCollectionRef(user.collection().Id);
         mfa.SetRecordRef(user.Id);
         mfa.SetMethod("example");
-        const saveErr = app.Save(mfa);
+        const saveErr = await app.Save(mfa);
         if (saveErr) {
           throw saveErr;
         }
@@ -445,13 +445,13 @@ describe("record helpers", () => {
       }
 
       {
-        resetMFAs(user);
+        await resetMFAs(user);
 
         const mfa = NewMFA(app);
         mfa.SetCollectionRef(user.collection().Id);
         mfa.SetRecordRef(user.Id);
         mfa.SetMethod("example1");
-        const saveErr = app.Save(mfa);
+        const saveErr = await app.Save(mfa);
         if (saveErr) {
           throw saveErr;
         }
@@ -466,13 +466,13 @@ describe("record helpers", () => {
       }
 
       {
-        resetMFAs(user);
+        await resetMFAs(user);
 
         const mfa = NewMFA(app);
         mfa.SetCollectionRef(user.collection().Id);
         mfa.SetRecordRef(user.Id);
         mfa.SetMethod("example1");
-        const saveErr = app.Save(mfa);
+        const saveErr = await app.Save(mfa);
         if (saveErr) {
           throw saveErr;
         }
@@ -492,7 +492,7 @@ describe("record helpers", () => {
       }
 
       {
-        resetMFAs(user);
+        await resetMFAs(user);
 
         const event = new RequestEvent({ app, request: new Request("http://localhost/?mfaId=missing") });
         const response = await RecordAuthResponse(event, user, "example2", null);
@@ -504,7 +504,7 @@ describe("record helpers", () => {
       }
 
       {
-        resetMFAs(user);
+        await resetMFAs(user);
 
         const mfa = NewMFA(app);
         mfa.SetCollectionRef(user.collection().Id);
@@ -513,7 +513,7 @@ describe("record helpers", () => {
         const expired = NowDateTime().Add(-1 * 60 * 60 * 1000);
         mfa.ProxyRecord().SetRaw("created", expired);
         mfa.ProxyRecord().SetRaw("updated", expired);
-        const saveErr = app.Save(mfa);
+        const saveErr = await app.Save(mfa);
         if (saveErr) {
           throw saveErr;
         }
@@ -528,13 +528,13 @@ describe("record helpers", () => {
       }
 
       {
-        resetMFAs(user);
+        await resetMFAs(user);
 
         const mfa = NewMFA(app);
         mfa.SetCollectionRef(user2.collection().Id);
         mfa.SetRecordRef(user2.Id);
         mfa.SetMethod("example1");
-        const saveErr = app.Save(mfa);
+        const saveErr = await app.Save(mfa);
         if (saveErr) {
           throw saveErr;
         }

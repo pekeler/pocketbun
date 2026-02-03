@@ -20,7 +20,7 @@ describe("superuser helpers", () => {
       ];
 
       for (const scenario of scenarios) {
-        const result = tryCall(() => superuserUpsert(app, scenario.email, scenario.password));
+        const result = await tryCall(() => superuserUpsert(app, scenario.email, scenario.password));
         expect(Boolean(result.error)).toBe(scenario.expectError);
 
         if (result.error) {
@@ -49,7 +49,7 @@ describe("superuser helpers", () => {
       ];
 
       for (const scenario of scenarios) {
-        const result = tryCall(() => superuserCreate(app, scenario.email, scenario.password));
+        const result = await tryCall(() => superuserCreate(app, scenario.email, scenario.password));
         expect(Boolean(result.error)).toBe(scenario.expectError);
 
         if (result.error) {
@@ -78,7 +78,7 @@ describe("superuser helpers", () => {
       ];
 
       for (const scenario of scenarios) {
-        const result = tryCall(() => superuserUpdate(app, scenario.email, scenario.password));
+        const result = await tryCall(() => superuserUpdate(app, scenario.email, scenario.password));
         expect(Boolean(result.error)).toBe(scenario.expectError);
 
         if (result.error) {
@@ -104,7 +104,7 @@ describe("superuser helpers", () => {
       ];
 
       for (const scenario of scenarios) {
-        const result = tryCall(() => superuserDelete(app, scenario.email));
+        const result = await tryCall(() => superuserDelete(app, scenario.email));
         expect(Boolean(result.error)).toBe(scenario.expectError);
 
         if (result.error) {
@@ -128,7 +128,7 @@ describe("superuser helpers", () => {
 
       const otps = app.FindAllOTPsByCollection(superusersCollection);
       for (const otp of otps) {
-        const err = app.Delete(otp);
+        const err = await app.Delete(otp);
         if (err) {
           throw err;
         }
@@ -144,12 +144,12 @@ describe("superuser helpers", () => {
 
       for (const scenario of scenarios) {
         superusersCollection.OTP.Enabled = scenario.enabled;
-        const saveErr = app.SaveNoValidate(superusersCollection);
+        const saveErr = await app.SaveNoValidate(superusersCollection);
         if (saveErr) {
           throw saveErr;
         }
 
-        const result = tryCall(() => superuserOTP(app, scenario.email));
+        const result = await tryCall(() => superuserOTP(app, scenario.email));
         expect(Boolean(result.error)).toBe(scenario.expectError);
 
         if (result.error) {
@@ -166,9 +166,9 @@ describe("superuser helpers", () => {
   });
 });
 
-function tryCall<T>(fn: () => T): { value: T | null; error: unknown } {
+async function tryCall<T>(fn: () => Promise<T> | T): Promise<{ value: T | null; error: unknown }> {
   try {
-    return { value: fn(), error: null };
+    return { value: await fn(), error: null };
   } catch (error) {
     return { value: null, error };
   }

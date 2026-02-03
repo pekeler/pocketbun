@@ -292,13 +292,13 @@ describe("file download", () => {
       name: "protected file - guest with view access",
       method: "GET",
       url: "/api/files/demo1/al1h9ijdeojtsjy/300_Jsjq7RdBgA.png",
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.FindCachedCollectionByNameOrId("demo1");
         if (!collection) {
           throw new Error("Failed to fetch mock collection");
         }
         collection.viewRule = Pointer("");
-        const err = app.UnsafeWithoutHooks().Save(collection);
+        const err = await app.UnsafeWithoutHooks().Save(collection);
         if (err) {
           throw new Error(`Failed to update mock collection: ${err.message}`);
         }
@@ -311,13 +311,13 @@ describe("file download", () => {
       name: "protected file - auth record without view access",
       method: "GET",
       url: "/api/files/demo1/al1h9ijdeojtsjy/300_Jsjq7RdBgA.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsImV4cCI6MjUyNDYwNDQ2MSwidHlwZSI6ImZpbGUiLCJjb2xsZWN0aW9uSWQiOiJfcGJfdXNlcnNfYXV0aF8ifQ.nSTLuCPcGpWn2K2l-BFkC3Vlzc-ZTDPByYq8dN1oPSo",
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.FindCachedCollectionByNameOrId("demo1");
         if (!collection) {
           throw new Error("Failed to fetch mock collection");
         }
         collection.viewRule = Pointer("@request.auth.verified = true");
-        const err = app.UnsafeWithoutHooks().Save(collection);
+        const err = await app.UnsafeWithoutHooks().Save(collection);
         if (err) {
           throw new Error(`Failed to update mock collection: ${err.message}`);
         }
@@ -330,13 +330,13 @@ describe("file download", () => {
       name: "protected file - auth record with view access",
       method: "GET",
       url: "/api/files/demo1/al1h9ijdeojtsjy/300_Jsjq7RdBgA.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsImV4cCI6MjUyNDYwNDQ2MSwidHlwZSI6ImZpbGUiLCJjb2xsZWN0aW9uSWQiOiJfcGJfdXNlcnNfYXV0aF8ifQ.nSTLuCPcGpWn2K2l-BFkC3Vlzc-ZTDPByYq8dN1oPSo",
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.FindCachedCollectionByNameOrId("demo1");
         if (!collection) {
           throw new Error("Failed to fetch mock collection");
         }
         collection.viewRule = Pointer("@request.auth.verified = false");
-        const err = app.UnsafeWithoutHooks().Save(collection);
+        const err = await app.UnsafeWithoutHooks().Save(collection);
         if (err) {
           throw new Error(`Failed to update mock collection: ${err.message}`);
         }
@@ -434,7 +434,7 @@ describe("concurrent thumbs generation", () => {
       fileField.Thumbs = ["111x111", "111x222", "111x333"];
       demo1.Fields.Add(fileField);
 
-      const saveErr = app.Save(demo1);
+      const saveErr = await app.Save(demo1);
       if (saveErr) {
         throw saveErr;
       }
@@ -462,7 +462,7 @@ describe("concurrent thumbs generation", () => {
       ];
 
       for (const key of thumbKeys) {
-        if (!fsys.Exists(key)) {
+        if (!(await fsys.Exists(key))) {
           throw new Error(`Missing thumb ${JSON.stringify(key)}`);
         }
       }

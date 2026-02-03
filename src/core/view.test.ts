@@ -137,7 +137,7 @@ describe("view helpers", () => {
       ];
 
       for (const scenario of scenarios) {
-        const err = app.SaveView(scenario.viewName, scenario.query);
+        const err = await app.SaveView(scenario.viewName, scenario.query);
         const hasErr = !!err;
         expect(hasErr).toBe(scenario.expectError);
 
@@ -164,10 +164,10 @@ describe("view helpers", () => {
   it("CreateViewFieldsWithDiscardedNestedTransaction", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      app.RunInTransaction((txApp) => {
+      await app.RunInTransaction(async (txApp) => {
         let threw = false;
         try {
-          txApp.CreateViewFields("select id from missing");
+          await txApp.CreateViewFields("select id from missing");
         } catch {
           threw = true;
         }
@@ -484,12 +484,12 @@ describe("view helpers", () => {
       ];
 
       for (const scenario of scenarios) {
-        let result: ReturnType<TestApp["CreateViewFields"]> | null = null;
+        let result: Awaited<ReturnType<TestApp["CreateViewFields"]>> | null = null;
         let hasErr = false;
         let err: Error | null = null;
 
         try {
-          result = app.CreateViewFields(scenario.query);
+          result = await app.CreateViewFields(scenario.query);
         } catch (error) {
           hasErr = true;
           err = error as Error;
@@ -547,7 +547,7 @@ describe("view helpers", () => {
         view.Name = `_test_view${i}`;
         view.ViewQuery = `select id, ${fileOneAlias}, ${fileManyAlias} from ${currentCollection.Name}`;
 
-        const err = app.Save(view);
+        const err = await app.Save(view);
         if (err) {
           throw new Error(`Failed to save view${i}: ${err.message}`);
         }

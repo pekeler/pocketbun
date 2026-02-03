@@ -905,7 +905,7 @@ describe("FindAuthRecordByEmail", () => {
             collection.RemoveIndex(emailIndex.indexName);
             collection.indexes = [...collection.indexes, emailIndex.build()];
 
-            const err = app.Save(collection);
+            const err = await app.Save(collection);
             if (err) {
               throw err;
             }

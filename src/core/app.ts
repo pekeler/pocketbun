@@ -129,7 +129,7 @@ export interface App {
   //
   // Please refer to the godoc of the specific core.App implementation
   // for details on the backup procedures.
-  CreateBackup(ctx: unknown, name: string): Error | null;
+  CreateBackup(ctx: unknown, name: string): Promise<Error | null>;
   // RestoreBackup restores the backup with the specified name and restarts
   // the current running application process.
   //
@@ -140,24 +140,24 @@ export interface App {
   // for details on the restore procedures.
   //
   // NB! This feature is experimental and currently is expected to work only on UNIX based systems.
-  RestoreBackup(ctx: unknown, name: string): Error | null;
+  RestoreBackup(ctx: unknown, name: string): Promise<Error | null>;
   // Restart restarts (aka. replaces) the current running application process.
   //
   // NB! It relies on execve which is supported only on UNIX based systems.
   Restart(): Error | null;
-  Save(model: Model): Error | null;
-  SaveNoValidate(model: Model): Error | null;
-  SaveWithContext(ctx: unknown, model: Model): Error | null;
-  SaveNoValidateWithContext(ctx: unknown, model: Model): Error | null;
-  Delete(model: Model): Error | null;
-  DeleteWithContext(ctx: unknown, model: Model): Error | null;
-  Validate(model: Model): Error | null;
-  TruncateCollection(collection: Collection): Error | null;
-  ImportCollectionsByMarshaledJSON(rawSliceOfMaps: string | Uint8Array, deleteMissing: boolean): Error | null;
-  ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Error | null;
-  RunInTransaction(fn: (txApp: App) => Error | null): Error | null;
+  Save(model: Model): Promise<Error | null>;
+  SaveNoValidate(model: Model): Promise<Error | null>;
+  SaveWithContext(ctx: unknown, model: Model): Promise<Error | null>;
+  SaveNoValidateWithContext(ctx: unknown, model: Model): Promise<Error | null>;
+  Delete(model: Model): Promise<Error | null>;
+  DeleteWithContext(ctx: unknown, model: Model): Promise<Error | null>;
+  Validate(model: Model): Promise<Error | null>;
+  TruncateCollection(collection: Collection): Promise<Error | null>;
+  ImportCollectionsByMarshaledJSON(rawSliceOfMaps: string | Uint8Array, deleteMissing: boolean): Promise<Error | null>;
+  ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Promise<Error | null>;
+  RunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null>;
   // AuxRunInTransaction wraps fn into a transaction for the auxiliary app database.
-  AuxRunInTransaction(fn: (txApp: App) => Error | null): Error | null;
+  AuxRunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null>;
   // RunInTransactionAsync is PocketBun-only helper for async transaction work.
   RunInTransactionAsync(fn: (txApp: App) => Promise<Error | null> | Error | null): Promise<Error | null>;
   IsTransactional(): boolean;
@@ -228,18 +228,18 @@ export interface App {
   FindAllOTPsByRecord(authRecord: RecordModel): OTP[];
   FindAllOTPsByCollection(collection: Collection): OTP[];
   FindOTPById(id: string): OTP;
-  DeleteAllOTPsByRecord(authRecord: RecordModel): Error | null;
-  DeleteExpiredOTPs(): Error | null;
+  DeleteAllOTPsByRecord(authRecord: RecordModel): Promise<Error | null>;
+  DeleteExpiredOTPs(): Promise<Error | null>;
   FindAllMFAsByRecord(authRecord: RecordModel): MFA[];
   FindAllMFAsByCollection(collection: Collection): MFA[];
   FindMFAById(id: string): MFA;
-  DeleteAllMFAsByRecord(authRecord: RecordModel): Error | null;
-  DeleteExpiredMFAs(): Error | null;
+  DeleteAllMFAsByRecord(authRecord: RecordModel): Promise<Error | null>;
+  DeleteExpiredMFAs(): Promise<Error | null>;
   FindAllAuthOriginsByRecord(authRecord: RecordModel): AuthOrigin[];
   FindAllAuthOriginsByCollection(collection: Collection): AuthOrigin[];
   FindAuthOriginById(id: string): AuthOrigin;
   FindAuthOriginByRecordAndFingerprint(authRecord: RecordModel, fingerprint: string): AuthOrigin;
-  DeleteAllAuthOriginsByRecord(authRecord: RecordModel): Error | null;
+  DeleteAllAuthOriginsByRecord(authRecord: RecordModel): Promise<Error | null>;
   findFirstRecordByFilter(
     collectionOrIdentifier: Collection | string,
     filter: string,
@@ -336,8 +336,8 @@ export interface App {
   OnCollectionAfterDeleteSuccess(tags?: string[]): TaggedHook<CollectionEvent>;
   OnCollectionAfterDeleteError(tags?: string[]): TaggedHook<CollectionErrorEvent>;
 
-  SaveView(name: string, selectQuery: string): Error | null;
+  SaveView(name: string, selectQuery: string): Promise<Error | null>;
   DeleteView(name: string): Error | null;
-  CreateViewFields(selectQuery: string): FieldsList;
+  CreateViewFields(selectQuery: string): Promise<FieldsList>;
   TableInfo(tableName: string): TableInfoRow[];
 }

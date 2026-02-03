@@ -34,13 +34,13 @@ export async function backupUpload(app: App, event: RequestEvent): Promise<Respo
       }
     }
 
-    const err = form.validate();
+    const err = await form.validate();
     if (err) {
       return badRequest(event, "An error occurred while validating the submitted data.", err);
     }
 
     try {
-      fsys.UploadFile(form.File!, form.File!.OriginalName);
+      await fsys.UploadFile(form.File!, form.File!.OriginalName);
     } catch (error) {
       return badRequest(event, "Failed to upload backup.", error as Error);
     }
@@ -49,21 +49,21 @@ export async function backupUpload(app: App, event: RequestEvent): Promise<Respo
     // available yet due to the eventually consistent nature of some S3 providers
     return noContent(event, 204);
   } finally {
-    fsys.Close();
+    await fsys.Close();
   }
 }
 
 // -------------------------------------------------------------------
 
 class BackupUploadForm {
-  fsys: { Exists: (key: string) => boolean; Close: () => void };
+  fsys: { Exists: (key: string) => Promise<boolean>; Close: () => Promise<void> };
   File: File | null = null;
 
-  constructor(fsys: { Exists: (key: string) => boolean; Close: () => void }) {
+  constructor(fsys: { Exists: (key: string) => Promise<boolean>; Close: () => Promise<void> }) {
     this.fsys = fsys;
   }
 
-  validate(): Error | null {
+  async validate(): Promise<Error | null> {
     const errors: Record<string, Error> = {};
 
     const requiredErr = required(this.File);
@@ -74,7 +74,7 @@ class BackupUploadForm {
       if (mimeErr) {
         errors.file = mimeErr;
       } else {
-        const uniqueErr = this.checkUniqueName(this.File!);
+        const uniqueErr = await this.checkUniqueName(this.File!);
         if (uniqueErr) {
           errors.file = uniqueErr;
         }
@@ -84,13 +84,13 @@ class BackupUploadForm {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
-  private checkUniqueName(file: File): Error | null {
+  private async checkUniqueName(file: File): Promise<Error | null> {
     if (!file) {
       return null; // nothing to check
     }
 
     // note: we use the original name because that is what we upload
-    if (this.fsys.Exists(file.OriginalName)) {
+    if (await this.fsys.Exists(file.OriginalName)) {
       return newError("validation_backup_name_exists", "Backup file with the specified name already exists.");
     }
 

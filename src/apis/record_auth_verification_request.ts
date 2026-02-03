@@ -54,8 +54,8 @@ export async function recordRequestVerification(app: App, event: RequestEvent): 
       return noContent(event, 204);
     }
 
-    FireAndForget(() => {
-      const sendErr = SendRecordVerification(app, record);
+    FireAndForget(async () => {
+      const sendErr = await SendRecordVerification(app, record);
       if (sendErr) {
         app.Logger().Error("Failed to send verification email", "error", sendErr);
       }

@@ -49,8 +49,8 @@ export async function recordRequestPasswordReset(app: App, event: RequestEvent):
   const hookEvent = new RecordRequestPasswordResetRequestEvent(event, collection, record);
 
   const out = await app.OnRecordRequestPasswordResetRequest().Trigger(hookEvent, async () => {
-    FireAndForget(() => {
-      const sendErr = SendRecordPasswordReset(app, record);
+    FireAndForget(async () => {
+      const sendErr = await SendRecordPasswordReset(app, record);
       if (sendErr) {
         app.Logger().Error("Failed to send password reset email", "error", sendErr);
         return;

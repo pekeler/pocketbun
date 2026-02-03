@@ -53,7 +53,7 @@ export async function recordConfirmEmailChange(app: App, event: RequestEvent): P
     parsedToken.record.SetEmail(parsedToken.newEmail);
     parsedToken.record.SetVerified(true);
 
-    const saveErr = app.Save(parsedToken.record);
+    const saveErr = await app.Save(parsedToken.record);
     if (saveErr) {
       return badRequest(event, "Failed to confirm email change.", saveErr);
     }

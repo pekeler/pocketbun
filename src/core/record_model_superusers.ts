@@ -14,9 +14,9 @@ export function registerSuperuserHooks(app: App): void {
   app.OnRecordDelete([CollectionNameSuperusers]).Bind({
     Id: "pbSuperusersRecordDelete",
     Priority: -99,
-    Func: (e: RecordEvent) => {
+    Func: async (e: RecordEvent) => {
       const originalApp = e.App;
-      const txErr = e.App.RunInTransaction((txApp) => {
+      const txErr = await e.App.RunInTransaction(async (txApp) => {
         e.App = txApp;
 
         let total = 0;
@@ -31,7 +31,7 @@ export function registerSuperuserHooks(app: App): void {
           return NewBadRequestError("You can't delete the only existing superuser", null);
         }
 
-        return e.Next() as Error | null;
+        return (await e.Next()) as Error | null;
       });
       e.App = originalApp;
       return txErr;
@@ -41,12 +41,12 @@ export function registerSuperuserHooks(app: App): void {
   const recordSaveHandler = {
     Id: "pbSuperusersRecordSaveExec",
     Priority: -99,
-    Func: (e: RecordEvent) => {
+    Func: async (e: RecordEvent) => {
       if (e.Record) {
         e.Record.SetVerified(true);
       }
 
-      const err = e.Next() as Error | null;
+      const err = (await e.Next()) as Error | null;
       if (err) {
         return err;
       }
@@ -63,7 +63,7 @@ export function registerSuperuserHooks(app: App): void {
           return null;
         }
 
-        const deleteErr = e.App.Delete(installer);
+        const deleteErr = await e.App.Delete(installer);
         if (deleteErr) {
           e.App.Logger().Warn("Failed to delete installer superuser", "error", deleteErr);
         }

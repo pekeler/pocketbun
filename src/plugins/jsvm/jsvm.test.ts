@@ -57,7 +57,7 @@ onModelUpdate((e) => {
 
     const record = app.FindFirstRecordByFilter("demo2", "1=1");
     record.Set("title", "update");
-    const saveErr = app.Save(record);
+    const saveErr = await app.Save(record);
     expect(saveErr).toBeNull();
     expect((globalThis as Record<string, unknown>).__pbHooksCalls).toBe(1);
 

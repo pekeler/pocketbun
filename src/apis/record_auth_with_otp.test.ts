@@ -32,7 +32,7 @@ const scenarios: Scenario[] = [
         throw new Error("Missing users collection");
       }
       usersCol.OTP.Enabled = false;
-      const err = app.Save(usersCol);
+      const err = await app.Save(usersCol);
       if (err) {
         throw new Error(err.message);
       }
@@ -84,7 +84,7 @@ const scenarios: Scenario[] = [
       otp.SetCollectionRef(user.collection().Id);
       otp.SetRecordRef(user.Id);
       otp.ProxyRecord().SetPassword("123456");
-      const err = app.Save(otp);
+      const err = await app.Save(otp);
       if (err) {
         throw new Error(err.message);
       }
@@ -105,7 +105,7 @@ const scenarios: Scenario[] = [
       otp.SetCollectionRef(client.collection().Id);
       otp.SetRecordRef(client.Id);
       otp.ProxyRecord().SetPassword("123456");
-      const err = app.Save(otp);
+      const err = await app.Save(otp);
       if (err) {
         throw new Error(err.message);
       }
@@ -126,7 +126,7 @@ const scenarios: Scenario[] = [
       otp.SetCollectionRef(user.collection().Id);
       otp.SetRecordRef(user.Id);
       otp.ProxyRecord().SetPassword("1234567890");
-      const err = app.Save(otp);
+      const err = await app.Save(otp);
       if (err) {
         throw new Error(err.message);
       }
@@ -150,7 +150,7 @@ const scenarios: Scenario[] = [
       const expired = NowDateTime().addDate(-3, 0, 0);
       otp.ProxyRecord().SetRaw("created", expired);
       otp.ProxyRecord().SetRaw("updated", expired);
-      const err = app.Save(otp);
+      const err = await app.Save(otp);
       if (err) {
         throw new Error(err.message);
       }
@@ -171,7 +171,7 @@ const scenarios: Scenario[] = [
       otp.SetCollectionRef(user.collection().Id);
       otp.SetRecordRef(user.Id);
       otp.ProxyRecord().SetPassword("123456");
-      const err = app.Save(otp);
+      const err = await app.Save(otp);
       if (err) {
         throw new Error(err.message);
       }
@@ -206,13 +206,13 @@ const scenarios: Scenario[] = [
     beforeTest: async (app: TestApp) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
       user.SetVerified(false);
-      let err = app.Save(user);
+      let err = await app.Save(user);
       if (err) {
         throw new Error(err.message);
       }
 
       user.collection().MFA.Enabled = false;
-      err = app.Save(user.collection());
+      err = await app.Save(user.collection());
       if (err) {
         throw new Error(err.message);
       }
@@ -222,7 +222,7 @@ const scenarios: Scenario[] = [
       otp.SetCollectionRef(user.collection().Id);
       otp.SetRecordRef(user.Id);
       otp.ProxyRecord().SetPassword("123456");
-      err = app.Save(otp);
+      err = await app.Save(otp);
       if (err) {
         throw new Error(err.message);
       }
@@ -273,13 +273,13 @@ const scenarios: Scenario[] = [
     beforeTest: async (app: TestApp) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
       user.SetVerified(false);
-      let err = app.Save(user);
+      let err = await app.Save(user);
       if (err) {
         throw new Error(err.message);
       }
 
       user.collection().MFA.Enabled = false;
-      err = app.Save(user.collection());
+      err = await app.Save(user.collection());
       if (err) {
         throw new Error(err.message);
       }
@@ -290,7 +290,7 @@ const scenarios: Scenario[] = [
       otp.SetRecordRef(user.Id);
       otp.ProxyRecord().SetPassword("123456");
       otp.SetSentTo(user.Email());
-      err = app.Save(otp);
+      err = await app.Save(otp);
       if (err) {
         throw new Error(err.message);
       }
@@ -339,7 +339,7 @@ const scenarios: Scenario[] = [
     beforeTest: async (app: TestApp) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
       user.collection().MFA.Enabled = false;
-      let err = app.Save(user.collection());
+      let err = await app.Save(user.collection());
       if (err) {
         throw new Error(err.message);
       }
@@ -349,16 +349,16 @@ const scenarios: Scenario[] = [
       otp.SetCollectionRef(user.collection().Id);
       otp.SetRecordRef(user.Id);
       otp.ProxyRecord().SetPassword("123456");
-      err = app.Save(otp);
+      err = await app.Save(otp);
       if (err) {
         throw new Error(err.message);
       }
 
-      app.OnRecordAuthWithOTPRequest().BindFunc((event: any) => {
+      app.OnRecordAuthWithOTPRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });
@@ -378,7 +378,7 @@ const scenarios: Scenario[] = [
     name: "RateLimit rule - users:authWithOTP",
     method: "POST",
     url: "/api/collections/users/auth-with-otp",
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       app.settings().rateLimits.enabled = true;
       app.settings().rateLimits.rules = [
         { maxRequests: 100, label: "abc", duration: 1 },
@@ -395,7 +395,7 @@ const scenarios: Scenario[] = [
     name: "RateLimit rule - *:authWithOTP",
     method: "POST",
     url: "/api/collections/users/auth-with-otp",
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       app.settings().rateLimits.enabled = true;
       app.settings().rateLimits.rules = [
         { maxRequests: 100, label: "abc", duration: 1 },
@@ -411,7 +411,7 @@ const scenarios: Scenario[] = [
     name: "RateLimit rule - users:auth",
     method: "POST",
     url: "/api/collections/users/auth-with-otp",
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       app.settings().rateLimits.enabled = true;
       app.settings().rateLimits.rules = [
         { maxRequests: 100, label: "abc", duration: 1 },
@@ -427,7 +427,7 @@ const scenarios: Scenario[] = [
     name: "RateLimit rule - *:auth",
     method: "POST",
     url: "/api/collections/users/auth-with-otp",
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       app.settings().rateLimits.enabled = true;
       app.settings().rateLimits.rules = [
         { maxRequests: 100, label: "abc", duration: 1 },
@@ -474,14 +474,14 @@ describe("record auth with OTP manual rate limit", () => {
         body: JSON.stringify({ otpId: scenario.otpId, password: scenario.password }),
         expectedStatus: scenario.expectedStatus,
         expectedContent: ['"'],
-        beforeTest: (app) => {
+        beforeTest: async (app) => {
           for (const [key, value] of storeCache.entries()) {
             app.store().set(key, value);
           }
 
           const user = app.FindAuthRecordByEmail("users", "test@example.com");
           user.collection().MFA.Enabled = false;
-          const err = app.Save(user.collection());
+          const err = await app.Save(user.collection());
           if (err) {
             throw err;
           }
@@ -492,7 +492,7 @@ describe("record auth with OTP manual rate limit", () => {
             otp.SetCollectionRef(user.collection().Id);
             otp.SetRecordRef(user.Id);
             otp.ProxyRecord().SetPassword("123456");
-            const saveErr = app.Save(otp);
+            const saveErr = await app.Save(otp);
             if (saveErr) {
               throw saveErr;
             }

@@ -660,50 +660,50 @@ describe("file field", () => {
       const record = NewRecord(demo1);
 
       record.Set("file_many", [f1, f2]);
-      const err1 = app.Save(record);
+      const err1 = await app.Save(record);
       testValidationErrors(err1, ["text"]);
       const raw1 = record.GetRaw("file_many") as unknown[];
       expect(raw1.length).toBe(2);
 
       record.Set("text", "abc");
-      const err2 = app.Save(record);
+      const err2 = await app.Save(record);
       expect(err2).toBeNull();
 
       const value2 = toUniqueStringSlice(record.GetRaw("file_many"));
       expect(value2.length).toBe(2);
       expect(value2.includes(f1.Name)).toBe(true);
       expect(value2.includes(f2.Name)).toBe(true);
-      checkRecordFiles(app, record, [f1.Name, f2.Name]);
+      await checkRecordFiles(app, record, [f1.Name, f2.Name]);
 
       record.Set("text", "");
       record.Set("file_many+", f3);
       record.Set("file_many-", f2.Name);
-      const err3 = app.Save(record);
+      const err3 = await app.Save(record);
       testValidationErrors(err3, ["text"]);
 
       const raw3 = JSON.stringify(record.GetRaw("file_many"));
       const expected3 = JSON.stringify([f1.Name, f3]);
       expect(raw3).toBe(expected3);
-      checkRecordFiles(app, record, [f1.Name, f2.Name]);
+      await checkRecordFiles(app, record, [f1.Name, f2.Name]);
 
       record.Set("text", "abc2");
-      const err4 = app.Save(record);
+      const err4 = await app.Save(record);
       expect(err4).toBeNull();
 
       const raw4 = JSON.stringify(record.GetRaw("file_many"));
       const expected4 = JSON.stringify([f1.Name, f3.Name]);
       expect(raw4).toBe(expected4);
-      checkRecordFiles(app, record, [f1.Name, f3.Name]);
+      await checkRecordFiles(app, record, [f1.Name, f3.Name]);
 
       record.Set("file_many-", f1.Name);
       record.Set("file_many+", f4);
-      const err5 = app.Save(record);
+      const err5 = await app.Save(record);
       expect(err5).toBeNull();
 
       const raw5 = JSON.stringify(record.GetRaw("file_many"));
       const expected5 = JSON.stringify([f3.Name, f4.Name]);
       expect(raw5).toBe(expected5);
-      checkRecordFiles(app, record, [f3.Name, f4.Name]);
+      await checkRecordFiles(app, record, [f3.Name, f4.Name]);
     } finally {
       await cleanup();
     }
@@ -725,81 +725,81 @@ describe("file field", () => {
 
       let record: ReturnType<typeof NewRecord> | null = null;
 
-      const tx = (succeed: boolean) => (txApp: App) => {
+      const tx = (succeed: boolean) => async (txApp: App) => {
         const txErr = succeed ? null : new Error("tx error");
         record = NewRecord(demo1);
 
-        const ok1 = (() => {
+        const ok1 = async () => {
           record!.Set("text", "");
           record!.Set("file_many", [f1, f2]);
-          const err = txApp.Save(record!);
+          const err = await txApp.Save(record!);
           testValidationErrors(err, ["text"]);
-          checkRecordFiles(txApp, record!, []);
+          await checkRecordFiles(txApp, record!, []);
           return true;
-        })();
-        if (!ok1) return txErr;
+        };
+        if (!(await ok1())) return txErr;
 
-        const ok2 = (() => {
+        const ok2 = async () => {
           record!.Set("text", "abc");
-          const err = txApp.Save(record!);
+          const err = await txApp.Save(record!);
           expect(err).toBeNull();
-          checkRecordFiles(txApp, record!, [f1.Name, f2.Name]);
+          await checkRecordFiles(txApp, record!, [f1.Name, f2.Name]);
           return true;
-        })();
-        if (!ok2) return txErr;
+        };
+        if (!(await ok2())) return txErr;
 
-        const ok3 = (() => {
+        const ok3 = async () => {
           record!.Set("text", "");
           record!.Set("file_many+", f3);
           record!.Set("file_many-", f2.Name);
-          const err = txApp.Save(record!);
+          const err = await txApp.Save(record!);
           testValidationErrors(err, ["text"]);
           const raw = JSON.stringify(record!.GetRaw("file_many"));
           const expected = JSON.stringify([f1.Name, f3]);
           expect(raw).toBe(expected);
-          checkRecordFiles(txApp, record!, [f1.Name, f2.Name]);
+          await checkRecordFiles(txApp, record!, [f1.Name, f2.Name]);
           return true;
-        })();
-        if (!ok3) return txErr;
+        };
+        if (!(await ok3())) return txErr;
 
-        const ok4 = (() => {
+        const ok4 = async () => {
           record!.Set("text", "abc2");
-          const err = txApp.Save(record!);
+          const err = await txApp.Save(record!);
           expect(err).toBeNull();
           const raw = JSON.stringify(record!.GetRaw("file_many"));
           const expected = JSON.stringify([f1.Name, f3.Name]);
           expect(raw).toBe(expected);
-          checkRecordFiles(txApp, record!, [f1.Name, f3.Name, f2.Name]);
+          await checkRecordFiles(txApp, record!, [f1.Name, f3.Name, f2.Name]);
           return true;
-        })();
-        if (!ok4) return txErr;
+        };
+        if (!(await ok4())) return txErr;
 
-        const ok5 = (() => {
+        const ok5 = async () => {
           record!.Set("file_many-", f1.Name);
           record!.Set("file_many+", f4);
-          const err = txApp.Save(record!);
+          const err = await txApp.Save(record!);
           expect(err).toBeNull();
           const raw = JSON.stringify(record!.GetRaw("file_many"));
           const expected = JSON.stringify([f3.Name, f4.Name]);
           expect(raw).toBe(expected);
-          checkRecordFiles(txApp, record!, [f3.Name, f4.Name, f1.Name, f2.Name]);
+          await checkRecordFiles(txApp, record!, [f3.Name, f4.Name, f1.Name, f2.Name]);
           return true;
-        })();
-        if (!ok5) return txErr;
+        };
+        if (!(await ok5())) return txErr;
 
         return txErr;
       };
 
-      const err1 = app.RunInTransaction(tx(false));
+      const err1 = await app.RunInTransaction(tx(false));
       expect(err1).not.toBeNull();
       if (record) {
-        checkRecordFiles(app, record, []);
+        await checkRecordFiles(app, record, []);
       }
 
-      const err2 = app.RunInTransaction(tx(true));
+      const err2 = await app.RunInTransaction(tx(true));
       expect(err2).toBeNull();
       if (record) {
-        checkRecordFiles(app, record, [f3.Name, f4.Name]);
+        await checkRecordFiles(app, record, [f3.Name, f4.Name]);
       }
     } finally {
       await cleanup();
@@ -807,14 +807,18 @@ describe("file field", () => {
   });
 });
 
-function checkRecordFiles(app: App, record: ReturnType<typeof NewRecord>, expected: string[]) {
+async function checkRecordFiles(app: App, record: ReturnType<typeof NewRecord>, expected: string[]) {
   const fsys = app.NewFilesystem();
-  const objects = fsys.List(`${record.BaseFilesPath()}/`);
-  const keys = objects.map((obj) => obj.Key).filter((key) => !key.includes("/thumbs_"));
+  try {
+    const objects = await fsys.List(`${record.BaseFilesPath()}/`);
+    const keys = objects.map((obj) => obj.Key).filter((key) => !key.includes("/thumbs_"));
 
-  expect(keys.length).toBe(expected.length);
-  for (const key of expected) {
-    const full = `${record.BaseFilesPath()}/${key}`;
-    expect(keys.includes(full)).toBe(true);
+    expect(keys.length).toBe(expected.length);
+    for (const key of expected) {
+      const full = `${record.BaseFilesPath()}/${key}`;
+      expect(keys.includes(full)).toBe(true);
+    }
+  } finally {
+    await fsys.Close();
   }
 }

@@ -124,7 +124,7 @@ describe("auth origin", () => {
 
       {
         const origin = new AuthOrigin();
-        const err = app.Validate(origin);
+        const err = await app.Validate(origin);
         expect(err).not.toBeNull();
       }
 
@@ -135,7 +135,7 @@ describe("auth origin", () => {
         origin.SetCollectionRef(user.collection().id);
         origin.SetFingerprint("abc");
 
-        const err = app.Validate(origin);
+        const err = await app.Validate(origin);
         expect(err).not.toBeNull();
       }
 
@@ -146,7 +146,7 @@ describe("auth origin", () => {
         origin.SetCollectionRef(user.collection().id);
         origin.SetFingerprint("abc");
 
-        const err = app.Validate(origin);
+        const err = await app.Validate(origin);
         expect(err).toBeNull();
       }
     } finally {
@@ -202,7 +202,7 @@ describe("auth origin", () => {
       ];
 
       for (const scenario of scenarios) {
-        const errs = app.Validate(scenario.origin());
+        const errs = await app.Validate(scenario.origin());
         testValidationErrors(errs, scenario.expectErrors);
       }
     } finally {
@@ -239,7 +239,7 @@ describe("auth origin", () => {
 
           scenario.record.SetPassword("new_password");
 
-          const err = app.Save(scenario.record);
+          const err = await app.Save(scenario.record);
           if (err) {
             throw err;
           }

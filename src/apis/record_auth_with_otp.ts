@@ -89,7 +89,7 @@ export async function recordAuthWithOTP(app: App, event: RequestEvent): Promise<
     const otpSentTo = otp.SentTo();
     if (!record.Verified() && otpSentTo && record.Email() === otpSentTo) {
       record.SetVerified(true);
-      const saveErr = app.Save(record);
+      const saveErr = await app.Save(record);
       if (saveErr) {
         app
           .Logger()
@@ -105,7 +105,7 @@ export async function recordAuthWithOTP(app: App, event: RequestEvent): Promise<
       }
     }
 
-    const deleteErr = app.Delete(otp);
+    const deleteErr = await app.Delete(otp);
     if (deleteErr) {
       app.Logger().Error("Failed to delete used OTP", "error", deleteErr, "otpId", otp.Id);
     }

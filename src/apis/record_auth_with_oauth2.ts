@@ -250,7 +250,7 @@ async function oauth2Submit(event: RecordAuthWithOAuth2RequestEvent, optExternal
     };
   }
 
-  const err = event.App.RunInTransaction((txApp) => {
+  const err = await event.App.RunInTransaction(async (txApp) => {
     if (!event.Record) {
       if (!createContext) {
         return new Error("missing OAuth2 create context");
@@ -291,12 +291,12 @@ async function oauth2Submit(event: RecordAuthWithOAuth2RequestEvent, optExternal
       const hookEvent = new RecordRequestEvent(createContext.requestEvent, event.Collection, createContext.record);
       const originalApp = createContext.requestEvent.app;
       createContext.requestEvent.app = txApp;
-      const hookResult = txApp.OnRecordCreateRequest().Trigger(hookEvent, (hook) => {
+      const hookResult = await txApp.OnRecordCreateRequest().Trigger(hookEvent, async (hook) => {
         const recordRef = hook.Record ?? createContext.record;
         form.SetApp(hook.App);
         form.SetRecord(recordRef);
 
-        const submitErr = form.Submit();
+        const submitErr = await form.Submit();
         if (submitErr) {
           return submitErr;
         }
@@ -319,7 +319,7 @@ async function oauth2Submit(event: RecordAuthWithOAuth2RequestEvent, optExternal
 
       if (recordRef.Email() === authUser.Email && !recordRef.Verified()) {
         recordRef.SetVerified(true);
-        const verifyErr = txApp.Save(recordRef);
+        const verifyErr = await txApp.Save(recordRef);
         if (verifyErr) {
           return verifyErr;
         }
@@ -347,7 +347,7 @@ async function oauth2Submit(event: RecordAuthWithOAuth2RequestEvent, optExternal
       }
 
       if (needUpdate) {
-        const updateErr = txApp.Save(event.Record);
+        const updateErr = await txApp.Save(event.Record);
         if (updateErr) {
           return updateErr;
         }
@@ -361,7 +361,7 @@ async function oauth2Submit(event: RecordAuthWithOAuth2RequestEvent, optExternal
       externalAuth.SetProvider(event.ProviderName);
       externalAuth.SetProviderId(authUser.Id);
 
-      const saveRelErr = txApp.Save(externalAuth);
+      const saveRelErr = await txApp.Save(externalAuth);
       if (saveRelErr) {
         return new Error(`failed to save linked rel: ${saveRelErr.message}`);
       }

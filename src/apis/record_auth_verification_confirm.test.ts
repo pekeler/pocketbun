@@ -132,11 +132,11 @@ const scenarios: Scenario[] = [
       "token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsImV4cCI6MjUyNDYwNDQ2MSwidHlwZSI6InZlcmlmaWNhdGlvbiIsImNvbGxlY3Rpb25JZCI6Il9wYl91c2Vyc19hdXRoXyIsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSJ9.SetHpu2H-x-q4TIUz-xiQjwi7MNwLCLvSs4O0hUSp0E"
     }`,
     beforeTest: (app) => {
-      app.OnRecordConfirmVerificationRequest().BindFunc((event: any) => {
+      app.OnRecordConfirmVerificationRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });

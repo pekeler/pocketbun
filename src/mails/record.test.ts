@@ -29,7 +29,7 @@ describe("mails/record", () => {
       // to test that it is escaped
       user.Set("name", `<p>${user.GetString("name")}</p>`);
 
-      const err = SendRecordAuthAlert(testApp, user, info);
+      const err = await SendRecordAuthAlert(testApp, user, info);
       if (err) {
         throw err;
       }
@@ -63,7 +63,7 @@ describe("mails/record", () => {
       // to test that it is escaped
       user.Set("name", `<p>${user.GetString("name")}</p>`);
 
-      const err = SendRecordPasswordReset(testApp, user);
+      const err = await SendRecordPasswordReset(testApp, user);
       if (err) {
         throw err;
       }
@@ -94,7 +94,7 @@ describe("mails/record", () => {
       // to test that it is escaped
       user.Set("name", `<p>${user.GetString("name")}</p>`);
 
-      const err = SendRecordVerification(testApp, user);
+      const err = await SendRecordVerification(testApp, user);
       if (err) {
         throw err;
       }
@@ -125,7 +125,7 @@ describe("mails/record", () => {
       // to test that it is escaped
       user.Set("name", `<p>${user.GetString("name")}</p>`);
 
-      const err = SendRecordChangeEmail(testApp, user, "new_test@example.com");
+      const err = await SendRecordChangeEmail(testApp, user, "new_test@example.com");
       if (err) {
         throw err;
       }
@@ -156,7 +156,7 @@ describe("mails/record", () => {
       // to test that it is escaped
       user.Set("name", `<p>${user.GetString("name")}</p>`);
 
-      const err = SendRecordOTP(testApp, user, "test_otp_id", "test_otp_code");
+      const err = await SendRecordOTP(testApp, user, "test_otp_id", "test_otp_code");
       if (err) {
         throw err;
       }

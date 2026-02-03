@@ -470,7 +470,7 @@ describe("realtime custom auth model events", () => {
       app.SubscriptionsBroker().Register(client3);
 
       const customUser = findCustomUserByEmail(app, authRecord1.Email());
-      const deleteErr = app.Delete(customUser);
+      const deleteErr = await app.Delete(customUser);
       if (deleteErr) {
         throw deleteErr;
       }
@@ -510,7 +510,7 @@ describe("realtime custom auth model events", () => {
       const customUser = findCustomUserByEmail(app, "test@example.com");
       customUser.Email = "new@example.com";
 
-      const saveErr = app.Save(customUser);
+      const saveErr = await app.Save(customUser);
       if (saveErr) {
         throw saveErr;
       }
@@ -552,7 +552,7 @@ describe("realtime record resolve", () => {
     const scenarios: Scenario[] = [
       {
         name: "core.Record",
-        op: (testApp) => {
+        op: async (testApp) => {
           const collection = testApp.findCollectionByNameOrId(testCollectionName);
           if (!collection) {
             throw new Error("Missing test collection");
@@ -561,17 +561,17 @@ describe("realtime record resolve", () => {
           const record = NewRecord(collection);
           record.Id = testRecordId;
 
-          let err = testApp.Save(record);
+          let err = await testApp.Save(record);
           if (err) {
             throw err;
           }
 
-          err = testApp.Save(record);
+          err = await testApp.Save(record);
           if (err) {
             throw err;
           }
 
-          err = testApp.Delete(record);
+          err = await testApp.Delete(record);
           if (err) {
             throw err;
           }
@@ -579,7 +579,7 @@ describe("realtime record resolve", () => {
       },
       {
         name: "core.RecordProxy",
-        op: (testApp) => {
+        op: async (testApp) => {
           const collection = testApp.findCollectionByNameOrId(testCollectionName);
           if (!collection) {
             throw new Error("Missing test collection");
@@ -593,17 +593,17 @@ describe("realtime record resolve", () => {
           proxy.SetProxyRecord(record);
           proxy.Id = testRecordId;
 
-          let err = testApp.Save(proxy);
+          let err = await testApp.Save(proxy);
           if (err) {
             throw err;
           }
 
-          err = testApp.Save(proxy);
+          err = await testApp.Save(proxy);
           if (err) {
             throw err;
           }
 
-          err = testApp.Delete(proxy);
+          err = await testApp.Delete(proxy);
           if (err) {
             throw err;
           }
@@ -611,22 +611,22 @@ describe("realtime record resolve", () => {
       },
       {
         name: "custom model struct",
-        op: (testApp) => {
+        op: async (testApp) => {
           const model = new CustomModelResolve(testCollectionName);
           model.Id = testRecordId;
 
-          let err = testApp.Save(model);
+          let err = await testApp.Save(model);
           if (err) {
             throw err;
           }
 
           model.Created = "123";
-          err = testApp.Save(model);
+          err = await testApp.Save(model);
           if (err) {
             throw err;
           }
 
-          err = testApp.Delete(model);
+          err = await testApp.Delete(model);
           if (err) {
             throw err;
           }
@@ -647,7 +647,7 @@ describe("realtime record resolve", () => {
         testCollection.Fields.Add(createdField);
         testCollection.listRule = "";
         testCollection.viewRule = "";
-        const createErr = app.Save(testCollection);
+        const createErr = await app.Save(testCollection);
         if (createErr) {
           throw createErr;
         }

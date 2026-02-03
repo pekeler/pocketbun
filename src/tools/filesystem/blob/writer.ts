@@ -93,19 +93,31 @@ export class Writer {
       }
     }
 
-    this.#cancel();
+    try {
+      const writer = this.#w;
+      if (writer) {
+        try {
+          await writer.close();
+        } catch (err) {
+          const wrapped = wrapError(this.#drv, err as Error, this.#key);
+          throw wrapped ?? err;
+        }
+        return;
+      }
 
-    const writer = this.#w;
-    if (writer) {
-      await writer.close();
-      return;
-    }
-
-    const data = this.#bufChunks ? mergeChunks(this.#bufChunks, this.#bufSize) : new Uint8Array();
-    await this.#open(data);
-    const openedWriter = this.#w;
-    if (openedWriter) {
-      await openedWriter.close();
+      const data = this.#bufChunks ? mergeChunks(this.#bufChunks, this.#bufSize) : new Uint8Array();
+      await this.#open(data);
+      const openedWriter = this.#w;
+      if (openedWriter) {
+        try {
+          await openedWriter.close();
+        } catch (err) {
+          const wrapped = wrapError(this.#drv, err as Error, this.#key);
+          throw wrapped ?? err;
+        }
+      }
+    } finally {
+      this.#cancel();
     }
   }
 

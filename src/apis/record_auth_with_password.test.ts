@@ -34,7 +34,7 @@ const updateIdentityIndex = (collectionIdOrName: string, fieldCollateMap: FieldC
     collection.indexes = [...collection.indexes, index.build()];
   }
 
-  const err = app.Save(collection);
+  const err = await app.Save(collection);
   if (err) {
     throw new Error(`Failed to update identityField index: ${err.message}`);
   }
@@ -82,12 +82,12 @@ const scenarios: Scenario[] = [
     method: "POST",
     url: "/api/collections/clients/auth-with-password",
     body: '{"identity":"test@example.com","password":"1234567890"}',
-    beforeTest: (app) => {
-      app.OnRecordAuthWithPasswordRequest().BindFunc((event: any) => {
+    beforeTest: async (app) => {
+      app.OnRecordAuthWithPasswordRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });
@@ -120,7 +120,7 @@ const scenarios: Scenario[] = [
     method: "POST",
     url: "/api/collections/clients/auth-with-password",
     body: '{"identity":"test@example.com","password":"1234567890"}',
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       app.OnRecordAuthRequest().BindFunc(async (event: any) => {
         const info = await event.RequestEvent.requestInfo();
         if (info.context !== RequestInfoContextPasswordAuth) {
@@ -179,10 +179,10 @@ const scenarios: Scenario[] = [
     method: "POST",
     url: "/api/collections/clients/auth-with-password",
     body: '{"identity":"username_as_email@example.com","password":"1234567890"}',
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const record = app.FindAuthRecordByEmail("clients", "test@example.com");
       record.Set("username", "username_as_email@example.com");
-      const err = app.SaveNoValidate(record);
+      const err = await app.SaveNoValidate(record);
       if (err) {
         throw new Error(err.message);
       }
@@ -324,14 +324,14 @@ const scenarios: Scenario[] = [
     method: "POST",
     url: "/api/collections/users/auth-with-password",
     body: '{"mfaId":"aaaaaaaaaaaaaaa","identity":"test@example.com","password":"1234567890"}',
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
       const mfa = NewMFA(app);
       mfa.Id = "aaaaaaaaaaaaaaa";
       mfa.SetCollectionRef(user.collection().Id);
       mfa.SetRecordRef(user.Id);
       mfa.SetMethod("test");
-      const err = app.Save(mfa);
+      const err = await app.Save(mfa);
       if (err) {
         throw new Error(err.message);
       }
@@ -367,14 +367,14 @@ const scenarios: Scenario[] = [
     method: "POST",
     url: "/api/collections/users/auth-with-password",
     body: '{"identity":"test@example.com","password":"1234567890"}',
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const users = app.findCollectionByNameOrId("users");
       if (!users) {
         throw new Error("Missing users collection");
       }
       users.MFA.Enabled = true;
       users.MFA.Rule = "1=2";
-      const err = app.Save(users);
+      const err = await app.Save(users);
       if (err) {
         throw new Error(err.message);
       }
@@ -501,7 +501,7 @@ const scenarios: Scenario[] = [
     name: "RateLimit rule - users:authWithPassword",
     method: "POST",
     url: "/api/collections/users/auth-with-password",
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       app.settings().rateLimits.enabled = true;
       app.settings().rateLimits.rules = [
         { maxRequests: 100, label: "abc", duration: 1 },
@@ -518,7 +518,7 @@ const scenarios: Scenario[] = [
     name: "RateLimit rule - *:authWithPassword",
     method: "POST",
     url: "/api/collections/users/auth-with-password",
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       app.settings().rateLimits.enabled = true;
       app.settings().rateLimits.rules = [
         { maxRequests: 100, label: "abc", duration: 1 },
@@ -534,7 +534,7 @@ const scenarios: Scenario[] = [
     name: "RateLimit rule - users:auth",
     method: "POST",
     url: "/api/collections/users/auth-with-password",
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       app.settings().rateLimits.enabled = true;
       app.settings().rateLimits.rules = [
         { maxRequests: 100, label: "abc", duration: 1 },
@@ -550,7 +550,7 @@ const scenarios: Scenario[] = [
     name: "RateLimit rule - *:auth",
     method: "POST",
     url: "/api/collections/users/auth-with-password",
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       app.settings().rateLimits.enabled = true;
       app.settings().rateLimits.rules = [
         { maxRequests: 100, label: "abc", duration: 1 },

@@ -292,11 +292,11 @@ const scenarios: ApiScenario[] = [
     }`,
     headers: { Authorization: superuserToken },
     beforeTest: (app) => {
-      app.OnCollectionsImportRequest().BindFunc((event: any) => {
+      app.OnCollectionsImportRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });

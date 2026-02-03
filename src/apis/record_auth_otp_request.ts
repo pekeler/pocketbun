@@ -95,7 +95,7 @@ export async function recordRequestOTP(app: App, event: RequestEvent): Promise<R
       createdOtp.SetCollectionRef(hookEvent.Record.collection().Id);
       createdOtp.SetRecordRef(hookEvent.Record.Id);
       createdOtp.ProxyRecord().SetPassword(hookEvent.Password);
-      const saveErr = app.Save(createdOtp);
+      const saveErr = await app.Save(createdOtp);
       if (saveErr) {
         return internalServerError(event, "Failed to create OTP record.", saveErr);
       }
@@ -105,10 +105,10 @@ export async function recordRequestOTP(app: App, event: RequestEvent): Promise<R
       const otpId = createdOtp.Id;
       const password = hookEvent.Password;
 
-      FireAndForget(() => {
-        const sendErr = SendRecordOTP(originalApp, originalRecord, otpId, password);
+      FireAndForget(async () => {
+        const sendErr = await SendRecordOTP(originalApp, originalRecord, otpId, password);
         if (sendErr) {
-          const deleteErr = originalApp.Delete(createdOtp);
+          const deleteErr = await originalApp.Delete(createdOtp);
           originalApp.Logger().Error("Failed to send OTP email", "error", sendErr, "deleteErr", deleteErr);
         }
       });

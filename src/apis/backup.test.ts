@@ -79,7 +79,7 @@ const scenarios: ApiScenario[] = [
     method: "POST",
     url: "/api/backups",
     afterTest: async (app) => {
-      ensureNoBackups(app);
+      await ensureNoBackups(app);
     },
     expectedStatus: 401,
     expectedContent: ['"data":{}'],
@@ -91,7 +91,7 @@ const scenarios: ApiScenario[] = [
     url: "/api/backups",
     headers: { Authorization: regularUserToken },
     afterTest: async (app) => {
-      ensureNoBackups(app);
+      await ensureNoBackups(app);
     },
     expectedStatus: 403,
     expectedContent: ['"data":{}'],
@@ -106,7 +106,7 @@ const scenarios: ApiScenario[] = [
       app.store().set("@activeBackup", "");
     },
     afterTest: async (app) => {
-      ensureNoBackups(app);
+      await ensureNoBackups(app);
     },
     expectedStatus: 400,
     expectedContent: ['"data":{}'],
@@ -140,7 +140,7 @@ const scenarios: ApiScenario[] = [
     headers: { Authorization: superuserToken },
     body: JSON.stringify({ name: "!test.zip" }),
     afterTest: async (app) => {
-      ensureNoBackups(app);
+      await ensureNoBackups(app);
     },
     expectedStatus: 400,
     expectedContent: ['"data":{', '"name":{"code":"validation_match_invalid"'],
@@ -175,7 +175,7 @@ const scenarios: ApiScenario[] = [
     body: uploadBody1,
     headers: { "Content-Type": uploadContentType1 },
     afterTest: async (app) => {
-      ensureNoBackups(app);
+      await ensureNoBackups(app);
     },
     expectedStatus: 401,
     expectedContent: ['"data":{}'],
@@ -188,7 +188,7 @@ const scenarios: ApiScenario[] = [
     body: uploadBody2,
     headers: { "Content-Type": uploadContentType2, Authorization: regularUserToken },
     afterTest: async (app) => {
-      ensureNoBackups(app);
+      await ensureNoBackups(app);
     },
     expectedStatus: 403,
     expectedContent: ['"data":{}'],
@@ -200,7 +200,7 @@ const scenarios: ApiScenario[] = [
     url: "/api/backups/upload",
     headers: { Authorization: superuserToken },
     afterTest: async (app) => {
-      ensureNoBackups(app);
+      await ensureNoBackups(app);
     },
     expectedStatus: 400,
     expectedContent: ['"data":{'],
@@ -215,9 +215,9 @@ const scenarios: ApiScenario[] = [
     beforeTest: async (app) => {
       const fsys = app.NewBackupsFilesystem();
       try {
-        fsys.Upload(new TextEncoder().encode("123"), "test");
+        await fsys.Upload(new TextEncoder().encode("123"), "test");
       } finally {
-        fsys.Close();
+        await fsys.Close();
       }
     },
     afterTest: async (app) => {
@@ -542,13 +542,13 @@ describe("backup API", () => {
 async function createTestBackups(app: TestApp): Promise<void> {
   const errors: Error[] = [];
 
-  const err1 = app.CreateBackup(null, "test1.zip");
+  const err1 = await app.CreateBackup(null, "test1.zip");
   if (err1) errors.push(err1);
-  const err2 = app.CreateBackup(null, "test2.zip");
+  const err2 = await app.CreateBackup(null, "test2.zip");
   if (err2) errors.push(err2);
-  const err3 = app.CreateBackup(null, "test3.zip");
+  const err3 = await app.CreateBackup(null, "test3.zip");
   if (err3) errors.push(err3);
-  const err4 = app.CreateBackup(null, "@test4.zip");
+  const err4 = await app.CreateBackup(null, "@test4.zip");
   if (err4) errors.push(err4);
 
   if (errors.length > 0) {
@@ -559,9 +559,9 @@ async function createTestBackups(app: TestApp): Promise<void> {
 async function getBackupFiles(app: TestApp) {
   const fsys = app.NewBackupsFilesystem();
   try {
-    return fsys.List("");
+    return await fsys.List("");
   } finally {
-    fsys.Close();
+    await fsys.Close();
   }
 }
 
@@ -572,15 +572,15 @@ async function ensureTestBackupFiles(app: TestApp, expected: number): Promise<vo
   }
 }
 
-function ensureNoBackups(app: TestApp): void {
+async function ensureNoBackups(app: TestApp): Promise<void> {
   const fsys = app.NewBackupsFilesystem();
   try {
-    const files = fsys.List("");
+    const files = await fsys.List("");
     if (files.length !== 0) {
       throw new Error(`Expected 0 backup files, got ${files.length}`);
     }
   } finally {
-    fsys.Close();
+    await fsys.Close();
   }
 }
 

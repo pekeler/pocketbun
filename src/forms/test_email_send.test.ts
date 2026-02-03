@@ -56,7 +56,7 @@ describe("TestEmailSend", () => {
         form.Template = scenario.template;
         form.Collection = scenario.collection;
 
-        const result = form.Submit();
+        const result = await form.Submit();
         assertValidationErrors(result, scenario.expectedErrors);
 
         const expectedEmails = scenario.expectedErrors.length > 0 ? 0 : 1;

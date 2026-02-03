@@ -66,7 +66,7 @@ export async function recordConfirmPasswordReset(app: App, event: RequestEvent):
       }
     }
 
-    const saveErr = app.Save(authRecord);
+    const saveErr = await app.Save(authRecord);
     if (saveErr) {
       return badRequest(event, "Failed to set new password.", saveErr);
     }

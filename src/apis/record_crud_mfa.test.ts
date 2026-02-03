@@ -15,7 +15,7 @@ const clientToken =
   "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6ImdrMzkwcWVnczR5NDd3biIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoidjg1MXE0cjc5MHJoa25sIiwiZXhwIjoyNTI0NjA0NDYxLCJyZWZyZXNoYWJsZSI6dHJ1ZX0.0ONnm_BsvPRZyDNT31GN1CKUB6uQRxvVvQ-Wc9AZfG0";
 
 const stubMFAs = async (app: Parameters<NonNullable<ApiScenario["beforeTest"]>>[0]) => {
-  const err = StubMFARecords(app);
+  const err = await StubMFARecords(app);
   if (err) {
     throw err;
   }

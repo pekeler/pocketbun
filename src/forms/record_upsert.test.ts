@@ -145,7 +145,7 @@ describe("RecordUpsert", () => {
   });
 
   it("dry submit failure", async () => {
-    const runTest = (testApp: App) => {
+    const runTest = async (testApp: App) => {
       const col = testApp.findCollectionByNameOrId("demo1");
       if (!col) {
         throw new Error("Missing demo1 collection");
@@ -170,7 +170,7 @@ describe("RecordUpsert", () => {
         return e.Next();
       });
 
-      const result = form.DrySubmit(() => {
+      const result = await form.DrySubmit(() => {
         calls += "b";
         return new Error("error...");
       });
@@ -195,15 +195,15 @@ describe("RecordUpsert", () => {
 
     const { app, cleanup } = await newTestApp();
     try {
-      runTest(app);
+      await runTest(app);
     } finally {
       await cleanup();
     }
 
     const { app: txApp, cleanup: txCleanup } = await newTestApp();
     try {
-      const err = txApp.RunInTransaction((inner) => {
-        runTest(inner);
+      const err = await txApp.RunInTransaction(async (inner) => {
+        await runTest(inner);
         return null;
       });
       if (err) {
@@ -215,7 +215,7 @@ describe("RecordUpsert", () => {
   });
 
   it("dry submit create success", async () => {
-    const runTest = (testApp: App) => {
+    const runTest = async (testApp: App) => {
       const col = testApp.findCollectionByNameOrId("demo1");
       if (!col) {
         throw new Error("Missing demo1 collection");
@@ -239,7 +239,7 @@ describe("RecordUpsert", () => {
         return e.Next();
       });
 
-      const result = form.DrySubmit(() => {
+      const result = await form.DrySubmit(() => {
         calls += "b";
         return null;
       });
@@ -268,15 +268,15 @@ describe("RecordUpsert", () => {
 
     const { app, cleanup } = await newTestApp();
     try {
-      runTest(app);
+      await runTest(app);
     } finally {
       await cleanup();
     }
 
     const { app: txApp, cleanup: txCleanup } = await newTestApp();
     try {
-      const err = txApp.RunInTransaction((inner) => {
-        runTest(inner);
+      const err = await txApp.RunInTransaction(async (inner) => {
+        await runTest(inner);
         return null;
       });
       if (err) {
@@ -288,7 +288,7 @@ describe("RecordUpsert", () => {
   });
 
   it("dry submit update success", async () => {
-    const runTest = (testApp: App) => {
+    const runTest = async (testApp: App) => {
       const col = testApp.findCollectionByNameOrId("demo1");
       if (!col) {
         throw new Error("Missing demo1 collection");
@@ -311,7 +311,7 @@ describe("RecordUpsert", () => {
         return e.Next();
       });
 
-      const result = form.DrySubmit(() => {
+      const result = await form.DrySubmit(() => {
         calls += "b";
         return null;
       });
@@ -336,15 +336,15 @@ describe("RecordUpsert", () => {
 
     const { app, cleanup } = await newTestApp();
     try {
-      runTest(app);
+      await runTest(app);
     } finally {
       await cleanup();
     }
 
     const { app: txApp, cleanup: txCleanup } = await newTestApp();
     try {
-      const err = txApp.RunInTransaction((inner) => {
-        runTest(inner);
+      const err = await txApp.RunInTransaction(async (inner) => {
+        await runTest(inner);
         return null;
       });
       if (err) {
@@ -637,7 +637,7 @@ describe("RecordUpsert", () => {
           }
           form.Load(scenario.data);
 
-          const result = form.Submit();
+          const result = await form.Submit();
           testValidationErrors(result, scenario.expectedErrors);
         } finally {
           await scenarioCleanup();
@@ -672,7 +672,7 @@ describe("RecordUpsert", () => {
         return e.Next();
       });
 
-      const result = form.Submit();
+      const result = await form.Submit();
 
       if (!result) {
         throw new Error("Expected Submit error, got nil");
@@ -726,7 +726,7 @@ describe("RecordUpsert", () => {
         return e.Next();
       });
 
-      const result = form.Submit();
+      const result = await form.Submit();
 
       if (result) {
         throw new Error(`Expected Submit success, got error: ${result.message}`);
@@ -768,7 +768,7 @@ describe("RecordUpsert", () => {
         const record = NewRecord(users);
         const form = new RecordUpsert(app, record);
 
-        const err = form.Submit();
+        const err = await form.Submit();
         testValidationErrors(err, ["password", "passwordConfirm"]);
       } finally {
         await cleanup();
@@ -788,7 +788,7 @@ describe("RecordUpsert", () => {
 
         record.SetPassword("1234567890");
 
-        const err = form.Submit();
+        const err = await form.Submit();
         if (err) {
           throw new Error(`Expected no errors, got ${err.message}`);
         }
@@ -810,7 +810,7 @@ describe("RecordUpsert", () => {
 
         record.SetRandomPassword();
 
-        const err = form.Submit();
+        const err = await form.Submit();
         if (err) {
           throw new Error(`Expected no errors, got ${err.message}`);
         }
@@ -832,7 +832,7 @@ describe("RecordUpsert", () => {
 
         const form = new RecordUpsert(app, record);
 
-        const err = form.Submit();
+        const err = await form.Submit();
         if (err) {
           throw new Error(`Expected no errors, got ${err.message}`);
         }
@@ -861,7 +861,7 @@ describe("RecordUpsert", () => {
 
         record.SetPassword("1234567890");
 
-        const err = form.Submit();
+        const err = await form.Submit();
         if (err) {
           throw new Error(`Expected no errors, got ${err.message}`);
         }
@@ -890,7 +890,7 @@ describe("RecordUpsert", () => {
 
         record.SetRandomPassword();
 
-        const err = form.Submit();
+        const err = await form.Submit();
         if (err) {
           throw new Error(`Expected no errors, got ${err.message}`);
         }

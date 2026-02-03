@@ -60,7 +60,7 @@ describe("collection view options validate", () => {
       const { app, cleanup } = await newTestApp();
       try {
         const collection = scenario.collection(app);
-        const result = app.Validate(collection);
+        const result = await app.Validate(collection);
         testValidationErrors(result, scenario.expectedErrors);
       } finally {
         await cleanup();

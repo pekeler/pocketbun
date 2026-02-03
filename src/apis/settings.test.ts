@@ -60,11 +60,11 @@ const scenarios: ApiScenario[] = [
     url: "/api/settings",
     headers: { Authorization: superuserToken },
     beforeTest: (app) => {
-      app.OnSettingsListRequest().BindFunc((event: any) => {
+      app.OnSettingsListRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });
@@ -160,11 +160,11 @@ const scenarios: ApiScenario[] = [
     body: validData,
     headers: { Authorization: superuserToken },
     beforeTest: (app) => {
-      app.OnSettingsUpdateRequest().BindFunc((event: any) => {
+      app.OnSettingsUpdateRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });

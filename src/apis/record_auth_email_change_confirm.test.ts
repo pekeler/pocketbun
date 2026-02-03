@@ -114,11 +114,11 @@ const scenarios: Scenario[] = [
       "password":"1234567890"
     }`,
     beforeTest: (app) => {
-      app.OnRecordConfirmEmailChangeRequest().BindFunc((event: any) => {
+      app.OnRecordConfirmEmailChangeRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });

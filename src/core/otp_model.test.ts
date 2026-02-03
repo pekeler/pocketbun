@@ -137,21 +137,21 @@ describe("otp", () => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
 
       const otpMissing = new OTP();
-      expect(app.Validate(otpMissing)).not.toBeNull();
+      expect(await app.Validate(otpMissing)).not.toBeNull();
 
       const otpInvalid = new OTP();
       otpInvalid.SetProxyRecord(NewRecord(NewBaseCollection("invalid")));
       otpInvalid.SetRecordRef(user.Id);
       otpInvalid.SetCollectionRef(user.collection().id);
       otpInvalid.ProxyRecord().SetPassword("test123");
-      expect(app.Validate(otpInvalid)).not.toBeNull();
+      expect(await app.Validate(otpInvalid)).not.toBeNull();
 
       const otpValid = new OTP();
       otpValid.SetProxyRecord(NewRecord(otpsCol));
       otpValid.SetRecordRef(user.Id);
       otpValid.SetCollectionRef(user.collection().id);
       otpValid.ProxyRecord().SetPassword("test123");
-      expect(app.Validate(otpValid)).toBeNull();
+      expect(await app.Validate(otpValid)).toBeNull();
     } finally {
       await cleanup();
     }
@@ -205,7 +205,7 @@ describe("otp", () => {
       ];
 
       for (const scenario of scenarios) {
-        const errs = app.Validate(scenario.otp());
+        const errs = await app.Validate(scenario.otp());
         testValidationErrors(errs, scenario.expectErrors);
       }
     } finally {

@@ -1214,7 +1214,7 @@ server.listen(0, "127.0.0.1", () => {
 
       const record = app.FindFirstRecordByFilter("demo1", "1=1");
       record.Set("text", "update");
-      const err = app.Save(record);
+      const err = await app.Save(record);
       expect(err).toBe(goErr);
     } finally {
       await cleanup();

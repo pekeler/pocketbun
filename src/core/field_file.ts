@@ -273,20 +273,26 @@ export class FileField
   // Intercept implements the [RecordInterceptor] interface.
   //
   // note: files delete after records deletion is handled globally by the app FileManager hook
-  Intercept(ctx: unknown, app: App, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null {
+  async Intercept(
+    ctx: unknown,
+    app: App,
+    record: RecordLike,
+    actionName: string,
+    actionFunc: () => Error | null | Promise<Error | null>,
+  ): Promise<Error | null> {
     switch (actionName) {
       case InterceptorActionCreateExecute:
       case InterceptorActionUpdateExecute: {
         const oldValue = this.getLatestOldValue(app, record);
 
-        const uploadErr = this.processFilesToUpload(ctx, app, record);
+        const uploadErr = await this.processFilesToUpload(ctx, app, record);
         if (uploadErr) {
           return uploadErr;
         }
 
-        const execErr = actionFunc();
+        const execErr = await actionFunc();
         if (execErr) {
-          const cleanupErr = this.afterRecordExecuteFailure(ctx, app, record);
+          const cleanupErr = await this.afterRecordExecuteFailure(ctx, app, record);
           if (cleanupErr) {
             return new Error(`${execErr.message}; ${cleanupErr.message}`);
           }
@@ -300,10 +306,10 @@ export class FileField
       case InterceptorActionAfterCreateError:
       case InterceptorActionAfterUpdateError: {
         if (app.IsTransactional()) {
-          return actionFunc();
+          return await actionFunc();
         }
 
-        const [failedToDelete, deleteErr] = this.deleteNewlyUploadedFiles(ctx, app, record);
+        const [failedToDelete, deleteErr] = await this.deleteNewlyUploadedFiles(ctx, app, record);
         if (deleteErr) {
           app
             .Logger()
@@ -319,27 +325,27 @@ export class FileField
         record.SetRaw(`${deletedFilesPrefix}${this.Name}`, null);
 
         if (record.IsNew()) {
-          const err = this.deleteEmptyRecordDir(ctx, app, record);
+          const err = await this.deleteEmptyRecordDir(ctx, app, record);
           if (err) {
             app.Logger().Warn("Failed to delete empty dir after new record commit failure", "error", err);
           }
         }
 
-        return actionFunc();
+        return await actionFunc();
       }
       case InterceptorActionAfterCreate:
       case InterceptorActionAfterUpdate: {
         record.SetRaw(`${uploadedFilesPrefix}${this.Name}`, null);
 
-        const err = this.processFilesToDelete(ctx, app, record);
+        const err = await this.processFilesToDelete(ctx, app, record);
         if (err) {
           return err;
         }
 
-        return actionFunc();
+        return await actionFunc();
       }
       default:
-        return actionFunc();
+        return await actionFunc();
     }
   }
 
@@ -528,10 +534,10 @@ export class FileField
     record.SetRaw(`${uploadedFilesPrefix}${this.Name}`, uploaded);
   }
 
-  private afterRecordExecuteFailure(ctx: unknown, app: App, record: RecordLike): Error | null {
+  private async afterRecordExecuteFailure(ctx: unknown, app: App, record: RecordLike): Promise<Error | null> {
     const uploaded = this.extractUploadableFiles(this.toSliceValue(record.GetRaw(this.Name)));
     const toDelete = uploaded.map((file) => file.Name);
-    const [failedToDelete, err] = this.deleteFilesByNamesList(ctx, app, record, Array.from(new Set(toDelete)));
+    const [failedToDelete, err] = await this.deleteFilesByNamesList(ctx, app, record, Array.from(new Set(toDelete)));
 
     if (failedToDelete.length > 0) {
       app
@@ -548,27 +554,31 @@ export class FileField
     return err;
   }
 
-  private deleteEmptyRecordDir(ctx: unknown, app: App, record: RecordLike): Error | null {
+  private async deleteEmptyRecordDir(ctx: unknown, app: App, record: RecordLike): Promise<Error | null> {
     const fsys = app.NewFilesystem();
     fsys.SetContext(ctx);
 
     const dir = (record as unknown as RecordModel).BaseFilesPath();
-    if (!fsys.IsEmptyDir(dir)) {
-      return null;
-    }
-
     try {
-      fsys.Delete(dir);
-      return null;
-    } catch (error) {
-      if (error instanceof NotFoundError) {
+      if (!(await fsys.IsEmptyDir(dir))) {
         return null;
       }
-      return error as Error;
+
+      try {
+        await fsys.Delete(dir);
+        return null;
+      } catch (error) {
+        if (error instanceof NotFoundError) {
+          return null;
+        }
+        return error as Error;
+      }
+    } finally {
+      await fsys.Close();
     }
   }
 
-  private processFilesToDelete(ctx: unknown, app: App, record: RecordLike): Error | null {
+  private async processFilesToDelete(ctx: unknown, app: App, record: RecordLike): Promise<Error | null> {
     const markedForDelete = (record.GetRaw(`${deletedFilesPrefix}${this.Name}`) as string[]) ?? [];
     if (markedForDelete.length === 0) {
       return null;
@@ -579,7 +589,7 @@ export class FileField
     const diff = this.excludeFiles(old, current);
 
     const toDelete = diff.map((value) => this.getFileName(value));
-    const [failedToDelete, err] = this.deleteFilesByNamesList(ctx, app, record, Array.from(new Set(toDelete)));
+    const [failedToDelete, err] = await this.deleteFilesByNamesList(ctx, app, record, Array.from(new Set(toDelete)));
 
     record.SetRaw(`${deletedFilesPrefix}${this.Name}`, failedToDelete);
     return err;
@@ -598,7 +608,7 @@ export class FileField
     record.SetRaw(`${deletedFilesPrefix}${this.Name}`, toDelete);
   }
 
-  private processFilesToUpload(ctx: unknown, app: App, record: RecordLike): Error | null {
+  private async processFilesToUpload(ctx: unknown, app: App, record: RecordLike): Promise<Error | null> {
     const uploads = this.extractUploadableFiles(this.toSliceValue(record.GetRaw(this.Name)));
     if (uploads.length === 0) {
       return null;
@@ -613,28 +623,32 @@ export class FileField
     fsys.SetContext(ctx);
 
     const succeeded: string[] = [];
-    for (const upload of uploads) {
-      try {
-        const path = `${recordModel.BaseFilesPath()}/${upload.Name}`;
-        fsys.UploadFile(upload, path);
-        succeeded.push(upload.Name);
-      } catch (error) {
-        void this.deleteFilesByNamesList(ctx, app, record, succeeded);
-        return new Error(`failed to upload all files: ${(error as Error).message}`);
+    try {
+      for (const upload of uploads) {
+        try {
+          const path = `${recordModel.BaseFilesPath()}/${upload.Name}`;
+          await fsys.UploadFile(upload, path);
+          succeeded.push(upload.Name);
+        } catch (error) {
+          await this.deleteFilesByNamesList(ctx, app, record, succeeded);
+          return new Error(`failed to upload all files: ${(error as Error).message}`);
+        }
       }
-    }
 
-    return null;
+      return null;
+    } finally {
+      await fsys.Close();
+    }
   }
 
-  private deleteNewlyUploadedFiles(ctx: unknown, app: App, record: RecordLike): [string[], Error | null] {
+  private async deleteNewlyUploadedFiles(ctx: unknown, app: App, record: RecordLike): Promise<[string[], Error | null]> {
     const uploaded = (record.GetRaw(`${uploadedFilesPrefix}${this.Name}`) as File[]) ?? [];
     if (uploaded.length === 0) {
       return [[], null];
     }
 
     const names = uploaded.map((file) => file.Name);
-    const [failed, err] = this.deleteFilesByNamesList(ctx, app, record, Array.from(new Set(names)));
+    const [failed, err] = await this.deleteFilesByNamesList(ctx, app, record, Array.from(new Set(names)));
     if (!err) {
       record.SetRaw(`${uploadedFilesPrefix}${this.Name}`, null);
     }
@@ -644,7 +658,12 @@ export class FileField
 
   // deleteFiles deletes a list of record files by their names.
   // Returns the failed/remaining files.
-  private deleteFilesByNamesList(ctx: unknown, app: App, record: RecordLike, filenames: string[]): [string[], Error | null] {
+  private async deleteFilesByNamesList(
+    ctx: unknown,
+    app: App,
+    record: RecordLike,
+    filenames: string[],
+  ): Promise<[string[], Error | null]> {
     if (filenames.length === 0) {
       return [[], null];
     }
@@ -658,27 +677,31 @@ export class FileField
     fsys.SetContext(ctx);
 
     const failures: Error[] = [];
-    for (let i = filenames.length - 1; i >= 0; i -= 1) {
-      const filename = filenames[i];
-      if (!filename || /[\\/]/.test(filename)) {
-        continue;
-      }
-      const path = `${recordModel.BaseFilesPath()}/${filename}`;
-      try {
-        fsys.Delete(path);
-        filenames.splice(i, 1);
-
-        const thumbsErrors = fsys.DeletePrefix(`${recordModel.BaseFilesPath()}/thumbs_${filename}/`);
-        if (thumbsErrors.length > 0) {
-          app.Logger().Warn("Failed to delete file thumbs", "error", thumbsErrors);
+    try {
+      for (let i = filenames.length - 1; i >= 0; i -= 1) {
+        const filename = filenames[i];
+        if (!filename || /[\\/]/.test(filename)) {
+          continue;
         }
-      } catch (error) {
-        if (error instanceof NotFoundError) {
+        const path = `${recordModel.BaseFilesPath()}/${filename}`;
+        try {
+          await fsys.Delete(path);
           filenames.splice(i, 1);
-        } else {
-          failures.push(new Error(`file ${i} (${filename}): ${(error as Error).message}`));
+
+          const thumbsErrors = await fsys.DeletePrefix(`${recordModel.BaseFilesPath()}/thumbs_${filename}/`);
+          if (thumbsErrors.length > 0) {
+            app.Logger().Warn("Failed to delete file thumbs", "error", thumbsErrors);
+          }
+        } catch (error) {
+          if (error instanceof NotFoundError) {
+            filenames.splice(i, 1);
+          } else {
+            failures.push(new Error(`file ${i} (${filename}): ${(error as Error).message}`));
+          }
         }
       }
+    } finally {
+      await fsys.Close();
     }
 
     if (failures.length > 0) {

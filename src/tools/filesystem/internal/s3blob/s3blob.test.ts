@@ -60,7 +60,7 @@ describe("s3blob", () => {
       let err: Error | null = null;
       let drv = null;
       try {
-        drv = await New(scenario.s3Client);
+        drv = New(scenario.s3Client);
       } catch (error) {
         err = error as Error;
       }
@@ -77,12 +77,12 @@ describe("s3blob", () => {
   });
 
   it("Driver Close", async () => {
-    const drv = await New(Object.assign(new S3(), { Bucket: "a", Region: "b", Endpoint: "c" }));
+    const drv = New(Object.assign(new S3(), { Bucket: "a", Region: "b", Endpoint: "c" }));
     await drv.Close();
   });
 
   it("Driver NormalizeError", async () => {
-    const drv = await New(Object.assign(new S3(), { Bucket: "a", Region: "b", Endpoint: "c" }));
+    const drv = New(Object.assign(new S3(), { Bucket: "a", Region: "b", Endpoint: "c" }));
 
     const scenarios = [
       { name: "plain error", err: new Error("test"), expectErrNotFound: false },
@@ -139,7 +139,7 @@ describe("s3blob", () => {
       URL: "https://test_bucket.example.com/..__0x2f__abc/test/",
     });
 
-    const drv = await New(
+    const drv = New(
       Object.assign(new S3(), {
         Bucket: "test_bucket",
         Region: "test_region",
@@ -167,7 +167,7 @@ describe("s3blob", () => {
       Response: responseWithBody("<CopyObjectResult></CopyObjectResult>"),
     });
 
-    const drv = await New(
+    const drv = New(
       Object.assign(new S3(), {
         Bucket: "test_bucket",
         Region: "test_region",
@@ -203,7 +203,7 @@ describe("s3blob", () => {
       }),
     });
 
-    const drv = await New(
+    const drv = New(
       Object.assign(new S3(), {
         Bucket: "test_bucket",
         Region: "test_region",
@@ -274,7 +274,7 @@ describe("s3blob", () => {
       },
     );
 
-    const drv = await New(
+    const drv = New(
       Object.assign(new S3(), {
         Bucket: "test_bucket",
         Region: "test_region",
@@ -381,7 +381,7 @@ describe("s3blob", () => {
     ];
 
     for (const scenario of scenarios) {
-      const drv = await New(
+      const drv = New(
         Object.assign(new S3(), {
           Bucket: "test_bucket",
           Region: "tesst_region",
@@ -431,7 +431,7 @@ describe("s3blob", () => {
       },
     });
 
-    const drv = await New(
+    const drv = New(
       Object.assign(new S3(), {
         Bucket: "test_bucket",
         Region: "test_region",

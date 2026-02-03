@@ -121,12 +121,12 @@ const listScenarios: ApiScenario[] = [
     method: "GET",
     url: "/api/collections",
     headers: { Authorization: superuserToken },
-    beforeTest: (app) => {
-      app.OnCollectionsListRequest().BindFunc((event: any) => {
+    beforeTest: async (app) => {
+      app.OnCollectionsListRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });
@@ -209,12 +209,12 @@ const viewScenarios: ApiScenario[] = [
     method: "GET",
     url: "/api/collections/wsmn24bux7wo113",
     headers: { Authorization: superuserToken },
-    beforeTest: (app) => {
-      app.OnCollectionViewRequest().BindFunc((event: any) => {
+    beforeTest: async (app) => {
+      app.OnCollectionViewRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });
@@ -368,12 +368,12 @@ const deleteScenarios: ApiScenario[] = [
     method: "DELETE",
     url: "/api/collections/view2",
     headers: { Authorization: superuserToken },
-    beforeTest: (app) => {
-      app.OnCollectionDeleteRequest().BindFunc((event: any) => {
+    beforeTest: async (app) => {
+      app.OnCollectionDeleteRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });
@@ -643,12 +643,12 @@ const createScenarios: ApiScenario[] = [
     url: "/api/collections",
     body: '{"name":"new","type":"base"}',
     headers: { Authorization: superuserToken },
-    beforeTest: (app) => {
-      app.OnCollectionCreateRequest().BindFunc((event: any) => {
+    beforeTest: async (app) => {
+      app.OnCollectionCreateRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });
@@ -770,13 +770,13 @@ const createScenarios: ApiScenario[] = [
       ]
     }`,
     headers: { Authorization: superuserToken },
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const demo1 = app.findCollectionByNameOrId("demo1");
       if (!demo1) {
         throw new Error("missing demo1 collection");
       }
       demo1.AddIndex("exist_test", false, "updated", "");
-      const err = app.Save(demo1);
+      const err = await app.Save(demo1);
       if (err) {
         throw err;
       }
@@ -929,12 +929,12 @@ const updateScenarios: ApiScenario[] = [
     url: "/api/collections/demo1",
     body: "{}",
     headers: { Authorization: superuserToken },
-    beforeTest: (app) => {
-      app.OnCollectionUpdateRequest().BindFunc((event: any) => {
+    beforeTest: async (app) => {
+      app.OnCollectionUpdateRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });
@@ -1177,13 +1177,13 @@ const updateScenarios: ApiScenario[] = [
       ]
     }`,
     headers: { Authorization: superuserToken },
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const demo1 = app.findCollectionByNameOrId("demo1");
       if (!demo1) {
         throw new Error("missing demo1 collection");
       }
       demo1.AddIndex("exist_test", false, "updated", "");
-      const err = app.Save(demo1);
+      const err = await app.Save(demo1);
       if (err) {
         throw err;
       }

@@ -329,7 +329,7 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
     form.SetApp(hookEvent.App);
     form.SetRecord(recordRef);
 
-    const submitErr = form.Submit();
+    const submitErr = await form.Submit();
     if (submitErr) {
       return badRequest(event, "Failed to create record.", submitErr);
     }
@@ -426,7 +426,7 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
     form.SetApp(hookEvent.App);
     form.SetRecord(recordRef);
 
-    const submitErr = form.Submit();
+    const submitErr = await form.Submit();
     if (submitErr) {
       return badRequest(event, "Failed to update record.", submitErr);
     }
@@ -494,7 +494,7 @@ export async function recordDelete(app: App, event: RequestEvent): Promise<Respo
   const hookEvent = new RecordRequestEvent(event, collection, record);
   const out = await app.OnRecordDeleteRequest().Trigger(hookEvent, async () => {
     const recordRef = hookEvent.Record ?? record;
-    const deleteErr = app.Delete(recordRef);
+    const deleteErr = await app.Delete(recordRef);
     if (deleteErr) {
       if (deleteErr instanceof ApiError) {
         return apiErrorResponse(event, deleteErr);

@@ -54,7 +54,7 @@ async function settingsSet(app: App, event: RequestEvent): Promise<Response> {
   const hookEvent = new SettingsUpdateRequestEvent(event, oldSettings, newSettings);
 
   const out = await app.OnSettingsUpdateRequest().Trigger(hookEvent, async (e) => {
-    const saveErr = app.Save(e.NewSettings);
+    const saveErr = await app.Save(e.NewSettings);
     if (saveErr) {
       return badRequest(event, "An error occurred while saving the new settings.", saveErr);
     }
@@ -81,7 +81,7 @@ async function settingsTestS3(app: App, event: RequestEvent): Promise<Response> 
     form.Filesystem = body.data.filesystem;
   }
 
-  const submitErr = form.Submit();
+  const submitErr = await form.Submit();
   if (submitErr) {
     if (submitErr instanceof ValidationErrors) {
       return badRequest(event, "Failed to test the S3 filesystem.", submitErr);
@@ -111,7 +111,7 @@ async function settingsTestEmail(app: App, event: RequestEvent): Promise<Respons
     }
   }
 
-  const submitErr = form.Submit();
+  const submitErr = await form.Submit();
   if (submitErr) {
     if (submitErr instanceof ValidationErrors) {
       return badRequest(event, "Failed to send the test email.", submitErr);

@@ -11,6 +11,7 @@ import {
   readSync,
   readdirSync,
   renameSync,
+  rmdirSync,
   statSync,
   unlinkSync,
   writeSync,
@@ -46,7 +47,7 @@ export type Options = {
   NoTempDir: boolean;
 };
 
-export async function New(dir: string, opts?: Partial<Options>): Promise<Driver> {
+export function New(dir: string, opts?: Partial<Options>): Driver {
   const options: Options = {
     Metadata: opts?.Metadata ?? MetadataInSidecar,
     DirFileMode: opts?.DirFileMode ?? 0o777,
@@ -282,7 +283,12 @@ class FileDriver implements Driver {
 
   async Delete(_ctx: AbortSignal | null, key: string): Promise<void> {
     const path = this.#path(key);
-    unlinkSync(path);
+    const info = statSync(path);
+    if (info.isDirectory()) {
+      rmdirSync(path);
+    } else {
+      unlinkSync(path);
+    }
     try {
       unlinkSync(path + attrsExt);
     } catch (err) {

@@ -109,11 +109,11 @@ const scenarios: Scenario[] = [
     url: "/api/collections/users/request-verification",
     body: '{"email":"test@example.com"}',
     beforeTest: (app: TestApp) => {
-      app.OnRecordRequestVerificationRequest().BindFunc((event: any) => {
+      app.OnRecordRequestVerificationRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });

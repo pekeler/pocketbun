@@ -150,7 +150,7 @@ async function collectionCreate(app: App, event: RequestEvent): Promise<Response
 
   const hookEvent = new CollectionRequestEvent(event, collection);
   const out = await app.OnCollectionCreateRequest().Trigger(hookEvent, async () => {
-    const err = app.Save(hookEvent.Collection);
+    const err = await app.Save(hookEvent.Collection);
     if (err) {
       const validationErr = extractValidationErrors(err);
       if (validationErr) {
@@ -188,7 +188,7 @@ async function collectionUpdate(app: App, event: RequestEvent): Promise<Response
 
   const hookEvent = new CollectionRequestEvent(event, collection);
   const out = await app.OnCollectionUpdateRequest().Trigger(hookEvent, async () => {
-    const err = app.Save(hookEvent.Collection);
+    const err = await app.Save(hookEvent.Collection);
     if (err) {
       const validationErr = extractValidationErrors(err);
       if (validationErr) {
@@ -222,7 +222,7 @@ async function collectionDelete(app: App, event: RequestEvent): Promise<Response
 
   const hookEvent = new CollectionRequestEvent(event, collection);
   const out = await app.OnCollectionDeleteRequest().Trigger(hookEvent, async () => {
-    const err = app.Delete(hookEvent.Collection);
+    const err = await app.Delete(hookEvent.Collection);
     if (err) {
       let message = "Failed to delete collection.";
       const refs = app.FindCachedCollectionReferences(hookEvent.Collection, hookEvent.Collection.id);
@@ -243,7 +243,7 @@ async function collectionDelete(app: App, event: RequestEvent): Promise<Response
   return noContent(event);
 }
 
-function collectionTruncate(app: App, event: RequestEvent): Response {
+async function collectionTruncate(app: App, event: RequestEvent): Promise<Response> {
   const authResponse = requireSuperuser(event);
   if (authResponse) {
     return authResponse;
@@ -259,7 +259,7 @@ function collectionTruncate(app: App, event: RequestEvent): Response {
     return badRequest(event, "View collections cannot be truncated since they don't store their own records.");
   }
 
-  const err = app.TruncateCollection(collection);
+  const err = await app.TruncateCollection(collection);
   if (err) {
     return badRequest(
       event,
@@ -289,7 +289,7 @@ async function collectionsImport(app: App, event: RequestEvent): Promise<Respons
   const hookEvent = new CollectionsImportRequestEvent(event, collections as Array<Record<string, unknown>>, deleteMissing);
 
   const out = await app.OnCollectionsImportRequest().Trigger(hookEvent, async () => {
-    const err = app.ImportCollections(hookEvent.CollectionsData, hookEvent.DeleteMissing);
+    const err = await app.ImportCollections(hookEvent.CollectionsData, hookEvent.DeleteMissing);
     if (err) {
       const validationErr = extractValidationErrors(err);
       if (validationErr) {

@@ -127,21 +127,21 @@ export function recordRefHooks(app: App, collectionName: string, ...optCollectio
 
   // delete on collection ref delete
   app.OnCollectionDeleteExecute().Bind({
-    Func: (e) => {
+    Func: async (e) => {
       if (
         !e.Collection ||
         e.Collection.name === collectionName ||
         (optCollectionTypes.length > 0 && !optCollectionTypes.includes(e.Collection.type))
       ) {
-        return e.Next();
+        return await e.Next();
       }
 
       const collection = e.Collection;
       const originalApp = e.App;
-      const txErr = e.App.RunInTransaction((txApp) => {
+      const txErr = await e.App.RunInTransaction(async (txApp) => {
         e.App = txApp;
 
-        const err = e.Next() as Error | null;
+        const err = (await e.Next()) as Error | null;
         if (err) {
           return err;
         }
@@ -154,7 +154,7 @@ export function recordRefHooks(app: App, collectionName: string, ...optCollectio
         }
 
         for (const rel of rels) {
-          const deleteErr = txApp.Delete(rel);
+          const deleteErr = await txApp.Delete(rel);
           if (deleteErr) {
             return deleteErr;
           }
@@ -172,9 +172,9 @@ export function recordRefHooks(app: App, collectionName: string, ...optCollectio
 
   // delete on record ref delete
   app.OnRecordDeleteExecute().Bind({
-    Func: (e) => {
+    Func: async (e) => {
       if (!e.Record) {
-        return e.Next();
+        return await e.Next();
       }
 
       const collection = e.Record.collection();
@@ -186,10 +186,10 @@ export function recordRefHooks(app: App, collectionName: string, ...optCollectio
       }
 
       const originalApp = e.App;
-      const txErr = e.App.RunInTransaction((txApp) => {
+      const txErr = await e.App.RunInTransaction(async (txApp) => {
         e.App = txApp;
 
-        const err = e.Next() as Error | null;
+        const err = (await e.Next()) as Error | null;
         if (err) {
           return err;
         }
@@ -205,7 +205,7 @@ export function recordRefHooks(app: App, collectionName: string, ...optCollectio
         }
 
         for (const rel of rels) {
-          const deleteErr = txApp.Delete(rel);
+          const deleteErr = await txApp.Delete(rel);
           if (deleteErr) {
             return deleteErr;
           }

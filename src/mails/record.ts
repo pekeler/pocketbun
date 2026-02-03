@@ -24,7 +24,7 @@ import { Layout } from "./templates/layout.ts";
 const nonescapeTypes = [FieldTypeAutodate, FieldTypeDate, FieldTypeBool, FieldTypeNumber];
 
 // SendRecordAuthAlert sends a new device login alert to the specified auth record.
-export function SendRecordAuthAlert(app: App, authRecord: RecordModel, info: string): Error | null {
+export async function SendRecordAuthAlert(app: App, authRecord: RecordModel, info: string): Promise<Error | null> {
   const mailClient = app.NewMailClient();
 
   const sanitizedInfo = escapeHtml(info);
@@ -51,7 +51,7 @@ export function SendRecordAuthAlert(app: App, authRecord: RecordModel, info: str
 
   const event = new MailerRecordEvent(app, mailClient, message, authRecord, { info: sanitizedInfo });
 
-  const result = app.OnMailerRecordAuthAlertSend().Trigger(event, (e) => {
+  const result = await app.OnMailerRecordAuthAlertSend().Trigger(event, (e) => {
     return e.Mailer.Send(e.Message);
   });
 
@@ -61,7 +61,7 @@ export function SendRecordAuthAlert(app: App, authRecord: RecordModel, info: str
 // SendRecordOTP sends OTP email to the specified auth record.
 //
 // This method will also update the "sentTo" field of the related OTP record to the mail sent To address (if the OTP exists and not already assigned).
-export function SendRecordOTP(app: App, authRecord: RecordModel, otpId: string, pass: string): Error | null {
+export async function SendRecordOTP(app: App, authRecord: RecordModel, otpId: string, pass: string): Promise<Error | null> {
   const mailClient = app.NewMailClient();
 
   const { subject, body, error } = resolveEmailTemplate(app, authRecord, authRecord.collection().OTP.EmailTemplate, {
@@ -90,7 +90,7 @@ export function SendRecordOTP(app: App, authRecord: RecordModel, otpId: string, 
     password: pass,
   });
 
-  const result = app.OnMailerRecordOTPSend().Trigger(event, (e) => {
+  const result = await app.OnMailerRecordOTPSend().Trigger(event, async (e) => {
     const sendErr = e.Mailer.Send(e.Message);
     if (sendErr instanceof Error) {
       return sendErr;
@@ -120,7 +120,7 @@ export function SendRecordOTP(app: App, authRecord: RecordModel, otpId: string, 
     }
 
     otp.SetSentTo(toAddress);
-    const saveErr = e.App.Save(otp);
+    const saveErr = await e.App.Save(otp);
     if (saveErr) {
       e.App.Logger().Error("Failed to update OTP sentTo field", "error", saveErr, "otpId", otpId, "to", toAddress);
     }
@@ -132,7 +132,7 @@ export function SendRecordOTP(app: App, authRecord: RecordModel, otpId: string, 
 }
 
 // SendRecordPasswordReset sends a password reset request email to the specified auth record.
-export function SendRecordPasswordReset(app: App, authRecord: RecordModel): Error | null {
+export async function SendRecordPasswordReset(app: App, authRecord: RecordModel): Promise<Error | null> {
   let token = "";
   try {
     token = authRecord.NewPasswordResetToken();
@@ -164,7 +164,7 @@ export function SendRecordPasswordReset(app: App, authRecord: RecordModel): Erro
 
   const event = new MailerRecordEvent(app, mailClient, message, authRecord, { token });
 
-  const result = app.OnMailerRecordPasswordResetSend().Trigger(event, (e) => {
+  const result = await app.OnMailerRecordPasswordResetSend().Trigger(event, (e) => {
     return e.Mailer.Send(e.Message);
   });
 
@@ -172,7 +172,7 @@ export function SendRecordPasswordReset(app: App, authRecord: RecordModel): Erro
 }
 
 // SendRecordVerification sends a verification request email to the specified auth record.
-export function SendRecordVerification(app: App, authRecord: RecordModel): Error | null {
+export async function SendRecordVerification(app: App, authRecord: RecordModel): Promise<Error | null> {
   let token = "";
   try {
     token = authRecord.NewVerificationToken();
@@ -204,7 +204,7 @@ export function SendRecordVerification(app: App, authRecord: RecordModel): Error
 
   const event = new MailerRecordEvent(app, mailClient, message, authRecord, { token });
 
-  const result = app.OnMailerRecordVerificationSend().Trigger(event, (e) => {
+  const result = await app.OnMailerRecordVerificationSend().Trigger(event, (e) => {
     return e.Mailer.Send(e.Message);
   });
 
@@ -212,7 +212,7 @@ export function SendRecordVerification(app: App, authRecord: RecordModel): Error
 }
 
 // SendRecordChangeEmail sends a change email confirmation email to the specified auth record.
-export function SendRecordChangeEmail(app: App, authRecord: RecordModel, newEmail: string): Error | null {
+export async function SendRecordChangeEmail(app: App, authRecord: RecordModel, newEmail: string): Promise<Error | null> {
   let token = "";
   try {
     token = authRecord.NewEmailChangeToken(newEmail);
@@ -244,7 +244,7 @@ export function SendRecordChangeEmail(app: App, authRecord: RecordModel, newEmai
 
   const event = new MailerRecordEvent(app, mailClient, message, authRecord, { token, newEmail });
 
-  const result = app.OnMailerRecordEmailChangeSend().Trigger(event, (e) => {
+  const result = await app.OnMailerRecordEmailChangeSend().Trigger(event, (e) => {
     return e.Mailer.Send(e.Message);
   });
 

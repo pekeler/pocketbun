@@ -194,7 +194,9 @@ export class RecordUpsert {
   // For actual record persistence, check the [RecordUpsert.Submit()] method.
   //
   // This method doesn't perform validations, handle file uploads/deletes or trigger app save events!
-  DrySubmit(callback: ((txApp: App, drySavedRecord: RecordModel) => Error | null) | null): Error | null {
+  async DrySubmit(
+    callback: ((txApp: App, drySavedRecord: RecordModel) => Error | null | Promise<Error | null>) | null,
+  ): Promise<Error | null> {
     const isNew = this.record.IsNew();
     const clone = this.record.Clone();
     const rollbackData = clone.Original().FieldsData();
@@ -210,13 +212,13 @@ export class RecordUpsert {
       db.run("BEGIN");
       let callbackErr: Error | null = null;
       try {
-        const saveErr = app.SaveNoValidateWithContext(this.ctx, clone);
+        const saveErr = await app.SaveNoValidateWithContext(this.ctx, clone);
         if (saveErr) {
           return NormalizeUniqueIndexError(saveErr, clone.collection().name, clone.collection().Fields.FieldNames());
         }
 
         if (callback) {
-          callbackErr = callback(app, clone) ?? null;
+          callbackErr = (await callback(app, clone)) ?? null;
           if (callbackErr) {
             return callbackErr;
           }
@@ -228,20 +230,20 @@ export class RecordUpsert {
       return callbackErr;
     }
 
-    const saveErr = app.SaveNoValidateWithContext(this.ctx, clone);
+    const saveErr = await app.SaveNoValidateWithContext(this.ctx, clone);
     if (saveErr) {
       return NormalizeUniqueIndexError(saveErr, clone.collection().name, clone.collection().Fields.FieldNames());
     }
 
-    const manualRollback = (): Error | null => {
+    const manualRollback = async (): Promise<Error | null> => {
       if (isNew) {
-        const deleteErr = app.DeleteWithContext(this.ctx, clone);
+        const deleteErr = await app.DeleteWithContext(this.ctx, clone);
         if (deleteErr) {
           return new Error(`failed to rollback dry submit created record: ${deleteErr.message}`);
         }
       } else {
         clone.Load(rollbackData);
-        const rollbackErr = app.SaveNoValidateWithContext(this.ctx, clone);
+        const rollbackErr = await app.SaveNoValidateWithContext(this.ctx, clone);
         if (rollbackErr) {
           return new Error(`failed to rollback dry submit updated record: ${rollbackErr.message}`);
         }
@@ -251,25 +253,25 @@ export class RecordUpsert {
     };
 
     if (callback) {
-      const cbErr = callback(app, clone) ?? null;
-      const rollbackErr = manualRollback();
+      const cbErr = (await callback(app, clone)) ?? null;
+      const rollbackErr = await manualRollback();
       if (cbErr && rollbackErr) {
         return new Error(`${cbErr.message}; ${rollbackErr.message}`);
       }
       return cbErr ?? rollbackErr;
     }
 
-    return manualRollback();
+    return await manualRollback();
   }
 
   // Submit validates the form specific validations and attempts to save the form record.
-  Submit(): Error | null {
+  async Submit(): Promise<Error | null> {
     const err = this.validateFormFields();
     if (err) {
       return err;
     }
 
-    return this.app.SaveWithContext(this.ctx, this.record);
+    return await this.app.SaveWithContext(this.ctx, this.record);
   }
 
   // syncPasswordFields syncs the form's auth password fields with their

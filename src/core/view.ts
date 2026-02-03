@@ -39,13 +39,13 @@ export function DeleteView(app: App, name: string): Error | null {
   }
 }
 
-export function SaveView(app: App, name: string, selectQuery: string): Error | null {
+export async function SaveView(app: App, name: string, selectQuery: string): Promise<Error | null> {
   const trimmedName = name.trim();
   if (!trimmedName) {
     return new Error("missing view name");
   }
 
-  return app.RunInTransaction((txApp) => {
+  return await app.RunInTransaction(async (txApp) => {
     const deleteErr = DeleteView(txApp, trimmedName);
     if (deleteErr) {
       return deleteErr;
@@ -82,12 +82,12 @@ export function SaveView(app: App, name: string, selectQuery: string): Error | n
   });
 }
 
-export function CreateViewFields(app: App, selectQuery: string): FieldsList {
+export async function CreateViewFields(app: App, selectQuery: string): Promise<FieldsList> {
   const result = NewFieldsList();
   const suggested = parseQueryToFields(app, selectQuery);
 
-  const txErr = app.RunInTransaction((txApp) => {
-    const info = getQueryTableInfo(txApp, selectQuery);
+  const txErr = await app.RunInTransaction(async (txApp) => {
+    const info = await getQueryTableInfo(txApp, selectQuery);
     let hasId = false;
 
     for (const row of info) {
@@ -377,13 +377,13 @@ function findCollectionsByIdentifiers(app: App, tables: Identifier[]): Map<strin
   return map;
 }
 
-function getQueryTableInfo(app: App, selectQuery: string) {
+async function getQueryTableInfo(app: App, selectQuery: string) {
   const tempView = `_temp_${pseudorandomString(6)}`;
 
   let info: ReturnType<App["TableInfo"]> = [];
 
-  const txErr = app.RunInTransaction((txApp) => {
-    const err = SaveView(txApp, tempView, selectQuery);
+  const txErr = await app.RunInTransaction(async (txApp) => {
+    const err = await SaveView(txApp, tempView, selectQuery);
     if (err) {
       return err;
     }

@@ -281,14 +281,14 @@ describe("record CRUD list", () => {
       method: "GET",
       url: "/api/collections/demo3/records",
       headers: { Authorization: clientsUserToken },
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo3");
         if (!collection) {
           throw new Error("Missing demo3 collection");
         }
         collection.Fields.GetByName("title")?.SetHidden(true);
         collection.listRule = "title ~ 'test'";
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }
@@ -316,13 +316,13 @@ describe("record CRUD list", () => {
       method: "GET",
       url: "/api/collections/demo3/records?filter=title~'test'",
       headers: { Authorization: clientsUserToken },
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo3");
         if (!collection) {
           throw new Error("Missing demo3 collection");
         }
         collection.Fields.GetByName("title")?.SetHidden(true);
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }
@@ -336,13 +336,13 @@ describe("record CRUD list", () => {
       method: "GET",
       url: "/api/collections/demo3/records?filter=title~'test'",
       headers: { Authorization: superuserToken },
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo3");
         if (!collection) {
           throw new Error("Missing demo3 collection");
         }
         collection.Fields.GetByName("title")?.SetHidden(true);
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }
@@ -419,13 +419,13 @@ describe("record CRUD list", () => {
       method: "GET",
       url: "/api/collections/demo4/records",
       headers: { Authorization: superuserToken },
-      beforeTest: (app) => {
-        app.OnRecordsListRequest().BindFunc((event) => {
+      beforeTest: async (app) => {
+        app.OnRecordsListRequest().BindFunc(async (event) => {
           const original = event.App;
-          return event.App.RunInTransaction((txApp) => {
+          return await event.App.RunInTransaction(async (txApp) => {
             event.App = txApp;
             try {
-              const result = event.Next();
+              const result = await event.Next();
               if (result instanceof Error) {
                 return result;
               }
@@ -646,7 +646,7 @@ describe("record CRUD list", () => {
       name: "RateLimit rule - view2:list",
       method: "GET",
       url: "/api/collections/view2/records",
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         app.settings().rateLimits.enabled = true;
         app.settings().rateLimits.rules = [
           { maxRequests: 100, label: "abc", duration: 1 },
@@ -662,7 +662,7 @@ describe("record CRUD list", () => {
       name: "RateLimit rule - *:list",
       method: "GET",
       url: "/api/collections/view2/records",
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         app.settings().rateLimits.enabled = true;
         app.settings().rateLimits.rules = [
           { maxRequests: 100, label: "abc", duration: 1 },
@@ -810,13 +810,13 @@ describe("record CRUD view", () => {
       method: "GET",
       url: "/api/collections/demo1/records/al1h9ijdeojtsjy",
       headers: { Authorization: superuserToken },
-      beforeTest: (app) => {
-        app.OnRecordViewRequest().BindFunc((event) => {
+      beforeTest: async (app) => {
+        app.OnRecordViewRequest().BindFunc(async (event) => {
           const original = event.App;
-          return event.App.RunInTransaction((txApp) => {
+          return await event.App.RunInTransaction(async (txApp) => {
             event.App = txApp;
             try {
-              const result = event.Next();
+              const result = await event.Next();
               if (result instanceof Error) {
                 return result;
               }
@@ -952,7 +952,7 @@ describe("record CRUD view", () => {
       name: "RateLimit rule - numeric_id_view:view",
       method: "GET",
       url: "/api/collections/numeric_id_view/records/1",
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         app.settings().rateLimits.enabled = true;
         app.settings().rateLimits.rules = [
           { maxRequests: 100, label: "abc", duration: 1 },
@@ -968,7 +968,7 @@ describe("record CRUD view", () => {
       name: "RateLimit rule - *:view",
       method: "GET",
       url: "/api/collections/numeric_id_view/records/1",
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         app.settings().rateLimits.enabled = true;
         app.settings().rateLimits.rules = [
           { maxRequests: 100, label: "abc", duration: 1 },
@@ -1109,13 +1109,13 @@ describe("record CRUD delete", () => {
       method: "DELETE",
       url: "/api/collections/clients/records/o1y0dd0spd786md",
       headers: { Authorization: superuserToken },
-      beforeTest: (app) => {
-        app.OnRecordDeleteRequest().BindFunc((event) => {
+      beforeTest: async (app) => {
+        app.OnRecordDeleteRequest().BindFunc(async (event) => {
           const original = event.App;
-          return event.App.RunInTransaction((txApp) => {
+          return await event.App.RunInTransaction(async (txApp) => {
             event.App = txApp;
             try {
-              const result = event.Next();
+              const result = await event.Next();
               if (result instanceof Error) {
                 return result;
               }
@@ -1282,7 +1282,7 @@ describe("record CRUD delete", () => {
       name: "RateLimit rule - demo5:delete",
       method: "DELETE",
       url: "/api/collections/demo5/records/la4y2w4o98acwuj?test=1",
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         app.settings().rateLimits.enabled = true;
         app.settings().rateLimits.rules = [
           { maxRequests: 100, label: "abc", duration: 1 },
@@ -1298,7 +1298,7 @@ describe("record CRUD delete", () => {
       name: "RateLimit rule - *:delete",
       method: "DELETE",
       url: "/api/collections/demo5/records/la4y2w4o98acwuj?test=1",
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         app.settings().rateLimits.enabled = true;
         app.settings().rateLimits.rules = [
           { maxRequests: 100, label: "abc", duration: 1 },
@@ -1556,13 +1556,13 @@ describe("record CRUD create", () => {
       headers: {
         "Content-Type": createMultipartRuleFail.contentType,
       },
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
         }
         collection.createRule = Pointer("@request.body.testPayload != 123");
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }
@@ -1579,13 +1579,13 @@ describe("record CRUD create", () => {
       headers: {
         "Content-Type": createMultipartRulePass.contentType,
       },
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
         }
         collection.createRule = Pointer("@request.body.testPayload = 123");
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }
@@ -1634,13 +1634,13 @@ describe("record CRUD create", () => {
       url: "/api/collections/demo2/records",
       body: `{"title":"new"}`,
       headers: { Authorization: superuserToken },
-      beforeTest: (app) => {
-        app.OnRecordCreateRequest().BindFunc((event) => {
+      beforeTest: async (app) => {
+        app.OnRecordCreateRequest().BindFunc(async (event) => {
           const original = event.App;
-          return event.App.RunInTransaction((txApp) => {
+          return await event.App.RunInTransaction(async (txApp) => {
             event.App = txApp;
             try {
-              const result = event.Next();
+              const result = await event.Next();
               if (result instanceof Error) {
                 return result;
               }
@@ -1985,7 +1985,7 @@ describe("record CRUD create", () => {
         "title": "test_create"
       }`,
       headers: { Authorization: clientsUserToken },
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
@@ -1995,7 +1995,7 @@ describe("record CRUD create", () => {
           throw new Error("failed to find demo3 title field");
         }
         titleField.SetHidden(true);
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }
@@ -2035,7 +2035,7 @@ describe("record CRUD create", () => {
         "title": "test_create"
       }`,
       headers: { Authorization: superuserToken },
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
@@ -2045,7 +2045,7 @@ describe("record CRUD create", () => {
           throw new Error("failed to find demo3 title field");
         }
         titleField.SetHidden(true);
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }
@@ -2083,7 +2083,7 @@ describe("record CRUD create", () => {
       method: "POST",
       url: "/api/collections/demo2/records",
       body: `{"title":"new"}`,
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         app.settings().rateLimits.enabled = true;
         app.settings().rateLimits.rules = [
           { maxRequests: 100, label: "abc", duration: 1 },
@@ -2100,7 +2100,7 @@ describe("record CRUD create", () => {
       method: "POST",
       url: "/api/collections/demo2/records",
       body: `{"title":"new"}`,
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         app.settings().rateLimits.enabled = true;
         app.settings().rateLimits.rules = [
           { maxRequests: 100, label: "abc", duration: 1 },
@@ -2119,7 +2119,7 @@ describe("record CRUD create", () => {
       method: "POST",
       url: "/api/collections/demo1/records",
       body: new Uint8Array(DefaultMaxBodySize + 5 + 20 + 2 + 1),
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo1");
         if (!collection) {
           throw new Error("failed to find demo1 collection");
@@ -2131,7 +2131,7 @@ describe("record CRUD create", () => {
         fileManyField.MaxSize = 10;
         fileManyField.MaxSelect = 2;
         jsonField.MaxSize = 2;
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }
@@ -2145,7 +2145,7 @@ describe("record CRUD create", () => {
       method: "POST",
       url: "/api/collections/demo1/records",
       body: new Uint8Array(DefaultMaxBodySize + 5 + 20 + 2),
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo1");
         if (!collection) {
           throw new Error("failed to find demo1 collection");
@@ -2157,7 +2157,7 @@ describe("record CRUD create", () => {
         fileManyField.MaxSize = 10;
         fileManyField.MaxSelect = 2;
         jsonField.MaxSize = 2;
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }
@@ -2439,13 +2439,13 @@ describe("record CRUD update", () => {
       headers: {
         "Content-Type": updateMultipartRuleFail.contentType,
       },
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
         }
         collection.updateRule = Pointer("@request.body.testPayload != 123");
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }
@@ -2462,13 +2462,13 @@ describe("record CRUD update", () => {
       headers: {
         "Content-Type": updateMultipartRulePass.contentType,
       },
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
         }
         collection.updateRule = Pointer("@request.body.testPayload = 123");
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }
@@ -2495,13 +2495,13 @@ describe("record CRUD update", () => {
       url: "/api/collections/demo2/records/0yxhwia2amd8gec",
       body: `{"title":"new"}`,
       headers: { Authorization: superuserToken },
-      beforeTest: (app) => {
-        app.OnRecordUpdateRequest().BindFunc((event) => {
+      beforeTest: async (app) => {
+        app.OnRecordUpdateRequest().BindFunc(async (event) => {
           const original = event.App;
-          return event.App.RunInTransaction((txApp) => {
+          return await event.App.RunInTransaction(async (txApp) => {
             event.App = txApp;
             try {
-              const result = event.Next();
+              const result = await event.Next();
               if (result instanceof Error) {
                 return result;
               }
@@ -2787,7 +2787,7 @@ describe("record CRUD update", () => {
         "emailVisibility":true,
         "name":"test"
       }`,
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const nologin = app.findCollectionByNameOrId("nologin");
         if (!nologin) {
           throw new Error("missing nologin collection");
@@ -2797,7 +2797,7 @@ describe("record CRUD update", () => {
           origin.SetCollectionRef(nologin.Id);
           origin.SetRecordRef("dc49k6jgejn40h3");
           origin.SetFingerprint(`abc_${i}`);
-          const err = app.Save(origin);
+          const err = await app.Save(origin);
           if (err) {
             throw err;
           }
@@ -2845,7 +2845,7 @@ describe("record CRUD update", () => {
         "passwordConfirm":"123456789",
         "oldPassword":"1234567890"
       }`,
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const nologin = app.findCollectionByNameOrId("nologin");
         if (!nologin) {
           throw new Error("missing nologin collection");
@@ -2855,7 +2855,7 @@ describe("record CRUD update", () => {
           origin.SetCollectionRef(nologin.Id);
           origin.SetRecordRef("dc49k6jgejn40h3");
           origin.SetFingerprint(`abc_${i}`);
-          const err = app.Save(origin);
+          const err = await app.Save(origin);
           if (err) {
             throw err;
           }
@@ -2905,7 +2905,7 @@ describe("record CRUD update", () => {
         "title": "test_update"
       }`,
       headers: { Authorization: clientsUserToken },
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
@@ -2915,7 +2915,7 @@ describe("record CRUD update", () => {
           throw new Error("failed to find demo3 title field");
         }
         titleField.SetHidden(true);
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }
@@ -2954,7 +2954,7 @@ describe("record CRUD update", () => {
         "title": "test_update"
       }`,
       headers: { Authorization: superuserToken },
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
@@ -2964,7 +2964,7 @@ describe("record CRUD update", () => {
           throw new Error("failed to find demo3 title field");
         }
         titleField.SetHidden(true);
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }
@@ -3002,7 +3002,7 @@ describe("record CRUD update", () => {
       method: "PATCH",
       url: "/api/collections/demo2/records/0yxhwia2amd8gec",
       body: `{"title":"new"}`,
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         app.settings().rateLimits.enabled = true;
         app.settings().rateLimits.rules = [
           { maxRequests: 100, label: "abc", duration: 1 },
@@ -3019,7 +3019,7 @@ describe("record CRUD update", () => {
       method: "PATCH",
       url: "/api/collections/demo2/records/0yxhwia2amd8gec",
       body: `{"title":"new"}`,
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         app.settings().rateLimits.enabled = true;
         app.settings().rateLimits.rules = [
           { maxRequests: 100, label: "abc", duration: 1 },
@@ -3038,7 +3038,7 @@ describe("record CRUD update", () => {
       method: "PATCH",
       url: "/api/collections/demo1/records/imy661ixudk5izi",
       body: new Uint8Array(DefaultMaxBodySize + 5 + 20 + 2 + 1),
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo1");
         if (!collection) {
           throw new Error("failed to find demo1 collection");
@@ -3050,7 +3050,7 @@ describe("record CRUD update", () => {
         fileManyField.MaxSize = 10;
         fileManyField.MaxSelect = 2;
         jsonField.MaxSize = 2;
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }
@@ -3064,7 +3064,7 @@ describe("record CRUD update", () => {
       method: "PATCH",
       url: "/api/collections/demo1/records/imy661ixudk5izi",
       body: new Uint8Array(DefaultMaxBodySize + 5 + 20 + 2),
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const collection = app.findCollectionByNameOrId("demo1");
         if (!collection) {
           throw new Error("failed to find demo1 collection");
@@ -3076,7 +3076,7 @@ describe("record CRUD update", () => {
         fileManyField.MaxSize = 10;
         fileManyField.MaxSelect = 2;
         jsonField.MaxSize = 2;
-        const err = app.Save(collection);
+        const err = await app.Save(collection);
         if (err) {
           throw err;
         }

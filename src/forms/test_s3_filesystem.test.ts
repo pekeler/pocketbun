@@ -56,7 +56,7 @@ describe("TestS3Filesystem", () => {
         const form = NewTestS3Filesystem(app);
         form.Filesystem = "";
 
-        const result = form.Submit();
+        const result = await form.Submit();
         if (!result) {
           throw new Error("Expected error, got nil");
         }
@@ -69,7 +69,7 @@ describe("TestS3Filesystem", () => {
         const form = NewTestS3Filesystem(app);
         form.Filesystem = "storage";
 
-        const result = form.Submit();
+        const result = await form.Submit();
         if (!result) {
           throw new Error("Expected error, got nil");
         }

@@ -11,7 +11,7 @@ export type SuperuserOtpResult = {
   password: string;
 };
 
-export function superuserUpsert(app: App, email: string, password: string): Record {
+export async function superuserUpsert(app: App, email: string, password: string): Promise<Record> {
   ensureReady(app);
   validateEmail(email, "missing or invalid email address");
 
@@ -26,7 +26,7 @@ export function superuserUpsert(app: App, email: string, password: string): Reco
   superuser.SetEmail(email);
   superuser.SetPassword(password);
 
-  const err = app.Save(superuser);
+  const err = await app.Save(superuser);
   if (err) {
     throw new Error(`failed to upsert superuser account: ${err.message}`);
   }
@@ -34,7 +34,7 @@ export function superuserUpsert(app: App, email: string, password: string): Reco
   return superuser;
 }
 
-export function superuserCreate(app: App, email: string, password: string): Record {
+export async function superuserCreate(app: App, email: string, password: string): Promise<Record> {
   ensureReady(app);
   validateEmail(email, "missing or invalid email address");
 
@@ -43,7 +43,7 @@ export function superuserCreate(app: App, email: string, password: string): Reco
   superuser.SetEmail(email);
   superuser.SetPassword(password);
 
-  const err = app.Save(superuser);
+  const err = await app.Save(superuser);
   if (err) {
     throw new Error(`failed to create new superuser account: ${err.message}`);
   }
@@ -51,7 +51,7 @@ export function superuserCreate(app: App, email: string, password: string): Reco
   return superuser;
 }
 
-export function superuserUpdate(app: App, email: string, password: string): Record {
+export async function superuserUpdate(app: App, email: string, password: string): Promise<Record> {
   ensureReady(app);
   validateEmail(email, "missing or invalid email address");
 
@@ -64,7 +64,7 @@ export function superuserUpdate(app: App, email: string, password: string): Reco
 
   superuser.SetPassword(password);
 
-  const err = app.Save(superuser);
+  const err = await app.Save(superuser);
   if (err) {
     throw new Error(`failed to change superuser ${JSON.stringify(superuser.Email())} password: ${err.message}`);
   }
@@ -72,7 +72,7 @@ export function superuserUpdate(app: App, email: string, password: string): Reco
   return superuser;
 }
 
-export function superuserDelete(app: App, email: string): boolean {
+export async function superuserDelete(app: App, email: string): Promise<boolean> {
   ensureReady(app);
   validateEmail(email, "invalid or missing email address");
 
@@ -83,7 +83,7 @@ export function superuserDelete(app: App, email: string): boolean {
     return false;
   }
 
-  const err = app.Delete(superuser);
+  const err = await app.Delete(superuser);
   if (err) {
     throw new Error(`failed to delete superuser ${JSON.stringify(superuser.Email())}: ${err.message}`);
   }
@@ -91,7 +91,7 @@ export function superuserDelete(app: App, email: string): boolean {
   return true;
 }
 
-export function superuserOTP(app: App, email: string): SuperuserOtpResult {
+export async function superuserOTP(app: App, email: string): Promise<SuperuserOtpResult> {
   ensureReady(app);
   validateEmail(email, "invalid or missing email address");
 
@@ -112,7 +112,7 @@ export function superuserOTP(app: App, email: string): SuperuserOtpResult {
   otp.SetRecordRef(superuser.Id);
   otp.ProxyRecord().SetPassword(password);
 
-  const err = app.Save(otp);
+  const err = await app.Save(otp);
   if (err) {
     throw new Error(`failed to create OTP: ${err.message}`);
   }

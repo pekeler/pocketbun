@@ -29,7 +29,7 @@ const scenarios: Scenario[] = [
         throw new Error("Missing users collection");
       }
       usersCol.OTP.Enabled = false;
-      const err = app.Save(usersCol);
+      const err = await app.Save(usersCol);
       if (err) {
         throw new Error(err.message);
       }
@@ -102,7 +102,7 @@ const scenarios: Scenario[] = [
           otp.ProxyRecord().SetRaw("created", expired);
           otp.ProxyRecord().SetRaw("updated", expired);
         }
-        const err = app.SaveNoValidate(otp);
+        const err = await app.SaveNoValidate(otp);
         if (err) {
           throw new Error(err.message);
         }
@@ -190,7 +190,7 @@ const scenarios: Scenario[] = [
         otp.SetCollectionRef(user.collection().Id);
         otp.SetRecordRef(user.Id);
         otp.ProxyRecord().SetPassword("123456");
-        const err = app.SaveNoValidate(otp);
+        const err = await app.SaveNoValidate(otp);
         if (err) {
           throw new Error(err.message);
         }
@@ -215,11 +215,11 @@ const scenarios: Scenario[] = [
     body: '{"email":"test@example.com"}',
     delayMs: 100,
     beforeTest: async (app: TestApp) => {
-      app.OnRecordCreateOTPRequest().BindFunc((event: any) => {
+      app.OnRecordCreateOTPRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });

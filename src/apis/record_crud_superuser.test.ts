@@ -136,7 +136,7 @@ describe("record crud superuser delete", () => {
       method: "DELETE",
       url: `/api/collections/${CollectionNameSuperusers}/records/sywbhecnh46rhm0`,
       headers: { Authorization: superuserToken },
-      beforeTest: (app) => {
+      beforeTest: async (app) => {
         const superusers = app.FindAllRecords(
           CollectionNameSuperusers,
           Not(
@@ -146,7 +146,7 @@ describe("record crud superuser delete", () => {
           ),
         );
         for (const superuser of superusers) {
-          const err = app.Delete(superuser);
+          const err = await app.Delete(superuser);
           if (err) {
             throw err;
           }

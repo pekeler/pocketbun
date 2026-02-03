@@ -137,7 +137,7 @@ describe("external auth", () => {
 
       {
         const externalAuth = new ExternalAuth();
-        const err = app.Validate(externalAuth);
+        const err = await app.Validate(externalAuth);
         expect(err).not.toBeNull();
       }
 
@@ -149,7 +149,7 @@ describe("external auth", () => {
         externalAuth.SetProvider("gitlab");
         externalAuth.SetProviderId("test123");
 
-        const err = app.Validate(externalAuth);
+        const err = await app.Validate(externalAuth);
         expect(err).not.toBeNull();
       }
 
@@ -161,7 +161,7 @@ describe("external auth", () => {
         externalAuth.SetProvider("gitlab");
         externalAuth.SetProviderId("test123");
 
-        const err = app.Validate(externalAuth);
+        const err = await app.Validate(externalAuth);
         expect(err).toBeNull();
       }
     } finally {
@@ -232,7 +232,7 @@ describe("external auth", () => {
       ];
 
       for (const scenario of scenarios) {
-        const errs = app.Validate(scenario.externalAuth());
+        const errs = await app.Validate(scenario.externalAuth());
         testValidationErrors(errs, scenario.expectErrors);
       }
     } finally {

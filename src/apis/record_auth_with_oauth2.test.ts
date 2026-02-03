@@ -173,7 +173,7 @@ const scenarios: Scenario[] = [
     headers: {
       Authorization: otherUserToken,
     },
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
       if (user.Verified()) {
         throw new Error(`Expected user ${user.Email()} to be unverified`);
@@ -188,7 +188,7 @@ const scenarios: Scenario[] = [
       collection.MFA.Enabled = false;
       collection.OAuth2.Enabled = true;
       setOAuthProviders(collection, "test");
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -198,7 +198,7 @@ const scenarios: Scenario[] = [
       externalAuth.SetRecordRef(user.Id);
       externalAuth.SetProvider("test");
       externalAuth.SetProviderId("test_id");
-      const relErr = app.Save(externalAuth);
+      const relErr = await app.Save(externalAuth);
       if (relErr) {
         throw new Error(relErr.message);
       }
@@ -266,7 +266,7 @@ const scenarios: Scenario[] = [
       code: "123",
       redirectURL: "https://example.com",
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const user = app.FindAuthRecordByEmail("users", "test2@example.com");
       if (!user.Verified()) {
         throw new Error(`Expected user ${user.Email()} to be verified`);
@@ -281,7 +281,7 @@ const scenarios: Scenario[] = [
       collection.MFA.Enabled = false;
       collection.OAuth2.Enabled = true;
       setOAuthProviders(collection, "test");
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -291,7 +291,7 @@ const scenarios: Scenario[] = [
       externalAuth.SetRecordRef(user.Id);
       externalAuth.SetProvider("test");
       externalAuth.SetProviderId("test_id");
-      const relErr = app.Save(externalAuth);
+      const relErr = await app.Save(externalAuth);
       if (relErr) {
         throw new Error(relErr.message);
       }
@@ -342,7 +342,7 @@ const scenarios: Scenario[] = [
       code: "123",
       redirectURL: "https://example.com",
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
       if (user.Verified()) {
         throw new Error(`Expected user ${user.Email()} to be unverified`);
@@ -357,7 +357,7 @@ const scenarios: Scenario[] = [
       collection.MFA.Enabled = false;
       collection.OAuth2.Enabled = true;
       setOAuthProviders(collection, "test");
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -417,7 +417,7 @@ const scenarios: Scenario[] = [
     headers: {
       Authorization: userToken,
     },
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
       if (user.Verified()) {
         throw new Error(`Expected user ${user.Email()} to be unverified`);
@@ -432,7 +432,7 @@ const scenarios: Scenario[] = [
       collection.MFA.Enabled = false;
       collection.OAuth2.Enabled = true;
       setOAuthProviders(collection, "test");
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -486,7 +486,7 @@ const scenarios: Scenario[] = [
     headers: {
       Authorization: userToken,
     },
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
       if (user.Verified()) {
         throw new Error(`Expected user ${user.Email()} to be unverified`);
@@ -498,13 +498,13 @@ const scenarios: Scenario[] = [
       const oldTokenKey = user.TokenKey();
 
       user.SetEmail("");
-      let saveErr = app.Save(user);
+      let saveErr = await app.Save(user);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
 
       user.SetTokenKey(oldTokenKey);
-      saveErr = app.Save(user);
+      saveErr = await app.Save(user);
       if (saveErr) {
         throw new Error(`Failed to restore original user tokenKey: ${saveErr.message}`);
       }
@@ -515,7 +515,7 @@ const scenarios: Scenario[] = [
       collection.MFA.Enabled = false;
       collection.OAuth2.Enabled = true;
       setOAuthProviders(collection, "test");
-      saveErr = app.Save(collection);
+      saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -575,7 +575,7 @@ const scenarios: Scenario[] = [
     headers: {
       Authorization: userToken,
     },
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
       if (user.Verified()) {
         throw new Error(`Expected user ${user.Email()} to be unverified`);
@@ -590,7 +590,7 @@ const scenarios: Scenario[] = [
       collection.MFA.Enabled = false;
       collection.OAuth2.Enabled = true;
       setOAuthProviders(collection, "test");
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -647,7 +647,7 @@ const scenarios: Scenario[] = [
       code: "123",
       redirectURL: "https://example.com",
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const collection = app.findCollectionByNameOrId("users");
       if (!collection) {
         throw new Error("Missing users collection");
@@ -658,7 +658,7 @@ const scenarios: Scenario[] = [
       collection.MFA.Enabled = false;
       collection.OAuth2.Enabled = true;
       setOAuthProviders(collection, "test");
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -703,7 +703,7 @@ const scenarios: Scenario[] = [
         file: "invalid",
       },
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const collection = app.findCollectionByNameOrId("users");
       if (!collection) {
         throw new Error("Missing users collection");
@@ -714,7 +714,7 @@ const scenarios: Scenario[] = [
       collection.MFA.Enabled = false;
       collection.OAuth2.Enabled = true;
       setOAuthProviders(collection, "test");
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -742,7 +742,7 @@ const scenarios: Scenario[] = [
         file: "invalid",
       },
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const collection = app.findCollectionByNameOrId("users");
       if (!collection) {
         throw new Error("Missing users collection");
@@ -753,7 +753,7 @@ const scenarios: Scenario[] = [
       collection.MFA.Enabled = false;
       collection.OAuth2.Enabled = true;
       setOAuthProviders(collection, "test");
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -790,7 +790,7 @@ const scenarios: Scenario[] = [
         rel: "0yxhwia2amd8gec",
       },
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const collection = app.findCollectionByNameOrId("users");
       if (!collection) {
         throw new Error("Missing users collection");
@@ -801,7 +801,7 @@ const scenarios: Scenario[] = [
       collection.MFA.Enabled = false;
       collection.OAuth2.Enabled = true;
       setOAuthProviders(collection, "test");
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -863,7 +863,7 @@ const scenarios: Scenario[] = [
         rel: "0yxhwia2amd8gec",
       },
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const collection = app.findCollectionByNameOrId("users");
       if (!collection) {
         throw new Error("Missing users collection");
@@ -874,7 +874,7 @@ const scenarios: Scenario[] = [
       collection.MFA.Enabled = false;
       collection.OAuth2.Enabled = true;
       setOAuthProviders(collection, "test");
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -925,7 +925,7 @@ const scenarios: Scenario[] = [
         rel: "0yxhwia2amd8gec",
       },
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       if (!avatarBaseUrl) {
         throw new Error("Missing avatar server");
       }
@@ -951,7 +951,7 @@ const scenarios: Scenario[] = [
         Username: "name",
         AvatarURL: "avatar",
       };
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -999,7 +999,7 @@ const scenarios: Scenario[] = [
       code: "123",
       redirectURL: "https://example.com",
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const collection = app.findCollectionByNameOrId("users");
       if (!collection) {
         throw new Error("Missing users collection");
@@ -1020,7 +1020,7 @@ const scenarios: Scenario[] = [
         Username: "",
         AvatarURL: "avatar",
       };
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -1065,7 +1065,7 @@ const scenarios: Scenario[] = [
       code: "123",
       redirectURL: "https://example.com",
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       if (!avatarBaseUrl) {
         throw new Error("Missing avatar server");
       }
@@ -1092,7 +1092,7 @@ const scenarios: Scenario[] = [
         Username: "username",
         AvatarURL: "name",
       };
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -1139,7 +1139,7 @@ const scenarios: Scenario[] = [
       code: "123",
       redirectURL: "https://example.com",
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const collection = app.findCollectionByNameOrId("users");
       if (!collection) {
         throw new Error("Missing users collection");
@@ -1170,7 +1170,7 @@ const scenarios: Scenario[] = [
         Username: "username",
         AvatarURL: "",
       };
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -1216,7 +1216,7 @@ const scenarios: Scenario[] = [
       code: "123",
       redirectURL: "https://example.com",
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const collection = app.findCollectionByNameOrId("users");
       if (!collection) {
         throw new Error("Missing users collection");
@@ -1238,7 +1238,7 @@ const scenarios: Scenario[] = [
         Username: "username",
         AvatarURL: "",
       };
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -1284,7 +1284,7 @@ const scenarios: Scenario[] = [
       code: "123",
       redirectURL: "https://example.com",
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
 
       setTestProvider({ Id: "test_id" });
@@ -1293,7 +1293,7 @@ const scenarios: Scenario[] = [
       collection.MFA.Enabled = false;
       collection.OAuth2.Enabled = true;
       setOAuthProviders(collection, "test");
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -1303,16 +1303,16 @@ const scenarios: Scenario[] = [
       externalAuth.SetRecordRef(user.Id);
       externalAuth.SetProvider("test");
       externalAuth.SetProviderId("test_id");
-      const relErr = app.Save(externalAuth);
+      const relErr = await app.Save(externalAuth);
       if (relErr) {
         throw new Error(relErr.message);
       }
 
-      app.OnRecordAuthWithOAuth2Request().BindFunc((authEvent: any) => {
+      app.OnRecordAuthWithOAuth2Request().BindFunc(async (authEvent: any) => {
         const original = authEvent.App;
-        authEvent.App.RunInTransaction((txApp: any) => {
+        await authEvent.App.RunInTransaction(async (txApp: any) => {
           authEvent.App = txApp;
-          void authEvent.Next();
+          await authEvent.Next();
           authEvent.App = original;
           return new Error("TX_ERROR");
         });
@@ -1337,7 +1337,7 @@ const scenarios: Scenario[] = [
       code: "test_code",
       redirectURL: "https://example.com",
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const collection = app.findCollectionByNameOrId("users");
       if (!collection) {
         throw new Error("Missing users collection");
@@ -1349,7 +1349,7 @@ const scenarios: Scenario[] = [
       collection.MFA.Enabled = false;
       collection.OAuth2.Enabled = true;
       setOAuthProviders(collection, NameApple);
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -1371,7 +1371,7 @@ const scenarios: Scenario[] = [
       code: "test_code",
       redirectURL: "https://example.com",
     }),
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       const collection = app.findCollectionByNameOrId("users");
       if (!collection) {
         throw new Error("Missing users collection");
@@ -1383,7 +1383,7 @@ const scenarios: Scenario[] = [
       collection.MFA.Enabled = false;
       collection.OAuth2.Enabled = true;
       setOAuthProviders(collection, "test");
-      const saveErr = app.Save(collection);
+      const saveErr = await app.Save(collection);
       if (saveErr) {
         throw new Error(saveErr.message);
       }
@@ -1400,7 +1400,7 @@ const scenarios: Scenario[] = [
     name: "RateLimit rule - users:authWithOAuth2",
     method: "POST",
     url: "/api/collections/users/auth-with-oauth2",
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       app.settings().rateLimits.enabled = true;
       app.settings().rateLimits.rules = [
         { maxRequests: 100, label: "abc", duration: 1 },
@@ -1417,7 +1417,7 @@ const scenarios: Scenario[] = [
     name: "RateLimit rule - *:authWithOAuth2",
     method: "POST",
     url: "/api/collections/users/auth-with-oauth2",
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       app.settings().rateLimits.enabled = true;
       app.settings().rateLimits.rules = [
         { maxRequests: 100, label: "abc", duration: 1 },
@@ -1433,7 +1433,7 @@ const scenarios: Scenario[] = [
     name: "RateLimit tag - users:auth",
     method: "POST",
     url: "/api/collections/users/auth-with-oauth2",
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       app.settings().rateLimits.enabled = true;
       app.settings().rateLimits.rules = [
         { maxRequests: 100, label: "abc", duration: 1 },
@@ -1449,7 +1449,7 @@ const scenarios: Scenario[] = [
     name: "RateLimit tag - *:auth",
     method: "POST",
     url: "/api/collections/users/auth-with-oauth2",
-    beforeTest: (app) => {
+    beforeTest: async (app) => {
       app.settings().rateLimits.enabled = true;
       app.settings().rateLimits.rules = [
         { maxRequests: 100, label: "abc", duration: 1 },

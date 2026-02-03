@@ -33,7 +33,7 @@ export class TestS3Filesystem {
   }
 
   // Submit validates and performs a S3 filesystem connection test.
-  Submit(): Error | null {
+  async Submit(): Promise<Error | null> {
     const err = this.Validate();
     if (err) {
       return err;
@@ -69,18 +69,18 @@ export class TestS3Filesystem {
       const testFileKey = `${testPrefix}/test.txt`;
 
       try {
-        fsys.Upload(new TextEncoder().encode("test"), testFileKey);
+        await fsys.Upload(new TextEncoder().encode("test"), testFileKey);
       } catch (error) {
         return new Error(`failed to upload a test file: ${(error as Error).message}`);
       }
 
-      const deleteErrors = fsys.DeletePrefix(testPrefix);
+      const deleteErrors = await fsys.DeletePrefix(testPrefix);
       if (deleteErrors.length > 0) {
         const first = deleteErrors[0];
         return new Error(`failed to delete a test file: ${first?.message ?? String(first)}`);
       }
     } finally {
-      fsys.Close();
+      await fsys.Close();
     }
 
     return null;

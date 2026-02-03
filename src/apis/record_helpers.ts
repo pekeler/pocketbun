@@ -132,7 +132,7 @@ export async function RecordAuthResponseWithToken(
     }
 
     if (authMethod && authRecord.collection().AuthAlert.Enabled) {
-      const alertErr = authAlert(event, authRecord);
+      const alertErr = await authAlert(event, authRecord);
       if (alertErr) {
         event.app.Logger().Warn("[recordAuthResponse] Failed to send login alert", "error", alertErr);
       }
@@ -455,7 +455,7 @@ async function checkMFA(event: RequestEvent, authRecord: RecordModel, currentAut
     mfa.SetCollectionRef(authRecord.collection().Id);
     mfa.SetRecordRef(authRecord.Id);
     mfa.SetMethod(currentAuthMethod);
-    const saveErr = event.app.Save(mfa);
+    const saveErr = await event.app.Save(mfa);
     if (saveErr) {
       return { mfaId: "", response: internalServerError(event, "Failed to create MFA record", saveErr) };
     }
@@ -469,9 +469,9 @@ async function checkMFA(event: RequestEvent, authRecord: RecordModel, currentAut
     mfa = null;
   }
 
-  const deleteMFA = () => {
+  const deleteMFA = async () => {
     if (mfa) {
-      const err = event.app.Delete(mfa);
+      const err = await event.app.Delete(mfa);
       if (err) {
         event.app.Logger().Warn("Failed to delete expired MFA record", "error", err, "mfaId", mfa.Id);
       }
@@ -479,7 +479,7 @@ async function checkMFA(event: RequestEvent, authRecord: RecordModel, currentAut
   };
 
   if (!mfa || mfa.HasExpired(authRecord.collection().MFA.DurationTime() * 1000)) {
-    deleteMFA();
+    await deleteMFA();
     return { mfaId: "", response: badRequest(event, "Invalid or expired MFA session.") };
   }
 
@@ -491,14 +491,14 @@ async function checkMFA(event: RequestEvent, authRecord: RecordModel, currentAut
     return { mfaId: "", response: badRequest(event, "A different authentication method is required.") };
   }
 
-  deleteMFA();
+  await deleteMFA();
 
   return { mfaId: "", response: null };
 }
 
 const maxAuthOrigins = 5;
 
-function authAlert(event: RequestEvent, authRecord: RecordModel): Error | null {
+async function authAlert(event: RequestEvent, authRecord: RecordModel): Promise<Error | null> {
   const ip = event.realIP();
 
   let userAgent = event.request.headers.get("User-Agent") ?? "";
@@ -527,7 +527,7 @@ function authAlert(event: RequestEvent, authRecord: RecordModel): Error | null {
   }
 
   if (!isFirstLogin && currentOrigin.IsNew() && authRecord.Email() !== "") {
-    const sendErr = SendRecordAuthAlert(event.app, authRecord, alertInfo);
+    const sendErr = await SendRecordAuthAlert(event.app, authRecord, alertInfo);
     if (sendErr) {
       return sendErr;
     }
@@ -539,14 +539,14 @@ function authAlert(event: RequestEvent, authRecord: RecordModel): Error | null {
       if (!origin) {
         continue;
       }
-      const err = event.app.Delete(origin);
+      const err = await event.app.Delete(origin);
       if (err) {
         event.app.Logger().Warn("Failed to delete old AuthOrigin record", "error", err, "authOriginId", origin.Id);
       }
     }
   }
 
-  return event.app.Save(currentOrigin);
+  return await event.app.Save(currentOrigin);
 }
 
 function appendWhere(baseSql: string, clause: string): string {

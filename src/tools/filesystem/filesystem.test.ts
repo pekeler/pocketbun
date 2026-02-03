@@ -1,7 +1,7 @@
 // Ported from pocketbase/tools/filesystem/filesystem_test.go
 
 import { describe, expect, it } from "bun:test";
-import { rm } from "node:fs/promises";
+import { rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { NewFileFromPath } from "./file.ts";
 import { detectMimeTypeFromBytes } from "./file.ts";
@@ -54,7 +54,7 @@ describe("filesystem system", () => {
       ];
 
       for (const scenario of scenarios) {
-        const exists = fsys.Exists(scenario.file);
+        const exists = await fsys.Exists(scenario.file);
         expect(exists).toBe(scenario.exists);
       }
     } finally {
@@ -78,7 +78,7 @@ describe("filesystem system", () => {
         let err: Error | null = null;
         let attrs: Attributes | null = null;
         try {
-          attrs = fsys.Attributes(scenario.file);
+          attrs = await fsys.Attributes(scenario.file);
         } catch (error) {
           err = error as Error;
         }
@@ -103,13 +103,13 @@ describe("filesystem system", () => {
 
       let err: Error | null = null;
       try {
-        fsys.Delete("missing.txt");
+        await fsys.Delete("missing.txt");
       } catch (error) {
         err = error as Error;
       }
       expect(err instanceof NotFoundError).toBe(true);
 
-      expect(() => fsys.Delete("image.png")).not.toThrow();
+      await fsys.Delete("image.png");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -120,15 +120,21 @@ describe("filesystem system", () => {
     try {
       const fsys = NewLocal(dir);
 
-      expect(fsys.DeletePrefix("").length).toBeGreaterThan(0);
-      expect(fsys.DeletePrefix("missing").length).toBe(0);
-      expect(fsys.DeletePrefix("test").length).toBe(0);
+      expect((await fsys.DeletePrefix("")).length).toBeGreaterThan(0);
+      expect((await fsys.DeletePrefix("missing")).length).toBe(0);
+      expect((await fsys.DeletePrefix("test")).length).toBe(0);
 
-      expect(fsys.Exists("test/sub1.txt")).toBe(false);
-      expect(fsys.Exists("test/sub2.txt")).toBe(false);
+      expect(await fsys.Exists("test/sub1.txt")).toBe(false);
+      expect(await fsys.Exists("test/sub2.txt")).toBe(false);
 
       // prefix dir should remain
-      expect(fsys.Exists("test")).toBe(true);
+      let statErr: Error | null = null;
+      try {
+        await stat(join(dir, "test"));
+      } catch (error) {
+        statErr = error as Error;
+      }
+      expect(statErr).toBeNull();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -139,12 +145,18 @@ describe("filesystem system", () => {
     try {
       const fsys = NewLocal(dir);
 
-      expect(fsys.DeletePrefix("missing/").length).toBe(0);
-      expect(fsys.DeletePrefix("test/").length).toBe(0);
+      expect((await fsys.DeletePrefix("missing/")).length).toBe(0);
+      expect((await fsys.DeletePrefix("test/")).length).toBe(0);
 
-      expect(fsys.Exists("test/sub1.txt")).toBe(false);
-      expect(fsys.Exists("test/sub2.txt")).toBe(false);
-      expect(fsys.Exists("test")).toBe(false);
+      expect(await fsys.Exists("test/sub1.txt")).toBe(false);
+      expect(await fsys.Exists("test/sub2.txt")).toBe(false);
+      let statErr: Error | null = null;
+      try {
+        await stat(join(dir, "test"));
+      } catch (error) {
+        statErr = error as Error;
+      }
+      expect((statErr as NodeJS.ErrnoException | null)?.code).toBe("ENOENT");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -167,7 +179,7 @@ describe("filesystem system", () => {
       ];
 
       for (const scenario of scenarios) {
-        expect(fsys.IsEmptyDir(scenario.dir)).toBe(scenario.expected);
+        expect(await fsys.IsEmptyDir(scenario.dir)).toBe(scenario.expected);
       }
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -179,11 +191,11 @@ describe("filesystem system", () => {
     try {
       const fsys = NewLocal(dir);
       const fileKey = "newdir/newkey.txt";
-      fsys.UploadMultipart({ filename: "test", size: 4, buffer: new TextEncoder().encode("demo") }, fileKey);
+      await fsys.UploadMultipart({ filename: "test", size: 4, buffer: new TextEncoder().encode("demo") }, fileKey);
 
-      expect(fsys.Exists(fileKey)).toBe(true);
+      expect(await fsys.Exists(fileKey)).toBe(true);
 
-      const attrs = fsys.Attributes(fileKey);
+      const attrs = await fsys.Attributes(fileKey);
       expect(attrs.Metadata[metadataOriginalName]).toBe("test");
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -198,10 +210,10 @@ describe("filesystem system", () => {
       const file = NewFileFromPath(join(dir, "image.svg"));
       file.OriginalName = "test.txt";
 
-      fsys.UploadFile(file, fileKey);
+      await fsys.UploadFile(file, fileKey);
 
-      expect(fsys.Exists(fileKey)).toBe(true);
-      const attrs = fsys.Attributes(fileKey);
+      expect(await fsys.Exists(fileKey)).toBe(true);
+      const attrs = await fsys.Attributes(fileKey);
       expect(attrs.Metadata[metadataOriginalName]).toBe(file.OriginalName);
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -213,8 +225,8 @@ describe("filesystem system", () => {
     try {
       const fsys = NewLocal(dir);
       const fileKey = "newdir/newkey.txt";
-      fsys.Upload(new TextEncoder().encode("demo"), fileKey);
-      expect(fsys.Exists(fileKey)).toBe(true);
+      await fsys.Upload(new TextEncoder().encode("demo"), fileKey);
+      expect(await fsys.Exists(fileKey)).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -360,7 +372,7 @@ describe("filesystem system", () => {
         }
         const query = new URLSearchParams(scenario.query).toString();
         const url = query ? `/?${query}` : "/";
-        const err = fsys.Serve(res, { url, headers: {} }, scenario.path, scenario.name);
+        const err = await fsys.Serve(res, { url, headers: {} }, scenario.path, scenario.name);
 
         expect(Boolean(err)).toBe(scenario.expectError);
         if (scenario.expectError || !scenario.expected) {
@@ -371,7 +383,7 @@ describe("filesystem system", () => {
           expect(res.header(header)).toBe(value);
         }
 
-        const attrs = fsys.Attributes(scenario.path);
+        const attrs = await fsys.Attributes(scenario.path);
         expect(res.header("Content-Length")).toBe(String(attrs.Size));
       }
     } finally {
@@ -393,7 +405,7 @@ describe("filesystem system", () => {
         let err: Error | null = null;
         let content = "";
         try {
-          const reader = fsys.GetReader(scenario.file);
+          const reader = await fsys.GetReader(scenario.file);
           content = new TextDecoder().decode(reader.readAll());
         } catch (error) {
           err = error as Error;
@@ -414,9 +426,15 @@ describe("filesystem system", () => {
     const dir = await createTestDir();
     try {
       const fsys = NewLocal(dir);
-      expect(() => fsys.GetReuploadableFile("missing.txt", false)).toThrow();
+      let missingErr: Error | null = null;
+      try {
+        await fsys.GetReuploadableFile("missing.txt", false);
+      } catch (error) {
+        missingErr = error as Error;
+      }
+      expect(missingErr instanceof NotFoundError).toBe(true);
 
-      const preserve = fsys.GetReuploadableFile("test/sub1.txt", true);
+      const preserve = await fsys.GetReuploadableFile("test/sub1.txt", true);
       expect(preserve.OriginalName).toBe("sub1.txt");
       expect(preserve.Size).toBe(4);
       expect(preserve.Name).toBe("sub1.txt");
@@ -425,7 +443,7 @@ describe("filesystem system", () => {
       const raw = reader ? new TextDecoder().decode(reader.readAll()) : "";
       expect(raw).toBe("sub1");
 
-      const renamed = fsys.GetReuploadableFile("test/sub1.txt", false);
+      const renamed = await fsys.GetReuploadableFile("test/sub1.txt", false);
       expect(renamed.OriginalName).toBe("sub1.txt");
       expect(renamed.Size).toBe(4);
       expect(renamed.Name).not.toBe("sub1.txt");
@@ -439,11 +457,17 @@ describe("filesystem system", () => {
     const dir = await createTestDir();
     try {
       const fsys = NewLocal(dir);
-      expect(() => fsys.Copy("image.png_copy", "image.png")).toThrow();
+      let copyErr: Error | null = null;
+      try {
+        await fsys.Copy("image.png_copy", "image.png");
+      } catch (error) {
+        copyErr = error as Error;
+      }
+      expect(copyErr instanceof NotFoundError).toBe(true);
 
-      fsys.Copy("image.png", "image.png_copy");
+      await fsys.Copy("image.png", "image.png_copy");
 
-      const reader = fsys.GetReader("image.png_copy");
+      const reader = await fsys.GetReader("image.png_copy");
       expect(reader.Size()).toBeGreaterThan(0);
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -483,7 +507,7 @@ describe("filesystem system", () => {
       ];
 
       for (const scenario of scenarios) {
-        const objs = fsys.List(scenario.prefix);
+        const objs = await fsys.List(scenario.prefix);
         expect(objs.length).toBe(scenario.expected.length);
         for (const obj of objs) {
           expect(scenario.expected.includes(obj.Key)).toBe(true);
@@ -498,9 +522,9 @@ describe("filesystem system", () => {
     const dir = await createTestDir();
     try {
       const fsys = NewLocal(dir);
-      const attrs = fsys.Attributes("image.png");
+      const attrs = await fsys.Attributes("image.png");
       const res = new ResponseRecorder();
-      const err = fsys.Serve(res, { url: "/", headers: { Range: "bytes=0-20" } }, "image.png", "image.png");
+      const err = await fsys.Serve(res, { url: "/", headers: { Range: "bytes=0-20" } }, "image.png", "image.png");
       expect(err).toBeNull();
       expect(res.statusCode).toBe(206);
       expect(res.header("Content-Range")).toBe(`bytes 0-20/${attrs.Size}`);
@@ -515,7 +539,7 @@ describe("filesystem system", () => {
     try {
       const fsys = NewLocal(dir);
       const res = new ResponseRecorder();
-      const err = fsys.Serve(res, { url: "/", headers: { Range: "bytes=0-20, 25-30" } }, "image.png", "image.png");
+      const err = await fsys.Serve(res, { url: "/", headers: { Range: "bytes=0-20, 25-30" } }, "image.png", "image.png");
       expect(err).toBeNull();
       expect(res.statusCode).toBe(206);
       expect(res.header("Content-Type").startsWith("multipart/byteranges; boundary=")).toBe(true);
@@ -558,7 +582,7 @@ describe("filesystem system", () => {
           continue;
         }
 
-        const reader = fsys.GetReader(scenario.thumb);
+        const reader = await fsys.GetReader(scenario.thumb);
         const attrsMime = reader.ContentType();
         const contentMime = detectMimeTypeFromBytes(reader.readAll());
 

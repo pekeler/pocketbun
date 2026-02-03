@@ -132,7 +132,7 @@ describe("collection validate", () => {
       },
       {
         name: "changing type",
-        collection: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
+        collection: async (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
           const c = app.findCollectionByNameOrId("users");
           if (!c) {
             throw new Error("Missing users collection");
@@ -144,7 +144,7 @@ describe("collection validate", () => {
       },
       {
         name: "change from system to regular",
-        collection: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
+        collection: async (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
           const c = app.findCollectionByNameOrId(CollectionNameSuperusers);
           if (!c) {
             throw new Error("Missing superusers collection");
@@ -156,7 +156,7 @@ describe("collection validate", () => {
       },
       {
         name: "change from regular to system",
-        collection: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
+        collection: async (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
           const c = app.findCollectionByNameOrId("demo1");
           if (!c) {
             throw new Error("Missing demo1 collection");
@@ -204,7 +204,7 @@ describe("collection validate", () => {
       },
       {
         name: "changing id",
-        collection: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
+        collection: async (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
           const c = app.findCollectionByNameOrId("demo3");
           if (!c) {
             throw new Error("Missing demo3 collection");
@@ -262,7 +262,7 @@ describe("collection validate", () => {
       },
       {
         name: "update with existing collection name",
-        collection: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
+        collection: async (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
           const c = app.findCollectionByNameOrId("users");
           if (!c) {
             throw new Error("Missing users collection");
@@ -274,7 +274,7 @@ describe("collection validate", () => {
       },
       {
         name: "update with existing internal table name",
-        collection: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
+        collection: async (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
           const c = app.findCollectionByNameOrId("users");
           if (!c) {
             throw new Error("Missing users collection");
@@ -286,7 +286,7 @@ describe("collection validate", () => {
       },
       {
         name: "system collection name change",
-        collection: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
+        collection: async (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
           const c = app.findCollectionByNameOrId(CollectionNameSuperusers);
           if (!c) {
             throw new Error("Missing superusers collection");
@@ -540,7 +540,7 @@ describe("collection validate", () => {
       },
       {
         name: "removing index on system field",
-        collection: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
+        collection: async (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
           const demo2 = app.findCollectionByNameOrId("demo2");
           if (!demo2) {
             throw new Error("Missing demo2 collection");
@@ -550,7 +550,7 @@ describe("collection validate", () => {
             throw new Error("Missing title field");
           }
           titleField.SetSystem(true);
-          const saveErr = app.Save(demo2);
+          const saveErr = await app.Save(demo2);
           if (saveErr) {
             throw saveErr;
           }
@@ -565,7 +565,7 @@ describe("collection validate", () => {
       },
       {
         name: "changing partial constraint of existing index on system field",
-        collection: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
+        collection: async (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
           const demo2 = app.findCollectionByNameOrId("demo2");
           if (!demo2) {
             throw new Error("Missing demo2 collection");
@@ -575,7 +575,7 @@ describe("collection validate", () => {
             throw new Error("Missing title field");
           }
           titleField.SetSystem(true);
-          const saveErr = app.Save(demo2);
+          const saveErr = await app.Save(demo2);
           if (saveErr) {
             throw saveErr;
           }
@@ -591,7 +591,7 @@ describe("collection validate", () => {
       },
       {
         name: "changing column sort and collate of existing index on system field",
-        collection: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
+        collection: async (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
           const demo2 = app.findCollectionByNameOrId("demo2");
           if (!demo2) {
             throw new Error("Missing demo2 collection");
@@ -601,7 +601,7 @@ describe("collection validate", () => {
             throw new Error("Missing title field");
           }
           titleField.SetSystem(true);
-          const saveErr = app.Save(demo2);
+          const saveErr = await app.Save(demo2);
           if (saveErr) {
             throw saveErr;
           }
@@ -617,7 +617,7 @@ describe("collection validate", () => {
       },
       {
         name: "adding new column to index on system field",
-        collection: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
+        collection: async (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
           const demo2 = app.findCollectionByNameOrId("demo2");
           if (!demo2) {
             throw new Error("Missing demo2 collection");
@@ -627,7 +627,7 @@ describe("collection validate", () => {
             throw new Error("Missing title field");
           }
           titleField.SetSystem(true);
-          const saveErr = app.Save(demo2);
+          const saveErr = await app.Save(demo2);
           if (saveErr) {
             throw saveErr;
           }
@@ -643,7 +643,7 @@ describe("collection validate", () => {
       },
       {
         name: "changing index type on system field",
-        collection: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
+        collection: async (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
           const demo2 = app.findCollectionByNameOrId("demo2");
           if (!demo2) {
             throw new Error("Missing demo2 collection");
@@ -653,7 +653,7 @@ describe("collection validate", () => {
             throw new Error("Missing title field");
           }
           titleField.SetSystem(true);
-          const saveErr = app.Save(demo2);
+          const saveErr = await app.Save(demo2);
           if (saveErr) {
             throw saveErr;
           }
@@ -937,8 +937,8 @@ describe("collection validate", () => {
     for (const scenario of scenarios) {
       const { app, cleanup } = await newTestApp();
       try {
-        const collection = scenario.collection(app);
-        const result = app.Validate(collection);
+        const collection = await scenario.collection(app);
+        const result = await app.Validate(collection);
         try {
           testValidationErrors(result, scenario.expectedErrors);
         } catch (err) {

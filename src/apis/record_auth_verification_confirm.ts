@@ -49,7 +49,7 @@ export async function recordConfirmVerification(app: App, event: RequestEvent): 
   const out = await app.OnRecordConfirmVerificationRequest().Trigger(hookEvent, async () => {
     if (!wasVerified) {
       record.SetVerified(true);
-      const saveErr = app.Save(record);
+      const saveErr = await app.Save(record);
       if (saveErr) {
         return badRequest(event, "An error occurred while saving the verified state.", saveErr);
       }

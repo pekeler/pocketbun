@@ -155,7 +155,7 @@ class FileApi {
       if (thumbSize && (existInSlice(thumbSize, defaultThumbSizes) || existInSlice(thumbSize, fieldThumbs))) {
         let attrs;
         try {
-          attrs = fsys.Attributes(originalPath);
+          attrs = await fsys.Attributes(originalPath);
         } catch {
           return notFound(event, "");
         }
@@ -164,7 +164,7 @@ class FileApi {
           hookEvent.ServedName = `${thumbSize}_${filename}`;
           hookEvent.ServedPath = `${baseFilesPath}/thumbs_${filename}/${hookEvent.ServedName}`;
 
-          if (!fsys.Exists(hookEvent.ServedPath)) {
+          if (!(await fsys.Exists(hookEvent.ServedPath))) {
             const thumbErr = await this.createThumb(event, fsys, originalPath, hookEvent.ServedPath, thumbSize);
             if (thumbErr) {
               event.app
@@ -204,9 +204,9 @@ class FileApi {
         return response;
       }
 
-      return serveFile(event, fsys, hookEvent.ServedPath, hookEvent.ServedName);
+      return await serveFile(event, fsys, hookEvent.ServedPath, hookEvent.ServedName);
     } finally {
-      fsys.Close();
+      await fsys.Close();
     }
   }
 
@@ -239,10 +239,10 @@ class FileApi {
   }
 }
 
-function serveFile(event: RequestEvent, fsys: System, servedPath: string, servedName: string): Response {
+async function serveFile(event: RequestEvent, fsys: System, servedPath: string, servedName: string): Promise<Response> {
   const recorder = new ResponseRecorder(event.responseHeaders);
   const headers = headersToObject(event.request.headers);
-  const err = fsys.Serve(recorder, { url: event.request.url, headers }, servedPath, servedName);
+  const err = await fsys.Serve(recorder, { url: event.request.url, headers }, servedPath, servedName);
   if (err) {
     return notFound(event, "");
   }

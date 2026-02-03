@@ -1381,12 +1381,12 @@ export class BaseApp implements App {
   }
 
   // Ported from pocketbase/core/otp_query.go.
-  DeleteAllOTPsByRecord(authRecord: RecordModel): Error | null {
+  async DeleteAllOTPsByRecord(authRecord: RecordModel): Promise<Error | null> {
     const models = this.FindAllOTPsByRecord(authRecord);
     const errors: Error[] = [];
 
     for (const model of models) {
-      const err = this.Delete(model);
+      const err = await this.Delete(model);
       if (err) {
         errors.push(err);
       }
@@ -1400,7 +1400,7 @@ export class BaseApp implements App {
   }
 
   // Ported from pocketbase/core/otp_query.go.
-  DeleteExpiredOTPs(): Error | null {
+  async DeleteExpiredOTPs(): Promise<Error | null> {
     const authCollections = this.FindAllCollections(CollectionTypeAuth);
 
     for (const collection of authCollections) {
@@ -1414,7 +1414,7 @@ export class BaseApp implements App {
         .All(items);
 
       for (const item of items) {
-        const err = this.Delete(item);
+        const err = await this.Delete(item);
         if (err) {
           return err;
         }
@@ -1458,12 +1458,12 @@ export class BaseApp implements App {
   }
 
   // Ported from pocketbase/core/mfa_query.go.
-  DeleteAllMFAsByRecord(authRecord: RecordModel): Error | null {
+  async DeleteAllMFAsByRecord(authRecord: RecordModel): Promise<Error | null> {
     const models = this.FindAllMFAsByRecord(authRecord);
     const errors: Error[] = [];
 
     for (const model of models) {
-      const err = this.Delete(model);
+      const err = await this.Delete(model);
       if (err) {
         errors.push(err);
       }
@@ -1477,7 +1477,7 @@ export class BaseApp implements App {
   }
 
   // Ported from pocketbase/core/mfa_query.go.
-  DeleteExpiredMFAs(): Error | null {
+  async DeleteExpiredMFAs(): Promise<Error | null> {
     const authCollections = this.FindAllCollections(CollectionTypeAuth);
 
     for (const collection of authCollections) {
@@ -1491,7 +1491,7 @@ export class BaseApp implements App {
         .All(items);
 
       for (const item of items) {
-        const err = this.Delete(item);
+        const err = await this.Delete(item);
         if (err) {
           return err;
         }
@@ -1546,7 +1546,7 @@ export class BaseApp implements App {
     return result;
   }
 
-  DeleteAllAuthOriginsByRecord(authRecord: RecordModel): Error | null {
+  async DeleteAllAuthOriginsByRecord(authRecord: RecordModel): Promise<Error | null> {
     let models: AuthOrigin[];
     try {
       models = this.FindAllAuthOriginsByRecord(authRecord);
@@ -1556,7 +1556,7 @@ export class BaseApp implements App {
 
     const errors: Error[] = [];
     for (const model of models) {
-      const err = this.Delete(model);
+      const err = await this.Delete(model);
       if (err) {
         errors.push(err);
       }
@@ -1789,7 +1789,7 @@ export class BaseApp implements App {
   // take care manually to backup those since they are not part of the pb_data.
   //
   // Backups can be stored on S3 if it is configured in app.Settings().Backups.
-  CreateBackup(ctx: unknown, name: string): Error | null {
+  async CreateBackup(ctx: unknown, name: string): Promise<Error | null> {
     if (this.store().has(StoreKeyActiveBackup)) {
       return new Error("try again later - another backup/restore operation has already been started");
     }
@@ -1805,7 +1805,7 @@ export class BaseApp implements App {
         lostFoundDirName,
       ]);
 
-      return this.OnBackupCreate().Trigger(event, (e) => {
+      return (await this.OnBackupCreate().Trigger(event, async (e) => {
         // generate a default name if missing
         if (!e.Name) {
           e.Name = generateBackupName(e.App, "pb_backup_");
@@ -1824,7 +1824,7 @@ export class BaseApp implements App {
         // ---
         const tempPath = join(localTempDir, `pb_backup_${pseudorandomString(6)}`);
 
-        const createErr = e.App.RunInTransaction((txApp) => {
+        const createErr = await e.App.RunInTransaction((txApp) => {
           return txApp.AuxRunInTransaction((auxApp) => {
             // run manual checkpoint and truncate the WAL files
             // (errors are ignored because it is not that important and the PRAGMA may not be supported by the used driver)
@@ -1862,9 +1862,9 @@ export class BaseApp implements App {
             const file = NewFileFromPath(tempPath);
             file.OriginalName = e.Name;
             file.Name = file.OriginalName;
-            fsys.UploadFile(file, file.Name);
+            await fsys.UploadFile(file, file.Name);
           } finally {
-            fsys.Close();
+            await fsys.Close();
           }
         } catch (error) {
           return error as Error;
@@ -1873,7 +1873,7 @@ export class BaseApp implements App {
         }
 
         return null;
-      }) as Error | null;
+      })) as Error | null;
     } finally {
       this.store().remove(StoreKeyActiveBackup);
     }
@@ -1911,7 +1911,7 @@ export class BaseApp implements App {
   // Note that if your pb_data has custom network mounts as subdirectories, then
   // it is possible the restore to fail during the `os.Rename` operations
   // (see https://github.com/pocketbase/pocketbase/issues/4647).
-  RestoreBackup(ctx: unknown, name: string): Error | null {
+  async RestoreBackup(ctx: unknown, name: string): Promise<Error | null> {
     if (this.store().has(StoreKeyActiveBackup)) {
       return new Error("try again later - another backup/restore operation has already been started");
     }
@@ -1925,7 +1925,7 @@ export class BaseApp implements App {
         lostFoundDirName,
       ]);
 
-      return this.OnBackupRestore().Trigger(event, (e) => {
+      return (await this.OnBackupRestore().Trigger(event, async (e) => {
         if (process.platform === "win32") {
           return new Error("restore is not supported on Windows");
         }
@@ -1942,7 +1942,7 @@ export class BaseApp implements App {
 
         try {
           fsys.SetContext(e.Context);
-          if (!fsys.Exists(name)) {
+          if (!(await fsys.Exists(name))) {
             return new Error(`missing or invalid backup file ${JSON.stringify(name)} to restore`);
           }
 
@@ -1950,7 +1950,7 @@ export class BaseApp implements App {
           try {
             // extract the zip
             if (e.App.settings().backups.s3.enabled) {
-              const reader = fsys.GetReader(name);
+              const reader = await fsys.GetReader(name);
               const tempZipPath = join(localTempDir, `pb_restore_zip_${pseudorandomString(6)}`);
               try {
                 // create a temp zip file from the blob.Reader and try to extract it
@@ -1988,7 +1988,7 @@ export class BaseApp implements App {
 
             const oldTempDataDir = join(localTempDir, `old_pb_data_${pseudorandomString(8)}`);
 
-            const replaceErr = e.App.RunInTransaction((txApp) => {
+            const replaceErr = await e.App.RunInTransaction((txApp) => {
               return txApp.AuxRunInTransaction((auxApp) => {
                 // move the current pb_data content to a special temp location
                 // that will hold the old data between dirs replace
@@ -2016,7 +2016,7 @@ export class BaseApp implements App {
               return replaceErr;
             }
 
-            const revertDataDirChanges = (): Error | null => {
+            const revertDataDirChanges = async (): Promise<Error | null> => {
               return e.App.RunInTransaction((txApp) => {
                 return txApp.AuxRunInTransaction((auxApp) => {
                   try {
@@ -2039,7 +2039,7 @@ export class BaseApp implements App {
             // restart the app
             const restartErr = e.App.Restart();
             if (restartErr) {
-              const revertErr = revertDataDirChanges();
+              const revertErr = await revertDataDirChanges();
               if (revertErr) {
                 throw revertErr;
               }
@@ -2050,11 +2050,11 @@ export class BaseApp implements App {
             rmSync(extractedDataDir, { recursive: true, force: true });
           }
         } finally {
-          fsys.Close();
+          await fsys.Close();
         }
 
         return null;
-      }) as Error | null;
+      })) as Error | null;
     } finally {
       this.store().remove(StoreKeyActiveBackup);
     }
@@ -2079,30 +2079,34 @@ export class BaseApp implements App {
     return null;
   }
 
-  Save(model: Model): Error | null {
+  async Save(model: Model): Promise<Error | null> {
     return this.saveModel(model, true);
   }
 
-  SaveNoValidate(model: Model): Error | null {
+  async SaveNoValidate(model: Model): Promise<Error | null> {
     return this.saveModel(model, false);
   }
 
-  SaveWithContext(_ctx: unknown, model: Model): Error | null {
+  async SaveWithContext(_ctx: unknown, model: Model): Promise<Error | null> {
     return this.saveModel(model, true);
   }
 
-  SaveNoValidateWithContext(_ctx: unknown, model: Model): Error | null {
+  async SaveNoValidateWithContext(_ctx: unknown, model: Model): Promise<Error | null> {
     return this.saveModel(model, false);
   }
 
-  private runRecordInterceptors(record: RecordModel, action: string, actionFunc: () => Error | null): Error | null {
+  private async runRecordInterceptors(
+    record: RecordModel,
+    action: string,
+    actionFunc: () => Error | null | Promise<Error | null>,
+  ): Promise<Error | null> {
     if (!this.#hooksEnabled) {
-      return actionFunc();
+      return await actionFunc();
     }
-    return record.callFieldInterceptors(null, this, action, actionFunc);
+    return await record.callFieldInterceptors(null, this, action, actionFunc);
   }
 
-  private saveModel(model: Model, runValidation: boolean): Error | null {
+  private async saveModel(model: Model, runValidation: boolean): Promise<Error | null> {
     const recordInfo = resolveRecordProxy(model);
     if (recordInfo) {
       const { record, model: eventModel } = recordInfo;
@@ -2113,7 +2117,7 @@ export class BaseApp implements App {
       const afterSuccess = isNew ? InterceptorActionAfterCreate : InterceptorActionAfterUpdate;
       const afterError = isNew ? InterceptorActionAfterCreateError : InterceptorActionAfterUpdateError;
 
-      const runPersist = () =>
+      const runPersist = async (): Promise<Error | null> =>
         this.runRecordInterceptors(record, executeAction, () => {
           if (this.#hooksEnabled) {
             const execErr = this.onRecordSaveExecute(record);
@@ -2124,233 +2128,237 @@ export class BaseApp implements App {
           return this.persistRecord(record);
         });
 
-      const runValidatedExecute = (): Error | null =>
-        this.runRecordInterceptors(record, action, () => {
+      const runValidatedExecute = async (): Promise<Error | null> =>
+        this.runRecordInterceptors(record, action, async () => {
           if (runValidation) {
-            const validateErr = this.Validate(eventModel);
+            const validateErr = await this.Validate(eventModel);
             if (validateErr) {
               return validateErr;
             }
           }
 
-          return (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(
+          return (await (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(
             modelEvent,
             runPersist,
-          ) as Error | null;
+          )) as Error | null;
         });
 
-      const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
+      const saveErr = (await (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
         modelEvent,
         runValidatedExecute,
-      ) as Error | null;
+      )) as Error | null;
 
       if (saveErr) {
         const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
-        const afterErr = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(errorEvent, () =>
-          this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
-        ) as Error | null;
+        const afterErr = (await (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+          errorEvent,
+          async () => this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
+        )) as Error | null;
         return afterErr ?? errorEvent.Error;
       }
 
       if (this.#txInfo) {
-        this.#txInfo.OnComplete((txErr) => {
+        this.#txInfo.OnComplete(async (txErr) => {
           if (txErr) {
             if (action === InterceptorActionCreate) {
               record.markNew(true);
             }
             const errorEvent = new ModelErrorEvent(modelEvent, txErr);
-            const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(errorEvent, () =>
-              this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
-            ) as Error | null;
+            const result = (await (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+              errorEvent,
+              async () => this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
+            )) as Error | null;
             return result ?? null;
           }
-          const result = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(modelEvent, () =>
-            this.runRecordInterceptors(record, afterSuccess, () => null),
-          ) as Error | null;
+          const result = (await (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+            modelEvent,
+            async () => this.runRecordInterceptors(record, afterSuccess, () => null),
+          )) as Error | null;
           return result ?? null;
         });
         return null;
       }
 
-      const afterErr = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(modelEvent, () =>
-        this.runRecordInterceptors(record, afterSuccess, () => null),
-      ) as Error | null;
+      const afterErr = (await (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+        modelEvent,
+        async () => this.runRecordInterceptors(record, afterSuccess, () => null),
+      )) as Error | null;
       return afterErr ?? null;
     }
 
     if (model instanceof Settings) {
       const isNew = model.IsNew();
       const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
-      const runValidatedExecute = (): Error | null => {
+      const runValidatedExecute = async (): Promise<Error | null> => {
         if (runValidation) {
-          const validateErr = this.Validate(model);
+          const validateErr = await this.Validate(model);
           if (validateErr) {
             return validateErr;
           }
         }
 
-        return (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () =>
+        return (await (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () =>
           this.saveSettings(model),
-        ) as Error | null;
+        )) as Error | null;
       };
 
-      const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
+      const saveErr = (await (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
         modelEvent,
         runValidatedExecute,
-      ) as Error | null;
+      )) as Error | null;
       if (saveErr) {
         const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
-        const afterErr = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+        const afterErr = (await (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
           errorEvent,
           () => errorEvent.Error,
-        ) as Error | null;
+        )) as Error | null;
         return afterErr ?? errorEvent.Error;
       }
       if (this.#txInfo) {
-        this.#txInfo.OnComplete((txErr) => {
+        this.#txInfo.OnComplete(async (txErr) => {
           if (txErr) {
             const errorEvent = new ModelErrorEvent(modelEvent, txErr);
-            const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+            const result = (await (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
               errorEvent,
               () => errorEvent.Error,
-            ) as Error | null;
+            )) as Error | null;
             return result ?? null;
           }
-          const result = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+          const result = (await (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
             modelEvent,
             () => null,
-          ) as Error | null;
+          )) as Error | null;
           return result ?? null;
         });
         return null;
       }
-      const afterErr = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+      const afterErr = (await (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
         modelEvent,
         () => null,
-      ) as Error | null;
+      )) as Error | null;
       return afterErr ?? null;
     }
 
     if (!(model instanceof Collection)) {
-      return this.saveGenericModel(model, runValidation);
+      return await this.saveGenericModel(model, runValidation);
     }
 
     const isNew = model.isNew();
     const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
-    const runValidatedExecute = (): Error | null => {
+    const runValidatedExecute = async (): Promise<Error | null> => {
       if (runValidation) {
         if (isNew) {
           model.initDefaultId();
         }
-        const validateErr = this.Validate(model);
+        const validateErr = await this.Validate(model);
         if (validateErr) {
           return validateErr;
         }
       }
-      return (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () =>
+      return (await (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, async () =>
         this.saveCollection(model, false),
-      ) as Error | null;
+      )) as Error | null;
     };
-    const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
+    const saveErr = (await (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
       modelEvent,
       runValidatedExecute,
-    ) as Error | null;
+    )) as Error | null;
     if (saveErr) {
       const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
-      const afterErr = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+      const afterErr = (await (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
         errorEvent,
         () => errorEvent.Error,
-      ) as Error | null;
+      )) as Error | null;
       return afterErr ?? errorEvent.Error;
     }
     if (this.#txInfo) {
-      this.#txInfo.OnComplete((txErr) => {
+      this.#txInfo.OnComplete(async (txErr) => {
         if (txErr) {
           const errorEvent = new ModelErrorEvent(modelEvent, txErr);
-          const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+          const result = (await (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
             errorEvent,
             () => errorEvent.Error,
-          ) as Error | null;
+          )) as Error | null;
           return result ?? null;
         }
-        const result = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+        const result = (await (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
           modelEvent,
           () => null,
-        ) as Error | null;
+        )) as Error | null;
         return result ?? null;
       });
       return null;
     }
-    const afterErr = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+    const afterErr = (await (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
       modelEvent,
       () => null,
-    ) as Error | null;
+    )) as Error | null;
     return afterErr ?? null;
   }
 
-  private saveGenericModel(model: Model, runValidation: boolean): Error | null {
+  private async saveGenericModel(model: Model, runValidation: boolean): Promise<Error | null> {
     const isNew = model.IsNew();
     const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
 
-    const runValidatedExecute = (): Error | null => {
+    const runValidatedExecute = async (): Promise<Error | null> => {
       if (runValidation) {
-        const validateErr = this.Validate(model);
+        const validateErr = await this.Validate(model);
         if (validateErr) {
           return validateErr;
         }
       }
 
-      return (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () =>
+      return (await (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () =>
         this.persistGenericModel(model),
-      ) as Error | null;
+      )) as Error | null;
     };
 
-    const saveErr = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
+    const saveErr = (await (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
       modelEvent,
       runValidatedExecute,
-    ) as Error | null;
+    )) as Error | null;
     if (saveErr) {
       if (isNew) {
         model.MarkAsNew();
       }
       const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
-      const afterErr = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+      const afterErr = (await (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
         errorEvent,
         () => errorEvent.Error,
-      ) as Error | null;
+      )) as Error | null;
       return afterErr ?? errorEvent.Error;
     }
 
     if (this.#txInfo) {
-      this.#txInfo.OnComplete((txErr) => {
+      this.#txInfo.OnComplete(async (txErr) => {
         if (txErr) {
           if (isNew) {
             model.MarkAsNew();
           }
           const errorEvent = new ModelErrorEvent(modelEvent, txErr);
-          const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+          const result = (await (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
             errorEvent,
             () => errorEvent.Error,
-          ) as Error | null;
+          )) as Error | null;
           return result ?? null;
         }
-        const result = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+        const result = (await (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
           modelEvent,
           () => null,
-        ) as Error | null;
+        )) as Error | null;
         return result ?? null;
       });
       return null;
     }
 
-    const afterErr = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+    const afterErr = (await (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
       modelEvent,
       () => null,
-    ) as Error | null;
+    )) as Error | null;
     return afterErr ?? null;
   }
 
-  Validate(model: Model): Error | null {
+  async Validate(model: Model): Promise<Error | null> {
     const preValidator = model as Partial<PreValidator>;
     if (typeof preValidator.PreValidate === "function") {
       const preErr = preValidator.PreValidate(null, this);
@@ -2360,11 +2368,11 @@ export class BaseApp implements App {
     }
 
     const event = new ModelEvent(this, model, ModelEventTypeValidate);
-    const result = this.OnModelValidate().Trigger(event, (modelEvent) => {
+    const result = (await this.OnModelValidate().Trigger(event, async (modelEvent) => {
       const recordInfo = resolveRecordProxy(model);
       if (!recordInfo && model instanceof Collection) {
         const original = model.isNew() ? null : this.findCollectionById(model.LastSavedPK());
-        const validationErr = this.validateCollection(model, original);
+        const validationErr = await this.validateCollection(model, original);
         if (validationErr) {
           return validationErr;
         }
@@ -2378,13 +2386,13 @@ export class BaseApp implements App {
         }
       }
 
-      return modelEvent.Next();
-    }) as Error | null;
+      return await modelEvent.Next();
+    })) as Error | null;
 
     return result ?? null;
   }
 
-  Delete(model: Model): Error | null {
+  async Delete(model: Model): Promise<Error | null> {
     const recordInfo = resolveRecordProxy(model);
     if (recordInfo) {
       const { record, model: eventModel } = recordInfo;
@@ -2394,120 +2402,75 @@ export class BaseApp implements App {
       const afterSuccess = InterceptorActionAfterDelete;
       const afterError = InterceptorActionAfterDeleteError;
 
-      const runDelete = () =>
-        this.runRecordInterceptors(record, action, () =>
+      const runDelete = async (): Promise<Error | null> =>
+        this.runRecordInterceptors(record, action, async () =>
           this.runRecordInterceptors(record, executeAction, () => this.deleteRecord(record)),
         );
-      const deleteErr = this.OnModelDelete().Trigger(modelEvent, () =>
+      const deleteErr = (await this.OnModelDelete().Trigger(modelEvent, async () =>
         this.OnModelDeleteExecute().Trigger(modelEvent, runDelete),
-      ) as Error | null;
+      )) as Error | null;
 
       if (deleteErr) {
         const errorEvent = new ModelErrorEvent(modelEvent, deleteErr);
-        const afterErr = this.OnModelAfterDeleteError().Trigger(errorEvent, () =>
+        const afterErr = (await this.OnModelAfterDeleteError().Trigger(errorEvent, async () =>
           this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
-        ) as Error | null;
+        )) as Error | null;
         return afterErr ?? errorEvent.Error;
       }
 
       if (this.#txInfo) {
-        this.#txInfo.OnComplete((txErr) => {
+        this.#txInfo.OnComplete(async (txErr) => {
           if (txErr) {
             const errorEvent = new ModelErrorEvent(modelEvent, txErr);
-            const result = this.OnModelAfterDeleteError().Trigger(errorEvent, () =>
+            const result = (await this.OnModelAfterDeleteError().Trigger(errorEvent, async () =>
               this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
-            ) as Error | null;
+            )) as Error | null;
             return result ?? null;
           }
-          const result = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () =>
+          const result = (await this.OnModelAfterDeleteSuccess().Trigger(modelEvent, async () =>
             this.runRecordInterceptors(record, afterSuccess, () => null),
-          ) as Error | null;
+          )) as Error | null;
           return result ?? null;
         });
         return null;
       }
 
-      const afterErr = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () =>
+      const afterErr = (await this.OnModelAfterDeleteSuccess().Trigger(modelEvent, async () =>
         this.runRecordInterceptors(record, afterSuccess, () => null),
-      ) as Error | null;
+      )) as Error | null;
       return afterErr ?? null;
     }
 
     if (!(model instanceof Collection)) {
-      return this.deleteGenericModel(model);
+      return await this.deleteGenericModel(model);
     }
 
     const modelEvent = new ModelEvent(this, model, ModelEventTypeDelete);
-    const deleteErr = this.OnModelDelete().Trigger(modelEvent, () =>
+    const deleteErr = (await this.OnModelDelete().Trigger(modelEvent, () =>
       this.OnModelDeleteExecute().Trigger(modelEvent, () => this.deleteCollection(model)),
-    ) as Error | null;
+    )) as Error | null;
     if (deleteErr) {
       const errorEvent = new ModelErrorEvent(modelEvent, deleteErr);
-      const afterErr = this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error) as Error | null;
+      const afterErr = (await this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error)) as Error | null;
       return afterErr ?? errorEvent.Error;
     }
     if (this.#txInfo) {
-      this.#txInfo.OnComplete((txErr) => {
+      this.#txInfo.OnComplete(async (txErr) => {
         if (txErr) {
           const errorEvent = new ModelErrorEvent(modelEvent, txErr);
-          const result = this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error) as Error | null;
+          const result = (await this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error)) as Error | null;
           return result ?? null;
         }
-        const result = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null) as Error | null;
+        const result = (await this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null)) as Error | null;
         return result ?? null;
       });
       return null;
     }
-    const afterErr = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null) as Error | null;
+    const afterErr = (await this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null)) as Error | null;
     return afterErr ?? null;
   }
 
-  RunInTransaction(fn: (txApp: App) => Error | null): Error | null {
-    if (this.#txInfo) {
-      return fn(this);
-    }
-
-    this.#txInfo = new TxAppInfo();
-    let txErr: Error | null = null;
-    this.db().run("BEGIN");
-    try {
-      txErr = fn(this) ?? null;
-    } catch (error) {
-      txErr = error as Error;
-    }
-
-    if (txErr) {
-      this.db().run("ROLLBACK");
-    } else {
-      this.db().run("COMMIT");
-    }
-
-    const txInfo = this.#txInfo;
-    this.#txInfo = null;
-    const afterErr = txInfo.runAfterFuncs(txErr);
-    return joinErrors(txErr, afterErr);
-  }
-
-  AuxRunInTransaction(fn: (txApp: App) => Error | null): Error | null {
-    let txErr: Error | null = null;
-    this.auxDb().run("BEGIN");
-    try {
-      txErr = fn(this) ?? null;
-    } catch (error) {
-      txErr = error as Error;
-    }
-
-    if (txErr) {
-      this.auxDb().run("ROLLBACK");
-    } else {
-      this.auxDb().run("COMMIT");
-    }
-
-    return txErr;
-  }
-
-  // Bun port adds an async variant to accommodate request parsing and hook delays.
-  async RunInTransactionAsync(fn: (txApp: App) => Promise<Error | null> | Error | null): Promise<Error | null> {
+  async RunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null> {
     if (this.#txInfo) {
       return (await fn(this)) ?? null;
     }
@@ -2529,11 +2492,34 @@ export class BaseApp implements App {
 
     const txInfo = this.#txInfo;
     this.#txInfo = null;
-    const afterErr = txInfo.runAfterFuncs(txErr);
+    const afterErr = await txInfo.runAfterFuncs(txErr);
     return joinErrors(txErr, afterErr);
   }
 
-  DeleteWithContext(_ctx: unknown, model: Model): Error | null {
+  async AuxRunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null> {
+    let txErr: Error | null = null;
+    this.auxDb().run("BEGIN");
+    try {
+      txErr = (await fn(this)) ?? null;
+    } catch (error) {
+      txErr = error as Error;
+    }
+
+    if (txErr) {
+      this.auxDb().run("ROLLBACK");
+    } else {
+      this.auxDb().run("COMMIT");
+    }
+
+    return txErr;
+  }
+
+  // Bun port adds an async variant to accommodate request parsing and hook delays.
+  async RunInTransactionAsync(fn: (txApp: App) => Promise<Error | null> | Error | null): Promise<Error | null> {
+    return this.RunInTransaction(fn);
+  }
+
+  async DeleteWithContext(_ctx: unknown, model: Model): Promise<Error | null> {
     return this.Delete(model);
   }
 
@@ -2544,12 +2530,12 @@ export class BaseApp implements App {
   //
   // Note that this method will also trigger the records related
   // cascade and file delete actions.
-  TruncateCollection(collection: Collection): Error | null {
+  async TruncateCollection(collection: Collection): Promise<Error | null> {
     if (collection.isView()) {
       return new Error("view collections cannot be truncated since they don't store their own records");
     }
 
-    return this.RunInTransaction((txApp) => {
+    return this.RunInTransaction(async (txApp) => {
       const records: RecordModel[] = [];
 
       for (;;) {
@@ -2564,7 +2550,7 @@ export class BaseApp implements App {
         }
 
         for (const record of records) {
-          const err = txApp.Delete(record);
+          const err = await txApp.Delete(record);
           if (err) {
             return err;
           }
@@ -2577,14 +2563,14 @@ export class BaseApp implements App {
 
   // ImportCollectionsByMarshaledJSON is the same as ImportCollections
   // but accept marshaled json array as import data (usually used for the autogenerated snapshots).
-  ImportCollectionsByMarshaledJSON(rawSliceOfMaps: string | Uint8Array, deleteMissing: boolean): Error | null {
+  async ImportCollectionsByMarshaledJSON(rawSliceOfMaps: string | Uint8Array, deleteMissing: boolean): Promise<Error | null> {
     try {
       const decoded = typeof rawSliceOfMaps === "string" ? rawSliceOfMaps : new TextDecoder().decode(rawSliceOfMaps);
       const data = JSON.parse(decoded) as Array<Record<string, unknown>>;
       if (!Array.isArray(data)) {
         return new Error("invalid collections data");
       }
-      return this.ImportCollections(data, deleteMissing);
+      return await this.ImportCollections(data, deleteMissing);
     } catch (error) {
       return error as Error;
     }
@@ -2597,7 +2583,7 @@ export class BaseApp implements App {
   // NB! If deleteMissing is true, ALL NON-SYSTEM COLLECTIONS AND SCHEMA FIELDS,
   // that are not present in the imported configuration, WILL BE DELETED
   // (this includes their related records data).
-  ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Error | null {
+  async ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Promise<Error | null> {
     if (toImport.length === 0) {
       return new Error("no collections to import");
     }
@@ -2653,7 +2639,7 @@ export class BaseApp implements App {
       return left.updated.compare(right.updated);
     });
 
-    return this.RunInTransaction((txApp) => {
+    return this.RunInTransaction(async (txApp) => {
       const rows = txApp
         .db()
         .query(
@@ -2673,7 +2659,7 @@ export class BaseApp implements App {
           if (mappedImported.get(existing.id) || existing.system) {
             continue;
           }
-          const err = txApp.Delete(existing);
+          const err = await txApp.Delete(existing);
           if (err) {
             return err;
           }
@@ -2681,7 +2667,7 @@ export class BaseApp implements App {
       }
 
       for (const imported of importedCollections) {
-        const err = txApp.SaveNoValidate(imported);
+        const err = await txApp.SaveNoValidate(imported);
         if (err) {
           return new Error(`failed to save collection "${imported.name}": ${err.message}`);
         }
@@ -2689,7 +2675,7 @@ export class BaseApp implements App {
 
       for (const imported of importedCollections) {
         const original = mappedExisting.get(imported.id) ?? imported;
-        const validationErr = (txApp as BaseApp).validateCollection(imported, original);
+        const validationErr = await (txApp as BaseApp).validateCollection(imported, original);
         if (validationErr) {
           const serialized = JSON.stringify(validationErr, null, 2);
           return new ValidationErrors({
@@ -2753,7 +2739,7 @@ export class BaseApp implements App {
     return null;
   }
 
-  private onRecordDeleteExecute(event: RecordEvent): Error | null {
+  private async onRecordDeleteExecute(event: RecordEvent): Promise<Error | null> {
     const record = event.Record;
     if (!record) {
       return new Error("missing record in record delete event");
@@ -2761,14 +2747,14 @@ export class BaseApp implements App {
     const refs = this.FindCachedCollectionReferences(record.collection());
 
     const originalApp = event.App;
-    const txErr = this.RunInTransaction((txApp) => {
+    const txErr = await this.RunInTransaction(async (txApp) => {
       event.App = txApp;
-      const nextResult = event.Next();
+      const nextResult = await event.Next();
       if (nextResult instanceof Error) {
         return nextResult;
       }
 
-      return cascadeRecordDelete(txApp, record, refs);
+      return await cascadeRecordDelete(txApp, record, refs);
     });
     event.App = originalApp;
 
@@ -2872,7 +2858,7 @@ export class BaseApp implements App {
     return null;
   }
 
-  private deleteGenericModel(model: Model): Error | null {
+  private async deleteGenericModel(model: Model): Promise<Error | null> {
     const pk = model.PK();
     if (!pk) {
       return new Error("the model can be deleted only if it is existing and has a non-empty primary key");
@@ -2880,7 +2866,7 @@ export class BaseApp implements App {
 
     const modelEvent = new ModelEvent(this, model, ModelEventTypeDelete);
 
-    const deleteErr = this.OnModelDelete().Trigger(modelEvent, () =>
+    const deleteErr = (await this.OnModelDelete().Trigger(modelEvent, () =>
       this.OnModelDeleteExecute().Trigger(modelEvent, () => {
         try {
           this.db().run(`delete from {{${model.TableName()}}} where [[id]] = ?`, [normalizeDbValue(pk)]);
@@ -2889,28 +2875,28 @@ export class BaseApp implements App {
           return error as Error;
         }
       }),
-    ) as Error | null;
+    )) as Error | null;
 
     if (deleteErr) {
       const errorEvent = new ModelErrorEvent(modelEvent, deleteErr);
-      const afterErr = this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error) as Error | null;
+      const afterErr = (await this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error)) as Error | null;
       return afterErr ?? errorEvent.Error;
     }
 
     if (this.#txInfo) {
-      this.#txInfo.OnComplete((txErr) => {
+      this.#txInfo.OnComplete(async (txErr) => {
         if (txErr) {
           const errorEvent = new ModelErrorEvent(modelEvent, txErr);
-          const result = this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error) as Error | null;
+          const result = (await this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error)) as Error | null;
           return result ?? null;
         }
-        const result = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null) as Error | null;
+        const result = (await this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null)) as Error | null;
         return result ?? null;
       });
       return null;
     }
 
-    const afterErr = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null) as Error | null;
+    const afterErr = (await this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null)) as Error | null;
     return afterErr ?? null;
   }
 
@@ -2941,7 +2927,7 @@ export class BaseApp implements App {
     return null;
   }
 
-  private saveCollection(collection: Collection, runValidation: boolean): Error | null {
+  private async saveCollection(collection: Collection, runValidation: boolean): Promise<Error | null> {
     const original = collection.isNew() ? null : this.findCollectionById(collection.LastSavedPK());
 
     if (!collection.type) {
@@ -2964,7 +2950,7 @@ export class BaseApp implements App {
     normalizeCollectionFields(collection);
 
     if (runValidation) {
-      const validationErr = this.Validate(collection);
+      const validationErr = await this.Validate(collection);
       if (validationErr) {
         return validationErr;
       }
@@ -2973,7 +2959,7 @@ export class BaseApp implements App {
     if (collection.isView()) {
       let viewFields: FieldsList;
       try {
-        viewFields = this.CreateViewFields(collection.ViewQuery);
+        viewFields = await this.CreateViewFields(collection.ViewQuery);
       } catch (error) {
         return error as Error;
       }
@@ -2985,7 +2971,7 @@ export class BaseApp implements App {
         }
       }
 
-      const saveViewErr = this.SaveView(collection.name, collection.ViewQuery);
+      const saveViewErr = await this.SaveView(collection.name, collection.ViewQuery);
       if (saveViewErr) {
         return saveViewErr;
       }
@@ -3046,7 +3032,7 @@ export class BaseApp implements App {
       );
     }
 
-    const syncErr = this.syncRecordTableSchema(collection, original);
+    const syncErr = await this.syncRecordTableSchema(collection, original);
     if (syncErr) {
       return syncErr;
     }
@@ -3088,16 +3074,16 @@ export class BaseApp implements App {
     return null;
   }
 
-  private validateCollection(collection: Collection, original: Collection | null): Error | null {
-    return validateCollection(this, collection, original);
+  private async validateCollection(collection: Collection, original: Collection | null): Promise<Error | null> {
+    return await validateCollection(this, collection, original);
   }
 
-  private syncRecordTableSchema(newCollection: Collection, oldCollection: Collection | null): Error | null {
+  private async syncRecordTableSchema(newCollection: Collection, oldCollection: Collection | null): Promise<Error | null> {
     if (newCollection.isView()) {
       return null;
     }
 
-    return this.RunInTransaction((txApp) => {
+    return await this.RunInTransaction((txApp) => {
       const db = (txApp as BaseApp).db();
       const hasOldTable = oldCollection ? (txApp as BaseApp).HasTable(oldCollection.name) : false;
 
@@ -3212,15 +3198,15 @@ export class BaseApp implements App {
   private registerBaseHooks(): void {
     this.OnModelAfterDeleteSuccess().Bind({
       Id: "__pbFilesManagerDelete__",
-      Func: (event) => {
+      Func: async (event) => {
         const model = event.Model;
         if (!model) {
-          return event.Next();
+          return await event.Next();
         }
 
         const baseFilesPath = resolveBaseFilesPath(model);
         if (!baseFilesPath || !supportFiles(model)) {
-          return event.Next();
+          return await event.Next();
         }
 
         let fsys;
@@ -3228,20 +3214,20 @@ export class BaseApp implements App {
           fsys = this.NewFilesystem();
         } catch (error) {
           this.Logger().Error("Failed to initialize filesystem for delete hook", "error", String(error));
-          return event.Next();
+          return await event.Next();
         }
 
         try {
           const prefix = baseFilesPath.replace(/\/+$/g, "") + "/";
-          const failed = fsys.DeletePrefix(prefix);
+          const failed = await fsys.DeletePrefix(prefix);
           if (failed.length > 0) {
             this.Logger().Error("Failed to delete storage prefix", "prefix", prefix);
           }
         } finally {
-          fsys.Close();
+          await fsys.Close();
         }
 
-        return event.Next();
+        return await event.Next();
       },
     });
 
@@ -3297,67 +3283,71 @@ export class BaseApp implements App {
       }
 
       this.#cron.Add(jobId, rawSchedule, () => {
-        const autoPrefix = "@auto_pb_backup_";
-        const name = generateBackupName(this, autoPrefix);
+        void (async () => {
+          const autoPrefix = "@auto_pb_backup_";
+          const name = generateBackupName(this, autoPrefix);
 
-        const backupErr = this.CreateBackup(null, name);
-        if (backupErr) {
-          this.Logger().Error("[Backup cron] Failed to create backup", "name", name, "error", backupErr.message);
-        }
-
-        const maxKeep = this.#settings.backups.cronMaxKeep;
-        if (maxKeep === 0) {
-          return; // no explicit limit
-        }
-
-        let fsys;
-        try {
-          fsys = this.NewBackupsFilesystem();
-        } catch (error) {
-          this.Logger().Error("[Backup cron] Failed to initialize the backup filesystem", "error", String(error));
-          return;
-        }
-
-        try {
-          const files = fsys.List(autoPrefix);
-          if (maxKeep >= files.length) {
-            return; // nothing to remove
+          const backupErr = await this.CreateBackup(null, name);
+          if (backupErr) {
+            this.Logger().Error("[Backup cron] Failed to create backup", "name", name, "error", backupErr.message);
           }
 
-          // sort desc
-          files.sort((a, b) => b.ModTime.getTime() - a.ModTime.getTime());
-          // keep only the most recent n auto backup files
-          const toRemove = files.slice(maxKeep);
+          const maxKeep = this.#settings.backups.cronMaxKeep;
+          if (maxKeep === 0) {
+            return; // no explicit limit
+          }
 
-          for (const file of toRemove) {
-            try {
-              fsys.Delete(file.Key);
-            } catch (error) {
-              this.Logger().Error(
-                "[Backup cron] Failed to remove old autogenerated backup",
-                "key",
-                file.Key,
-                "error",
-                String(error),
-              );
+          let fsys;
+          try {
+            fsys = this.NewBackupsFilesystem();
+          } catch (error) {
+            this.Logger().Error("[Backup cron] Failed to initialize the backup filesystem", "error", String(error));
+            return;
+          }
+
+          try {
+            const files = await fsys.List(autoPrefix);
+            if (maxKeep >= files.length) {
+              return; // nothing to remove
             }
+
+            // sort desc
+            files.sort((a, b) => b.ModTime.getTime() - a.ModTime.getTime());
+            // keep only the most recent n auto backup files
+            const toRemove = files.slice(maxKeep);
+
+            for (const file of toRemove) {
+              try {
+                await fsys.Delete(file.Key);
+              } catch (error) {
+                this.Logger().Error(
+                  "[Backup cron] Failed to remove old autogenerated backup",
+                  "key",
+                  file.Key,
+                  "error",
+                  String(error),
+                );
+              }
+            }
+          } catch (error) {
+            this.Logger().Error("[Backup cron] Failed to list autogenerated backups", "error", String(error));
+          } finally {
+            await fsys.Close();
           }
-        } catch (error) {
-          this.Logger().Error("[Backup cron] Failed to list autogenerated backups", "error", String(error));
-        } finally {
-          fsys.Close();
-        }
+        })().catch((error) => {
+          this.Logger().Error("[Backup cron] Failed to run backup task", "error", String(error));
+        });
       });
     };
 
-    this.OnBootstrap().BindFunc((event) => {
-      const result = event.Next();
+    this.OnBootstrap().BindFunc(async (event) => {
+      const result = await event.Next();
       loadJob();
       return result;
     });
 
-    this.OnSettingsReload().BindFunc((event) => {
-      const result = event.Next();
+    this.OnSettingsReload().BindFunc(async (event) => {
+      const result = await event.Next();
       loadJob();
       return result;
     });
@@ -3369,14 +3359,14 @@ export class BaseApp implements App {
     this.OnModelValidate().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnCollectionValidate().Trigger(ce, (event) => {
+        const err = await this.OnCollectionValidate().Trigger(ce, async (event) => {
           syncModelEventWithCollectionEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncCollectionEventWithModelEvent(event, me);
           return result;
         });
@@ -3388,14 +3378,14 @@ export class BaseApp implements App {
     this.OnModelCreate().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnCollectionCreate().Trigger(ce, (event) => {
+        const err = await this.OnCollectionCreate().Trigger(ce, async (event) => {
           syncModelEventWithCollectionEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncCollectionEventWithModelEvent(event, me);
           return result;
         });
@@ -3407,14 +3397,14 @@ export class BaseApp implements App {
     this.OnModelCreateExecute().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnCollectionCreateExecute().Trigger(ce, (event) => {
+        const err = await this.OnCollectionCreateExecute().Trigger(ce, async (event) => {
           syncModelEventWithCollectionEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncCollectionEventWithModelEvent(event, me);
           return result;
         });
@@ -3426,14 +3416,14 @@ export class BaseApp implements App {
     this.OnModelAfterCreateSuccess().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnCollectionAfterCreateSuccess().Trigger(ce, (event) => {
+        const err = await this.OnCollectionAfterCreateSuccess().Trigger(ce, async (event) => {
           syncModelEventWithCollectionEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncCollectionEventWithModelEvent(event, me);
           return result;
         });
@@ -3445,14 +3435,14 @@ export class BaseApp implements App {
     this.OnModelAfterCreateError().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: ce, ok } = newCollectionErrorEventFromModelErrorEvent(me);
         if (!ok || !ce) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnCollectionAfterCreateError().Trigger(ce, (event) => {
+        const err = await this.OnCollectionAfterCreateError().Trigger(ce, async (event) => {
           syncModelErrorEventWithCollectionErrorEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncCollectionErrorEventWithModelErrorEvent(event, me);
           return result;
         });
@@ -3464,14 +3454,14 @@ export class BaseApp implements App {
     this.OnModelUpdate().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnCollectionUpdate().Trigger(ce, (event) => {
+        const err = await this.OnCollectionUpdate().Trigger(ce, async (event) => {
           syncModelEventWithCollectionEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncCollectionEventWithModelEvent(event, me);
           return result;
         });
@@ -3483,14 +3473,14 @@ export class BaseApp implements App {
     this.OnModelUpdateExecute().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnCollectionUpdateExecute().Trigger(ce, (event) => {
+        const err = await this.OnCollectionUpdateExecute().Trigger(ce, async (event) => {
           syncModelEventWithCollectionEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncCollectionEventWithModelEvent(event, me);
           return result;
         });
@@ -3502,14 +3492,14 @@ export class BaseApp implements App {
     this.OnModelAfterUpdateSuccess().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnCollectionAfterUpdateSuccess().Trigger(ce, (event) => {
+        const err = await this.OnCollectionAfterUpdateSuccess().Trigger(ce, async (event) => {
           syncModelEventWithCollectionEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncCollectionEventWithModelEvent(event, me);
           return result;
         });
@@ -3521,14 +3511,14 @@ export class BaseApp implements App {
     this.OnModelAfterUpdateError().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: ce, ok } = newCollectionErrorEventFromModelErrorEvent(me);
         if (!ok || !ce) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnCollectionAfterUpdateError().Trigger(ce, (event) => {
+        const err = await this.OnCollectionAfterUpdateError().Trigger(ce, async (event) => {
           syncModelErrorEventWithCollectionErrorEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncCollectionErrorEventWithModelErrorEvent(event, me);
           return result;
         });
@@ -3540,14 +3530,14 @@ export class BaseApp implements App {
     this.OnModelDelete().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnCollectionDelete().Trigger(ce, (event) => {
+        const err = await this.OnCollectionDelete().Trigger(ce, async (event) => {
           syncModelEventWithCollectionEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncCollectionEventWithModelEvent(event, me);
           return result;
         });
@@ -3559,14 +3549,14 @@ export class BaseApp implements App {
     this.OnModelDeleteExecute().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnCollectionDeleteExecute().Trigger(ce, (event) => {
+        const err = await this.OnCollectionDeleteExecute().Trigger(ce, async (event) => {
           syncModelEventWithCollectionEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncCollectionEventWithModelEvent(event, me);
           return result;
         });
@@ -3578,14 +3568,14 @@ export class BaseApp implements App {
     this.OnModelAfterDeleteSuccess().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnCollectionAfterDeleteSuccess().Trigger(ce, (event) => {
+        const err = await this.OnCollectionAfterDeleteSuccess().Trigger(ce, async (event) => {
           syncModelEventWithCollectionEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncCollectionEventWithModelEvent(event, me);
           return result;
         });
@@ -3597,14 +3587,14 @@ export class BaseApp implements App {
     this.OnModelAfterDeleteError().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: ce, ok } = newCollectionErrorEventFromModelErrorEvent(me);
         if (!ok || !ce) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnCollectionAfterDeleteError().Trigger(ce, (event) => {
+        const err = await this.OnCollectionAfterDeleteError().Trigger(ce, async (event) => {
           syncModelErrorEventWithCollectionErrorEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncCollectionErrorEventWithModelErrorEvent(event, me);
           return result;
         });
@@ -3620,14 +3610,14 @@ export class BaseApp implements App {
     this.OnModelValidate().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnRecordValidate().Trigger(re, (event) => {
+        const err = await this.OnRecordValidate().Trigger(re, async (event) => {
           syncModelEventWithRecordEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncRecordEventWithModelEvent(event, me);
           return result;
         });
@@ -3639,14 +3629,14 @@ export class BaseApp implements App {
     this.OnModelCreate().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnRecordCreate().Trigger(re, (event) => {
+        const err = await this.OnRecordCreate().Trigger(re, async (event) => {
           syncModelEventWithRecordEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncRecordEventWithModelEvent(event, me);
           return result;
         });
@@ -3658,14 +3648,14 @@ export class BaseApp implements App {
     this.OnModelCreateExecute().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnRecordCreateExecute().Trigger(re, (event) => {
+        const err = await this.OnRecordCreateExecute().Trigger(re, async (event) => {
           syncModelEventWithRecordEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncRecordEventWithModelEvent(event, me);
           return result;
         });
@@ -3677,14 +3667,14 @@ export class BaseApp implements App {
     this.OnModelAfterCreateSuccess().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnRecordAfterCreateSuccess().Trigger(re, (event) => {
+        const err = await this.OnRecordAfterCreateSuccess().Trigger(re, async (event) => {
           syncModelEventWithRecordEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncRecordEventWithModelEvent(event, me);
           return result;
         });
@@ -3696,14 +3686,14 @@ export class BaseApp implements App {
     this.OnModelAfterCreateError().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
         if (!ok || !re) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnRecordAfterCreateError().Trigger(re, (event) => {
+        const err = await this.OnRecordAfterCreateError().Trigger(re, async (event) => {
           syncModelErrorEventWithRecordErrorEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncRecordErrorEventWithModelErrorEvent(event, me);
           return result;
         });
@@ -3715,14 +3705,14 @@ export class BaseApp implements App {
     this.OnModelUpdate().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnRecordUpdate().Trigger(re, (event) => {
+        const err = await this.OnRecordUpdate().Trigger(re, async (event) => {
           syncModelEventWithRecordEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncRecordEventWithModelEvent(event, me);
           return result;
         });
@@ -3734,14 +3724,14 @@ export class BaseApp implements App {
     this.OnModelUpdateExecute().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnRecordUpdateExecute().Trigger(re, (event) => {
+        const err = await this.OnRecordUpdateExecute().Trigger(re, async (event) => {
           syncModelEventWithRecordEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncRecordEventWithModelEvent(event, me);
           return result;
         });
@@ -3753,14 +3743,14 @@ export class BaseApp implements App {
     this.OnModelAfterUpdateSuccess().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnRecordAfterUpdateSuccess().Trigger(re, (event) => {
+        const err = await this.OnRecordAfterUpdateSuccess().Trigger(re, async (event) => {
           syncModelEventWithRecordEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncRecordEventWithModelEvent(event, me);
           return result;
         });
@@ -3772,14 +3762,14 @@ export class BaseApp implements App {
     this.OnModelAfterUpdateError().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
         if (!ok || !re) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnRecordAfterUpdateError().Trigger(re, (event) => {
+        const err = await this.OnRecordAfterUpdateError().Trigger(re, async (event) => {
           syncModelErrorEventWithRecordErrorEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncRecordErrorEventWithModelErrorEvent(event, me);
           return result;
         });
@@ -3791,14 +3781,14 @@ export class BaseApp implements App {
     this.OnModelDelete().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnRecordDelete().Trigger(re, (event) => {
+        const err = await this.OnRecordDelete().Trigger(re, async (event) => {
           syncModelEventWithRecordEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncRecordEventWithModelEvent(event, me);
           return result;
         });
@@ -3810,14 +3800,14 @@ export class BaseApp implements App {
     this.OnModelDeleteExecute().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnRecordDeleteExecute().Trigger(re, (event) => {
+        const err = await this.OnRecordDeleteExecute().Trigger(re, async (event) => {
           syncModelEventWithRecordEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncRecordEventWithModelEvent(event, me);
           return result;
         });
@@ -3829,20 +3819,20 @@ export class BaseApp implements App {
     this.OnRecordDeleteExecute().Bind({
       Id: systemHookIdRecord,
       Priority: 99,
-      Func: (event) => this.onRecordDeleteExecute(event),
+      Func: async (event) => await this.onRecordDeleteExecute(event),
     });
 
     this.OnModelAfterDeleteSuccess().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnRecordAfterDeleteSuccess().Trigger(re, (event) => {
+        const err = await this.OnRecordAfterDeleteSuccess().Trigger(re, async (event) => {
           syncModelEventWithRecordEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncRecordEventWithModelEvent(event, me);
           return result;
         });
@@ -3854,14 +3844,14 @@ export class BaseApp implements App {
     this.OnModelAfterDeleteError().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: (me) => {
+      Func: async (me) => {
         const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
         if (!ok || !re) {
-          return me.Next();
+          return await me.Next();
         }
-        const err = this.OnRecordAfterDeleteError().Trigger(re, (event) => {
+        const err = await this.OnRecordAfterDeleteError().Trigger(re, async (event) => {
           syncModelErrorEventWithRecordErrorEvent(me, event);
-          const result = me.Next();
+          const result = await me.Next();
           syncRecordErrorEventWithModelErrorEvent(event, me);
           return result;
         });
@@ -3873,16 +3863,16 @@ export class BaseApp implements App {
     this.OnRecordValidate().Bind({
       Id: systemHookIdRecord,
       Priority: 99,
-      Func: (e) => {
+      Func: async (e) => {
         if (!e.Record) {
-          return e.Next();
+          return await e.Next();
         }
-        return e.Record.callFieldInterceptors(e.Context, e.App, InterceptorActionValidate, () => {
+        return await e.Record.callFieldInterceptors(e.Context, e.App, InterceptorActionValidate, async () => {
           const err = this.validateRecord(e.Record as RecordModel);
           if (err) {
             return err;
           }
-          return e.Next() as Error | null;
+          return (await e.Next()) as Error | null;
         });
       },
     });
@@ -3896,8 +3886,8 @@ export class BaseApp implements App {
   private registerOTPHooks(): void {
     recordRefHooks(this, CollectionNameOTPs, CollectionTypeAuth);
 
-    this.Cron().Add("__pbOTPCleanup__", "0 * * * *", () => {
-      const err = this.DeleteExpiredOTPs();
+    this.Cron().Add("__pbOTPCleanup__", "0 * * * *", async () => {
+      const err = await this.DeleteExpiredOTPs();
       if (err) {
         this.Logger().Warn("Failed to delete expired OTP sessions", "error", err);
       }
@@ -3907,28 +3897,28 @@ export class BaseApp implements App {
   private registerMFAHooks(): void {
     recordRefHooks(this, CollectionNameMFAs, CollectionTypeAuth);
 
-    this.Cron().Add("__pbMFACleanup__", "0 * * * *", () => {
-      const err = this.DeleteExpiredMFAs();
+    this.Cron().Add("__pbMFACleanup__", "0 * * * *", async () => {
+      const err = await this.DeleteExpiredMFAs();
       if (err) {
         this.Logger().Warn("Failed to delete expired MFA sessions", "error", err);
       }
     });
 
     this.OnRecordUpdate().Bind({
-      Func: (e) => {
+      Func: async (e) => {
         const record = e.Record;
         const isAuth = record?.collection().IsAuth() ?? false;
         // Deviation: capture the original hash before e.Next() because PostScan updates originals during save.
         const oldHash = isAuth && record ? record.Original().GetString(`${FieldNamePassword}:hash`) : "";
 
-        const err = e.Next() as Error | null;
+        const err = (await e.Next()) as Error | null;
         if (err || !isAuth || !record) {
           return err;
         }
 
         const newHash = record.GetString(`${FieldNamePassword}:hash`);
         if (oldHash !== newHash) {
-          const deleteErr = e.App.DeleteAllMFAsByRecord(record);
+          const deleteErr = await e.App.DeleteAllMFAsByRecord(record);
           if (deleteErr) {
             e.App.Logger().Warn(
               "Failed to delete all previous mfas",
@@ -3977,20 +3967,20 @@ export class BaseApp implements App {
 
     // delete existing auth origins on password change
     this.OnRecordUpdate().Bind({
-      Func: (e) => {
+      Func: async (e) => {
         const record = e.Record;
         const isAuth = record?.collection().IsAuth() ?? false;
         // Deviation: capture the original hash before e.Next() because PostScan updates originals during save.
         const oldHash = isAuth && record ? record.Original().GetString(`${FieldNamePassword}:hash`) : "";
 
-        const err = e.Next() as Error | null;
+        const err = (await e.Next()) as Error | null;
         if (err || !isAuth || !record) {
           return err;
         }
 
         const newHash = record.GetString(`${FieldNamePassword}:hash`);
         if (oldHash !== newHash) {
-          const deleteErr = e.App.DeleteAllAuthOriginsByRecord(record);
+          const deleteErr = await e.App.DeleteAllAuthOriginsByRecord(record);
           if (deleteErr) {
             e.App.Logger().Warn(
               "Failed to delete all previous auth origin fingerprints",
@@ -4010,16 +4000,16 @@ export class BaseApp implements App {
     });
   }
 
-  SaveView(name: string, selectQuery: string): Error | null {
-    return SaveView(this, name, selectQuery);
+  async SaveView(name: string, selectQuery: string): Promise<Error | null> {
+    return await SaveView(this, name, selectQuery);
   }
 
   DeleteView(name: string): Error | null {
     return DeleteView(this, name);
   }
 
-  CreateViewFields(selectQuery: string): FieldsList {
-    return CreateViewFields(this, selectQuery);
+  async CreateViewFields(selectQuery: string): Promise<FieldsList> {
+    return await CreateViewFields(this, selectQuery);
   }
 
   TableInfo(tableName: string) {
@@ -4154,16 +4144,16 @@ function resolveBaseTokenKey(collection: Collection, tokenType: string): string 
 }
 
 class TxAppInfo {
-  #afterFuncs: Array<(txErr: Error | null) => Error | null> = [];
+  #afterFuncs: Array<(txErr: Error | null) => Error | null | Promise<Error | null>> = [];
 
-  OnComplete(fn: (txErr: Error | null) => Error | null) {
+  OnComplete(fn: (txErr: Error | null) => Error | null | Promise<Error | null>) {
     this.#afterFuncs.push(fn);
   }
 
-  runAfterFuncs(txErr: Error | null): Error | null {
+  async runAfterFuncs(txErr: Error | null): Promise<Error | null> {
     const errors: Error[] = [];
     for (const fn of this.#afterFuncs) {
-      const err = fn(txErr);
+      const err = await fn(txErr);
       if (err) {
         errors.push(err);
       }
@@ -4213,7 +4203,7 @@ function isSafeIdentifier(value: string): boolean {
   return /^[A-Za-z0-9_]+$/.test(value);
 }
 
-function cascadeRecordDelete(app: App, mainRecord: RecordModel, refs: Map<Collection, Field[]>): Error | null {
+async function cascadeRecordDelete(app: App, mainRecord: RecordModel, refs: Map<Collection, Field[]>): Promise<Error | null> {
   const sortedRefs = Array.from(refs.keys()).sort((a, b) => a.name.localeCompare(b.name));
 
   for (const refCollection of sortedRefs) {
@@ -4253,7 +4243,7 @@ function cascadeRecordDelete(app: App, mainRecord: RecordModel, refs: Map<Collec
           break;
         }
 
-        const err = deleteRefRecords(app, mainRecord, rows, field);
+        const err = await deleteRefRecords(app, mainRecord, rows, field);
         if (err) {
           return err;
         }
@@ -4268,7 +4258,12 @@ function cascadeRecordDelete(app: App, mainRecord: RecordModel, refs: Map<Collec
   return null;
 }
 
-function deleteRefRecords(app: App, mainRecord: RecordModel, refRecords: RecordModel[], field: RelationField): Error | null {
+async function deleteRefRecords(
+  app: App,
+  mainRecord: RecordModel,
+  refRecords: RecordModel[],
+  field: RelationField,
+): Promise<Error | null> {
   for (const refRecord of refRecords) {
     let ids = refRecord.GetStringSlice(field.Name);
 
@@ -4280,7 +4275,7 @@ function deleteRefRecords(app: App, mainRecord: RecordModel, refRecords: RecordM
     }
 
     if (field.CascadeDelete && ids.length === 0) {
-      const deleteErr = app.Delete(refRecord);
+      const deleteErr = await app.Delete(refRecord);
       if (deleteErr) {
         return deleteErr;
       }
@@ -4294,7 +4289,7 @@ function deleteRefRecords(app: App, mainRecord: RecordModel, refRecords: RecordM
     }
 
     refRecord.Set(field.Name, ids);
-    const saveErr = app.SaveNoValidate(refRecord);
+    const saveErr = await app.SaveNoValidate(refRecord);
     if (saveErr) {
       return saveErr;
     }

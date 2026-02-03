@@ -132,11 +132,11 @@ const scenarios: Scenario[] = [
     url: "/api/collections/users/auth-refresh",
     headers: { Authorization: userToken },
     beforeTest: (app) => {
-      app.OnRecordAuthRefreshRequest().BindFunc((event: any) => {
+      app.OnRecordAuthRefreshRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });

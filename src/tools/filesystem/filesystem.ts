@@ -1,20 +1,20 @@
 // Ported from pocketbase/tools/filesystem/filesystem.go
+// Deviation: System methods are async because Bun blob drivers use async I/O.
+// Deviation: GetReuploadableFile buffers file contents to provide a sync FileReader.
 // Deviation: CreateThumb is async because Bun image processing relies on async libraries.
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, join, posix } from "node:path";
+import { mkdirSync } from "node:fs";
+import { posix } from "node:path";
 import sharp from "sharp";
-import { File, detectMimeTypeFromBytes, normalizeName, openFuncAsReader } from "./file.ts";
+import { Bucket, NewBucket } from "./blob/bucket.ts";
+import { ErrNotFound, NotFoundError, type Attributes as BlobAttributes, type WriterOptions } from "./blob/driver.ts";
+import { ErrEOF, isNotFoundError } from "./blob/errors.ts";
+import { BytesReader, File, detectMimeTypeFromBytes, normalizeName } from "./file.ts";
+import { New as NewFileBlob } from "./internal/fileblob/fileblob.ts";
+import { S3 } from "./internal/s3blob/s3/s3.ts";
+import { New as NewS3Blob } from "./internal/s3blob/s3blob.ts";
 
-export class NotFoundError extends Error {
-  constructor(message = "file not found") {
-    super(message);
-    this.name = "NotFoundError";
-  }
-}
-
-// note: the same as blob.ErrNotFound for backward compatibility with earlier versions
-export const ErrNotFound = new NotFoundError();
+export { ErrNotFound, NotFoundError };
 
 export type Attributes = {
   Size: number;
@@ -74,55 +74,79 @@ const manualExtensionContentTypes: Record<string, string> = {
 const forceAttachmentParam = "download";
 
 export class System {
-  #root: string;
-  #ctx: unknown;
+  #bucket: Bucket;
+  #ctx: AbortSignal | null;
 
-  constructor(root: string) {
-    this.#root = root;
+  constructor(bucket: Bucket) {
+    this.#bucket = bucket;
     this.#ctx = null;
   }
 
   static NewLocal(dirPath: string): System {
     mkdirSync(dirPath, { recursive: true });
-    return new System(dirPath);
+    const drv = NewFileBlob(dirPath, { NoTempDir: true });
+    return new System(NewBucket(drv));
   }
 
-  static NewS3(..._args: unknown[]): System {
-    throw new Error("S3 filesystem support is not implemented in PocketBun yet.");
+  static NewS3(
+    bucketName: string,
+    region: string,
+    endpoint: string,
+    accessKey: string,
+    secret: string,
+    s3ForcePathStyle: boolean,
+  ): System {
+    const client = Object.assign(new S3(), {
+      Bucket: bucketName,
+      Region: region,
+      Endpoint: endpoint,
+      AccessKey: accessKey,
+      SecretKey: secret,
+      UsePathStyle: s3ForcePathStyle,
+    });
+
+    const drv = NewS3Blob(client);
+    return new System(NewBucket(drv));
   }
 
   // SetContext assigns the specified context to the current filesystem.
   SetContext(ctx: unknown): void {
-    this.#ctx = ctx;
-    void this.#ctx;
+    this.#ctx = toAbortSignal(ctx);
   }
 
   // Close releases any resources used for the related filesystem.
-  Close(): void {}
+  async Close(): Promise<void> {
+    await this.#bucket.Close();
+  }
 
   // Exists checks if file with fileKey path exists or not.
-  Exists(fileKey: string): boolean {
-    const full = this.resolvePath(fileKey);
-    return existsSync(full);
+  async Exists(fileKey: string): Promise<boolean> {
+    try {
+      return await this.#bucket.Exists(this.#ctx, fileKey);
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   // Attributes returns the attributes for the file with fileKey path.
   //
   // If the file doesn't exist it returns ErrNotFound.
-  Attributes(fileKey: string): Attributes {
-    const full = this.resolvePath(fileKey);
-    if (!existsSync(full)) {
-      throw new NotFoundError();
+  async Attributes(fileKey: string): Promise<Attributes> {
+    let attrs: BlobAttributes;
+    try {
+      attrs = await this.#bucket.Attributes(this.#ctx, fileKey);
+    } catch (error) {
+      throw mapFsError(error);
     }
 
-    const stat = statSync(full);
-    const attrs = this.readAttrs(full);
-
     return {
-      Size: stat.size,
-      ModTime: stat.mtime,
-      ContentType: attrs.contentType,
-      Metadata: attrs.metadata,
+      Size: attrs.Size,
+      ModTime: attrs.ModTime,
+      ContentType: attrs.ContentType,
+      Metadata: attrs.Metadata,
     };
   }
 
@@ -131,17 +155,27 @@ export class System {
   // NB! Make sure to call Close() on the file after you are done working with it.
   //
   // If the file doesn't exist returns ErrNotFound.
-  GetReader(fileKey: string): SystemReader {
-    const full = this.resolvePath(fileKey);
-    if (!existsSync(full)) {
-      throw new NotFoundError();
+  async GetReader(fileKey: string): Promise<SystemReader> {
+    let reader: Awaited<ReturnType<Bucket["NewReader"]>> | null = null;
+    try {
+      reader = await this.#bucket.NewReader(this.#ctx, fileKey);
+      const content = await reader.readAll();
+      const attrs: Attributes = {
+        Size: reader.Size(),
+        ModTime: reader.ModTime(),
+        ContentType: reader.ContentType(),
+        Metadata: {},
+      };
+      return new SystemReader(content, attrs);
+    } catch (error) {
+      throw mapFsError(error);
+    } finally {
+      reader?.close();
     }
-    const attrs = this.Attributes(fileKey);
-    return new SystemReader(readFileSync(full), attrs);
   }
 
   // Deprecated: Please use GetReader(fileKey) instead.
-  GetFile(fileKey: string): SystemReader {
+  async GetFile(fileKey: string): Promise<SystemReader> {
     console.warn("Deprecated: Please replace GetFile with GetReader.");
     return this.GetReader(fileKey);
   }
@@ -157,15 +191,18 @@ export class System {
   //
   // If you simply want to copy an existing file to a new location you
   // could check the Copy(srcKey, dstKey) method.
-  GetReuploadableFile(fileKey: string, preserveName: boolean): File {
-    const attrs = this.Attributes(fileKey);
+  async GetReuploadableFile(fileKey: string, preserveName: boolean): Promise<File> {
+    const attrs = await this.Attributes(fileKey);
     const name = posix.basename(fileKey);
     const originalName = attrs.Metadata[metadataOriginalName] || name;
+
+    const reader = await this.GetReader(fileKey);
+    const content = reader.readAll();
 
     const file = new File();
     file.Size = attrs.Size;
     file.OriginalName = originalName;
-    file.Reader = openFuncAsReader(() => this.GetReader(fileKey));
+    file.Reader = new BytesReader(content);
     file.Name = preserveName ? name : normalizeName(file.Reader, file.OriginalName);
 
     return file;
@@ -176,46 +213,52 @@ export class System {
   // If srcKey file doesn't exist, it returns ErrNotFound.
   //
   // If dstKey file already exists, it is overwritten.
-  Copy(srcKey: string, dstKey: string): void {
-    const src = this.resolvePath(srcKey);
-    const dst = this.resolvePath(dstKey);
-    if (!existsSync(src)) {
-      throw new NotFoundError();
-    }
-
-    mkdirSync(dirname(dst), { recursive: true });
-    copyFileSync(src, dst);
-
-    const srcAttrs = `${src}.attrs`;
-    const dstAttrs = `${dst}.attrs`;
-    if (existsSync(srcAttrs)) {
-      copyFileSync(srcAttrs, dstAttrs);
+  async Copy(srcKey: string, dstKey: string): Promise<void> {
+    try {
+      await this.#bucket.Copy(this.#ctx, dstKey, srcKey);
+    } catch (error) {
+      throw mapFsError(error);
     }
   }
 
   // List returns a flat list with info for all files under the specified prefix.
-  List(prefix: string): ListObject[] {
-    const files = this.walkFiles(this.#root);
-    const filtered = files.filter((file) => file.key.startsWith(prefix));
-    return filtered.map((file) => ({
-      Key: file.key,
-      ModTime: file.mtime,
-      Size: file.size,
-    }));
+  async List(prefix: string): Promise<ListObject[]> {
+    const files: ListObject[] = [];
+    const iter = this.#bucket.List({
+      Prefix: prefix,
+      Delimiter: "",
+      PageSize: 0,
+      PageToken: new Uint8Array(),
+    });
+
+    for (;;) {
+      try {
+        const obj = await iter.Next(this.#ctx);
+        files.push({
+          Key: obj.Key,
+          ModTime: obj.ModTime,
+          Size: obj.Size,
+        });
+      } catch (error) {
+        if (error === ErrEOF) {
+          break;
+        }
+        throw error;
+      }
+    }
+
+    return files;
   }
 
   // Upload writes content into the fileKey location.
-  Upload(content: Uint8Array, fileKey: string): void {
-    const full = this.resolvePath(fileKey);
-    mkdirSync(dirname(full), { recursive: true });
-    writeFileSync(full, content);
-
+  async Upload(content: Uint8Array, fileKey: string): Promise<void> {
     const contentType = detectMimeTypeFromBytes(content);
-    this.writeAttrs(full, contentType, null);
+    const writer = await this.#bucket.NewWriter(this.#ctx, fileKey, makeWriterOptions(contentType));
+    await writeAllAndClose(writer, content);
   }
 
   // UploadFile uploads the provided File to the fileKey location.
-  UploadFile(file: File, fileKey: string): void {
+  async UploadFile(file: File, fileKey: string): Promise<void> {
     if (!file.Reader) {
       throw new Error("missing file reader");
     }
@@ -225,69 +268,103 @@ export class System {
     reader.close();
 
     const contentType = detectMimeTypeFromBytes(content);
-    const full = this.resolvePath(fileKey);
-    mkdirSync(dirname(full), { recursive: true });
-    writeFileSync(full, content);
-
     let originalName = file.OriginalName;
     if (originalName.length > 255) {
       originalName = originalName.slice(0, 255);
     }
-    this.writeAttrs(full, contentType, { [metadataOriginalName]: originalName });
+
+    const writer = await this.#bucket.NewWriter(
+      this.#ctx,
+      fileKey,
+      makeWriterOptions(contentType, { [metadataOriginalName]: originalName }),
+    );
+    await writeAllAndClose(writer, content);
   }
 
   // UploadMultipart uploads the provided multipart file to the fileKey location.
-  UploadMultipart(header: { filename: string; size: number; buffer: Uint8Array }, fileKey: string) {
+  async UploadMultipart(header: { filename: string; size: number; buffer: Uint8Array }, fileKey: string): Promise<void> {
     const contentType = detectMimeTypeFromBytes(header.buffer);
-    const full = this.resolvePath(fileKey);
-    mkdirSync(dirname(full), { recursive: true });
-    writeFileSync(full, header.buffer);
-
     let originalName = header.filename;
     if (originalName.length > 255) {
       originalName = originalName.slice(0, 255);
     }
-    this.writeAttrs(full, contentType, { [metadataOriginalName]: originalName });
+
+    const writer = await this.#bucket.NewWriter(
+      this.#ctx,
+      fileKey,
+      makeWriterOptions(contentType, { [metadataOriginalName]: originalName }),
+    );
+    await writeAllAndClose(writer, header.buffer);
   }
 
   // Delete deletes stored file at fileKey location.
   //
   // If the file doesn't exist returns ErrNotFound.
-  Delete(fileKey: string): void {
-    const full = this.resolvePath(fileKey);
-    if (!existsSync(full)) {
-      throw new NotFoundError();
-    }
-    rmSync(full, { force: true, recursive: true });
-    const attrs = `${full}.attrs`;
-    if (existsSync(attrs)) {
-      rmSync(attrs, { force: true });
+  async Delete(fileKey: string): Promise<void> {
+    try {
+      await this.#bucket.Delete(this.#ctx, fileKey);
+    } catch (error) {
+      throw mapFsError(error);
     }
   }
 
   // DeletePrefix deletes everything starting with the specified prefix.
   //
   // The prefix could be subpath (ex. "/a/b/") or filename prefix (ex. "/a/b/file_").
-  DeletePrefix(prefix: string): Error[] {
+  async DeletePrefix(prefix: string): Promise<Error[]> {
     const failed: Error[] = [];
     if (prefix === "") {
       failed.push(new Error("prefix mustn't be empty"));
       return failed;
     }
 
-    const objects = this.List(prefix);
-    for (const obj of objects) {
+    const dirs = new Set<string>();
+    const isPrefixDir = prefix.endsWith("/");
+    if (isPrefixDir) {
+      dirs.add(prefix.replace(/\/+$/g, ""));
+    }
+
+    const iter = this.#bucket.List({
+      Prefix: prefix,
+      Delimiter: "",
+      PageSize: 0,
+      PageToken: new Uint8Array(),
+    });
+
+    for (;;) {
       try {
-        this.Delete(obj.Key);
+        const obj = await iter.Next(this.#ctx);
+        try {
+          await this.Delete(obj.Key);
+          if (isPrefixDir) {
+            const slashIdx = obj.Key.lastIndexOf("/");
+            if (slashIdx > -1) {
+              dirs.add(obj.Key.slice(0, slashIdx));
+            }
+          }
+        } catch (error) {
+          failed.push(error as Error);
+        }
       } catch (error) {
+        if (error === ErrEOF) {
+          break;
+        }
         failed.push(error as Error);
+        break;
       }
     }
 
-    if (prefix.endsWith("/")) {
-      const dir = this.resolvePath(prefix);
-      if (existsSync(dir)) {
-        rmSync(dir, { recursive: true, force: true });
+    if (isPrefixDir && dirs.size > 0) {
+      const dirList = Array.from(dirs).sort((a, b) => b.split("/").length - a.split("/").length);
+      for (const dir of dirList) {
+        if (!dir) {
+          continue;
+        }
+        try {
+          await this.Delete(dir);
+        } catch {
+          // optional cleanup
+        }
       }
     }
 
@@ -300,13 +377,25 @@ export class System {
   // to ensure that the checked prefix is a "directory".
   //
   // Returns "false" in case the has at least one file, otherwise - "true".
-  IsEmptyDir(dir: string): boolean {
+  async IsEmptyDir(dir: string): Promise<boolean> {
     let prefix = dir;
     if (prefix !== "" && !prefix.endsWith("/")) {
       prefix += "/";
     }
-    const objects = this.List(prefix);
-    return objects.length === 0;
+
+    const iter = this.#bucket.List({
+      Prefix: prefix,
+      Delimiter: "",
+      PageSize: 0,
+      PageToken: new Uint8Array(),
+    });
+
+    try {
+      await iter.Next(this.#ctx);
+      return false;
+    } catch (error) {
+      return error === ErrEOF;
+    }
   }
 
   // Serve serves the file at fileKey location to an HTTP response.
@@ -316,7 +405,7 @@ export class System {
   //
   // Internally this method uses [http.ServeContent] so Range requests,
   // If-Match, If-Unmodified-Since, etc. headers are handled transparently.
-  Serve(
+  async Serve(
     res: {
       statusCode?: number;
       setHeader: (k: string, v: string) => void;
@@ -326,10 +415,10 @@ export class System {
     req: { headers?: Record<string, string | string[]>; url?: string },
     fileKey: string,
     name: string,
-  ): Error | null {
-    let reader: SystemReader;
+  ): Promise<Error | null> {
+    let reader: SystemReader | null = null;
     try {
-      reader = this.GetReader(fileKey);
+      reader = await this.GetReader(fileKey);
     } catch (error) {
       return error as Error;
     }
@@ -373,7 +462,7 @@ export class System {
         .map((part) => part.trim());
       if (ranges.length > 1) {
         statusCode = 206;
-        res.setHeader("Content-Type", `multipart/byteranges; boundary=BOUNDARY`);
+        res.setHeader("Content-Type", "multipart/byteranges; boundary=BOUNDARY");
         responseBody = new Uint8Array();
       } else {
         const rangeSpec = ranges[0] ?? "";
@@ -418,19 +507,22 @@ export class System {
       return new Error("thumb width and height cannot be zero at the same time");
     }
 
-    const originalPath = this.resolvePath(originalKey);
-    if (!existsSync(originalPath)) {
-      return new NotFoundError();
-    }
-
-    const attrs = this.readAttrs(originalPath);
-    const originalContentType = attrs.contentType;
-    if (originalContentType === "image/svg+xml") {
-      return new Error("failed to decode image");
+    let reader: Awaited<ReturnType<Bucket["NewReader"]>> | null = null;
+    try {
+      reader = await this.#bucket.NewReader(this.#ctx, originalKey);
+    } catch (error) {
+      return mapFsError(error);
     }
 
     try {
-      let transformer = sharp(originalPath, { failOn: "none" }).rotate();
+      const originalContentType = reader.ContentType();
+      if (originalContentType === "image/svg+xml") {
+        return new Error("failed to decode image");
+      }
+
+      const originalBytes = await reader.readAll();
+
+      let transformer = sharp(originalBytes, { failOn: "none" }).rotate();
       if (width === 0 || height === 0) {
         const targetWidth = width === 0 ? undefined : width;
         const targetHeight = height === 0 ? undefined : height;
@@ -469,84 +561,14 @@ export class System {
       }
 
       const outputBytes = await transformer.toFormat(outputFormat).toBuffer();
-      const thumbPath = this.resolvePath(thumbKey);
-      mkdirSync(dirname(thumbPath), { recursive: true });
-      writeFileSync(thumbPath, outputBytes);
-      this.writeAttrs(thumbPath, outputContentType, null);
+      const writer = await this.#bucket.NewWriter(this.#ctx, thumbKey, makeWriterOptions(outputContentType));
+      await writeAllAndClose(writer, outputBytes);
+      return null;
     } catch (error) {
       return error as Error;
+    } finally {
+      reader?.close();
     }
-
-    return null;
-  }
-
-  private resolvePath(fileKey: string): string {
-    const cleaned = fileKey.replace(/^\//, "");
-    return join(this.#root, cleaned);
-  }
-
-  private walkFiles(root: string): { key: string; size: number; mtime: Date }[] {
-    const results: { key: string; size: number; mtime: Date }[] = [];
-    const stack = [root];
-
-    while (stack.length > 0) {
-      const current = stack.pop() ?? root;
-      const entries = readdirSync(current, { withFileTypes: true });
-      for (const entry of entries) {
-        const full = join(current, entry.name);
-        if (entry.isDirectory()) {
-          stack.push(full);
-          continue;
-        }
-        if (entry.isFile()) {
-          if (full.endsWith(".attrs")) {
-            continue;
-          }
-          const stat = statSync(full);
-          const rel = posix.join(...full.slice(this.#root.length + 1).split("/")).replace(/\\/g, "/");
-          results.push({ key: rel, size: stat.size, mtime: stat.mtime });
-        }
-      }
-    }
-
-    return results;
-  }
-
-  private readAttrs(filePath: string): { contentType: string; metadata: Record<string, string> } {
-    const attrsPath = `${filePath}.attrs`;
-    if (!existsSync(attrsPath)) {
-      return { contentType: "application/octet-stream", metadata: {} };
-    }
-
-    try {
-      const raw = JSON.parse(readFileSync(attrsPath, "utf8")) as Record<string, unknown>;
-      const contentType =
-        typeof raw["user.content_type"] === "string" ? (raw["user.content_type"] as string) : "application/octet-stream";
-      const metadataRaw = raw["user.metadata"];
-      const metadata: Record<string, string> = {};
-      if (metadataRaw && typeof metadataRaw === "object") {
-        for (const [key, value] of Object.entries(metadataRaw as Record<string, unknown>)) {
-          if (typeof value === "string") {
-            metadata[key] = value;
-          }
-        }
-      }
-      return { contentType, metadata };
-    } catch {
-      return { contentType: "application/octet-stream", metadata: {} };
-    }
-  }
-
-  private writeAttrs(filePath: string, contentType: string, metadata: Record<string, string> | null): void {
-    const attrs = {
-      "user.cache_control": "",
-      "user.content_disposition": "",
-      "user.content_encoding": "",
-      "user.content_language": "",
-      "user.content_type": contentType,
-      "user.metadata": metadata,
-    };
-    writeFileSync(`${filePath}.attrs`, JSON.stringify(attrs));
   }
 }
 
@@ -560,8 +582,15 @@ export function NewLocal(dirPath: string): System {
 // NewS3 initializes an S3 filesystem instance.
 //
 // NB! Make sure to call `Close()` after you are done working with it.
-export function NewS3(...args: unknown[]): System {
-  return System.NewS3(...args);
+export function NewS3(
+  bucketName: string,
+  region: string,
+  endpoint: string,
+  accessKey: string,
+  secret: string,
+  s3ForcePathStyle: boolean,
+): System {
+  return System.NewS3(bucketName, region, endpoint, accessKey, secret, s3ForcePathStyle);
 }
 
 export class SystemReader {
@@ -622,6 +651,71 @@ export class SystemReader {
 
   size(): number {
     return this.#attrs.Size;
+  }
+}
+
+function toAbortSignal(ctx: unknown): AbortSignal | null {
+  if (ctx instanceof AbortSignal) {
+    return ctx;
+  }
+  if (!ctx || typeof ctx !== "object") {
+    return null;
+  }
+  const candidate = ctx as { aborted?: unknown; addEventListener?: unknown };
+  if (typeof candidate.aborted === "boolean" && typeof candidate.addEventListener === "function") {
+    return ctx as AbortSignal;
+  }
+  return null;
+}
+
+function mapFsError(error: unknown): Error {
+  if (isNotFoundError(error)) {
+    return ErrNotFound;
+  }
+  if (error instanceof Error) {
+    return error;
+  }
+  return new Error(String(error));
+}
+
+function makeWriterOptions(contentType: string, metadata: Record<string, string> = {}): WriterOptions {
+  return {
+    BufferSize: 0,
+    MaxConcurrency: 0,
+    CacheControl: "",
+    ContentDisposition: "",
+    ContentEncoding: "",
+    ContentLanguage: "",
+    ContentType: contentType,
+    DisableContentTypeDetection: false,
+    ContentMD5: new Uint8Array(),
+    Metadata: metadata,
+  };
+}
+
+async function writeAllAndClose(
+  writer: { write: (data?: Uint8Array | null) => Promise<number>; close: () => Promise<void> },
+  data: Uint8Array,
+) {
+  let writeErr: Error | null = null;
+  try {
+    await writer.write(data);
+  } catch (error) {
+    writeErr = error as Error;
+  }
+
+  try {
+    await writer.close();
+  } catch (error) {
+    const closeErr = error as Error;
+    if (writeErr) {
+      throw new AggregateError([writeErr, closeErr], `${writeErr.message}; ${closeErr.message}`);
+    }
+    throw closeErr;
+  }
+
+  if (writeErr) {
+    throw writeErr;
   }
 }
 

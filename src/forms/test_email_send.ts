@@ -74,7 +74,7 @@ export class TestEmailSend {
   }
 
   // Submit validates and sends a test email to the form.Email address.
-  Submit(): Error | null {
+  async Submit(): Promise<Error | null> {
     const err = this.Validate();
     if (err) {
       return err;
@@ -102,16 +102,16 @@ export class TestEmailSend {
 
     switch (this.Template) {
       case TestTemplateVerification:
-        return SendRecordVerification(this.app, record);
+        return await SendRecordVerification(this.app, record);
       case TestTemplatePasswordReset:
-        return SendRecordPasswordReset(this.app, record);
+        return await SendRecordPasswordReset(this.app, record);
       case TestTemplateEmailChange:
-        return SendRecordChangeEmail(this.app, record, this.Email);
+        return await SendRecordChangeEmail(this.app, record, this.Email);
       case TestTemplateOTP:
-        return SendRecordOTP(this.app, record, "_PB_TEST_OTP_ID_", "123456");
+        return await SendRecordOTP(this.app, record, "_PB_TEST_OTP_ID_", "123456");
       case TestTemplateAuthAlert: {
         const testEvent = `${NowDateTime().String()} - TEST_IP TEST_USER_AGENT`;
-        return SendRecordAuthAlert(this.app, record, testEvent);
+        return await SendRecordAuthAlert(this.app, record, testEvent);
       }
       default:
         return new Error(`unknown template ${this.Template}`);

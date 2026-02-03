@@ -137,21 +137,21 @@ describe("mfa", () => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
 
       const mfaMissing = new MFA();
-      expect(app.Validate(mfaMissing)).not.toBeNull();
+      expect(await app.Validate(mfaMissing)).not.toBeNull();
 
       const mfaInvalid = new MFA();
       mfaInvalid.SetProxyRecord(NewRecord(NewBaseCollection("invalid")));
       mfaInvalid.SetRecordRef(user.Id);
       mfaInvalid.SetCollectionRef(user.collection().id);
       mfaInvalid.SetMethod("test123");
-      expect(app.Validate(mfaInvalid)).not.toBeNull();
+      expect(await app.Validate(mfaInvalid)).not.toBeNull();
 
       const mfaValid = new MFA();
       mfaValid.SetProxyRecord(NewRecord(mfasCol));
       mfaValid.SetRecordRef(user.Id);
       mfaValid.SetCollectionRef(user.collection().id);
       mfaValid.SetMethod("test123");
-      expect(app.Validate(mfaValid)).toBeNull();
+      expect(await app.Validate(mfaValid)).toBeNull();
     } finally {
       await cleanup();
     }
@@ -205,7 +205,7 @@ describe("mfa", () => {
       ];
 
       for (const scenario of scenarios) {
-        const errs = app.Validate(scenario.mfa());
+        const errs = await app.Validate(scenario.mfa());
         testValidationErrors(errs, scenario.expectErrors);
       }
     } finally {

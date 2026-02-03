@@ -110,7 +110,7 @@ const scenarios: Scenario[] = [
       OnRecordAfterUpdateSuccess: 1,
       OnRecordValidate: 1,
     },
-    beforeTest: (app: TestApp) => {
+    beforeTest: async (app: TestApp) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
       if (user.Verified()) {
         throw new Error("Expected the user to be unverified");
@@ -162,7 +162,7 @@ const scenarios: Scenario[] = [
       OnRecordAfterUpdateSuccess: 1,
       OnRecordValidate: 1,
     },
-    beforeTest: (app: TestApp) => {
+    beforeTest: async (app: TestApp) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
       if (user.Verified()) {
         throw new Error("Expected the user to be unverified");
@@ -170,13 +170,13 @@ const scenarios: Scenario[] = [
 
       const oldTokenKey = user.TokenKey();
       user.SetEmail("test_update@example.com");
-      const err = app.Save(user);
+      const err = await app.Save(user);
       if (err) {
         throw new Error(`Failed to update user test email: ${err.message}`);
       }
 
       user.SetTokenKey(oldTokenKey);
-      const restoreErr = app.Save(user);
+      const restoreErr = await app.Save(user);
       if (restoreErr) {
         throw new Error(`Failed to restore original user tokenKey: ${restoreErr.message}`);
       }
@@ -227,10 +227,10 @@ const scenarios: Scenario[] = [
       OnRecordAfterUpdateSuccess: 1,
       OnRecordValidate: 1,
     },
-    beforeTest: (app: TestApp) => {
+    beforeTest: async (app: TestApp) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
       user.SetVerified(true);
-      const err = app.Save(user);
+      const err = await app.Save(user);
       if (err) {
         throw new Error("Failed to update user verified state");
       }
@@ -269,11 +269,11 @@ const scenarios: Scenario[] = [
       "passwordConfirm":"1234567!"
     }`,
     beforeTest: (app: TestApp) => {
-      app.OnRecordConfirmPasswordResetRequest().BindFunc((event: any) => {
+      app.OnRecordConfirmPasswordResetRequest().BindFunc(async (event: any) => {
         const original = event.App;
-        event.App.RunInTransaction((txApp: any) => {
+        await event.App.RunInTransaction(async (txApp: any) => {
           event.App = txApp;
-          void event.Next();
+          await event.Next();
           event.App = original;
           return new Error("TX_ERROR");
         });

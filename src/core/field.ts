@@ -100,7 +100,13 @@ export interface MultiValuer {
 // RecordInterceptor defines a field interface for reacting to various
 // Record related operations (create, delete, validate, etc.).
 export interface RecordInterceptor {
-  Intercept(ctx: unknown, app: unknown, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null;
+  Intercept(
+    ctx: unknown,
+    app: unknown,
+    record: RecordLike,
+    actionName: string,
+    actionFunc: () => Error | null | Promise<Error | null>,
+  ): Error | null | Promise<Error | null>;
 }
 
 export type RecordLike = {

@@ -99,6 +99,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Evidence: upstream migration attempts to decrypt the old settings value before JSON decode.
 - Observation: bun:sqlite does not accept PocketBase/dbx-style double-square-bracket identifier quoting (`[[name]]`).
   Evidence: executing `select [[name]] from t` in bun:sqlite raises "unrecognized token: ]", while `[name]` works.
+- Observation: Bun ships native S3 bindings that may be a better long-term fit than a Go-style S3 client port for performance and integration.
+  Evidence: Bun runtime capabilities (to be evaluated alongside the current s3blob driver).
 - Observation: dbx placeholder rewrites should not touch SQL comments to avoid altering commented-out fragments.
   Evidence: added dbx quoting tests that preserve `[[...]]`/`{{...}}` inside `--` and `/* */` comments.
 - Observation: record validation order must match upstream so hook counters and auth flow tests behave as expected.

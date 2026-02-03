@@ -30,7 +30,7 @@ type BackupFileInfo = {
   Size: number;
 };
 
-function backupsList(app: App, event: RequestEvent): Response {
+async function backupsList(app: App, event: RequestEvent): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
 
@@ -44,7 +44,7 @@ function backupsList(app: App, event: RequestEvent): Response {
 
   try {
     fsys.SetContext(controller.signal);
-    const backups = fsys.List("");
+    const backups = await fsys.List("");
     const result: BackupFileInfo[] = backups.map((obj) => ({
       Key: obj.Key,
       Size: obj.Size,
@@ -55,11 +55,11 @@ function backupsList(app: App, event: RequestEvent): Response {
     return badRequest(event, `Failed to retrieve backup items. Raw error: \n${(error as Error).message}`, null);
   } finally {
     clearTimeout(timeout);
-    fsys.Close();
+    await fsys.Close();
   }
 }
 
-function backupDownload(app: App, event: RequestEvent): Response {
+async function backupDownload(app: App, event: RequestEvent): Promise<Response> {
   const token = new URL(event.request.url).searchParams.get("token") ?? "";
 
   try {
@@ -88,7 +88,7 @@ function backupDownload(app: App, event: RequestEvent): Response {
 
     const recorder = new ResponseRecorder(event.responseHeaders);
     const headers = headersToObject(event.request.headers);
-    const err = fsys.Serve(
+    const err = await fsys.Serve(
       recorder,
       { url: event.request.url, headers },
       key,
@@ -100,11 +100,11 @@ function backupDownload(app: App, event: RequestEvent): Response {
     return recorder.toResponse();
   } finally {
     clearTimeout(timeout);
-    fsys.Close();
+    await fsys.Close();
   }
 }
 
-function backupDelete(app: App, event: RequestEvent): Response {
+async function backupDelete(app: App, event: RequestEvent): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
 
@@ -126,7 +126,7 @@ function backupDelete(app: App, event: RequestEvent): Response {
     }
 
     try {
-      fsys.Delete(key);
+      await fsys.Delete(key);
     } catch (error) {
       return badRequest(event, `Invalid or already deleted backup file. Raw error: \n${(error as Error).message}`, null);
     }
@@ -134,11 +134,11 @@ function backupDelete(app: App, event: RequestEvent): Response {
     return noContent(event, 204);
   } finally {
     clearTimeout(timeout);
-    fsys.Close();
+    await fsys.Close();
   }
 }
 
-function backupRestore(app: App, event: RequestEvent): Response {
+async function backupRestore(app: App, event: RequestEvent): Promise<Response> {
   if (app.store().has(StoreKeyActiveBackup)) {
     return badRequest(event, "Try again later - another backup/restore process has already been started.", null);
   }
@@ -158,28 +158,30 @@ function backupRestore(app: App, event: RequestEvent): Response {
 
   try {
     fsys.SetContext(controller.signal);
-    if (!fsys.Exists(key)) {
+    if (!(await fsys.Exists(key))) {
       return badRequest(event, "Missing or invalid backup file.", null);
     }
   } finally {
     clearTimeout(timeout);
-    fsys.Close();
+    await fsys.Close();
   }
 
   FireAndForget(() => {
     // give some optimistic time to write the response before restarting the app
     setTimeout(() => {
-      const restoreController = new AbortController();
-      // wait max 10 minutes to fetch the backup
-      const restoreTimeout = setTimeout(() => restoreController.abort(), 10 * 60_000);
-      try {
-        const err = app.RestoreBackup(restoreController.signal, key);
-        if (err) {
-          app.Logger().Error("Failed to restore backup", "key", key, "error", err.message);
+      FireAndForget(async () => {
+        const restoreController = new AbortController();
+        // wait max 10 minutes to fetch the backup
+        const restoreTimeout = setTimeout(() => restoreController.abort(), 10 * 60_000);
+        try {
+          const err = await app.RestoreBackup(restoreController.signal, key);
+          if (err) {
+            app.Logger().Error("Failed to restore backup", "key", key, "error", err.message);
+          }
+        } finally {
+          clearTimeout(restoreTimeout);
         }
-      } finally {
-        clearTimeout(restoreTimeout);
-      }
+      });
     }, 1000);
   });
 

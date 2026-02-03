@@ -10,7 +10,7 @@ function cloneDateTime(dt: DateTime): DateTime {
   return new DateTime(dt.time());
 }
 
-export function StubOTPRecords(app: App): Error | null {
+export async function StubOTPRecords(app: App): Promise<Error | null> {
   try {
     const superuser2 = app.FindAuthRecordByEmail(CollectionNameSuperusers, "test2@example.com");
     superuser2.SetRaw("stubId", "superuser2");
@@ -47,7 +47,7 @@ export function StubOTPRecords(app: App): Error | null {
         otp.SetCollectionRef(record.collection().id);
         otp.ProxyRecord().SetPassword("test123");
         otp.ProxyRecord().SetRaw("created", date);
-        const err = app.SaveNoValidate(otp);
+        const err = await app.SaveNoValidate(otp);
         if (err) {
           return err;
         }
@@ -60,7 +60,7 @@ export function StubOTPRecords(app: App): Error | null {
   }
 }
 
-export function StubMFARecords(app: App): Error | null {
+export async function StubMFARecords(app: App): Promise<Error | null> {
   try {
     const superuser2 = app.FindAuthRecordByEmail(CollectionNameSuperusers, "test2@example.com");
     superuser2.SetRaw("stubId", "superuser2");
@@ -103,7 +103,7 @@ export function StubMFARecords(app: App): Error | null {
         mfa.SetCollectionRef(record.collection().id);
         mfa.SetMethod(data.method);
         mfa.ProxyRecord().SetRaw("created", data.date);
-        const err = app.SaveNoValidate(mfa);
+        const err = await app.SaveNoValidate(mfa);
         if (err) {
           return err;
         }

@@ -9,7 +9,7 @@ describe("otp queries", () => {
   it("FindAllOTPsByRecord", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const stubErr = StubOTPRecords(app);
+      const stubErr = await StubOTPRecords(app);
       expect(stubErr).toBeNull();
 
       const demo1 = app.FindRecordById("demo1", "84nmscqy84lsi1t");
@@ -39,7 +39,7 @@ describe("otp queries", () => {
   it("FindAllOTPsByCollection", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const stubErr = StubOTPRecords(app);
+      const stubErr = await StubOTPRecords(app);
       expect(stubErr).toBeNull();
 
       const demo1 = app.findCollectionByNameOrId("demo1");
@@ -84,7 +84,7 @@ describe("otp queries", () => {
   it("FindOTPById", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const stubErr = StubOTPRecords(app);
+      const stubErr = await StubOTPRecords(app);
       expect(stubErr).toBeNull();
 
       const scenarios = [
@@ -133,7 +133,7 @@ describe("otp queries", () => {
       for (const scenario of scenarios) {
         const { app, cleanup } = await newTestApp();
         try {
-          const stubErr = StubOTPRecords(app);
+          const stubErr = await StubOTPRecords(app);
           expect(stubErr).toBeNull();
 
           const deletedIds: string[] = [];
@@ -144,7 +144,7 @@ describe("otp queries", () => {
             return e.Next();
           });
 
-          const err = app.DeleteAllOTPsByRecord(scenario.record);
+          const err = await app.DeleteAllOTPsByRecord(scenario.record);
           expect(err).toBeNull();
 
           expect(deletedIds.length).toBe(scenario.deletedIds.length);
@@ -163,15 +163,15 @@ describe("otp queries", () => {
   it("DeleteExpiredOTPs", async () => {
     const checkDeletedIds = async (
       expectedDeletedIds: string[],
-      mutate?: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => void,
+      mutate?: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => void | Promise<void>,
     ) => {
       const { app, cleanup } = await newTestApp();
       try {
         if (mutate) {
-          mutate(app);
+          await mutate(app);
         }
 
-        const stubErr = StubOTPRecords(app);
+        const stubErr = await StubOTPRecords(app);
         expect(stubErr).toBeNull();
 
         const deletedIds: string[] = [];
@@ -182,7 +182,7 @@ describe("otp queries", () => {
           return e.Next();
         });
 
-        const err = app.DeleteExpiredOTPs();
+        const err = await app.DeleteExpiredOTPs();
         expect(err).toBeNull();
 
         expect(deletedIds.length).toBe(expectedDeletedIds.length);
@@ -196,13 +196,13 @@ describe("otp queries", () => {
 
     await checkDeletedIds(["user1_0", "superuser2_2", "superuser2_4"]);
 
-    await checkDeletedIds(["user1_0", "superuser2_2", "superuser2_4", "superuser3_1"], (app) => {
+    await checkDeletedIds(["user1_0", "superuser2_2", "superuser2_4", "superuser3_1"], async (app) => {
       const superusers = app.findCollectionByNameOrId(CollectionNameSuperusers);
       if (!superusers) {
         throw new Error("missing superusers collection");
       }
       superusers.OTP.Duration = 60;
-      const err = app.Save(superusers);
+      const err = await app.Save(superusers);
       if (err) {
         throw err;
       }

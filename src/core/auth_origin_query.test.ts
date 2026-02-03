@@ -164,7 +164,7 @@ describe("auth origin queries", () => {
             return e.Next();
           });
 
-          const err = app.DeleteAllAuthOriginsByRecord(scenario.record);
+          const err = await app.DeleteAllAuthOriginsByRecord(scenario.record);
           if (err) {
             throw err;
           }

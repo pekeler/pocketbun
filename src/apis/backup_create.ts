@@ -22,12 +22,12 @@ export async function backupCreate(app: App, event: RequestEvent): Promise<Respo
     return badRequest(event, "An error occurred while loading the submitted data.", error as Error);
   }
 
-  const err = form.validate();
+  const err = await form.validate();
   if (err) {
     return badRequest(event, "An error occurred while validating the submitted data.", err);
   }
 
-  const createErr = app.CreateBackup(null, form.Name);
+  const createErr = await app.CreateBackup(null, form.Name);
   if (createErr) {
     return badRequest(event, "Failed to create backup.", createErr);
   }
@@ -53,7 +53,7 @@ class BackupCreateForm {
     this.Name = value;
   }
 
-  validate(): Error | null {
+  async validate(): Promise<Error | null> {
     if (typeof this.Name !== "string") {
       this.Name = "";
     }
@@ -69,7 +69,7 @@ class BackupCreateForm {
     } else if (!backupNameRegex.test(this.Name)) {
       errors.name = newError("validation_match_invalid", "Must be in a valid format.");
     } else {
-      const uniqueErr = this.checkUniqueName(this.Name);
+      const uniqueErr = await this.checkUniqueName(this.Name);
       if (uniqueErr) {
         errors.name = uniqueErr;
       }
@@ -78,7 +78,7 @@ class BackupCreateForm {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
-  private checkUniqueName(value: string): Error | null {
+  private async checkUniqueName(value: string): Promise<Error | null> {
     if (!value) {
       return null;
     }
@@ -91,11 +91,11 @@ class BackupCreateForm {
     }
 
     try {
-      if (fsys.Exists(value)) {
+      if (await fsys.Exists(value)) {
         return newError("validation_backup_name_exists", "The backup file name is invalid or already exists.");
       }
     } finally {
-      fsys.Close();
+      await fsys.Close();
     }
 
     return null;

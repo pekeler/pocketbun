@@ -50,7 +50,7 @@ export async function recordRequestEmailChange(app: App, event: RequestEvent): P
   hookEvent.NewEmail = form.newEmail;
 
   const out = await app.OnRecordRequestEmailChangeRequest().Trigger(hookEvent, async () => {
-    const sendErr = SendRecordChangeEmail(app, authRecord, form.newEmail);
+    const sendErr = await SendRecordChangeEmail(app, authRecord, form.newEmail);
     if (sendErr) {
       return badRequest(event, "Failed to request email change.", sendErr);
     }

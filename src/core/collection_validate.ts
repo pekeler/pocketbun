@@ -39,9 +39,9 @@ import { ErrUnsupportedValueType, joinValidationErrors } from "./validators/inde
 const collectionNameRegex = /^\w+$/;
 const reservedAuthKeys = ["passwordConfirm", "oldPassword"];
 
-export function validateCollection(app: App, collection: Collection, original: Collection | null): Error | null {
+export async function validateCollection(app: App, collection: Collection, original: Collection | null): Promise<Error | null> {
   const validator = new CollectionValidator(app, collection, original);
-  return validator.run();
+  return await validator.run();
 }
 
 class CollectionValidator {
@@ -57,14 +57,14 @@ class CollectionValidator {
     this.#ctx = null;
   }
 
-  run(): Error | null {
+  async run(): Promise<Error | null> {
     if (this.#original.IsNew()) {
       this.#next.updateGeneratedIdIfExists(this.#app);
     }
 
     if (this.#next.IsView()) {
       try {
-        this.#next.Fields = this.#app.CreateViewFields(this.#next.ViewQuery);
+        this.#next.Fields = await this.#app.CreateViewFields(this.#next.ViewQuery);
       } catch {
         this.#next.Fields = new FieldsList();
       }
@@ -72,7 +72,7 @@ class CollectionValidator {
     this.syncFields();
 
     const baseErr = this.validateBase();
-    const optionsErr = this.validateOptions();
+    const optionsErr = await this.validateOptions();
     return joinValidationErrors(baseErr, optionsErr);
   }
 
@@ -161,22 +161,22 @@ class CollectionValidator {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
-  private validateOptions(): Error | null {
+  private async validateOptions(): Promise<Error | null> {
     if (this.#next.IsAuth()) {
       return this.validateAuthOptions();
     }
     if (this.#next.IsView()) {
-      return this.validateViewOptions();
+      return await this.validateViewOptions();
     }
     return null;
   }
 
-  private validateViewOptions(): Error | null {
+  private async validateViewOptions(): Promise<Error | null> {
     const errors: Record<string, Error> = {};
     if (this.#next.ViewQuery === "") {
       errors.viewQuery = ErrRequired;
     } else {
-      const viewErr = this.checkViewQuery(this.#next.ViewQuery);
+      const viewErr = await this.checkViewQuery(this.#next.ViewQuery);
       if (viewErr) {
         errors.viewQuery = viewErr;
       }
@@ -564,13 +564,13 @@ class CollectionValidator {
     return Object.keys(errs).length > 0 ? new ValidationErrors(errs) : null;
   }
 
-  private checkViewQuery(value: string): Error | null {
+  private async checkViewQuery(value: string): Promise<Error | null> {
     if (value === "") {
       return null;
     }
 
     try {
-      this.#app.CreateViewFields(value);
+      await this.#app.CreateViewFields(value);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return newError("validation_invalid_view_query", `Invalid query - ${message}`);
