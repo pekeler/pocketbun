@@ -23,6 +23,12 @@
     "oxlint-tsgolint": "^0.11.4"
   },
   "peerDependencies": {
+    "go-text-template": "*",
     "typescript": "^5"
+  },
+  "peerDependenciesMeta": {
+    "go-text-template": {
+      "optional": true
+    }
   }
 }

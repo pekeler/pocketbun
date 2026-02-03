@@ -91,6 +91,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [ ] (2026-02-03 18:20Z) Restore 1:1 file mapping where practical by un-merging merged TS files and adding missing upstream files/tests (completed: analysis of missing files/tests, merged-header rule, low-risk un-merges like api_error_aliases/router error/collection_import + auth_origin/otp/mfa/external_auth query splits, base_backup helper extraction + base_paths constants, db_connect helper, syscall stub, collection_query module + tests + DbxDatabase query logging, db_tx module + tests, db_retry/db_builder modules with tests for db_retry, and tools/search + tools/types + tools/security + tools/osutils + tools/logger tests; remaining: larger splits and missing modules/tests).
 - [x] (2026-02-03 20:05Z) Port tools/osutils cmd/run modules and tests, and align MoveDirContent mkdir/rollback behavior with upstream.
 - [x] (2026-02-03 21:05Z) Port tools/logger log/batch handler + tests and add a minimal slog compat shim for structured logging parity.
+- [x] (2026-02-03 22:10Z) Port tools/template registry/renderer + tests, wire $template into JS hooks/migrations, and document JS-friendly templating guidance.
 
 ## Surprises & Discoveries
 

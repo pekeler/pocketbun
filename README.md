@@ -51,6 +51,30 @@ superuser.upsert(app, "admin@example.com", "change-me");
 
 PocketBun uses Sharp for image resizing. Output bytes may differ from PocketBase’s Go imaging stack, and BMP thumbnails are emitted as PNG because Sharp doesn’t write BMP.
 
+### Templates ($template)
+
+PocketBun exposes the same `$template` helper for JS/TS hooks/migrations. If you install the optional `go-text-template` package, `$template` will understand most Go-style template syntax. HTML escaping is simpler than Go’s `html/template` (the `raw` helper is supported). If you want full control or a different syntax, use any JS templating library.
+
+Example using a JS/TS-native templating engine in hooks:
+
+```ts
+import Handlebars from "handlebars";
+
+const source = await Bun.file("email.html").text();
+const tpl = Handlebars.compile(source);
+const html = tpl({ name: "Ada" });
+```
+
+Example enabling Go-style template syntax:
+
+```sh
+bun add go-text-template
+```
+
+```ts
+const html = $template.loadString("Hello {{.Name}}!").render({ Name: "Ada" });
+```
+
 ### DBX Helpers
 
 PocketBun exposes dbx-style SQL placeholder helpers from the package entrypoint so external callers can keep using `[[column]]` and `{{table}}` syntax.

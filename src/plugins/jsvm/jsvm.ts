@@ -8,6 +8,7 @@ import { dirname, extname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { App } from "../../core/app.ts";
 import { AppMigrations } from "../../core/migrations_runner.ts";
+import { NewRegistry } from "../../tools/template/registry.ts";
 import {
   appBinds,
   apisBinds,
@@ -99,6 +100,7 @@ function registerMigrations(app: App, config: Config): Error | null {
   }
 
   const absHooksDir = resolve(config.HooksDir ?? "");
+  const templateRegistry = NewRegistry();
 
   for (const [file, content] of files.entries()) {
     const globals = createGlobals(app, absHooksDir, config);
@@ -112,6 +114,7 @@ function registerMigrations(app: App, config: Config): Error | null {
     filesystemBinds(globals);
     formsBinds(globals);
     mailsBinds(globals);
+    globals.$template = templateRegistry;
 
     globals.migrate = (up: (txApp: App) => void, down?: (txApp: App) => void) => {
       AppMigrations.register(up, down, file);
@@ -138,6 +141,7 @@ function registerHooks(app: App, config: Config): Error | null {
   }
 
   const absHooksDir = resolve(config.HooksDir ?? "");
+  const templateRegistry = NewRegistry();
   const globals = createGlobals(app, absHooksDir, config);
   appBinds(globals, app);
 
@@ -151,6 +155,7 @@ function registerHooks(app: App, config: Config): Error | null {
   formsBinds(globals);
   apisBinds(globals);
   mailsBinds(globals);
+  globals.$template = templateRegistry;
   hooksBinds(app, globals);
   cronBinds(app, globals);
   routerBinds(app, globals);
