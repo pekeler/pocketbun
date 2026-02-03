@@ -1,6 +1,4 @@
-// Ported from pocketbase/tools/filesystem/blob/driver.go and bucket.go (types only).
-// Note: Bucket/Reader/Writer implementations are not yet ported; this file provides
-// the shared types used by s3blob and related tests.
+// Ported from pocketbase/tools/filesystem/blob/driver.go.
 
 export class NotFoundError extends Error {
   constructor(message = "resource not found") {
