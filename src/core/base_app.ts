@@ -108,6 +108,11 @@ import {
 } from "./events.ts";
 import { CollectionNameExternalAuths, ExternalAuth } from "./external_auth_model.ts";
 import {
+  FindAllExternalAuthsByCollection as FindAllExternalAuthsByCollectionQuery,
+  FindAllExternalAuthsByRecord as FindAllExternalAuthsByRecordQuery,
+  FindFirstExternalAuthByExpr as FindFirstExternalAuthByExprQuery,
+} from "./external_auth_query.ts";
+import {
   InterceptorActionAfterDelete,
   InterceptorActionAfterDeleteError,
   InterceptorActionAfterCreate,
@@ -1328,43 +1333,17 @@ export class BaseApp implements App {
 
   // Ported from pocketbase/core/external_auth_query.go.
   FindAllExternalAuthsByRecord(authRecord: RecordModel): ExternalAuth[] {
-    const result: ExternalAuth[] = [new ExternalAuth()];
-
-    this.RecordQuery(CollectionNameExternalAuths)
-      .AndWhere({
-        collectionRef: authRecord.collection().id,
-        recordRef: authRecord.Id,
-      })
-      .OrderBy("created DESC")
-      .All(result);
-
-    return result;
+    return FindAllExternalAuthsByRecordQuery(this, authRecord);
   }
 
   // Ported from pocketbase/core/external_auth_query.go.
   FindAllExternalAuthsByCollection(collection: Collection): ExternalAuth[] {
-    const result: ExternalAuth[] = [new ExternalAuth()];
-
-    this.RecordQuery(CollectionNameExternalAuths)
-      .AndWhere({ collectionRef: collection.id })
-      .OrderBy("created DESC")
-      .All(result);
-
-    return result;
+    return FindAllExternalAuthsByCollectionQuery(this, collection);
   }
 
   // Ported from pocketbase/core/external_auth_query.go.
   FindFirstExternalAuthByExpr(expr: SqlExpr | Record<string, unknown>): ExternalAuth {
-    const result = new ExternalAuth();
-
-    this.RecordQuery(CollectionNameExternalAuths)
-      .AndWhere(Not(HashExp({ providerId: "" })))
-      .AndWhere(expr)
-      .OrderBy("created DESC")
-      .Limit(1)
-      .One(result);
-
-    return result;
+    return FindFirstExternalAuthByExprQuery(this, expr);
   }
 
   // Ported from pocketbase/core/otp_query.go.
