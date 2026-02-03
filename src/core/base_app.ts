@@ -1,10 +1,10 @@
-// Ported from pocketbase/core/base.go and pocketbase/core/base_backup.go (merged to keep BaseApp in one file).
+// Ported from pocketbase/core/base.go and pocketbase/core/base_backup.go (BaseApp remains in one file; backup logic moved to base_backup.ts).
 
 import "../migrations/index.ts";
 import "./fields_register.ts";
 import type { Database, SQLQueryBindings } from "bun:sqlite";
-import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import type { SqlExpr } from "../tools/search/types.ts";
 import type { App, Logger } from "./app.ts";
 import type { PostValidator, PreValidator } from "./db.ts";
@@ -13,7 +13,6 @@ import type { RequestInfo } from "./event_request.ts";
 import type { BatchRequestEvent } from "./event_request_batch.ts";
 import type { RecordProxy } from "./record_proxy.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
-import { Create, Extract } from "../tools/archive/index.ts";
 import { Providers } from "../tools/auth/auth.ts";
 import { Cron } from "../tools/cron/cron.ts";
 import { findSingleColumnUniqueIndex, parseIndex } from "../tools/dbutils/index.ts";
@@ -21,20 +20,18 @@ import { JSONEach } from "../tools/dbutils/json.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
 import { HashExp, Not } from "../tools/dbx/expr.ts";
 import { SelectQuery } from "../tools/dbx/select_query.ts";
-import { NewFileFromPath } from "../tools/filesystem/file.ts";
 import { NewLocal, NewS3 } from "../tools/filesystem/filesystem.ts";
 import { Hook } from "../tools/hook/hook.ts";
 import { NewTaggedHook } from "../tools/hook/tagged.ts";
 import { columnify, snakecase } from "../tools/inflector/inflector.ts";
 import { Sendmail } from "../tools/mailer/sendmail.ts";
 import { SMTPClient } from "../tools/mailer/smtp.ts";
-import { MoveDirContent } from "../tools/osutils/dir.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { buildSortExpr, parseSortFromString } from "../tools/search/sort.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
 import { decrypt, encrypt } from "../tools/security/encrypt.ts";
 import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
-import { pseudorandomString, randomString } from "../tools/security/random.ts";
+import { randomString } from "../tools/security/random.ts";
 import { Broker } from "../tools/subscriptions/broker.ts";
 import { DateTime, GeoPoint, JSONRaw, NowDateTime, ParseDateTime } from "../tools/types/index.ts";
 import { AuthOrigin, CollectionNameAuthOrigins, recordRefHooks } from "./auth_origin_model.ts";
@@ -45,6 +42,12 @@ import {
   FindAuthOriginById as FindAuthOriginByIdQuery,
   FindAuthOriginByRecordAndFingerprint as FindAuthOriginByRecordAndFingerprintQuery,
 } from "./auth_origin_query.ts";
+import {
+  CreateBackup as CreateBackupHelper,
+  RestoreBackup as RestoreBackupHelper,
+  registerAutobackupHooks as registerAutobackupHooksHelper,
+} from "./base_backup.ts";
+import { LocalAutocertCacheDirName, LocalBackupsDirName, LocalStorageDirName, LocalTempDirName } from "./base_paths.ts";
 import { Collection, CollectionTypeAuth, collectionFromRow, parseCollectionFields, type CollectionRow } from "./collection.ts";
 import { validateCollection } from "./collection_validate.ts";
 import { TableInfo, TableIndexes } from "./db_table.ts";
@@ -166,7 +169,7 @@ import {
   TokenTypeVerification,
 } from "./record_tokens.ts";
 import { Settings } from "./settings.ts";
-import { Store, StoreKeyActiveBackup } from "./store.ts";
+import { Store } from "./store.ts";
 import { NormalizeUniqueIndexError } from "./validators/db.ts";
 import { CreateViewFields, DeleteView, SaveView, FindRecordByViewFile as findRecordByViewFile } from "./view.ts";
 
@@ -177,13 +180,7 @@ export type BaseAppConfig = {
   isDev?: boolean;
 };
 
-export const LocalStorageDirName = "storage";
-export const LocalBackupsDirName = "backups";
-export const LocalTempDirName = ".pb_temp_to_delete"; // temp pb_data sub directory that will be deleted on each app.Bootstrap()
-export const LocalAutocertCacheDirName = ".autocert_cache";
-
-// @todo consider removing after backups refactoring
-const lostFoundDirName = "lost+found";
+export { LocalAutocertCacheDirName, LocalBackupsDirName, LocalStorageDirName, LocalTempDirName };
 
 // BaseApp implements core.App and defines the base PocketBase app structure.
 export class BaseApp implements App {
@@ -1633,93 +1630,7 @@ export class BaseApp implements App {
   //
   // Backups can be stored on S3 if it is configured in app.Settings().Backups.
   async CreateBackup(ctx: unknown, name: string): Promise<Error | null> {
-    if (this.store().has(StoreKeyActiveBackup)) {
-      return new Error("try again later - another backup/restore operation has already been started");
-    }
-
-    this.store().set(StoreKeyActiveBackup, name);
-    try {
-      // default root dir entries to exclude from the backup generation
-      // default root dir entries to exclude from the backup restore
-      const event = new BackupEvent(this, ctx, name, [
-        LocalBackupsDirName,
-        LocalTempDirName,
-        LocalAutocertCacheDirName,
-        lostFoundDirName,
-      ]);
-
-      return (await this.OnBackupCreate().Trigger(event, async (e) => {
-        // generate a default name if missing
-        if (!e.Name) {
-          e.Name = generateBackupName(e.App, "pb_backup_");
-        }
-
-        // make sure that the special temp directory exists
-        // note: it needs to be inside the current pb_data to avoid "cross-device link" errors
-        // make sure that the special temp directory exists
-        // note: it needs to be inside the current pb_data to avoid "cross-device link" errors
-        const localTempDir = join(e.App.dataDir(), LocalTempDirName);
-        mkdirSync(localTempDir, { recursive: true });
-
-        // archive pb_data in a temp directory, exluding the "backups" and the temp dirs
-        //
-        // run in transaction to temporary block other writes (transactions uses the NonconcurrentDB connection)
-        // ---
-        const tempPath = join(localTempDir, `pb_backup_${pseudorandomString(6)}`);
-
-        const createErr = await e.App.RunInTransaction((txApp) => {
-          return txApp.AuxRunInTransaction((auxApp) => {
-            // run manual checkpoint and truncate the WAL files
-            // (errors are ignored because it is not that important and the PRAGMA may not be supported by the used driver)
-            try {
-              auxApp.db().query("PRAGMA wal_checkpoint(TRUNCATE)").run();
-            } catch {
-              // ignore
-            }
-
-            try {
-              auxApp.auxDb().query("PRAGMA wal_checkpoint(TRUNCATE)").run();
-            } catch {
-              // ignore
-            }
-
-            try {
-              Create(auxApp.dataDir(), tempPath, ...e.Exclude);
-              return null;
-            } catch (error) {
-              return error as Error;
-            }
-          });
-        });
-
-        if (createErr) {
-          return createErr;
-        }
-
-        // persist the backup in the backups filesystem
-        // ---
-        try {
-          const fsys = e.App.NewBackupsFilesystem();
-          try {
-            fsys.SetContext(e.Context);
-            const file = NewFileFromPath(tempPath);
-            file.OriginalName = e.Name;
-            file.Name = file.OriginalName;
-            await fsys.UploadFile(file, file.Name);
-          } finally {
-            await fsys.Close();
-          }
-        } catch (error) {
-          return error as Error;
-        } finally {
-          rmSync(tempPath, { force: true });
-        }
-
-        return null;
-      })) as Error | null;
-    } finally {
-      this.store().remove(StoreKeyActiveBackup);
-    }
+    return await CreateBackupHelper(this, ctx, name);
   }
 
   // RestoreBackup restores the backup with the specified name and restarts
@@ -1755,152 +1666,7 @@ export class BaseApp implements App {
   // it is possible the restore to fail during the `os.Rename` operations
   // (see https://github.com/pocketbase/pocketbase/issues/4647).
   async RestoreBackup(ctx: unknown, name: string): Promise<Error | null> {
-    if (this.store().has(StoreKeyActiveBackup)) {
-      return new Error("try again later - another backup/restore operation has already been started");
-    }
-
-    this.store().set(StoreKeyActiveBackup, name);
-    try {
-      const event = new BackupEvent(this, ctx, name, [
-        LocalBackupsDirName,
-        LocalTempDirName,
-        LocalAutocertCacheDirName,
-        lostFoundDirName,
-      ]);
-
-      return (await this.OnBackupRestore().Trigger(event, async (e) => {
-        if (process.platform === "win32") {
-          return new Error("restore is not supported on Windows");
-        }
-
-        const localTempDir = join(e.App.dataDir(), LocalTempDirName);
-        mkdirSync(localTempDir, { recursive: true });
-
-        let fsys;
-        try {
-          fsys = e.App.NewBackupsFilesystem();
-        } catch (error) {
-          return error as Error;
-        }
-
-        try {
-          fsys.SetContext(e.Context);
-          if (!(await fsys.Exists(name))) {
-            return new Error(`missing or invalid backup file ${JSON.stringify(name)} to restore`);
-          }
-
-          const extractedDataDir = join(localTempDir, `pb_restore_${pseudorandomString(8)}`);
-          try {
-            // extract the zip
-            if (e.App.settings().backups.s3.enabled) {
-              const reader = await fsys.GetReader(name);
-              const tempZipPath = join(localTempDir, `pb_restore_zip_${pseudorandomString(6)}`);
-              try {
-                // create a temp zip file from the blob.Reader and try to extract it
-                writeFileSync(tempZipPath, reader.readAll());
-                Extract(tempZipPath, extractedDataDir);
-              } finally {
-                reader.close();
-                try {
-                  // remove the temp zip file since we no longer need it
-                  // (this is in case the app restarts and the defer calls are not called)
-                  rmSync(tempZipPath, { force: true });
-                } catch (error) {
-                  e.App.Logger().Warn(
-                    "[RestoreBackup] Failed to remove the temp zip backup file",
-                    "file",
-                    tempZipPath,
-                    "error",
-                    String(error),
-                  );
-                }
-              }
-            } else {
-              // manually construct the local path to avoid creating a copy of the zip file
-              // since the blob reader currently doesn't implement ReaderAt
-              const zipPath = join(e.App.dataDir(), LocalBackupsDirName, basename(name));
-              Extract(zipPath, extractedDataDir);
-            }
-
-            // ensure that at least a database file exists
-            try {
-              statSync(join(extractedDataDir, "data.db"));
-            } catch (error) {
-              return new Error(`data.db file is missing or invalid: ${(error as Error).message}`);
-            }
-
-            const oldTempDataDir = join(localTempDir, `old_pb_data_${pseudorandomString(8)}`);
-
-            const replaceErr = await e.App.RunInTransaction((txApp) => {
-              return txApp.AuxRunInTransaction((auxApp) => {
-                // move the current pb_data content to a special temp location
-                // that will hold the old data between dirs replace
-                // (the temp dir will be automatically removed on the next app start)
-                try {
-                  MoveDirContent(auxApp.dataDir(), oldTempDataDir, ...e.Exclude);
-                } catch (error) {
-                  return new Error(
-                    `failed to move the current pb_data content to a temp location: ${(error as Error).message}`,
-                  );
-                }
-
-                // move the extracted archive content to the app's pb_data
-                try {
-                  MoveDirContent(extractedDataDir, auxApp.dataDir(), ...e.Exclude);
-                } catch (error) {
-                  return new Error(`failed to move the extracted archive content to pb_data: ${(error as Error).message}`);
-                }
-
-                return null;
-              });
-            });
-
-            if (replaceErr) {
-              return replaceErr;
-            }
-
-            const revertDataDirChanges = async (): Promise<Error | null> => {
-              return e.App.RunInTransaction((txApp) => {
-                return txApp.AuxRunInTransaction((auxApp) => {
-                  try {
-                    MoveDirContent(auxApp.dataDir(), extractedDataDir, ...e.Exclude);
-                  } catch (error) {
-                    return new Error(`failed to revert the extracted dir change: ${(error as Error).message}`);
-                  }
-
-                  try {
-                    MoveDirContent(oldTempDataDir, auxApp.dataDir(), ...e.Exclude);
-                  } catch (error) {
-                    return new Error(`failed to revert old pb_data dir change: ${(error as Error).message}`);
-                  }
-
-                  return null;
-                });
-              });
-            };
-
-            // restart the app
-            const restartErr = e.App.Restart();
-            if (restartErr) {
-              const revertErr = await revertDataDirChanges();
-              if (revertErr) {
-                throw revertErr;
-              }
-
-              return new Error(`failed to restart the app process: ${restartErr.message}`);
-            }
-          } finally {
-            rmSync(extractedDataDir, { recursive: true, force: true });
-          }
-        } finally {
-          await fsys.Close();
-        }
-
-        return null;
-      })) as Error | null;
-    } finally {
-      this.store().remove(StoreKeyActiveBackup);
-    }
+    return await RestoreBackupHelper(this, ctx, name);
   }
 
   // Restart restarts (aka. replaces) the current running application process.
@@ -3116,84 +2882,7 @@ export class BaseApp implements App {
 
   // registerAutobackupHooks registers the autobackup app serve hooks.
   private registerAutobackupHooks(): void {
-    const jobId = "__pbAutoBackup__";
-
-    const loadJob = () => {
-      const rawSchedule = this.#settings.backups.cron;
-      if (!rawSchedule) {
-        this.#cron.Remove(jobId);
-        return;
-      }
-
-      this.#cron.Add(jobId, rawSchedule, () => {
-        void (async () => {
-          const autoPrefix = "@auto_pb_backup_";
-          const name = generateBackupName(this, autoPrefix);
-
-          const backupErr = await this.CreateBackup(null, name);
-          if (backupErr) {
-            this.Logger().Error("[Backup cron] Failed to create backup", "name", name, "error", backupErr.message);
-          }
-
-          const maxKeep = this.#settings.backups.cronMaxKeep;
-          if (maxKeep === 0) {
-            return; // no explicit limit
-          }
-
-          let fsys;
-          try {
-            fsys = this.NewBackupsFilesystem();
-          } catch (error) {
-            this.Logger().Error("[Backup cron] Failed to initialize the backup filesystem", "error", String(error));
-            return;
-          }
-
-          try {
-            const files = await fsys.List(autoPrefix);
-            if (maxKeep >= files.length) {
-              return; // nothing to remove
-            }
-
-            // sort desc
-            files.sort((a, b) => b.ModTime.getTime() - a.ModTime.getTime());
-            // keep only the most recent n auto backup files
-            const toRemove = files.slice(maxKeep);
-
-            for (const file of toRemove) {
-              try {
-                await fsys.Delete(file.Key);
-              } catch (error) {
-                this.Logger().Error(
-                  "[Backup cron] Failed to remove old autogenerated backup",
-                  "key",
-                  file.Key,
-                  "error",
-                  String(error),
-                );
-              }
-            }
-          } catch (error) {
-            this.Logger().Error("[Backup cron] Failed to list autogenerated backups", "error", String(error));
-          } finally {
-            await fsys.Close();
-          }
-        })().catch((error) => {
-          this.Logger().Error("[Backup cron] Failed to run backup task", "error", String(error));
-        });
-      });
-    };
-
-    this.OnBootstrap().BindFunc(async (event) => {
-      const result = await event.Next();
-      loadJob();
-      return result;
-    });
-
-    this.OnSettingsReload().BindFunc(async (event) => {
-      const result = await event.Next();
-      loadJob();
-      return result;
-    });
+    registerAutobackupHooksHelper(this);
   }
 
   private registerCollectionHooks(): void {
@@ -3944,29 +3633,6 @@ function applyLimitOffset(sql: string, limit: number, offset: number): string {
     return `${sql} LIMIT -1 OFFSET ${offset}`;
   }
   return sql;
-}
-
-function generateBackupName(app: App, prefix: string): string {
-  let appName = snakecase(app.settings().meta.appName);
-  if (appName.length > 50) {
-    appName = appName.slice(0, 50);
-  }
-
-  const now = new Date();
-  const stamp = [
-    now.getUTCFullYear(),
-    pad2(now.getUTCMonth() + 1),
-    pad2(now.getUTCDate()),
-    pad2(now.getUTCHours()),
-    pad2(now.getUTCMinutes()),
-    pad2(now.getUTCSeconds()),
-  ].join("");
-
-  return `${prefix}${appName}_${stamp}.zip`;
-}
-
-function pad2(value: number): string {
-  return value < 10 ? `0${value}` : String(value);
 }
 
 function resolveBaseTokenKey(collection: Collection, tokenType: string): string {
