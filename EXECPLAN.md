@@ -85,7 +85,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-02 23:54Z) Port s3blob driver + internal S3 client/uploader, align list/signing behavior, and add upstream S3/s3blob tests.
 - [x] (2026-02-03 07:31Z) Port blob bucket/reader/writer and fileblob driver foundations for local storage compatibility.
 - [x] (2026-02-03 18:10Z) Wrap model create/update/delete DB writes with lock retry handling to match upstream baseLockRetry behavior.
-- [ ] (2026-02-03 18:20Z) Restore 1:1 file mapping where practical by un-merging merged TS files and adding missing upstream files/tests (completed: analysis of missing files/tests, merged-header rule, low-risk un-merges like api_error_aliases/router error/collection_import + auth_origin/otp/mfa/external_auth query splits, base_backup helper extraction + base_paths constants, db_connect helper, syscall stub, collection_query module + tests + DbxDatabase query logging, db_tx module + tests, and db_retry/db_builder modules with tests for db_retry; remaining: larger splits and missing modules/tests).
+- [x] (2026-02-03 12:57Z) Port tools/search tests (filter/provider/sort/token functions/simple resolver/identifier macros/multi-match) and align filter parsing + LIKE wrapping to upstream behavior.
+- [x] (2026-02-03 12:57Z) Port tools/types tests (DateTime/JSONRaw/JSONMap/JSONArray) and align DateTime + JSON* helper semantics with upstream Scan/Value/Marshal behavior.
+- [ ] (2026-02-03 18:20Z) Restore 1:1 file mapping where practical by un-merging merged TS files and adding missing upstream files/tests (completed: analysis of missing files/tests, merged-header rule, low-risk un-merges like api_error_aliases/router error/collection_import + auth_origin/otp/mfa/external_auth query splits, base_backup helper extraction + base_paths constants, db_connect helper, syscall stub, collection_query module + tests + DbxDatabase query logging, db_tx module + tests, db_retry/db_builder modules with tests for db_retry, and tools/search + tools/types tests; remaining: larger splits and missing modules/tests).
 
 ## Surprises & Discoveries
 
@@ -119,6 +121,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Evidence: archive create test expected 544 bytes; matching required UT extra + data descriptor and deflate best-speed semantics.
 - Observation: The repo has fewer TypeScript files than upstream Go files; a mapping scan shows 95 upstream .go files without direct TS counterparts (44 tests, 51 non-tests), with gaps in core/tools/plugins/apis.
   Evidence: `rg --files -g '*.go' .upstream/pocketbase | wc -l` → 440 vs `rg --files -g '*.ts' src | wc -l` → 388; mapping scan reports 44 missing tests and 51 missing non-tests.
+- Observation: DateTime parsing treats numeric inputs as seconds even when provided as a float (eg. `1.0` → `1970-01-01 00:00:01.000Z`), matching cast.ToTime behavior.
+  Evidence: DateTime Scan test scenario for `1.0` expects `1970-01-01 00:00:01.000Z`.
 
 ## Decision Log
 
@@ -200,6 +204,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - Decision: Map field name validation errors to required/length/match/not-in codes to match ozzo-validation output.
   Rationale: Upstream tests assert specific validation codes for reserved/system field names.
   Date/Author: 2026-02-02 / Codex
+- Decision: Align JSONRaw/JSONMap/JSONArray/DateTime helpers with upstream Scan/Value/Marshal behavior.
+  Rationale: Upstream tools/types tests depend on Scan/Value/Marshal JSON behavior; matching them keeps dbx and type utility semantics in sync with PocketBase.
+  Date/Author: 2026-02-03 / Codex
 - Decision: Merge auth option updates instead of replacing defaults during collection updates/imports.
   Rationale: Upstream binding merges partial option payloads; replacing caused missing identity fields and failed validations.
   Date/Author: 2026-02-02 / Codex
@@ -404,3 +411,4 @@ Plan change note: 2026-01-31, recorded progress on collection options/view helpe
 Plan change note: 2026-02-01, recorded OAuth2 auth create flow progress and the validation/hook ordering alignment required by upstream tests.
 Plan change note: 2026-02-02, recorded collection CRUD/import parity completion, updated discovery/decision logs, and narrowed remaining work to pb_hooks loading/tests.
 Plan change note: 2026-02-03, added the 1:1 file mapping/missing tests milestone and recorded the file-count discrepancy plus mapping scan results.
+Plan change note: 2026-02-03, recorded tools/search + tools/types test ports and helper parity updates during the 1:1 file mapping milestone.
