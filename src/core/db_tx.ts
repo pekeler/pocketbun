@@ -43,6 +43,41 @@ export async function RunInTransaction(
   return joinErrors(txErr, afterErr);
 }
 
+// RunInTransactionSync wraps fn into a transaction for the regular app database.
+//
+// It is safe to nest RunInTransactionSync calls as long as you use the callback's txApp.
+export function RunInTransactionSync(ctx: TxContext, fn: (txApp: App) => Error | null): Error | null {
+  if (ctx.getTxInfo()) {
+    return fn(ctx.app) ?? null;
+  }
+
+  const txInfo = new TxAppInfo();
+  ctx.setTxInfo(txInfo);
+  let txErr: Error | null = null;
+
+  ctx.db().run("BEGIN");
+  try {
+    const result = fn(ctx.app);
+    if (result instanceof Promise) {
+      txErr = new Error("async transaction handlers are not supported in sync transactions");
+    } else {
+      txErr = result ?? null;
+    }
+  } catch (error) {
+    txErr = error as Error;
+  }
+
+  if (txErr) {
+    ctx.db().run("ROLLBACK");
+  } else {
+    ctx.db().run("COMMIT");
+  }
+
+  ctx.setTxInfo(null);
+  const afterErr = txInfo.runAfterFuncsSync(txErr);
+  return joinErrors(txErr, afterErr);
+}
+
 // AuxRunInTransaction wraps fn into a transaction for the auxiliary app database.
 //
 // It is safe to nest RunInTransaction calls as long as you use the callback's txApp.
@@ -55,6 +90,32 @@ export async function AuxRunInTransaction(
   db().run("BEGIN");
   try {
     txErr = (await fn(app)) ?? null;
+  } catch (error) {
+    txErr = error as Error;
+  }
+
+  if (txErr) {
+    db().run("ROLLBACK");
+  } else {
+    db().run("COMMIT");
+  }
+
+  return txErr;
+}
+
+// AuxRunInTransactionSync wraps fn into a transaction for the auxiliary app database.
+//
+// It is safe to nest RunInTransaction calls as long as you use the callback's txApp.
+export function AuxRunInTransactionSync(app: App, db: () => Database, fn: (txApp: App) => Error | null): Error | null {
+  let txErr: Error | null = null;
+  db().run("BEGIN");
+  try {
+    const result = fn(app);
+    if (result instanceof Promise) {
+      txErr = new Error("async transaction handlers are not supported in sync transactions");
+    } else {
+      txErr = result ?? null;
+    }
   } catch (error) {
     txErr = error as Error;
   }
@@ -90,6 +151,30 @@ export class TxAppInfo {
       const err = await fn(txErr);
       if (err) {
         errors.push(err);
+      }
+    }
+    this.#afterFuncs = [];
+
+    if (errors.length === 0) {
+      return null;
+    }
+    if (errors.length === 1) {
+      return errors[0] ?? null;
+    }
+    return new AggregateError(errors, errors.map((err) => err.message).join("\n"));
+  }
+
+  // runAfterFuncsSync executes OnComplete handlers and fails on async callbacks.
+  runAfterFuncsSync(txErr: Error | null): Error | null {
+    const errors: Error[] = [];
+    for (const fn of this.#afterFuncs) {
+      const result = fn(txErr);
+      if (result instanceof Promise) {
+        errors.push(new Error("async transaction OnComplete handlers are not supported in sync transactions"));
+        continue;
+      }
+      if (result) {
+        errors.push(result);
       }
     }
     this.#afterFuncs = [];

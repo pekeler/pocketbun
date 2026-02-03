@@ -23,6 +23,21 @@ export function execLockRetry(timeoutMs: number, maxRetries = defaultMaxLockRetr
   };
 }
 
+// PocketBun-only: sync variant for lock retry helpers (used by sync save paths).
+export function execLockRetrySync(timeoutMs: number, maxRetries = defaultMaxLockRetries) {
+  return (op: () => Error | null): Error | null => {
+    const deadline = timeoutMs > 0 ? Date.now() + timeoutMs : null;
+
+    return baseLockRetrySync((_attempt) => {
+      if (deadline !== null && Date.now() > deadline) {
+        return new Error("lock retry timeout");
+      }
+
+      return op() ?? null;
+    }, maxRetries);
+  };
+}
+
 export async function baseLockRetry(
   op: (attempt: number) => Error | null | Promise<Error | null>,
   maxRetries: number,
@@ -36,6 +51,29 @@ export async function baseLockRetry(
       // we are checking the error against the plain error texts since the codes could vary between drivers
       if (errStr.includes("database is locked") || errStr.includes("table is locked")) {
         await sleep(getDefaultRetryInterval(attempt));
+        attempt += 1;
+        continue;
+      }
+    }
+
+    return err ?? null;
+  }
+}
+
+// PocketBun-only: sync variant for lock retry helpers (used by sync save paths).
+export function baseLockRetrySync(op: (attempt: number) => Error | null, maxRetries: number): Error | null {
+  let attempt = 1;
+
+  for (;;) {
+    const err = op(attempt);
+    if (err && attempt <= maxRetries) {
+      const errStr = err.message ?? String(err);
+      // we are checking the error against the plain error texts since the codes could vary between drivers
+      if (errStr.includes("database is locked") || errStr.includes("table is locked")) {
+        const delay = getDefaultRetryInterval(attempt);
+        if (delay > 0) {
+          Bun.sleepSync(delay);
+        }
         attempt += 1;
         continue;
       }

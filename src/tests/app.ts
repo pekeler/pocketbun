@@ -7,16 +7,13 @@ import { fileURLToPath } from "node:url";
 import type { Logger } from "../core/app.ts";
 import type { MailerEvent } from "../core/events.ts";
 import { BaseApp } from "../core/base_app.ts";
+import * as slog from "../internal/compat/slog.ts";
 import { TestMailer } from "./mailer.ts";
 
 export class TestApp extends BaseApp {
   eventCalls: Record<string, number> = {};
   testMailer: TestMailer = new TestMailer();
-  #logger: Logger = {
-    Debug: () => {},
-    Warn: () => {},
-    Error: () => {},
-  };
+  #logger: Logger = slog.Default();
 
   override Logger(): Logger {
     // Silence expected warnings in tests to keep output aligned with upstream.

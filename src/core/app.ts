@@ -5,6 +5,7 @@
 // It defines the main PocketBase App interface and its base implementation.
 
 import type { Database, SQLQueryBindings } from "bun:sqlite";
+import type { Logger as SlogLogger } from "../internal/compat/slog.ts";
 import type { Cron } from "../tools/cron/cron.ts";
 import type { SelectQuery } from "../tools/dbx/select_query.ts";
 import type { System } from "../tools/filesystem/filesystem.ts";
@@ -73,11 +74,7 @@ import type { ExpandFetchFunc } from "./record_query_expand.ts";
 import type { Settings } from "./settings.ts";
 import type { Store } from "./store.ts";
 
-export type Logger = {
-  Debug: (message: string, ...args: unknown[]) => void;
-  Warn: (message: string, ...args: unknown[]) => void;
-  Error: (message: string, ...args: unknown[]) => void;
-};
+export type Logger = SlogLogger;
 
 // App defines the main PocketBase app interface.
 //
@@ -149,15 +146,27 @@ export interface App {
   SaveNoValidate(model: Model): Promise<Error | null>;
   SaveWithContext(ctx: unknown, model: Model): Promise<Error | null>;
   SaveNoValidateWithContext(ctx: unknown, model: Model): Promise<Error | null>;
+  SaveSync(model: Model): Error | null;
+  SaveNoValidateSync(model: Model): Error | null;
+  SaveWithContextSync(ctx: unknown, model: Model): Error | null;
+  SaveNoValidateWithContextSync(ctx: unknown, model: Model): Error | null;
+  AuxSave(model: Model): Promise<Error | null>;
+  AuxSaveNoValidate(model: Model): Promise<Error | null>;
+  AuxSaveWithContext(ctx: unknown, model: Model): Promise<Error | null>;
+  AuxSaveNoValidateWithContext(ctx: unknown, model: Model): Promise<Error | null>;
   Delete(model: Model): Promise<Error | null>;
   DeleteWithContext(ctx: unknown, model: Model): Promise<Error | null>;
   Validate(model: Model): Promise<Error | null>;
+  ValidateSync(model: Model): Error | null;
   TruncateCollection(collection: Collection): Promise<Error | null>;
   ImportCollectionsByMarshaledJSON(rawSliceOfMaps: string | Uint8Array, deleteMissing: boolean): Promise<Error | null>;
   ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Promise<Error | null>;
   RunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null>;
   // AuxRunInTransaction wraps fn into a transaction for the auxiliary app database.
   AuxRunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null>;
+  RunInTransactionSync(fn: (txApp: App) => Error | null): Error | null;
+  // AuxRunInTransactionSync wraps fn into a transaction for the auxiliary app database.
+  AuxRunInTransactionSync(fn: (txApp: App) => Error | null): Error | null;
   // RunInTransactionAsync is PocketBun-only helper for async transaction work.
   RunInTransactionAsync(fn: (txApp: App) => Promise<Error | null> | Error | null): Promise<Error | null>;
   IsTransactional(): boolean;
@@ -341,7 +350,9 @@ export interface App {
   OnCollectionAfterDeleteError(tags?: string[]): TaggedHook<CollectionErrorEvent>;
 
   SaveView(name: string, selectQuery: string): Promise<Error | null>;
+  SaveViewSync(name: string, selectQuery: string): Error | null;
   DeleteView(name: string): Error | null;
   CreateViewFields(selectQuery: string): Promise<FieldsList>;
+  CreateViewFieldsSync(selectQuery: string): FieldsList;
   TableInfo(tableName: string): TableInfoRow[];
 }

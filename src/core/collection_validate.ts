@@ -44,6 +44,11 @@ export async function validateCollection(app: App, collection: Collection, origi
   return await validator.run();
 }
 
+export function validateCollectionSync(app: App, collection: Collection, original: Collection | null): Error | null {
+  const validator = new CollectionValidator(app, collection, original);
+  return validator.runSync();
+}
+
 class CollectionValidator {
   #original: Collection;
   #next: Collection;
@@ -73,6 +78,25 @@ class CollectionValidator {
 
     const baseErr = this.validateBase();
     const optionsErr = await this.validateOptions();
+    return joinValidationErrors(baseErr, optionsErr);
+  }
+
+  runSync(): Error | null {
+    if (this.#original.IsNew()) {
+      this.#next.updateGeneratedIdIfExists(this.#app);
+    }
+
+    if (this.#next.IsView()) {
+      try {
+        this.#next.Fields = this.#app.CreateViewFieldsSync(this.#next.ViewQuery);
+      } catch {
+        this.#next.Fields = new FieldsList();
+      }
+    }
+    this.syncFields();
+
+    const baseErr = this.validateBase();
+    const optionsErr = this.validateOptionsSync();
     return joinValidationErrors(baseErr, optionsErr);
   }
 
@@ -171,12 +195,36 @@ class CollectionValidator {
     return null;
   }
 
+  private validateOptionsSync(): Error | null {
+    if (this.#next.IsAuth()) {
+      return this.validateAuthOptions();
+    }
+    if (this.#next.IsView()) {
+      return this.validateViewOptionsSync();
+    }
+    return null;
+  }
+
   private async validateViewOptions(): Promise<Error | null> {
     const errors: Record<string, Error> = {};
     if (this.#next.ViewQuery === "") {
       errors.viewQuery = ErrRequired;
     } else {
       const viewErr = await this.checkViewQuery(this.#next.ViewQuery);
+      if (viewErr) {
+        errors.viewQuery = viewErr;
+      }
+    }
+
+    return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+  }
+
+  private validateViewOptionsSync(): Error | null {
+    const errors: Record<string, Error> = {};
+    if (this.#next.ViewQuery === "") {
+      errors.viewQuery = ErrRequired;
+    } else {
+      const viewErr = this.checkViewQuerySync(this.#next.ViewQuery);
       if (viewErr) {
         errors.viewQuery = viewErr;
       }
@@ -571,6 +619,21 @@ class CollectionValidator {
 
     try {
       await this.#app.CreateViewFields(value);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return newError("validation_invalid_view_query", `Invalid query - ${message}`);
+    }
+
+    return null;
+  }
+
+  private checkViewQuerySync(value: string): Error | null {
+    if (value === "") {
+      return null;
+    }
+
+    try {
+      this.#app.CreateViewFieldsSync(value);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return newError("validation_invalid_view_query", `Invalid query - ${message}`);

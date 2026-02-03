@@ -12,7 +12,8 @@ class Mutex {
 
 export type BatchOptions = {
   // WriteFunc processes the batched logs.
-  WriteFunc: (ctx: slog.Context, logs: Log[]) => Error | null;
+  // Deviation: allow Promise return to support async persistence in Bun.
+  WriteFunc: (ctx: slog.Context, logs: Log[]) => Error | null | Promise<Error | null>;
 
   // BeforeAddFunc is optional function that is invoked every time
   // before a new log is added to the batch queue.
@@ -31,7 +32,7 @@ export type BatchOptions = {
 };
 
 type ResolvedBatchOptions = {
-  WriteFunc: (ctx: slog.Context, logs: Log[]) => Error | null;
+  WriteFunc: (ctx: slog.Context, logs: Log[]) => Error | null | Promise<Error | null>;
   BeforeAddFunc?: (ctx: slog.Context, log: Log) => boolean;
   Level: slog.Leveler;
   BatchSize: number;
@@ -193,9 +194,11 @@ export class BatchHandler implements slog.Handler {
     this.mux.unlock();
 
     if (totalLogs >= this.options.BatchSize) {
-      const err = this.WriteAll(ctx);
-      if (err) {
-        return err;
+      const result = this.WriteAll(ctx);
+      if (result instanceof Promise) {
+        void result;
+      } else if (result) {
+        return result;
       }
     }
 
@@ -210,11 +213,11 @@ export class BatchHandler implements slog.Handler {
   }
 
   // WriteAll writes all accumulated Log entries and resets the batch queue.
-  WriteAll(ctx: slog.Context): Error | null {
+  async WriteAll(ctx: slog.Context): Promise<Error | null> {
     if (this.parent) {
       // invoke recursively the parent level handler since the most
       // top level one is holding the logs queue.
-      return this.parent.WriteAll(ctx);
+      return await this.parent.WriteAll(ctx);
     }
 
     this.mux.lock();
@@ -233,7 +236,22 @@ export class BatchHandler implements slog.Handler {
 
     this.mux.unlock();
 
-    return this.options.WriteFunc(ctx, logs);
+    try {
+      const err = await this.options.WriteFunc(ctx, logs);
+      if (err) {
+        this.mux.lock();
+        this.logs.push(...logs);
+        this.mux.unlock();
+        return err;
+      }
+
+      return null;
+    } catch (error) {
+      this.mux.lock();
+      this.logs.push(...logs);
+      this.mux.unlock();
+      return error as Error;
+    }
   }
 
   // resolveAttr writes attr into data.

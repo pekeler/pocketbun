@@ -124,7 +124,7 @@ describe("BatchHandler", () => {
     checkLogMessages(["test1", "test3", "test4"], writeLogs);
   });
 
-  it("WriteAll flushes logs", () => {
+  it("WriteAll flushes logs", async () => {
     const beforeLogs: Log[] = [];
     let writeLogs: Log[] = [];
 
@@ -147,7 +147,7 @@ describe("BatchHandler", () => {
     checkLogMessages(["test1", "test2"], h.logs);
     checkLogMessages([], writeLogs);
 
-    h.WriteAll({});
+    await h.WriteAll({});
 
     checkLogMessages(["test1", "test2"], beforeLogs);
     checkLogMessages([], h.logs);
@@ -175,8 +175,8 @@ describe("BatchHandler", () => {
     record.AddAttrs(slog.String("name", "test"));
 
     h0.Handle({}, record);
-    h1.Handle({}, record);
-    h2.Handle({}, record);
+    void h1.Handle({}, record);
+    void h2.Handle({}, record);
 
     const validationErrors = {
       a: newError("validation_code", "validation_message"),

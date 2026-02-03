@@ -74,7 +74,7 @@ function createTestDb() {
   const longField = "a".repeat(MaxSortFieldLength);
   const longFieldOverflow = "b".repeat(MaxSortFieldLength + 1);
 
-  db.exec(
+  db.run(
     `CREATE TABLE test (id INTEGER DEFAULT 0, test1 INTEGER DEFAULT 0, test2 TEXT DEFAULT '', test3 TEXT DEFAULT '', "${longField}" TEXT DEFAULT '', "${longFieldOverflow}" TEXT DEFAULT '')`,
   );
   db.run("insert into test (id, test1, test2) values (1, 1, 'test2.1')");

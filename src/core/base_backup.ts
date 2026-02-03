@@ -367,14 +367,14 @@ export function registerAutobackupHooks(app: App): void {
     });
   };
 
-  app.OnBootstrap().BindFunc(async (event) => {
-    const result = await event.Next();
+  app.OnBootstrap().BindFunc((event) => {
+    const result = event.Next();
     loadJob();
     return result;
   });
 
-  app.OnSettingsReload().BindFunc(async (event) => {
-    const result = await event.Next();
+  app.OnSettingsReload().BindFunc((event) => {
+    const result = event.Next();
     loadJob();
     return result;
   });

@@ -20,7 +20,8 @@ export class DbxDatabase extends Database {
 
   override exec<ParamsType extends SQLQueryBindings[]>(sql: string, ...bindings: ParamsType[]): Changes {
     this.QueryLogFunc?.(sql);
-    return super.run(rewriteDbxIdentifiers(sql), ...bindings);
+    // eslint-disable-next-line typescript-eslint/no-deprecated -- bun:sqlite exec supports multi-statement SQL.
+    return super.exec(rewriteDbxIdentifiers(sql), ...bindings);
   }
 
   override query<ReturnType, ParamsType extends SQLQueryBindings | SQLQueryBindings[]>(

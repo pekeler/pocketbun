@@ -118,10 +118,9 @@ export async function StubMFARecords(app: App): Promise<Error | null> {
 
 export function StubLogsData(app: App): Error | null {
   try {
-    app.auxDb().run(`
-      delete from {{_logs}};
-
-      insert into {{_logs}} (
+    app.auxDb().run("delete from {{_logs}}");
+    app.auxDb().run(
+      `insert into {{_logs}} (
         [[id]],
         [[level]],
         [[message]],
@@ -142,8 +141,8 @@ export function StubLogsData(app: App): Error | null {
         "test_message2",
         '{"status":400}',
         "2022-05-02 10:00:00.123Z"
-      );
-    `);
+      )`,
+    );
 
     return null;
   } catch (error) {

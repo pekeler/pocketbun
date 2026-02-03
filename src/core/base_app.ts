@@ -3,15 +3,15 @@
 import "../migrations/index.ts";
 import "./fields_register.ts";
 import type { Database, SQLQueryBindings } from "bun:sqlite";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { SqlExpr } from "../tools/search/types.ts";
 import type { App, Logger } from "./app.ts";
-import type { PostValidator, PreValidator } from "./db.ts";
 import type { Model } from "./db_model.ts";
 import type { RequestInfo } from "./event_request.ts";
 import type { BatchRequestEvent } from "./event_request_batch.ts";
 import type { RecordProxy } from "./record_proxy.ts";
+import * as slog from "../internal/compat/slog.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { Providers } from "../tools/auth/auth.ts";
 import { Cron } from "../tools/cron/cron.ts";
@@ -24,6 +24,7 @@ import { NewLocal, NewS3 } from "../tools/filesystem/filesystem.ts";
 import { Hook } from "../tools/hook/hook.ts";
 import { NewTaggedHook } from "../tools/hook/tagged.ts";
 import { columnify, snakecase } from "../tools/inflector/inflector.ts";
+import { BatchHandler, NewBatchHandler } from "../tools/logger/batch_handler.ts";
 import { Sendmail } from "../tools/mailer/sendmail.ts";
 import { SMTPClient } from "../tools/mailer/smtp.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
@@ -60,12 +61,15 @@ import {
   ReloadCachedCollections as ReloadCachedCollectionsQuery,
   TruncateCollection as TruncateCollectionQuery,
 } from "./collection_query.ts";
-import { validateCollection } from "./collection_validate.ts";
-import { baseLockRetry, defaultMaxLockRetries } from "./db_retry.ts";
+import { validateCollection, validateCollectionSync } from "./collection_validate.ts";
+import { GenerateDefaultRandomId, type PostValidator, type PreValidator } from "./db.ts";
+import { baseLockRetry, baseLockRetrySync, defaultMaxLockRetries } from "./db_retry.ts";
 import { TableInfo, TableIndexes } from "./db_table.ts";
 import {
   AuxRunInTransaction as AuxRunInTransactionHelper,
+  AuxRunInTransactionSync as AuxRunInTransactionSyncHelper,
   RunInTransaction as RunInTransactionHelper,
+  RunInTransactionSync as RunInTransactionSyncHelper,
   TxAppInfo,
 } from "./db_tx.ts";
 import {
@@ -151,6 +155,8 @@ import {
 import { FieldTypeFile } from "./field_file.ts";
 import { RelationField } from "./field_relation.ts";
 import { FieldsList, NewFieldsList } from "./fields_list.ts";
+import { Log, LogsTableName } from "./log_model.ts";
+import { printLog } from "./log_printer.ts";
 import { deleteOldLogs, findLogById, logQuery, logsStats, type LogsStatsItem } from "./log_query.ts";
 import { CollectionNameMFAs, MFA } from "./mfa_model.ts";
 import {
@@ -188,7 +194,14 @@ import {
 import { Settings } from "./settings.ts";
 import { Store } from "./store.ts";
 import { NormalizeUniqueIndexError } from "./validators/db.ts";
-import { CreateViewFields, DeleteView, SaveView, FindRecordByViewFile as findRecordByViewFile } from "./view.ts";
+import {
+  CreateViewFields,
+  CreateViewFieldsSync,
+  DeleteView,
+  SaveView,
+  SaveViewSync,
+  FindRecordByViewFile as findRecordByViewFile,
+} from "./view.ts";
 
 // BaseAppConfig defines a BaseApp configuration option.
 export type BaseAppConfig = {
@@ -319,17 +332,7 @@ export class BaseApp implements App {
     this.#store = new Store();
     this.#cron = new Cron();
     this.#subscriptionsBroker = new Broker();
-    this.#logger = {
-      Debug: (message: string, ...args: unknown[]) => {
-        console.debug(message, ...args);
-      },
-      Warn: (message: string, ...args: unknown[]) => {
-        console.warn(message, ...args);
-      },
-      Error: (message: string, ...args: unknown[]) => {
-        console.error(message, ...args);
-      },
-    };
+    this.#logger = slog.Default();
     this.resetHooks();
 
     this.registerBaseHooks();
@@ -854,16 +857,161 @@ export class BaseApp implements App {
 
       this.#db = new DbxDatabase(join(this.#dataDir, "data.db"));
       this.#auxDb = new DbxDatabase(join(this.#dataDir, "auxiliary.db"));
+      const loggerErr = this.initLogger();
+      if (loggerErr) {
+        return loggerErr;
+      }
+      try {
+        this.runSystemMigrations();
+      } catch (error) {
+        return error as Error;
+      }
+      const reloadErr = this.ReloadCachedCollections();
+      if (reloadErr) {
+        return reloadErr;
+      }
       this.reloadSettings();
+      try {
+        rmSync(join(this.#dataDir, LocalTempDirName), { recursive: true, force: true });
+      } catch {
+        // ignore cleanup failures
+      }
       this.#bootstrapped = true;
       return null;
     });
 
+    const checkBootstrapped = () => {
+      if (!this.isBootstrapped()) {
+        this.Logger().Warn("OnBootstrap hook didn't fail but the app is still not bootstrapped - maybe missing e.Next()?");
+      }
+    };
+
     if (result instanceof Promise) {
-      void result.catch((err) => this.Logger().Error("Failed to bootstrap app", "error", err));
+      void result.then(checkBootstrapped).catch((err) => this.Logger().Error("Failed to bootstrap app", "error", err));
     } else if (result instanceof Error) {
       throw result;
+    } else {
+      checkBootstrapped();
     }
+  }
+
+  private initLogger(): Error | null {
+    const flushDelayMs = 3000;
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handler = NewBatchHandler({
+      Level: getLoggerMinLevel(this),
+      BatchSize: 200,
+      BeforeAddFunc: (_ctx, log) => {
+        if (this.IsDev()) {
+          printLog.fn(log);
+
+          // manually check the log level and skip if necessary
+          if (Number(log.Level) < this.settings().logs.minLevel) {
+            return false;
+          }
+        }
+
+        if (flushTimer) {
+          clearTimeout(flushTimer);
+        }
+        flushTimer = setTimeout(() => {
+          void handler.WriteAll({});
+        }, flushDelayMs);
+
+        return this.settings().logs.maxDays > 0;
+      },
+      WriteFunc: async (_ctx, logs) => {
+        if (!this.isBootstrapped() || this.settings().logs.maxDays === 0) {
+          return null;
+        }
+
+        const txErr = await this.AuxRunInTransaction(async (txApp) => {
+          for (const entry of logs) {
+            const model = new Log();
+            model.MarkAsNew();
+            model.id = GenerateDefaultRandomId();
+            model.level = Number(entry.Level);
+            model.message = entry.Message;
+            model.data = entry.Data;
+            model.created = ParseDateTime(entry.Time);
+
+            const saveErr = await txApp.AuxSave(model);
+            if (saveErr) {
+              // eslint-disable-next-line no-console
+              console.warn("Failed to write log", model, saveErr);
+            }
+          }
+          return null;
+        });
+
+        return txErr;
+      },
+    });
+
+    this.#logger = slog.New(handler);
+
+    // write all remaining logs before timer cleanup to avoid races with ResetBootstrapState
+    this.OnTerminate().Bind({
+      Id: "__pbAppLoggerOnTerminate__",
+      Priority: -999,
+      Func: async (event) => {
+        await handler.WriteAll({});
+
+        if (flushTimer) {
+          clearTimeout(flushTimer);
+          flushTimer = null;
+        }
+
+        return event.Next();
+      },
+    });
+
+    // reload log handler level (if initialized)
+    this.OnSettingsReload().Bind({
+      Id: "__pbAppLoggerOnSettingsReload__",
+      Priority: -999,
+      Func: (event) => {
+        const result = event.Next();
+        if (result instanceof Error) {
+          return result;
+        }
+        if (result instanceof Promise) {
+          event.App.Logger().Warn("OnSettingsReload handlers should not be async; skipping log cleanup");
+          return null;
+        }
+
+        const logger = event.App.Logger();
+        const loggerHandler = logger.Handler();
+        if (loggerHandler instanceof BatchHandler) {
+          loggerHandler.SetLevel(getLoggerMinLevel(event.App));
+        }
+
+        // try to clear old logs not matching the new settings
+        const createdBefore = NowDateTime().addDate(0, 0, -1 * event.App.settings().logs.maxDays);
+        try {
+          event.App.auxDb().run(`delete from {{${LogsTableName}}} where [[created]] <= ? or [[level]] < ?`, [
+            createdBefore.toString(),
+            event.App.settings().logs.minLevel,
+          ]);
+        } catch (error) {
+          logger.Debug("Failed to cleanup old logs", "error", error);
+        }
+
+        // no logs are allowed -> try to reclaim preserved disk space after delete operation
+        if (event.App.settings().logs.maxDays === 0) {
+          try {
+            event.App.auxDb().run("VACUUM");
+          } catch (error) {
+            logger.Debug("Failed to VACUUM aux database", "error", error);
+          }
+        }
+
+        return null;
+      },
+    });
+
+    return null;
   }
 
   resetBootstrapState(): void {
@@ -1698,6 +1846,50 @@ export class BaseApp implements App {
     return this.saveModel(model, false);
   }
 
+  // PocketBun keeps async Save for runtime flexibility; SaveSync preserves JSVM sync semantics.
+  SaveSync(model: Model): Error | null {
+    return this.saveModelSync(model, true);
+  }
+
+  SaveNoValidateSync(model: Model): Error | null {
+    return this.saveModelSync(model, false);
+  }
+
+  SaveWithContextSync(_ctx: unknown, model: Model): Error | null {
+    return this.saveModelSync(model, true);
+  }
+
+  SaveNoValidateWithContextSync(_ctx: unknown, model: Model): Error | null {
+    return this.saveModelSync(model, false);
+  }
+
+  private async withDatabase<T>(db: DbxDatabase, fn: () => Promise<T>): Promise<T> {
+    // Deviation: reuse the primary save/delete code by temporarily swapping the active db.
+    const previous = this.#db;
+    this.#db = db;
+    try {
+      return await fn();
+    } finally {
+      this.#db = previous;
+    }
+  }
+
+  async AuxSave(model: Model): Promise<Error | null> {
+    return await this.withDatabase(this.auxDb() as DbxDatabase, () => this.saveModel(model, true));
+  }
+
+  async AuxSaveNoValidate(model: Model): Promise<Error | null> {
+    return await this.withDatabase(this.auxDb() as DbxDatabase, () => this.saveModel(model, false));
+  }
+
+  async AuxSaveWithContext(_ctx: unknown, model: Model): Promise<Error | null> {
+    return await this.withDatabase(this.auxDb() as DbxDatabase, () => this.saveModel(model, true));
+  }
+
+  async AuxSaveNoValidateWithContext(_ctx: unknown, model: Model): Promise<Error | null> {
+    return await this.withDatabase(this.auxDb() as DbxDatabase, () => this.saveModel(model, false));
+  }
+
   private async runRecordInterceptors(
     record: RecordModel,
     action: string,
@@ -1707,6 +1899,13 @@ export class BaseApp implements App {
       return await actionFunc();
     }
     return await record.callFieldInterceptors(null, this, action, actionFunc);
+  }
+
+  private runRecordInterceptorsSync(record: RecordModel, action: string, actionFunc: () => Error | null): Error | null {
+    if (!this.#hooksEnabled) {
+      return actionFunc();
+    }
+    return record.callFieldInterceptorsSync(null, this, action, actionFunc);
   }
 
   private async saveModel(model: Model, runValidation: boolean): Promise<Error | null> {
@@ -1899,6 +2098,196 @@ export class BaseApp implements App {
     return afterErr ?? null;
   }
 
+  private saveModelSync(model: Model, runValidation: boolean): Error | null {
+    const recordInfo = resolveRecordProxy(model);
+    if (recordInfo) {
+      const { record, model: eventModel } = recordInfo;
+      const isNew = record.IsNew();
+      const modelEvent = new ModelEvent(this, eventModel, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
+      const action = isNew ? InterceptorActionCreate : InterceptorActionUpdate;
+      const executeAction = isNew ? InterceptorActionCreateExecute : InterceptorActionUpdateExecute;
+      const afterSuccess = isNew ? InterceptorActionAfterCreate : InterceptorActionAfterUpdate;
+      const afterError = isNew ? InterceptorActionAfterCreateError : InterceptorActionAfterUpdateError;
+
+      const runPersist = (): Error | null =>
+        this.runRecordInterceptorsSync(record, executeAction, () => {
+          if (this.#hooksEnabled) {
+            const execErr = this.onRecordSaveExecute(record);
+            if (execErr) {
+              return execErr;
+            }
+          }
+          return this.persistRecordSync(record);
+        });
+
+      const runValidatedExecute = (): Error | null =>
+        this.runRecordInterceptorsSync(record, action, () => {
+          if (runValidation) {
+            const validateErr = this.ValidateSync(eventModel);
+            if (validateErr) {
+              return validateErr;
+            }
+          }
+
+          const executeResult = (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(
+            modelEvent,
+            runPersist,
+          );
+          return ensureSyncHookResult(executeResult, "OnModelSaveExecute");
+        });
+
+      const saveResult = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(modelEvent, runValidatedExecute);
+      const saveErr = ensureSyncHookResult(saveResult, "OnModelSave");
+
+      if (saveErr) {
+        const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
+        const afterResult = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(errorEvent, () =>
+          this.runRecordInterceptorsSync(record, afterError, () => errorEvent.Error),
+        );
+        const afterErr = ensureSyncHookResult(afterResult, "OnModelAfterSaveError");
+        return afterErr ?? errorEvent.Error;
+      }
+
+      if (this.#txInfo) {
+        this.#txInfo.OnComplete((txErr) => {
+          if (txErr) {
+            if (action === InterceptorActionCreate) {
+              record.markNew(true);
+            }
+            const errorEvent = new ModelErrorEvent(modelEvent, txErr);
+            const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(errorEvent, () =>
+              this.runRecordInterceptorsSync(record, afterError, () => errorEvent.Error),
+            );
+            return ensureSyncHookResult(result, "OnModelAfterSaveError") ?? null;
+          }
+          const result = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(modelEvent, () =>
+            this.runRecordInterceptorsSync(record, afterSuccess, () => null),
+          );
+          return ensureSyncHookResult(result, "OnModelAfterSaveSuccess") ?? null;
+        });
+        return null;
+      }
+
+      const afterResult = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+        modelEvent,
+        () => this.runRecordInterceptorsSync(record, afterSuccess, () => null),
+      );
+      const afterErr = ensureSyncHookResult(afterResult, "OnModelAfterSaveSuccess");
+      return afterErr ?? null;
+    }
+
+    if (model instanceof Settings) {
+      const isNew = model.IsNew();
+      const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
+      const runValidatedExecute = (): Error | null => {
+        if (runValidation) {
+          const validateErr = this.ValidateSync(model);
+          if (validateErr) {
+            return validateErr;
+          }
+        }
+
+        const execResult = (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () =>
+          this.saveSettings(model),
+        );
+        return ensureSyncHookResult(execResult, "OnModelSaveExecute");
+      };
+
+      const saveResult = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(modelEvent, runValidatedExecute);
+      const saveErr = ensureSyncHookResult(saveResult, "OnModelSave");
+      if (saveErr) {
+        const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
+        const afterResult = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+          errorEvent,
+          () => errorEvent.Error,
+        );
+        const afterErr = ensureSyncHookResult(afterResult, "OnModelAfterSaveError");
+        return afterErr ?? errorEvent.Error;
+      }
+      if (this.#txInfo) {
+        this.#txInfo.OnComplete((txErr) => {
+          if (txErr) {
+            const errorEvent = new ModelErrorEvent(modelEvent, txErr);
+            const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+              errorEvent,
+              () => errorEvent.Error,
+            );
+            return ensureSyncHookResult(result, "OnModelAfterSaveError") ?? null;
+          }
+          const result = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+            modelEvent,
+            () => null,
+          );
+          return ensureSyncHookResult(result, "OnModelAfterSaveSuccess") ?? null;
+        });
+        return null;
+      }
+      const afterResult = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+        modelEvent,
+        () => null,
+      );
+      const afterErr = ensureSyncHookResult(afterResult, "OnModelAfterSaveSuccess");
+      return afterErr ?? null;
+    }
+
+    if (!(model instanceof Collection)) {
+      return this.saveGenericModelSync(model, runValidation);
+    }
+
+    const isNew = model.isNew();
+    const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
+    const runValidatedExecute = (): Error | null => {
+      if (runValidation) {
+        if (isNew) {
+          model.initDefaultId();
+        }
+        const validateErr = this.ValidateSync(model);
+        if (validateErr) {
+          return validateErr;
+        }
+      }
+      const execResult = (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () =>
+        this.saveCollectionSync(model, false),
+      );
+      return ensureSyncHookResult(execResult, "OnModelSaveExecute");
+    };
+    const saveResult = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(modelEvent, runValidatedExecute);
+    const saveErr = ensureSyncHookResult(saveResult, "OnModelSave");
+    if (saveErr) {
+      const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
+      const afterResult = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+        errorEvent,
+        () => errorEvent.Error,
+      );
+      const afterErr = ensureSyncHookResult(afterResult, "OnModelAfterSaveError");
+      return afterErr ?? errorEvent.Error;
+    }
+    if (this.#txInfo) {
+      this.#txInfo.OnComplete((txErr) => {
+        if (txErr) {
+          const errorEvent = new ModelErrorEvent(modelEvent, txErr);
+          const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+            errorEvent,
+            () => errorEvent.Error,
+          );
+          return ensureSyncHookResult(result, "OnModelAfterSaveError") ?? null;
+        }
+        const result = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+          modelEvent,
+          () => null,
+        );
+        return ensureSyncHookResult(result, "OnModelAfterSaveSuccess") ?? null;
+      });
+      return null;
+    }
+    const afterResult = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+      modelEvent,
+      () => null,
+    );
+    const afterErr = ensureSyncHookResult(afterResult, "OnModelAfterSaveSuccess");
+    return afterErr ?? null;
+  }
+
   private async saveGenericModel(model: Model, runValidation: boolean): Promise<Error | null> {
     const isNew = model.IsNew();
     const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
@@ -1961,6 +2350,69 @@ export class BaseApp implements App {
     return afterErr ?? null;
   }
 
+  private saveGenericModelSync(model: Model, runValidation: boolean): Error | null {
+    const isNew = model.IsNew();
+    const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
+
+    const runValidatedExecute = (): Error | null => {
+      if (runValidation) {
+        const validateErr = this.ValidateSync(model);
+        if (validateErr) {
+          return validateErr;
+        }
+      }
+
+      const execResult = (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () =>
+        this.persistGenericModelSync(model),
+      );
+      return ensureSyncHookResult(execResult, "OnModelSaveExecute");
+    };
+
+    const saveResult = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(modelEvent, runValidatedExecute);
+    const saveErr = ensureSyncHookResult(saveResult, "OnModelSave");
+    if (saveErr) {
+      if (isNew) {
+        model.MarkAsNew();
+      }
+      const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
+      const afterResult = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+        errorEvent,
+        () => errorEvent.Error,
+      );
+      const afterErr = ensureSyncHookResult(afterResult, "OnModelAfterSaveError");
+      return afterErr ?? errorEvent.Error;
+    }
+
+    if (this.#txInfo) {
+      this.#txInfo.OnComplete((txErr) => {
+        if (txErr) {
+          if (isNew) {
+            model.MarkAsNew();
+          }
+          const errorEvent = new ModelErrorEvent(modelEvent, txErr);
+          const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
+            errorEvent,
+            () => errorEvent.Error,
+          );
+          return ensureSyncHookResult(result, "OnModelAfterSaveError") ?? null;
+        }
+        const result = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+          modelEvent,
+          () => null,
+        );
+        return ensureSyncHookResult(result, "OnModelAfterSaveSuccess") ?? null;
+      });
+      return null;
+    }
+
+    const afterResult = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
+      modelEvent,
+      () => null,
+    );
+    const afterErr = ensureSyncHookResult(afterResult, "OnModelAfterSaveSuccess");
+    return afterErr ?? null;
+  }
+
   async Validate(model: Model): Promise<Error | null> {
     const preValidator = model as Partial<PreValidator>;
     if (typeof preValidator.PreValidate === "function") {
@@ -1993,6 +2445,44 @@ export class BaseApp implements App {
     })) as Error | null;
 
     return result ?? null;
+  }
+
+  ValidateSync(model: Model): Error | null {
+    const preValidator = model as Partial<PreValidator>;
+    if (typeof preValidator.PreValidate === "function") {
+      const preErr = preValidator.PreValidate(null, this);
+      if (preErr) {
+        return preErr;
+      }
+    }
+
+    const event = new ModelEvent(this, model, ModelEventTypeValidate);
+    const result = this.OnModelValidate().Trigger(event, (modelEvent) => {
+      const recordInfo = resolveRecordProxy(model);
+      if (!recordInfo && model instanceof Collection) {
+        const original = model.isNew() ? null : this.findCollectionById(model.LastSavedPK());
+        const validationErr = this.validateCollectionSync(model, original);
+        if (validationErr) {
+          return validationErr;
+        }
+      }
+
+      const postValidator = model as Partial<PostValidator>;
+      if (typeof postValidator.PostValidate === "function") {
+        const postErr = postValidator.PostValidate(null, this);
+        if (postErr) {
+          return postErr;
+        }
+      }
+
+      const nextResult = modelEvent.Next();
+      if (nextResult instanceof Promise) {
+        return new Error("async model validate handlers are not supported in sync validation");
+      }
+      return nextResult as Error | null;
+    });
+
+    return ensureSyncHookResult(result, "OnModelValidate");
   }
 
   async Delete(model: Model): Promise<Error | null> {
@@ -2087,8 +2577,26 @@ export class BaseApp implements App {
     );
   }
 
+  RunInTransactionSync(fn: (txApp: App) => Error | null): Error | null {
+    return RunInTransactionSyncHelper(
+      {
+        app: this,
+        db: () => this.db(),
+        getTxInfo: () => this.#txInfo,
+        setTxInfo: (info) => {
+          this.#txInfo = info;
+        },
+      },
+      fn,
+    );
+  }
+
   async AuxRunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null> {
     return await AuxRunInTransactionHelper(this, () => this.auxDb(), fn);
+  }
+
+  AuxRunInTransactionSync(fn: (txApp: App) => Error | null): Error | null {
+    return AuxRunInTransactionSyncHelper(this, () => this.auxDb(), fn);
   }
 
   // Bun port adds an async variant to accommodate request parsing and hook delays.
@@ -2358,6 +2866,53 @@ export class BaseApp implements App {
     return record.PostScan();
   }
 
+  private persistRecordSync(record: RecordModel): Error | null {
+    let data: Record<string, unknown>;
+    try {
+      data = record.DBExport();
+    } catch (error) {
+      return error as Error;
+    }
+
+    if (!("id" in data) || !data.id) {
+      data.id = record.Id;
+    }
+    if (!data.id) {
+      return new Error("empty primary key is not allowed");
+    }
+
+    const keys = Object.keys(data);
+    const dbErr = baseLockRetrySync(() => {
+      try {
+        if (record.IsNew()) {
+          const columns = keys.map((key) => `"${key}"`).join(", ");
+          const placeholders = keys.map(() => "?").join(", ");
+          const values = keys.map((key) => normalizeDbValue(data[key]));
+          const sql = `insert into "${record.TableName()}" (${columns}) values (${placeholders})`;
+          this.db().run(sql, values);
+        } else {
+          const columns = keys.filter((key) => key !== "id");
+          if (columns.length > 0) {
+            const assignments = columns.map((key) => `"${key}" = ?`).join(", ");
+            const values = columns.map((key) => normalizeDbValue(data[key]));
+            values.push(record.Id);
+            const sql = `update "${record.TableName()}" set ${assignments} where id = ?`;
+            this.db().run(sql, values);
+          }
+        }
+      } catch (err) {
+        return err instanceof Error ? err : new Error(String(err));
+      }
+      return null;
+    }, defaultMaxLockRetries);
+
+    if (dbErr) {
+      return NormalizeUniqueIndexError(dbErr, record.collection().name, record.collection().Fields.FieldNames());
+    }
+
+    return record.PostScan();
+  }
+
   private async persistGenericModel(model: Model): Promise<Error | null> {
     const data: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(model as Record<string, unknown>)) {
@@ -2381,6 +2936,61 @@ export class BaseApp implements App {
     }
 
     const dbErr = await baseLockRetry(() => {
+      try {
+        if (model.IsNew()) {
+          const columns = keys.map((key) => `"${key}"`).join(", ");
+          const placeholders = keys.map(() => "?").join(", ");
+          const values = keys.map((key) => normalizeDbValue(data[key]));
+          const sql = `insert into {{${model.TableName()}}} (${columns}) values (${placeholders})`;
+          this.db().run(sql, values);
+        } else {
+          const columns = keys.filter((key) => key !== "id");
+          if (columns.length > 0) {
+            const assignments = columns.map((key) => `"${key}" = ?`).join(", ");
+            const values = columns.map((key) => normalizeDbValue(data[key]));
+            values.push(normalizeDbValue(model.PK() ?? data.id));
+            const sql = `update {{${model.TableName()}}} set ${assignments} where [[id]] = ?`;
+            this.db().run(sql, values);
+          }
+        }
+      } catch (error) {
+        return error as Error;
+      }
+      return null;
+    }, defaultMaxLockRetries);
+
+    if (dbErr) {
+      return dbErr;
+    }
+
+    model.MarkAsNotNew();
+
+    return null;
+  }
+
+  private persistGenericModelSync(model: Model): Error | null {
+    const data: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(model as Record<string, unknown>)) {
+      if (typeof value === "function" || value === undefined) {
+        continue;
+      }
+      data[snakecase(key)] = value;
+    }
+
+    if (!("id" in data) || !data.id) {
+      data.id = model.PK();
+    }
+
+    if (!data.id) {
+      return new Error("empty primary key is not allowed");
+    }
+
+    const keys = Object.keys(data);
+    if (keys.length === 0) {
+      return null;
+    }
+
+    const dbErr = baseLockRetrySync(() => {
       try {
         if (model.IsNew()) {
           const columns = keys.map((key) => `"${key}"`).join(", ");
@@ -2609,6 +3219,129 @@ export class BaseApp implements App {
       return syncErr;
     }
 
+    const reloadErr = this.ReloadCachedCollections();
+    if (reloadErr) {
+      this.Logger().Warn("Failed to reload collections cache", "error", reloadErr);
+    }
+
+    return null;
+  }
+
+  private saveCollectionSync(collection: Collection, runValidation: boolean): Error | null {
+    const original = collection.isNew() ? null : this.findCollectionById(collection.LastSavedPK());
+
+    if (!collection.type) {
+      collection.type = "base";
+    }
+
+    if (collection.isNew()) {
+      collection.initDefaultId();
+      collection.created = NowDateTime();
+    }
+    collection.updated = NowDateTime();
+
+    collection.Fields = NewFieldsList(...collection.Fields);
+    collection.initDefaultFields();
+    if (collection.isAuth()) {
+      collection.unsetMissingOAuth2MappedFields();
+    }
+    collection.updateGeneratedIdIfExists(this);
+
+    normalizeCollectionFields(collection);
+
+    if (runValidation) {
+      const validationErr = this.ValidateSync(collection);
+      if (validationErr) {
+        return validationErr;
+      }
+    }
+
+    if (collection.isView()) {
+      let viewFields: FieldsList;
+      try {
+        viewFields = this.CreateViewFieldsSync(collection.ViewQuery);
+      } catch (error) {
+        return error as Error;
+      }
+
+      if (original) {
+        const deleteErr = this.DeleteView(original.name);
+        if (deleteErr) {
+          return deleteErr;
+        }
+      }
+
+      const saveViewErr = this.SaveViewSync(collection.name, collection.ViewQuery);
+      if (saveViewErr) {
+        return saveViewErr;
+      }
+
+      collection.Fields = viewFields;
+    }
+
+    const fieldsJson = JSON.stringify(collection.Fields.toJSON());
+    const indexesJson = JSON.stringify(collection.indexes ?? []);
+    const optionsJson = JSON.stringify(collection.options ?? {});
+    const now = collection.updated.toString();
+    const created = collection.created.toString();
+
+    if (collection.isNew()) {
+      this.db().run(
+        `insert into _collections
+          (id, system, type, name, fields, indexes, listRule, viewRule, createRule, updateRule, deleteRule, options, created, updated)
+         values
+          (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          collection.id,
+          collection.system ? 1 : 0,
+          collection.type,
+          collection.name,
+          fieldsJson,
+          indexesJson,
+          collection.listRule ?? null,
+          collection.viewRule ?? null,
+          collection.createRule ?? null,
+          collection.updateRule ?? null,
+          collection.deleteRule ?? null,
+          optionsJson,
+          created,
+          now,
+        ],
+      );
+      collection.markNew(false);
+    } else {
+      this.db().run(
+        `update _collections
+          set system = ?, type = ?, name = ?, fields = ?, indexes = ?, listRule = ?, viewRule = ?, createRule = ?, updateRule = ?, deleteRule = ?, options = ?, updated = ?
+         where id = ?`,
+        [
+          collection.system ? 1 : 0,
+          collection.type,
+          collection.name,
+          fieldsJson,
+          indexesJson,
+          collection.listRule ?? null,
+          collection.viewRule ?? null,
+          collection.createRule ?? null,
+          collection.updateRule ?? null,
+          collection.deleteRule ?? null,
+          optionsJson,
+          now,
+          collection.id,
+        ],
+      );
+    }
+
+    const syncErr = this.syncRecordTableSchemaSync(collection, original);
+    if (syncErr) {
+      return syncErr;
+    }
+
+    const reloadErr = this.ReloadCachedCollections();
+    if (reloadErr) {
+      this.Logger().Warn("Failed to reload collections cache", "error", reloadErr);
+    }
+
     return null;
   }
 
@@ -2643,11 +3376,19 @@ export class BaseApp implements App {
     }
 
     this.db().run("delete from _collections where id = ?", [collection.id]);
+    const reloadErr = this.ReloadCachedCollections();
+    if (reloadErr) {
+      this.Logger().Warn("Failed to reload collections cache", "error", reloadErr);
+    }
     return null;
   }
 
   private async validateCollection(collection: Collection, original: Collection | null): Promise<Error | null> {
     return await validateCollection(this, collection, original);
+  }
+
+  private validateCollectionSync(collection: Collection, original: Collection | null): Error | null {
+    return validateCollectionSync(this, collection, original);
   }
 
   private async syncRecordTableSchema(newCollection: Collection, oldCollection: Collection | null): Promise<Error | null> {
@@ -2656,6 +3397,76 @@ export class BaseApp implements App {
     }
 
     return await this.RunInTransaction((txApp) => {
+      const db = (txApp as BaseApp).db();
+      const hasOldTable = oldCollection ? (txApp as BaseApp).HasTable(oldCollection.name) : false;
+
+      if (!hasOldTable) {
+        const columns = newCollection.Fields.map((field) => `"${field.GetName()}" ${field.ColumnType(txApp)}`);
+        db.run(`create table if not exists {{${newCollection.name}}} (${columns.join(", ")})`);
+        return (txApp as BaseApp).createCollectionIndexes(newCollection);
+      }
+
+      const oldTableName = oldCollection?.name ?? newCollection.name;
+      const newTableName = newCollection.name;
+      const needTableRename = oldTableName.toLowerCase() !== newTableName.toLowerCase();
+      if (needTableRename) {
+        db.run(`alter table {{${oldTableName}}} rename to {{${newTableName}}}`);
+      }
+
+      const oldFields = oldCollection?.Fields ?? new FieldsList();
+      const newFields = newCollection.Fields;
+      const oldIndexesJson = JSON.stringify(oldCollection?.indexes ?? []);
+      const newIndexesJson = JSON.stringify(newCollection.indexes ?? []);
+      const oldFieldsJson = JSON.stringify(oldFields.toJSON());
+      const newFieldsJson = JSON.stringify(newFields.toJSON());
+      const needIndexesUpdate = needTableRename || oldFieldsJson !== newFieldsJson || oldIndexesJson !== newIndexesJson;
+
+      if (needIndexesUpdate && oldCollection) {
+        const dropErr = (txApp as BaseApp).dropCollectionIndexes(oldCollection);
+        if (dropErr) {
+          return dropErr;
+        }
+      }
+
+      for (const oldField of oldFields) {
+        if (!newFields.GetById(oldField.GetId())) {
+          db.run(`alter table {{${newTableName}}} drop column "${oldField.GetName()}"`);
+        }
+      }
+
+      const toRename: Record<string, string> = {};
+      for (const field of newFields) {
+        const oldField = oldFields.GetById(field.GetId());
+        if (!oldField) {
+          const tempName = `${field.GetName()}${randomString(5)}`;
+          toRename[tempName] = field.GetName();
+          db.run(`alter table {{${newTableName}}} add column "${tempName}" ${field.ColumnType(txApp)}`);
+        } else if (oldField.GetName() !== field.GetName()) {
+          const tempName = `${field.GetName()}${randomString(5)}`;
+          toRename[tempName] = field.GetName();
+          db.run(`alter table {{${newTableName}}} rename column "${oldField.GetName()}" to "${tempName}"`);
+        }
+      }
+
+      for (const [tempName, actualName] of Object.entries(toRename)) {
+        db.run(`alter table {{${newTableName}}} rename column "${tempName}" to "${actualName}"`);
+      }
+
+      // Deviation: single vs multiple field migration and view resave are not implemented yet.
+
+      if (needIndexesUpdate) {
+        return (txApp as BaseApp).createCollectionIndexes(newCollection);
+      }
+      return null;
+    });
+  }
+
+  private syncRecordTableSchemaSync(newCollection: Collection, oldCollection: Collection | null): Error | null {
+    if (newCollection.isView()) {
+      return null;
+    }
+
+    return this.RunInTransactionSync((txApp) => {
       const db = (txApp as BaseApp).db();
       const hasOldTable = oldCollection ? (txApp as BaseApp).HasTable(oldCollection.name) : false;
 
@@ -2854,17 +3665,14 @@ export class BaseApp implements App {
     this.OnModelValidate().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnCollectionValidate().Trigger(ce, async (event) => {
-          syncModelEventWithCollectionEvent(me, event);
-          const result = await me.Next();
-          syncCollectionEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnCollectionValidate().Trigger(ce, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
+        );
         syncModelEventWithCollectionEvent(me, ce);
         return err;
       },
@@ -2873,17 +3681,14 @@ export class BaseApp implements App {
     this.OnModelCreate().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnCollectionCreate().Trigger(ce, async (event) => {
-          syncModelEventWithCollectionEvent(me, event);
-          const result = await me.Next();
-          syncCollectionEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnCollectionCreate().Trigger(ce, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
+        );
         syncModelEventWithCollectionEvent(me, ce);
         return err;
       },
@@ -2892,17 +3697,14 @@ export class BaseApp implements App {
     this.OnModelCreateExecute().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnCollectionCreateExecute().Trigger(ce, async (event) => {
-          syncModelEventWithCollectionEvent(me, event);
-          const result = await me.Next();
-          syncCollectionEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnCollectionCreateExecute().Trigger(ce, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
+        );
         syncModelEventWithCollectionEvent(me, ce);
         return err;
       },
@@ -2911,17 +3713,14 @@ export class BaseApp implements App {
     this.OnModelAfterCreateSuccess().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnCollectionAfterCreateSuccess().Trigger(ce, async (event) => {
-          syncModelEventWithCollectionEvent(me, event);
-          const result = await me.Next();
-          syncCollectionEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnCollectionAfterCreateSuccess().Trigger(ce, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
+        );
         syncModelEventWithCollectionEvent(me, ce);
         return err;
       },
@@ -2930,17 +3729,19 @@ export class BaseApp implements App {
     this.OnModelAfterCreateError().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: ce, ok } = newCollectionErrorEventFromModelErrorEvent(me);
         if (!ok || !ce) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnCollectionAfterCreateError().Trigger(ce, async (event) => {
-          syncModelErrorEventWithCollectionErrorEvent(me, event);
-          const result = await me.Next();
-          syncCollectionErrorEventWithModelErrorEvent(event, me);
-          return result;
-        });
+        const err = this.OnCollectionAfterCreateError().Trigger(ce, (event) =>
+          runHookNextWithSync(
+            me,
+            event,
+            syncModelErrorEventWithCollectionErrorEvent,
+            syncCollectionErrorEventWithModelErrorEvent,
+          ),
+        );
         syncModelErrorEventWithCollectionErrorEvent(me, ce);
         return err;
       },
@@ -2949,17 +3750,14 @@ export class BaseApp implements App {
     this.OnModelUpdate().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnCollectionUpdate().Trigger(ce, async (event) => {
-          syncModelEventWithCollectionEvent(me, event);
-          const result = await me.Next();
-          syncCollectionEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnCollectionUpdate().Trigger(ce, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
+        );
         syncModelEventWithCollectionEvent(me, ce);
         return err;
       },
@@ -2968,17 +3766,14 @@ export class BaseApp implements App {
     this.OnModelUpdateExecute().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnCollectionUpdateExecute().Trigger(ce, async (event) => {
-          syncModelEventWithCollectionEvent(me, event);
-          const result = await me.Next();
-          syncCollectionEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnCollectionUpdateExecute().Trigger(ce, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
+        );
         syncModelEventWithCollectionEvent(me, ce);
         return err;
       },
@@ -2987,17 +3782,14 @@ export class BaseApp implements App {
     this.OnModelAfterUpdateSuccess().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnCollectionAfterUpdateSuccess().Trigger(ce, async (event) => {
-          syncModelEventWithCollectionEvent(me, event);
-          const result = await me.Next();
-          syncCollectionEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnCollectionAfterUpdateSuccess().Trigger(ce, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
+        );
         syncModelEventWithCollectionEvent(me, ce);
         return err;
       },
@@ -3006,17 +3798,19 @@ export class BaseApp implements App {
     this.OnModelAfterUpdateError().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: ce, ok } = newCollectionErrorEventFromModelErrorEvent(me);
         if (!ok || !ce) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnCollectionAfterUpdateError().Trigger(ce, async (event) => {
-          syncModelErrorEventWithCollectionErrorEvent(me, event);
-          const result = await me.Next();
-          syncCollectionErrorEventWithModelErrorEvent(event, me);
-          return result;
-        });
+        const err = this.OnCollectionAfterUpdateError().Trigger(ce, (event) =>
+          runHookNextWithSync(
+            me,
+            event,
+            syncModelErrorEventWithCollectionErrorEvent,
+            syncCollectionErrorEventWithModelErrorEvent,
+          ),
+        );
         syncModelErrorEventWithCollectionErrorEvent(me, ce);
         return err;
       },
@@ -3025,17 +3819,14 @@ export class BaseApp implements App {
     this.OnModelDelete().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnCollectionDelete().Trigger(ce, async (event) => {
-          syncModelEventWithCollectionEvent(me, event);
-          const result = await me.Next();
-          syncCollectionEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnCollectionDelete().Trigger(ce, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
+        );
         syncModelEventWithCollectionEvent(me, ce);
         return err;
       },
@@ -3044,17 +3835,14 @@ export class BaseApp implements App {
     this.OnModelDeleteExecute().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnCollectionDeleteExecute().Trigger(ce, async (event) => {
-          syncModelEventWithCollectionEvent(me, event);
-          const result = await me.Next();
-          syncCollectionEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnCollectionDeleteExecute().Trigger(ce, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
+        );
         syncModelEventWithCollectionEvent(me, ce);
         return err;
       },
@@ -3063,17 +3851,14 @@ export class BaseApp implements App {
     this.OnModelAfterDeleteSuccess().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: ce, ok } = newCollectionEventFromModelEvent(me);
         if (!ok || !ce) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnCollectionAfterDeleteSuccess().Trigger(ce, async (event) => {
-          syncModelEventWithCollectionEvent(me, event);
-          const result = await me.Next();
-          syncCollectionEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnCollectionAfterDeleteSuccess().Trigger(ce, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
+        );
         syncModelEventWithCollectionEvent(me, ce);
         return err;
       },
@@ -3082,17 +3867,19 @@ export class BaseApp implements App {
     this.OnModelAfterDeleteError().Bind({
       Id: systemHookIdCollection,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: ce, ok } = newCollectionErrorEventFromModelErrorEvent(me);
         if (!ok || !ce) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnCollectionAfterDeleteError().Trigger(ce, async (event) => {
-          syncModelErrorEventWithCollectionErrorEvent(me, event);
-          const result = await me.Next();
-          syncCollectionErrorEventWithModelErrorEvent(event, me);
-          return result;
-        });
+        const err = this.OnCollectionAfterDeleteError().Trigger(ce, (event) =>
+          runHookNextWithSync(
+            me,
+            event,
+            syncModelErrorEventWithCollectionErrorEvent,
+            syncCollectionErrorEventWithModelErrorEvent,
+          ),
+        );
         syncModelErrorEventWithCollectionErrorEvent(me, ce);
         return err;
       },
@@ -3105,17 +3892,14 @@ export class BaseApp implements App {
     this.OnModelValidate().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnRecordValidate().Trigger(re, async (event) => {
-          syncModelEventWithRecordEvent(me, event);
-          const result = await me.Next();
-          syncRecordEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnRecordValidate().Trigger(re, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
+        );
         syncModelEventWithRecordEvent(me, re);
         return err;
       },
@@ -3124,17 +3908,14 @@ export class BaseApp implements App {
     this.OnModelCreate().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnRecordCreate().Trigger(re, async (event) => {
-          syncModelEventWithRecordEvent(me, event);
-          const result = await me.Next();
-          syncRecordEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnRecordCreate().Trigger(re, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
+        );
         syncModelEventWithRecordEvent(me, re);
         return err;
       },
@@ -3143,17 +3924,14 @@ export class BaseApp implements App {
     this.OnModelCreateExecute().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnRecordCreateExecute().Trigger(re, async (event) => {
-          syncModelEventWithRecordEvent(me, event);
-          const result = await me.Next();
-          syncRecordEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnRecordCreateExecute().Trigger(re, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
+        );
         syncModelEventWithRecordEvent(me, re);
         return err;
       },
@@ -3162,17 +3940,14 @@ export class BaseApp implements App {
     this.OnModelAfterCreateSuccess().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnRecordAfterCreateSuccess().Trigger(re, async (event) => {
-          syncModelEventWithRecordEvent(me, event);
-          const result = await me.Next();
-          syncRecordEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnRecordAfterCreateSuccess().Trigger(re, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
+        );
         syncModelEventWithRecordEvent(me, re);
         return err;
       },
@@ -3181,17 +3956,14 @@ export class BaseApp implements App {
     this.OnModelAfterCreateError().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
         if (!ok || !re) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnRecordAfterCreateError().Trigger(re, async (event) => {
-          syncModelErrorEventWithRecordErrorEvent(me, event);
-          const result = await me.Next();
-          syncRecordErrorEventWithModelErrorEvent(event, me);
-          return result;
-        });
+        const err = this.OnRecordAfterCreateError().Trigger(re, (event) =>
+          runHookNextWithSync(me, event, syncModelErrorEventWithRecordErrorEvent, syncRecordErrorEventWithModelErrorEvent),
+        );
         syncModelErrorEventWithRecordErrorEvent(me, re);
         return err;
       },
@@ -3200,17 +3972,14 @@ export class BaseApp implements App {
     this.OnModelUpdate().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnRecordUpdate().Trigger(re, async (event) => {
-          syncModelEventWithRecordEvent(me, event);
-          const result = await me.Next();
-          syncRecordEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnRecordUpdate().Trigger(re, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
+        );
         syncModelEventWithRecordEvent(me, re);
         return err;
       },
@@ -3219,17 +3988,14 @@ export class BaseApp implements App {
     this.OnModelUpdateExecute().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnRecordUpdateExecute().Trigger(re, async (event) => {
-          syncModelEventWithRecordEvent(me, event);
-          const result = await me.Next();
-          syncRecordEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnRecordUpdateExecute().Trigger(re, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
+        );
         syncModelEventWithRecordEvent(me, re);
         return err;
       },
@@ -3238,17 +4004,14 @@ export class BaseApp implements App {
     this.OnModelAfterUpdateSuccess().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnRecordAfterUpdateSuccess().Trigger(re, async (event) => {
-          syncModelEventWithRecordEvent(me, event);
-          const result = await me.Next();
-          syncRecordEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnRecordAfterUpdateSuccess().Trigger(re, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
+        );
         syncModelEventWithRecordEvent(me, re);
         return err;
       },
@@ -3257,17 +4020,14 @@ export class BaseApp implements App {
     this.OnModelAfterUpdateError().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
         if (!ok || !re) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnRecordAfterUpdateError().Trigger(re, async (event) => {
-          syncModelErrorEventWithRecordErrorEvent(me, event);
-          const result = await me.Next();
-          syncRecordErrorEventWithModelErrorEvent(event, me);
-          return result;
-        });
+        const err = this.OnRecordAfterUpdateError().Trigger(re, (event) =>
+          runHookNextWithSync(me, event, syncModelErrorEventWithRecordErrorEvent, syncRecordErrorEventWithModelErrorEvent),
+        );
         syncModelErrorEventWithRecordErrorEvent(me, re);
         return err;
       },
@@ -3276,17 +4036,14 @@ export class BaseApp implements App {
     this.OnModelDelete().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnRecordDelete().Trigger(re, async (event) => {
-          syncModelEventWithRecordEvent(me, event);
-          const result = await me.Next();
-          syncRecordEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnRecordDelete().Trigger(re, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
+        );
         syncModelEventWithRecordEvent(me, re);
         return err;
       },
@@ -3295,17 +4052,14 @@ export class BaseApp implements App {
     this.OnModelDeleteExecute().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnRecordDeleteExecute().Trigger(re, async (event) => {
-          syncModelEventWithRecordEvent(me, event);
-          const result = await me.Next();
-          syncRecordEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnRecordDeleteExecute().Trigger(re, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
+        );
         syncModelEventWithRecordEvent(me, re);
         return err;
       },
@@ -3314,23 +4068,20 @@ export class BaseApp implements App {
     this.OnRecordDeleteExecute().Bind({
       Id: systemHookIdRecord,
       Priority: 99,
-      Func: async (event) => await this.onRecordDeleteExecute(event),
+      Func: (event) => this.onRecordDeleteExecute(event),
     });
 
     this.OnModelAfterDeleteSuccess().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnRecordAfterDeleteSuccess().Trigger(re, async (event) => {
-          syncModelEventWithRecordEvent(me, event);
-          const result = await me.Next();
-          syncRecordEventWithModelEvent(event, me);
-          return result;
-        });
+        const err = this.OnRecordAfterDeleteSuccess().Trigger(re, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
+        );
         syncModelEventWithRecordEvent(me, re);
         return err;
       },
@@ -3339,17 +4090,14 @@ export class BaseApp implements App {
     this.OnModelAfterDeleteError().Bind({
       Id: systemHookIdRecord,
       Priority: -99,
-      Func: async (me) => {
+      Func: (me) => {
         const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
         if (!ok || !re) {
-          return await me.Next();
+          return me.Next();
         }
-        const err = await this.OnRecordAfterDeleteError().Trigger(re, async (event) => {
-          syncModelErrorEventWithRecordErrorEvent(me, event);
-          const result = await me.Next();
-          syncRecordErrorEventWithModelErrorEvent(event, me);
-          return result;
-        });
+        const err = this.OnRecordAfterDeleteError().Trigger(re, (event) =>
+          runHookNextWithSync(me, event, syncModelErrorEventWithRecordErrorEvent, syncRecordErrorEventWithModelErrorEvent),
+        );
         syncModelErrorEventWithRecordErrorEvent(me, re);
         return err;
       },
@@ -3358,16 +4106,20 @@ export class BaseApp implements App {
     this.OnRecordValidate().Bind({
       Id: systemHookIdRecord,
       Priority: 99,
-      Func: async (e) => {
+      Func: (e) => {
         if (!e.Record) {
-          return await e.Next();
+          return e.Next();
         }
-        return await e.Record.callFieldInterceptors(e.Context, e.App, InterceptorActionValidate, async () => {
+        return e.Record.callFieldInterceptors(e.Context, e.App, InterceptorActionValidate, () => {
           const err = this.validateRecord(e.Record as RecordModel);
           if (err) {
             return err;
           }
-          return (await e.Next()) as Error | null;
+          const nextResult = e.Next();
+          if (nextResult instanceof Promise) {
+            return nextResult.then((result) => result as Error | null);
+          }
+          return nextResult as Error | null;
         });
       },
     });
@@ -3400,34 +4152,58 @@ export class BaseApp implements App {
     });
 
     this.OnRecordUpdate().Bind({
-      Func: async (e) => {
+      Func: (e) => {
         const record = e.Record;
         const isAuth = record?.collection().IsAuth() ?? false;
         // Deviation: capture the original hash before e.Next() because PostScan updates originals during save.
         const oldHash = isAuth && record ? record.Original().GetString(`${FieldNamePassword}:hash`) : "";
 
-        const err = (await e.Next()) as Error | null;
-        if (err || !isAuth || !record) {
-          return err;
-        }
-
-        const newHash = record.GetString(`${FieldNamePassword}:hash`);
-        if (oldHash !== newHash) {
-          const deleteErr = await e.App.DeleteAllMFAsByRecord(record);
-          if (deleteErr) {
-            e.App.Logger().Warn(
-              "Failed to delete all previous mfas",
-              "error",
-              deleteErr,
-              "recordId",
-              record.Id,
-              "collectionId",
-              record.collection().id,
-            );
+        const nextResult = e.Next();
+        const handleResult = (err: Error | null) => {
+          if (err || !isAuth || !record) {
+            return err;
           }
+
+          const newHash = record.GetString(`${FieldNamePassword}:hash`);
+          if (oldHash !== newHash) {
+            const deleteResult = e.App.DeleteAllMFAsByRecord(record);
+            if (deleteResult instanceof Promise) {
+              return deleteResult.then((deleteErr) => {
+                if (deleteErr) {
+                  e.App.Logger().Warn(
+                    "Failed to delete all previous mfas",
+                    "error",
+                    deleteErr,
+                    "recordId",
+                    record.Id,
+                    "collectionId",
+                    record.collection().id,
+                  );
+                }
+                return null;
+              });
+            }
+            if (deleteResult) {
+              e.App.Logger().Warn(
+                "Failed to delete all previous mfas",
+                "error",
+                deleteResult,
+                "recordId",
+                record.Id,
+                "collectionId",
+                record.collection().id,
+              );
+            }
+          }
+
+          return null;
+        };
+
+        if (nextResult instanceof Promise) {
+          return nextResult.then((err) => handleResult(err as Error | null));
         }
 
-        return null;
+        return handleResult(nextResult as Error | null);
       },
       Priority: 99,
     });
@@ -3462,34 +4238,58 @@ export class BaseApp implements App {
 
     // delete existing auth origins on password change
     this.OnRecordUpdate().Bind({
-      Func: async (e) => {
+      Func: (e) => {
         const record = e.Record;
         const isAuth = record?.collection().IsAuth() ?? false;
         // Deviation: capture the original hash before e.Next() because PostScan updates originals during save.
         const oldHash = isAuth && record ? record.Original().GetString(`${FieldNamePassword}:hash`) : "";
 
-        const err = (await e.Next()) as Error | null;
-        if (err || !isAuth || !record) {
-          return err;
-        }
-
-        const newHash = record.GetString(`${FieldNamePassword}:hash`);
-        if (oldHash !== newHash) {
-          const deleteErr = await e.App.DeleteAllAuthOriginsByRecord(record);
-          if (deleteErr) {
-            e.App.Logger().Warn(
-              "Failed to delete all previous auth origin fingerprints",
-              "error",
-              deleteErr,
-              "recordId",
-              record.Id,
-              "collectionId",
-              record.collection().id,
-            );
+        const nextResult = e.Next();
+        const handleResult = (err: Error | null) => {
+          if (err || !isAuth || !record) {
+            return err;
           }
+
+          const newHash = record.GetString(`${FieldNamePassword}:hash`);
+          if (oldHash !== newHash) {
+            const deleteResult = e.App.DeleteAllAuthOriginsByRecord(record);
+            if (deleteResult instanceof Promise) {
+              return deleteResult.then((deleteErr) => {
+                if (deleteErr) {
+                  e.App.Logger().Warn(
+                    "Failed to delete all previous auth origin fingerprints",
+                    "error",
+                    deleteErr,
+                    "recordId",
+                    record.Id,
+                    "collectionId",
+                    record.collection().id,
+                  );
+                }
+                return null;
+              });
+            }
+            if (deleteResult) {
+              e.App.Logger().Warn(
+                "Failed to delete all previous auth origin fingerprints",
+                "error",
+                deleteResult,
+                "recordId",
+                record.Id,
+                "collectionId",
+                record.collection().id,
+              );
+            }
+          }
+
+          return null;
+        };
+
+        if (nextResult instanceof Promise) {
+          return nextResult.then((err) => handleResult(err as Error | null));
         }
 
-        return null;
+        return handleResult(nextResult as Error | null);
       },
       Priority: 99,
     });
@@ -3499,12 +4299,20 @@ export class BaseApp implements App {
     return await SaveView(this, name, selectQuery);
   }
 
+  SaveViewSync(name: string, selectQuery: string): Error | null {
+    return SaveViewSync(this, name, selectQuery);
+  }
+
   DeleteView(name: string): Error | null {
     return DeleteView(this, name);
   }
 
   async CreateViewFields(selectQuery: string): Promise<FieldsList> {
     return await CreateViewFields(this, selectQuery);
+  }
+
+  CreateViewFieldsSync(selectQuery: string): FieldsList {
+    return CreateViewFieldsSync(this, selectQuery);
   }
 
   TableInfo(tableName: string) {
@@ -3569,6 +4377,31 @@ function appendWhere(baseSql: string, clause: string): string {
   return `${baseSql} WHERE ${clause}`;
 }
 
+function runHookNextWithSync<TModelEvent extends { Next: () => unknown }, TEvent>(
+  modelEvent: TModelEvent,
+  event: TEvent,
+  syncToEvent: (modelEvent: TModelEvent, event: TEvent) => void,
+  syncToModel: (event: TEvent, modelEvent: TModelEvent) => void,
+): unknown {
+  syncToEvent(modelEvent, event);
+  const result = modelEvent.Next();
+  if (result instanceof Promise) {
+    return result.then((value) => {
+      syncToModel(event, modelEvent);
+      return value;
+    });
+  }
+  syncToModel(event, modelEvent);
+  return result;
+}
+
+function ensureSyncHookResult(result: unknown, context: string): Error | null {
+  if (result instanceof Promise) {
+    return new Error(`async handlers are not supported in sync ${context}`);
+  }
+  return result instanceof Error ? result : null;
+}
+
 function appendOrderBy(baseSql: string, clause: string): string {
   if (!clause) {
     return baseSql;
@@ -3604,6 +4437,15 @@ function resolveBaseTokenKey(collection: Collection, tokenType: string): string 
     default:
       return "";
   }
+}
+
+// getLoggerMinLevel returns the logger min level based on the app configurations.
+function getLoggerMinLevel(app: App): slog.Level {
+  if (app.IsDev()) {
+    return new slog.Level(-99999);
+  }
+
+  return new slog.Level(app.settings().logs.minLevel);
 }
 
 function normalizeDbValue(value: unknown): SQLQueryBindings {

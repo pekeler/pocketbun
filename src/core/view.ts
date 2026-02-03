@@ -82,12 +82,87 @@ export async function SaveView(app: App, name: string, selectQuery: string): Pro
   });
 }
 
+export function SaveViewSync(app: App, name: string, selectQuery: string): Error | null {
+  const trimmedName = name.trim();
+  if (!trimmedName) {
+    return new Error("missing view name");
+  }
+
+  return app.RunInTransactionSync((txApp) => {
+    const deleteErr = DeleteView(txApp, trimmedName);
+    if (deleteErr) {
+      return deleteErr;
+    }
+
+    let query = selectQuery.trim();
+    query = query.replace(/^;+|;+$/g, "");
+    if (!query) {
+      return new Error("missing view query");
+    }
+
+    const tk = new Tokenizer(query);
+    tk.separators(";");
+    const parts = tk.scanAll();
+    if (parts.length > 1) {
+      return new Error("multiple statements are not supported");
+    }
+
+    const viewQuery = `CREATE VIEW {{${trimmedName}}} AS SELECT * FROM (${query})`;
+    try {
+      txApp.db().run(viewQuery);
+    } catch (error) {
+      return error as Error;
+    }
+
+    try {
+      txApp.TableInfo(trimmedName);
+    } catch (error) {
+      DeleteView(txApp, trimmedName);
+      return error as Error;
+    }
+
+    return null;
+  });
+}
+
 export async function CreateViewFields(app: App, selectQuery: string): Promise<FieldsList> {
   const result = NewFieldsList();
   const suggested = parseQueryToFields(app, selectQuery);
 
   const txErr = await app.RunInTransaction(async (txApp) => {
     const info = await getQueryTableInfo(txApp, selectQuery);
+    let hasId = false;
+
+    for (const row of info) {
+      if (row.Name === FieldNameId) {
+        hasId = true;
+      }
+
+      const suggestedField = suggested.get(row.Name);
+      const field = suggestedField?.field ?? defaultViewField(row.Name);
+      result.Add(field);
+    }
+
+    if (!hasId) {
+      return new Error("missing required id column (you can use `(ROW_NUMBER() OVER()) as id` if you don't have one)");
+    }
+
+    return null;
+  });
+
+  if (txErr) {
+    throw txErr;
+  }
+
+  return result;
+}
+
+export function CreateViewFieldsSync(app: App, selectQuery: string): FieldsList {
+  const result = NewFieldsList();
+  const suggested = parseQueryToFields(app, selectQuery);
+
+  const txErr = app.RunInTransactionSync((txApp) => {
+    const info = getQueryTableInfoSync(txApp, selectQuery);
     let hasId = false;
 
     for (const row of info) {
@@ -384,6 +459,34 @@ async function getQueryTableInfo(app: App, selectQuery: string) {
 
   const txErr = await app.RunInTransaction(async (txApp) => {
     const err = await SaveView(txApp, tempView, selectQuery);
+    if (err) {
+      return err;
+    }
+
+    try {
+      info = txApp.TableInfo(tempView);
+    } catch (error) {
+      DeleteView(txApp, tempView);
+      return error as Error;
+    }
+
+    return DeleteView(txApp, tempView);
+  });
+
+  if (txErr) {
+    throw txErr;
+  }
+
+  return info;
+}
+
+function getQueryTableInfoSync(app: App, selectQuery: string) {
+  const tempView = `_temp_${pseudorandomString(6)}`;
+
+  let info: ReturnType<App["TableInfo"]> = [];
+
+  const txErr = app.RunInTransactionSync((txApp) => {
+    const err = SaveViewSync(txApp, tempView, selectQuery);
     if (err) {
       return err;
     }

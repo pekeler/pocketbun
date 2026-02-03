@@ -552,12 +552,12 @@ export class Record {
     return `${this.#collection.BaseFilesPath()}/${id}`;
   }
 
-  async callFieldInterceptors(
+  callFieldInterceptors(
     ctx: unknown,
     app: unknown,
     actionName: string,
     actionFunc: () => Error | null | Promise<Error | null>,
-  ): Promise<Error | null> {
+  ): Error | null | Promise<Error | null> {
     let next = actionFunc;
     for (const field of this.#collection.Fields) {
       const interceptor = field as unknown as RecordInterceptor;
@@ -566,7 +566,15 @@ export class Record {
         next = () => interceptor.Intercept(ctx, app, this, actionName, prev);
       }
     }
-    return await next();
+    return next();
+  }
+
+  callFieldInterceptorsSync(ctx: unknown, app: unknown, actionName: string, actionFunc: () => Error | null): Error | null {
+    const result = this.callFieldInterceptors(ctx, app, actionName, actionFunc);
+    if (result instanceof Promise) {
+      return new Error("async field interceptors are not supported in sync save");
+    }
+    return result ?? null;
   }
 
   DBExport(): RecordData {

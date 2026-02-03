@@ -1,18 +1,45 @@
 // Ported from pocketbase/core/log_model.go
 
 import { ParseDateTime, type DateTime } from "../tools/types/index.ts";
+import { JSONMap } from "../tools/types/json_map.ts";
 
 export const LogsTableName = "_logs";
 
 export class Log {
   id = "";
+  #lastSavedPK = "";
   created: DateTime = ParseDateTime("");
-  data: Record<string, unknown> = {};
+  data: JSONMap<unknown> = new JSONMap();
   message = "";
   level = 0;
 
   TableName(): string {
     return LogsTableName;
+  }
+
+  PK(): string {
+    return this.id;
+  }
+
+  LastSavedPK(): string {
+    return this.#lastSavedPK;
+  }
+
+  IsNew(): boolean {
+    return this.#lastSavedPK === "";
+  }
+
+  MarkAsNew(): void {
+    this.#lastSavedPK = "";
+  }
+
+  MarkAsNotNew(): void {
+    this.#lastSavedPK = this.id;
+  }
+
+  PostScan(): Error | null {
+    this.MarkAsNotNew();
+    return null;
   }
 }
 
@@ -36,16 +63,18 @@ export function normalizeLogRow(row: Record<string, unknown>): Log {
   }
 
   const dataValue = row.data;
-  if (dataValue && typeof dataValue === "object" && !Array.isArray(dataValue)) {
-    log.data = dataValue as Record<string, unknown>;
+  if (dataValue instanceof JSONMap) {
+    log.data = dataValue;
+  } else if (dataValue && typeof dataValue === "object" && !Array.isArray(dataValue)) {
+    log.data = new JSONMap(dataValue as Record<string, unknown>);
   } else if (typeof dataValue === "string") {
     try {
       const parsed = JSON.parse(dataValue) as unknown;
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        log.data = parsed as Record<string, unknown>;
+        log.data = new JSONMap(parsed as Record<string, unknown>);
       }
     } catch {
-      log.data = {};
+      log.data = new JSONMap();
     }
   }
 

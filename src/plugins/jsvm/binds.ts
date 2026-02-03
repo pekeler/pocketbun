@@ -150,9 +150,31 @@ export function appBinds(target: BindTarget, app: App): void {
 }
 
 function wrapApp<T extends object>(app: T): T {
+  const syncOverrides: Record<string, string> = {
+    save: "SaveSync",
+    saveNoValidate: "SaveNoValidateSync",
+    saveWithContext: "SaveWithContextSync",
+    saveNoValidateWithContext: "SaveNoValidateWithContextSync",
+    validate: "ValidateSync",
+    runInTransaction: "RunInTransactionSync",
+    saveView: "SaveViewSync",
+    createViewFields: "CreateViewFieldsSync",
+  };
+
+  const resolveAppProperty = (target: object, prop: string | symbol, receiver: unknown): unknown => {
+    if (typeof prop === "string") {
+      const key = prop.slice(0, 1).toLowerCase() + prop.slice(1);
+      const override = syncOverrides[key];
+      if (override && override in target) {
+        return (target as Record<string, unknown>)[override];
+      }
+    }
+    return resolveMappedProperty(target, prop, receiver);
+  };
+
   return new Proxy(app, {
     get(target, prop, receiver) {
-      const value = resolveMappedProperty(target, prop, receiver);
+      const value = resolveAppProperty(target, prop, receiver);
       if (typeof value === "function") {
         return (...args: unknown[]) => {
           const result = (value as (...args: unknown[]) => unknown).apply(target, args);

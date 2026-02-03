@@ -134,9 +134,27 @@ export class Record {
 
 export interface Handler {
   Enabled(ctx: Context, level: Level): boolean;
-  Handle(ctx: Context, record: Record): Error | null;
+  Handle(ctx: Context, record: Record): Error | null | Promise<Error | null>;
   WithAttrs(attrs: Attr[]): Handler;
   WithGroup(name: string): Handler;
+}
+
+class NoopHandler implements Handler {
+  Enabled(_ctx: Context, _level: Level): boolean {
+    return true;
+  }
+
+  Handle(_ctx: Context, _record: Record): Error | null {
+    return null;
+  }
+
+  WithAttrs(_attrs: Attr[]): Handler {
+    return this;
+  }
+
+  WithGroup(_name: string): Handler {
+    return this;
+  }
 }
 
 export class Logger {
@@ -153,10 +171,83 @@ export class Logger {
   Handler(): Handler {
     return this.#handler;
   }
+
+  WithGroup(name: string): Logger {
+    if (!name) {
+      return this;
+    }
+    return new Logger(this.#handler.WithGroup(name));
+  }
+
+  With(...args: unknown[]): Logger {
+    return this.WithAttrs(argsToAttrs(args));
+  }
+
+  WithAttrs(attrs: Attr[]): Logger {
+    if (attrs.length === 0) {
+      return this;
+    }
+    return new Logger(this.#handler.WithAttrs(attrs));
+  }
+
+  Log(ctx: Context, level: Level, message: string, ...args: unknown[]): void {
+    if (!this.#handler.Enabled(ctx, level)) {
+      return;
+    }
+    const record = new Record(new Date(), level, message, 0);
+    const attrs = argsToAttrs(args);
+    if (attrs.length > 0) {
+      record.AddAttrs(...attrs);
+    }
+    const result = this.#handler.Handle(ctx, record);
+    if (result instanceof Promise) {
+      void result.catch(() => {});
+    }
+  }
+
+  LogAttrs(ctx: Context, level: Level, message: string, ...attrs: Attr[]): void {
+    if (!this.#handler.Enabled(ctx, level)) {
+      return;
+    }
+    const record = new Record(new Date(), level, message, 0);
+    if (attrs.length > 0) {
+      record.AddAttrs(...attrs);
+    }
+    const result = this.#handler.Handle(ctx, record);
+    if (result instanceof Promise) {
+      void result.catch(() => {});
+    }
+  }
+
+  Debug(message: string, ...args: unknown[]): void {
+    this.Log({}, LevelDebug, message, ...args);
+  }
+
+  Info(message: string, ...args: unknown[]): void {
+    this.Log({}, LevelInfo, message, ...args);
+  }
+
+  Warn(message: string, ...args: unknown[]): void {
+    this.Log({}, LevelWarn, message, ...args);
+  }
+
+  Error(message: string, ...args: unknown[]): void {
+    this.Log({}, LevelError, message, ...args);
+  }
 }
 
 export function New(handler: Handler): Logger {
   return new Logger(handler);
+}
+
+let defaultLogger = new Logger(new NoopHandler());
+
+export function Default(): Logger {
+  return defaultLogger;
+}
+
+export function SetDefault(logger: Logger): void {
+  defaultLogger = logger;
 }
 
 export function NewRecord(time: Date, level: Level, message: string, pc: number): Record {
@@ -177,4 +268,33 @@ export function String(key: string, value: string): Attr {
 
 export function Group(key: string, ...attrs: Attr[]): Attr {
   return new Attr(key, new Value(Kind.Group, attrs));
+}
+
+function argsToAttrs(args: unknown[]): Attr[] {
+  if (args.length === 0) {
+    return [];
+  }
+  const attrs: Attr[] = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (arg instanceof Attr) {
+      attrs.push(arg);
+      continue;
+    }
+    if (arg && typeof arg === "object" && "Key" in arg && "Value" in arg) {
+      const candidate = arg as Attr;
+      if (candidate.Key && candidate.Value instanceof Value) {
+        attrs.push(candidate);
+        continue;
+      }
+    }
+    if (typeof arg === "string") {
+      const value = i + 1 < args.length ? args[i + 1] : undefined;
+      attrs.push(Any(arg, value));
+      i += 1;
+      continue;
+    }
+    attrs.push(Any(globalThis.String(arg), undefined));
+  }
+  return attrs;
 }
