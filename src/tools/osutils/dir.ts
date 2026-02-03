@@ -19,7 +19,7 @@ export function MoveDirContent(src: string, dest: string, ...rootExclude: string
   // make sure that the dest dir exist
   let manuallyCreatedDestDir = false;
   if (!existsSync(dest)) {
-    mkdirSync(dest, { recursive: true });
+    mkdirSync(dest);
     manuallyCreatedDestDir = true;
   }
 
@@ -39,7 +39,7 @@ export function MoveDirContent(src: string, dest: string, ...rootExclude: string
     // try to delete manually the created dest dir if all moved files were restored
     if (manuallyCreatedDestDir && errs.length === 0) {
       try {
-        rmSync(dest, { force: true, recursive: true });
+        rmSync(dest);
       } catch (error) {
         errs.push(error as Error);
       }
