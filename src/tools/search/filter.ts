@@ -452,7 +452,7 @@ function wrapLikeParams(params: unknown[]): unknown[] {
   return params.map((value) => {
     const stringValue = coerceToString(value);
     if (!containsUnescaped(stringValue, "%")) {
-      const escaped = escapeUnescaped(stringValue, ["%", "_", "\\"]);
+      const escaped = escapeUnescaped(stringValue, ["%", "_"]);
       return `%${escaped}%`;
     }
     return stringValue;
@@ -460,32 +460,33 @@ function wrapLikeParams(params: unknown[]): unknown[] {
 }
 
 function containsUnescaped(value: string, char: string): boolean {
-  for (let i = 0; i < value.length; i += 1) {
-    const current = value[i];
-    if (current !== char) {
-      continue;
-    }
-    if (i === 0 || value[i - 1] !== "\\") {
-      return true;
-    }
-  }
-  return false;
+  return value.includes(char);
 }
 
 function escapeUnescaped(value: string, chars: string[]): string {
-  let result = "";
+  const result: string[] = [];
+  let match = false;
+
   for (let i = value.length - 1; i >= 0; i -= 1) {
     const current = value[i] ?? "";
-    if (chars.includes(current)) {
-      const prev = value[i - 1] ?? "";
-      if (prev !== "\\") {
-        result = `\\${current}${result}`;
-        continue;
+
+    if (match) {
+      if (current !== "\\") {
+        result.push("\\");
       }
+      match = false;
+    } else if (chars.includes(current)) {
+      match = true;
     }
-    result = `${current}${result}`;
+
+    result.push(current);
+
+    if (i === 0 && match) {
+      result.push("\\");
+    }
   }
-  return result;
+
+  return result.reverse().join("");
 }
 
 function coerceToString(value: unknown): string {
@@ -734,13 +735,21 @@ class Lexer {
       const char = this.#input[this.#pos] ?? "";
       if (char === "\\") {
         const next = this.#input[this.#pos + 1] ?? "";
-        result += next;
-        this.#pos += 2;
+        if (next === quote) {
+          result += "\\";
+          result += next;
+          this.#pos += 2;
+          continue;
+        }
+        result += "\\";
+        this.#pos += 1;
         continue;
       }
       if (char === quote) {
         this.#pos += 1;
-        return { type: "string", value: result };
+        // Keep escaped wildcard/backslash sequences but collapse other double slashes.
+        const normalized = result.replace(/\\\\(?![%_])/g, "\\");
+        return { type: "string", value: normalized };
       }
       result += char;
       this.#pos += 1;

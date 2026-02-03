@@ -26,6 +26,41 @@ export function ParseDateTime(value: unknown): DateTime {
   return parseDateTime(value);
 }
 
+function parseDateString(raw: string): Date | null {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (/^-?\d+$/.test(trimmed)) {
+    const seconds = Number(trimmed);
+    if (Number.isFinite(seconds)) {
+      return new Date(seconds * 1000);
+    }
+  }
+
+  let normalized = trimmed;
+  const hasTimezone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(normalized);
+  if (/^\d{4}-\d{2}-\d{2} /.test(normalized)) {
+    normalized = normalized.replace(" ", "T");
+  }
+  if (!hasTimezone && /^\d{4}-\d{2}-\d{2}T/.test(normalized)) {
+    normalized = `${normalized}Z`;
+  }
+
+  const parsed = new Date(normalized);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed;
+  }
+
+  const fallback = new Date(trimmed);
+  if (!Number.isNaN(fallback.getTime())) {
+    return fallback;
+  }
+
+  return null;
+}
+
 // DateTime represents a [time.Time] instance in UTC that is wrapped
 // and serialized using the app default date layout.
 export class DateTime {
@@ -39,44 +74,73 @@ export class DateTime {
     return this.#date ? new Date(this.#date.getTime()) : new Date(0);
   }
 
+  Time(): Date {
+    return this.time();
+  }
+
   add(ms: number): DateTime {
-    if (!this.#date) {
-      return this;
-    }
-    this.#date = new Date(this.#date.getTime() + ms);
-    return this;
+    return this.Add(ms);
   }
 
   // Add returns a new DateTime based on the current DateTime + the specified duration.
   Add(ms: number): DateTime {
-    return this.add(ms);
+    if (!this.#date) {
+      return new DateTime(null);
+    }
+    return new DateTime(new Date(this.#date.getTime() + ms));
   }
 
   sub(other: DateTime): number {
+    return this.Sub(other);
+  }
+
+  // Sub returns the milliseconds diff by subtracting the specified DateTime from the current one.
+  Sub(other: DateTime): number {
     return this.time().getTime() - other.time().getTime();
   }
 
   addDate(years: number, months: number, days: number): DateTime {
+    return this.AddDate(years, months, days);
+  }
+
+  AddDate(years: number, months: number, days: number): DateTime {
     if (!this.#date) {
-      return this;
+      return new DateTime(null);
     }
     const d = new Date(this.#date.getTime());
     d.setUTCFullYear(d.getUTCFullYear() + years);
     d.setUTCMonth(d.getUTCMonth() + months);
     d.setUTCDate(d.getUTCDate() + days);
-    this.#date = d;
-    return this;
+    return new DateTime(d);
   }
 
   after(other: DateTime): boolean {
+    return this.After(other);
+  }
+
+  // After reports whether the current DateTime instance is after u.
+  After(other: DateTime): boolean {
     return this.time().getTime() > other.time().getTime();
   }
 
   before(other: DateTime): boolean {
+    return this.Before(other);
+  }
+
+  // Before reports whether the current DateTime instance is before u.
+  Before(other: DateTime): boolean {
     return this.time().getTime() < other.time().getTime();
   }
 
   compare(other: DateTime): number {
+    return this.Compare(other);
+  }
+
+  // Compare compares the current DateTime instance with u.
+  // If the current instance is before u, it returns -1.
+  // If the current instance is after u, it returns +1.
+  // If they're the same, it returns 0.
+  Compare(other: DateTime): number {
     const diff = this.time().getTime() - other.time().getTime();
     if (diff < 0) {
       return -1;
@@ -88,25 +152,34 @@ export class DateTime {
   }
 
   equal(other: unknown): boolean {
-    if (!(other instanceof DateTime)) {
-      return false;
-    }
-    return this.time().getTime() === other.time().getTime();
+    return this.Equal(other);
   }
 
   // Equal reports whether the current DateTime and u represent the same time instant.
   // Two DateTime can be equal even if they are in different locations.
   // For example, 6:00 +0200 and 4:00 UTC are Equal.
   Equal(other: unknown): boolean {
-    return this.equal(other);
+    if (!(other instanceof DateTime)) {
+      return false;
+    }
+    return this.time().getTime() === other.time().getTime();
   }
 
   unix(): number {
+    return this.Unix();
+  }
+
+  // Unix returns the current DateTime as a Unix time, aka.
+  // the number of seconds elapsed since January 1, 1970 UTC.
+  Unix(): number {
+    if (this.isZero()) {
+      return -62135596800;
+    }
     return Math.floor(this.time().getTime() / 1000);
   }
 
   isZero(): boolean {
-    return !this.#date || Number.isNaN(this.#date.getTime()) || this.#date.getTime() === 0;
+    return !this.#date || Number.isNaN(this.#date.getTime());
   }
 
   // IsZero checks whether the current DateTime instance has zero time value.
@@ -135,6 +208,33 @@ export class DateTime {
     return this.toString();
   }
 
+  MarshalJSON(): string {
+    return JSON.stringify(this.String());
+  }
+
+  UnmarshalJSON(raw: Uint8Array | string | null | undefined): Error | null {
+    try {
+      if (raw == null) {
+        this.#date = null;
+        return null;
+      }
+      const text = typeof raw === "string" ? raw : new TextDecoder().decode(raw);
+      const parsed = JSON.parse(text);
+      if (typeof parsed !== "string") {
+        this.#date = null;
+        return null;
+      }
+      return this.Scan(parsed);
+    } catch (error) {
+      this.#date = null;
+      return error as Error;
+    }
+  }
+
+  Value(): string {
+    return this.String();
+  }
+
   toJSON(): string {
     return this.toString();
   }
@@ -143,48 +243,38 @@ export class DateTime {
     return this.toString();
   }
 
-  scan(value: unknown): void {
+  Scan(value: unknown): Error | null {
     if (value instanceof Date) {
       this.#date = new Date(value.getTime());
-      return;
+      return null;
     }
     if (value instanceof DateTime) {
       this.#date = value.isZero() ? null : value.time();
-      return;
+      return null;
     }
     if (typeof value === "string") {
-      if (value === "") {
-        this.#date = null;
-        return;
-      }
-      const parsed = new Date(value);
-      if (!Number.isNaN(parsed.getTime())) {
-        this.#date = parsed;
-        return;
-      }
-      const normalized = value.replace(" ", "T");
-      const fallback = new Date(normalized);
-      this.#date = Number.isNaN(fallback.getTime()) ? null : fallback;
-      return;
+      this.#date = parseDateString(value);
+      return null;
     }
     if (typeof value === "number") {
-      this.#date = new Date(value);
-      return;
+      const parsed = parseDateString(String(value));
+      this.#date = parsed;
+      return null;
     }
     if (typeof value === "bigint") {
-      this.#date = new Date(Number(value));
-      return;
+      this.#date = new Date(Number(value) * 1000);
+      return null;
     }
     if (value == null) {
       this.#date = null;
-      return;
+      return null;
     }
     const str = toStringValue(value);
-    if (!str) {
-      this.#date = null;
-      return;
-    }
-    const parsed = new Date(str);
-    this.#date = Number.isNaN(parsed.getTime()) ? null : parsed;
+    this.#date = str ? parseDateString(str) : null;
+    return null;
+  }
+
+  scan(value: unknown): void {
+    void this.Scan(value);
   }
 }

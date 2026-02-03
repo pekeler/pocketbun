@@ -103,6 +103,10 @@ export class Provider {
   }
 
   parse(urlQuery: string): this {
+    if (urlQuery.includes(";")) {
+      throw new Error("invalid query");
+    }
+
     const params = new URLSearchParams(urlQuery);
 
     const skipTotalRaw = params.get(SkipTotalQueryParam);
@@ -274,20 +278,47 @@ function appendWhere(baseSql: string, clause: string): string {
   if (!clause) {
     return baseSql;
   }
-  if (/\bwhere\b/i.test(baseSql)) {
-    return `${baseSql} AND ${clause}`;
+  const { head, tail } = splitSqlTail(baseSql);
+  if (/\bwhere\b/i.test(head)) {
+    return `${head} AND ${clause}${tail}`;
   }
-  return `${baseSql} WHERE ${clause}`;
+  return `${head} WHERE ${clause}${tail}`;
 }
 
 function appendOrderBy(baseSql: string, clause: string): string {
   if (!clause) {
     return baseSql;
   }
-  if (/\border\s+by\b/i.test(baseSql)) {
-    return `${baseSql}, ${clause}`;
+  const orderMatch = /\border\s+by\b/i.exec(baseSql);
+  if (!orderMatch) {
+    const { head, tail } = splitSqlTail(baseSql);
+    return `${head} ORDER BY ${clause}${tail}`;
   }
-  return `${baseSql} ORDER BY ${clause}`;
+
+  const orderIndex = orderMatch.index;
+  const before = baseSql.slice(0, orderIndex).trimEnd();
+  const after = baseSql.slice(orderIndex).trimStart();
+
+  const limitMatch = /\blimit\b|\boffset\b/i.exec(after);
+  const orderSection = limitMatch ? after.slice(0, limitMatch.index).trimEnd() : after;
+  const tail = limitMatch ? after.slice(limitMatch.index).trimStart() : "";
+
+  const existingClause = orderSection.replace(/\border\s+by\b/i, "").trim();
+  const combined = existingClause ? `${existingClause}, ${clause}` : clause;
+  const tailSuffix = tail ? ` ${tail}` : "";
+
+  return `${before} ORDER BY ${combined}${tailSuffix}`;
+}
+
+function splitSqlTail(baseSql: string): { head: string; tail: string } {
+  const match = /\border\s+by\b|\blimit\b|\boffset\b/i.exec(baseSql);
+  if (!match) {
+    return { head: baseSql, tail: "" };
+  }
+  const index = match.index;
+  const head = baseSql.slice(0, index).trimEnd();
+  const tail = baseSql.slice(index).trimStart();
+  return { head, tail: tail ? ` ${tail}` : "" };
 }
 
 function prefixRowidExpr(expr: string, selectSql: string): string {

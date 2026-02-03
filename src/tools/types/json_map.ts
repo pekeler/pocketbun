@@ -11,8 +11,12 @@ export class JSONMap<T> {
     return { ...this.#value };
   }
 
-  toString(): string {
+  MarshalJSON(): string {
     return JSON.stringify(this.toJSON());
+  }
+
+  toString(): string {
+    return this.MarshalJSON();
   }
 
   String(): string {
@@ -37,5 +41,51 @@ export class JSONMap<T> {
 
   assign(values: Record<string, T>): void {
     this.#value = { ...values };
+  }
+
+  Value(): string {
+    return this.MarshalJSON();
+  }
+
+  Scan(value: unknown): Error | null {
+    try {
+      if (value == null) {
+        this.assign({});
+        return null;
+      }
+
+      if (value instanceof JSONMap) {
+        this.assign(value.toJSON());
+        return null;
+      }
+
+      if (typeof value === "object" && !Array.isArray(value) && !(value instanceof Uint8Array)) {
+        this.assign(value as Record<string, T>);
+        return null;
+      }
+
+      let data = "";
+      if (value instanceof Uint8Array) {
+        data = new TextDecoder().decode(value);
+      } else if (typeof value === "string") {
+        data = value;
+      } else {
+        return new Error("failed to unmarshal JSONMap[T] value");
+      }
+
+      if (!data) {
+        data = "{}";
+      }
+
+      const parsed = JSON.parse(data);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return new Error("failed to unmarshal JSONMap[T] value");
+      }
+
+      this.assign(parsed as Record<string, T>);
+      return null;
+    } catch (error) {
+      return error as Error;
+    }
   }
 }

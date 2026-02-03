@@ -34,7 +34,7 @@ export const tokenFunctions: Record<string, TokenFunction> = {
 
     return {
       identifier,
-      params: mergeParams(lonA.params, latA.params, lonB.params, latB.params),
+      params: mergeParams(latA.params, latB.params, lonB.params, lonA.params, latA.params, latB.params),
       nullFallback: NullFallbackDisabled,
     };
   },
