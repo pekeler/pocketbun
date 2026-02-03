@@ -4,12 +4,10 @@ import type { DriverValuer, Field, GetterFinder, RecordInterceptor, SetterFinder
 import type { FileField } from "./field_file.ts";
 import { toBoolValue, toStringValue } from "../internal/compat/cast.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
-import { randomString } from "../tools/security/random.ts";
 import { Store } from "../tools/store/store.ts";
 import { GeoPoint, ParseDateTime } from "../tools/types/index.ts";
 import { Collection, CollectionNameSuperusers } from "./collection_model.ts";
-import { PasswordFieldValue } from "./field_password.ts";
-import { autogenerateModifier } from "./field_text.ts";
+import { attachRecordAuthMethods } from "./record_model_auth.ts";
 
 export type RecordData = { [key: string]: unknown };
 
@@ -193,67 +191,6 @@ export class Record {
 
   GetStringSlice(field: string): string[] {
     return toUniqueStringSlice(this.Get(field));
-  }
-
-  Email(): string {
-    return this.GetString(FieldNameEmail);
-  }
-
-  SetEmail(email: string): void {
-    this.Set(FieldNameEmail, email);
-  }
-
-  EmailVisibility(): boolean {
-    return this.GetBool(FieldNameEmailVisibility);
-  }
-
-  SetEmailVisibility(visible: boolean): void {
-    this.Set(FieldNameEmailVisibility, visible);
-  }
-
-  Verified(): boolean {
-    return this.GetBool(FieldNameVerified);
-  }
-
-  SetVerified(verified: boolean): void {
-    this.Set(FieldNameVerified, verified);
-  }
-
-  TokenKey(): string {
-    return this.GetString(FieldNameTokenKey);
-  }
-
-  SetTokenKey(key: string): void {
-    this.Set(FieldNameTokenKey, key);
-  }
-
-  RefreshTokenKey(): void {
-    this.Set(FieldNameTokenKey + autogenerateModifier, "");
-  }
-
-  SetPassword(password: string): void {
-    this.Set(FieldNamePassword, password);
-  }
-
-  SetRandomPassword(): string {
-    const pass = randomString(30);
-    this.SetPassword(pass);
-    this.RefreshTokenKey();
-
-    const raw = this.GetRaw(FieldNamePassword);
-    if (raw instanceof PasswordFieldValue) {
-      raw.Plain = "";
-    }
-
-    return pass;
-  }
-
-  ValidatePassword(password: string): boolean {
-    const raw = this.GetRaw(FieldNamePassword);
-    if (!(raw instanceof PasswordFieldValue)) {
-      return false;
-    }
-    return raw.Validate(password);
   }
 
   Set(field: string, value: unknown): void {
@@ -676,6 +613,8 @@ export class Record {
     return this.publicExport();
   }
 }
+
+attachRecordAuthMethods(Record);
 
 export function NewRecord(collection: Collection, data: RecordData = {}): Record {
   return new Record(collection, data, true);
