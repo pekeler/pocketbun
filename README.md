@@ -53,7 +53,7 @@ PocketBun uses Sharp for image resizing. Output bytes may differ from PocketBase
 
 ### Templates ($template)
 
-PocketBun exposes the same `$template` helper for JS/TS hooks/migrations. If you install the optional `go-text-template` package, `$template` will understand most Go-style template syntax. HTML escaping is simpler than Go’s `html/template` (the `raw` helper is supported). If you want full control or a different syntax, use any JS templating library.
+PocketBun exposes the same `$template` helper for JS/TS hooks/migrations. By default it handles a small, common subset of Go-style templates. If you want closer Go `text/template` compatibility, install the optional `go-text-template` package and `$template` will use it automatically. HTML escaping is basic; use the `raw` helper when you need unescaped output. If you want full control or a different syntax, use any JS templating library.
 
 Example using a JS/TS-native templating engine in hooks:
 
@@ -72,7 +72,8 @@ bun add go-text-template
 ```
 
 ```ts
-const html = $template.loadString("Hello {{.Name}}!").render({ Name: "Ada" });
+const tpl = $template.load("templates/welcome.html");
+const html = tpl.render({ Name: "Ada" });
 ```
 
 ### DBX Helpers
