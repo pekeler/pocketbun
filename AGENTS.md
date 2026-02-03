@@ -33,11 +33,12 @@ Goal: maximize long-term maintainability and upstream-syncability by keeping Poc
 - **Mechanical translation preferred:** Avoid “cleanup”, refactors, or re-architecture unless needed for correctness or Bun constraints.
 - **Traceability:** When porting a file, add a short header comment linking to the upstream source path (no version/hash; `pocketbase_tag.txt` is the source of truth), e.g.
   `// Ported from pocketbase/<path>`
+  - If a single TS file merges multiple upstream files, list *all* upstream source paths in that header comment.
 - **Preserve upstream comments:** Copy upstream comments (doc comments and relevant inline notes) into the TypeScript port. If comments are missing, backfill them so the TS file reflects upstream commentary.
 - **Comment backfill is mandatory:** When you notice missing upstream comments in already ported code, add them immediately rather than deferring.
 - **Non-upstream files:** Any source or test file without an upstream counterpart must include a short header comment explaining why the file exists (keep these files to a minimum).
 - **1:1 file mapping (when reasonable):** Prefer one `.ts` file per corresponding `.go` file and mirror directory structure (Go packages → TS folders) to keep diffs and future syncing straightforward.
-  - If strict 1:1 creates unnatural modules (circular imports, huge files, etc.), it’s OK to merge/split — but document it in a comment near the top of the file.
+  - If strict 1:1 creates unnatural modules (circular imports, huge files, etc.), it’s OK to merge/split — but document it in a comment near the top of the file and list every upstream source file included.
 - **Naming:** Prefer upstream naming and concepts for internal identifiers (types/functions), even if not idiomatic JS/TS, **as long as it doesn’t reduce clarity or cause bugs**.
   - Do not rename just for style.
 - **Only deviate when necessary:** Deviations are allowed when required by JS/Bun semantics (async I/O, concurrency model, time/number handling, resource cleanup, etc.).

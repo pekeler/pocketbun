@@ -13,11 +13,12 @@ import {
   parseCollectionFields,
 } from "../core/collection.ts";
 import { DefaultIdAlphabet } from "../core/db.ts";
-import { CollectionRequestEvent, CollectionsImportRequestEvent, CollectionsListRequestEvent } from "../core/events.ts";
+import { CollectionRequestEvent, CollectionsListRequestEvent } from "../core/events.ts";
 import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";
 import { Provider } from "../tools/search/provider.ts";
 import { SimpleFieldResolver } from "../tools/search/simple_field_resolver.ts";
 import { randomStringWithAlphabet } from "../tools/security/random.ts";
+import { collectionsImport } from "./collection_import.ts";
 
 const COLLECTION_FIELDS = new Set(["id", "created", "updated", "name", "system", "type"]);
 
@@ -271,50 +272,6 @@ async function collectionTruncate(app: App, event: RequestEvent): Promise<Respon
   return noContent(event);
 }
 
-async function collectionsImport(app: App, event: RequestEvent): Promise<Response> {
-  const authResponse = requireSuperuser(event);
-  if (authResponse) {
-    return authResponse;
-  }
-
-  const data = await readRequestData(event);
-  const collections = Array.isArray(data.collections) ? data.collections : null;
-  if (!collections || collections.length === 0) {
-    return badRequest(event, "An error occurred while validating the submitted data.", {
-      collections: new ValidationError("validation_required", "Cannot be blank."),
-    });
-  }
-
-  const deleteMissing = Boolean(data.deleteMissing);
-  const hookEvent = new CollectionsImportRequestEvent(event, collections as Array<Record<string, unknown>>, deleteMissing);
-
-  const out = await app.OnCollectionsImportRequest().Trigger(hookEvent, async () => {
-    const err = await app.ImportCollections(hookEvent.CollectionsData, hookEvent.DeleteMissing);
-    if (err) {
-      const validationErr = extractValidationErrors(err);
-      if (validationErr) {
-        return badRequest(event, "Failed to import collections.", validationErr);
-      }
-
-      return badRequest(
-        event,
-        "Failed to import collections.",
-        new ValidationErrors({
-          collections: new ValidationError(
-            "validation_collections_import_failure",
-            `Failed to import the collections configuration. Raw error:\n${err.message}`,
-          ),
-        }),
-      );
-    }
-    return noContent(event);
-  });
-  if (out instanceof Response) {
-    return out;
-  }
-  return noContent(event);
-}
-
 function collectionScaffolds(app: App, event: RequestEvent): Response {
   const authResponse = requireSuperuser(event);
   if (authResponse) {
@@ -365,7 +322,7 @@ function fetchCollectionRow(app: App, identifier: string): CollectionRow | null 
   return row ?? null;
 }
 
-async function readRequestData(event: RequestEvent): Promise<Record<string, unknown>> {
+export async function readRequestData(event: RequestEvent): Promise<Record<string, unknown>> {
   try {
     if (!event.request.body) {
       return {};
@@ -431,7 +388,7 @@ function resolveSafeErrorsMap(data: Record<string, unknown>): Record<string, unk
   return result;
 }
 
-function extractValidationErrors(err: unknown): ValidationErrors | null {
+export function extractValidationErrors(err: unknown): ValidationErrors | null {
   if (err instanceof ValidationErrors) {
     return err;
   }
@@ -495,7 +452,7 @@ function resolveSafeErrorItem(err: unknown): Record<string, unknown> {
   return data;
 }
 
-function requireSuperuser(event: RequestEvent): Response | null {
+export function requireSuperuser(event: RequestEvent): Response | null {
   if (!event.auth) {
     return unauthorized(event, "The request requires valid record authorization token.");
   }

@@ -84,6 +84,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-02 23:20Z) Tighten serve parity with CORS middleware, admin UI cache/CSP headers, and gzip support.
 - [x] (2026-02-02 23:54Z) Port s3blob driver + internal S3 client/uploader, align list/signing behavior, and add upstream S3/s3blob tests.
 - [x] (2026-02-03 07:31Z) Port blob bucket/reader/writer and fileblob driver foundations for local storage compatibility.
+- [ ] (2026-02-03 18:20Z) Restore 1:1 file mapping where practical by un-merging merged TS files and adding missing upstream files/tests (completed: analysis of missing files/tests, merged-header rule, and low-risk un-merges like api_error_aliases/router error/collection_import; remaining: larger splits and missing modules/tests).
 
 ## Surprises & Discoveries
 
@@ -115,6 +116,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Evidence: batch tests expecting OnRecordEnrich 5 vs. 2 when expanded records were not enriched for superusers.
 - Observation: Go’s archive/zip writer emits data descriptors and extended timestamp extra fields (UT), affecting byte-for-byte zip size expectations.
   Evidence: archive create test expected 544 bytes; matching required UT extra + data descriptor and deflate best-speed semantics.
+- Observation: The repo has fewer TypeScript files than upstream Go files; a mapping scan shows 95 upstream .go files without direct TS counterparts (44 tests, 51 non-tests), with gaps in core/tools/plugins/apis.
+  Evidence: `rg --files -g '*.go' .upstream/pocketbase | wc -l` → 440 vs `rg --files -g '*.ts' src | wc -l` → 388; mapping scan reports 44 missing tests and 51 missing non-tests.
 
 ## Decision Log
 
@@ -199,6 +202,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - Decision: Merge auth option updates instead of replacing defaults during collection updates/imports.
   Rationale: Upstream binding merges partial option payloads; replacing caused missing identity fields and failed validations.
   Date/Author: 2026-02-02 / Codex
+- Decision: Restore 1:1 file mapping by splitting merged TS modules into upstream-named files where feasible, and list all upstream source files in headers when a merge must remain.
+  Rationale: Closer structural parity reduces future sync/upgrade friction and clarifies provenance for merged ports.
+  Date/Author: 2026-02-03 / Codex
 - Decision: Infer Store missing-key zero values from provided data or explicit zeroValue when available.
   Rationale: Go maps return a type-specific zero value, which TypeScript cannot infer for empty stores.
   Date/Author: 2026-02-02 / Codex
@@ -282,6 +288,14 @@ Milestone 4 steps. Port realtime, hooks, and remaining server behaviors.
 - Port hook system and make pb_hooks/ loading work with TS/ESM.
 - Add backups and installer logic as needed by Admin UI.
 - Add tests for realtime subscribe/unsubscribe and hook-triggered behaviors.
+
+Milestone 5 steps. Restore 1:1 file mapping and port remaining upstream tests.
+
+Describe any merged module and decide whether to un-merge it. When un-merging, create upstream-named TypeScript files that contain the logic formerly embedded in merged files, and route callers to those new files. When a merge must remain (for example, a class split that would require invasive refactors), keep the merged file but update its top header comment to list all upstream source paths it contains. Use the upstream .go filename-to-TS mapping rule: `foo/bar/baz.go` → `src/foo/bar/baz.ts` and `foo/bar/baz_test.go` → `src/foo/bar/baz.test.ts`.
+
+Port missing upstream tests in-place under the same directory as their source code, matching the upstream file names. If a test depends on missing functionality, note the gap in `Progress` and add a stub test that fails with a clear TODO until the feature is implemented.
+
+For any new files added to satisfy mapping, add the required “ported from” header comment that names the upstream file(s). For any remaining merged files, list all upstream files in the header comment.
 
 ## Validation and Acceptance
 
@@ -388,3 +402,4 @@ Plan change note: 2026-01-31, ported a minimal RecordFieldResolver for list/view
 Plan change note: 2026-01-31, recorded progress on collection options/view helpers and collection validation plus BaseApp view/table wiring.
 Plan change note: 2026-02-01, recorded OAuth2 auth create flow progress and the validation/hook ordering alignment required by upstream tests.
 Plan change note: 2026-02-02, recorded collection CRUD/import parity completion, updated discovery/decision logs, and narrowed remaining work to pb_hooks loading/tests.
+Plan change note: 2026-02-03, added the 1:1 file mapping/missing tests milestone and recorded the file-count discrepancy plus mapping scan results.

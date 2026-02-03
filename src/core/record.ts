@@ -1,5 +1,4 @@
-// Ported from pocketbase/core/record_model.go
-// Note: includes Record auth helpers from pocketbase/core/record_model_auth.go.
+// Ported from pocketbase/core/record_model.go and pocketbase/core/record_model_auth.go (merged).
 
 import type { DriverValuer, Field, GetterFinder, RecordInterceptor, SetterFinder } from "./field.ts";
 import type { FileField } from "./field_file.ts";

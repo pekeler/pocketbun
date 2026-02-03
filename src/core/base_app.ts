@@ -1,5 +1,4 @@
-// Ported from pocketbase/core/base.go.
-// Includes backup-related methods from pocketbase/core/base_backup.go (merged to keep BaseApp in one file).
+// Ported from pocketbase/core/base.go and pocketbase/core/base_backup.go (merged to keep BaseApp in one file).
 
 import "../migrations/index.ts";
 import "./fields_register.ts";

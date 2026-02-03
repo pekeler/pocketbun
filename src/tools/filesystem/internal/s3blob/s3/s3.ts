@@ -1,4 +1,4 @@
-// Ported from pocketbase/tools/filesystem/internal/s3blob/s3/* (merged for TS).
+// Ported from pocketbase/tools/filesystem/internal/s3blob/s3/{s3.go,error.go,copy_object.go,delete_object.go,get_object.go,head_object.go,list_objects.go,uploader.go} (merged for TS).
 // Deviation: async APIs are used for HTTP I/O in Bun.
 // Note: Bun provides native S3 bindings; we keep the HTTP+SigV4 path to match PocketBase behavior/tests.
 
