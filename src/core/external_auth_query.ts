@@ -2,8 +2,8 @@
 
 import type { SqlExpr } from "../tools/search/types.ts";
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
-import type { Record as RecordModel } from "./record.ts";
+import type { Collection } from "./collection_model.ts";
+import type { Record as RecordModel } from "./record_model.ts";
 import { HashExp, Not } from "../tools/dbx/expr.ts";
 import { CollectionNameExternalAuths, ExternalAuth } from "./external_auth_model.ts";
 

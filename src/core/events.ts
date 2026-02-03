@@ -11,11 +11,11 @@ import type { Model as DbModel } from "./db_model.ts";
 import type { RequestEvent } from "./event_request.ts";
 import type { RequestInfo } from "./event_request.ts";
 import type { FileField } from "./field_file.ts";
-import type { Record as RecordModel } from "./record.ts";
+import type { Record as RecordModel } from "./record_model.ts";
 import type { RecordProxy } from "./record_proxy.ts";
-import type { Settings } from "./settings.ts";
+import type { Settings } from "./settings_model.ts";
 import { Event } from "../tools/hook/event.ts";
-import { Collection } from "./collection.ts";
+import { Collection } from "./collection_model.ts";
 
 export type HookTagger = {
   HookTags(): string[];

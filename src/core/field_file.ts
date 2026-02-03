@@ -1,8 +1,8 @@
 // Ported from pocketbase/core/field_file.go
 
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
-import type { Record as RecordModel } from "./record.ts";
+import type { Collection } from "./collection_model.ts";
+import type { Record as RecordModel } from "./record_model.ts";
 import { toStringValue } from "../internal/compat/cast.ts";
 import { newError, ValidationErrors, ErrRequired } from "../internal/compat/validation.ts";
 import { File } from "../tools/filesystem/file.ts";
@@ -31,7 +31,7 @@ import {
   InterceptorActionCreateExecute,
   InterceptorActionUpdateExecute,
 } from "./field.ts";
-import { internalCustomFieldKeyPrefix } from "./record.ts";
+import { internalCustomFieldKeyPrefix } from "./record_model.ts";
 import { UploadedFileMimeType, UploadedFileSize } from "./validators/file.ts";
 
 export const FieldTypeFile = "file";

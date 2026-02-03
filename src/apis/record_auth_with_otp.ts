@@ -2,7 +2,7 @@
 
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
-import type { Record as RecordModel } from "../core/record.ts";
+import type { Record as RecordModel } from "../core/record_model.ts";
 import { RequestEventKeyInfoContext, RequestInfoContextOTP } from "../core/event_request.ts";
 import { RecordAuthWithOTPRequestEvent } from "../core/events.ts";
 import { MFAMethodOTP } from "../core/mfa_model.ts";

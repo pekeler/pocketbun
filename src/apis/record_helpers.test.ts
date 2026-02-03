@@ -1,9 +1,9 @@
 // Ported from pocketbase/apis/record_helpers_test.go.
 
 import { describe, expect, it } from "bun:test";
-import type { Record as RecordModel } from "../core/record.ts";
+import type { Record as RecordModel } from "../core/record_model.ts";
 import { NewAuthOrigin } from "../core/auth_origin_model.ts";
-import { CollectionNameSuperusers } from "../core/collection.ts";
+import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { RecordEnrichEvent } from "../core/events.ts";
 import { NewMFA } from "../core/mfa_model.ts";

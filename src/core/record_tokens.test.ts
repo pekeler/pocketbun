@@ -1,10 +1,10 @@
 // Ported from pocketbase/core/record_tokens_test.go
 
 import { describe, expect, it } from "bun:test";
-import type { Record as RecordModel } from "./record.ts";
+import type { Record as RecordModel } from "./record_model.ts";
 import { newTestApp } from "../tests/app.ts";
 import { parseUnverifiedJWT } from "../tools/security/jwt.ts";
-import { Collection, CollectionTypeAuth } from "./collection.ts";
+import { Collection, CollectionTypeAuth } from "./collection_model.ts";
 import {
   TokenClaimRefreshable,
   TokenTypeAuth,

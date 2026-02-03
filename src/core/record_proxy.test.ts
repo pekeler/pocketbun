@@ -1,8 +1,8 @@
 // Ported from pocketbase/core/record_proxy_test.go
 
 import { describe, it } from "bun:test";
-import { NewBaseCollection } from "./collection.ts";
-import { NewRecord } from "./record.ts";
+import { NewBaseCollection } from "./collection_model.ts";
+import { NewRecord } from "./record_model.ts";
 import { BaseRecordProxy } from "./record_proxy.ts";
 
 describe("record proxy", () => {

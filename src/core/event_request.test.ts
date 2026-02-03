@@ -2,9 +2,9 @@
 
 import { describe, expect, it } from "bun:test";
 import { newTestApp } from "../tests/app.ts";
-import { CollectionNameSuperusers } from "./collection.ts";
+import { CollectionNameSuperusers } from "./collection_model.ts";
 import { RequestEvent, RequestEventKeyInfoContext } from "./event_request.ts";
-import { NewRecord } from "./record.ts";
+import { NewRecord } from "./record_model.ts";
 
 function buildHeaders(input: Record<string, string[]>): Headers {
   const headers = new Headers();

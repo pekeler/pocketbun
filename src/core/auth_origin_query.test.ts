@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { newTestApp } from "../tests/app.ts";
-import { CollectionNameSuperusers } from "./collection.ts";
+import { CollectionNameSuperusers } from "./collection_model.ts";
 
 describe("auth origin queries", () => {
   it("FindAllAuthOriginsByRecord", async () => {

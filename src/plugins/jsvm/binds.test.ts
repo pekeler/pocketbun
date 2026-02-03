@@ -3,7 +3,7 @@
 import { describe, expect, it } from "bun:test";
 import { join } from "node:path";
 import { buildServeHandler } from "../../apis/serve.ts";
-import { Collection } from "../../core/collection.ts";
+import { Collection } from "../../core/collection_model.ts";
 import { AutodateField } from "../../core/field_autodate.ts";
 import { BoolField } from "../../core/field_bool.ts";
 import { DateField } from "../../core/field_date.ts";
@@ -19,7 +19,7 @@ import { SelectField } from "../../core/field_select.ts";
 import { TextField } from "../../core/field_text.ts";
 import { URLField } from "../../core/field_url.ts";
 import { FieldsList } from "../../core/fields_list.ts";
-import { Record as RecordModel } from "../../core/record.ts";
+import { Record as RecordModel } from "../../core/record_model.ts";
 import { ValidationError } from "../../internal/compat/validation.ts";
 import { newTestApp } from "../../tests/app.ts";
 import { File } from "../../tools/filesystem/file.ts";

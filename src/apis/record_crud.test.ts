@@ -7,7 +7,7 @@ import type { TestApp } from "../tests/app.ts";
 import { NewAuthOrigin } from "../core/auth_origin_model.ts";
 import { FileField } from "../core/field_file.ts";
 import { JSONField } from "../core/field_json.ts";
-import { NewRecord } from "../core/record.ts";
+import { NewRecord } from "../core/record_model.ts";
 import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 import { MockMultipartData } from "../tests/request.ts";
 import { JSONPayloadKey } from "../tools/router/unmarshal_request_data.ts";

@@ -1,7 +1,7 @@
 // Ported from pocketbase/apis/middlewares_rate_limit.go
 
 import type { App } from "../core/app.ts";
-import type { Collection } from "../core/collection.ts";
+import type { Collection } from "../core/collection_model.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { Handler } from "../tools/hook/hook.ts";
 import {
@@ -9,7 +9,7 @@ import {
   RateLimitRuleAudienceAuth,
   RateLimitRuleAudienceGuest,
   type RateLimitRule,
-} from "../core/settings.ts";
+} from "../core/settings_model.ts";
 import { Store } from "../tools/store/store.ts";
 import { tooManyRequests } from "./api_errors.ts";
 import { DefaultRateLimitMiddlewareId, DefaultRateLimitMiddlewarePriority } from "./middlewares.ts";

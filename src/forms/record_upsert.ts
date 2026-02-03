@@ -1,9 +1,9 @@
 // Ported from pocketbase/forms/record_upsert.go
 
 import type { App } from "../core/app.ts";
-import type { Record as RecordModel } from "../core/record.ts";
+import type { Record as RecordModel } from "../core/record_model.ts";
 import { PasswordFieldValue } from "../core/field_password.ts";
-import { FieldNameExpand } from "../core/record.ts";
+import { FieldNameExpand } from "../core/record_model.ts";
 import { NormalizeUniqueIndexError } from "../core/validators/db.ts";
 import { Equal } from "../core/validators/equal.ts";
 import { ErrUnsupportedValueType } from "../core/validators/validators.ts";

@@ -2,7 +2,7 @@
 
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
-import { CollectionNameSuperusers } from "../core/collection.ts";
+import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { RecordRequestVerificationRequestEvent } from "../core/events.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { SendRecordVerification } from "../mails/record.ts";

@@ -6,8 +6,8 @@ import type { RecordQueryFilter } from "./record_query.ts";
 import { newTestApp } from "../tests/app.ts";
 import { findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
 import { HashExp, Like, Not } from "../tools/dbx/expr.ts";
-import { Collection, CollectionNameSuperusers } from "./collection.ts";
-import { FieldNameEmail, Record as RecordModel } from "./record.ts";
+import { Collection, CollectionNameSuperusers } from "./collection_model.ts";
+import { FieldNameEmail, Record as RecordModel } from "./record_model.ts";
 import { BaseRecordProxy } from "./record_proxy.ts";
 import { TokenTypeAuth, TokenTypeFile } from "./record_tokens.ts";
 

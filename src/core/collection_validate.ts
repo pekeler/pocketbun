@@ -14,7 +14,7 @@ import {
   CollectionTypeView,
   NewCollection,
   parseCollectionFields,
-} from "./collection.ts";
+} from "./collection_model.ts";
 import { DefaultIdRegex } from "./db.ts";
 import {
   ErrMustBeSystem,

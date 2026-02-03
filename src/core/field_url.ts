@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_url.go
 
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
+import type { Collection } from "./collection_model.ts";
 import { toStringValue } from "../internal/compat/cast.ts";
 import { ValidationErrors, ErrRequired, newError } from "../internal/compat/validation.ts";
 import { Fields, type Field, defaultFieldIdValidationRule, defaultFieldNameValidationRule } from "./field.ts";

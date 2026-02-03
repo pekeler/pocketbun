@@ -3,7 +3,7 @@
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { Handler } from "../tools/hook/hook.ts";
-import { CollectionNameSuperusers } from "../core/collection.ts";
+import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { GenerateDefaultRandomId } from "../core/db.ts";
 import { TokenTypeAuth } from "../core/record_tokens.ts";
 import { ApiError, apiErrorResponse } from "../tools/router/api_error.ts";

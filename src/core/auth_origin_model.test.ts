@@ -5,8 +5,8 @@ import { newTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { NowDateTime } from "../tools/types/index.ts";
 import { CollectionNameAuthOrigins, NewAuthOrigin, AuthOrigin } from "./auth_origin_model.ts";
-import { CollectionNameSuperusers, NewBaseCollection } from "./collection.ts";
-import { NewRecord } from "./record.ts";
+import { CollectionNameSuperusers, NewBaseCollection } from "./collection_model.ts";
+import { NewRecord } from "./record_model.ts";
 
 describe("auth origin", () => {
   it("NewAuthOrigin", async () => {

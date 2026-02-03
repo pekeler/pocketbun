@@ -2,10 +2,10 @@
 
 import { describe, expect, it } from "bun:test";
 import type { GetterFunc, SetterFunc } from "./field.ts";
-import { NewBaseCollection } from "./collection.ts";
+import { NewBaseCollection } from "./collection_model.ts";
 import { NumberField } from "./field_number.ts";
 import { TextField } from "./field_text.ts";
-import { NewRecord } from "./record.ts";
+import { NewRecord } from "./record_model.ts";
 
 class MockField extends TextField {
   FindGetter(key: string): GetterFunc | null {

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import type { ApiScenario } from "../tests/api.ts";
 import type { TestApp } from "../tests/app.ts";
 import { CollectionNameAuthOrigins } from "../core/auth_origin_model.ts";
-import { CollectionNameSuperusers } from "../core/collection.ts";
+import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { CollectionNameExternalAuths } from "../core/external_auth_model.ts";
 import { CollectionNameMFAs } from "../core/mfa_model.ts";
 import { CollectionNameOTPs } from "../core/otp_model.ts";

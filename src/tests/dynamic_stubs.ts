@@ -1,7 +1,7 @@
 // Ported from pocketbase/tests/dynamic_stubs.go (OTP/MFA/logs stubs only).
 
 import type { App } from "../core/app.ts";
-import { CollectionNameSuperusers } from "../core/collection.ts";
+import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { MFAMethodOAuth2, MFAMethodOTP, MFAMethodPassword, NewMFA } from "../core/mfa_model.ts";
 import { NewOTP } from "../core/otp_model.ts";
 import { DateTime, NowDateTime } from "../tools/types/index.ts";

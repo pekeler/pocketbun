@@ -3,9 +3,9 @@
 import type { SQLQueryBindings } from "bun:sqlite";
 import type { App } from "./app.ts";
 import type { Field } from "./field.ts";
-import type { Record as RecordModel } from "./record.ts";
+import type { Record as RecordModel } from "./record_model.ts";
 import { SelectQuery } from "../tools/dbx/select_query.ts";
-import { Collection, collectionFromRow, type CollectionRow } from "./collection.ts";
+import { Collection, collectionFromRow, type CollectionRow } from "./collection_model.ts";
 import { RelationField } from "./field_relation.ts";
 
 export const StoreKeyCachedCollections = "pbAppCachedCollections";

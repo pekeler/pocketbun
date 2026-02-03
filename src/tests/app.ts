@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Logger } from "../core/app.ts";
 import type { MailerEvent } from "../core/events.ts";
-import { BaseApp } from "../core/base_app.ts";
+import { BaseApp } from "../core/base.ts";
 import * as slog from "../internal/compat/slog.ts";
 import { TestMailer } from "./mailer.ts";
 

@@ -1,12 +1,12 @@
 // Ported from pocketbase/apis/realtime_test.go.
 
 import { describe, it } from "bun:test";
-import { NewBaseCollection } from "../core/collection.ts";
+import { NewBaseCollection } from "../core/collection_model.ts";
 import { GenerateDefaultRandomId } from "../core/db.ts";
 import { BaseModel } from "../core/db_model.ts";
 import { ModelEvent, ModelEventTypeDelete, ModelEventTypeUpdate } from "../core/events.ts";
 import { AutodateField } from "../core/field_autodate.ts";
-import { NewRecord, Record as RecordModel } from "../core/record.ts";
+import { NewRecord, Record as RecordModel } from "../core/record_model.ts";
 import { BaseRecordProxy } from "../core/record_proxy.ts";
 import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 import { newTestApp } from "../tests/app.ts";

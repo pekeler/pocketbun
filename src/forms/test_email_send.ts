@@ -1,8 +1,8 @@
 // Ported from pocketbase/forms/test_email_send.go
 
 import type { App } from "../core/app.ts";
-import { CollectionNameSuperusers } from "../core/collection.ts";
-import { NewRecord } from "../core/record.ts";
+import { CollectionNameSuperusers } from "../core/collection_model.ts";
+import { NewRecord } from "../core/record_model.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import {
   SendRecordAuthAlert,

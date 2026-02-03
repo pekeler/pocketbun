@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/record_field_resolver_runner.go
 
 import type { ResolverResult } from "../tools/search/field_resolver.ts";
-import type { Collection, CollectionField } from "./collection.ts";
+import type { Collection, CollectionField } from "./collection_model.ts";
 import type { RecordFieldResolver } from "./record_field_resolver.ts";
 import { findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
 import { JSONArrayLength, JSONEach, JSONExtract } from "../tools/dbutils/json.ts";
@@ -10,6 +10,8 @@ import { existInSliceWithRegex, toUniqueStringSlice } from "../tools/list/list.t
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { MultiMatchSubquery } from "../tools/search/multi_match_subquery.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
+import { pseudorandomString } from "../tools/security/random.ts";
+import { replaceWithExpression } from "./record_field_resolver_replace_expr.ts";
 import {
   FieldNameCollectionId,
   FieldNameCollectionName,
@@ -17,7 +19,7 @@ import {
   FieldNameEmailVisibility,
   FieldNameId,
   FieldNameVerified,
-} from "./record.ts";
+} from "./record_model.ts";
 
 export const eachModifier = "each";
 export const issetModifier = "isset";
@@ -214,16 +216,19 @@ class Runner {
 
   processRequestBodyChangedModifier(bodyField: CollectionField): ResolverResult {
     const name = bodyField.name;
-    const expr = buildFilterExpr(
+    const aliasExpr = buildFilterExpr(
       `@request.body.${name}:isset = true && @request.body.${name} != ${name}`,
       this.resolver,
       DefaultFilterExprLimit,
     );
 
+    const placeholder = `@changed@${name}${pseudorandomString(8)}`;
+
     return {
-      identifier: `(${expr.sql})`,
-      params: expr.params,
+      identifier: placeholder,
+      params: [],
       nullFallback: "disabled",
+      afterBuild: (expr) => replaceWithExpression(placeholder, expr, aliasExpr),
     };
   }
 

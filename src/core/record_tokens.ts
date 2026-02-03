@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/record_tokens.go
 
 import { newJWT } from "../tools/security/jwt.ts";
-import { Record } from "./record.ts";
+import { Record } from "./record_model.ts";
 
 export const TokenTypeAuth = "auth";
 export const TokenTypeFile = "file";
@@ -19,7 +19,7 @@ export const TokenClaimRefreshable = "refreshable";
 export const ErrNotAuthRecord = new Error("not an auth collection record");
 export const ErrMissingSigningKey = new Error("missing or invalid signing key");
 
-declare module "./record.ts" {
+declare module "./record_model.ts" {
   interface Record {
     NewStaticAuthToken(durationSeconds: number): string;
     NewAuthToken(): string;

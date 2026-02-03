@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/record_proxy.go
 
 import type { Model } from "./db_model.ts";
-import type { Record } from "./record.ts";
+import type { Record } from "./record_model.ts";
 
 // RecordProxy defines an interface for a Record proxy/project model,
 // aka. custom model struct that acts on behalve the proxied Record to

@@ -2,7 +2,7 @@
 
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
-import type { Record as RecordModel } from "../core/record.ts";
+import type { Record as RecordModel } from "../core/record_model.ts";
 import { GenerateDefaultRandomId } from "../core/db.ts";
 import { RecordCreateOTPRequestEvent } from "../core/events.ts";
 import { NewOTP, type OTP } from "../core/otp_model.ts";

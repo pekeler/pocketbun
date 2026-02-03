@@ -1,7 +1,7 @@
 // Ported from pocketbase/apis/record_crud_superuser_test.go.
 
 import { describe, it } from "bun:test";
-import { CollectionNameSuperusers } from "../core/collection.ts";
+import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 import { HashExp, Not } from "../tools/dbx/expr.ts";
 

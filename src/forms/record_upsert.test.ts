@@ -4,7 +4,7 @@ import { describe, it } from "bun:test";
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { App } from "../core/app.ts";
-import { NewRecord, type Record as RecordModel } from "../core/record.ts";
+import { NewRecord, type Record as RecordModel } from "../core/record_model.ts";
 import { newTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { NewFileFromBytes } from "../tools/filesystem/file.ts";

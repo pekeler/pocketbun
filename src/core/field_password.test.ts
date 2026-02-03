@@ -3,10 +3,10 @@
 import { describe, expect, it } from "bun:test";
 import { newTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
-import { NewBaseCollection } from "./collection.ts";
+import { NewBaseCollection } from "./collection_model.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
 import { PasswordField, FieldTypePassword, PasswordFieldValue } from "./field_password.ts";
-import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
-import { NewRecord } from "./record.ts";
+import { NewRecord } from "./record_model.ts";
 
 describe("password field", () => {
   it("base methods", () => {

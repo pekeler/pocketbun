@@ -2,7 +2,7 @@
 
 import type { App } from "../core/app.ts";
 import type { EmailTemplate } from "../core/collection_model_auth_options.ts";
-import type { Record as RecordModel } from "../core/record.ts";
+import type { Record as RecordModel } from "../core/record_model.ts";
 import type { Message } from "../tools/mailer/mailer.ts";
 import {
   EmailPlaceholderAlertInfo,

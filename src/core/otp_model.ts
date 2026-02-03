@@ -2,8 +2,8 @@
 
 import type { DateTime } from "../tools/types/index.ts";
 import type { App } from "./app.ts";
-import { NewBaseCollection } from "./collection.ts";
-import { NewRecord, Record as RecordModel } from "./record.ts";
+import { NewBaseCollection } from "./collection_model.ts";
+import { NewRecord, Record as RecordModel } from "./record_model.ts";
 import { BaseRecordProxy } from "./record_proxy.ts";
 
 export const CollectionNameOTPs = "_otps";

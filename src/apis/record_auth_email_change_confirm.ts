@@ -2,7 +2,7 @@
 
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
-import { CollectionNameSuperusers } from "../core/collection.ts";
+import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { RecordConfirmEmailChangeRequestEvent } from "../core/events.ts";
 import { TokenClaimNewEmail, TokenTypeEmailChange } from "../core/record_tokens.ts";
 import { toStringValue } from "../internal/compat/cast.ts";

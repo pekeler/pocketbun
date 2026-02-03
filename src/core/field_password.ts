@@ -2,7 +2,7 @@
 // Note: uses Bun.password hashing/verification in place of Go bcrypt package.
 
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
+import type { Collection } from "./collection_model.ts";
 import { toStringValue } from "../internal/compat/cast.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import {

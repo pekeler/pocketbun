@@ -1,7 +1,7 @@
 // PocketBun-only: shared helpers for record auth endpoints to avoid circular imports.
 
 import type { App } from "../core/app.ts";
-import type { Collection } from "../core/collection.ts";
+import type { Collection } from "../core/collection_model.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 
 export function findAuthCollection(app: App, event: RequestEvent): Collection | null {

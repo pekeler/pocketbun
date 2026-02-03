@@ -3,7 +3,7 @@
 import { describe, expect, it } from "bun:test";
 import { newTestApp } from "../tests/app.ts";
 import { HashExp } from "../tools/dbx/expr.ts";
-import { CollectionNameSuperusers } from "./collection.ts";
+import { CollectionNameSuperusers } from "./collection_model.ts";
 
 describe("external auth queries", () => {
   it("FindAllExternalAuthsByRecord", async () => {

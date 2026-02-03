@@ -1,13 +1,13 @@
 // Ported from pocketbase/core/view.go (view helpers and query-to-fields parsing).
 
 import type { App } from "./app.ts";
-import type { CollectionRow } from "./collection.ts";
+import type { CollectionRow } from "./collection_model.ts";
 import type { Field, MultiValuer } from "./field.ts";
 import { JSONEach } from "../tools/dbutils/json.ts";
 import { columnify } from "../tools/inflector/inflector.ts";
 import { pseudorandomString } from "../tools/security/random.ts";
 import { Tokenizer } from "../tools/tokenizer/tokenizer.ts";
-import { Collection, collectionFromRow } from "./collection.ts";
+import { Collection, collectionFromRow } from "./collection_model.ts";
 import { FieldNameId } from "./field.ts";
 import { BoolField } from "./field_bool.ts";
 import { JSONField } from "./field_json.ts";
@@ -15,7 +15,7 @@ import { NumberField } from "./field_number.ts";
 import { RelationField } from "./field_relation.ts";
 import { TextField } from "./field_text.ts";
 import { FieldsList, NewFieldsList } from "./fields_list.ts";
-import { Record as RecordModel, type RecordData } from "./record.ts";
+import { Record as RecordModel, type RecordData } from "./record_model.ts";
 
 export function DeleteView(app: App, name: string): Error | null {
   const trimmedName = name.trim();

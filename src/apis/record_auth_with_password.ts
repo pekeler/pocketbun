@@ -1,9 +1,9 @@
 // Ported from pocketbase/apis/record_auth_with_password.go
 
 import type { App } from "../core/app.ts";
-import type { Collection } from "../core/collection.ts";
+import type { Collection } from "../core/collection_model.ts";
 import type { RequestEvent } from "../core/event_request.ts";
-import type { Record as RecordModel } from "../core/record.ts";
+import type { Record as RecordModel } from "../core/record_model.ts";
 import { RequestEventKeyInfoContext, RequestInfoContextPasswordAuth } from "../core/event_request.ts";
 import { RecordAuthWithPasswordRequestEvent } from "../core/events.ts";
 import { MFAMethodPassword } from "../core/mfa_model.ts";

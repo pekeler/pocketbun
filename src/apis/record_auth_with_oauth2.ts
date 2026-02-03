@@ -1,11 +1,11 @@
 // Ported from pocketbase/apis/record_auth_with_oauth2.go
 
 import type { App } from "../core/app.ts";
-import type { Collection } from "../core/collection.ts";
+import type { Collection } from "../core/collection_model.ts";
 import type { RequestInfo } from "../core/event_request.ts";
-import type { Record as RecordModel } from "../core/record.ts";
+import type { Record as RecordModel } from "../core/record_model.ts";
 import type { OAuth2Token } from "../tools/auth/auth.ts";
-import { CollectionNameSuperusers } from "../core/collection.ts";
+import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { RequestEvent, RequestEventKeyInfoContext, RequestInfoContextOAuth2 } from "../core/event_request.ts";
 import { RecordAuthWithOAuth2RequestEvent, RecordRequestEvent } from "../core/events.ts";
 import { NewExternalAuth } from "../core/external_auth_model.ts";
@@ -13,7 +13,7 @@ import { FieldTypeFile } from "../core/field_file.ts";
 import { PasswordFieldValue } from "../core/field_password.ts";
 import { TextField } from "../core/field_text.ts";
 import { MFAMethodOAuth2 } from "../core/mfa_model.ts";
-import { FieldNameEmail, FieldNamePassword, NewRecord } from "../core/record.ts";
+import { FieldNameEmail, FieldNamePassword, NewRecord } from "../core/record_model.ts";
 import { RecordUpsert } from "../forms/record_upsert.ts";
 import { ValidationErrors, ErrRequired, newError, required } from "../internal/compat/validation.ts";
 import { AuthUser } from "../tools/auth/auth.ts";

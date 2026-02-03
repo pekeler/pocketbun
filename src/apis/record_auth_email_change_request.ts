@@ -2,8 +2,8 @@
 
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
-import type { Record as RecordModel } from "../core/record.ts";
-import { CollectionNameSuperusers } from "../core/collection.ts";
+import type { Record as RecordModel } from "../core/record_model.ts";
+import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { RecordRequestEmailChangeRequestEvent } from "../core/events.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { SendRecordChangeEmail } from "../mails/record.ts";

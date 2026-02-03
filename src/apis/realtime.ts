@@ -2,19 +2,19 @@
 
 import type { SQLQueryBindings } from "bun:sqlite";
 import type { App } from "../core/app.ts";
-import type { Collection } from "../core/collection.ts";
+import type { Collection } from "../core/collection_model.ts";
 import type { Model } from "../core/db_model.ts";
 import type { RequestEvent, RequestInfo } from "../core/event_request.ts";
 import type { RecordProxy } from "../core/record_proxy.ts";
 import type { RouterGroup } from "../tools/router/group.ts";
 import type { Client } from "../tools/subscriptions/client.ts";
 import type { MessageWriter } from "../tools/subscriptions/message.ts";
-import { CollectionTypeAuth } from "../core/collection.ts";
+import { CollectionTypeAuth } from "../core/collection_model.ts";
 import { RequestInfoContextRealtime } from "../core/event_request.ts";
 import { RealtimeConnectRequestEvent, RealtimeMessageEvent, RealtimeSubscribeRequestEvent } from "../core/events.ts";
 import { LogsTableName } from "../core/log_model.ts";
-import { Record as RecordModel } from "../core/record.ts";
 import { RecordFieldResolver } from "../core/record_field_resolver.ts";
+import { Record as RecordModel } from "../core/record_model.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { Pick } from "../tools/picker/pick.ts";
 import { FireAndForget } from "../tools/routine/routine.ts";

@@ -3,9 +3,9 @@
 import type { SQLQueryBindings } from "bun:sqlite";
 import type { SqlExpr } from "../tools/search/types.ts";
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
+import type { Collection } from "./collection_model.ts";
 import { HashExp } from "../tools/dbx/expr.ts";
-import { Record as RecordModel, type RecordData } from "./record.ts";
+import { Record as RecordModel, type RecordData } from "./record_model.ts";
 
 export type RecordQueryBuilder = {
   AndWhere(expr: SqlExpr | Record<string, unknown>): void;

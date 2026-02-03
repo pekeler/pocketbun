@@ -2,14 +2,14 @@
 
 import type { SQLQueryBindings } from "bun:sqlite";
 import type { App } from "../core/app.ts";
-import type { Collection } from "../core/collection.ts";
+import type { Collection } from "../core/collection_model.ts";
 import type { RequestEvent, RequestInfo } from "../core/event_request.ts";
 import { NewAuthOrigin } from "../core/auth_origin_model.ts";
 import { RequestInfoContextExpand } from "../core/event_request.ts";
 import { RecordAuthRequestEvent, RecordEnrichEvent } from "../core/events.ts";
 import { NewMFA } from "../core/mfa_model.ts";
-import { Record as RecordModel } from "../core/record.ts";
 import { RecordFieldResolver } from "../core/record_field_resolver.ts";
+import { Record as RecordModel } from "../core/record_model.ts";
 import { SendRecordAuthAlert } from "../mails/record.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { DefaultFilterExprLimit, FilterQueryParam, SortQueryParam } from "../tools/search/types.ts";

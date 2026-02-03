@@ -4,10 +4,10 @@ import { describe, expect, it } from "bun:test";
 import { newTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { JSONArray } from "../tools/types/index.ts";
-import { NewBaseCollection, CollectionTypeView } from "./collection.ts";
+import { NewBaseCollection, CollectionTypeView } from "./collection_model.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
 import { RelationField, FieldTypeRelation } from "./field_relation.ts";
-import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
-import { NewRecord } from "./record.ts";
+import { NewRecord } from "./record_model.ts";
 
 describe("relation field", () => {
   it("base methods", () => {

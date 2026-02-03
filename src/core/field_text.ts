@@ -2,7 +2,7 @@
 // Note: validation aggregation and some DB helper checks are simplified.
 
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
+import type { Collection } from "./collection_model.ts";
 import { toStringValue } from "../internal/compat/cast.ts";
 import { ErrRequired, ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { randomStringByRegex } from "../tools/security/random.ts";

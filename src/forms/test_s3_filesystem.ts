@@ -1,7 +1,7 @@
 // Ported from pocketbase/forms/test_s3_filesystem.go
 
 import type { App } from "../core/app.ts";
-import type { S3Config } from "../core/settings.ts";
+import type { S3Config } from "../core/settings_model.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { NewS3 } from "../tools/filesystem/filesystem.ts";
 import { pseudorandomString } from "../tools/security/random.ts";

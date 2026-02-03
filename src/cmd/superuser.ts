@@ -1,9 +1,9 @@
 // Ported from pocketbase/cmd/superuser.go (CLI wiring removed; library-friendly helpers instead).
 
 import type { App } from "../core/app.ts";
-import { CollectionNameSuperusers } from "../core/collection.ts";
+import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { NewOTP, type OTP } from "../core/otp_model.ts";
-import { NewRecord, type Record } from "../core/record.ts";
+import { NewRecord, type Record } from "../core/record_model.ts";
 import { randomStringWithAlphabet } from "../tools/security/random.ts";
 
 export type SuperuserOtpResult = {

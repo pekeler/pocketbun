@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_number.go
 
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
+import type { Collection } from "./collection_model.ts";
 import { toNumberValue } from "../internal/compat/cast.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import {

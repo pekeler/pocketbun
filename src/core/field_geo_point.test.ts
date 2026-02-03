@@ -3,10 +3,10 @@
 import { describe, expect, it } from "bun:test";
 import { newTestApp } from "../tests/app.ts";
 import { GeoPoint } from "../tools/types/index.ts";
-import { NewBaseCollection } from "./collection.ts";
+import { NewBaseCollection } from "./collection_model.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
 import { GeoPointField, FieldTypeGeoPoint } from "./field_geo_point.ts";
-import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
-import { NewRecord } from "./record.ts";
+import { NewRecord } from "./record_model.ts";
 
 describe("geoPoint field", () => {
   it("base methods", () => {

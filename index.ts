@@ -3,7 +3,7 @@
 export { buildServeHandler, serve, type ServeConfig } from "./src/apis/serve.ts";
 export { superuser, superuserCreate, superuserDelete, superuserOTP, superuserUpdate, superuserUpsert } from "./src/cmd/superuser.ts";
 export { type SuperuserOtpResult } from "./src/cmd/superuser.ts";
-export { BaseApp, type BaseAppConfig } from "./src/core/base_app.ts";
+export { BaseApp, type BaseAppConfig } from "./src/core/base.ts";
 export { type App } from "./src/core/app.ts";
 export { migrate, type MigrateMode } from "./src/core/migrate.ts";
 export { PocketBase, type PocketBaseConfig } from "./src/pocketbase.ts";

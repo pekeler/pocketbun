@@ -2,7 +2,7 @@
 // Note: uses direct DB queries instead of dbx helpers.
 
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
+import type { Collection } from "./collection_model.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { JSONArray } from "../tools/types/json_array.ts";

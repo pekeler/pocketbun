@@ -1,6 +1,6 @@
 // Ported from pocketbase/pocketbase.go (CLI removed; PocketBun is library-first).
 
-import { BaseApp, type BaseAppConfig } from "./core/base_app.ts";
+import { BaseApp, type BaseAppConfig } from "./core/base.ts";
 
 export type PocketBaseConfig = BaseAppConfig;
 

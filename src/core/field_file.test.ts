@@ -7,10 +7,10 @@ import { testValidationErrors } from "../tests/validation_errors.ts";
 import { NewFileFromBytes } from "../tools/filesystem/file.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { JSONArray } from "../tools/types/json_array.ts";
-import { NewBaseCollection } from "./collection.ts";
+import { NewBaseCollection } from "./collection_model.ts";
+import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
 import { FieldTypeFile, FileField, DefaultFileFieldMaxSize } from "./field_file.ts";
-import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field_test.ts";
-import { NewRecord } from "./record.ts";
+import { NewRecord } from "./record_model.ts";
 
 describe("file field", () => {
   it("base methods", () => {

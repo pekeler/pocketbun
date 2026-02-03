@@ -2,7 +2,7 @@
 
 import type { App } from "./app.ts";
 import { Event } from "../tools/router/event.ts";
-import { Record as RecordModel } from "./record.ts";
+import { Record as RecordModel } from "./record_model.ts";
 
 export const RequestInfoContextDefault = "default";
 export const RequestInfoContextExpand = "expand";

@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_geo_point.go
 
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
+import type { Collection } from "./collection_model.ts";
 import { ValidationErrors, ErrRequired, newError } from "../internal/compat/validation.ts";
 import { GeoPoint } from "../tools/types/index.ts";
 import { Fields, type Field, defaultFieldIdValidationRule, defaultFieldNameValidationRule } from "./field.ts";

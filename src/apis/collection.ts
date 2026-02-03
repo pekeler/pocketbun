@@ -11,7 +11,7 @@ import {
   applyCollectionData,
   collectionFromRow,
   parseCollectionFields,
-} from "../core/collection.ts";
+} from "../core/collection_model.ts";
 import { DefaultIdAlphabet } from "../core/db.ts";
 import { CollectionRequestEvent, CollectionsListRequestEvent } from "../core/events.ts";
 import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";

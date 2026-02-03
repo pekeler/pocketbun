@@ -2,8 +2,8 @@
 
 import { describe, expect, it } from "bun:test";
 import { newTestApp } from "../tests/app.ts";
-import { CollectionNameSuperusers } from "./collection.ts";
-import { NewRecord } from "./record.ts";
+import { CollectionNameSuperusers } from "./collection_model.ts";
+import { NewRecord } from "./record_model.ts";
 
 describe("db tx", () => {
   it("RunInTransaction", async () => {

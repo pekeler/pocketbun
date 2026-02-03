@@ -4,7 +4,7 @@ import { describe, expect, it } from "bun:test";
 import { newTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { Providers } from "../tools/auth/index.ts";
-import { NewAuthCollection } from "./collection.ts";
+import { NewAuthCollection } from "./collection_model.ts";
 import {
   AuthAlertConfig,
   EmailTemplate,

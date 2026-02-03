@@ -4,7 +4,7 @@ import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import { RecordConfirmPasswordResetRequestEvent } from "../core/events.ts";
 import { PasswordField } from "../core/field_password.ts";
-import { FieldNamePassword } from "../core/record.ts";
+import { FieldNamePassword } from "../core/record_model.ts";
 import { TokenClaimEmail, TokenTypePasswordReset } from "../core/record_tokens.ts";
 import { Equal } from "../core/validators/equal.ts";
 import { toStringValue } from "../internal/compat/cast.ts";

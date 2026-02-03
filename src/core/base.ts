@@ -49,7 +49,13 @@ import {
   registerAutobackupHooks as registerAutobackupHooksHelper,
 } from "./base_backup.ts";
 import { LocalAutocertCacheDirName, LocalBackupsDirName, LocalStorageDirName, LocalTempDirName } from "./base_paths.ts";
-import { Collection, CollectionTypeAuth, collectionFromRow, parseCollectionFields, type CollectionRow } from "./collection.ts";
+import {
+  Collection,
+  CollectionTypeAuth,
+  collectionFromRow,
+  parseCollectionFields,
+  type CollectionRow,
+} from "./collection_model.ts";
 import {
   CollectionQuery as CollectionQueryHelper,
   FindAllCollections as FindAllCollectionsQuery,
@@ -176,8 +182,8 @@ import {
   FindAllOTPsByRecord as FindAllOTPsByRecordQuery,
   FindOTPById as FindOTPByIdQuery,
 } from "./otp_query.ts";
-import { FieldNameEmail, FieldNamePassword, Record as RecordModel, type RecordData } from "./record.ts";
 import { RecordFieldResolver } from "./record_field_resolver.ts";
+import { FieldNameEmail, FieldNamePassword, Record as RecordModel, type RecordData } from "./record_model.ts";
 import { registerSuperuserHooks } from "./record_model_superusers.ts";
 import { RecordQuery, buildRecordFilterExpr, combineSqlExprs, type RecordQueryFilter } from "./record_query.ts";
 import { expandRecord as expandRecordHelper, expandRecords as expandRecordsHelper } from "./record_query_expand.ts";
@@ -191,7 +197,7 @@ import {
   TokenTypePasswordReset,
   TokenTypeVerification,
 } from "./record_tokens.ts";
-import { Settings } from "./settings.ts";
+import { Settings } from "./settings_model.ts";
 import { Store } from "./store.ts";
 import { NormalizeUniqueIndexError } from "./validators/db.ts";
 import {

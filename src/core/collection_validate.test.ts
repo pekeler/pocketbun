@@ -11,7 +11,7 @@ import {
   NewAuthCollection,
   NewBaseCollection,
   NewViewCollection,
-} from "./collection.ts";
+} from "./collection_model.ts";
 import { BoolField } from "./field_bool.ts";
 import { EmailField } from "./field_email.ts";
 import { PasswordField } from "./field_password.ts";

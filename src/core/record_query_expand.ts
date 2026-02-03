@@ -1,12 +1,12 @@
 // Ported from pocketbase/core/record_query_expand.go
 
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
+import type { Collection } from "./collection_model.ts";
 import { findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
 import { JSONEach } from "../tools/dbutils/json.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { RelationField } from "./field_relation.ts";
-import { Record as RecordModel } from "./record.ts";
+import { Record as RecordModel } from "./record_model.ts";
 
 // ExpandFetchFunc defines the function that is used to fetch the expanded relation records.
 export type ExpandFetchFunc = (relCollection: Collection, relIds: string[]) => RecordModel[];

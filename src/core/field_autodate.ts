@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_autodate.go
 
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
+import type { Collection } from "./collection_model.ts";
 import { ValidationErrors, newError } from "../internal/compat/validation.ts";
 import { NowDateTime, ParseDateTime } from "../tools/types/index.ts";
 import {
@@ -15,7 +15,7 @@ import {
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
 } from "./field.ts";
-import { internalCustomFieldKeyPrefix } from "./record.ts";
+import { internalCustomFieldKeyPrefix } from "./record_model.ts";
 import { Equal } from "./validators/equal.ts";
 
 export const FieldTypeAutodate = "autodate";

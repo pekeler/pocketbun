@@ -3,7 +3,7 @@
 import { describe, expect, it } from "bun:test";
 import { newTestApp } from "../tests/app.ts";
 import { StubOTPRecords } from "../tests/dynamic_stubs.ts";
-import { CollectionNameSuperusers } from "./collection.ts";
+import { CollectionNameSuperusers } from "./collection_model.ts";
 
 describe("otp queries", () => {
   it("FindAllOTPsByRecord", async () => {

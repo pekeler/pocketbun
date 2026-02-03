@@ -6,7 +6,7 @@
 import type { FieldResolver, QueryUpdate, ResolverResult } from "../tools/search/field_resolver.ts";
 import type { Join } from "../tools/search/multi_match_subquery.ts";
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
+import type { Collection } from "./collection_model.ts";
 import type { RequestInfo } from "./event_request.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";

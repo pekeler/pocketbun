@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { serve } from "../apis/serve.ts";
-import { BaseApp } from "../core/base_app.ts";
+import { BaseApp } from "../core/base.ts";
 
 export async function startTestServer(): Promise<{
   server: ReturnType<typeof serve>;

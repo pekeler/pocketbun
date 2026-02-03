@@ -3,7 +3,7 @@
 import type { App } from "./app.ts";
 import type { CollectionEvent, MailerRecordEvent, RecordEvent } from "./events.ts";
 import { NewBadRequestError } from "../tools/router/api_error.ts";
-import { CollectionNameSuperusers } from "./collection.ts";
+import { CollectionNameSuperusers } from "./collection_model.ts";
 import { ModelEventTypeCreate } from "./events.ts";
 
 // DefaultInstallerEmail is the default superuser email address

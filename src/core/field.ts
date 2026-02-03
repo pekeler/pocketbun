@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field.go
 // Note: validation aggregation is simplified compared to ozzo-validation.
 
-import type { Collection } from "./collection.ts";
+import type { Collection } from "./collection_model.ts";
 import { ErrRequired, newError } from "../internal/compat/validation.ts";
 import { ErrUnsupportedValueType } from "./validators/validators.ts";
 

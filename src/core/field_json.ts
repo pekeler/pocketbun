@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_json.go
 
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
+import type { Collection } from "./collection_model.ts";
 import { ErrRequired, ValidationErrors, newError } from "../internal/compat/validation.ts";
 import { JSONRaw } from "../tools/types/json_raw.ts";
 import {

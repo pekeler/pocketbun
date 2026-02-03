@@ -1,11 +1,11 @@
 // Ported from pocketbase/core/otp_query.go
 
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
-import type { Record as RecordModel } from "./record.ts";
+import type { Collection } from "./collection_model.ts";
+import type { Record as RecordModel } from "./record_model.ts";
 import { NewExp } from "../tools/dbx/expr.ts";
 import { ParseDateTime } from "../tools/types/index.ts";
-import { CollectionTypeAuth } from "./collection.ts";
+import { CollectionTypeAuth } from "./collection_model.ts";
 import { CollectionNameOTPs, OTP } from "./otp_model.ts";
 
 export function FindAllOTPsByRecord(app: App, authRecord: RecordModel): OTP[] {

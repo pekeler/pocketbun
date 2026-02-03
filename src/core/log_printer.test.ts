@@ -8,7 +8,7 @@ import * as slog from "../internal/compat/slog.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
 import { existInSlice } from "../tools/list/list.ts";
 import { BatchHandler } from "../tools/logger/batch_handler.ts";
-import { BaseApp } from "./base_app.ts";
+import { BaseApp } from "./base.ts";
 import { LogsTableName, type Log } from "./log_model.ts";
 import { printLog } from "./log_printer.ts";
 

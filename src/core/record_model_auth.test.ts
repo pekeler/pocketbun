@@ -2,8 +2,8 @@
 
 import { describe, expect, it } from "bun:test";
 import { newTestApp } from "../tests/app.ts";
-import { NewAuthCollection } from "./collection.ts";
-import { NewRecord } from "./record.ts";
+import { NewAuthCollection } from "./collection_model.ts";
+import { NewRecord } from "./record_model.ts";
 
 describe("Record auth helpers", () => {
   it("handles email", () => {

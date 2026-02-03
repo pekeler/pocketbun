@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_select.go
 
 import type { App } from "./app.ts";
-import type { Collection } from "./collection.ts";
+import type { Collection } from "./collection_model.ts";
 import { ValidationErrors, ErrRequired, newError } from "../internal/compat/validation.ts";
 import { subtractSlice, toUniqueStringSlice } from "../tools/list/list.ts";
 import { JSONArray } from "../tools/types/index.ts";

@@ -5,7 +5,7 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { newTestApp } from "../tests/app.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
-import { CollectionTypeAuth, CollectionTypeView } from "./collection.ts";
+import { CollectionTypeAuth, CollectionTypeView } from "./collection_model.ts";
 import { StoreKeyCachedCollections } from "./collection_query.ts";
 
 describe("collection query", () => {

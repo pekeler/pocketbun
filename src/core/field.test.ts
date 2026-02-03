@@ -3,7 +3,7 @@
 import { expect } from "bun:test";
 import { ValidationErrors } from "../internal/compat/validation.ts";
 import { newTestApp } from "../tests/app.ts";
-import { NewBaseCollection } from "./collection.ts";
+import { NewBaseCollection } from "./collection_model.ts";
 import { Fields } from "./field.ts";
 
 export function testFieldBaseMethods(fieldType: string): void {

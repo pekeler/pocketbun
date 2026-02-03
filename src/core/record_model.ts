@@ -7,7 +7,7 @@ import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { randomString } from "../tools/security/random.ts";
 import { Store } from "../tools/store/store.ts";
 import { GeoPoint, ParseDateTime } from "../tools/types/index.ts";
-import { Collection, CollectionNameSuperusers } from "./collection.ts";
+import { Collection, CollectionNameSuperusers } from "./collection_model.ts";
 import { PasswordFieldValue } from "./field_password.ts";
 import { autogenerateModifier } from "./field_text.ts";
 

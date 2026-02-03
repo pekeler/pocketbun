@@ -4,9 +4,9 @@ import { describe, expect, it } from "bun:test";
 import { newTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { DateTime, NowDateTime } from "../tools/types/index.ts";
-import { NewBaseCollection } from "./collection.ts";
+import { NewBaseCollection } from "./collection_model.ts";
 import { CollectionNameOTPs, NewOTP, OTP } from "./otp_model.ts";
-import { NewRecord } from "./record.ts";
+import { NewRecord } from "./record_model.ts";
 
 describe("otp", () => {
   it("NewOTP", async () => {
