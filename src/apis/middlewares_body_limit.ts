@@ -1,5 +1,6 @@
 // Ported from pocketbase/apis/middlewares_body_limit.go
 
+import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { Handler } from "../tools/hook/hook.ts";
 import { type MaxBodySizeCalculator } from "../core/field.ts";
@@ -38,7 +39,12 @@ export function dynamicCollectionBodyLimit(collectionPathParam: string): Handler
     Priority: DefaultBodyLimitMiddlewarePriority,
     Func: async (event) => {
       const collectionId = event.params[param] ?? "";
-      const collection = event.app.FindCachedCollectionByNameOrId(collectionId);
+      let collection: ReturnType<App["FindCachedCollectionByNameOrId"]> | null = null;
+      try {
+        collection = event.app.FindCachedCollectionByNameOrId(collectionId);
+      } catch {
+        collection = null;
+      }
       if (!collection) {
         return event.json(404, {
           status: 404,

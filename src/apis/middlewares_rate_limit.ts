@@ -56,7 +56,12 @@ export function collectionPathRateLimit(collectionPathParam: string, ...baseTags
     Priority: DefaultRateLimitMiddlewarePriority,
     Func: (event) => {
       const collectionId = event.params[param] ?? "";
-      const collection = event.app.FindCachedCollectionByNameOrId(collectionId);
+      let collection: ReturnType<App["FindCachedCollectionByNameOrId"]> | null = null;
+      try {
+        collection = event.app.FindCachedCollectionByNameOrId(collectionId);
+      } catch {
+        collection = null;
+      }
       if (!collection) {
         return event.json(404, {
           status: 404,

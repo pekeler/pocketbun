@@ -528,7 +528,12 @@ function realtimeResolveRecord(app: App, model: Model, optCollectionType: string
   }
 
   // check if it is custom Record model struct
-  const collection = app.FindCachedCollectionByNameOrId(tableName);
+  let collection: ReturnType<App["FindCachedCollectionByNameOrId"]> | null = null;
+  try {
+    collection = app.FindCachedCollectionByNameOrId(tableName);
+  } catch {
+    collection = null;
+  }
   if (collection && (!optCollectionType || collection.type === optCollectionType)) {
     const pk = model.PK();
     if (typeof pk === "string") {
@@ -553,7 +558,11 @@ function realtimeResolveRecordCollection(app: App, model: Model): Collection | n
     return model.ProxyRecord().collection();
   }
 
-  return app.FindCachedCollectionByNameOrId(model.TableName());
+  try {
+    return app.FindCachedCollectionByNameOrId(model.TableName());
+  } catch {
+    return null;
+  }
 }
 
 // recordData represents the broadcasted record subscrition message data.

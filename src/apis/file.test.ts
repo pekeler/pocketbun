@@ -293,7 +293,12 @@ describe("file download", () => {
       method: "GET",
       url: "/api/files/demo1/al1h9ijdeojtsjy/300_Jsjq7RdBgA.png",
       beforeTest: async (app) => {
-        const collection = app.FindCachedCollectionByNameOrId("demo1");
+        let collection: ReturnType<TestApp["FindCachedCollectionByNameOrId"]> | null = null;
+        try {
+          collection = app.FindCachedCollectionByNameOrId("demo1");
+        } catch {
+          collection = null;
+        }
         if (!collection) {
           throw new Error("Failed to fetch mock collection");
         }
@@ -312,7 +317,12 @@ describe("file download", () => {
       method: "GET",
       url: "/api/files/demo1/al1h9ijdeojtsjy/300_Jsjq7RdBgA.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsImV4cCI6MjUyNDYwNDQ2MSwidHlwZSI6ImZpbGUiLCJjb2xsZWN0aW9uSWQiOiJfcGJfdXNlcnNfYXV0aF8ifQ.nSTLuCPcGpWn2K2l-BFkC3Vlzc-ZTDPByYq8dN1oPSo",
       beforeTest: async (app) => {
-        const collection = app.FindCachedCollectionByNameOrId("demo1");
+        let collection: ReturnType<TestApp["FindCachedCollectionByNameOrId"]> | null = null;
+        try {
+          collection = app.FindCachedCollectionByNameOrId("demo1");
+        } catch {
+          collection = null;
+        }
         if (!collection) {
           throw new Error("Failed to fetch mock collection");
         }
@@ -331,7 +341,12 @@ describe("file download", () => {
       method: "GET",
       url: "/api/files/demo1/al1h9ijdeojtsjy/300_Jsjq7RdBgA.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsImV4cCI6MjUyNDYwNDQ2MSwidHlwZSI6ImZpbGUiLCJjb2xsZWN0aW9uSWQiOiJfcGJfdXNlcnNfYXV0aF8ifQ.nSTLuCPcGpWn2K2l-BFkC3Vlzc-ZTDPByYq8dN1oPSo",
       beforeTest: async (app) => {
-        const collection = app.FindCachedCollectionByNameOrId("demo1");
+        let collection: ReturnType<TestApp["FindCachedCollectionByNameOrId"]> | null = null;
+        try {
+          collection = app.FindCachedCollectionByNameOrId("demo1");
+        } catch {
+          collection = null;
+        }
         if (!collection) {
           throw new Error("Failed to fetch mock collection");
         }
@@ -418,7 +433,12 @@ describe("concurrent thumbs generation", () => {
     try {
       const fsys = app.NewFilesystem();
 
-      const demo1 = app.FindCachedCollectionByNameOrId("demo1");
+      let demo1: ReturnType<TestApp["FindCachedCollectionByNameOrId"]> | null = null;
+      try {
+        demo1 = app.FindCachedCollectionByNameOrId("demo1");
+      } catch {
+        demo1 = null;
+      }
       if (!demo1) {
         throw new Error("Failed to fetch demo1 collection");
       }

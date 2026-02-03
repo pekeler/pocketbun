@@ -137,7 +137,12 @@ function ensureReady(app: App): void {
 }
 
 function getSuperusersCollection(app: App) {
-  const collection = app.FindCachedCollectionByNameOrId(CollectionNameSuperusers);
+  let collection: ReturnType<App["FindCachedCollectionByNameOrId"]> | null = null;
+  try {
+    collection = app.FindCachedCollectionByNameOrId(CollectionNameSuperusers);
+  } catch {
+    collection = null;
+  }
   if (!collection) {
     throw new Error(`failed to fetch ${JSON.stringify(CollectionNameSuperusers)} collection`);
   }

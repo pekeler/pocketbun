@@ -165,6 +165,7 @@ export interface App {
   Logger(): Logger;
   ModelQuery(model: { TableName: () => string }): SelectQuery;
   AuxModelQuery(model: { TableName: () => string }): SelectQuery;
+  CollectionQuery(): SelectQuery;
   LogQuery(): SelectQuery;
   FindLogById(id: string): Log;
   LogsStats(expr: SqlExpr | null): LogsStatsItem[];
@@ -173,8 +174,11 @@ export interface App {
   findAuthRecordByToken(token: string, validTypes?: string[]): RecordModel;
   findCollectionById(id: string): Collection | null;
   findCollectionByNameOrId(identifier: string): Collection | null;
-  FindCachedCollectionByNameOrId(identifier: string): Collection | null;
+  FindCollectionByNameOrId(identifier: string): Collection;
+  FindCachedCollectionByNameOrId(identifier: string): Collection;
   FindAllCollections(...collectionTypes: string[]): Collection[];
+  ReloadCachedCollections(): Error | null;
+  FindCollectionReferences(collection: Collection, ...excludeIds: string[]): Map<Collection, Field[]>;
   FindCachedCollectionReferences(collection: Collection, ...excludeIds: string[]): Map<Collection, Field[]>;
   HasTable(name: string): boolean;
   TableIndexes(tableName: string): Record<string, string>;

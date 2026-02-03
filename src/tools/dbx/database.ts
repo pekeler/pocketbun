@@ -4,22 +4,29 @@ import { Database, type Changes, type DatabaseOptions, type SQLQueryBindings, ty
 import { rewriteDbxIdentifiers } from "./identifiers.ts";
 import { DbxQuery, DbxSelectQuery } from "./query.ts";
 
+export type QueryLogFunc = (sql: string) => void;
+
 export class DbxDatabase extends Database {
+  QueryLogFunc?: QueryLogFunc;
+
   constructor(filename?: string, options?: number | DatabaseOptions) {
     super(filename, options);
   }
 
   override run<ParamsType extends SQLQueryBindings[]>(sql: string, ...bindings: ParamsType[]): Changes {
+    this.QueryLogFunc?.(sql);
     return super.run(rewriteDbxIdentifiers(sql), ...bindings);
   }
 
   override exec<ParamsType extends SQLQueryBindings[]>(sql: string, ...bindings: ParamsType[]): Changes {
+    this.QueryLogFunc?.(sql);
     return super.run(rewriteDbxIdentifiers(sql), ...bindings);
   }
 
   override query<ReturnType, ParamsType extends SQLQueryBindings | SQLQueryBindings[]>(
     sql: string,
   ): Statement<ReturnType, ParamsType extends any[] ? ParamsType : [ParamsType]> {
+    this.QueryLogFunc?.(sql);
     return super.query(rewriteDbxIdentifiers(sql));
   }
 

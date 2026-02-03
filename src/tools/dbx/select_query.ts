@@ -87,6 +87,14 @@ export class SelectQuery {
     return row[keys[0] ?? ""] as T;
   }
 
+  Build(): { SQL: () => string; Params: () => SQLQueryBindings[] } {
+    const built = this.#buildQuerySql();
+    return {
+      SQL: () => built.sql,
+      Params: () => built.params,
+    };
+  }
+
   #buildQuerySql(limitOverride?: number): { sql: string; params: SQLQueryBindings[] } {
     let sql = `select ${this.#select.join(", ")} from {{${this.#table}}}`;
     const params: SQLQueryBindings[] = [];

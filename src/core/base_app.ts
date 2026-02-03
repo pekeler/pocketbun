@@ -49,6 +49,17 @@ import {
 } from "./base_backup.ts";
 import { LocalAutocertCacheDirName, LocalBackupsDirName, LocalStorageDirName, LocalTempDirName } from "./base_paths.ts";
 import { Collection, CollectionTypeAuth, collectionFromRow, parseCollectionFields, type CollectionRow } from "./collection.ts";
+import {
+  CollectionQuery as CollectionQueryHelper,
+  FindAllCollections as FindAllCollectionsQuery,
+  FindCachedCollectionByNameOrId as FindCachedCollectionByNameOrIdQuery,
+  FindCachedCollectionReferences as FindCachedCollectionReferencesQuery,
+  FindCollectionByNameOrId as FindCollectionByNameOrIdQuery,
+  FindCollectionReferences as FindCollectionReferencesQuery,
+  IsCollectionNameUnique as IsCollectionNameUniqueQuery,
+  ReloadCachedCollections as ReloadCachedCollectionsQuery,
+  TruncateCollection as TruncateCollectionQuery,
+} from "./collection_query.ts";
 import { validateCollection } from "./collection_validate.ts";
 import { TableInfo, TableIndexes } from "./db_table.ts";
 import {
@@ -457,6 +468,10 @@ export class BaseApp implements App {
 
   AuxModelQuery(model: { TableName: () => string }): SelectQuery {
     return new SelectQuery(this.auxDb(), model.TableName());
+  }
+
+  CollectionQuery(): SelectQuery {
+    return CollectionQueryHelper(this);
   }
 
   LogQuery(): SelectQuery {
@@ -1453,50 +1468,23 @@ export class BaseApp implements App {
   }
 
   FindAllCollections(...collectionTypes: string[]): Collection[] {
-    const types = Array.from(new Set(collectionTypes.filter((type) => type)));
-    const params: SQLQueryBindings[] = [];
-    let sql =
-      "select id, name, system, type, fields, indexes, listRule, viewRule, createRule, updateRule, deleteRule, options, created, updated from _collections";
+    return FindAllCollectionsQuery(this, ...collectionTypes);
+  }
 
-    if (types.length > 0) {
-      const placeholders = types.map(() => "?").join(", ");
-      sql += ` where type in (${placeholders})`;
-      params.push(...types);
-    }
+  ReloadCachedCollections(): Error | null {
+    return ReloadCachedCollectionsQuery(this);
+  }
 
-    sql += " order by rowid asc";
-
-    const rows = this.db()
-      .query(sql)
-      .all(...params);
-
-    if (!Array.isArray(rows)) {
-      return [];
-    }
-
-    return rows.map((row) => collectionFromRow(row as CollectionRow));
+  FindCollectionByNameOrId(identifier: string): Collection {
+    return FindCollectionByNameOrIdQuery(this, identifier);
   }
 
   FindCachedCollectionReferences(collection: Collection, ...excludeIds: string[]): Map<Collection, Field[]> {
-    const exclude = new Set(excludeIds.filter((value) => value));
-    const result = new Map<Collection, Field[]>();
-    const collections = this.FindAllCollections();
+    return FindCachedCollectionReferencesQuery(this, collection, ...excludeIds);
+  }
 
-    for (const candidate of collections) {
-      if (exclude.has(candidate.id)) {
-        continue;
-      }
-
-      for (const field of candidate.Fields) {
-        if (field instanceof RelationField && field.CollectionId === collection.id) {
-          const current = result.get(candidate) ?? [];
-          current.push(field);
-          result.set(candidate, current);
-        }
-      }
-    }
-
-    return result;
+  FindCollectionReferences(collection: Collection, ...excludeIds: string[]): Map<Collection, Field[]> {
+    return FindCollectionReferencesQuery(this, collection, ...excludeIds);
   }
 
   findCollectionById(id: string): Collection | null {
@@ -1516,7 +1504,7 @@ export class BaseApp implements App {
   findCollectionByNameOrId(identifier: string): Collection | null {
     const row = this.db()
       .query(
-        "select id, name, system, type, fields, indexes, listRule, viewRule, createRule, updateRule, deleteRule, options, created, updated from _collections where id = ? or name = ?",
+        "select id, name, system, type, fields, indexes, listRule, viewRule, createRule, updateRule, deleteRule, options, created, updated from _collections where id = ? or lower(name) = lower(?)",
       )
       .get(identifier, identifier) as CollectionRow | undefined;
 
@@ -1527,8 +1515,8 @@ export class BaseApp implements App {
     return collectionFromRow(row);
   }
 
-  FindCachedCollectionByNameOrId(identifier: string): Collection | null {
-    return this.findCollectionByNameOrId(identifier);
+  FindCachedCollectionByNameOrId(identifier: string): Collection {
+    return FindCachedCollectionByNameOrIdQuery(this, identifier);
   }
 
   findRecordById(collection: Collection, id: string, rule: SqlExpr | null = null): RecordModel | null {
@@ -2140,34 +2128,7 @@ export class BaseApp implements App {
   // Note that this method will also trigger the records related
   // cascade and file delete actions.
   async TruncateCollection(collection: Collection): Promise<Error | null> {
-    if (collection.isView()) {
-      return new Error("view collections cannot be truncated since they don't store their own records");
-    }
-
-    return this.RunInTransaction(async (txApp) => {
-      const records: RecordModel[] = [];
-
-      for (;;) {
-        try {
-          txApp.RecordQuery(collection).Limit(500).All(records);
-        } catch (error) {
-          return error as Error;
-        }
-
-        if (records.length === 0) {
-          return null;
-        }
-
-        for (const record of records) {
-          const err = await txApp.Delete(record);
-          if (err) {
-            return err;
-          }
-        }
-
-        records.length = 0;
-      }
-    });
+    return await TruncateCollectionQuery(this, collection);
   }
 
   // ImportCollectionsByMarshaledJSON is the same as ImportCollections
@@ -3571,16 +3532,7 @@ export class BaseApp implements App {
   }
 
   IsCollectionNameUnique(name: string, excludeId?: string): boolean {
-    const row = this.db().query("select id from _collections where lower(name) = lower(?)").get(name) as
-      | { id?: string }
-      | undefined;
-    if (!row?.id) {
-      return true;
-    }
-    if (excludeId && row.id === excludeId) {
-      return true;
-    }
-    return false;
+    return IsCollectionNameUniqueQuery(this, name, excludeId);
   }
 }
 

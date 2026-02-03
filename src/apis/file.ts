@@ -78,7 +78,12 @@ class FileApi {
 
   async download(event: RequestEvent): Promise<Response> {
     const collectionId = event.params.collection ?? "";
-    const collection = event.app.FindCachedCollectionByNameOrId(collectionId);
+    let collection: ReturnType<App["FindCachedCollectionByNameOrId"]> | null = null;
+    try {
+      collection = event.app.FindCachedCollectionByNameOrId(collectionId);
+    } catch {
+      collection = null;
+    }
     if (!collection) {
       return notFound(event, "");
     }

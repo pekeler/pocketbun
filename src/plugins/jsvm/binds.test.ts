@@ -255,7 +255,12 @@ describe("jsvm binds", () => {
   it("base binds record", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const collection = app.FindCachedCollectionByNameOrId("users");
+      let collection: Collection | null = null;
+      try {
+        collection = app.FindCachedCollectionByNameOrId("users");
+      } catch {
+        collection = null;
+      }
       if (!collection) {
         throw new Error("missing users collection");
       }

@@ -1,5 +1,6 @@
 // Ported from pocketbase/apis/middlewares.go
 
+import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { Handler } from "../tools/hook/hook.ts";
 import { CollectionNameSuperusers } from "../core/collection.ts";
@@ -139,7 +140,12 @@ export function RequireSameCollectionContextAuth(collectionPathParam: string): H
 
       const collectionParam = collectionPathParam || "collection";
       const collectionId = event.params[collectionParam] ?? "";
-      const collection = event.app.FindCachedCollectionByNameOrId(collectionId);
+      let collection: ReturnType<App["FindCachedCollectionByNameOrId"]> | null = null;
+      try {
+        collection = event.app.FindCachedCollectionByNameOrId(collectionId);
+      } catch {
+        collection = null;
+      }
 
       if (!collection || event.auth.collection().id !== collection.id) {
         return forbidden(event, `The request requires auth record from ${event.auth.collection().name} collection.`);
