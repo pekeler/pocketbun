@@ -914,6 +914,20 @@ export function parseCollectionFields(raw: unknown): CollectionField[] {
   return fields;
 }
 
+export function normalizeCollectionFields(collection: Collection): void {
+  if (collection.Fields.length === 0 && collection.fields.length > 0) {
+    try {
+      collection.Fields = FieldsList.fromJSON(JSON.stringify(collection.fields));
+    } catch {
+      collection.Fields = new FieldsList();
+    }
+  }
+
+  if (collection.Fields.length > 0) {
+    collection.fields = parseCollectionFields(collection.Fields.toJSON());
+  }
+}
+
 export function collectionFromRow(row: CollectionRow): Collection {
   let fieldsRaw: unknown = [];
   let fieldsList = new FieldsList();
