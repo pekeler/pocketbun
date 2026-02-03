@@ -61,6 +61,7 @@ import {
   TruncateCollection as TruncateCollectionQuery,
 } from "./collection_query.ts";
 import { validateCollection } from "./collection_validate.ts";
+import { baseLockRetry, defaultMaxLockRetries } from "./db_retry.ts";
 import { TableInfo, TableIndexes } from "./db_table.ts";
 import {
   AuxRunInTransaction as AuxRunInTransactionHelper,
@@ -1910,7 +1911,7 @@ export class BaseApp implements App {
         }
       }
 
-      return (await (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () =>
+      return (await (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, async () =>
         this.persistGenericModel(model),
       )) as Error | null;
     };
@@ -2310,7 +2311,7 @@ export class BaseApp implements App {
     return txErr ?? null;
   }
 
-  private persistRecord(record: RecordModel): Error | null {
+  private async persistRecord(record: RecordModel): Promise<Error | null> {
     let data: Record<string, unknown>;
     try {
       data = record.DBExport();
@@ -2326,32 +2327,38 @@ export class BaseApp implements App {
     }
 
     const keys = Object.keys(data);
-    try {
-      if (record.IsNew()) {
-        const columns = keys.map((key) => `"${key}"`).join(", ");
-        const placeholders = keys.map(() => "?").join(", ");
-        const values = keys.map((key) => normalizeDbValue(data[key]));
-        const sql = `insert into "${record.TableName()}" (${columns}) values (${placeholders})`;
-        this.db().run(sql, values);
-      } else {
-        const columns = keys.filter((key) => key !== "id");
-        if (columns.length > 0) {
-          const assignments = columns.map((key) => `"${key}" = ?`).join(", ");
-          const values = columns.map((key) => normalizeDbValue(data[key]));
-          values.push(record.Id);
-          const sql = `update "${record.TableName()}" set ${assignments} where id = ?`;
+    const dbErr = await baseLockRetry(() => {
+      try {
+        if (record.IsNew()) {
+          const columns = keys.map((key) => `"${key}"`).join(", ");
+          const placeholders = keys.map(() => "?").join(", ");
+          const values = keys.map((key) => normalizeDbValue(data[key]));
+          const sql = `insert into "${record.TableName()}" (${columns}) values (${placeholders})`;
           this.db().run(sql, values);
+        } else {
+          const columns = keys.filter((key) => key !== "id");
+          if (columns.length > 0) {
+            const assignments = columns.map((key) => `"${key}" = ?`).join(", ");
+            const values = columns.map((key) => normalizeDbValue(data[key]));
+            values.push(record.Id);
+            const sql = `update "${record.TableName()}" set ${assignments} where id = ?`;
+            this.db().run(sql, values);
+          }
         }
+      } catch (err) {
+        return err instanceof Error ? err : new Error(String(err));
       }
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      return NormalizeUniqueIndexError(error, record.collection().name, record.collection().Fields.FieldNames());
+      return null;
+    }, defaultMaxLockRetries);
+
+    if (dbErr) {
+      return NormalizeUniqueIndexError(dbErr, record.collection().name, record.collection().Fields.FieldNames());
     }
 
     return record.PostScan();
   }
 
-  private persistGenericModel(model: Model): Error | null {
+  private async persistGenericModel(model: Model): Promise<Error | null> {
     const data: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(model as Record<string, unknown>)) {
       if (typeof value === "function" || value === undefined) {
@@ -2373,38 +2380,52 @@ export class BaseApp implements App {
       return null;
     }
 
-    try {
-      if (model.IsNew()) {
-        const columns = keys.map((key) => `"${key}"`).join(", ");
-        const placeholders = keys.map(() => "?").join(", ");
-        const values = keys.map((key) => normalizeDbValue(data[key]));
-        const sql = `insert into {{${model.TableName()}}} (${columns}) values (${placeholders})`;
-        this.db().run(sql, values);
-        model.MarkAsNotNew();
-      } else {
-        const columns = keys.filter((key) => key !== "id");
-        if (columns.length > 0) {
-          const assignments = columns.map((key) => `"${key}" = ?`).join(", ");
-          const values = columns.map((key) => normalizeDbValue(data[key]));
-          values.push(normalizeDbValue(model.PK() ?? data.id));
-          const sql = `update {{${model.TableName()}}} set ${assignments} where [[id]] = ?`;
+    const dbErr = await baseLockRetry(() => {
+      try {
+        if (model.IsNew()) {
+          const columns = keys.map((key) => `"${key}"`).join(", ");
+          const placeholders = keys.map(() => "?").join(", ");
+          const values = keys.map((key) => normalizeDbValue(data[key]));
+          const sql = `insert into {{${model.TableName()}}} (${columns}) values (${placeholders})`;
           this.db().run(sql, values);
+        } else {
+          const columns = keys.filter((key) => key !== "id");
+          if (columns.length > 0) {
+            const assignments = columns.map((key) => `"${key}" = ?`).join(", ");
+            const values = columns.map((key) => normalizeDbValue(data[key]));
+            values.push(normalizeDbValue(model.PK() ?? data.id));
+            const sql = `update {{${model.TableName()}}} set ${assignments} where [[id]] = ?`;
+            this.db().run(sql, values);
+          }
         }
-        model.MarkAsNotNew();
+      } catch (error) {
+        return error as Error;
       }
-    } catch (error) {
-      return error as Error;
+      return null;
+    }, defaultMaxLockRetries);
+
+    if (dbErr) {
+      return dbErr;
     }
+
+    model.MarkAsNotNew();
 
     return null;
   }
 
-  private deleteRecord(record: RecordModel): Error | null {
+  private async deleteRecord(record: RecordModel): Promise<Error | null> {
     if (!record.Id) {
       return new Error("missing record id");
     }
-    this.db().run(`delete from {{${record.TableName()}}} where id = ?`, [record.Id]);
-    return null;
+
+    return await baseLockRetry(() => {
+      try {
+        this.db().run(`delete from {{${record.TableName()}}} where id = ?`, [record.Id]);
+        return null;
+      } catch (error) {
+        return error as Error;
+      }
+    }, defaultMaxLockRetries);
   }
 
   private async deleteGenericModel(model: Model): Promise<Error | null> {
@@ -2416,14 +2437,16 @@ export class BaseApp implements App {
     const modelEvent = new ModelEvent(this, model, ModelEventTypeDelete);
 
     const deleteErr = (await this.OnModelDelete().Trigger(modelEvent, () =>
-      this.OnModelDeleteExecute().Trigger(modelEvent, () => {
-        try {
-          this.db().run(`delete from {{${model.TableName()}}} where [[id]] = ?`, [normalizeDbValue(pk)]);
-          return null;
-        } catch (error) {
-          return error as Error;
-        }
-      }),
+      this.OnModelDeleteExecute().Trigger(modelEvent, async () =>
+        baseLockRetry(() => {
+          try {
+            this.db().run(`delete from {{${model.TableName()}}} where [[id]] = ?`, [normalizeDbValue(pk)]);
+            return null;
+          } catch (error) {
+            return error as Error;
+          }
+        }, defaultMaxLockRetries),
+      ),
     )) as Error | null;
 
     if (deleteErr) {

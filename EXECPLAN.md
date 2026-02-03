@@ -84,6 +84,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-02 23:20Z) Tighten serve parity with CORS middleware, admin UI cache/CSP headers, and gzip support.
 - [x] (2026-02-02 23:54Z) Port s3blob driver + internal S3 client/uploader, align list/signing behavior, and add upstream S3/s3blob tests.
 - [x] (2026-02-03 07:31Z) Port blob bucket/reader/writer and fileblob driver foundations for local storage compatibility.
+- [x] (2026-02-03 18:10Z) Wrap model create/update/delete DB writes with lock retry handling to match upstream baseLockRetry behavior.
 - [ ] (2026-02-03 18:20Z) Restore 1:1 file mapping where practical by un-merging merged TS files and adding missing upstream files/tests (completed: analysis of missing files/tests, merged-header rule, low-risk un-merges like api_error_aliases/router error/collection_import + auth_origin/otp/mfa/external_auth query splits, base_backup helper extraction + base_paths constants, db_connect helper, syscall stub, collection_query module + tests + DbxDatabase query logging, db_tx module + tests, and db_retry/db_builder modules with tests for db_retry; remaining: larger splits and missing modules/tests).
 
 ## Surprises & Discoveries
