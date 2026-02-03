@@ -63,6 +63,11 @@ import {
 import { validateCollection } from "./collection_validate.ts";
 import { TableInfo, TableIndexes } from "./db_table.ts";
 import {
+  AuxRunInTransaction as AuxRunInTransactionHelper,
+  RunInTransaction as RunInTransactionHelper,
+  TxAppInfo,
+} from "./db_tx.ts";
+import {
   BackupEvent,
   BootstrapEvent,
   ServeEvent,
@@ -2068,47 +2073,21 @@ export class BaseApp implements App {
   }
 
   async RunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null> {
-    if (this.#txInfo) {
-      return (await fn(this)) ?? null;
-    }
-
-    this.#txInfo = new TxAppInfo();
-    let txErr: Error | null = null;
-    this.db().run("BEGIN");
-    try {
-      txErr = (await fn(this)) ?? null;
-    } catch (error) {
-      txErr = error as Error;
-    }
-
-    if (txErr) {
-      this.db().run("ROLLBACK");
-    } else {
-      this.db().run("COMMIT");
-    }
-
-    const txInfo = this.#txInfo;
-    this.#txInfo = null;
-    const afterErr = await txInfo.runAfterFuncs(txErr);
-    return joinErrors(txErr, afterErr);
+    return await RunInTransactionHelper(
+      {
+        app: this,
+        db: () => this.db(),
+        getTxInfo: () => this.#txInfo,
+        setTxInfo: (info) => {
+          this.#txInfo = info;
+        },
+      },
+      fn,
+    );
   }
 
   async AuxRunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null> {
-    let txErr: Error | null = null;
-    this.auxDb().run("BEGIN");
-    try {
-      txErr = (await fn(this)) ?? null;
-    } catch (error) {
-      txErr = error as Error;
-    }
-
-    if (txErr) {
-      this.auxDb().run("ROLLBACK");
-    } else {
-      this.auxDb().run("COMMIT");
-    }
-
-    return txErr;
+    return await AuxRunInTransactionHelper(this, () => this.auxDb(), fn);
   }
 
   // Bun port adds an async variant to accommodate request parsing and hook delays.
@@ -3604,33 +3583,6 @@ function resolveBaseTokenKey(collection: Collection, tokenType: string): string 
   }
 }
 
-class TxAppInfo {
-  #afterFuncs: Array<(txErr: Error | null) => Error | null | Promise<Error | null>> = [];
-
-  OnComplete(fn: (txErr: Error | null) => Error | null | Promise<Error | null>) {
-    this.#afterFuncs.push(fn);
-  }
-
-  async runAfterFuncs(txErr: Error | null): Promise<Error | null> {
-    const errors: Error[] = [];
-    for (const fn of this.#afterFuncs) {
-      const err = await fn(txErr);
-      if (err) {
-        errors.push(err);
-      }
-    }
-    this.#afterFuncs = [];
-
-    if (errors.length === 0) {
-      return null;
-    }
-    if (errors.length === 1) {
-      return errors[0] ?? null;
-    }
-    return new AggregateError(errors, errors.map((err) => err.message).join("\n"));
-  }
-}
-
 function normalizeDbValue(value: unknown): SQLQueryBindings {
   if (value == null) {
     return null;
@@ -3757,33 +3709,6 @@ async function deleteRefRecords(
   }
 
   return null;
-}
-
-function joinErrors(...errors: Array<Error | null | undefined>): Error | null {
-  const flattened: Error[] = [];
-  for (const err of errors) {
-    if (!err) {
-      continue;
-    }
-    if (err instanceof AggregateError) {
-      for (const inner of err.errors) {
-        if (inner instanceof Error) {
-          flattened.push(inner);
-        }
-      }
-      continue;
-    }
-    flattened.push(err);
-  }
-
-  if (flattened.length === 0) {
-    return null;
-  }
-  if (flattened.length === 1) {
-    return flattened[0] ?? null;
-  }
-
-  return new AggregateError(flattened, flattened.map((err) => err.message).join("\n"));
 }
 
 function resolveBaseFilesPath(model: Model): string {
