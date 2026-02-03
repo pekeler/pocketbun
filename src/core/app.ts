@@ -100,7 +100,8 @@ export interface App {
   auxDb(): Database;
   TxInfo(): { OnComplete: (fn: (txErr: Error | null) => Error | null) => void } | null;
   auxHasTable(name: string): boolean;
-  reloadSettings(): void;
+  reloadSettings(): Error | null;
+  ReloadSettings(): Error | null;
   runSystemMigrations(): void;
   runAppMigrations(): void;
   runAllMigrations(): void;

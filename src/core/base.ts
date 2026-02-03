@@ -30,7 +30,7 @@ import { SMTPClient } from "../tools/mailer/smtp.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { buildSortExpr, parseSortFromString } from "../tools/search/sort.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
-import { decrypt, encrypt } from "../tools/security/encrypt.ts";
+import { encrypt } from "../tools/security/encrypt.ts";
 import { parseJWT, parseUnverifiedJWT } from "../tools/security/jwt.ts";
 import { Broker } from "../tools/subscriptions/broker.ts";
 import { DateTime, GeoPoint, JSONRaw, NowDateTime, ParseDateTime } from "../tools/types/index.ts";
@@ -199,6 +199,7 @@ import {
   TokenTypeVerification,
 } from "./record_tokens.ts";
 import { Settings } from "./settings_model.ts";
+import { ReloadSettings as ReloadSettingsHelper } from "./settings_query.ts";
 import { Store } from "./store.ts";
 import { NormalizeUniqueIndexError } from "./validators/db.ts";
 import {
@@ -1100,52 +1101,16 @@ export class BaseApp implements App {
     new MigrationsRunner(this, AppMigrations).up();
   }
 
-  reloadSettings(): void {
-    try {
-      const row = this.db().query("select value from _params where id = 'settings'").get() as
-        | { value?: string | Uint8Array }
-        | undefined;
-      if (!row?.value) {
-        return;
-      }
-
-      let rawValue = "";
-      if (typeof row.value === "string") {
-        rawValue = row.value;
-      } else if (row.value instanceof Uint8Array) {
-        rawValue = new TextDecoder().decode(row.value);
-      }
-
-      if (!rawValue) {
-        return;
-      }
-
-      const encryptionKey = process.env[this.#encryptionEnv] ?? "";
-      let payload = rawValue;
-      if (encryptionKey) {
-        try {
-          const decrypted = decrypt(rawValue, encryptionKey);
-          payload = new TextDecoder().decode(decrypted);
-        } catch {
-          payload = rawValue;
-        }
-      }
-
-      const parsed = JSON.parse(payload) as Record<string, unknown>;
-      const event = new SettingsReloadEvent(this);
-      const result = this.OnSettingsReload().Trigger(event, () => {
-        this.#settings.loadFromJSON(parsed);
-        this.#settings.MarkAsNotNew();
-        return null;
-      });
-      if (result instanceof Promise) {
-        void result.catch((err) => this.Logger().Warn("Failed to reload settings", "error", err));
-      } else if (result instanceof Error) {
-        this.Logger().Warn("Failed to reload settings", "error", result);
-      }
-    } catch {
-      // ignore missing settings table or invalid JSON
+  reloadSettings(): Error | null {
+    const err = ReloadSettingsHelper(this);
+    if (err) {
+      this.Logger().Warn("Failed to reload settings", "error", err);
     }
+    return err;
+  }
+
+  ReloadSettings(): Error | null {
+    return this.reloadSettings();
   }
 
   NewMailClient() {

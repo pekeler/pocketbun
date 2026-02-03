@@ -1,7 +1,10 @@
 // Ported from pocketbase/core/settings_model.go (partial: settings structure + validation helpers).
 
+import type { App } from "./app.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { NewSchedule } from "../tools/cron/schedule.ts";
+import { decrypt } from "../tools/security/encrypt.ts";
+import { JSONRaw } from "../tools/types/json_raw.ts";
 
 export const ParamsTableName = "_params";
 export const ParamsKeySettings = "settings";
@@ -482,6 +485,43 @@ export class Settings {
     }
 
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+  }
+
+  // loadParam loads the settings from the stored param into the app ones.
+  //
+  // @todo note that the encryption may get removed in the future since it doesn't
+  // really accomplish much and it might be better to find a way to encrypt the backups
+  // or implement support for resolving env variables.
+  loadParam(app: App, param: { Value: JSONRaw }): Error | null {
+    let rawValue = param.Value.String();
+    let parsed: unknown;
+
+    try {
+      parsed = JSON.parse(rawValue);
+    } catch (_plainDecodeErr) {
+      const envName = app.encryptionEnv();
+      const encryptionKey = process.env[envName] ?? "";
+      if (!encryptionKey) {
+        return new Error(`invalid settings db data or missing encryption key ${JSON.stringify(envName)}`);
+      }
+
+      let decrypted: Uint8Array;
+      try {
+        decrypted = decrypt(rawValue, encryptionKey);
+      } catch (error) {
+        return error as Error;
+      }
+
+      try {
+        rawValue = new TextDecoder().decode(decrypted);
+        parsed = JSON.parse(rawValue);
+      } catch (error) {
+        return error as Error;
+      }
+    }
+
+    this.loadFromJSON(parsed);
+    return this.PostScan();
   }
 }
 
