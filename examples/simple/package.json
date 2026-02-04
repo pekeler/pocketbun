@@ -7,5 +7,8 @@
   },
   "dependencies": {
     "pocketbun": "file:../.."
+  },
+  "engines": {
+    "bun": ">=1.3.0"
   }
 }

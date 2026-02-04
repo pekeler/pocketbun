@@ -18,7 +18,7 @@
     "lint": "oxlint --type-aware src tests",
     "format": "oxfmt --check src tests",
     "format:fix": "oxfmt --write src tests",
-    "build": "bun build index.ts examples/base/main.ts --outdir dist --target bun --format esm --packages external",
+    "build": "bun build index.ts src/cli.ts --outdir dist --target bun --format esm --packages external",
     "prepack": "bun run build",
     "e2e": "bun run scripts/e2e_run.ts",
     "e2e:install": "playwright install --with-deps"

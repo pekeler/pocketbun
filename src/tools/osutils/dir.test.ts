@@ -45,14 +45,16 @@ async function createTestDir(): Promise<string> {
 describe("MoveDirContent", () => {
   it("moves directory contents while honoring excludes", async () => {
     const testDir = await createTestDir();
+    let dir1 = "";
+    let dir2 = "";
     try {
       const exclude = ["missing", "test2", "b"];
 
-      const dir1 = resolve(testDir, "..", "a", "b", "c", "d", `_pb_move_dir_content_test_${pseudorandomString(4)}`);
+      dir1 = resolve(testDir, "..", "a", "b", "c", "d", `_pb_move_dir_content_test_${pseudorandomString(4)}`);
 
       expect(() => MoveDirContent(testDir, dir1, ...exclude)).toThrow();
 
-      const dir2 = resolve(testDir, "..", `_pb_move_dir_content_test_${pseudorandomString(4)}`);
+      dir2 = resolve(testDir, "..", `_pb_move_dir_content_test_${pseudorandomString(4)}`);
 
       expect(() => MoveDirContent(testDir, dir2, ...exclude)).not.toThrow();
 
@@ -67,6 +69,12 @@ describe("MoveDirContent", () => {
       }
     } finally {
       await rm(testDir, { recursive: true, force: true });
+      if (dir1) {
+        await rm(dir1, { recursive: true, force: true });
+      }
+      if (dir2) {
+        await rm(dir2, { recursive: true, force: true });
+      }
     }
   });
 });

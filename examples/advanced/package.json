@@ -10,5 +10,8 @@
   "dependencies": {
     "pocketbase": "^0.26.2",
     "pocketbun": "file:../.."
+  },
+  "engines": {
+    "bun": ">=1.3.0"
   }
 }
