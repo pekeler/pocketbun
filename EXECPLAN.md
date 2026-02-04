@@ -10,6 +10,13 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 
 ## Progress
 
+- Milestone status (2026-02-04):
+  - Milestone 1: complete
+  - Milestone 2: complete
+  - Milestone 3: complete
+  - Milestone 4: complete
+  - Milestone 5: complete (all remaining gaps are intentional and documented)
+
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
 - [x] (2026-01-30 16:57Z) Align repository versioning and scaffolding with the pinned PocketBase tag.
