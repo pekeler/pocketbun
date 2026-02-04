@@ -23,6 +23,11 @@ import {
 
 const baseSelect = "select * from {{test}} where NOT ([[test1]] IS NULL) order by [[test1]] ASC";
 
+class TestMutex {
+  lock(): void {}
+  unlock(): void {}
+}
+
 type TestRow = {
   test1: number;
   test2: string;
@@ -71,6 +76,7 @@ class TestFieldResolver implements FieldResolver {
 
 function createTestDb() {
   const db = new DbxDatabase(":memory:");
+  const mu = new TestMutex();
   const longField = "a".repeat(MaxSortFieldLength);
   const longFieldOverflow = "b".repeat(MaxSortFieldLength + 1);
 
@@ -82,7 +88,12 @@ function createTestDb() {
 
   const calledQueries: string[] = [];
   db.QueryLogFunc = (sql) => {
-    calledQueries.push(sql);
+    mu.lock();
+    try {
+      calledQueries.push(sql);
+    } finally {
+      mu.unlock();
+    }
   };
 
   return { db, calledQueries, longField, longFieldOverflow };

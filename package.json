@@ -1,6 +1,6 @@
 {
   "name": "pocketbun",
-  "version": "0.36.1-pocketbun.0",
+  "version": "0.36.2-pocketbun.0",
   "private": true,
   "module": "index.ts",
   "type": "module",
@@ -9,6 +9,7 @@
   },
   "scripts": {
     "upstream:sync": "bash scripts/sync_upstream_pocketbase.sh",
+    "upstream:audit": "bun run scripts/audit_upstream_mapping.ts",
     "test": "bun test --concurrent",
     "start": "bun run index.ts",
     "typecheck": "bun x tsc -p tsconfig.json --noEmit",

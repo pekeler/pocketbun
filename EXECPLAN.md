@@ -111,8 +111,11 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-04 23:59Z) Add a GitHub Actions CI workflow that runs format, lint, typecheck, and tests, and surface the workflow status in README.
 - [x] (2026-02-04 23:59Z) Add end-to-end tests that start the server and confirm the Admin UI and basic API endpoints respond successfully.
 - [x] (2026-02-04 23:59Z) Add a short README quick-start example and a minimal runnable example under examples/simple.
-- [ ] (2026-02-04 23:59Z) Define and document the upgrade workflow, then upgrade to PocketBase v0.36.2 (sync upstream, bump versions, reconcile diffs, and update docs/tests).
+- [x] (2026-02-04 23:59Z) Define the upgrade workflow doc with release notes + git diff instructions.
+- [x] (2026-02-04 23:59Z) Upgrade to PocketBase v0.36.2 (sync upstream, bump versions, reconcile diffs, and update docs/tests).
+- [x] (2026-02-04 23:59Z) Snapshot .upstream/pocketbase as v0.36.1, sync upstream to v0.36.2, and bump package.json to 0.36.2-pocketbun.0.
 - [ ] (2026-02-04 23:59Z) Run a full port audit against upstream v0.36.2 to enumerate missing source/tests and add follow-up TODOs.
+- [x] (2026-02-04 23:59Z) Ran upstream mapping audit for v0.36.2; only missing files are ghupdate plugin sources/tests (intentional and documented).
 - [ ] (2026-02-04 23:59Z) Add an advanced example under examples/ that demonstrates core features (auth, CRUD, files, realtime, hooks, and CLI usage).
 
 ## Surprises & Discoveries
@@ -149,6 +152,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Evidence: `rg --files -g '*.go' .upstream/pocketbase | wc -l` → 440 vs `rg --files -g '*.ts' src | wc -l` → 388; mapping scan reports 44 missing tests and 51 missing non-tests.
 - Observation: DateTime parsing treats numeric inputs as seconds even when provided as a float (eg. `1.0` → `1970-01-01 00:00:01.000Z`), matching cast.ToTime behavior.
   Evidence: DateTime Scan test scenario for `1.0` expects `1970-01-01 00:00:01.000Z`.
+- Observation: Post-upgrade audit against v0.36.2 only reports missing ghupdate plugin files/tests, which are intentionally removed.
+  Evidence: `bun run upstream:audit` reported missing `plugins/ghupdate/*` only.
 
 ## Decision Log
 
@@ -246,6 +251,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Date/Author: 2026-02-03 / Codex
 - Decision: Order the next phase as CI + e2e tests first, then docs/examples, then the upgrade process + upgrade to v0.36.2, then a full port audit, then the advanced example.
   Rationale: CI and e2e tests provide safety nets for the upgrade, docs/examples stay accurate after the version bump, and the audit should reflect the upgraded baseline before the advanced example is finalized.
+  Date/Author: 2026-02-04 / Codex
+- Decision: Base upgrades on release notes plus a tag-to-tag git diff from a temporary clone, while keeping the checked-out upstream snapshot free of .git to avoid IDE confusion.
+  Rationale: Release notes highlight intentional behavior changes, and a full diff captures unmentioned source/test changes; keeping .upstream clean avoids accidental IDE operations.
   Date/Author: 2026-02-04 / Codex
 - Decision: Infer Store missing-key zero values from provided data or explicit zeroValue when available.
   Rationale: Go maps return a type-specific zero value, which TypeScript cannot infer for empty stores.
@@ -347,7 +355,7 @@ Milestone 6 steps. Add CI, end-to-end tests, docs/examples, and the upgrade work
   - GET /api/health returns a 200 JSON payload with the expected shape.
   Put these tests under tests/e2e or a new src/tests/e2e folder and include a header comment explaining there is no upstream test for these and why they exist.
 - Add a short, minimal README example showing how to start the server and call a basic endpoint. Keep it runnable with Bun. Also add examples/simple with a minimal script and a README that shows how to run it.
-- Define an upgrade workflow document (for example docs/UPGRADING.md) that spells out the exact steps to move to a new upstream version: update pocketbase_tag.txt, update package.json version to X.Y.Z-pocketbun.0, run bun run upstream:sync, refresh vendor/pocketbase-admin-ui/dist + LICENSE, run the mapping audit to find missing files/tests, fix breakages, and update README compatibility notes. Then execute this workflow to upgrade to v0.36.2 and ensure tests pass.
+- Define an upgrade workflow document (for example docs/UPGRADING.md) that spells out the exact steps to move to a new upstream version, including reading upstream release notes, using a tag-to-tag git diff from a temporary clone, updating pocketbase_tag.txt and package.json to X.Y.Z-pocketbun.0, running bun run upstream:sync, refreshing vendor/pocketbase-admin-ui/dist + LICENSE, running the mapping audit to find missing files/tests, fixing breakages, and updating README compatibility notes. Then execute this workflow to upgrade to v0.36.2 and ensure tests pass.
 - Perform a full port audit against upstream v0.36.2 using a scripted file mapping (for example via rg) to identify any missing .go/.go test files, and add TODOs in EXECPLAN.md or a dedicated tracking file. Include a brief summary in Progress and Surprises & Discoveries.
 - Add examples/advanced that demonstrates the major features the Bun port supports (auth, CRUD, files, realtime, hooks, and CLI usage). Keep it runnable and documented, and ensure it avoids any intentionally documented incompatibilities.
 

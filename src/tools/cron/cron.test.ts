@@ -4,6 +4,11 @@ import { describe, expect, it } from "bun:test";
 import type { Job } from "./job.ts";
 import { Cron } from "./cron.ts";
 
+class TestMutex {
+  lock(): void {}
+  unlock(): void {}
+}
+
 function normalizeSchedule(job: Job): unknown {
   return JSON.parse(JSON.stringify(job.Schedule()));
 }
@@ -144,6 +149,7 @@ describe("Cron", () => {
 
   it("starts and stops ticking", async () => {
     const c = new Cron();
+    const mu = new TestMutex();
     let test1 = 0;
     let test2 = 0;
 
@@ -155,10 +161,20 @@ describe("Cron", () => {
     await new Promise((resolve) => setTimeout(resolve, alignDelay + 5));
 
     c.Add("test1", "* * * * *", () => {
-      test1 += 1;
+      mu.lock();
+      try {
+        test1 += 1;
+      } finally {
+        mu.unlock();
+      }
     });
     c.Add("test2", "* * * * *", () => {
-      test2 += 1;
+      mu.lock();
+      try {
+        test2 += 1;
+      } finally {
+        mu.unlock();
+      }
     });
 
     c.Start();
@@ -169,8 +185,15 @@ describe("Cron", () => {
     c.Stop();
     c.Stop();
 
-    expect(test1).toBe(2);
-    expect(test2).toBe(2);
+    let expectedCalls = 2;
+
+    mu.lock();
+    try {
+      expect(test1).toBe(expectedCalls);
+      expect(test2).toBe(expectedCalls);
+    } finally {
+      mu.unlock();
+    }
 
     const alignDelay2 = intervalMs - (Date.now() % intervalMs);
     await new Promise((resolve) => setTimeout(resolve, alignDelay2 + 5));
@@ -181,7 +204,14 @@ describe("Cron", () => {
 
     c.Stop();
 
-    expect(test1).toBe(6);
-    expect(test2).toBe(6);
+    expectedCalls += 4;
+
+    mu.lock();
+    try {
+      expect(test1).toBe(expectedCalls);
+      expect(test2).toBe(expectedCalls);
+    } finally {
+      mu.unlock();
+    }
   });
 });

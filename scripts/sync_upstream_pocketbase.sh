@@ -5,6 +5,10 @@ TAG="$(tr -d '\r\n' < pocketbase_tag.txt)"
 DIR=".upstream/pocketbase"
 
 mkdir -p .upstream
+if [ -d "$DIR" ] && [ ! -d "$DIR/.git" ]; then
+  rm -rf "$DIR"
+fi
+
 [ -d "$DIR/.git" ] || git clone https://github.com/pocketbase/pocketbase.git "$DIR"
 
 git -C "$DIR" fetch --tags origin

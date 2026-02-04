@@ -6,6 +6,11 @@ import { Message } from "./message.ts";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+class TestMutex {
+  lock(): void {}
+  unlock(): void {}
+}
+
 describe("subscriptions client", () => {
   it("NewDefaultClient", () => {
     const client = new DefaultClient();
@@ -173,12 +178,18 @@ describe("subscriptions client", () => {
   });
 
   it("Send", async () => {
+    const mu = new TestMutex();
     const client = new DefaultClient();
     const received: string[] = [];
 
     const reader = (async () => {
       for await (const msg of client.Channel()) {
-        received.push(msg.Name);
+        mu.lock();
+        try {
+          received.push(msg.Name);
+        } finally {
+          mu.unlock();
+        }
       }
     })();
 
@@ -192,13 +203,18 @@ describe("subscriptions client", () => {
     await reader;
 
     const expected = ["m1", "m2"];
-    if (received.length !== expected.length) {
-      throw new Error(`Expected ${expected.length} messages, got ${received.length}`);
-    }
-    for (const name of expected) {
-      if (!received.includes(name)) {
-        throw new Error(`Missing expected ${name} message, got ${JSON.stringify(received)}`);
+    mu.lock();
+    try {
+      if (received.length !== expected.length) {
+        throw new Error(`Expected ${expected.length} messages, got ${received.length}`);
       }
+      for (const name of expected) {
+        if (!received.includes(name)) {
+          throw new Error(`Missing expected ${name} message, got ${JSON.stringify(received)}`);
+        }
+      }
+    } finally {
+      mu.unlock();
     }
   });
 });
