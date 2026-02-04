@@ -1,5 +1,3 @@
-// PocketBun-only: advanced example collections (auth + projects).
-
 migrate(
   (app) => {
     const users = newAuthCollection("users");

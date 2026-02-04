@@ -1,5 +1,3 @@
-// PocketBun-only: minimal runnable example for local development.
-
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BaseApp, serve } from "../../index.ts";

@@ -1,5 +1,3 @@
-// PocketBun-only: hooks + custom routes for the advanced example.
-
 const slugify = (value: string): string =>
   value
     .trim()

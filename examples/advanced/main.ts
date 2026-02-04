@@ -1,5 +1,3 @@
-// PocketBun-only: advanced example that wires hooks, migrations, and static public files.
-
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";

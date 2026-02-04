@@ -70,3 +70,7 @@ This document describes the upgrade process we follow when PocketBase publishes 
 8) Commit.
 
    Commit the version bump, upstream sync changes, and any fixes/tests. Keep commits focused and note the new upstream tag in commit messages or release notes.
+
+## Notes
+
+- The `examples/` directory is PocketBun-specific and does not exist upstream. Keep the example projects runnable after upgrades, but exclude them from upstream mapping audits and avoid treating missing upstream examples as porting gaps.
