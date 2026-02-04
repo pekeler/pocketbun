@@ -114,8 +114,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-04 23:59Z) Define the upgrade workflow doc with release notes + git diff instructions.
 - [x] (2026-02-04 23:59Z) Upgrade to PocketBase v0.36.2 (sync upstream, bump versions, reconcile diffs, and update docs/tests).
 - [x] (2026-02-04 23:59Z) Snapshot .upstream/pocketbase as v0.36.1, sync upstream to v0.36.2, and bump package.json to 0.36.2-pocketbun.0.
-- [ ] (2026-02-04 23:59Z) Run a full port audit against upstream v0.36.2 to enumerate missing source/tests and add follow-up TODOs.
-- [x] (2026-02-04 23:59Z) Ran upstream mapping audit for v0.36.2; only missing files are ghupdate plugin sources/tests (intentional and documented).
+- [x] (2026-02-04 23:59Z) Ran a full port audit against upstream v0.36.2; only missing files are ghupdate plugin sources/tests (intentional and documented).
 - [x] (2026-02-04 23:59Z) Add an advanced example under examples/ that demonstrates core features (auth, CRUD, files, realtime, hooks, and CLI usage).
 
 ## Surprises & Discoveries
