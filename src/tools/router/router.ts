@@ -30,6 +30,11 @@ type ResolvedRoute<E extends RouterEvent> = {
   action: Handler<E>;
 };
 
+type RouteIndex<E extends RouterEvent> = {
+  any: Map<string, Array<ResolvedRoute<E>>>;
+  byMethod: Map<string, Map<string, Array<ResolvedRoute<E>>>>;
+};
+
 // Router defines a thin wrapper around the standard Go [http.ServeMux] by
 // adding support for routing sub-groups, middlewares and other common utils.
 //
@@ -58,22 +63,26 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
     }
 
     const routes = this.resolveRoutes();
+    const routeIndex = buildRouteIndex(routes);
 
     return async (req: Request, server?: unknown): Promise<Response> => {
       const url = new URL(req.url);
       const method = req.method.toUpperCase();
       // Fallback to localhost when no server is available (ex. buildServeHandler tests).
       const remoteAddress = getRemoteAddress(req, server) ?? "127.0.0.1:0";
+      const parts = splitPath(url.pathname);
+      const firstSegment = parts[0] ?? "";
 
       let bestMatch: { route: ResolvedRoute<E>; params: Record<string, string>; score: number } | null = null;
+      const candidates = collectCandidates(routeIndex, method, firstSegment);
 
-      for (const route of routes) {
+      for (const route of candidates) {
         const methodScore = matchMethodScore(method, route.method);
         if (methodScore < 0) {
           continue;
         }
 
-        const match = matchPath(route.segments, url.pathname);
+        const match = matchPath(route.segments, parts);
         if (!match) {
           continue;
         }
@@ -250,9 +259,9 @@ function splitPath(pathname: string): string[] {
   return trimmed.split("/");
 }
 
-function matchPath(segments: Segment[], pathname: string): Record<string, string> | null {
+function matchPath(segments: Segment[], pathname: string | string[]): Record<string, string> | null {
   const params: Record<string, string> = {};
-  const parts = splitPath(pathname);
+  const parts = Array.isArray(pathname) ? pathname : splitPath(pathname);
 
   for (let i = 0, j = 0; i < segments.length; i += 1, j += 1) {
     const segment = segments[i];
@@ -315,6 +324,85 @@ function computeScore(methodScore: number, segments: Segment[]): number {
   }
 
   return methodScore * 1_000_000 + staticSegments * 1_000 + segments.length * 10 + (hasWildcard ? 0 : 1);
+}
+
+function buildRouteIndex<E extends RouterEvent>(routes: Array<ResolvedRoute<E>>): RouteIndex<E> {
+  const any = new Map<string, Array<ResolvedRoute<E>>>();
+  const byMethod = new Map<string, Map<string, Array<ResolvedRoute<E>>>>();
+
+  for (const route of routes) {
+    const key = firstRouteSegment(route.segments);
+    const target = route.method ? getMethodMap(byMethod, route.method) : any;
+    pushRoute(target, key, route);
+  }
+
+  return { any, byMethod };
+}
+
+function firstRouteSegment(segments: Segment[]): string {
+  if (segments.length === 0) {
+    return "";
+  }
+  const first = segments[0];
+  if (!first || first.type !== "static") {
+    return "*";
+  }
+  return first.value;
+}
+
+function getMethodMap<E extends RouterEvent>(
+  byMethod: Map<string, Map<string, Array<ResolvedRoute<E>>>>,
+  method: string,
+): Map<string, Array<ResolvedRoute<E>>> {
+  const key = method.toUpperCase();
+  let map = byMethod.get(key);
+  if (!map) {
+    map = new Map();
+    byMethod.set(key, map);
+  }
+  return map;
+}
+
+function pushRoute<E extends RouterEvent>(
+  target: Map<string, Array<ResolvedRoute<E>>>,
+  key: string,
+  route: ResolvedRoute<E>,
+): void {
+  const list = target.get(key);
+  if (list) {
+    list.push(route);
+    return;
+  }
+  target.set(key, [route]);
+}
+
+function collectCandidates<E extends RouterEvent>(
+  index: RouteIndex<E>,
+  method: string,
+  firstSegment: string,
+): Array<ResolvedRoute<E>> {
+  const candidates: Array<ResolvedRoute<E>> = [];
+  const methods = method === "HEAD" ? [method, "GET"] : [method];
+
+  for (const methodName of methods) {
+    const map = index.byMethod.get(methodName);
+    if (map) {
+      appendCandidates(candidates, map.get(firstSegment));
+      appendCandidates(candidates, map.get("*"));
+    }
+  }
+
+  appendCandidates(candidates, index.any.get(firstSegment));
+  appendCandidates(candidates, index.any.get("*"));
+
+  return candidates;
+}
+
+function appendCandidates<E extends RouterEvent>(out: Array<ResolvedRoute<E>>, list?: Array<ResolvedRoute<E>>): void {
+  if (!list) {
+    return;
+  }
+  out.push(...list);
 }
 
 function getRemoteAddress(req: Request, server?: unknown): string | null {

@@ -117,6 +117,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-04 23:59Z) Ran a full port audit against upstream v0.36.2; only missing files are ghupdate plugin sources/tests (intentional and documented).
 - [x] (2026-02-04 23:59Z) Add an advanced example under examples/ that demonstrates core features (auth, CRUD, files, realtime, hooks, and CLI usage).
 - [x] (2026-02-05 00:15Z) Add Playwright-based e2e tests with a dedicated web server script and CI coverage.
+- [x] (2026-02-05 02:10Z) Add local benchmark runners for PocketBun and PocketBase and capture baseline/sweep results.
+- [ ] (2026-02-05 02:20Z) Profile and optimize hot request paths (router matching, middleware overhead) while preserving compatibility.
 
 ## Surprises & Discoveries
 
@@ -358,6 +360,13 @@ Milestone 6 steps. Add CI, end-to-end tests, docs/examples, and the upgrade work
 - Define an upgrade workflow document (for example docs/UPGRADING.md) that spells out the exact steps to move to a new upstream version, including reading upstream release notes, using a tag-to-tag git diff from a temporary clone, updating pocketbase_tag.txt and package.json to X.Y.Z-pocketbun.0, running bun run upstream:sync, refreshing vendor/pocketbase-admin-ui/dist + LICENSE, running the mapping audit to find missing files/tests, fixing breakages, and updating README compatibility notes. Then execute this workflow to upgrade to v0.36.2 and ensure tests pass.
 - Perform a full port audit against upstream v0.36.2 using a scripted file mapping (for example via rg) to identify any missing .go/.go test files, and add TODOs in EXECPLAN.md or a dedicated tracking file. Include a brief summary in Progress and Surprises & Discoveries.
 - Add examples/advanced that demonstrates the major features the Bun port supports (auth, CRUD, files, realtime, hooks, and CLI usage). Keep it runnable and documented, and ensure it avoids any intentionally documented incompatibilities.
+
+Milestone 7 steps. Performance investigation and optimization (Bun vs PocketBase).
+
+- Maintain a small local benchmark suite (PocketBun + PocketBase) for /api/health, /_/ and records list.
+- Run a short concurrency sweep and capture baseline throughput/latency for comparison.
+- Identify and address the hottest request-path overhead (router matching, repeated URL parsing, middleware overhead) without changing observable behavior.
+- Re-run the benchmark suite and document the deltas.
 
 ## Validation and Acceptance
 
