@@ -1,0 +1,396 @@
+// Ported from pocketbase/core/fields_list_test.go.
+
+import { describe, expect, it } from "bun:test";
+import { BoolField } from "./field_bool.ts";
+import { EmailField, FieldTypeEmail } from "./field_email.ts";
+import { NumberField, FieldTypeNumber } from "./field_number.ts";
+import { TextField, FieldTypeText } from "./field_text.ts";
+import { URLField, FieldTypeURL } from "./field_url.ts";
+import { FieldsList, NewFieldsList } from "./fields_list.ts";
+
+function setField<T extends { Id: string; Name: string }>(field: T, id?: string, name?: string): T {
+  if (id !== undefined) {
+    field.Id = id;
+  }
+  if (name !== undefined) {
+    field.Name = name;
+  }
+  return field;
+}
+
+describe("FieldsList", () => {
+  it("NewFieldsList", () => {
+    const fields = NewFieldsList(
+      setField(new TextField(), "id1", "test1"),
+      setField(new TextField(), undefined, "test2"),
+      setField(new TextField(), "id1", "test1_new"),
+    );
+
+    expect(fields.length).toBe(2);
+
+    for (const field of fields) {
+      expect(field.GetId()).not.toBe("");
+    }
+
+    expect(fields[0]?.GetName()).toBe("test1_new");
+    expect(fields[1]?.GetName()).toBe("test2");
+  });
+
+  it("FieldsListClone", () => {
+    const f1 = setField(new TextField(), undefined, "test1");
+    const f2 = setField(new EmailField(), undefined, "test2");
+    const s1 = NewFieldsList(f1, f2);
+
+    const s2 = s1.Clone();
+
+    const s1Str = s1.String();
+    const s2Str = s2.String();
+    expect(s1Str).toBe(s2Str);
+
+    s1[0]?.SetName("test1_update");
+    expect(s2[0]?.GetName()).toBe("test1");
+  });
+
+  it("FieldsListFieldNames", () => {
+    const f1 = setField(new TextField(), undefined, "test1");
+    const f2 = setField(new EmailField(), undefined, "test2");
+    const testFieldsList = NewFieldsList(f1, f2);
+
+    const result = testFieldsList.FieldNames();
+    const expected = [f1.Name, f2.Name];
+
+    expect(result.length).toBe(expected.length);
+    for (const name of expected) {
+      expect(result.includes(name)).toBe(true);
+    }
+  });
+
+  it("FieldsListAsMap", () => {
+    const f1 = setField(new TextField(), undefined, "test1");
+    const f2 = setField(new EmailField(), undefined, "test2");
+    const testFieldsList = NewFieldsList(f1, f2);
+
+    const result = testFieldsList.AsMap();
+    const expectedIndexes = [f1.Name, f2.Name];
+
+    expect(Object.keys(result).length).toBe(expectedIndexes.length);
+    for (const index of expectedIndexes) {
+      expect(result[index]).not.toBeUndefined();
+    }
+  });
+
+  it("FieldsListGetById", () => {
+    const f1 = setField(new TextField(), "id1", "test1");
+    const f2 = setField(new EmailField(), "id2", "test2");
+    const testFieldsList = NewFieldsList(f1, f2);
+
+    expect(testFieldsList.GetById("test1")).toBeNull();
+
+    const result2 = testFieldsList.GetById("id2");
+    expect(result2?.GetId()).toBe("id2");
+  });
+
+  it("FieldsListGetByName", () => {
+    const f1 = setField(new TextField(), "id1", "test1");
+    const f2 = setField(new EmailField(), "id2", "test2");
+    const testFieldsList = NewFieldsList(f1, f2);
+
+    expect(testFieldsList.GetByName("id1")).toBeNull();
+
+    const result2 = testFieldsList.GetByName("test2");
+    expect(result2?.GetName()).toBe("test2");
+  });
+
+  it("FieldsListRemove", () => {
+    const testFieldsList = NewFieldsList(
+      setField(new TextField(), "id1", "test1"),
+      setField(new TextField(), "id2", "test2"),
+      setField(new TextField(), "id3", "test3"),
+      setField(new TextField(), "id4", "test4"),
+      setField(new TextField(), "id5", "test5"),
+      setField(new TextField(), "id6", "test6"),
+    );
+
+    testFieldsList.RemoveById("id2");
+    testFieldsList.RemoveById("test3");
+    testFieldsList.RemoveByName("test5");
+    testFieldsList.RemoveByName("id6");
+
+    const expected = ["test1", "test3", "test4", "test6"];
+    expect(testFieldsList.length).toBe(expected.length);
+
+    for (const name of expected) {
+      expect(testFieldsList.GetByName(name)).not.toBeNull();
+    }
+  });
+
+  it("FieldsListAdd", () => {
+    const f0 = new TextField();
+    const f1 = setField(new TextField(), undefined, "test1");
+    const f2 = setField(new TextField(), "f2Id", "test2");
+    const f3 = setField(new TextField(), "f3Id", "test3");
+    const testFieldsList = NewFieldsList(f0, f1, f2, f3);
+
+    const f2New = setField(new EmailField(), "f2Id", "test2_new");
+    const f4 = setField(new URLField(), undefined, "test4");
+
+    testFieldsList.Add(f2New, f4);
+
+    expect(testFieldsList.length).toBe(5);
+
+    for (const field of testFieldsList) {
+      expect(field.GetId()).not.toBe("");
+    }
+
+    const replaced = testFieldsList.GetById("f2Id");
+    expect(replaced?.Type()).toBe(FieldTypeEmail);
+
+    const added = testFieldsList.GetByName("test4");
+    expect(added?.GetName()).toBe("test4");
+  });
+
+  it("FieldsListAddMarshaledJSON", () => {
+    const scenarios = [
+      {
+        name: "nil",
+        raw: null as string | null,
+        expectError: false,
+        expectedFields: { abc: FieldTypeNumber },
+      },
+      {
+        name: "empty array",
+        raw: "[]",
+        expectError: false,
+        expectedFields: { abc: FieldTypeNumber },
+      },
+      {
+        name: "empty object",
+        raw: "{}",
+        expectError: true,
+        expectedFields: { abc: FieldTypeNumber },
+      },
+      {
+        name: "array with empty object",
+        raw: "[{}]",
+        expectError: true,
+        expectedFields: { abc: FieldTypeNumber },
+      },
+      {
+        name: "single object with invalid type",
+        raw: `{"type":"missing","name":"test"}`,
+        expectError: true,
+        expectedFields: { abc: FieldTypeNumber },
+      },
+      {
+        name: "single object with valid type",
+        raw: `{"type":"text","name":"test"}`,
+        expectError: false,
+        expectedFields: { abc: FieldTypeNumber, test: FieldTypeText },
+      },
+      {
+        name: "array of object with valid types",
+        raw: `[{"type":"text","name":"test1"},{"type":"url","name":"test2"}]`,
+        expectError: false,
+        expectedFields: {
+          abc: FieldTypeNumber,
+          test1: FieldTypeText,
+          test2: FieldTypeURL,
+        },
+      },
+      {
+        name: "fields with duplicated ids should replace existing fields",
+        raw: `[{"type":"text","name":"test1"},{"type":"url","name":"test2"},{"type":"text","name":"abc2", "id":"abc_id"}]`,
+        expectError: false,
+        expectedFields: {
+          abc2: FieldTypeText,
+          test1: FieldTypeText,
+          test2: FieldTypeURL,
+        },
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const testList = NewFieldsList(setField(new NumberField(), "abc_id", "abc"));
+      const err = testList.AddMarshaledJSON(scenario.raw);
+      expect(Boolean(err)).toBe(scenario.expectError);
+
+      expect(testList.length).toBe(Object.keys(scenario.expectedFields).length);
+
+      for (const [fieldName, typ] of Object.entries(scenario.expectedFields)) {
+        const field = testList.GetByName(fieldName);
+        expect(field).not.toBeNull();
+        expect(field?.Type()).toBe(typ);
+      }
+    }
+  });
+
+  it("FieldsListAddAt", () => {
+    const scenarios = [
+      { position: -2, expected: ["test1", "test2_new", "test3", "test4"] },
+      { position: -1, expected: ["test1", "test2_new", "test3", "test4"] },
+      { position: 0, expected: ["test2_new", "test4", "test1", "test3"] },
+      { position: 1, expected: ["test1", "test2_new", "test4", "test3"] },
+      { position: 2, expected: ["test1", "test3", "test2_new", "test4"] },
+      { position: 3, expected: ["test1", "test3", "test2_new", "test4"] },
+      { position: 4, expected: ["test1", "test3", "test2_new", "test4"] },
+      { position: 5, expected: ["test1", "test3", "test2_new", "test4"] },
+    ];
+
+    for (const scenario of scenarios) {
+      const f1 = setField(new TextField(), "f1Id", "test1");
+      const f2 = setField(new TextField(), "f2Id", "test2");
+      const f3 = setField(new TextField(), "f3Id", "test3");
+      const testFieldsList = NewFieldsList(f1, f2, f3);
+
+      const f2New = setField(new EmailField(), "f2Id", "test2_new");
+      const f4 = setField(new URLField(), undefined, "test4");
+      testFieldsList.AddAt(scenario.position, f2New, f4);
+
+      expect(testFieldsList.FieldNames()).toEqual(scenario.expected);
+    }
+  });
+
+  it("FieldsListAddMarshaledJSONAt", () => {
+    const scenarios = [
+      { position: -2, expected: ["test1", "test2_new", "test3", "test4"] },
+      { position: -1, expected: ["test1", "test2_new", "test3", "test4"] },
+      { position: 0, expected: ["test2_new", "test4", "test1", "test3"] },
+      { position: 1, expected: ["test1", "test2_new", "test4", "test3"] },
+      { position: 2, expected: ["test1", "test3", "test2_new", "test4"] },
+      { position: 3, expected: ["test1", "test3", "test2_new", "test4"] },
+      { position: 4, expected: ["test1", "test3", "test2_new", "test4"] },
+      { position: 5, expected: ["test1", "test3", "test2_new", "test4"] },
+    ];
+
+    for (const scenario of scenarios) {
+      const f1 = setField(new TextField(), "f1Id", "test1");
+      const f2 = setField(new TextField(), "f2Id", "test2");
+      const f3 = setField(new TextField(), "f3Id", "test3");
+      const testFieldsList = NewFieldsList(f1, f2, f3);
+
+      const err = testFieldsList.AddMarshaledJSONAt(
+        scenario.position,
+        `[
+          {"id":"f2Id", "name":"test2_new", "type": "text"},
+          {"name": "test4", "type": "text"}
+        ]`,
+      );
+      expect(err).toBeNull();
+      expect(testFieldsList.FieldNames()).toEqual(scenario.expected);
+    }
+  });
+
+  it("FieldsListStringAndValue", () => {
+    {
+      const testFieldsList = NewFieldsList();
+      const str = testFieldsList.String();
+      expect(str).toBe("[]");
+      const v = testFieldsList.Value();
+      expect(v).toBe(str);
+    }
+
+    {
+      const testFieldsList = NewFieldsList(
+        setField(new TextField(), "f1id", "test1"),
+        setField(new BoolField(), "f2id", "test2"),
+        setField(new URLField(), "f3id", "test3"),
+      );
+
+      const str = testFieldsList.String();
+      const v = testFieldsList.Value();
+      expect(v).toBe(str);
+
+      const expectedParts = [
+        `"type":"bool"`,
+        `"type":"url"`,
+        `"type":"text"`,
+        `"id":"f1id"`,
+        `"id":"f2id"`,
+        `"id":"f3id"`,
+        `"name":"test1"`,
+        `"name":"test2"`,
+        `"name":"test3"`,
+      ];
+
+      for (const part of expectedParts) {
+        expect(str.includes(part)).toBe(true);
+      }
+    }
+  });
+
+  it("FieldsListScan", () => {
+    const scenarios = [
+      { name: "nil", data: null, expectError: false, expectJSON: "[]" },
+      { name: "empty string", data: "", expectError: false, expectJSON: "[]" },
+      { name: "empty byte", data: new Uint8Array(), expectError: false, expectJSON: "[]" },
+      { name: "empty string array", data: "[]", expectError: false, expectJSON: "[]" },
+      { name: "invalid string", data: "invalid", expectError: true, expectJSON: "[]" },
+      { name: "non-string", data: 123, expectError: true, expectJSON: "[]" },
+      { name: "item with no field type", data: "[{}]", expectError: true, expectJSON: "[]" },
+      {
+        name: "unknown field type",
+        data: `[{"id":"123","name":"test1","type":"unknown"},{"id":"456","name":"test2","type":"bool"}]`,
+        expectError: true,
+        expectJSON: "[]",
+      },
+      {
+        name: "only the minimum field options",
+        data: `[{"id":"123","name":"test1","type":"text","required":true},{"id":"456","name":"test2","type":"bool"}]`,
+        expectError: false,
+        expectJSON: `[{"autogeneratePattern":"","hidden":false,"id":"123","max":0,"min":0,"name":"test1","pattern":"","presentable":false,"primaryKey":false,"required":true,"system":false,"type":"text"},{"hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":false,"type":"bool"}]`,
+      },
+      {
+        name: "all field options",
+        data: `[{"autogeneratePattern":"","hidden":true,"id":"123","max":12,"min":0,"name":"test1","pattern":"","presentable":true,"primaryKey":false,"required":true,"system":false,"type":"text"},{"hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":true,"type":"bool"}]`,
+        expectError: false,
+        expectJSON: `[{"autogeneratePattern":"","hidden":true,"id":"123","max":12,"min":0,"name":"test1","pattern":"","presentable":true,"primaryKey":false,"required":true,"system":false,"type":"text"},{"hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":true,"type":"bool"}]`,
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const testFieldsList = new FieldsList();
+      const data =
+        typeof scenario.data === "string" ? scenario.data : scenario.data instanceof Uint8Array ? scenario.data : scenario.data;
+      const err = testFieldsList.Scan(data);
+
+      expect(Boolean(err)).toBe(scenario.expectError);
+      expect(testFieldsList.String()).toBe(scenario.expectJSON);
+    }
+  });
+
+  it("FieldsListJSON", () => {
+    const scenarios = [
+      { name: "empty string", data: "", expectError: true, expectJSON: "[]" },
+      { name: "invalid string", data: "invalid", expectError: true, expectJSON: "[]" },
+      { name: "empty string array", data: "[]", expectError: false, expectJSON: "[]" },
+      { name: "item with no field type", data: "[{}]", expectError: true, expectJSON: "[]" },
+      {
+        name: "unknown field type",
+        data: `[{"id":"123","name":"test1","type":"unknown"},{"id":"456","name":"test2","type":"bool"}]`,
+        expectError: true,
+        expectJSON: "[]",
+      },
+      {
+        name: "only the minimum field options",
+        data: `[{"id":"123","name":"test1","type":"text","required":true},{"id":"456","name":"test2","type":"bool"}]`,
+        expectError: false,
+        expectJSON: `[{"autogeneratePattern":"","hidden":false,"id":"123","max":0,"min":0,"name":"test1","pattern":"","presentable":false,"primaryKey":false,"required":true,"system":false,"type":"text"},{"hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":false,"type":"bool"}]`,
+      },
+      {
+        name: "all field options",
+        data: `[{"autogeneratePattern":"","hidden":true,"id":"123","max":12,"min":0,"name":"test1","pattern":"","presentable":true,"primaryKey":false,"required":true,"system":false,"type":"text"},{"hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":true,"type":"bool"}]`,
+        expectError: false,
+        expectJSON: `[{"autogeneratePattern":"","hidden":true,"id":"123","max":12,"min":0,"name":"test1","pattern":"","presentable":true,"primaryKey":false,"required":true,"system":false,"type":"text"},{"hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":true,"type":"bool"}]`,
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const testFieldsList = new FieldsList();
+      const err = testFieldsList.UnmarshalJSON(scenario.data);
+      expect(Boolean(err)).toBe(scenario.expectError);
+
+      const raw = testFieldsList.MarshalJSON();
+      expect(raw).toBe(scenario.expectJSON);
+    }
+  });
+});

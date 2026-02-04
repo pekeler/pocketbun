@@ -100,6 +100,7 @@ export interface App {
   auxDb(): Database;
   TxInfo(): { OnComplete: (fn: (txErr: Error | null) => Error | null) => void } | null;
   auxHasTable(name: string): boolean;
+  AuxHasTable(name: string): boolean;
   reloadSettings(): Error | null;
   ReloadSettings(): Error | null;
   runSystemMigrations(): void;
@@ -158,6 +159,7 @@ export interface App {
   Delete(model: Model): Promise<Error | null>;
   DeleteWithContext(ctx: unknown, model: Model): Promise<Error | null>;
   Validate(model: Model): Promise<Error | null>;
+  ValidateWithContext(ctx: unknown, model: Model): Promise<Error | null>;
   ValidateSync(model: Model): Error | null;
   TruncateCollection(collection: Collection): Promise<Error | null>;
   ImportCollectionsByMarshaledJSON(rawSliceOfMaps: string | Uint8Array, deleteMissing: boolean): Promise<Error | null>;
@@ -191,7 +193,11 @@ export interface App {
   FindCollectionReferences(collection: Collection, ...excludeIds: string[]): Map<Collection, Field[]>;
   FindCachedCollectionReferences(collection: Collection, ...excludeIds: string[]): Map<Collection, Field[]>;
   HasTable(name: string): boolean;
+  TableColumns(tableName: string): string[];
   TableIndexes(tableName: string): Record<string, string>;
+  DeleteTable(tableName: string): Error | null;
+  Vacuum(): Error | null;
+  AuxVacuum(): Error | null;
   IsCollectionNameUnique(name: string, excludeId?: string): boolean;
   findRecordById(collection: Collection, id: string, rule?: SqlExpr | null): RecordModel | null;
   FindRecordById(

@@ -71,7 +71,7 @@ import { dropCollectionIndexes, syncRecordTableSchema, syncRecordTableSchemaSync
 import { validateCollection, validateCollectionSync } from "./collection_validate.ts";
 import { GenerateDefaultRandomId, type PostValidator, type PreValidator } from "./db.ts";
 import { baseLockRetry, baseLockRetrySync, defaultMaxLockRetries } from "./db_retry.ts";
-import { TableInfo, TableIndexes } from "./db_table.ts";
+import { TableColumns, TableInfo, TableIndexes } from "./db_table.ts";
 import {
   AuxRunInTransaction as AuxRunInTransactionHelper,
   AuxRunInTransactionSync as AuxRunInTransactionSyncHelper,
@@ -187,7 +187,11 @@ import { RecordFieldResolver } from "./record_field_resolver.ts";
 import { FieldNameEmail, FieldNamePassword, Record as RecordModel, type RecordData } from "./record_model.ts";
 import { registerSuperuserHooks } from "./record_model_superusers.ts";
 import { RecordQuery, buildRecordFilterExpr, combineSqlExprs, type RecordQueryFilter } from "./record_query.ts";
-import { expandRecord as expandRecordHelper, expandRecords as expandRecordsHelper } from "./record_query_expand.ts";
+import {
+  expandRecord as expandRecordHelper,
+  expandRecords as expandRecordsHelper,
+  type ExpandFetchFunc,
+} from "./record_query_expand.ts";
 import {
   TokenClaimCollectionId,
   TokenClaimId,
@@ -1086,6 +1090,10 @@ export class BaseApp implements App {
     return Boolean(row?.name);
   }
 
+  AuxHasTable(name: string): boolean {
+    return this.auxHasTable(name);
+  }
+
   runAllMigrations(): void {
     const list = new MigrationsList();
     list.copy(SystemMigrations);
@@ -1155,11 +1163,11 @@ export class BaseApp implements App {
     return new RecordQuery(this, collectionModelOrIdentifier);
   }
 
-  ExpandRecord(record: RecordModel, expands: string[], optFetchFunc = null): Record<string, Error> {
+  ExpandRecord(record: RecordModel, expands: string[], optFetchFunc: ExpandFetchFunc | null = null): Record<string, Error> {
     return expandRecordHelper(this, record, expands, optFetchFunc);
   }
 
-  ExpandRecords(records: RecordModel[], expands: string[], optFetchFunc = null): Record<string, Error> {
+  ExpandRecords(records: RecordModel[], expands: string[], optFetchFunc: ExpandFetchFunc | null = null): Record<string, Error> {
     return expandRecordsHelper(this, records, expands, optFetchFunc);
   }
 
@@ -1697,14 +1705,11 @@ export class BaseApp implements App {
 
   NewFilesystem() {
     if (this.#settings.s3.enabled) {
-      return NewS3(
-        this.#settings.s3.bucket,
-        this.#settings.s3.region,
-        this.#settings.s3.endpoint,
-        this.#settings.s3.accessKey,
-        this.#settings.s3.secret,
-        this.#settings.s3.forcePathStyle,
-      );
+      const s3 = this.#settings.s3;
+      if (!s3.bucket || !s3.region || !s3.endpoint || !s3.accessKey || !s3.secret) {
+        throw new Error("missing or invalid s3 config");
+      }
+      return NewS3(s3.bucket, s3.region, s3.endpoint, s3.accessKey, s3.secret, s3.forcePathStyle);
     }
 
     return NewLocal(join(this.#dataDir, LocalStorageDirName));
@@ -1712,14 +1717,11 @@ export class BaseApp implements App {
 
   NewBackupsFilesystem() {
     if (this.#settings.backups.s3.enabled) {
-      return NewS3(
-        this.#settings.backups.s3.bucket,
-        this.#settings.backups.s3.region,
-        this.#settings.backups.s3.endpoint,
-        this.#settings.backups.s3.accessKey,
-        this.#settings.backups.s3.secret,
-        this.#settings.backups.s3.forcePathStyle,
-      );
+      const s3 = this.#settings.backups.s3;
+      if (!s3.bucket || !s3.region || !s3.endpoint || !s3.accessKey || !s3.secret) {
+        throw new Error("missing or invalid s3 config");
+      }
+      return NewS3(s3.bucket, s3.region, s3.endpoint, s3.accessKey, s3.secret, s3.forcePathStyle);
     }
 
     return NewLocal(join(this.#dataDir, LocalBackupsDirName));
@@ -2386,15 +2388,19 @@ export class BaseApp implements App {
   }
 
   async Validate(model: Model): Promise<Error | null> {
+    return await this.ValidateWithContext(null, model);
+  }
+
+  async ValidateWithContext(ctx: unknown, model: Model): Promise<Error | null> {
     const preValidator = model as Partial<PreValidator>;
     if (typeof preValidator.PreValidate === "function") {
-      const preErr = preValidator.PreValidate(null, this);
+      const preErr = preValidator.PreValidate(ctx, this);
       if (preErr) {
         return preErr;
       }
     }
 
-    const event = new ModelEvent(this, model, ModelEventTypeValidate);
+    const event = new ModelEvent(this, model, ModelEventTypeValidate, ctx);
     const result = (await this.OnModelValidate().Trigger(event, async (modelEvent) => {
       const recordInfo = resolveRecordProxy(model);
       if (!recordInfo && model instanceof Collection) {
@@ -2407,7 +2413,7 @@ export class BaseApp implements App {
 
       const postValidator = model as Partial<PostValidator>;
       if (typeof postValidator.PostValidate === "function") {
-        const postErr = postValidator.PostValidate(null, this);
+        const postErr = postValidator.PostValidate(ctx, this);
         if (postErr) {
           return postErr;
         }
@@ -2606,6 +2612,14 @@ export class BaseApp implements App {
   // (this includes their related records data).
   async ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Promise<Error | null> {
     return await importCollections(this, toImport, deleteMissing);
+  }
+
+  SyncRecordTableSchema(newCollection: Collection, oldCollection: Collection | null): Promise<Error | null> {
+    return this.syncRecordTableSchema(newCollection, oldCollection);
+  }
+
+  SyncRecordTableSchemaSync(newCollection: Collection, oldCollection: Collection | null): Error | null {
+    return this.syncRecordTableSchemaSync(newCollection, oldCollection);
   }
 
   private validateRecord(record: RecordModel): Error | null {
@@ -4000,8 +4014,31 @@ export class BaseApp implements App {
     return TableInfo(this.db(), tableName);
   }
 
+  TableColumns(tableName: string): string[] {
+    return TableColumns(this.db(), tableName);
+  }
+
   TableIndexes(tableName: string): Record<string, string> {
     return TableIndexes(this.db(), tableName);
+  }
+
+  // DeleteTable drops the specified table.
+  //
+  // This method is a no-op if a table with the provided name doesn't exist.
+  //
+  // NB! Be aware that this method is vulnerable to SQL injection and the
+  // "tableName" argument must come only from trusted input!
+  DeleteTable(tableName: string): Error | null {
+    if (!tableName) {
+      return new Error("Missing table name");
+    }
+
+    try {
+      this.db().run(`drop table if exists {{${tableName}}}`);
+      return null;
+    } catch (error) {
+      return error as Error;
+    }
   }
 
   HasTable(name: string): boolean {
@@ -4009,6 +4046,26 @@ export class BaseApp implements App {
       .query("select name from sqlite_master where type in ('table','view') and lower(name) = lower(?)")
       .get(name) as { name?: string } | undefined;
     return Boolean(row?.name);
+  }
+
+  // Vacuum executes VACUUM on the data database.
+  Vacuum(): Error | null {
+    try {
+      this.db().run("VACUUM");
+      return null;
+    } catch (error) {
+      return error as Error;
+    }
+  }
+
+  // AuxVacuum executes VACUUM on the auxiliary database.
+  AuxVacuum(): Error | null {
+    try {
+      this.auxDb().run("VACUUM");
+      return null;
+    } catch (error) {
+      return error as Error;
+    }
   }
 
   IsCollectionNameUnique(name: string, excludeId?: string): boolean {

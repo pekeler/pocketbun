@@ -125,9 +125,14 @@ export class FieldsList extends Array<Field> {
   //
   //	l.AddMarshaledJSON([]byte{`{"type":"text", name: "test"}`})
   //	l.AddMarshaledJSON([]byte{`[{"type":"text", name: "test1"}, {"type":"text", name: "test2"}]`})
-  AddMarshaledJSON(rawJSON: string | Uint8Array | null | undefined): void {
-    const extracted = marshaledJSONtoFieldsList(rawJSON);
-    this.Add(...extracted);
+  AddMarshaledJSON(rawJSON: string | Uint8Array | null | undefined): Error | null {
+    try {
+      const extracted = marshaledJSONtoFieldsList(rawJSON);
+      this.Add(...extracted);
+      return null;
+    } catch (error) {
+      return error as Error;
+    }
   }
 
   // AddMarshaledJSONAt is the same as AddMarshaledJSON but insert/move the fields at the specific position.
@@ -135,14 +140,72 @@ export class FieldsList extends Array<Field> {
   // If pos < 0, then this method acts the same as calling AddMarshaledJSON.
   //
   // If pos > FieldsList total items, then the specified fields are inserted/moved at the end of the list.
-  AddMarshaledJSONAt(pos: number, rawJSON: string | Uint8Array | null | undefined): void {
-    const extracted = marshaledJSONtoFieldsList(rawJSON);
-    this.AddAt(pos, ...extracted);
+  AddMarshaledJSONAt(pos: number, rawJSON: string | Uint8Array | null | undefined): Error | null {
+    try {
+      const extracted = marshaledJSONtoFieldsList(rawJSON);
+      this.AddAt(pos, ...extracted);
+      return null;
+    } catch (error) {
+      return error as Error;
+    }
   }
 
   // String returns the string representation of the current list.
   String(): string {
     return JSON.stringify(this);
+  }
+
+  MarshalJSON(): string {
+    return this.String();
+  }
+
+  UnmarshalJSON(rawJSON: string | Uint8Array): Error | null {
+    try {
+      const text = typeof rawJSON === "string" ? rawJSON : new TextDecoder().decode(rawJSON);
+      if (text.length === 0) {
+        return new Error("failed to unmarshal the provided JSON - expects array of objects or just single object");
+      }
+      const fields = parseFieldsJSON(rawJSON);
+      this.splice(0, this.length);
+      for (const field of fields) {
+        this.add(-1, field);
+      }
+      return null;
+    } catch (error) {
+      return error as Error;
+    }
+  }
+
+  // Value implements driver.Valuer-like behavior and returns JSON string.
+  Value(): string {
+    return this.String();
+  }
+
+  // Scan implements driver.Scanner-like behavior.
+  Scan(value: unknown): Error | null {
+    try {
+      if (value == null) {
+        this.splice(0, this.length);
+        return null;
+      }
+      if (value instanceof Uint8Array) {
+        if (value.length === 0) {
+          this.splice(0, this.length);
+          return null;
+        }
+        return this.UnmarshalJSON(value);
+      }
+      if (typeof value === "string") {
+        if (value === "") {
+          this.splice(0, this.length);
+          return null;
+        }
+        return this.UnmarshalJSON(value);
+      }
+      return new Error("failed to unmarshal the provided JSON - expects array of objects or just single object");
+    } catch (error) {
+      return error as Error;
+    }
   }
 
   toJSON(): Record<string, unknown>[] {
@@ -282,7 +345,13 @@ function parseFieldsJSON(rawJSON: string | Uint8Array): Field[] {
     }
   }
 
-  const entries = Array.isArray(parsed) ? parsed : null;
+  let entries: unknown[] | null = null;
+  if (Array.isArray(parsed)) {
+    entries = parsed;
+  } else if (parsed && typeof parsed === "object") {
+    entries = [parsed];
+  }
+
   if (!entries) {
     throw new Error("failed to unmarshal the provided JSON - expects array of objects or just single object");
   }

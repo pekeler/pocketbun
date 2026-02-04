@@ -8,7 +8,7 @@ export type TableInfoRow = {
   Name: string;
   Type: string;
   NotNull: boolean;
-  DefaultValue: string | null;
+  DefaultValue: { String: string; Valid: boolean };
 };
 
 export function TableInfo(db: Database, tableName: string): TableInfoRow[] {
@@ -33,7 +33,7 @@ export function TableInfo(db: Database, tableName: string): TableInfoRow[] {
     Name: row.name,
     Type: row.type,
     NotNull: Boolean(row.notnull),
-    DefaultValue: row.dflt_value,
+    DefaultValue: row.dflt_value == null ? { String: "", Valid: false } : { String: row.dflt_value, Valid: true },
   }));
 }
 

@@ -68,7 +68,8 @@ function expandRecordsPath(
   let relField: RelationField | null = null;
   let relCollection: Collection | null = null;
 
-  const parts = expandPath.split(".", 2);
+  const dotIndex = expandPath.indexOf(".");
+  const parts = dotIndex === -1 ? [expandPath] : [expandPath.slice(0, dotIndex), expandPath.slice(dotIndex + 1)];
   let matches: RegExpMatchArray | null = null;
 
   if (parts[0]?.includes("(")) {

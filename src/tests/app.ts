@@ -4,21 +4,13 @@ import { cp, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Logger } from "../core/app.ts";
 import type { MailerEvent } from "../core/events.ts";
 import { BaseApp } from "../core/base.ts";
-import * as slog from "../internal/compat/slog.ts";
 import { TestMailer } from "./mailer.ts";
 
 export class TestApp extends BaseApp {
   eventCalls: Record<string, number> = {};
   testMailer: TestMailer = new TestMailer();
-  #logger: Logger = slog.Default();
-
-  override Logger(): Logger {
-    // Silence expected warnings in tests to keep output aligned with upstream.
-    return this.#logger;
-  }
 
   resetEventCalls(): void {
     this.eventCalls = {};

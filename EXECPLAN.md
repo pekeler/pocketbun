@@ -92,6 +92,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-03 20:05Z) Port tools/osutils cmd/run modules and tests, and align MoveDirContent mkdir/rollback behavior with upstream.
 - [x] (2026-02-03 21:05Z) Port tools/logger log/batch handler + tests and add a minimal slog compat shim for structured logging parity.
 - [x] (2026-02-03 22:10Z) Port tools/template registry/renderer + tests, wire $template into JS hooks/migrations, and document JS-friendly templating guidance.
+- [x] (2026-02-03 22:21Z) Port remaining tools/types Pointer test, add core settings_query + record_model_superusers + db tests, and wire ValidateWithContext in BaseApp.
+- [x] (2026-02-03 22:51Z) Port core base/base_backup/db_table/record_query_expand/fields_list tests, add FieldsList Scan/Value/MarshalJSON helpers, expose TableColumns/DeleteTable/Vacuum/AuxHasTable on BaseApp, and validate S3 config before NewFilesystem/NewBackupsFilesystem.
 - [x] (2026-02-03 23:05Z) Port tools/mailer html2text + smtp login auth + mailer tests for address formatting and mime detection.
 - [x] (2026-02-03 23:20Z) Port tools/routine FireAndForget test and align async recovery behavior.
 
@@ -131,6 +133,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   Evidence: DateTime Scan test scenario for `1.0` expects `1970-01-01 00:00:01.000Z`.
 
 ## Decision Log
+
+- (2026-02-03) CLI/example files from upstream are intentionally omitted in PocketBun (library-only). The missing mapping for `cmd/serve.go`, `plugins/migratecmd/*`, and `examples/base/main.go` is expected and will be tracked as an intentional omission rather than stubbed.
 
 - Decision: Structure the port as incremental, end-to-end slices that always end in runnable behavior with tests, starting with /api/health and static Admin UI.
   Rationale: Early behavioral parity and tests reduce drift and make later ports safer.
