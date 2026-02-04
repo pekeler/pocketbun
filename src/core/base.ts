@@ -64,7 +64,11 @@ import {
   FindCollectionByNameOrId as FindCollectionByNameOrIdQuery,
   FindCollectionReferences as FindCollectionReferencesQuery,
   IsCollectionNameUnique as IsCollectionNameUniqueQuery,
+  normalizeViewQueryId,
+  normalizeViewQueryIdSync,
   ReloadCachedCollections as ReloadCachedCollectionsQuery,
+  resaveViewsWithChangedFields,
+  resaveViewsWithChangedFieldsSync,
   TruncateCollection as TruncateCollectionQuery,
 } from "./collection_query.ts";
 import { dropCollectionIndexes, syncRecordTableSchema, syncRecordTableSchemaSync } from "./collection_record_table_sync.ts";
@@ -202,7 +206,7 @@ import {
   TokenTypePasswordReset,
   TokenTypeVerification,
 } from "./record_tokens.ts";
-import { Settings } from "./settings_model.ts";
+import { ParamsKeySettings, ParamsTableName, Settings } from "./settings_model.ts";
 import { ReloadSettings as ReloadSettingsHelper } from "./settings_query.ts";
 import { Store } from "./store.ts";
 import { NormalizeUniqueIndexError } from "./validators/db.ts";
@@ -348,6 +352,7 @@ export class BaseApp implements App {
     this.resetHooks();
 
     this.registerBaseHooks();
+    this.registerSettingsHooks();
     this.registerAutobackupHooks();
     this.registerCollectionHooks();
     this.registerRecordHooks();
@@ -1027,6 +1032,7 @@ export class BaseApp implements App {
   }
 
   resetBootstrapState(): void {
+    this.Cron().Stop();
     if (this.#db) {
       this.#db.close();
       this.#db = null;
@@ -2022,17 +2028,15 @@ export class BaseApp implements App {
     const isNew = model.isNew();
     const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
     const runValidatedExecute = async (): Promise<Error | null> => {
+      this.prepareCollectionForSave(model);
       if (runValidation) {
-        if (isNew) {
-          model.initDefaultId();
-        }
         const validateErr = await this.Validate(model);
         if (validateErr) {
           return validateErr;
         }
       }
       return (await (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, async () =>
-        this.saveCollection(model, false),
+        this.saveCollection(model, false, true),
       )) as Error | null;
     };
     const saveErr = (await (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
@@ -2211,17 +2215,15 @@ export class BaseApp implements App {
     const isNew = model.isNew();
     const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
     const runValidatedExecute = (): Error | null => {
+      this.prepareCollectionForSave(model);
       if (runValidation) {
-        if (isNew) {
-          model.initDefaultId();
-        }
         const validateErr = this.ValidateSync(model);
         if (validateErr) {
           return validateErr;
         }
       }
       const execResult = (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, () =>
-        this.saveCollectionSync(model, false),
+        this.saveCollectionSync(model, false, true),
       );
       return ensureSyncHookResult(execResult, "OnModelSaveExecute");
     };
@@ -2897,13 +2899,14 @@ export class BaseApp implements App {
   }
 
   private async deleteRecord(record: RecordModel): Promise<Error | null> {
-    if (!record.Id) {
-      return new Error("missing record id");
+    const pk = record.LastSavedPK();
+    if (!pk) {
+      return new Error("the model can be deleted only if it is existing and has a non-empty primary key");
     }
 
     return await baseLockRetry(() => {
       try {
-        this.db().run(`delete from {{${record.TableName()}}} where id = ?`, [record.Id]);
+        this.db().run(`delete from {{${record.TableName()}}} where id = ?`, [pk]);
         return null;
       } catch (error) {
         return error as Error;
@@ -2912,7 +2915,7 @@ export class BaseApp implements App {
   }
 
   private async deleteGenericModel(model: Model): Promise<Error | null> {
-    const pk = model.PK();
+    const pk = model.LastSavedPK();
     if (!pk) {
       return new Error("the model can be deleted only if it is existing and has a non-empty primary key");
     }
@@ -2977,14 +2980,10 @@ export class BaseApp implements App {
       settings.MarkAsNotNew();
     }
 
-    this.reloadSettings();
-
     return null;
   }
 
-  private async saveCollection(collection: Collection, runValidation: boolean): Promise<Error | null> {
-    const original = collection.isNew() ? null : this.findCollectionById(collection.LastSavedPK());
-
+  private prepareCollectionForSave(collection: Collection): void {
     if (!collection.type) {
       collection.type = "base";
     }
@@ -3003,6 +3002,14 @@ export class BaseApp implements App {
     collection.updateGeneratedIdIfExists(this);
 
     normalizeCollectionFields(collection);
+  }
+
+  private async saveCollection(collection: Collection, runValidation: boolean, prepared = false): Promise<Error | null> {
+    const original = collection.isNew() ? null : this.findCollectionById(collection.LastSavedPK());
+
+    if (!prepared) {
+      this.prepareCollectionForSave(collection);
+    }
 
     if (runValidation) {
       const validationErr = await this.Validate(collection);
@@ -3013,8 +3020,9 @@ export class BaseApp implements App {
 
     if (collection.isView()) {
       let viewFields: FieldsList;
+      let query = collection.ViewQuery;
       try {
-        viewFields = await this.CreateViewFields(collection.ViewQuery);
+        viewFields = await this.CreateViewFields(query);
       } catch (error) {
         return error as Error;
       }
@@ -3026,7 +3034,13 @@ export class BaseApp implements App {
         }
       }
 
-      const saveViewErr = await this.SaveView(collection.name, collection.ViewQuery);
+      try {
+        query = await normalizeViewQueryId(this, query);
+      } catch (error) {
+        return new Error(`failed to normalize view query id: ${(error as Error).message}`);
+      }
+
+      const saveViewErr = await this.SaveView(collection.name, query);
       if (saveViewErr) {
         return saveViewErr;
       }
@@ -3097,30 +3111,17 @@ export class BaseApp implements App {
       this.Logger().Warn("Failed to reload collections cache", "error", reloadErr);
     }
 
+    await resaveViewsWithChangedFields(this, collection.id);
+
     return null;
   }
 
-  private saveCollectionSync(collection: Collection, runValidation: boolean): Error | null {
+  private saveCollectionSync(collection: Collection, runValidation: boolean, prepared = false): Error | null {
     const original = collection.isNew() ? null : this.findCollectionById(collection.LastSavedPK());
 
-    if (!collection.type) {
-      collection.type = "base";
+    if (!prepared) {
+      this.prepareCollectionForSave(collection);
     }
-
-    if (collection.isNew()) {
-      collection.initDefaultId();
-      collection.created = NowDateTime();
-    }
-    collection.updated = NowDateTime();
-
-    collection.Fields = NewFieldsList(...collection.Fields);
-    collection.initDefaultFields();
-    if (collection.isAuth()) {
-      collection.unsetMissingOAuth2MappedFields();
-    }
-    collection.updateGeneratedIdIfExists(this);
-
-    normalizeCollectionFields(collection);
 
     if (runValidation) {
       const validationErr = this.ValidateSync(collection);
@@ -3131,8 +3132,9 @@ export class BaseApp implements App {
 
     if (collection.isView()) {
       let viewFields: FieldsList;
+      let query = collection.ViewQuery;
       try {
-        viewFields = this.CreateViewFieldsSync(collection.ViewQuery);
+        viewFields = this.CreateViewFieldsSync(query);
       } catch (error) {
         return error as Error;
       }
@@ -3144,7 +3146,13 @@ export class BaseApp implements App {
         }
       }
 
-      const saveViewErr = this.SaveViewSync(collection.name, collection.ViewQuery);
+      try {
+        query = normalizeViewQueryIdSync(this, query);
+      } catch (error) {
+        return new Error(`failed to normalize view query id: ${(error as Error).message}`);
+      }
+
+      const saveViewErr = this.SaveViewSync(collection.name, query);
       if (saveViewErr) {
         return saveViewErr;
       }
@@ -3215,6 +3223,8 @@ export class BaseApp implements App {
       this.Logger().Warn("Failed to reload collections cache", "error", reloadErr);
     }
 
+    resaveViewsWithChangedFieldsSync(this, collection.id);
+
     return null;
   }
 
@@ -3222,33 +3232,53 @@ export class BaseApp implements App {
     if (collection.system) {
       return new Error(`[${collection.name}] system collections cannot be deleted`);
     }
-    if (collection.id === "") {
-      return new Error("missing collection id");
+    const pk = collection.LastSavedPK();
+    if (!pk) {
+      return new Error("the model can be deleted only if it is existing and has a non-empty primary key");
     }
 
     if (collection.integrityChecksEnabled()) {
-      const references = this.FindCachedCollectionReferences(collection, collection.id);
+      let references: Map<Collection, unknown[]>;
+      try {
+        references = this.FindCollectionReferences(collection, collection.id);
+      } catch (error) {
+        return new Error(`[${collection.name}] failed to check collection references: ${(error as Error).message}`);
+      }
       if (references.size > 0) {
         const names = Array.from(references.keys()).map((ref) => ref.name);
         return new Error(`[${collection.name}] failed to delete due to existing relation references: ${names.join(", ")}`);
       }
     }
 
-    const dropErr = dropCollectionIndexes(this, collection);
-    if (dropErr) {
-      return dropErr;
-    }
-
-    if (collection.isView()) {
-      const viewErr = this.DeleteView(collection.name);
-      if (viewErr) {
-        return viewErr;
+    const deleteErr = this.RunInTransactionSync((txApp) => {
+      const dropErr = dropCollectionIndexes(txApp, collection);
+      if (dropErr) {
+        return dropErr;
       }
-    } else {
-      this.db().run(`drop table if exists {{${collection.name}}}`);
+
+      if (collection.isView()) {
+        const viewErr = txApp.DeleteView(collection.name);
+        if (viewErr) {
+          return viewErr;
+        }
+      } else {
+        txApp.db().run(`drop table if exists {{${collection.name}}}`);
+      }
+
+      if (collection.integrityChecksEnabled()) {
+        const viewErr = resaveViewsWithChangedFieldsSync(txApp, collection.id);
+        if (viewErr) {
+          return new Error(`[${collection.name}] failed to delete due to existing view dependency: ${viewErr.message}`);
+        }
+      }
+
+      txApp.db().run("delete from _collections where id = ?", [pk]);
+      return null;
+    });
+    if (deleteErr) {
+      return deleteErr;
     }
 
-    this.db().run("delete from _collections where id = ?", [collection.id]);
     const reloadErr = this.ReloadCachedCollections();
     if (reloadErr) {
       this.Logger().Warn("Failed to reload collections cache", "error", reloadErr);
@@ -3354,6 +3384,105 @@ export class BaseApp implements App {
     registerAutobackupHooksHelper(this);
   }
 
+  private registerSettingsHooks(): void {
+    const systemHookIdSettings = "__pbSettingsSystemHook__";
+
+    const saveFunc = (me: ModelEvent): Error | Promise<Error | null> | null => {
+      const handleNext = (nextErr: Error | null): Error | null => {
+        if (nextErr) {
+          return nextErr;
+        }
+
+        const model = me.Model;
+        if (model && model.PK() === ParamsKeySettings) {
+          const postErr = this.settings().PostScan();
+          const reloadErr = this.ReloadSettings();
+          if (postErr && reloadErr) {
+            return new Error(`${postErr.message}; ${reloadErr.message}`);
+          }
+          return postErr ?? reloadErr ?? null;
+        }
+
+        return null;
+      };
+
+      const nextResult = me.Next();
+      if (nextResult instanceof Promise) {
+        return nextResult.then((err) => handleNext(err as Error | null));
+      }
+
+      return handleNext(nextResult as Error | null);
+    };
+
+    this.OnModelAfterCreateSuccess([ParamsTableName]).Bind({
+      Id: systemHookIdSettings,
+      Priority: -999,
+      Func: saveFunc,
+    });
+
+    this.OnModelAfterUpdateSuccess([ParamsTableName]).Bind({
+      Id: systemHookIdSettings,
+      Priority: -999,
+      Func: saveFunc,
+    });
+
+    this.OnModelDelete([ParamsTableName]).Bind({
+      Id: systemHookIdSettings,
+      Priority: -999,
+      Func: (me) => {
+        const model = me.Model;
+        if (model && model.PK() === ParamsKeySettings) {
+          return new Error("the app params settings cannot be deleted");
+        }
+        return me.Next();
+      },
+    });
+
+    this.OnCollectionUpdate().Bind({
+      Id: systemHookIdSettings,
+      Priority: 99,
+      Func: async (event) => {
+        let oldCollection: Collection;
+        try {
+          oldCollection = this.FindCachedCollectionByNameOrId(event.Collection?.id ?? "");
+        } catch (error) {
+          return error as Error;
+        }
+
+        const nextResult = event.Next();
+        const nextErr = nextResult instanceof Promise ? await nextResult : (nextResult as Error | null);
+        if (nextErr) {
+          return nextErr;
+        }
+
+        if (!event.Collection) {
+          return null;
+        }
+
+        if (oldCollection.name !== event.Collection.name) {
+          let hasChange = false;
+          const rules = this.settings().rateLimits.rules;
+          for (const rule of rules) {
+            if (rule.label && rule.label.startsWith(`${oldCollection.name}:`)) {
+              rule.label = rule.label.replace(`${oldCollection.name}:`, `${event.Collection.name}:`);
+              hasChange = true;
+            }
+          }
+
+          if (hasChange) {
+            this.settings().rateLimits.rules = rules;
+            const saveErr = await this.Save(this.settings());
+            if (saveErr) {
+              return saveErr;
+            }
+          }
+        }
+
+        return null;
+      },
+    });
+  }
+
   private registerCollectionHooks(): void {
     const systemHookIdCollection = "__pbCollectionSystemHook__";
 
@@ -3365,11 +3494,10 @@ export class BaseApp implements App {
         if (!ok || !ce) {
           return me.Next();
         }
-        const err = this.OnCollectionValidate().Trigger(ce, (event) =>
+        const result = this.OnCollectionValidate().Trigger(ce, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
         );
-        syncModelEventWithCollectionEvent(me, ce);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithCollectionEvent(me, ce));
       },
     });
 
@@ -3381,11 +3509,10 @@ export class BaseApp implements App {
         if (!ok || !ce) {
           return me.Next();
         }
-        const err = this.OnCollectionCreate().Trigger(ce, (event) =>
+        const result = this.OnCollectionCreate().Trigger(ce, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
         );
-        syncModelEventWithCollectionEvent(me, ce);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithCollectionEvent(me, ce));
       },
     });
 
@@ -3397,11 +3524,10 @@ export class BaseApp implements App {
         if (!ok || !ce) {
           return me.Next();
         }
-        const err = this.OnCollectionCreateExecute().Trigger(ce, (event) =>
+        const result = this.OnCollectionCreateExecute().Trigger(ce, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
         );
-        syncModelEventWithCollectionEvent(me, ce);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithCollectionEvent(me, ce));
       },
     });
 
@@ -3413,11 +3539,10 @@ export class BaseApp implements App {
         if (!ok || !ce) {
           return me.Next();
         }
-        const err = this.OnCollectionAfterCreateSuccess().Trigger(ce, (event) =>
+        const result = this.OnCollectionAfterCreateSuccess().Trigger(ce, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
         );
-        syncModelEventWithCollectionEvent(me, ce);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithCollectionEvent(me, ce));
       },
     });
 
@@ -3429,7 +3554,7 @@ export class BaseApp implements App {
         if (!ok || !ce) {
           return me.Next();
         }
-        const err = this.OnCollectionAfterCreateError().Trigger(ce, (event) =>
+        const result = this.OnCollectionAfterCreateError().Trigger(ce, (event) =>
           runHookNextWithSync(
             me,
             event,
@@ -3437,8 +3562,7 @@ export class BaseApp implements App {
             syncCollectionErrorEventWithModelErrorEvent,
           ),
         );
-        syncModelErrorEventWithCollectionErrorEvent(me, ce);
-        return err;
+        return syncAfterHookResult(result, () => syncModelErrorEventWithCollectionErrorEvent(me, ce));
       },
     });
 
@@ -3450,11 +3574,10 @@ export class BaseApp implements App {
         if (!ok || !ce) {
           return me.Next();
         }
-        const err = this.OnCollectionUpdate().Trigger(ce, (event) =>
+        const result = this.OnCollectionUpdate().Trigger(ce, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
         );
-        syncModelEventWithCollectionEvent(me, ce);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithCollectionEvent(me, ce));
       },
     });
 
@@ -3466,11 +3589,10 @@ export class BaseApp implements App {
         if (!ok || !ce) {
           return me.Next();
         }
-        const err = this.OnCollectionUpdateExecute().Trigger(ce, (event) =>
+        const result = this.OnCollectionUpdateExecute().Trigger(ce, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
         );
-        syncModelEventWithCollectionEvent(me, ce);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithCollectionEvent(me, ce));
       },
     });
 
@@ -3482,11 +3604,10 @@ export class BaseApp implements App {
         if (!ok || !ce) {
           return me.Next();
         }
-        const err = this.OnCollectionAfterUpdateSuccess().Trigger(ce, (event) =>
+        const result = this.OnCollectionAfterUpdateSuccess().Trigger(ce, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
         );
-        syncModelEventWithCollectionEvent(me, ce);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithCollectionEvent(me, ce));
       },
     });
 
@@ -3498,7 +3619,7 @@ export class BaseApp implements App {
         if (!ok || !ce) {
           return me.Next();
         }
-        const err = this.OnCollectionAfterUpdateError().Trigger(ce, (event) =>
+        const result = this.OnCollectionAfterUpdateError().Trigger(ce, (event) =>
           runHookNextWithSync(
             me,
             event,
@@ -3506,8 +3627,7 @@ export class BaseApp implements App {
             syncCollectionErrorEventWithModelErrorEvent,
           ),
         );
-        syncModelErrorEventWithCollectionErrorEvent(me, ce);
-        return err;
+        return syncAfterHookResult(result, () => syncModelErrorEventWithCollectionErrorEvent(me, ce));
       },
     });
 
@@ -3519,11 +3639,10 @@ export class BaseApp implements App {
         if (!ok || !ce) {
           return me.Next();
         }
-        const err = this.OnCollectionDelete().Trigger(ce, (event) =>
+        const result = this.OnCollectionDelete().Trigger(ce, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
         );
-        syncModelEventWithCollectionEvent(me, ce);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithCollectionEvent(me, ce));
       },
     });
 
@@ -3535,11 +3654,10 @@ export class BaseApp implements App {
         if (!ok || !ce) {
           return me.Next();
         }
-        const err = this.OnCollectionDeleteExecute().Trigger(ce, (event) =>
+        const result = this.OnCollectionDeleteExecute().Trigger(ce, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
         );
-        syncModelEventWithCollectionEvent(me, ce);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithCollectionEvent(me, ce));
       },
     });
 
@@ -3551,11 +3669,10 @@ export class BaseApp implements App {
         if (!ok || !ce) {
           return me.Next();
         }
-        const err = this.OnCollectionAfterDeleteSuccess().Trigger(ce, (event) =>
+        const result = this.OnCollectionAfterDeleteSuccess().Trigger(ce, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithCollectionEvent, syncCollectionEventWithModelEvent),
         );
-        syncModelEventWithCollectionEvent(me, ce);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithCollectionEvent(me, ce));
       },
     });
 
@@ -3567,7 +3684,7 @@ export class BaseApp implements App {
         if (!ok || !ce) {
           return me.Next();
         }
-        const err = this.OnCollectionAfterDeleteError().Trigger(ce, (event) =>
+        const result = this.OnCollectionAfterDeleteError().Trigger(ce, (event) =>
           runHookNextWithSync(
             me,
             event,
@@ -3575,8 +3692,7 @@ export class BaseApp implements App {
             syncCollectionErrorEventWithModelErrorEvent,
           ),
         );
-        syncModelErrorEventWithCollectionErrorEvent(me, ce);
-        return err;
+        return syncAfterHookResult(result, () => syncModelErrorEventWithCollectionErrorEvent(me, ce));
       },
     });
   }
@@ -3592,11 +3708,10 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const err = this.OnRecordValidate().Trigger(re, (event) =>
+        const result = this.OnRecordValidate().Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
-        syncModelEventWithRecordEvent(me, re);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
@@ -3608,11 +3723,10 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const err = this.OnRecordCreate().Trigger(re, (event) =>
+        const result = this.OnRecordCreate().Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
-        syncModelEventWithRecordEvent(me, re);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
@@ -3624,11 +3738,10 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const err = this.OnRecordCreateExecute().Trigger(re, (event) =>
+        const result = this.OnRecordCreateExecute().Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
-        syncModelEventWithRecordEvent(me, re);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
@@ -3640,11 +3753,10 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const err = this.OnRecordAfterCreateSuccess().Trigger(re, (event) =>
+        const result = this.OnRecordAfterCreateSuccess().Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
-        syncModelEventWithRecordEvent(me, re);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
@@ -3656,11 +3768,10 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const err = this.OnRecordAfterCreateError().Trigger(re, (event) =>
+        const result = this.OnRecordAfterCreateError().Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelErrorEventWithRecordErrorEvent, syncRecordErrorEventWithModelErrorEvent),
         );
-        syncModelErrorEventWithRecordErrorEvent(me, re);
-        return err;
+        return syncAfterHookResult(result, () => syncModelErrorEventWithRecordErrorEvent(me, re));
       },
     });
 
@@ -3672,11 +3783,10 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const err = this.OnRecordUpdate().Trigger(re, (event) =>
+        const result = this.OnRecordUpdate().Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
-        syncModelEventWithRecordEvent(me, re);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
@@ -3688,11 +3798,10 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const err = this.OnRecordUpdateExecute().Trigger(re, (event) =>
+        const result = this.OnRecordUpdateExecute().Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
-        syncModelEventWithRecordEvent(me, re);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
@@ -3704,11 +3813,10 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const err = this.OnRecordAfterUpdateSuccess().Trigger(re, (event) =>
+        const result = this.OnRecordAfterUpdateSuccess().Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
-        syncModelEventWithRecordEvent(me, re);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
@@ -3720,11 +3828,10 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const err = this.OnRecordAfterUpdateError().Trigger(re, (event) =>
+        const result = this.OnRecordAfterUpdateError().Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelErrorEventWithRecordErrorEvent, syncRecordErrorEventWithModelErrorEvent),
         );
-        syncModelErrorEventWithRecordErrorEvent(me, re);
-        return err;
+        return syncAfterHookResult(result, () => syncModelErrorEventWithRecordErrorEvent(me, re));
       },
     });
 
@@ -3736,11 +3843,10 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const err = this.OnRecordDelete().Trigger(re, (event) =>
+        const result = this.OnRecordDelete().Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
-        syncModelEventWithRecordEvent(me, re);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
@@ -3752,11 +3858,10 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const err = this.OnRecordDeleteExecute().Trigger(re, (event) =>
+        const result = this.OnRecordDeleteExecute().Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
-        syncModelEventWithRecordEvent(me, re);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
@@ -3774,11 +3879,10 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const err = this.OnRecordAfterDeleteSuccess().Trigger(re, (event) =>
+        const result = this.OnRecordAfterDeleteSuccess().Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
-        syncModelEventWithRecordEvent(me, re);
-        return err;
+        return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
@@ -3790,11 +3894,10 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const err = this.OnRecordAfterDeleteError().Trigger(re, (event) =>
+        const result = this.OnRecordAfterDeleteError().Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelErrorEventWithRecordErrorEvent, syncRecordErrorEventWithModelErrorEvent),
         );
-        syncModelErrorEventWithRecordErrorEvent(me, re);
-        return err;
+        return syncAfterHookResult(result, () => syncModelErrorEventWithRecordErrorEvent(me, re));
       },
     });
 
@@ -4119,6 +4222,17 @@ function runHookNextWithSync<TModelEvent extends { Next: () => unknown }, TEvent
     });
   }
   syncToModel(event, modelEvent);
+  return result;
+}
+
+function syncAfterHookResult(result: unknown, sync: () => void): unknown {
+  if (result instanceof Promise) {
+    return result.then((value) => {
+      sync();
+      return value;
+    });
+  }
+  sync();
   return result;
 }
 

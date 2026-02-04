@@ -18,8 +18,8 @@ export class URLField implements Field {
   System = false;
   Hidden = false;
   Presentable = false;
-  ExceptDomains: string[] = [];
-  OnlyDomains: string[] = [];
+  ExceptDomains: string[] | null = null;
+  OnlyDomains: string[] | null = null;
   Required = false;
 
   // Type implements [Field.Type] interface method.
@@ -99,8 +99,6 @@ export class URLField implements Field {
     const host = new URL(value).host;
     const onlyDomains = Array.isArray(this.OnlyDomains) ? this.OnlyDomains : [];
     const exceptDomains = Array.isArray(this.ExceptDomains) ? this.ExceptDomains : [];
-    this.OnlyDomains = onlyDomains;
-    this.ExceptDomains = exceptDomains;
 
     if (onlyDomains.length > 0 && !onlyDomains.includes(host)) {
       return newError("validation_url_domain_not_allowed", "Url domain is not allowed");
@@ -127,8 +125,6 @@ export class URLField implements Field {
 
     const onlyDomains = Array.isArray(this.OnlyDomains) ? this.OnlyDomains : [];
     const exceptDomains = Array.isArray(this.ExceptDomains) ? this.ExceptDomains : [];
-    this.OnlyDomains = onlyDomains;
-    this.ExceptDomains = exceptDomains;
 
     const hasOnly = onlyDomains.length > 0;
     const hasExcept = exceptDomains.length > 0;

@@ -75,16 +75,40 @@ export class RecordFieldResolver implements FieldResolver {
     }
   }
 
-  setAllowedFields(newAllowedFields: string[]): void {
+  AllowedFields(): string[] {
+    return [...this.allowedFields];
+  }
+
+  SetAllowedFields(newAllowedFields: string[]): void {
     this.allowedFields = [...newAllowedFields];
   }
 
-  setAllowHiddenFields(allowHiddenFields: boolean): void {
+  setAllowedFields(newAllowedFields: string[]): void {
+    this.SetAllowedFields(newAllowedFields);
+  }
+
+  AllowHiddenFields(): boolean {
+    return this.allowHiddenFields;
+  }
+
+  SetAllowHiddenFields(allowHiddenFields: boolean): void {
     this.allowHiddenFields = allowHiddenFields;
+  }
+
+  setAllowHiddenFields(allowHiddenFields: boolean): void {
+    this.SetAllowHiddenFields(allowHiddenFields);
+  }
+
+  Resolve(fieldName: string): ResolverResult {
+    return this.resolve(fieldName);
   }
 
   resolve(fieldName: string): ResolverResult {
     return parseAndRun(fieldName, this);
+  }
+
+  UpdateQuery(query: QueryUpdate): QueryUpdate {
+    return this.updateQuery(query);
   }
 
   updateQuery(query: QueryUpdate): QueryUpdate {
@@ -111,9 +135,10 @@ export class RecordFieldResolver implements FieldResolver {
 
         const expr = buildFilterExpr(collection.listRule, clone, DefaultFilterExprLimit);
         if (expr.sql) {
-          selectSql = appendWhere(selectSql, expr.sql);
+          const wrappedRule = `(${expr.sql})`;
+          selectSql = appendWhere(selectSql, wrappedRule);
           if (countSql) {
-            countSql = appendWhere(countSql, expr.sql);
+            countSql = appendWhere(countSql, wrappedRule);
           }
           listRuleParams.push(...expr.params);
         }
@@ -133,6 +158,11 @@ export class RecordFieldResolver implements FieldResolver {
       if (countSql) {
         countSql = injectJoins(countSql, joinList);
       }
+    }
+
+    selectSql = normalizeSelectCase(selectSql);
+    if (countSql) {
+      countSql = normalizeSelectCase(countSql);
     }
 
     return {
@@ -192,10 +222,12 @@ export class RecordFieldResolver implements FieldResolver {
     }
 
     if (modifier === lowerModifier) {
-      return { identifier: "LOWER(?)", params: [resultVal], nullFallback: "auto" };
+      const placeholder = `t${randomString(8)}`;
+      return { identifier: `LOWER({:${placeholder}})`, params: [resultVal], nullFallback: "auto" };
     }
 
-    return { identifier: "?", params: [resultVal], nullFallback: "auto" };
+    const placeholder = `t${randomString(8)}`;
+    return { identifier: `{:${placeholder}}`, params: [resultVal], nullFallback: "auto" };
   }
 
   loadCollection(collectionNameOrId: string): Collection | null {
@@ -320,12 +352,42 @@ function ensureDistinct(sql: string): string {
   return sql;
 }
 
+function normalizeSelectCase(sql: string): string {
+  const trimmed = sql.trimStart();
+  const offset = sql.length - trimmed.length;
+  const lower = trimmed.toLowerCase();
+  let normalized = sql;
+  if (lower.startsWith("select distinct")) {
+    normalized = `${sql.slice(0, offset)}SELECT DISTINCT${trimmed.slice("select distinct".length)}`;
+  } else if (lower.startsWith("select")) {
+    normalized = `${sql.slice(0, offset)}SELECT${trimmed.slice("select".length)}`;
+  }
+  return normalized.replace(/\sfrom\s/i, " FROM ");
+}
+
 function appendWhere(baseSql: string, clause: string): string {
   if (!clause) {
     return baseSql;
   }
   if (/\bwhere\b/i.test(baseSql)) {
-    return `${baseSql} AND ${clause}`;
+    const lower = baseSql.toLowerCase();
+    const whereIndex = lower.indexOf(" where ");
+    if (whereIndex === -1) {
+      return `${baseSql} AND ${clause}`;
+    }
+    const whereStart = whereIndex + " where ".length;
+    let whereEnd = baseSql.length;
+    const keywords = [" order by ", " group by ", " having ", " limit "];
+    for (const keyword of keywords) {
+      const idx = lower.indexOf(keyword, whereStart);
+      if (idx >= 0 && idx < whereEnd) {
+        whereEnd = idx;
+      }
+    }
+    const head = baseSql.slice(0, whereIndex);
+    const whereClause = baseSql.slice(whereStart, whereEnd).trim();
+    const tail = baseSql.slice(whereEnd);
+    return `${head} WHERE (${whereClause} AND ${clause})${tail}`;
   }
   return `${baseSql} WHERE ${clause}`;
 }

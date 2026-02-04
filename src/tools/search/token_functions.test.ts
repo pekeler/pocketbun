@@ -139,7 +139,7 @@ describe("token functions", () => {
         name: "valid format + time",
         args: [stringToken("1"), stringToken("2")],
         expectErr: false,
-        expectIdentifier: "strftime(?, ?)",
+        expectIdentifier: "strftime(?,?)",
         expectParams: ["1", "2"],
       },
       {
@@ -151,7 +151,7 @@ describe("token functions", () => {
         name: "valid modifiers",
         args: [stringToken("1"), stringToken("2"), stringToken("3"), stringToken("4")],
         expectErr: false,
-        expectIdentifier: "strftime(?, ?, ?, ?)",
+        expectIdentifier: "strftime(?,?,?,?)",
         expectParams: ["1", "2", "3", "4"],
       },
       {
@@ -169,7 +169,7 @@ describe("token functions", () => {
           stringToken("10"),
         ],
         expectErr: false,
-        expectIdentifier: "strftime(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        expectIdentifier: "strftime(?,?,?,?,?,?,?,?,?,?)",
         expectParams: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
       },
       {

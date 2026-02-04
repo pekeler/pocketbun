@@ -452,7 +452,7 @@ function findCollectionsByIdentifiers(app: App, tables: Identifier[]): Map<strin
   return map;
 }
 
-async function getQueryTableInfo(app: App, selectQuery: string) {
+export async function getQueryTableInfo(app: App, selectQuery: string) {
   const tempView = `_temp_${pseudorandomString(6)}`;
 
   let info: ReturnType<App["TableInfo"]> = [];
@@ -480,7 +480,7 @@ async function getQueryTableInfo(app: App, selectQuery: string) {
   return info;
 }
 
-function getQueryTableInfoSync(app: App, selectQuery: string) {
+export function getQueryTableInfoSync(app: App, selectQuery: string) {
   const tempView = `_temp_${pseudorandomString(6)}`;
 
   let info: ReturnType<App["TableInfo"]> = [];
@@ -518,7 +518,7 @@ type Identifier = {
   alias: string;
 };
 
-class IdentifiersParser {
+export class IdentifiersParser {
   columns: Identifier[] = [];
   tables: Identifier[] = [];
 

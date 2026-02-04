@@ -81,7 +81,7 @@ export const tokenFunctions: Record<string, TokenFunction> = {
     ];
 
     const result: ResolverResult = {
-      identifier: `strftime(${identifiers.join(", ")})`,
+      identifier: `strftime(${identifiers.join(",")})`,
       params: mergeParams(formatResult.params, timeValueResult.params, ...resolvedModifiers.map((item) => item.params)),
       nullFallback: NullFallbackEnforced,
     };
@@ -89,7 +89,7 @@ export const tokenFunctions: Record<string, TokenFunction> = {
     if (timeValueResult.multiMatchSubquery) {
       identifiers[1] = timeValueResult.multiMatchSubquery.valueIdentifier;
       result.multiMatchSubquery = timeValueResult.multiMatchSubquery;
-      result.multiMatchSubquery.valueIdentifier = `strftime(${identifiers.join(", ")})`;
+      result.multiMatchSubquery.valueIdentifier = `strftime(${identifiers.join(",")})`;
       result.multiMatchSubquery.params.push(...result.params);
     }
 

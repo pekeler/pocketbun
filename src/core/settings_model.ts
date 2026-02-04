@@ -88,7 +88,7 @@ export class RateLimitsConfig {
     ];
   }
 
-  findRateLimitRule(searchLabels: string[], ...optOnlyAudience: string[]): [RateLimitRule | null, boolean] {
+  FindRateLimitRule(searchLabels: string[], ...optOnlyAudience: string[]): [RateLimitRule | null, boolean] {
     const prefixRules: number[] = [];
 
     for (let i = 0; i < searchLabels.length; i += 1) {
@@ -128,6 +128,14 @@ export class RateLimitsConfig {
     }
 
     return [null, false];
+  }
+
+  findRateLimitRule(searchLabels: string[], ...optOnlyAudience: string[]): [RateLimitRule | null, boolean] {
+    return this.FindRateLimitRule(searchLabels, ...optOnlyAudience);
+  }
+
+  Validate(): Error | null {
+    return validateRateLimits(this);
   }
 }
 
@@ -290,16 +298,66 @@ export class Settings {
 
   toJSON(): SettingsSnapshotJSON {
     const snapshot = this.toRaw();
-    const { password: _password, ...smtp } = snapshot.smtp;
-    const { secret: _secret, ...s3 } = snapshot.s3;
-    const { secret: _backupSecret, ...backupsS3 } = snapshot.backups.s3;
+    const smtp = {
+      enabled: snapshot.smtp.enabled,
+      port: snapshot.smtp.port,
+      host: snapshot.smtp.host,
+      username: snapshot.smtp.username,
+      authMethod: snapshot.smtp.authMethod,
+      tls: snapshot.smtp.tls,
+      localName: snapshot.smtp.localName,
+    };
+    const s3 = {
+      enabled: snapshot.s3.enabled,
+      bucket: snapshot.s3.bucket,
+      region: snapshot.s3.region,
+      endpoint: snapshot.s3.endpoint,
+      accessKey: snapshot.s3.accessKey,
+      forcePathStyle: snapshot.s3.forcePathStyle,
+    };
+    const backupsS3 = {
+      enabled: snapshot.backups.s3.enabled,
+      bucket: snapshot.backups.s3.bucket,
+      region: snapshot.backups.s3.region,
+      endpoint: snapshot.backups.s3.endpoint,
+      accessKey: snapshot.backups.s3.accessKey,
+      forcePathStyle: snapshot.backups.s3.forcePathStyle,
+    };
+
     return {
-      ...snapshot,
       smtp,
-      s3,
       backups: {
-        ...snapshot.backups,
+        cron: snapshot.backups.cron,
+        cronMaxKeep: snapshot.backups.cronMaxKeep,
         s3: backupsS3,
+      },
+      s3,
+      meta: {
+        appName: snapshot.meta.appName,
+        appURL: snapshot.meta.appURL,
+        senderName: snapshot.meta.senderName,
+        senderAddress: snapshot.meta.senderAddress,
+        hideControls: snapshot.meta.hideControls,
+      },
+      rateLimits: {
+        rules: snapshot.rateLimits.rules.map((rule) => ({ ...rule })),
+        enabled: snapshot.rateLimits.enabled,
+      },
+      trustedProxy: {
+        headers: Array.isArray(snapshot.trustedProxy.headers) ? [...snapshot.trustedProxy.headers] : [],
+        useLeftmostIP: snapshot.trustedProxy.useLeftmostIP,
+      },
+      batch: {
+        enabled: snapshot.batch.enabled,
+        maxRequests: snapshot.batch.maxRequests,
+        timeout: snapshot.batch.timeout,
+        maxBodySize: snapshot.batch.maxBodySize,
+      },
+      logs: {
+        maxDays: snapshot.logs.maxDays,
+        minLevel: snapshot.logs.minLevel,
+        logIP: snapshot.logs.logIP,
+        logAuthId: snapshot.logs.logAuthId,
       },
     };
   }
@@ -597,22 +655,29 @@ function validateLogs(logs: LogsConfig): Error | null {
 }
 
 function validateSMTP(smtp: SMTPConfig): Error | null {
-  if (!smtp.enabled) {
-    return null;
-  }
-
   const errors: Record<string, Error> = {};
 
-  const hostErr = required(smtp.host);
-  if (hostErr) {
-    errors.host = hostErr;
-  }
+  if (smtp.enabled) {
+    const hostErr = required(smtp.host);
+    if (hostErr) {
+      errors.host = hostErr;
+    } else if (!isHost(smtp.host)) {
+      errors.host = newError("validation_invalid_host", "Must be a valid host.");
+    }
 
-  const portErr = required(smtp.port);
-  if (portErr) {
-    errors.port = portErr;
-  } else if (smtp.port < 0) {
-    errors.port = newError("validation_min_greater_equal_than_required", "Must be greater or equal to 0.");
+    const portErr = required(smtp.port);
+    if (portErr) {
+      errors.port = portErr;
+    } else if (smtp.port < 0) {
+      errors.port = newError("validation_min_greater_equal_than_required", "Must be greater or equal to 0.");
+    }
+  } else {
+    if (smtp.host && !isHost(smtp.host)) {
+      errors.host = newError("validation_invalid_host", "Must be a valid host.");
+    }
+    if (smtp.port < 0) {
+      errors.port = newError("validation_min_greater_equal_than_required", "Must be greater or equal to 0.");
+    }
   }
 
   if (smtp.authMethod && smtp.authMethod !== "LOGIN" && smtp.authMethod !== "PLAIN") {
@@ -636,7 +701,7 @@ function validateS3(s3: S3Config): Error | null {
   const endpointErr = required(s3.endpoint);
   if (endpointErr) {
     errors.endpoint = endpointErr;
-  } else if (!isURL(s3.endpoint)) {
+  } else if (!isURL(s3.endpoint) && !(isHost(s3.endpoint) && s3.endpoint.includes("."))) {
     errors.endpoint = newError("validation_is_url", "Must be a valid URL.");
   }
 
@@ -670,16 +735,20 @@ function validateBatch(batch: BatchConfig): Error | null {
     const requestsErr = required(batch.maxRequests);
     if (requestsErr) {
       errors.maxRequests = requestsErr;
-    } else if (batch.maxRequests < 0) {
-      errors.maxRequests = newError("validation_min_greater_equal_than_required", "Must be greater or equal to 0.");
     }
 
     const timeoutErr = required(batch.timeout);
     if (timeoutErr) {
       errors.timeout = timeoutErr;
-    } else if (batch.timeout < 0) {
-      errors.timeout = newError("validation_min_greater_equal_than_required", "Must be greater or equal to 0.");
     }
+  }
+
+  if (batch.maxRequests < 0) {
+    errors.maxRequests = newError("validation_min_greater_equal_than_required", "Must be greater or equal to 0.");
+  }
+
+  if (batch.timeout < 0) {
+    errors.timeout = newError("validation_min_greater_equal_than_required", "Must be greater or equal to 0.");
   }
 
   if (batch.maxBodySize < 0) {
@@ -726,7 +795,146 @@ function validateRateLimits(rateLimits: RateLimitsConfig): Error | null {
     });
   }
 
+  for (let i = 0; i < rateLimits.rules.length; i += 1) {
+    const rule = rateLimits.rules[i];
+    if (!rule) {
+      continue;
+    }
+    const ruleErr = validateRateLimitRule(rule);
+    if (ruleErr) {
+      return new ValidationErrors({
+        rules: new ValidationErrors({
+          [String(i)]: ruleErr,
+        }),
+      });
+    }
+  }
+
+  const conflictErr = checkUniqueRateLimitRules(rateLimits.rules);
+  if (conflictErr) {
+    return new ValidationErrors({ rules: conflictErr });
+  }
+
   return null;
+}
+
+const rateLimitRuleLabelRegex = /^(\w+ \/[\w/-]*|\/[\w/-]*|\w+:\w+|\*:\w+|\w+)$/;
+
+function validateRateLimitRule(rule: RateLimitRule): Error | null {
+  const errors: Record<string, Error> = {};
+
+  const labelErr = required(rule.label);
+  if (labelErr) {
+    errors.label = labelErr;
+  } else if (!rateLimitRuleLabelRegex.test(rule.label)) {
+    errors.label = newError("validation_match", "Invalid label.");
+  }
+
+  const maxReqErr = required(rule.maxRequests);
+  if (maxReqErr) {
+    errors.maxRequests = maxReqErr;
+  } else if (rule.maxRequests < 1) {
+    errors.maxRequests = newError("validation_min_greater_equal_than_required", "Must be greater or equal to 1.");
+  }
+
+  const durationErr = required(rule.duration);
+  if (durationErr) {
+    errors.duration = durationErr;
+  } else if (rule.duration < 1) {
+    errors.duration = newError("validation_min_greater_equal_than_required", "Must be greater or equal to 1.");
+  }
+
+  if (
+    rule.audience !== undefined &&
+    rule.audience !== RateLimitRuleAudienceAll &&
+    rule.audience !== RateLimitRuleAudienceGuest &&
+    rule.audience !== RateLimitRuleAudienceAuth
+  ) {
+    errors.audience = newError("validation_in", "Invalid audience.");
+  }
+
+  return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+}
+
+function checkUniqueRateLimitRules(rules: RateLimitRule[]): Error | null {
+  const existing: string[] = [];
+
+  for (let i = 0; i < rules.length; i += 1) {
+    const rule = rules[i];
+    if (!rule) {
+      continue;
+    }
+    const audience = rule.audience ?? RateLimitRuleAudienceAll;
+    const fullKey = `${rule.label}@@${audience}`;
+    let conflicts = false;
+
+    for (const key of existing) {
+      if (key.startsWith(fullKey) || fullKey.startsWith(key)) {
+        conflicts = true;
+        break;
+      }
+    }
+
+    if (conflicts) {
+      return new ValidationErrors({
+        [String(i)]: new ValidationErrors({
+          label: newError(
+            "validation_conflicting_rate_limit_rule",
+            "Rate limit rule configuration with label {{.label}} already exists or conflicts with another rule.",
+          ).setParams({ label: rule.label }),
+        }),
+      });
+    }
+
+    existing.push(fullKey);
+  }
+
+  return null;
+}
+
+export function validateMetaConfig(meta: MetaConfig): Error | null {
+  return validateMeta(meta);
+}
+
+export function validateLogsConfig(logs: LogsConfig): Error | null {
+  return validateLogs(logs);
+}
+
+export function validateSMTPConfig(smtp: SMTPConfig): Error | null {
+  return validateSMTP(smtp);
+}
+
+export function validateS3Config(s3: S3Config): Error | null {
+  return validateS3(s3);
+}
+
+export function validateBackupsConfig(backups: BackupsConfig): Error | null {
+  return validateBackups(backups);
+}
+
+export function validateBatchConfig(batch: BatchConfig): Error | null {
+  return validateBatch(batch);
+}
+
+export function validateRateLimitsConfig(rateLimits: RateLimitsConfig): Error | null {
+  return validateRateLimits(rateLimits);
+}
+
+export function validateRateLimitRuleConfig(rule: RateLimitRule): Error | null {
+  return validateRateLimitRule(rule);
+}
+
+export function rateLimitRuleDurationTime(rule: RateLimitRule): number {
+  return rule.duration ?? 0;
+}
+
+export function rateLimitRuleString(rule: RateLimitRule): string {
+  return JSON.stringify({
+    label: rule.label ?? "",
+    audience: rule.audience ?? "",
+    duration: rule.duration ?? 0,
+    maxRequests: rule.maxRequests ?? 0,
+  });
 }
 
 function isURL(value: string): boolean {

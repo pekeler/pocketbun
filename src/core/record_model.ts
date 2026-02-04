@@ -609,6 +609,10 @@ export class Record {
     return this.export();
   }
 
+  PublicExport(): RecordData {
+    return this.publicExport();
+  }
+
   toJSON(): RecordData {
     return this.publicExport();
   }

@@ -1,0 +1,1236 @@
+// Ported from pocketbase/core/collection_model_test.go.
+
+import { describe, expect, it } from "bun:test";
+import { newTestApp } from "../tests/app.ts";
+import { parseIndex } from "../tools/dbutils/index.ts";
+import { JSONRaw, ParseDateTime } from "../tools/types/index.ts";
+import {
+  Collection,
+  CollectionNameSuperusers,
+  CollectionTypeAuth,
+  CollectionTypeBase,
+  CollectionTypeView,
+  NewAuthCollection,
+  NewBaseCollection,
+  NewCollection,
+  NewViewCollection,
+} from "./collection_model.ts";
+import { OAuth2ProviderConfig } from "./collection_model_auth_options.ts";
+import { CollectionErrorEvent, CollectionEvent, ModelErrorEvent, ModelEvent } from "./events.ts";
+import { BoolField } from "./field_bool.ts";
+import { FileField } from "./field_file.ts";
+import { RelationField } from "./field_relation.ts";
+import { TextField } from "./field_text.ts";
+
+describe("collection model", () => {
+  it("NewCollection", () => {
+    const scenarios = [
+      {
+        typ: "",
+        name: "",
+        expected: [
+          '"id":"pbc_',
+          '"name":""',
+          '"type":"base"',
+          '"system":false',
+          '"indexes":[]',
+          '"fields":[{',
+          '"name":"id"',
+          '"type":"text"',
+          '"listRule":null',
+          '"viewRule":null',
+          '"createRule":null',
+          '"updateRule":null',
+          '"deleteRule":null',
+        ],
+      },
+      {
+        typ: "unknown",
+        name: "test",
+        expected: [
+          '"id":"pbc_',
+          '"name":"test"',
+          '"type":"base"',
+          '"system":false',
+          '"indexes":[]',
+          '"fields":[{',
+          '"name":"id"',
+          '"type":"text"',
+          '"listRule":null',
+          '"viewRule":null',
+          '"createRule":null',
+          '"updateRule":null',
+          '"deleteRule":null',
+        ],
+      },
+      {
+        typ: "base",
+        name: "test",
+        expected: [
+          '"id":"pbc_',
+          '"name":"test"',
+          '"type":"base"',
+          '"system":false',
+          '"indexes":[]',
+          '"fields":[{',
+          '"name":"id"',
+          '"type":"text"',
+          '"listRule":null',
+          '"viewRule":null',
+          '"createRule":null',
+          '"updateRule":null',
+          '"deleteRule":null',
+        ],
+      },
+      {
+        typ: "view",
+        name: "test",
+        expected: [
+          '"id":"pbc_',
+          '"name":"test"',
+          '"type":"view"',
+          '"indexes":[]',
+          '"fields":[]',
+          '"system":false',
+          '"listRule":null',
+          '"viewRule":null',
+          '"createRule":null',
+          '"updateRule":null',
+          '"deleteRule":null',
+        ],
+      },
+      {
+        typ: "auth",
+        name: "test",
+        expected: [
+          '"id":"pbc_',
+          '"name":"test"',
+          '"type":"auth"',
+          '"fields":[{',
+          '"system":false',
+          '"type":"text"',
+          '"type":"email"',
+          '"name":"id"',
+          '"name":"email"',
+          '"name":"password"',
+          '"name":"tokenKey"',
+          '"name":"emailVisibility"',
+          '"name":"verified"',
+          "idx_email",
+          "idx_tokenKey",
+          '"listRule":null',
+          '"viewRule":null',
+          '"createRule":null',
+          '"updateRule":null',
+          '"deleteRule":null',
+          '"identityFields":["email"]',
+        ],
+      },
+    ];
+
+    for (const [index, scenario] of scenarios.entries()) {
+      const result = NewCollection(scenario.typ, scenario.name).String();
+      for (const part of scenario.expected) {
+        expect(result.includes(part)).toBe(true);
+      }
+      expect(result.length).toBeGreaterThan(0);
+      expect(index).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("NewBaseCollection", () => {
+    const scenarios = [
+      {
+        name: "",
+        expected: [
+          '"id":"pbc_',
+          '"name":""',
+          '"type":"base"',
+          '"system":false',
+          '"indexes":[]',
+          '"fields":[{',
+          '"name":"id"',
+          '"type":"text"',
+          '"listRule":null',
+          '"viewRule":null',
+          '"createRule":null',
+          '"updateRule":null',
+          '"deleteRule":null',
+        ],
+      },
+      {
+        name: "test",
+        expected: [
+          '"id":"pbc_',
+          '"name":"test"',
+          '"type":"base"',
+          '"system":false',
+          '"indexes":[]',
+          '"fields":[{',
+          '"name":"id"',
+          '"type":"text"',
+          '"listRule":null',
+          '"viewRule":null',
+          '"createRule":null',
+          '"updateRule":null',
+          '"deleteRule":null',
+        ],
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const result = NewBaseCollection(scenario.name).String();
+      for (const part of scenario.expected) {
+        expect(result.includes(part)).toBe(true);
+      }
+    }
+  });
+
+  it("NewViewCollection", () => {
+    const scenarios = [
+      {
+        name: "",
+        expected: [
+          '"id":"pbc_',
+          '"name":""',
+          '"type":"view"',
+          '"indexes":[]',
+          '"fields":[]',
+          '"system":false',
+          '"listRule":null',
+          '"viewRule":null',
+          '"createRule":null',
+          '"updateRule":null',
+          '"deleteRule":null',
+        ],
+      },
+      {
+        name: "test",
+        expected: [
+          '"id":"pbc_',
+          '"name":"test"',
+          '"type":"view"',
+          '"indexes":[]',
+          '"fields":[]',
+          '"system":false',
+          '"listRule":null',
+          '"viewRule":null',
+          '"createRule":null',
+          '"updateRule":null',
+          '"deleteRule":null',
+        ],
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const result = NewViewCollection(scenario.name).String();
+      for (const part of scenario.expected) {
+        expect(result.includes(part)).toBe(true);
+      }
+    }
+  });
+
+  it("NewAuthCollection", () => {
+    const scenarios = [
+      {
+        name: "",
+        expected: [
+          '"id":""',
+          '"name":""',
+          '"type":"auth"',
+          '"fields":[{',
+          '"system":false',
+          '"type":"text"',
+          '"type":"email"',
+          '"name":"id"',
+          '"name":"email"',
+          '"name":"password"',
+          '"name":"tokenKey"',
+          '"name":"emailVisibility"',
+          '"name":"verified"',
+          "idx_email",
+          "idx_tokenKey",
+          '"listRule":null',
+          '"viewRule":null',
+          '"createRule":null',
+          '"updateRule":null',
+          '"deleteRule":null',
+          '"identityFields":["email"]',
+        ],
+      },
+      {
+        name: "test",
+        expected: [
+          '"id":"pbc_',
+          '"name":"test"',
+          '"type":"auth"',
+          '"fields":[{',
+          '"system":false',
+          '"type":"text"',
+          '"type":"email"',
+          '"name":"id"',
+          '"name":"email"',
+          '"name":"password"',
+          '"name":"tokenKey"',
+          '"name":"emailVisibility"',
+          '"name":"verified"',
+          "idx_email",
+          "idx_tokenKey",
+          '"listRule":null',
+          '"viewRule":null',
+          '"createRule":null',
+          '"updateRule":null',
+          '"deleteRule":null',
+          '"identityFields":["email"]',
+        ],
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const result = NewAuthCollection(scenario.name).String();
+      for (const part of scenario.expected) {
+        expect(result.includes(part)).toBe(true);
+      }
+    }
+  });
+
+  it("CollectionTableName", () => {
+    const c = NewBaseCollection("test");
+    expect(c.TableName()).toBe("_collections");
+  });
+
+  it("CollectionBaseFilesPath", () => {
+    const c = new Collection();
+    expect(c.BaseFilesPath()).toBe("");
+    c.Id = "test";
+    expect(c.BaseFilesPath()).toBe("test");
+  });
+
+  it("CollectionIsBase", () => {
+    const scenarios = [
+      { typ: "unknown", expected: false },
+      { typ: CollectionTypeBase, expected: true },
+      { typ: CollectionTypeView, expected: false },
+      { typ: CollectionTypeAuth, expected: false },
+    ];
+
+    for (const scenario of scenarios) {
+      const c = new Collection();
+      c.Type = scenario.typ;
+      expect(c.IsBase()).toBe(scenario.expected);
+    }
+  });
+
+  it("CollectionIsView", () => {
+    const scenarios = [
+      { typ: "unknown", expected: false },
+      { typ: CollectionTypeBase, expected: false },
+      { typ: CollectionTypeView, expected: true },
+      { typ: CollectionTypeAuth, expected: false },
+    ];
+
+    for (const scenario of scenarios) {
+      const c = new Collection();
+      c.Type = scenario.typ;
+      expect(c.IsView()).toBe(scenario.expected);
+    }
+  });
+
+  it("CollectionIsAuth", () => {
+    const scenarios = [
+      { typ: "unknown", expected: false },
+      { typ: CollectionTypeBase, expected: false },
+      { typ: CollectionTypeView, expected: false },
+      { typ: CollectionTypeAuth, expected: true },
+    ];
+
+    for (const scenario of scenarios) {
+      const c = new Collection();
+      c.Type = scenario.typ;
+      expect(c.IsAuth()).toBe(scenario.expected);
+    }
+  });
+
+  it("CollectionPostScan", () => {
+    const rawOptions = new JSONRaw(`{"viewQuery":"select 1","authRule":"1=2"}`);
+
+    const scenarios = [
+      {
+        typ: CollectionTypeBase,
+        expectedViewQuery: "",
+        expectAuthRule: null as string | null,
+      },
+      {
+        typ: CollectionTypeView,
+        expectedViewQuery: "select 1",
+        expectAuthRule: null as string | null,
+      },
+      {
+        typ: CollectionTypeAuth,
+        expectedViewQuery: "",
+        expectAuthRule: "1=2",
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const c = new Collection();
+      c.Id = "test";
+      c.Type = scenario.typ;
+      c.RawOptions = rawOptions;
+
+      const err = c.PostScan();
+      expect(err).toBeNull();
+      expect(c.IsNew()).toBe(false);
+      expect(c.LastSavedPK()).toBe("test");
+      expect(c.ViewQuery).toBe(scenario.expectedViewQuery);
+      if (scenario.expectAuthRule === null) {
+        expect(c.AuthRule).toBeNull();
+      } else {
+        expect(c.AuthRule).toBe(scenario.expectAuthRule);
+      }
+    }
+  });
+
+  it("CollectionUnmarshalJSON", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scenarios = [
+        {
+          name: "base new empty",
+          raw: '{"type":"base","name":"test","listRule":"1=2","authRule":"1=3","viewQuery":"abc"}',
+          collection: () => new Collection(),
+          expected: [
+            '"type":"base"',
+            '"id":"pbc_',
+            '"name":"test"',
+            '"listRule":"1=2"',
+            '"fields":[',
+            '"name":"id"',
+            '"indexes":[]',
+          ],
+          notExpected: ['"authRule":"1=3"', '"viewQuery":"abc"'],
+        },
+        {
+          name: "view new empty",
+          raw: '{"type":"view","name":"test","listRule":"1=2","authRule":"1=3","viewQuery":"abc"}',
+          collection: () => new Collection(),
+          expected: [
+            '"type":"view"',
+            '"id":"pbc_',
+            '"name":"test"',
+            '"listRule":"1=2"',
+            '"fields":[]',
+            '"viewQuery":"abc"',
+            '"indexes":[]',
+          ],
+          notExpected: ['"authRule":"1=3"'],
+        },
+        {
+          name: "auth new empty",
+          raw: '{"type":"auth","name":"test","listRule":"1=2","authRule":"1=3","viewQuery":"abc"}',
+          collection: () => new Collection(),
+          expected: [
+            '"type":"auth"',
+            '"id":"pbc_',
+            '"name":"test"',
+            '"listRule":"1=2"',
+            '"authRule":"1=3"',
+            '"fields":[',
+            '"name":"id"',
+          ],
+          notExpected: ['"indexes":[]', '"viewQuery":"abc"'],
+        },
+        {
+          name: "new but with set type (no default fields load)",
+          raw: '{"type":"base","name":"test","listRule":"1=2","authRule":"1=3","viewQuery":"abc"}',
+          collection: () => {
+            const c = new Collection();
+            c.Type = CollectionTypeBase;
+            return c;
+          },
+          expected: ['"type":"base"', '"id":""', '"name":"test"', '"listRule":"1=2"', '"fields":[]'],
+          notExpected: ['"authRule":"1=3"', '"viewQuery":"abc"'],
+        },
+        {
+          name: "existing (no default fields load)",
+          raw: '{"type":"auth","name":"test","listRule":"1=2","authRule":"1=3","viewQuery":"abc"}',
+          collection: () => app.FindCollectionByNameOrId("demo1"),
+          expected: ['"type":"auth"', '"name":"test"', '"listRule":"1=2"', '"authRule":"1=3"', '"fields":[', '"name":"id"'],
+          notExpected: ['"name":"tokenKey"', '"viewQuery":"abc"'],
+        },
+      ];
+
+      for (const scenario of scenarios) {
+        const collection = scenario.collection();
+        const err = collection.UnmarshalJSON(scenario.raw);
+        expect(err).toBeNull();
+
+        const rawResult = JSON.stringify(collection);
+        for (const part of scenario.expected) {
+          expect(rawResult.includes(part)).toBe(true);
+        }
+        for (const part of scenario.notExpected) {
+          expect(rawResult.includes(part)).toBe(false);
+        }
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("CollectionSerialize", () => {
+    const scenarios = [
+      {
+        name: "base",
+        collection: () => {
+          const c = NewCollection(CollectionTypeBase, "test");
+          c.ViewQuery = "1=1";
+          const provider1 = new OAuth2ProviderConfig();
+          provider1.Name = "test1";
+          provider1.ClientId = "test_client_id1";
+          provider1.ClientSecret = "test_client_secret1";
+          const provider2 = new OAuth2ProviderConfig();
+          provider2.Name = "test2";
+          provider2.ClientId = "test_client_id2";
+          provider2.ClientSecret = "test_client_secret2";
+          c.OAuth2.Providers = [provider1, provider2];
+          return c;
+        },
+        expected: ['"id":"pbc_', '"name":"test"', '"type":"base"'],
+        notExpected: [
+          "verificationTemplate",
+          "manageRule",
+          "authRule",
+          "secret",
+          "oauth2",
+          "clientId",
+          "clientSecret",
+          "viewQuery",
+        ],
+      },
+      {
+        name: "view",
+        collection: () => {
+          const c = NewCollection(CollectionTypeView, "test");
+          c.ViewQuery = "1=1";
+          const provider1 = new OAuth2ProviderConfig();
+          provider1.Name = "test1";
+          provider1.ClientId = "test_client_id1";
+          provider1.ClientSecret = "test_client_secret1";
+          const provider2 = new OAuth2ProviderConfig();
+          provider2.Name = "test2";
+          provider2.ClientId = "test_client_id2";
+          provider2.ClientSecret = "test_client_secret2";
+          c.OAuth2.Providers = [provider1, provider2];
+          return c;
+        },
+        expected: ['"id":"pbc_', '"name":"test"', '"type":"view"', '"viewQuery":"1=1"'],
+        notExpected: ["verificationTemplate", "manageRule", "authRule", "secret", "oauth2", "clientId", "clientSecret"],
+      },
+      {
+        name: "auth",
+        collection: () => {
+          const c = NewCollection(CollectionTypeAuth, "test");
+          c.ViewQuery = "1=1";
+          const provider1 = new OAuth2ProviderConfig();
+          provider1.Name = "test1";
+          provider1.ClientId = "test_client_id1";
+          provider1.ClientSecret = "test_client_secret1";
+          const provider2 = new OAuth2ProviderConfig();
+          provider2.Name = "test2";
+          provider2.ClientId = "test_client_id2";
+          provider2.ClientSecret = "test_client_secret2";
+          c.OAuth2.Providers = [provider1, provider2];
+          return c;
+        },
+        expected: [
+          '"id":"pbc_',
+          '"name":"test"',
+          '"type":"auth"',
+          '"oauth2":{',
+          '"providers":[{',
+          '"clientId":"test_client_id1"',
+          '"clientId":"test_client_id2"',
+        ],
+        notExpected: ["viewQuery", "secret", "clientSecret"],
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const collection = scenario.collection();
+      const rawStr = collection.MarshalJSON();
+      expect(rawStr).toBe(collection.String());
+
+      for (const part of scenario.expected) {
+        expect(rawStr.includes(part)).toBe(true);
+      }
+      for (const part of scenario.notExpected) {
+        expect(rawStr.includes(part)).toBe(false);
+      }
+    }
+  });
+
+  it("CollectionDBExport", async () => {
+    const { cleanup } = await newTestApp();
+    try {
+      const date = ParseDateTime("2024-07-01 01:02:03.456Z");
+
+      const scenarios = [
+        {
+          typ: "unknown",
+          expected:
+            '{"createRule":"1=3","created":"2024-07-01 01:02:03.456Z","deleteRule":"1=5","fields":[{"hidden":false,"id":"f1_id","name":"f1","presentable":false,"required":false,"system":true,"type":"bool"},{"hidden":false,"id":"f2_id","name":"f2","presentable":false,"required":true,"system":false,"type":"bool"}],"id":"test_id","indexes":["CREATE INDEX idx1 on test_name(id)","CREATE INDEX idx2 on test_name(id)"],"listRule":"1=1","name":"test_name","options":"{}","system":true,"type":"unknown","updateRule":"1=4","updated":"2024-07-01 01:02:03.456Z","viewRule":"1=7"}',
+        },
+        {
+          typ: CollectionTypeBase,
+          expected:
+            '{"createRule":"1=3","created":"2024-07-01 01:02:03.456Z","deleteRule":"1=5","fields":[{"hidden":false,"id":"f1_id","name":"f1","presentable":false,"required":false,"system":true,"type":"bool"},{"hidden":false,"id":"f2_id","name":"f2","presentable":false,"required":true,"system":false,"type":"bool"}],"id":"test_id","indexes":["CREATE INDEX idx1 on test_name(id)","CREATE INDEX idx2 on test_name(id)"],"listRule":"1=1","name":"test_name","options":"{}","system":true,"type":"base","updateRule":"1=4","updated":"2024-07-01 01:02:03.456Z","viewRule":"1=7"}',
+        },
+        {
+          typ: CollectionTypeView,
+          expected:
+            '{"createRule":"1=3","created":"2024-07-01 01:02:03.456Z","deleteRule":"1=5","fields":[{"hidden":false,"id":"f1_id","name":"f1","presentable":false,"required":false,"system":true,"type":"bool"},{"hidden":false,"id":"f2_id","name":"f2","presentable":false,"required":true,"system":false,"type":"bool"}],"id":"test_id","indexes":["CREATE INDEX idx1 on test_name(id)","CREATE INDEX idx2 on test_name(id)"],"listRule":"1=1","name":"test_name","options":{"viewQuery":"select 1"},"system":true,"type":"view","updateRule":"1=4","updated":"2024-07-01 01:02:03.456Z","viewRule":"1=7"}',
+        },
+        {
+          typ: CollectionTypeAuth,
+          expected:
+            '{"createRule":"1=3","created":"2024-07-01 01:02:03.456Z","deleteRule":"1=5","fields":[{"hidden":false,"id":"f1_id","name":"f1","presentable":false,"required":false,"system":true,"type":"bool"},{"hidden":false,"id":"f2_id","name":"f2","presentable":false,"required":true,"system":false,"type":"bool"}],"id":"test_id","indexes":["CREATE INDEX idx1 on test_name(id)","CREATE INDEX idx2 on test_name(id)"],"listRule":"1=1","name":"test_name","options":{"authRule":null,"manageRule":"1=6","authAlert":{"enabled":false,"emailTemplate":{"subject":"","body":""}},"oauth2":{"providers":null,"mappedFields":{"id":"","name":"","username":"","avatarURL":""},"enabled":false},"passwordAuth":{"enabled":false,"identityFields":null},"mfa":{"enabled":false,"duration":0,"rule":""},"otp":{"enabled":false,"duration":0,"length":0,"emailTemplate":{"subject":"","body":""}},"authToken":{"duration":0},"passwordResetToken":{"duration":0},"emailChangeToken":{"duration":0},"verificationToken":{"duration":0},"fileToken":{"duration":0},"verificationTemplate":{"subject":"","body":""},"resetPasswordTemplate":{"subject":"","body":""},"confirmEmailChangeTemplate":{"subject":"","body":""}},"system":true,"type":"auth","updateRule":"1=4","updated":"2024-07-01 01:02:03.456Z","viewRule":"1=7"}',
+        },
+      ];
+
+      for (const scenario of scenarios) {
+        const c = new Collection();
+        c.Type = scenario.typ;
+        c.Id = "test_id";
+        c.Name = "test_name";
+        c.System = true;
+        c.ListRule = "1=1";
+        c.ViewRule = "1=2";
+        c.CreateRule = "1=3";
+        c.UpdateRule = "1=4";
+        c.DeleteRule = "1=5";
+        c.ManageRule = "1=6";
+        c.ViewRule = "1=7";
+        c.Created = date;
+        c.Updated = date;
+        c.indexes = ["CREATE INDEX idx1 on test_name(id)", "CREATE INDEX idx2 on test_name(id)"];
+        c.ViewQuery = "select 1";
+
+        const f1 = new BoolField();
+        f1.Id = "f1_id";
+        f1.Name = "f1";
+        f1.System = true;
+        const f2 = new BoolField();
+        f2.Id = "f2_id";
+        f2.Name = "f2";
+        f2.Required = true;
+        c.Fields.Add(f1);
+        c.Fields.Add(f2);
+        c.RawOptions = new JSONRaw('{"viewQuery": "select 2"}');
+
+        const result = c.DBExport();
+        const raw = JSON.stringify(result);
+        expect(raw).toBe(scenario.expected);
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("CollectionIndexHelpers", () => {
+    const c = NewBaseCollection("test");
+    expect(c.indexes.length).toBe(0);
+
+    c.AddIndex("idx1", false, "colA,colB", "colA != 1");
+    c.AddIndex("idx2", true, "colA", "");
+    c.AddIndex("idx3", false, "colA", "");
+    c.AddIndex("idx3", false, "colB", "");
+
+    const idx1 = "CREATE INDEX `idx1` ON `test` (colA,colB) WHERE colA != 1";
+    const idx2 = "CREATE UNIQUE INDEX `idx2` ON `test` (colA)";
+    const idx3 = "CREATE INDEX `idx3` ON `test` (colB)";
+
+    expect(c.indexes.length).toBe(3);
+    expect(c.indexes.includes(idx1)).toBe(true);
+    expect(c.indexes.includes(idx2)).toBe(true);
+    expect(c.indexes.includes(idx3)).toBe(true);
+
+    c.RemoveIndex("iDx2");
+    c.RemoveIndex("missing");
+
+    expect(c.indexes.length).toBe(2);
+    expect(c.indexes.includes(idx1)).toBe(true);
+    expect(c.indexes.includes(idx3)).toBe(true);
+
+    const expectedIndexes: Record<string, string> = {
+      missing: "",
+      idx1,
+      iDX3: idx3,
+    };
+
+    for (const [key, expected] of Object.entries(expectedIndexes)) {
+      expect(c.GetIndex(key)).toBe(expected);
+    }
+  });
+
+  it("CollectionDelete", async () => {
+    const scenarios = [
+      { name: "unsaved", collection: "", disableIntegrityChecks: false, expectError: true },
+      { name: "system", collection: CollectionNameSuperusers, disableIntegrityChecks: false, expectError: true },
+      { name: "base with references", collection: "demo1", disableIntegrityChecks: false, expectError: true },
+      {
+        name: "base with references with disabled integrity checks",
+        collection: "demo1",
+        disableIntegrityChecks: true,
+        expectError: false,
+      },
+      { name: "base without references", collection: "demo1", disableIntegrityChecks: false, expectError: true },
+      { name: "view with reference", collection: "view1", disableIntegrityChecks: false, expectError: true },
+      {
+        name: "view with references with disabled integrity checks",
+        collection: "view1",
+        disableIntegrityChecks: true,
+        expectError: false,
+      },
+      { name: "view without references", collection: "view2", disableIntegrityChecks: true, expectError: false },
+    ];
+
+    for (const scenario of scenarios) {
+      const { app, cleanup } = await newTestApp();
+      try {
+        let col: Collection;
+        if (!scenario.collection) {
+          col = NewBaseCollection("test");
+        } else {
+          col = app.FindCollectionByNameOrId(scenario.collection);
+        }
+
+        if (scenario.disableIntegrityChecks) {
+          col.IntegrityChecks(!scenario.disableIntegrityChecks);
+        }
+
+        const deleteErr = await app.Delete(col);
+        const hasErr = deleteErr !== null;
+        expect(hasErr).toBe(scenario.expectError);
+
+        const exists = app.HasTable(col.Name);
+        if (!col.IsNew()) {
+          expect(exists).toBe(hasErr);
+        }
+
+        if (!hasErr) {
+          let cached: Collection | null = null;
+          try {
+            cached = app.FindCachedCollectionByNameOrId(col.Id);
+          } catch {
+            cached = null;
+          }
+          expect(cached).toBeNull();
+        }
+      } finally {
+        await cleanup();
+      }
+    }
+  });
+
+  it("CollectionModelEventSync", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const testCollections: Collection[] = [];
+      for (let i = 0; i < 4; i += 1) {
+        const collection = NewBaseCollection(`sync_test_${i}`);
+        const err = await app.Save(collection);
+        if (err) {
+          throw err;
+        }
+        testCollections.push(collection);
+      }
+
+      const createModelEvent = () => new ModelEvent(app, testCollections[0] ?? null, "test_a", {});
+
+      const createModelErrorEvent = () => new ModelErrorEvent(createModelEvent(), new Error("error_a"));
+
+      const changeCollectionEventBefore = (e: CollectionEvent) => {
+        e.Type = "test_b";
+        e.Context = { test: 123 };
+        e.Collection = testCollections[1] ?? null;
+      };
+
+      const modelEventFinalizerChange = (e: ModelEvent) => {
+        e.Type = "test_c";
+        e.Context = { test: 456 };
+        e.Model = testCollections[2] ?? null;
+      };
+
+      const changeCollectionEventAfter = (e: CollectionEvent) => {
+        e.Type = "test_d";
+        e.Context = { test: 789 };
+        e.Collection = testCollections[3] ?? null;
+      };
+
+      const expectedBeforeModelEventHandlerChecks = (e: ModelEvent) => {
+        expect(e.Type).toBe("test_a");
+        const ctx = e.Context as { test?: number };
+        expect(ctx.test).toBeUndefined();
+        expect(e.Model?.PK()).toBe(testCollections[0]?.Id ?? "");
+      };
+
+      const expectedAfterModelEventHandlerChecks = (e: ModelEvent) => {
+        expect(e.Type).toBe("test_d");
+        const ctx = e.Context as { test?: number };
+        expect(ctx.test).toBe(789);
+        expect(e.Model?.PK()).toBe(testCollections[3]?.Id ?? "");
+      };
+
+      const expectedBeforeCollectionEventHandlerChecks = (e: CollectionEvent) => {
+        expect(e.Type).toBe("test_a");
+        const ctx = e.Context as { test?: number };
+        expect(ctx.test).toBeUndefined();
+        expect(e.Collection?.Id).toBe(testCollections[0]?.Id ?? "");
+      };
+
+      const expectedAfterCollectionEventHandlerChecks = (e: CollectionEvent) => {
+        expect(e.Type).toBe("test_c");
+        const ctx = e.Context as { test?: number };
+        expect(ctx.test).toBe(456);
+        expect(e.Collection?.Id).toBe(testCollections[2]?.Id ?? "");
+      };
+
+      const modelEventFinalizer = (e: ModelEvent) => {
+        modelEventFinalizerChange(e);
+        return null;
+      };
+
+      const modelErrorEventFinalizer = (e: ModelErrorEvent) => {
+        modelEventFinalizerChange(e.ModelEvent);
+        e.Error = new Error("error_c");
+        return null;
+      };
+
+      const modelEventHandler = {
+        Priority: -999,
+        Func: async (e: ModelEvent) => {
+          expectedBeforeModelEventHandlerChecks(e);
+          await e.Next();
+          expectedAfterModelEventHandlerChecks(e);
+          return null;
+        },
+      };
+
+      const modelErrorEventHandler = {
+        Priority: -999,
+        Func: async (e: ModelErrorEvent) => {
+          expectedBeforeModelEventHandlerChecks(e.ModelEvent);
+          expect(e.Error.message).toBe("error_a");
+          await e.Next();
+          expectedAfterModelEventHandlerChecks(e.ModelEvent);
+          expect(e.Error.message).toBe("error_d");
+          return null;
+        },
+      };
+
+      const recordEventHandler = {
+        Priority: -999,
+        Func: async (e: CollectionEvent) => {
+          expectedBeforeCollectionEventHandlerChecks(e);
+          changeCollectionEventBefore(e);
+          await e.Next();
+          expectedAfterCollectionEventHandlerChecks(e);
+          changeCollectionEventAfter(e);
+          return null;
+        },
+      };
+
+      const collectionErrorEventHandler = {
+        Priority: -999,
+        Func: async (e: CollectionErrorEvent) => {
+          expectedBeforeCollectionEventHandlerChecks(e.CollectionEvent);
+          expect(e.Error.message).toBe("error_a");
+          changeCollectionEventBefore(e.CollectionEvent);
+          e.Error = new Error("error_b");
+          await e.Next();
+          expectedAfterCollectionEventHandlerChecks(e.CollectionEvent);
+          expect(e.Error.message).toBe("error_c");
+          changeCollectionEventAfter(e.CollectionEvent);
+          e.Error = new Error("error_d");
+          return null;
+        },
+      };
+
+      app.OnCollectionValidate().Bind(recordEventHandler);
+      app.OnModelValidate().Bind(modelEventHandler);
+      await app.OnModelValidate().Trigger(createModelEvent(), modelEventFinalizer);
+
+      app.OnCollectionCreate().Bind(recordEventHandler);
+      app.OnModelCreate().Bind(modelEventHandler);
+      await app.OnModelCreate().Trigger(createModelEvent(), modelEventFinalizer);
+
+      app.OnCollectionCreateExecute().Bind(recordEventHandler);
+      app.OnModelCreateExecute().Bind(modelEventHandler);
+      await app.OnModelCreateExecute().Trigger(createModelEvent(), modelEventFinalizer);
+
+      app.OnCollectionAfterCreateSuccess().Bind(recordEventHandler);
+      app.OnModelAfterCreateSuccess().Bind(modelEventHandler);
+      await app.OnModelAfterCreateSuccess().Trigger(createModelEvent(), modelEventFinalizer);
+
+      app.OnCollectionAfterCreateError().Bind(collectionErrorEventHandler);
+      app.OnModelAfterCreateError().Bind(modelErrorEventHandler);
+      await app.OnModelAfterCreateError().Trigger(createModelErrorEvent(), modelErrorEventFinalizer);
+
+      app.OnCollectionUpdate().Bind(recordEventHandler);
+      app.OnModelUpdate().Bind(modelEventHandler);
+      await app.OnModelUpdate().Trigger(createModelEvent(), modelEventFinalizer);
+
+      app.OnCollectionUpdateExecute().Bind(recordEventHandler);
+      app.OnModelUpdateExecute().Bind(modelEventHandler);
+      await app.OnModelUpdateExecute().Trigger(createModelEvent(), modelEventFinalizer);
+
+      app.OnCollectionAfterUpdateSuccess().Bind(recordEventHandler);
+      app.OnModelAfterUpdateSuccess().Bind(modelEventHandler);
+      await app.OnModelAfterUpdateSuccess().Trigger(createModelEvent(), modelEventFinalizer);
+
+      app.OnCollectionAfterUpdateError().Bind(collectionErrorEventHandler);
+      app.OnModelAfterUpdateError().Bind(modelErrorEventHandler);
+      await app.OnModelAfterUpdateError().Trigger(createModelErrorEvent(), modelErrorEventFinalizer);
+
+      app.OnCollectionDelete().Bind(recordEventHandler);
+      app.OnModelDelete().Bind(modelEventHandler);
+      await app.OnModelDelete().Trigger(createModelEvent(), modelEventFinalizer);
+
+      app.OnCollectionDeleteExecute().Bind(recordEventHandler);
+      app.OnModelDeleteExecute().Bind(modelEventHandler);
+      await app.OnModelDeleteExecute().Trigger(createModelEvent(), modelEventFinalizer);
+
+      app.OnCollectionAfterDeleteSuccess().Bind(recordEventHandler);
+      app.OnModelAfterDeleteSuccess().Bind(modelEventHandler);
+      await app.OnModelAfterDeleteSuccess().Trigger(createModelEvent(), modelEventFinalizer);
+
+      app.OnCollectionAfterDeleteError().Bind(collectionErrorEventHandler);
+      app.OnModelAfterDeleteError().Bind(modelErrorEventHandler);
+      await app.OnModelAfterDeleteError().Trigger(createModelErrorEvent(), modelErrorEventFinalizer);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("CollectionSaveModel", async () => {
+    const scenarios: Array<{
+      name: string;
+      collection: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => Collection;
+      expectError: boolean;
+      expectColumns?: string[];
+    }> = [
+      {
+        name: "create - trigger validators",
+        collection: () => {
+          const c = NewBaseCollection("!invalid");
+          const field = new TextField();
+          field.Name = "example";
+          c.Fields.Add(field);
+          c.AddIndex("test_save_idx", false, "example", "");
+          return c;
+        },
+        expectError: true,
+      },
+      {
+        name: "update - trigger validators",
+        collection: (app) => {
+          const c = app.FindCollectionByNameOrId("demo5");
+          c.Name = "demo1";
+          const field = new TextField();
+          field.Name = "example";
+          c.Fields.Add(field);
+          c.Fields.RemoveByName("file");
+          c.AddIndex("test_save_idx", false, "example", "");
+          return c;
+        },
+        expectError: true,
+      },
+      {
+        name: "create base collection",
+        collection: () => {
+          const c = NewBaseCollection("new");
+          c.Type = "";
+          c.Fields.RemoveByName("id");
+          const field = new TextField();
+          field.Name = "example";
+          c.Fields.Add(field);
+          c.AddIndex("test_save_idx", false, "example", "");
+          return c;
+        },
+        expectError: false,
+        expectColumns: ["id", "example"],
+      },
+      {
+        name: "create auth collection",
+        collection: () => {
+          const c = NewAuthCollection("new");
+          c.Fields.RemoveByName("id");
+          c.Fields.RemoveByName("email");
+          const field = new TextField();
+          field.Name = "example";
+          c.Fields.Add(field);
+          c.AddIndex("test_save_idx", false, "example", "");
+          return c;
+        },
+        expectError: false,
+        expectColumns: ["id", "email", "tokenKey", "password", "verified", "emailVisibility", "example"],
+      },
+      {
+        name: "create view collection",
+        collection: () => {
+          const c = NewViewCollection("new");
+          const field = new TextField();
+          field.Name = "ignored";
+          c.Fields.Add(field);
+          c.ViewQuery = "select 1 as id, 2 as example";
+          return c;
+        },
+        expectError: false,
+        expectColumns: ["id", "example"],
+      },
+      {
+        name: "update base collection",
+        collection: (app) => {
+          const c = app.FindCollectionByNameOrId("demo5");
+          const field = new TextField();
+          field.Name = "example";
+          c.Fields.Add(field);
+          c.Fields.RemoveByName("file");
+          c.Fields.GetByName("total")?.SetName("total_updated");
+          c.AddIndex("test_save_idx", false, "example", "");
+          return c;
+        },
+        expectError: false,
+        expectColumns: [
+          "id",
+          "select_one",
+          "select_many",
+          "rel_one",
+          "rel_many",
+          "total_updated",
+          "created",
+          "updated",
+          "example",
+        ],
+      },
+      {
+        name: "update auth collection",
+        collection: (app) => {
+          const c = app.FindCollectionByNameOrId("clients");
+          const field = new TextField();
+          field.Name = "example";
+          c.Fields.Add(field);
+          c.Fields.RemoveByName("file");
+          c.Fields.GetByName("name")?.SetName("name_updated");
+          c.AddIndex("test_save_idx", false, "example", "");
+          return c;
+        },
+        expectError: false,
+        expectColumns: [
+          "id",
+          "email",
+          "emailVisibility",
+          "password",
+          "tokenKey",
+          "verified",
+          "username",
+          "name_updated",
+          "created",
+          "updated",
+          "example",
+        ],
+      },
+      {
+        name: "update view collection",
+        collection: (app) => {
+          const c = app.FindCollectionByNameOrId("view2");
+          const field = new TextField();
+          field.Name = "example";
+          c.Fields.Add(field);
+          c.ViewQuery = "select 1 as id, 2 as example";
+          return c;
+        },
+        expectError: false,
+        expectColumns: ["id", "example"],
+      },
+      {
+        name: "unset missing oauth2 mapped fields",
+        collection: () => {
+          const c = NewAuthCollection("new");
+          c.OAuth2.Enabled = true;
+          c.OAuth2.MappedFields = {
+            Id: "missing",
+            Name: "missing",
+            Username: "missing",
+            AvatarURL: "missing",
+          };
+          return c;
+        },
+        expectError: false,
+        expectColumns: ["id", "email", "emailVisibility", "password", "tokenKey", "verified"],
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const { app, cleanup } = await newTestApp();
+      try {
+        const collection = scenario.collection(app);
+        const saveErr = await app.Save(collection);
+        const hasErr = saveErr !== null;
+        expect(hasErr).toBe(scenario.expectError);
+
+        if (hasErr) {
+          continue;
+        }
+
+        expect(collection.Id).not.toBe("");
+        expect(collection.Created.String()).not.toBe("");
+        expect(collection.Updated.String()).not.toBe("");
+
+        expect(app.HasTable(collection.Name)).toBe(true);
+
+        const columns = app.TableColumns(collection.Name);
+        expect(columns.length).toBe(scenario.expectColumns?.length ?? 0);
+        for (const col of columns) {
+          expect(scenario.expectColumns?.includes(col)).toBe(true);
+        }
+
+        const indexes = app.TableIndexes(collection.Name);
+        expect(Object.keys(indexes).length).toBe(collection.indexes.length);
+        for (const idx of collection.indexes) {
+          const parsed = parseIndex(idx);
+          expect(Object.prototype.hasOwnProperty.call(indexes, parsed.indexName)).toBe(true);
+        }
+      } finally {
+        await cleanup();
+      }
+    }
+  });
+
+  it("CollectionSaveIndirectViewsUpdate", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const collection = app.FindCollectionByNameOrId("demo1");
+
+      const relMany = collection.Fields.GetByName("rel_many") as RelationField | null;
+      if (relMany) {
+        relMany.MaxSelect = 1;
+      }
+
+      const fileOne = collection.Fields.GetByName("file_one") as FileField | null;
+      if (fileOne) {
+        fileOne.MaxSelect = 10;
+      }
+
+      const saveErr = await app.Save(collection);
+      expect(saveErr).toBeNull();
+
+      const view1 = app.FindCollectionByNameOrId("view1");
+      const view1RelMany = view1.Fields.GetByName("rel_many") as RelationField | null;
+      expect(view1RelMany?.MaxSelect).toBe(1);
+      const view1FileOne = view1.Fields.GetByName("file_one") as FileField | null;
+      expect(view1FileOne?.MaxSelect).toBe(10);
+
+      const view2 = app.FindCollectionByNameOrId("view2");
+      const view2RelMany = view2.Fields.GetByName("rel_many") as RelationField | null;
+      expect(view2RelMany?.MaxSelect).toBe(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("CollectionSaveViewWrapping", async () => {
+    const viewName = "test_wrapping";
+    const scenarios = [
+      {
+        name: "no wrapping - text field",
+        query: "select text as id, bool from demo1",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select text as id, bool from demo1)",
+      },
+      {
+        name: "no wrapping - id field",
+        query: "select text as id, bool from demo1",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select text as id, bool from demo1)",
+      },
+      {
+        name: "no wrapping - relation field",
+        query: "select rel_one as id, bool from demo1",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select rel_one as id, bool from demo1)",
+      },
+      {
+        name: "no wrapping - select field",
+        query: "select select_many as id, bool from demo1",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select select_many as id, bool from demo1)",
+      },
+      {
+        name: "no wrapping - email field",
+        query: "select email as id, bool from demo1",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select email as id, bool from demo1)",
+      },
+      {
+        name: "no wrapping - datetime field",
+        query: "select datetime as id, bool from demo1",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select datetime as id, bool from demo1)",
+      },
+      {
+        name: "no wrapping - url field",
+        query: "select url as id, bool from demo1",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select url as id, bool from demo1)",
+      },
+      {
+        name: "wrapping - bool field",
+        query: "select bool as id, text as txt, url from demo1",
+        expected:
+          "CREATE VIEW `test_wrapping` AS SELECT * FROM (SELECT CAST(`id` as TEXT) `id`,`txt`,`url` FROM (select bool as id, text as txt, url from demo1))",
+      },
+      {
+        name: "wrapping - bool field (different order)",
+        query: "select text as txt, url, bool as id from demo1",
+        expected:
+          "CREATE VIEW `test_wrapping` AS SELECT * FROM (SELECT `txt`,`url`,CAST(`id` as TEXT) `id` FROM (select text as txt, url, bool as id from demo1))",
+      },
+      {
+        name: "wrapping - json field",
+        query: "select json as id, text, url from demo1",
+        expected:
+          "CREATE VIEW `test_wrapping` AS SELECT * FROM (SELECT CAST(`id` as TEXT) `id`,`text`,`url` FROM (select json as id, text, url from demo1))",
+      },
+      {
+        name: "wrapping - numeric id",
+        query: "select 1 as id",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (SELECT CAST(`id` as TEXT) `id` FROM (select 1 as id))",
+      },
+      {
+        name: "wrapping - expresion",
+        query: "select ('test') as id",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (SELECT CAST(`id` as TEXT) `id` FROM (select ('test') as id))",
+      },
+      {
+        name: "no wrapping - cast as text",
+        query: "select cast('test' as text) as id",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select cast('test' as text) as id)",
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const { app, cleanup } = await newTestApp();
+      try {
+        const collection = NewViewCollection(viewName);
+        collection.ViewQuery = scenario.query;
+
+        const err = await app.Save(collection);
+        expect(err).toBeNull();
+
+        const row = app.db().query("SELECT sql FROM sqlite_master WHERE type='view' AND name=?").get(viewName) as
+          | { sql?: string }
+          | undefined;
+        const sql = row?.sql ?? "";
+
+        expect(sql).toBe(scenario.expected);
+      } finally {
+        await cleanup();
+      }
+    }
+  });
+});

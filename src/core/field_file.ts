@@ -81,8 +81,8 @@ export class FileField
   Presentable = false;
   MaxSize = 0;
   MaxSelect = 0;
-  MimeTypes: string[] = [];
-  Thumbs: string[] = [];
+  MimeTypes: string[] | null = null;
+  Thumbs: string[] | null = null;
   Protected = false;
   Required = false;
 
@@ -187,7 +187,6 @@ export class FileField
       errors.maxSize = newError("validation_invalid_max", "Invalid maxSize value.");
     }
     const thumbs = Array.isArray(this.Thumbs) ? this.Thumbs : [];
-    this.Thumbs = thumbs;
     if (thumbs.length > 0) {
       for (const thumb of thumbs) {
         if (thumb === "0x0" || thumb === "0x0t" || thumb === "0x0b" || thumb === "0x0f") {

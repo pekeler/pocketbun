@@ -89,6 +89,17 @@ export function rewriteDbxIdentifiers(sql: string): string {
         i = end + 2;
         continue;
       }
+      if (char === "{" && sql[i + 1] === ":") {
+        const end = sql.indexOf("}", i + 2);
+        if (end === -1) {
+          result += char;
+          i += 1;
+          continue;
+        }
+        result += "?";
+        i = end + 1;
+        continue;
+      }
 
       result += char;
       i += 1;
@@ -146,7 +157,7 @@ type QuoteMode = "none" | "single" | "double" | "backtick" | "bracket" | "line_c
 function quoteDbxIdentifier(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) {
-    return "[]";
+    return "``";
   }
   const parts = trimmed.split(".");
   return parts.map((part) => quoteIdentifierPart(part)).join(".");
@@ -158,7 +169,7 @@ function quoteIdentifierPart(value: string): string {
     return "*";
   }
   const stripped = stripIdentifierQuotes(trimmed);
-  return `[${escapeIdentifier(stripped)}]`;
+  return `\`${escapeIdentifier(stripped)}\``;
 }
 
 function stripIdentifierQuotes(value: string): string {
@@ -175,5 +186,5 @@ function stripIdentifierQuotes(value: string): string {
 }
 
 function escapeIdentifier(value: string): string {
-  return value.replace(/\]/g, "]]");
+  return value.replace(/`/g, "``");
 }

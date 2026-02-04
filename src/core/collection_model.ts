@@ -173,6 +173,70 @@ export class Collection {
     this.type = value;
   }
 
+  get System(): boolean {
+    return this.system;
+  }
+
+  set System(value: boolean) {
+    this.system = Boolean(value);
+  }
+
+  get ListRule(): string | null {
+    return this.listRule;
+  }
+
+  set ListRule(value: string | null) {
+    this.listRule = value ?? null;
+  }
+
+  get ViewRule(): string | null {
+    return this.viewRule;
+  }
+
+  set ViewRule(value: string | null) {
+    this.viewRule = value ?? null;
+  }
+
+  get CreateRule(): string | null {
+    return this.createRule;
+  }
+
+  set CreateRule(value: string | null) {
+    this.createRule = value ?? null;
+  }
+
+  get UpdateRule(): string | null {
+    return this.updateRule;
+  }
+
+  set UpdateRule(value: string | null) {
+    this.updateRule = value ?? null;
+  }
+
+  get DeleteRule(): string | null {
+    return this.deleteRule;
+  }
+
+  set DeleteRule(value: string | null) {
+    this.deleteRule = value ?? null;
+  }
+
+  get Created(): DateTime {
+    return this.created;
+  }
+
+  set Created(value: DateTime) {
+    this.created = value;
+  }
+
+  get Updated(): DateTime {
+    return this.updated;
+  }
+
+  set Updated(value: DateTime) {
+    this.updated = value;
+  }
+
   get options(): Record<string, unknown> {
     return this.rawOptions();
   }
@@ -344,20 +408,20 @@ export class Collection {
 
   DBExport(): Record<string, unknown> {
     const result: Record<string, unknown> = {
-      id: this.id,
-      type: this.type,
-      listRule: this.listRule,
-      viewRule: this.viewRule,
       createRule: this.createRule,
-      updateRule: this.updateRule,
-      deleteRule: this.deleteRule,
-      name: this.name,
-      fields: this.Fields,
-      indexes: this.indexes,
-      system: this.system,
       created: this.created,
-      updated: this.updated,
+      deleteRule: this.deleteRule,
+      fields: this.Fields,
+      id: this.id,
+      indexes: this.indexes,
+      listRule: this.listRule,
+      name: this.name,
       options: "{}",
+      system: this.system,
+      type: this.type,
+      updateRule: this.updateRule,
+      updated: this.updated,
+      viewRule: this.viewRule,
     };
 
     if (this.IsView()) {
@@ -1247,7 +1311,7 @@ function serializeOAuth2(config: OAuth2Config, safe: boolean): Record<string, un
           displayName: provider.DisplayName,
           extra: provider.Extra,
         };
-        if (!safe) {
+        if (!safe && provider.ClientSecret) {
           record.clientSecret = provider.ClientSecret;
         }
         return record;
@@ -1270,7 +1334,7 @@ function serializeToken(config: TokenConfigValue, safe: boolean): Record<string,
   const record: Record<string, unknown> = {
     duration: config.Duration,
   };
-  if (!safe) {
+  if (!safe && config.Secret) {
     record.secret = config.Secret;
   }
   return record;

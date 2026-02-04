@@ -168,7 +168,7 @@ class Runner {
     this.activeTableAlias = `__auth_${columnify(this.activeCollectionName)}${this.resolver.joinAliasSuffix}`;
 
     this.resolver.registerJoin(columnify(this.activeCollectionName), this.activeTableAlias, {
-      sql: `[[${this.activeTableAlias}.id]] = ?`,
+      sql: `{{${this.activeTableAlias}}}.{{id}}=?`,
       params: [info.auth.id],
     });
 
@@ -176,7 +176,7 @@ class Runner {
     this.multiMatch.joins.push({
       tableName: columnify(this.activeCollectionName),
       tableAlias: this.multiMatchActiveTableAlias,
-      on: { sql: `[[${this.multiMatchActiveTableAlias}.id]] = ?`, params: [info.auth.id] },
+      on: { sql: `{{${this.multiMatchActiveTableAlias}}}.{{id}}=?`, params: [info.auth.id] },
     });
 
     this.activeProps = this.activeProps.slice(2);
@@ -234,16 +234,18 @@ class Runner {
 
   processRequestBodyLowerModifier(bodyField: CollectionField): ResolverResult {
     const rawValue = toStringValue(this.resolver.requestInfo?.body[bodyField.name]);
+    const placeholder = `infoLower${bodyField.name}${pseudorandomString(8)}`;
     return {
-      identifier: "LOWER(?)",
+      identifier: `LOWER({:${placeholder}})`,
       params: [rawValue],
       nullFallback: "auto",
     };
   }
 
   processRequestBodyLengthModifier(bodyField: CollectionField): ResolverResult {
+    const fieldName = bodyField.name;
     if (!isMultiValuerField(bodyField)) {
-      throw new Error(`field "${bodyField.name}" doesn't support multivalue operations`);
+      throw new Error(`field "${fieldName}" doesn't support multivalue operations`);
     }
 
     const bodyItems = toSlice(this.resolver.requestInfo?.body[bodyField.name]);
@@ -251,31 +253,35 @@ class Runner {
   }
 
   processRequestBodyEachModifier(bodyField: CollectionField): ResolverResult {
+    const fieldName = bodyField.name;
     if (!isMultiValuerField(bodyField)) {
-      throw new Error(`field "${bodyField.name}" doesn't support multivalue operations`);
+      throw new Error(`field "${fieldName}" doesn't support multivalue operations`);
     }
 
     const bodyItems = toSlice(this.resolver.requestInfo?.body[bodyField.name]);
     const bodyItemsRaw = JSON.stringify(bodyItems);
 
+    const placeholder = `dataEach${pseudorandomString(8)}`;
     const cleanFieldName = columnify(bodyField.name);
     const jeAlias = `__dataEach_je_${cleanFieldName}${this.resolver.joinAliasSuffix}`;
-    this.resolver.registerJoin(`json_each(?)`, jeAlias, null, [bodyItemsRaw]);
+    this.resolver.registerJoin(`json_each({:${placeholder}})`, jeAlias, null, [bodyItemsRaw]);
 
     const result: ResolverResult = {
       identifier: `[[${jeAlias}.value]]`,
       params: [],
       nullFallback: "auto",
+      knownNonEmpty: true,
     };
 
-    if (isMultiValuerField(bodyField)) {
+    if (isMultiValuerMultiple(bodyField)) {
       this.withMultiMatch = true;
     }
 
     if (this.withMultiMatch) {
+      const placeholder2 = `mm${placeholder}`;
       const jeAlias2 = `__mm_${jeAlias}`;
       this.multiMatch.joins.push({
-        tableName: "json_each(?)",
+        tableName: `json_each({:${placeholder2}})`,
         tableAlias: jeAlias2,
         params: [bodyItemsRaw],
       });
@@ -301,21 +307,29 @@ class Runner {
     this.activeCollectionName = relCollection.name;
     this.activeTableAlias = columnify(`__data_${relCollection.name}_${bodyField.name}`) + this.resolver.joinAliasSuffix;
 
+    const relJoinExpr =
+      dataRelIds.length === 1
+        ? `[[${this.activeTableAlias}.id]]=?`
+        : buildInExpr(`[[${this.activeTableAlias}.id]]`, dataRelIds.length);
     this.resolver.registerJoin(this.activeCollectionName, this.activeTableAlias, {
-      sql: buildInExpr(`[[${this.activeTableAlias}.id]]`, dataRelIds.length),
+      sql: relJoinExpr,
       params: dataRelIds,
     });
 
-    if (isMultiValuerField(bodyField)) {
+    if (isMultiValuerMultiple(bodyField)) {
       this.withMultiMatch = true;
     }
 
     this.multiMatchActiveTableAlias = `__mm_${this.activeTableAlias}`;
+    const relMultiMatchExpr =
+      dataRelIds.length === 1
+        ? `[[${this.multiMatchActiveTableAlias}.id]]=?`
+        : buildInExpr(`[[${this.multiMatchActiveTableAlias}.id]]`, dataRelIds.length);
     this.multiMatch.joins.push({
       tableName: this.activeCollectionName,
       tableAlias: this.multiMatchActiveTableAlias,
       on: {
-        sql: buildInExpr(`[[${this.multiMatchActiveTableAlias}.id]]`, dataRelIds.length),
+        sql: relMultiMatchExpr,
         params: dataRelIds,
       },
     });
@@ -348,6 +362,10 @@ class Runner {
       }
 
       if (field && (field.type === FieldTypeJSON || field.type === FieldTypeGeoPoint)) {
+        const baseAlias = this.resolver.baseCollectionAlias || columnify(this.resolver.baseCollection.name);
+        if (!this.withMultiMatch && this.activeTableAlias !== baseAlias) {
+          this.withMultiMatch = true;
+        }
         const jsonPath = buildJsonPath(this.activeProps.slice(i + 1));
         const result: ResolverResult = {
           nullFallback: "disabled",
@@ -416,7 +434,7 @@ class Runner {
         const newTableAlias = `${this.activeTableAlias}_${cleanProp}${this.resolver.joinAliasSuffix}`;
         const newCollectionName = columnify(backCollection.name);
 
-        const isBackRelMultiple = isMultiValuerField(backField);
+        const isBackRelMultiple = isMultiValuerMultiple(backField);
 
         if (!isBackRelMultiple) {
           this.resolver.registerJoin(newCollectionName, newTableAlias, {
@@ -482,7 +500,7 @@ class Runner {
         throw new Error(`failed to load field "${prop}" collection`);
       }
 
-      if (!isMultiValuerField(field) && i === totalProps - 2 && this.activeProps[i + 1] === FieldNameId) {
+      if (!isMultiValuerMultiple(field) && i === totalProps - 2 && this.activeProps[i + 1] === FieldNameId) {
         return this.finalizeActivePropsProcessing(collection, field.name);
       }
 
@@ -491,7 +509,7 @@ class Runner {
       const newTableAlias = `${this.activeTableAlias}_${cleanFieldName}${this.resolver.joinAliasSuffix}`;
       const newCollectionName = relCollection.name;
 
-      if (!isMultiValuerField(field)) {
+      if (!isMultiValuerMultiple(field)) {
         this.resolver.registerJoin(columnify(newCollectionName), newTableAlias, {
           sql: `[[${newTableAlias}.id]] = [[${prefixedFieldName}]]`,
           params: [],
@@ -508,14 +526,14 @@ class Runner {
       this.activeCollectionName = newCollectionName;
       this.activeTableAlias = newTableAlias;
 
-      if (isMultiValuerField(field)) {
+      if (isMultiValuerMultiple(field)) {
         this.withMultiMatch = true;
       }
 
       const newTableAlias2 = `${this.multiMatchActiveTableAlias}_${cleanFieldName}`;
       const prefixedFieldName2 = `${this.multiMatchActiveTableAlias}.${cleanFieldName}`;
 
-      if (!isMultiValuerField(field)) {
+      if (!isMultiValuerMultiple(field)) {
         this.multiMatch.joins.push({
           tableName: columnify(newCollectionName),
           tableAlias: newTableAlias2,
@@ -590,7 +608,7 @@ class Runner {
         nullFallback: "auto",
       };
 
-      if (isMultiValuerField(field)) {
+      if (isMultiValuerMultiple(field)) {
         this.withMultiMatch = true;
       }
 
@@ -620,7 +638,7 @@ class Runner {
 
     if (field.name === FieldNameEmail && !this.resolver.allowHiddenFields && collection.type === "auth") {
       result.afterBuild = (expr) => ({
-        sql: `(${expr.sql} AND [[${this.activeTableAlias}.${FieldNameEmailVisibility}]] = TRUE)`,
+        sql: `((${expr.sql}) AND ([[${this.activeTableAlias}.${FieldNameEmailVisibility}]] = TRUE))`,
         params: expr.params,
       });
     }
@@ -681,11 +699,15 @@ export function getCollectionField(collection: Collection, name: string): Collec
   return null;
 }
 
-export function isMultiValuerField(field: CollectionField | null): boolean {
+export function isMultiValuerField(field: CollectionField | null): field is CollectionField {
   if (!field) {
     return false;
   }
-  if (![FieldTypeRelation, FieldTypeSelect, FieldTypeFile].includes(field.type)) {
+  return [FieldTypeRelation, FieldTypeSelect, FieldTypeFile].includes(field.type);
+}
+
+function isMultiValuerMultiple(field: CollectionField | null): boolean {
+  if (!isMultiValuerField(field)) {
     return false;
   }
   const maxSelect = Number((field.raw as Record<string, unknown>).maxSelect ?? 1);

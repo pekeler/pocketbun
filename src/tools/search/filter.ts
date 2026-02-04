@@ -58,7 +58,11 @@ export function buildFilterExpr(
   const ast = parser.parseExpression();
   parser.expectEnd();
   const builder = new Builder(resolver, maxExpressions);
-  return builder.build(ast);
+  const expr = builder.build(ast);
+  if (ast.type === "compare" && /\b(and|or)\b/i.test(expr.sql)) {
+    return { sql: `(${expr.sql})`, params: expr.params };
+  }
+  return expr;
 }
 
 class Builder {
@@ -73,11 +77,10 @@ class Builder {
   build(node: AstNode): SqlExpr {
     switch (node.type) {
       case "binary": {
-        const left = this.build(node.left);
-        const right = this.build(node.right);
+        const parts = this.flattenBinary(node, node.op);
         return {
-          sql: `(${left.sql} ${node.op} ${right.sql})`,
-          params: [...left.params, ...right.params],
+          sql: `(${parts.map((part) => part.sql).join(` ${node.op} `)})`,
+          params: parts.flatMap((part) => part.params),
         };
       }
       case "compare": {
@@ -93,6 +96,13 @@ class Builder {
         throw new Error("invalid filter expression");
       }
     }
+  }
+
+  private flattenBinary(node: AstNode, op: "AND" | "OR"): SqlExpr[] {
+    if (node.type === "binary" && node.op === op) {
+      return [...this.flattenBinary(node.left, op), ...this.flattenBinary(node.right, op)];
+    }
+    return [this.build(node)];
   }
 
   resolveToken(node: TokenNode): ResolverResult {
@@ -122,6 +132,7 @@ class Builder {
           params: result.params,
           nullFallback: result.nullFallback ?? "auto",
           multiMatchSubquery: result.multiMatchSubquery,
+          knownNonEmpty: result.knownNonEmpty,
           afterBuild: result.afterBuild,
         };
       } catch (error) {
@@ -169,8 +180,9 @@ function toToken(node: TokenNode): Token {
 }
 
 function literalToken(value: unknown): ResolverResult {
+  const placeholder = `t${randomString(8)}`;
   return {
-    identifier: "?",
+    identifier: `{:${placeholder}}`,
     params: [value],
     nullFallback: "auto",
   };
@@ -221,14 +233,14 @@ function buildComparisonInternal(op: string, left: ResolverResult, right: Resolv
       throw new Error(`unsupported operator "${op}"`);
   }
 
+  if (allowMultiMatch && !anyMatch) {
+    expr = applyMultiMatch(expr, normalized, left, right);
+  }
   if (left.afterBuild) {
     expr = left.afterBuild(expr);
   }
   if (right.afterBuild) {
     expr = right.afterBuild(expr);
-  }
-  if (allowMultiMatch && !anyMatch) {
-    expr = applyMultiMatch(expr, normalized, left, right);
   }
   return expr;
 }
@@ -313,6 +325,9 @@ function hasEmptyParamValue(result: ResolverResult): boolean {
 function isKnownNonEmptyIdentifier(result: ResolverResult): boolean {
   if (result.nullFallback === "enforced") {
     return false;
+  }
+  if (result.knownNonEmpty) {
+    return true;
   }
 
   switch (result.identifier.toLowerCase()) {
@@ -424,7 +439,7 @@ function buildManyVsOne(
 
 function andExpr(left: SqlExpr, right: SqlExpr): SqlExpr {
   return {
-    sql: `(${left.sql} AND ${right.sql})`,
+    sql: `((${left.sql}) AND (${right.sql}))`,
     params: [...left.params, ...right.params],
   };
 }

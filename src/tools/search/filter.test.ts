@@ -16,7 +16,8 @@ function matchesSqlPattern(sql: string, expectedPattern: string): boolean {
   const withToken = normalizedPattern.replaceAll("TEST", token);
   const escaped = escapeRegex(withToken);
   const tokenEscaped = escapeRegex(token);
-  const pattern = `^${escaped.replaceAll(tokenEscaped, "\\?")}$`;
+  const placeholderPattern = "(?:\\?|\\{:[^}]+\\})";
+  const pattern = `^${escaped.replaceAll(tokenEscaped, placeholderPattern)}$`;
   const regex = new RegExp(pattern);
   return regex.test(normalizedSql);
 }
@@ -27,7 +28,7 @@ function stripParens(value: string): string {
 
 function renderSql(sql: string, params: unknown[]): string {
   let index = 0;
-  return sql.replace(/\?/g, () => {
+  return sql.replace(/\{:[^}]+\}|\?/g, () => {
     const value = params[index++];
     if (value === null || value === undefined) {
       return "null";

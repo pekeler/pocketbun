@@ -16,6 +16,7 @@ export type ResolverResult = {
   identifier: string;
   nullFallback: NullFallbackPreference;
   params: unknown[];
+  knownNonEmpty?: boolean;
   multiMatchSubquery?: MultiMatchSubquery;
   afterBuild?: (expr: SqlExpr) => SqlExpr;
 };

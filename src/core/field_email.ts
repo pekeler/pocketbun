@@ -18,8 +18,8 @@ export class EmailField implements Field {
   System = false;
   Hidden = false;
   Presentable = false;
-  ExceptDomains: string[] = [];
-  OnlyDomains: string[] = [];
+  ExceptDomains: string[] | null = null;
+  OnlyDomains: string[] | null = null;
   Required = false;
 
   // Type implements [Field.Type] interface method.
@@ -102,8 +102,6 @@ export class EmailField implements Field {
     const domain = value.slice(value.lastIndexOf("@") + 1);
     const onlyDomains = Array.isArray(this.OnlyDomains) ? this.OnlyDomains : [];
     const exceptDomains = Array.isArray(this.ExceptDomains) ? this.ExceptDomains : [];
-    this.OnlyDomains = onlyDomains;
-    this.ExceptDomains = exceptDomains;
     if (onlyDomains.length > 0 && !onlyDomains.includes(domain)) {
       return newError("validation_email_domain_not_allowed", "Email domain is not allowed");
     }
@@ -129,8 +127,6 @@ export class EmailField implements Field {
 
     const onlyDomains = Array.isArray(this.OnlyDomains) ? this.OnlyDomains : [];
     const exceptDomains = Array.isArray(this.ExceptDomains) ? this.ExceptDomains : [];
-    this.OnlyDomains = onlyDomains;
-    this.ExceptDomains = exceptDomains;
 
     if (onlyDomains.length > 0 && exceptDomains.length > 0) {
       errors.onlyDomains = newError("validation_email_domain_not_allowed", "Only one of onlyDomains/exceptDomains can be set");
