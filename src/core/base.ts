@@ -464,6 +464,10 @@ export class BaseApp implements App {
     return this.#encryptionEnv;
   }
 
+  EncryptionEnv(): string {
+    return this.encryptionEnv();
+  }
+
   settings(): Settings {
     return this.#settings;
   }

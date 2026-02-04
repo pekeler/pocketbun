@@ -22,9 +22,11 @@ PocketBun is a semi-automated port to Bun that aims for maximum compatibility wi
 Key differences:
 
 - No Go extensions (only JavaScript/TypeScript)
-- Library-first API (no CLI/binary; use exported helpers)
+- Library-first API (CLI is optional and wraps the same APIs)
 - Full ES6+ compatibility + native npm package support
 - Built on Bun instead of Go + embedded JS VM
+- CLI binary is named `pocketbun` (not `pocketbase`)
+- No `update` command; update via your package manager (bun/npm/pnpm)
 
 ## Installation
 
@@ -32,9 +34,9 @@ todo
 
 ## Known Differences
 
-### Library Usage (no CLI)
+### Library Usage (API-first)
 
-PocketBun does not ship a CLI binary. Use the library exports to run migrations, start the server, and manage superusers:
+PocketBun ships as a library and also provides a CLI wrapper. Use the library exports to run migrations, start the server, and manage superusers:
 
 ```ts
 import { BaseApp, migrate, serve, superuser } from "pocketbun";
@@ -46,6 +48,17 @@ serve(app, { httpAddr: "127.0.0.1:8090" });
 
 superuser.upsert(app, "admin@example.com", "change-me");
 ```
+
+CLI usage (PocketBase-style):
+
+```sh
+pocketbun serve
+pocketbun superuser upsert admin@example.com change-me
+```
+
+### CLI Updates
+
+PocketBun does not ship the PocketBase `update` command. Because PocketBun is distributed as a package, update it via your package manager instead (for example `bun add -g pocketbun@latest`, `npm i -g pocketbun@latest`, or `pnpm add -g pocketbun@latest`).
 
 ### Thumbnails
 
@@ -92,4 +105,22 @@ attachDbxRewrite(externalDb);
 externalDb.query("select [[id]] from {{users}}").all();
 
 const sql = rewriteDbxIdentifiers("select [[name]] from {{users}}");
+```
+
+### SQL Placeholder Indices
+
+When a filter expression collapses to a literal (for example, comparing to an empty string), PocketBun drops any now-unused params. This can make `{:p0}`, `{:p1}`, … numbering differ from PocketBase if you log SQL and params. The behavior is the same; only the placeholder indices change.
+
+Example:
+
+PocketBun will inline the empty string:
+
+```
+[[title]] = '' OR [[title]] IS NULL
+```
+
+PocketBase may still keep an unused placeholder param:
+
+```
+[[title]] = {:p0} OR [[title]] IS NULL
 ```

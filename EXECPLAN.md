@@ -80,7 +80,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-02 22:15Z) Port record_helpers tests and align MFA expiry duration units with upstream.
 - [x] (2026-02-02 22:20Z) Port record auth origin CRUD API tests.
 - [x] (2026-02-02 22:39Z) Port external auth/MFA/OTP/superuser record CRUD tests, register superuser hooks, and align delete error propagation.
-- [x] (2026-02-02 22:57Z) Port mails/record tests, add ghupdate compareVersions/release helpers with tests, and add JWK fetch/signature validation utilities with tests.
+- [x] (2026-02-02 22:57Z) Port mails/record tests and add JWK fetch/signature validation utilities with tests.
 - [x] (2026-02-02 23:20Z) Tighten serve parity with CORS middleware, admin UI cache/CSP headers, and gzip support.
 - [x] (2026-02-02 23:54Z) Port s3blob driver + internal S3 client/uploader, align list/signing behavior, and add upstream S3/s3blob tests.
 - [x] (2026-02-03 07:31Z) Port blob bucket/reader/writer and fileblob driver foundations for local storage compatibility.
@@ -88,7 +88,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-03 12:57Z) Port tools/search tests (filter/provider/sort/token functions/simple resolver/identifier macros/multi-match) and align filter parsing + LIKE wrapping to upstream behavior.
 - [x] (2026-02-03 12:57Z) Port tools/types tests (DateTime/JSONRaw/JSONMap/JSONArray) and align DateTime + JSON* helper semantics with upstream Scan/Value/Marshal behavior.
 - [x] (2026-02-03 13:04Z) Port tools/security encrypt/jwt tests, align AES-GCM key handling with Go (128/192/256), and expose claims on parseUnverifiedJWT errors.
-- [ ] (2026-02-03 18:20Z) Restore 1:1 file mapping where practical by un-merging merged TS files and adding missing upstream files/tests (completed: analysis of missing files/tests, merged-header rule, low-risk un-merges like api_error_aliases/router error/collection_import + auth_origin/otp/mfa/external_auth query splits, base_backup helper extraction + base_paths constants, db_connect helper, syscall stub, core renames to match upstream (base/collection_model/record_model/settings_model), record_model_auth extraction, record_field_resolver_replace_expr + db_connect_nodefaultdriver + syscall_wasm stubs, collection_import + collection_record_table_sync extraction, settings_query extraction, added modernc/ui/embed/installer/jsvm pool/types stubs, collection_query module + tests + DbxDatabase query logging, db_tx module + tests, db_retry/db_builder modules with tests for db_retry, and tools/search + tools/types + tools/security + tools/osutils + tools/logger + tools/mailer + tools/routine tests; remaining: larger splits and missing modules/tests).
+- [x] (2026-02-04 21:10Z) Restore 1:1 file mapping where practical by un-merging merged TS files and adding missing upstream files/tests (completed: analysis of missing files/tests, merged-header rule, low-risk un-merges like api_error_aliases/router error/collection_import + auth_origin/otp/mfa/external_auth query splits, base_backup helper extraction + base_paths constants, db_connect helper, syscall stub, core renames to match upstream (base/collection_model/record_model/settings_model), record_model_auth extraction, record_field_resolver_replace_expr + db_connect_nodefaultdriver + syscall_wasm stubs, collection_import + collection_record_table_sync extraction, settings_query extraction, added modernc/ui/embed/installer/jsvm pool/types stubs, collection_query module + tests + DbxDatabase query logging, db_tx module + tests, db_retry/db_builder modules with tests for db_retry, and tools/search + tools/types + tools/security + tools/osutils + tools/logger + tools/mailer + tools/routine tests).
+- [x] (2026-02-04 22:40Z) Add PocketBase-compatible CLI entrypoint (serve/superuser/migrate) and register migratecmd/jsvm like upstream example, then port CLI tests (pocketbase_test, migratecmd_test).
+- [x] (2026-02-04 21:10Z) Documented SQL placeholder index differences (unused empty-string params are dropped) in README for debugging parity expectations.
 - [x] (2026-02-03 20:05Z) Port tools/osutils cmd/run modules and tests, and align MoveDirContent mkdir/rollback behavior with upstream.
 - [x] (2026-02-03 21:05Z) Port tools/logger log/batch handler + tests and add a minimal slog compat shim for structured logging parity.
 - [x] (2026-02-03 22:10Z) Port tools/template registry/renderer + tests, wire $template into JS hooks/migrations, and document JS-friendly templating guidance.
@@ -135,7 +137,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 
 ## Decision Log
 
-- (2026-02-03) CLI/example files from upstream are intentionally omitted in PocketBun (library-only). The missing mapping for `cmd/serve.go`, `plugins/migratecmd/*`, and `examples/base/main.go` is expected and will be tracked as an intentional omission rather than stubbed.
+- (2026-02-04) Reversed the earlier "no CLI" decision: PocketBun now includes a CLI script compatible with the PocketBase binary to ease migration, so cmd/serve + migratecmd + pocketbase CLI tests are now in scope.
 
 - Decision: Structure the port as incremental, end-to-end slices that always end in runnable behavior with tests, starting with /api/health and static Admin UI.
   Rationale: Early behavioral parity and tests reduce drift and make later ports safer.
@@ -427,3 +429,4 @@ Plan change note: 2026-02-02, recorded collection CRUD/import parity completion,
 Plan change note: 2026-02-03, added the 1:1 file mapping/missing tests milestone and recorded the file-count discrepancy plus mapping scan results.
 Plan change note: 2026-02-03, recorded tools/search + tools/types test ports and helper parity updates during the 1:1 file mapping milestone.
 Plan change note: 2026-02-03, recorded tools/security encrypt/jwt test ports and AES-GCM key handling alignment.
+Plan change note: 2026-02-04, removed the ghupdate self-update plugin/command because PocketBun is distributed as a package; documented package-manager updates in README.

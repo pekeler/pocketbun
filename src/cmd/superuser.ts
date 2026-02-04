@@ -1,9 +1,11 @@
-// Ported from pocketbase/cmd/superuser.go (CLI wiring removed; library-friendly helpers instead).
+// Ported from pocketbase/cmd/superuser.go (includes CLI commands plus library helpers).
 
 import type { App } from "../core/app.ts";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { NewOTP, type OTP } from "../core/otp_model.ts";
 import { NewRecord, type Record } from "../core/record_model.ts";
+import { bgGreenFgBlack, green, yellow } from "../tools/cli/color.ts";
+import { Command } from "../tools/cli/command.ts";
 import { randomStringWithAlphabet } from "../tools/security/random.ts";
 
 export type SuperuserOtpResult = {
@@ -127,6 +129,134 @@ export const superuser = {
   delete: superuserDelete,
   otp: superuserOTP,
 };
+
+export function NewSuperuserCommand(app: App): Command {
+  const command = new Command({
+    Use: "superuser",
+    Short: "Manage superusers",
+  });
+
+  command.AddCommand(superuserUpsertCommand(app));
+  command.AddCommand(superuserCreateCommand(app));
+  command.AddCommand(superuserUpdateCommand(app));
+  command.AddCommand(superuserDeleteCommand(app));
+  command.AddCommand(superuserOTPCommand(app));
+
+  return command;
+}
+
+function superuserUpsertCommand(app: App): Command {
+  const command = new Command({
+    Use: "upsert",
+    Short: "Creates, or updates if email exists, a single superuser",
+    SilenceUsage: true,
+  });
+
+  command.RunE = async (_cmd, args) => {
+    if (args.length !== 2) {
+      return new Error("missing email and password arguments");
+    }
+    validateEmail(args[0] ?? "", "missing or invalid email address");
+
+    const record = await superuserUpsert(app, args[0] ?? "", args[1] ?? "");
+    green("Successfully saved superuser %q!\n", record.Email());
+    return null;
+  };
+
+  return command;
+}
+
+function superuserCreateCommand(app: App): Command {
+  const command = new Command({
+    Use: "create",
+    Short: "Creates a new superuser",
+    SilenceUsage: true,
+  });
+
+  command.RunE = async (_cmd, args) => {
+    if (args.length !== 2) {
+      return new Error("missing email and password arguments");
+    }
+    validateEmail(args[0] ?? "", "missing or invalid email address");
+
+    const record = await superuserCreate(app, args[0] ?? "", args[1] ?? "");
+    green("Successfully created new superuser %q!\n", record.Email());
+    return null;
+  };
+
+  return command;
+}
+
+function superuserUpdateCommand(app: App): Command {
+  const command = new Command({
+    Use: "update",
+    Short: "Changes the password of a single superuser",
+    SilenceUsage: true,
+  });
+
+  command.RunE = async (_cmd, args) => {
+    if (args.length !== 2) {
+      return new Error("missing email and password arguments");
+    }
+    validateEmail(args[0] ?? "", "missing or invalid email address");
+
+    const record = await superuserUpdate(app, args[0] ?? "", args[1] ?? "");
+    green("Successfully changed superuser %q password!\n", record.Email());
+    return null;
+  };
+
+  return command;
+}
+
+function superuserDeleteCommand(app: App): Command {
+  const command = new Command({
+    Use: "delete",
+    Short: "Deletes an existing superuser",
+    SilenceUsage: true,
+  });
+
+  command.RunE = async (_cmd, args) => {
+    if (args.length === 0) {
+      return new Error("invalid or missing email address");
+    }
+    validateEmail(args[0] ?? "", "invalid or missing email address");
+
+    const deleted = await superuserDelete(app, args[0] ?? "");
+    if (!deleted) {
+      yellow("superuser %q is missing or already deleted\n", args[0] ?? "");
+      return null;
+    }
+
+    green("Successfully deleted superuser %q!\n", args[0] ?? "");
+    return null;
+  };
+
+  return command;
+}
+
+function superuserOTPCommand(app: App): Command {
+  const command = new Command({
+    Use: "otp",
+    Short: "Creates a new OTP for the specified superuser",
+    SilenceUsage: true,
+  });
+
+  command.RunE = async (_cmd, args) => {
+    if (args.length === 0) {
+      return new Error("invalid or missing email address");
+    }
+    validateEmail(args[0] ?? "", "invalid or missing email address");
+
+    const { otp, password } = await superuserOTP(app, args[0] ?? "");
+    bgGreenFgBlack("Successfully created OTP for superuser %q:\n", args[0] ?? "");
+    green("├─ Id:    %s\n", otp.Id);
+    green("├─ Pass:  %s\n", password);
+    green("└─ Valid: %ds\n\n", otp.Collection().OTP.Duration);
+    return null;
+  };
+
+  return command;
+}
 
 function ensureReady(app: App): void {
   if (!app.isBootstrapped()) {

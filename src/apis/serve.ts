@@ -12,8 +12,10 @@ import { Gzip } from "./middlewares_gzip.ts";
 // ServeConfig defines a configuration struct for apis.Serve().
 export type ServeConfig = {
   httpAddr?: string;
+  httpsAddr?: string;
   showStartBanner?: boolean;
   allowedOrigins?: string[];
+  certificateDomains?: string[];
 };
 
 export function buildServeHandler(app: App, config: ServeConfig = {}): (req: Request, server?: unknown) => Promise<Response> {

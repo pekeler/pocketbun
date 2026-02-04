@@ -1,6 +1,9 @@
 // Ported from pocketbase/core/migrations_runner.go
 
 import type { App } from "./app.ts";
+import { toNumberValue } from "../internal/compat/cast.ts";
+import { green } from "../tools/cli/color.ts";
+import { YesNoPrompt } from "../tools/osutils/cmd.ts";
 import { MigrationsList } from "./migrations_list.ts";
 
 export const DefaultMigrationsTable = "_migrations";
@@ -19,6 +22,91 @@ export class MigrationsRunner {
     this.#app = app;
     this.#migrationsList = migrationsList;
     this.#tableName = DefaultMigrationsTable;
+  }
+
+  // Run interactively executes the current runner with the provided args.
+  //
+  // Supported commands:
+  // - up           - applies all migrations
+  // - down [n]     - reverts the last n (default 1) applied migrations
+  // - history-sync - syncs the migrations table with the runner's migrations list
+  run(...args: string[]): Error | null {
+    try {
+      this.initMigrationsTable();
+    } catch (err) {
+      return err as Error;
+    }
+
+    const cmd = args.length > 0 ? (args[0] ?? "up") : "up";
+
+    switch (cmd) {
+      case "up": {
+        let applied: string[] = [];
+        try {
+          applied = this.up();
+        } catch (err) {
+          return err as Error;
+        }
+
+        if (applied.length === 0) {
+          green("No new migrations to apply.\n");
+        } else {
+          for (const file of applied) {
+            green("Applied %s\n", file);
+          }
+        }
+        return null;
+      }
+      case "down": {
+        let toRevertCount = 1;
+        if (args.length > 1) {
+          const parsed = Math.trunc(toNumberValue(args[1]));
+          toRevertCount = parsed < 0 ? this.#migrationsList.Items().length : parsed;
+        }
+
+        const names = this.lastAppliedMigrations(toRevertCount);
+        const confirm = YesNoPrompt(
+          `\n${names.join("\n")}\nDo you really want to revert the last ${toRevertCount} applied migration(s)?`,
+          false,
+        );
+        if (!confirm) {
+          console.log("The command has been cancelled");
+          return null;
+        }
+
+        let reverted: string[] = [];
+        try {
+          reverted = this.down(toRevertCount);
+        } catch (err) {
+          return err as Error;
+        }
+
+        if (reverted.length === 0) {
+          green("No migrations to revert.\n");
+        } else {
+          for (const file of reverted) {
+            green("Reverted %s\n", file);
+          }
+        }
+        return null;
+      }
+      case "history-sync": {
+        try {
+          this.removeMissingAppliedMigrations();
+        } catch (err) {
+          return err as Error;
+        }
+
+        green("The %s table was synced with the available migrations.\n", this.#tableName);
+        return null;
+      }
+      default:
+        return new Error(`unsupported command: ${JSON.stringify(cmd)}`);
+    }
+  }
+
+  Run(...args: string[]): Error | null {
+    return this.run(...args);
   }
 
   up(): string[] {
