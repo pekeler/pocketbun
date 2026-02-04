@@ -35,4 +35,10 @@ pb_data/
 pb_migrations/
 pb_hooks/
 
+# keep example hooks/migrations under version control
+!examples/advanced/pb_hooks/
+!examples/advanced/pb_hooks/**
+!examples/advanced/pb_migrations/
+!examples/advanced/pb_migrations/**
+
 .upstream/
