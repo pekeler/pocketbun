@@ -99,6 +99,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-03 23:05Z) Port tools/mailer html2text + smtp login auth + mailer tests for address formatting and mime detection.
 - [x] (2026-02-03 23:20Z) Port tools/routine FireAndForget test and align async recovery behavior.
 - [x] (2026-02-04 00:50Z) Port collection import + record table sync tests and implement single↔multiple normalization during table schema sync.
+- [x] (2026-02-04 23:55Z) Un-merged S3 client implementation into per-file modules (error/copy/delete/get/head/list/uploader) and kept s3.ts as the s3.go wrapper with delegated methods.
 
 ## Surprises & Discoveries
 
@@ -430,3 +431,4 @@ Plan change note: 2026-02-03, added the 1:1 file mapping/missing tests milestone
 Plan change note: 2026-02-03, recorded tools/search + tools/types test ports and helper parity updates during the 1:1 file mapping milestone.
 Plan change note: 2026-02-03, recorded tools/security encrypt/jwt test ports and AES-GCM key handling alignment.
 Plan change note: 2026-02-04, removed the ghupdate self-update plugin/command because PocketBun is distributed as a package; documented package-manager updates in README.
+Plan change note: 2026-02-04, split the S3 client merge into per-file modules while keeping s3.ts as the s3.go entrypoint with delegated methods.

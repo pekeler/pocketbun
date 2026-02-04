@@ -467,7 +467,7 @@ describe("record auth with OTP manual rate limit", () => {
   ];
 
   for (const scenario of scenarios) {
-    it(`${scenario.otpId}:${scenario.password}`, async () => {
+    it.serial(`${scenario.otpId}:${scenario.password}`, async () => {
       await runApiScenario({
         method: "POST",
         url: "/api/collections/users/auth-with-otp",
