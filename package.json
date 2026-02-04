@@ -27,7 +27,8 @@
     "@types/bun": "latest",
     "oxfmt": "^0.27.0",
     "oxlint": "^1.42.0",
-    "oxlint-tsgolint": "^0.11.4"
+    "oxlint-tsgolint": "^0.11.4",
+    "pocketbase": "^0.26.2"
   },
   "peerDependencies": {
     "go-text-template": "*",

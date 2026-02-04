@@ -37,6 +37,18 @@ Log in and capture the `token` and the user `id` from the response:
       -H "Content-Type: application/json" \
       -d '{"identity":"demo@example.com","password":"pass12345"}'
 
+## JavaScript SDK (PocketBase JS)
+
+This example includes a small script that uses the official PocketBase JavaScript SDK.
+
+Run a health check:
+
+    bun run client
+
+Optionally, after creating the demo user above, run with credentials to authenticate and fetch projects:
+
+    POCKETBUN_DEMO_EMAIL=demo@example.com POCKETBUN_DEMO_PASSWORD=pass12345 bun run client
+
 ## Create a project (CRUD + files + hooks)
 
 Use the auth token and the user id as the `owner`. The hook will generate the `slug` automatically.

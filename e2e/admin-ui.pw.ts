@@ -1,9 +1,12 @@
 // PocketBun-only: Playwright smoke tests to verify the bundled Admin UI loads.
 
+import PocketBase from "pocketbase";
 import { expect, test } from "@playwright/test";
 
 const email = process.env.POCKETBUN_E2E_EMAIL ?? "admin@example.com";
 const password = process.env.POCKETBUN_E2E_PASSWORD ?? "change-me";
+const port = process.env.POCKETBUN_E2E_PORT ?? "8091";
+const baseUrl = process.env.POCKETBUN_E2E_BASE_URL ?? `http://127.0.0.1:${port}`;
 
 test("admin UI loads", async ({ page }) => {
   await page.goto("/_/");
@@ -34,10 +37,8 @@ test("can navigate to collections after login", async ({ page }) => {
   await expect(page.getByPlaceholder(/search collections/i)).toBeVisible();
 });
 
-test("api health endpoint responds", async ({ request }) => {
-  const response = await request.get("/api/health");
-  expect(response.ok()).toBeTruthy();
-
-  const body = await response.json();
-  expect(body).toEqual({ code: 200, message: "API is healthy.", data: {} });
+test("api health endpoint responds", async () => {
+  const pb = new PocketBase(baseUrl);
+  const health = await pb.health.check();
+  expect(health).toEqual({ code: 200, message: "API is healthy.", data: {} });
 });

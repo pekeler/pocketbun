@@ -4,9 +4,11 @@
   "type": "module",
   "scripts": {
     "start": "bun run main.ts",
-    "superuser": "pocketbun superuser upsert admin@example.com change-me --dir pb_data"
+    "superuser": "pocketbun superuser upsert admin@example.com change-me --dir pb_data",
+    "client": "bun run client.ts"
   },
   "dependencies": {
+    "pocketbase": "^0.26.2",
     "pocketbun": "file:../.."
   }
 }
