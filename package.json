@@ -4,6 +4,9 @@
   "private": true,
   "module": "index.ts",
   "type": "module",
+  "bin": {
+    "pocketbun": "bin/pocketbun"
+  },
   "scripts": {
     "upstream:sync": "bash scripts/sync_upstream_pocketbase.sh",
     "test": "bun test",
