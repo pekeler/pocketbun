@@ -16,6 +16,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 3: complete
   - Milestone 4: complete
   - Milestone 5: complete (all remaining gaps are intentional and documented)
+  - Milestone 6: planned (CI + e2e tests, docs/examples, upgrade to v0.36.2, and a full port audit)
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
@@ -107,6 +108,12 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-03 23:20Z) Port tools/routine FireAndForget test and align async recovery behavior.
 - [x] (2026-02-04 00:50Z) Port collection import + record table sync tests and implement single↔multiple normalization during table schema sync.
 - [x] (2026-02-04 23:55Z) Un-merged S3 client implementation into per-file modules (error/copy/delete/get/head/list/uploader) and kept s3.ts as the s3.go wrapper with delegated methods.
+- [x] (2026-02-04 23:59Z) Add a GitHub Actions CI workflow that runs format, lint, typecheck, and tests, and surface the workflow status in README.
+- [x] (2026-02-04 23:59Z) Add end-to-end tests that start the server and confirm the Admin UI and basic API endpoints respond successfully.
+- [x] (2026-02-04 23:59Z) Add a short README quick-start example and a minimal runnable example under examples/simple.
+- [ ] (2026-02-04 23:59Z) Define and document the upgrade workflow, then upgrade to PocketBase v0.36.2 (sync upstream, bump versions, reconcile diffs, and update docs/tests).
+- [ ] (2026-02-04 23:59Z) Run a full port audit against upstream v0.36.2 to enumerate missing source/tests and add follow-up TODOs.
+- [ ] (2026-02-04 23:59Z) Add an advanced example under examples/ that demonstrates core features (auth, CRUD, files, realtime, hooks, and CLI usage).
 
 ## Surprises & Discoveries
 
@@ -237,6 +244,9 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - Decision: Restore 1:1 file mapping by splitting merged TS modules into upstream-named files where feasible, and list all upstream source files in headers when a merge must remain.
   Rationale: Closer structural parity reduces future sync/upgrade friction and clarifies provenance for merged ports.
   Date/Author: 2026-02-03 / Codex
+- Decision: Order the next phase as CI + e2e tests first, then docs/examples, then the upgrade process + upgrade to v0.36.2, then a full port audit, then the advanced example.
+  Rationale: CI and e2e tests provide safety nets for the upgrade, docs/examples stay accurate after the version bump, and the audit should reflect the upgraded baseline before the advanced example is finalized.
+  Date/Author: 2026-02-04 / Codex
 - Decision: Infer Store missing-key zero values from provided data or explicit zeroValue when available.
   Rationale: Go maps return a type-specific zero value, which TypeScript cannot infer for empty stores.
   Date/Author: 2026-02-02 / Codex
@@ -329,6 +339,18 @@ Port missing upstream tests in-place under the same directory as their source co
 
 For any new files added to satisfy mapping, add the required “ported from” header comment that names the upstream file(s). For any remaining merged files, list all upstream files in the header comment.
 
+Milestone 6 steps. Add CI, end-to-end tests, docs/examples, and the upgrade workflow (then perform the upgrade to v0.36.2), followed by a full port audit and an advanced example.
+
+- Add a GitHub Actions workflow in .github/workflows/ci.yml. Use the official Bun setup action, install dependencies, and run the same four commands required before commits: bun run format, bun run lint, bun run typecheck, and bun test --only-failures --concurrent. The workflow should run on push and pull_request. Update README.md to include a status badge for this workflow near the top.
+- Add end-to-end tests that start the server on a random local port and verify that:
+  - GET /_/ returns HTML that looks like the Admin UI index.
+  - GET /api/health returns a 200 JSON payload with the expected shape.
+  Put these tests under tests/e2e or a new src/tests/e2e folder and include a header comment explaining there is no upstream test for these and why they exist.
+- Add a short, minimal README example showing how to start the server and call a basic endpoint. Keep it runnable with Bun. Also add examples/simple with a minimal script and a README that shows how to run it.
+- Define an upgrade workflow document (for example docs/UPGRADING.md) that spells out the exact steps to move to a new upstream version: update pocketbase_tag.txt, update package.json version to X.Y.Z-pocketbun.0, run bun run upstream:sync, refresh vendor/pocketbase-admin-ui/dist + LICENSE, run the mapping audit to find missing files/tests, fix breakages, and update README compatibility notes. Then execute this workflow to upgrade to v0.36.2 and ensure tests pass.
+- Perform a full port audit against upstream v0.36.2 using a scripted file mapping (for example via rg) to identify any missing .go/.go test files, and add TODOs in EXECPLAN.md or a dedicated tracking file. Include a brief summary in Progress and Surprises & Discoveries.
+- Add examples/advanced that demonstrates the major features the Bun port supports (auth, CRUD, files, realtime, hooks, and CLI usage). Keep it runnable and documented, and ensure it avoids any intentionally documented incompatibilities.
+
 ## Validation and Acceptance
 
 Milestone 1 is accepted when running bun test passes and a manual request to /api/health returns a 200 JSON payload with code 200, message "API is healthy.", and data as an empty object for guest requests. The Admin UI must be served at /_/ and return index.html from vendor/pocketbase-admin-ui/dist.
@@ -338,6 +360,8 @@ Milestone 2 is accepted when a superuser token causes /api/health to return data
 Milestone 3 is accepted when CRUD and auth tests pass and match upstream response shapes, including error formats and paging semantics.
 
 Milestone 4 is accepted when SSE tests pass, hook loading works from pb_hooks/, and Admin UI functionality that relies on realtime and hooks works in a manual smoke test.
+
+Milestone 6 is accepted when CI runs on GitHub Actions and the README badge updates to green, e2e tests prove /_/ and /api/health respond correctly, the README and examples directories contain runnable minimal and advanced examples, the upgrade workflow document exists and the project is upgraded to PocketBase v0.36.2 with package.json version 0.36.2-pocketbun.0, and a post-upgrade port audit identifies any remaining gaps.
 
 ## Idempotence and Recovery
 
@@ -438,4 +462,5 @@ Plan change note: 2026-02-03, added the 1:1 file mapping/missing tests milestone
 Plan change note: 2026-02-03, recorded tools/search + tools/types test ports and helper parity updates during the 1:1 file mapping milestone.
 Plan change note: 2026-02-03, recorded tools/security encrypt/jwt test ports and AES-GCM key handling alignment.
 Plan change note: 2026-02-04, removed the ghupdate self-update plugin/command because PocketBun is distributed as a package; documented package-manager updates in README.
+Plan change note: 2026-02-04, added Milestone 6 for CI, e2e tests, docs/examples, the v0.36.2 upgrade workflow, and a post-upgrade port audit.
 Plan change note: 2026-02-04, split the S3 client merge into per-file modules while keeping s3.ts as the s3.go entrypoint with delegated methods.

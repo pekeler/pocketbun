@@ -1,5 +1,7 @@
 # PocketBun
 
+[![CI](https://github.com/pekeler/pocketbun/actions/workflows/ci.yml/badge.svg)](https://github.com/pekeler/pocketbun/actions/workflows/ci.yml)
+
 An attempt to port **PocketBase** to JavaScript/TypeScript using Bun. **_Work in progress._**
 
 > [PocketBase](https://pocketbase.io) is an open source Go backend that includes:
@@ -31,6 +33,27 @@ Key differences:
 ## Installation
 
 todo
+
+## Quick Start
+
+Create a small server script (for example `server.ts`):
+
+```ts
+import { BaseApp, serve } from "pocketbun";
+
+const app = new BaseApp({ dataDir: "pb_data" });
+app.bootstrap();
+
+serve(app, { httpAddr: "127.0.0.1:8090" });
+```
+
+Run it:
+
+```sh
+bun run server.ts
+```
+
+Then visit `http://127.0.0.1:8090/_/` for the Admin UI and `http://127.0.0.1:8090/api/health` for a basic API response. See `examples/simple` for a minimal runnable project.
 
 ## Known Differences
 
