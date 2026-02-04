@@ -2,6 +2,7 @@
 
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
+import type { Record as RecordModel } from "../core/record_model.ts";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { RecordConfirmEmailChangeRequestEvent } from "../core/events.ts";
 import { TokenClaimNewEmail, TokenTypeEmailChange } from "../core/record_tokens.ts";
@@ -42,18 +43,20 @@ export async function recordConfirmEmailChange(app: App, event: RequestEvent): P
   }
 
   const parsedToken = parseEmailChangeToken(app, collection.Id, form.token);
-  if (!parsedToken.record || !parsedToken.newEmail) {
+  const record = parsedToken.record;
+  const newEmail = parsedToken.newEmail;
+  if (!record || !newEmail) {
     return badRequest(event, "Invalid or expired token.", parsedToken.error ?? undefined);
   }
 
-  const hookEvent = new RecordConfirmEmailChangeRequestEvent(event, collection, parsedToken.record);
-  hookEvent.NewEmail = parsedToken.newEmail;
+  const hookEvent = new RecordConfirmEmailChangeRequestEvent(event, collection, record);
+  hookEvent.NewEmail = newEmail;
 
   const out = await app.OnRecordConfirmEmailChangeRequest().Trigger(hookEvent, async () => {
-    parsedToken.record.SetEmail(parsedToken.newEmail);
-    parsedToken.record.SetVerified(true);
+    record.SetEmail(newEmail);
+    record.SetVerified(true);
 
-    const saveErr = await app.Save(parsedToken.record);
+    const saveErr = await app.Save(record);
     if (saveErr) {
       return badRequest(event, "Failed to confirm email change.", saveErr);
     }
@@ -122,7 +125,7 @@ function parseEmailChangeToken(
   app: App,
   collectionId: string,
   token: string,
-): { record: any; newEmail: string; error: Error | null } {
+): { record: RecordModel | null; newEmail: string; error: Error | null } {
   let newEmail = "";
   try {
     const claims = decodeUnverifiedJWT(token) as Record<string, unknown>;
@@ -152,7 +155,7 @@ function parseEmailChangeToken(
     // ignore missing record
   }
 
-  let record = null;
+  let record: RecordModel | null = null;
   try {
     record = app.FindAuthRecordByToken(token, TokenTypeEmailChange);
   } catch {

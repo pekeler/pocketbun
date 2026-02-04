@@ -250,12 +250,13 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
 
     if (oldCollection) {
       const oldFields = oldCollection.Fields.length > 0 ? oldCollection.Fields : oldCollection.fields;
-      const oldField = oldFields.find(
-        (field) =>
-          (field as any)?.Id === this.Id ||
-          (field as any)?.id === this.Id ||
-          (typeof (field as any)?.GetId === "function" && (field as any).GetId() === this.Id),
-      ) as { collectionId?: string; CollectionId?: string } | undefined;
+      const oldField = oldFields.find((field) => {
+        const candidate = field as FieldIdCandidate;
+        if (candidate.Id === this.Id || candidate.id === this.Id) {
+          return true;
+        }
+        return typeof candidate.GetId === "function" && candidate.GetId() === this.Id;
+      }) as FieldIdCandidate | undefined;
       const oldCollectionId = oldField?.collectionId ?? oldField?.CollectionId ?? "";
       if (oldCollectionId && oldCollectionId !== this.CollectionId) {
         return newError("validation_field_relation_change", "The relation collection cannot be changed.");
@@ -281,6 +282,14 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
 type RecordLike = {
   GetRaw: (field: string) => unknown;
   SetRaw: (field: string, value: unknown) => void;
+};
+
+type FieldIdCandidate = {
+  Id?: string;
+  id?: string;
+  GetId?: () => string;
+  collectionId?: string;
+  CollectionId?: string;
 };
 
 Fields[FieldTypeRelation] = () => new RelationField();

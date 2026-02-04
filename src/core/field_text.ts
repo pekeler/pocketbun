@@ -312,9 +312,13 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     let totalPrimaryKeys = 0;
     const fields = collection.Fields.length > 0 ? collection.Fields : collection.fields;
     for (const field of fields) {
-      const candidate = field as unknown as { primaryKey?: boolean; PrimaryKey?: boolean };
-      if (typeof (candidate as any).GetName === "function") {
-        if ((field as any).PrimaryKey) {
+      const candidate = field as {
+        GetName?: () => string;
+        PrimaryKey?: boolean;
+        primaryKey?: boolean;
+      };
+      if (typeof candidate.GetName === "function") {
+        if (candidate.PrimaryKey) {
           totalPrimaryKeys += 1;
         }
       } else if (candidate.primaryKey || candidate.PrimaryKey) {

@@ -660,14 +660,16 @@ function assignStructValues(target: Record<string, unknown>, values: Record<stri
   }
 }
 
-function wrapFieldCtor<T extends new (...args: any[]) => any>(Ctor: T): T {
+type StructCtor = new (...args: unknown[]) => object;
+
+function wrapFieldCtor(Ctor: StructCtor): StructCtor {
   return class extends Ctor {
-    constructor(...args: any[]) {
+    constructor(...args: unknown[]) {
       super(...args);
       const values = (args[0] ?? {}) as Record<string, unknown>;
       assignStructValues(this as Record<string, unknown>, values);
     }
-  } as T;
+  } as StructCtor;
 }
 
 export function baseBinds(target: BindTarget): void {

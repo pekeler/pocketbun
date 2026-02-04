@@ -8,7 +8,7 @@ import type { OAuth2Token } from "../tools/auth/auth.ts";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { RequestEvent, RequestEventKeyInfoContext, RequestInfoContextOAuth2 } from "../core/event_request.ts";
 import { RecordAuthWithOAuth2RequestEvent, RecordRequestEvent } from "../core/events.ts";
-import { NewExternalAuth } from "../core/external_auth_model.ts";
+import { NewExternalAuth, type ExternalAuth } from "../core/external_auth_model.ts";
 import { FieldTypeFile } from "../core/field_file.ts";
 import { PasswordFieldValue } from "../core/field_password.ts";
 import { TextField } from "../core/field_text.ts";
@@ -133,7 +133,7 @@ export async function recordAuthWithOAuth2(app: App, event: RequestEvent): Promi
   }
 
   let authRecord: RecordModel | null = null;
-  let externalAuthRel = null;
+  let externalAuthRel: ExternalAuth | null = null;
   try {
     externalAuthRel = app.FindFirstExternalAuthByExpr({
       collectionRef: collection.Id,
@@ -196,7 +196,10 @@ export async function recordAuthWithOAuth2(app: App, event: RequestEvent): Promi
   return badRequest(event, "Failed to authenticate.");
 }
 
-async function oauth2Submit(event: RecordAuthWithOAuth2RequestEvent, optExternalAuth: any): Promise<Error | null> {
+async function oauth2Submit(
+  event: RecordAuthWithOAuth2RequestEvent,
+  optExternalAuth: ExternalAuth | null,
+): Promise<Error | null> {
   const authUser = event.OAuth2User as AuthUser;
   let createContext: OAuth2CreateContext | null = null;
   let createdRecord: RecordModel | null = null;
