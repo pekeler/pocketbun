@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // PocketBun-only: Bun CLI entrypoint that mirrors the PocketBase binary interface.
 
-import { main } from "../examples/base/main.ts";
+import { main } from "../dist/examples/base/main.js";
 
 await main();
