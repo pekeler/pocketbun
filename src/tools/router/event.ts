@@ -296,6 +296,9 @@ export class Event implements Resolver {
       }
     }
 
+    const contentType = Bun.file(resolved).type || "application/octet-stream";
+    this.setResponseHeaderIfEmpty(headerContentType, contentType);
+
     const content = readFileSync(resolved);
     this.responseHeaders.set("Content-Length", String(content.length));
     return this.buildResponse(200, content);

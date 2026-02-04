@@ -16,7 +16,7 @@
     "lint": "oxlint --type-aware src tests",
     "format": "oxfmt --check src tests",
     "format:fix": "oxfmt --write src tests",
-    "e2e": "playwright test",
+    "e2e": "bun run scripts/e2e_run.ts",
     "e2e:install": "playwright install --with-deps"
   },
   "dependencies": {
