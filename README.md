@@ -55,6 +55,11 @@ bun run server.ts
 
 Then visit `http://127.0.0.1:8090/_/` for the Admin UI and `http://127.0.0.1:8090/api/health` for a basic API response. See `examples/simple` for a minimal runnable project.
 
+## Examples
+
+- `examples/simple` — minimal server start
+- `examples/advanced` — hooks, migrations, auth, CRUD, files, realtime, and custom routes
+
 ## Known Differences
 
 ### Library Usage (API-first)

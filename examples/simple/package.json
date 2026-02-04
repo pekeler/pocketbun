@@ -1,0 +1,11 @@
+{
+  "name": "pocketbun-example-simple",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run main.ts"
+  },
+  "dependencies": {
+    "pocketbun": "file:../.."
+  }
+}

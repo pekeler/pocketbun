@@ -4,7 +4,9 @@ This example starts a PocketBun server with a local data directory under `exampl
 
 Run from the repo root:
 
-    bun run examples/simple/main.ts
+    cd examples/simple
+    bun install
+    bun run start
 
 Then visit:
 

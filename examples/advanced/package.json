@@ -1,0 +1,12 @@
+{
+  "name": "pocketbun-example-advanced",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run main.ts",
+    "superuser": "pocketbun superuser upsert admin@example.com change-me --dir pb_data"
+  },
+  "dependencies": {
+    "pocketbun": "file:../.."
+  }
+}
