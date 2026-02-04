@@ -20,7 +20,7 @@ type BenchResult = {
 };
 
 const concurrency = Number.parseInt(process.env.POCKETBUN_BENCH_CONCURRENCY ?? "32", 10);
-const durationMs = Number.parseInt(process.env.POCKETBUN_BENCH_DURATION_MS ?? "5000", 10);
+const durationMs = Number.parseInt(process.env.POCKETBUN_BENCH_DURATION_MS ?? "15000", 10);
 const recordCount = Number.parseInt(process.env.POCKETBUN_BENCH_RECORDS ?? "1000", 10);
 
 const port = await pickPort();
