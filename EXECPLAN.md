@@ -96,6 +96,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-03 22:51Z) Port core base/base_backup/db_table/record_query_expand/fields_list tests, add FieldsList Scan/Value/MarshalJSON helpers, expose TableColumns/DeleteTable/Vacuum/AuxHasTable on BaseApp, and validate S3 config before NewFilesystem/NewBackupsFilesystem.
 - [x] (2026-02-03 23:05Z) Port tools/mailer html2text + smtp login auth + mailer tests for address formatting and mime detection.
 - [x] (2026-02-03 23:20Z) Port tools/routine FireAndForget test and align async recovery behavior.
+- [x] (2026-02-04 00:50Z) Port collection import + record table sync tests and implement single↔multiple normalization during table schema sync.
 
 ## Surprises & Discoveries
 

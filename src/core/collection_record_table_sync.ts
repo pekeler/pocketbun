@@ -5,6 +5,7 @@ import type { Collection } from "./collection_model.ts";
 import { ValidationErrors, newError } from "../internal/compat/validation.ts";
 import { parseIndex } from "../tools/dbutils/index.ts";
 import { randomString } from "../tools/security/random.ts";
+import { type MultiValuer } from "./field.ts";
 import { FieldsList } from "./fields_list.ts";
 
 // SyncRecordTableSchema compares the two provided collections
@@ -78,7 +79,10 @@ export async function syncRecordTableSchema(
       db.run(`alter table {{${newTableName}}} rename column "${tempName}" to "${actualName}"`);
     }
 
-    // Deviation: single vs multiple field migration and view resave are not implemented yet.
+    const normalizeErr = normalizeSingleVsMultipleFieldChanges(txApp, newCollection, oldCollection);
+    if (normalizeErr) {
+      return normalizeErr;
+    }
 
     if (needIndexesUpdate) {
       return createCollectionIndexes(txApp, newCollection);
@@ -148,7 +152,10 @@ export function syncRecordTableSchemaSync(app: App, newCollection: Collection, o
       db.run(`alter table {{${newTableName}}} rename column "${tempName}" to "${actualName}"`);
     }
 
-    // Deviation: single vs multiple field migration and view resave are not implemented yet.
+    const normalizeErr = normalizeSingleVsMultipleFieldChanges(txApp, newCollection, oldCollection);
+    if (normalizeErr) {
+      return normalizeErr;
+    }
 
     if (needIndexesUpdate) {
       return createCollectionIndexes(txApp, newCollection);
@@ -166,6 +173,117 @@ export function dropCollectionIndexes(app: App, collection: Collection): Error |
     app.db().run(`drop index if exists \`${parsed.indexName}\``);
   }
   return null;
+}
+
+function normalizeSingleVsMultipleFieldChanges(
+  app: App,
+  newCollection: Collection,
+  oldCollection: Collection | null,
+): Error | null {
+  if (newCollection.isView() || !oldCollection) {
+    return null;
+  }
+
+  return app.RunInTransactionSync((txApp) => {
+    const db = txApp.db();
+
+    for (const newField of newCollection.Fields) {
+      let isOldMultiple = false;
+      const oldField = oldCollection.Fields.GetById(newField.GetId());
+      if (oldField) {
+        const multiOld = oldField as unknown as MultiValuer;
+        if (typeof multiOld.IsMultiple === "function") {
+          isOldMultiple = multiOld.IsMultiple();
+        }
+      }
+
+      let isNewMultiple = false;
+      const multiNew = newField as unknown as MultiValuer;
+      if (typeof multiNew.IsMultiple === "function") {
+        isNewMultiple = multiNew.IsMultiple();
+      }
+
+      if (isOldMultiple === isNewMultiple) {
+        continue;
+      }
+
+      const views = db.query("select name, sql from sqlite_master where sql is not null and type = 'view'").all() as Array<{
+        name?: string;
+        sql?: string;
+      }>;
+
+      for (const view of views) {
+        if (!view?.name) {
+          continue;
+        }
+        const err = txApp.DeleteView(view.name);
+        if (err) {
+          return err;
+        }
+      }
+
+      const originalName = newField.GetName();
+      const oldTempName = `_${originalName}${randomString(5)}`;
+
+      try {
+        db.run(`alter table {{${newCollection.name}}} rename column [[${originalName}]] to [[${oldTempName}]]`);
+        db.run(`alter table {{${newCollection.name}}} add column [[${originalName}]] ${newField.ColumnType(txApp)}`);
+      } catch (error) {
+        return error as Error;
+      }
+
+      let updateSql = "";
+      if (!isOldMultiple && isNewMultiple) {
+        updateSql = `update {{${newCollection.name}}} set [[${originalName}]] = (
+          case
+            when coalesce([[${oldTempName}]], '') = ''
+            then '[]'
+            else (
+              case
+                when json_valid([[${oldTempName}]]) and json_type([[${oldTempName}]]) == 'array'
+                then [[${oldTempName}]]
+                else json_array([[${oldTempName}]])
+              end
+            )
+          end
+        )`;
+      } else {
+        updateSql = `update {{${newCollection.name}}} set [[${originalName}]] = (
+          case
+            when coalesce([[${oldTempName}]], '[]') = '[]'
+            then ''
+            else (
+              case
+                when json_valid([[${oldTempName}]]) and json_type([[${oldTempName}]]) == 'array'
+                then coalesce(json_extract([[${oldTempName}]], '$[#-1]'), '')
+                else [[${oldTempName}]]
+              end
+            )
+          end
+        )`;
+      }
+
+      try {
+        db.run(updateSql);
+        db.run(`alter table {{${newCollection.name}}} drop column [[${oldTempName}]]`);
+      } catch (error) {
+        return error as Error;
+      }
+
+      for (const view of views) {
+        if (!view?.sql) {
+          continue;
+        }
+        try {
+          db.run(view.sql);
+        } catch (error) {
+          return error as Error;
+        }
+      }
+    }
+
+    return null;
+  });
 }
 
 export function createCollectionIndexes(app: App, collection: Collection): Error | null {
