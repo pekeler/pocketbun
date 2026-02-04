@@ -9,7 +9,7 @@
   },
   "scripts": {
     "upstream:sync": "bash scripts/sync_upstream_pocketbase.sh",
-    "test": "bun test",
+    "test": "bun test --concurrent",
     "start": "bun run index.ts",
     "typecheck": "bun x tsc -p tsconfig.json --noEmit",
     "lint": "oxlint --type-aware src tests",

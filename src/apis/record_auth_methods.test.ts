@@ -23,21 +23,21 @@ describe("record auth methods", () => {
     return cleanup?.();
   });
 
-  it("returns 404 for missing collection", async () => {
+  it.serial("returns 404 for missing collection", async () => {
     const res = await fetch(`${baseUrl}/api/collections/missing/auth-methods`);
     expect(res.status).toBe(404);
     const body = (await res.json()) as { data?: unknown };
     expect(body.data).toEqual({});
   });
 
-  it("returns 404 for non-auth collection", async () => {
+  it.serial("returns 404 for non-auth collection", async () => {
     const res = await fetch(`${baseUrl}/api/collections/demo1/auth-methods`);
     expect(res.status).toBe(404);
     const body = (await res.json()) as { data?: unknown };
     expect(body.data).toEqual({});
   });
 
-  it("returns empty auth methods for nologin collection", async () => {
+  it.serial("returns empty auth methods for nologin collection", async () => {
     const res = await fetch(`${baseUrl}/api/collections/nologin/auth-methods`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
@@ -53,7 +53,7 @@ describe("record auth methods", () => {
     expect(body.usernamePassword).toBe(false);
   });
 
-  it("returns auth methods for users collection", async () => {
+  it.serial("returns auth methods for users collection", async () => {
     const res = await fetch(`${baseUrl}/api/collections/users/auth-methods`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as any;
@@ -93,7 +93,7 @@ describe("record auth methods", () => {
 });
 
 describe("record auth methods rate limit", () => {
-  it("RateLimit rule - nologin:listAuthMethods", async () => {
+  it.serial("RateLimit rule - nologin:listAuthMethods", async () => {
     await runApiScenario({
       method: "GET",
       url: "/api/collections/nologin/auth-methods",
@@ -111,7 +111,7 @@ describe("record auth methods rate limit", () => {
     });
   });
 
-  it("RateLimit rule - *:listAuthMethods", async () => {
+  it.serial("RateLimit rule - *:listAuthMethods", async () => {
     await runApiScenario({
       method: "GET",
       url: "/api/collections/nologin/auth-methods",

@@ -22,7 +22,7 @@ describe("IsProbablyGoRun", () => {
   });
 
   for (const [index, s] of scenarios.entries()) {
-    it(`${index}_${s.arg0}`, () => {
+    it.serial(`${index}_${s.arg0}`, () => {
       process.argv = [s.arg0];
       if (s.runDirs) {
         osutilsRun.setRunDirsForTest(s.runDirs);

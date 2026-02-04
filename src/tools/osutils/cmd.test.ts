@@ -39,7 +39,7 @@ describe("YesNoPrompt", () => {
   for (const s of scenarios) {
     const name = `${s.stdin}_${s.fallback}`;
 
-    it(name, () => {
+    it.serial(name, () => {
       const parts = s.stdin === "" ? [""] : s.stdin.split("|");
       let index = 0;
       const originalWrite = process.stderr.write.bind(process.stderr);

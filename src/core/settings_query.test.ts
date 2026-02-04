@@ -73,7 +73,7 @@ describe("ReloadSettings", () => {
     }
   });
 
-  it("reloads settings with encryption", async () => {
+  it.serial("reloads settings with encryption", async () => {
     const { app, cleanup } = await newTestApp();
     const originalEnv = process.env.pb_test_env;
     process.env.pb_test_env = "a".repeat(32);

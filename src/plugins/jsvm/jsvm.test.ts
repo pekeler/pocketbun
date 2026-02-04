@@ -9,7 +9,7 @@ import { newTestApp } from "../../tests/app.ts";
 import { Register } from "./jsvm.ts";
 
 describe("jsvm loader", () => {
-  it("loads hooks and migrations from pb_* directories", async () => {
+  it.serial("loads hooks and migrations from pb_* directories", async () => {
     const { app, cleanup } = await newTestApp();
     const rootDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-"));
     const hooksDir = join(rootDir, "pb_hooks");

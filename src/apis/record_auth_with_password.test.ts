@@ -566,7 +566,7 @@ const scenarios: Scenario[] = [
 describe("record auth with password", () => {
   for (const scenario of scenarios) {
     const name = scenario.name ?? `${scenario.method}:${scenario.url}`;
-    it(name, async () => {
+    it.serial(name, async () => {
       await runApiScenario(scenario);
     });
   }

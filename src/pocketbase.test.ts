@@ -23,7 +23,7 @@ function skipBootstrap(app: unknown): boolean {
 }
 
 describe("pocketbase", () => {
-  it("New", () => {
+  it.serial("New", () => {
     withArgs(["--dir=test_dir", "--encryptionEnv=test_encryption_env", "--debug=true"], () => {
       const app = New();
 
@@ -35,7 +35,7 @@ describe("pocketbase", () => {
     });
   });
 
-  it("NewWithConfig", () => {
+  it.serial("NewWithConfig", () => {
     const app = NewWithConfig({
       DefaultDataDir: "test_dir",
       DefaultEncryptionEnv: "test_encryption_env",
@@ -50,7 +50,7 @@ describe("pocketbase", () => {
     expect(app.EncryptionEnv()).toBe("test_encryption_env");
   });
 
-  it("NewWithConfigAndFlags", () => {
+  it.serial("NewWithConfigAndFlags", () => {
     withArgs(["--dir=test_dir_flag", "--encryptionEnv=test_encryption_env_flag", "--debug=false"], () => {
       const app = NewWithConfig({
         DefaultDataDir: "test_dir",
@@ -67,7 +67,7 @@ describe("pocketbase", () => {
     });
   });
 
-  it("skipBootstrap", async () => {
+  it.serial("skipBootstrap", async () => {
     const original = [...process.argv];
     const tempDir = await mkdtemp(join(tmpdir(), "temp_pb_data-"));
 
