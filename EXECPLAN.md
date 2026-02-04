@@ -116,6 +116,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-04 23:59Z) Snapshot .upstream/pocketbase as v0.36.1, sync upstream to v0.36.2, and bump package.json to 0.36.2-pocketbun.0.
 - [x] (2026-02-04 23:59Z) Ran a full port audit against upstream v0.36.2; only missing files are ghupdate plugin sources/tests (intentional and documented).
 - [x] (2026-02-04 23:59Z) Add an advanced example under examples/ that demonstrates core features (auth, CRUD, files, realtime, hooks, and CLI usage).
+- [x] (2026-02-05 00:15Z) Add Playwright-based e2e tests with a dedicated web server script and CI coverage.
 
 ## Surprises & Discoveries
 

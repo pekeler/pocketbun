@@ -31,3 +31,9 @@ jobs:
 
       - name: Tests
         run: bun test --concurrent
+
+      - name: Install Playwright browsers
+        run: bun run e2e:install
+
+      - name: Playwright E2E
+        run: bun run e2e
