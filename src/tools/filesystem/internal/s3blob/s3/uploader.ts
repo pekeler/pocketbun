@@ -1,5 +1,5 @@
 // Ported from pocketbase/tools/filesystem/internal/s3blob/s3/uploader.go
-// Deviation: multipart uploads are processed sequentially in Bun.
+// Deviation: Payload is fully buffered in memory to simplify async upload handling.
 
 import type { Body, HttpRequest, S3 } from "./s3.ts";
 import { metadataPrefix, newRequest } from "./s3.ts";
@@ -139,12 +139,33 @@ export class Uploader {
     payload: Uint8Array,
     optReqFuncs: Array<(req: HttpRequest) => void>,
   ): Promise<void> {
+    const parts: Array<{ data: Uint8Array; partNumber: number }> = [];
     let partNumber = 1;
     for (let offset = 0; offset < payload.length; offset += this.MinPartSize) {
-      const part = payload.slice(offset, offset + this.MinPartSize);
-      await this.uploadPart(ctx, part, partNumber, optReqFuncs);
+      parts.push({ data: payload.slice(offset, offset + this.MinPartSize), partNumber });
       partNumber += 1;
     }
+
+    const totalWorkers = Math.max(1, this.MaxConcurrency);
+    const workerCount = Math.min(totalWorkers, parts.length);
+    let index = 0;
+
+    const worker = async () => {
+      while (true) {
+        const current = index;
+        index += 1;
+        if (current >= parts.length) {
+          return;
+        }
+        const part = parts[current];
+        if (!part) {
+          return;
+        }
+        await this.uploadPart(ctx, part.data, part.partNumber, optReqFuncs);
+      }
+    };
+
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
   }
 
   private async uploadPart(
