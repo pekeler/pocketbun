@@ -93,17 +93,12 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
   const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
 
   let selectSql = `select {{${collection.name}}}.* from {{${collection.name}}}`;
-  let countSql = `select count(distinct [[${collection.name}.id]]) as total from {{${collection.name}}}`;
-  if (collection.type !== "view") {
-    countSql = `select count(distinct [[${collection.name}]].[[_rowid_]]) as total from {{${collection.name}}}`;
-  }
   const params: unknown[] = [];
 
   if (!requestInfo.auth?.isSuperuser() && collection.listRule && collection.listRule !== "") {
     const expr = buildFilterExpr(collection.listRule, resolver, DefaultFilterExprLimit);
     if (expr.sql) {
       selectSql = appendWhere(selectSql, expr.sql);
-      countSql = appendWhere(countSql, expr.sql);
       params.push(...expr.params);
     }
   }
@@ -112,9 +107,11 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
 
   const provider = new Provider(resolver).query({
     select: selectSql,
-    count: countSql,
     params,
   });
+  if (collection.type !== "view") {
+    provider.countCol("_rowid_");
+  }
 
   let result: RecordsListResult | null = null;
   let records: RecordModel[] = [];

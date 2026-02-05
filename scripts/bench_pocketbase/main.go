@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -26,6 +27,7 @@ import (
 func main() {
 	port := readEnvInt("POCKETBUN_BENCH_PORT", 8093)
 	recordCount := readEnvInt("POCKETBUN_BENCH_RECORDS", 1000)
+	queryLogLimit := readEnvInt("POCKETBUN_BENCH_QUERYLOG_LIMIT", 10)
 
 	dataDir, err := os.MkdirTemp(os.TempDir(), "pocketbase-bench-")
 	if err != nil {
@@ -62,20 +64,33 @@ func main() {
 	}
 
 	var queryCount int64
-	queryLog := func(_ context.Context, _ time.Duration, _ string, _ *sql.Rows, _ error) {
+	var queryLog []string
+	var queryLogMu sync.Mutex
+	logQuery := func(query string) {
 		atomic.AddInt64(&queryCount, 1)
+		if queryLogLimit <= 0 {
+			return
+		}
+		queryLogMu.Lock()
+		if len(queryLog) < queryLogLimit {
+			queryLog = append(queryLog, query)
+		}
+		queryLogMu.Unlock()
 	}
-	execLog := func(_ context.Context, _ time.Duration, _ string, _ sql.Result, _ error) {
-		atomic.AddInt64(&queryCount, 1)
+	queryLogFunc := func(_ context.Context, _ time.Duration, query string, _ *sql.Rows, _ error) {
+		logQuery(query)
+	}
+	execLogFunc := func(_ context.Context, _ time.Duration, query string, _ sql.Result, _ error) {
+		logQuery(query)
 	}
 
 	if db, ok := app.ConcurrentDB().(*dbx.DB); ok {
-		db.QueryLogFunc = queryLog
-		db.ExecLogFunc = execLog
+		db.QueryLogFunc = queryLogFunc
+		db.ExecLogFunc = execLogFunc
 	}
 	if db, ok := app.NonconcurrentDB().(*dbx.DB); ok {
-		db.QueryLogFunc = queryLog
-		db.ExecLogFunc = execLog
+		db.QueryLogFunc = queryLogFunc
+		db.ExecLogFunc = execLogFunc
 	}
 
 	serverReady := make(chan *http.Server, 1)
@@ -86,10 +101,16 @@ func main() {
 				return re.String(200, "pong")
 			})
 			benchGroup.GET("/metrics", func(re *core.RequestEvent) error {
-				return re.JSON(200, map[string]any{"queryCount": atomic.LoadInt64(&queryCount)})
+				queryLogMu.Lock()
+				logSnapshot := append([]string(nil), queryLog...)
+				queryLogMu.Unlock()
+				return re.JSON(200, map[string]any{"queryCount": atomic.LoadInt64(&queryCount), "queryLog": logSnapshot})
 			})
 			benchGroup.POST("/reset", func(re *core.RequestEvent) error {
 				atomic.StoreInt64(&queryCount, 0)
+				queryLogMu.Lock()
+				queryLog = nil
+				queryLogMu.Unlock()
 				return re.JSON(200, map[string]any{"ok": true})
 			})
 

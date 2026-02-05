@@ -15,63 +15,63 @@ export class DbxDatabase extends Database {
   }
 
   override run<ParamsType extends SQLQueryBindings[]>(sql: string, ...bindings: ParamsType[]): Changes {
+    const rewritten = rewriteDbxIdentifiers(sql);
     this.QueryLogFunc?.(sql);
     if (!profileDbEnabled()) {
-      return super.run(rewriteDbxIdentifiers(sql), ...bindings);
+      return super.run(rewritten, ...bindings);
     }
     const started = performance.now();
     try {
-      return super.run(rewriteDbxIdentifiers(sql), ...bindings);
+      return super.run(rewritten, ...bindings);
     } finally {
       const duration = performance.now() - started;
       recordProfile("db.run", duration);
-      recordDbProfile(sql, duration);
+      recordDbProfile(rewritten, duration);
     }
   }
 
   override exec<ParamsType extends SQLQueryBindings[]>(sql: string, ...bindings: ParamsType[]): Changes {
+    const rewritten = rewriteDbxIdentifiers(sql);
     this.QueryLogFunc?.(sql);
     if (!profileDbEnabled()) {
       // eslint-disable-next-line typescript-eslint/no-deprecated -- bun:sqlite exec supports multi-statement SQL.
-      return super.exec(rewriteDbxIdentifiers(sql), ...bindings);
+      return super.exec(rewritten, ...bindings);
     }
     const started = performance.now();
     try {
       // eslint-disable-next-line typescript-eslint/no-deprecated -- bun:sqlite exec supports multi-statement SQL.
-      return super.exec(rewriteDbxIdentifiers(sql), ...bindings);
+      return super.exec(rewritten, ...bindings);
     } finally {
       const duration = performance.now() - started;
       recordProfile("db.exec", duration);
-      recordDbProfile(sql, duration);
+      recordDbProfile(rewritten, duration);
     }
   }
 
   override query<ReturnType, ParamsType extends SQLQueryBindings | SQLQueryBindings[]>(
     sql: string,
   ): Statement<ReturnType, ParamsType extends any[] ? ParamsType : [ParamsType]> {
-    this.QueryLogFunc?.(sql);
-    const stmt = super.query(rewriteDbxIdentifiers(sql)) as Statement<
-      ReturnType,
-      ParamsType extends any[] ? ParamsType : [ParamsType]
-    >;
-    if (!profileDbEnabled()) {
+    const rewritten = rewriteDbxIdentifiers(sql);
+    const stmt = super.query(rewritten) as Statement<ReturnType, ParamsType extends any[] ? ParamsType : [ParamsType]>;
+    if (!profileDbEnabled() && !this.QueryLogFunc) {
       return stmt;
     }
-    return wrapStatement(stmt, sql);
+    return wrapStatement(stmt, rewritten, sql, this.QueryLogFunc);
   }
 
   override prepare<ReturnType, ParamsType extends SQLQueryBindings | SQLQueryBindings[]>(
     sql: string,
     params?: ParamsType,
   ): Statement<ReturnType, ParamsType extends any[] ? ParamsType : [ParamsType]> {
-    const stmt = super.prepare(rewriteDbxIdentifiers(sql), params) as Statement<
+    const rewritten = rewriteDbxIdentifiers(sql);
+    const stmt = super.prepare(rewritten, params) as Statement<
       ReturnType,
       ParamsType extends any[] ? ParamsType : [ParamsType]
     >;
-    if (!profileDbEnabled()) {
+    if (!profileDbEnabled() && !this.QueryLogFunc) {
       return stmt;
     }
-    return wrapStatement(stmt, sql);
+    return wrapStatement(stmt, rewritten, sql, this.QueryLogFunc);
   }
 
   newQuery(sql: string, ...params: SQLQueryBindings[]): DbxQuery {
@@ -87,7 +87,9 @@ const wrappedStatements = new WeakSet<object>();
 
 function wrapStatement<ReturnType, ParamsType extends SQLQueryBindings | SQLQueryBindings[]>(
   stmt: Statement<ReturnType, ParamsType extends any[] ? ParamsType : [ParamsType]>,
-  sql: string,
+  profileSql: string,
+  logSql: string,
+  logFn?: QueryLogFunc,
 ): Statement<ReturnType, ParamsType extends any[] ? ParamsType : [ParamsType]> {
   if (wrappedStatements.has(stmt)) {
     return stmt;
@@ -105,13 +107,14 @@ function wrapStatement<ReturnType, ParamsType extends SQLQueryBindings | SQLQuer
       return;
     }
     target[name] = (...args: unknown[]) => {
+      logFn?.(logSql);
       const started = performance.now();
       try {
         return (fn as (...callArgs: unknown[]) => unknown).apply(stmt, args);
       } finally {
         const duration = performance.now() - started;
         recordProfile(label, duration);
-        recordDbProfile(sql, duration);
+        recordDbProfile(profileSql, duration);
       }
     };
   };

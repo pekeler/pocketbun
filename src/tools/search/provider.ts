@@ -228,12 +228,13 @@ export class Provider {
 
     const limit = this.#perPage;
     const offset = this.#perPage * (this.#page - 1);
-
-    const items = db
-      .query(`${selectSql} limit ? offset ?`)
-      .all(...([...baseParamsWithFilter, limit, offset] as SQLQueryBindings[])) as T[];
+    let pagedSql = `${selectSql} LIMIT ${limit}`;
+    if (offset > 0) {
+      pagedSql += ` OFFSET ${offset}`;
+    }
 
     if (this.#skipTotal) {
+      const items = db.query(pagedSql).all(...(baseParamsWithFilter as SQLQueryBindings[])) as T[];
       return {
         items,
         page: this.#page,
@@ -243,10 +244,19 @@ export class Provider {
       };
     }
 
-    const countRow = db.query(countSql).get(...baseParamsWithFilter) as { total?: number } | undefined;
-
-    const totalItems = countRow?.total ?? 0;
+    const countRow = db.query(countSql).get(...baseParamsWithFilter) as Record<string, unknown> | undefined;
+    let totalItems = 0;
+    if (countRow) {
+      if ("total" in countRow) {
+        totalItems = Number(countRow.total ?? 0);
+      } else {
+        const first = Object.values(countRow)[0];
+        totalItems = Number(first ?? 0);
+      }
+    }
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / this.#perPage);
+
+    const items = db.query(pagedSql).all(...(baseParamsWithFilter as SQLQueryBindings[])) as T[];
 
     return {
       items,
@@ -334,11 +344,22 @@ function prefixRowidExpr(expr: string, selectSql: string): string {
 }
 
 function buildCountQuery(selectSql: string, countCol: string): string {
+  const { head } = splitSqlTail(selectSql);
+  const fromMatch = /\bfrom\b/i.exec(head);
+  if (!fromMatch) {
+    return `SELECT COUNT(*) FROM (${selectSql})`;
+  }
+
+  const fromClause = head.slice(fromMatch.index);
   const target = columnify(countCol);
   if (!target) {
-    return `select count(*) as total from (${selectSql})`;
+    return `SELECT COUNT(*) ${fromClause}`;
   }
-  return `select count(distinct [[${target}]]) as total from (${selectSql})`;
+
+  const fromAlias = extractFromAlias(head);
+  const qualified = fromAlias && !target.includes(".") ? `${fromAlias}.${target}` : target;
+
+  return `SELECT COUNT(DISTINCT [[${qualified}]]) ${fromClause}`;
 }
 
 function extractFromAlias(sql: string): string | null {
@@ -346,15 +367,26 @@ function extractFromAlias(sql: string): string | null {
   if (!match) {
     return null;
   }
-  const candidate = match[2] ?? match[1] ?? "";
+  let candidate = match[2] ?? match[1] ?? "";
   const trimmed = candidate.trim();
   if (!trimmed || trimmed.startsWith("(")) {
     return null;
+  }
+  const lowered = trimmed.toLowerCase();
+  if (isSqlKeyword(lowered)) {
+    const fallback = match[1]?.trim() ?? "";
+    if (!fallback || fallback.startsWith("(")) {
+      return null;
+    }
+    return stripIdentifierQuotes(fallback);
   }
   return stripIdentifierQuotes(trimmed);
 }
 
 function stripIdentifierQuotes(value: string): string {
+  if (value.startsWith("{{") && value.endsWith("}}")) {
+    return value.slice(2, -2);
+  }
   if (value.startsWith("[[") && value.endsWith("]]")) {
     return value.slice(2, -2);
   }
@@ -365,4 +397,25 @@ function stripIdentifierQuotes(value: string): string {
     return value.slice(1, -1);
   }
   return value;
+}
+
+function isSqlKeyword(value: string): boolean {
+  switch (value) {
+    case "where":
+    case "join":
+    case "left":
+    case "right":
+    case "inner":
+    case "outer":
+    case "cross":
+    case "group":
+    case "order":
+    case "limit":
+    case "offset":
+    case "having":
+    case "union":
+      return true;
+    default:
+      return false;
+  }
 }

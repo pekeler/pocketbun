@@ -20,6 +20,8 @@ app.bootstrap();
 app.runAllMigrations();
 
 let queryCount = 0;
+let queryLog: string[] = [];
+const queryLogLimit = Number.parseInt(process.env.POCKETBUN_BENCH_QUERYLOG_LIMIT ?? "10", 10);
 
 app.OnServe().Bind({
   Id: "__benchPing__",
@@ -32,10 +34,11 @@ app.OnServe().Bind({
     });
     benchGroup.GET("/metrics", (reqEvent) => {
       reqEvent.Set(RequestEventKeySkipSuccessActivityLog, true);
-      return reqEvent.json(200, { queryCount });
+      return reqEvent.json(200, { queryCount, queryLog });
     });
     benchGroup.POST("/reset", (reqEvent) => {
       queryCount = 0;
+      queryLog = [];
       reqEvent.Set(RequestEventKeySkipSuccessActivityLog, true);
       return reqEvent.json(200, { ok: true });
     });
@@ -63,8 +66,11 @@ for (let i = 0; i < recordCount; i += 1) {
 }
 
 const db = app.db() as DbxDatabase;
-db.QueryLogFunc = () => {
+db.QueryLogFunc = (sql) => {
   queryCount += 1;
+  if (queryLog.length < queryLogLimit) {
+    queryLog.push(sql);
+  }
 };
 
 const server = serve(app, { httpAddr: `127.0.0.1:${port}` });
