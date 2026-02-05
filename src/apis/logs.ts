@@ -26,7 +26,7 @@ function logsList(app: App, event: RequestEvent): Response {
   const provider = new Provider(resolver).query({ select: "select * from {{_logs}}" });
 
   try {
-    const result = provider.parseAndExec(new URL(event.request.url).searchParams.toString(), app.auxDb());
+    const result = provider.parseAndExec(event.requestUrl().searchParams.toString(), app.auxDb());
     result.items = result.items.map((item) => {
       if (!item || typeof item !== "object" || Array.isArray(item)) {
         return item;
@@ -42,7 +42,7 @@ function logsList(app: App, event: RequestEvent): Response {
 
 function logsStats(app: App, event: RequestEvent): Response {
   const resolver = new SimpleFieldResolver(...logFilterFields);
-  const filter = new URL(event.request.url).searchParams.get(FilterQueryParam) ?? "";
+  const filter = event.requestUrl().searchParams.get(FilterQueryParam) ?? "";
 
   let expr = null;
   if (filter) {

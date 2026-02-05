@@ -60,7 +60,7 @@ async function backupsList(app: App, event: RequestEvent): Promise<Response> {
 }
 
 async function backupDownload(app: App, event: RequestEvent): Promise<Response> {
-  const token = new URL(event.request.url).searchParams.get("token") ?? "";
+  const token = event.requestUrl().searchParams.get("token") ?? "";
 
   try {
     const authRecord = app.FindAuthRecordByToken(token, TokenTypeFile);

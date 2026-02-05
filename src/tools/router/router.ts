@@ -3,6 +3,7 @@
 import type { Resolver } from "../hook/event.ts";
 import type { Handler } from "./route.ts";
 import { Hook } from "../hook/hook.ts";
+import { profileEnabled, recordProfile } from "../perf/profile.ts";
 import { ApiError, NewNotFoundError, ToApiError, apiErrorResponse } from "./api_error.ts";
 import { RouterGroup } from "./group.ts";
 
@@ -64,8 +65,10 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
 
     const routes = this.resolveRoutes();
     const routeIndex = buildRouteIndex(routes);
+    const doProfile = profileEnabled();
 
     return async (req: Request, server?: unknown): Promise<Response> => {
+      const matchStart = doProfile ? performance.now() : 0;
       const url = new URL(req.url);
       const method = req.method.toUpperCase();
       // Fallback to localhost when no server is available (ex. buildServeHandler tests).
@@ -94,10 +97,16 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
       }
 
       if (!bestMatch) {
+        if (doProfile) {
+          recordProfile("router.match", performance.now() - matchStart);
+        }
         return new Response("Not Found", { status: 404 });
       }
 
       const { route, params } = bestMatch;
+      if (doProfile) {
+        recordProfile("router.match", performance.now() - matchStart);
+      }
       const created = factory({
         request: req,
         params,
@@ -107,10 +116,14 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
 
       const { event, cleanup } = unwrapEventFactoryResult(created);
 
+      const handleStart = doProfile ? performance.now() : 0;
       try {
         const result = await route.hook.Trigger(event, route.action);
 
         if (result instanceof Response) {
+          if (doProfile) {
+            recordProfile("router.handle", performance.now() - handleStart);
+          }
           if (method === "HEAD") {
             return new Response(null, {
               status: result.status,
@@ -121,6 +134,9 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
         }
 
         if (result instanceof ApiError) {
+          if (doProfile) {
+            recordProfile("router.handle", performance.now() - handleStart);
+          }
           const response = apiErrorResponse(event, result);
           if (method === "HEAD") {
             return new Response(null, { status: response.status, headers: response.headers });
@@ -129,6 +145,9 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
         }
 
         if (result instanceof Error) {
+          if (doProfile) {
+            recordProfile("router.handle", performance.now() - handleStart);
+          }
           const response = apiErrorResponse(event, ToApiError(result));
           if (method === "HEAD") {
             return new Response(null, { status: response.status, headers: response.headers });
@@ -136,6 +155,9 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
           return response;
         }
 
+        if (doProfile) {
+          recordProfile("router.handle", performance.now() - handleStart);
+        }
         const response = new Response(null, { status: 200 });
         if (method === "HEAD") {
           return new Response(null, {
@@ -145,6 +167,9 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
         }
         return response;
       } catch (error) {
+        if (doProfile) {
+          recordProfile("router.handle", performance.now() - handleStart);
+        }
         if (error instanceof ApiError) {
           const response = apiErrorResponse(event, error);
           if (method === "HEAD") {
@@ -218,6 +243,11 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
       }
 
       const pattern = child.Method ? `${child.Method} ${pathPattern}` : pathPattern;
+      const action = child.Action;
+      const actionMeta = action as { __hookLabel?: string };
+      if (!actionMeta.__hookLabel) {
+        actionMeta.__hookLabel = `route:${pattern}`;
+      }
       const segments = parsePattern(pathPattern);
 
       out.push({
@@ -226,7 +256,7 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
         pattern,
         segments,
         hook,
-        action: child.Action,
+        action,
       });
     }
   }

@@ -99,7 +99,7 @@ async function readRedirectData(event: RequestEvent): Promise<OAuth2RedirectData
     }
   }
 
-  const url = new URL(event.request.url);
+  const url = event.requestUrl();
   data.State = url.searchParams.get("state") ?? "";
   data.Code = url.searchParams.get("code") ?? "";
   data.Error = url.searchParams.get("error") ?? "";

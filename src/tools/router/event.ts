@@ -85,6 +85,8 @@ export class Event implements Resolver {
   #written = false;
   #status = 0;
   #flushHandler: (() => void) | null;
+  #cachedUrl: URL | null = null;
+  #cachedUrlRaw: string | null = null;
 
   constructor(options: EventOptions) {
     this.request = options.request;
@@ -131,9 +133,18 @@ export class Event implements Resolver {
     return new Error("response doesn't support flush");
   }
 
+  requestUrl(): URL {
+    const raw = this.request.url;
+    if (!this.#cachedUrl || this.#cachedUrlRaw !== raw) {
+      this.#cachedUrl = new URL(raw);
+      this.#cachedUrlRaw = raw;
+    }
+    return this.#cachedUrl;
+  }
+
   IsTLS(): boolean {
     try {
-      return new URL(this.request.url).protocol === "https:";
+      return this.requestUrl().protocol === "https:";
     } catch {
       return false;
     }
@@ -243,7 +254,7 @@ export class Event implements Resolver {
 
     let output = data;
     if (status >= 200 && status <= 299) {
-      const rawFields = new URL(this.request.url).searchParams.get(jsonFieldsParam) ?? "";
+      const rawFields = this.requestUrl().searchParams.get(jsonFieldsParam) ?? "";
       if (rawFields) {
         output = Pick(data, rawFields);
       }

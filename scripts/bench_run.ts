@@ -54,6 +54,7 @@ const ensureServerReady = async () => {
 };
 
 const targets: BenchTarget[] = [
+  { name: "bench_ping", path: "/_bench/ping" },
   { name: "health", path: "/api/health" },
   { name: "admin_ui", path: "/_/" },
   { name: "records_list", path: "/api/collections/bench_items/records?page=1&perPage=30" },

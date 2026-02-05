@@ -25,9 +25,10 @@ const recordCount = Number.parseInt(process.env.POCKETBUN_BENCH_RECORDS ?? "1000
 
 const port = await pickPort();
 const baseUrl = process.env.POCKETBUN_BENCH_BASE_URL ?? `http://127.0.0.1:${port}`;
+const goBinary = process.env.POCKETBUN_GO_BIN ?? "go";
 
 const serverProc = Bun.spawn({
-  cmd: ["go", "run", "."],
+  cmd: [goBinary, "run", "."],
   cwd: "scripts/bench_pocketbase",
   env: {
     ...process.env,
@@ -55,6 +56,7 @@ const ensureServerReady = async () => {
 };
 
 const targets: BenchTarget[] = [
+  { name: "bench_ping", path: "/_bench/ping" },
   { name: "health", path: "/api/health" },
   { name: "admin_ui", path: "/_/" },
   { name: "records_list", path: "/api/collections/bench_items/records?page=1&perPage=30" },

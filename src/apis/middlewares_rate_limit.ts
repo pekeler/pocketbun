@@ -90,7 +90,7 @@ export function checkCollectionRateLimit(event: RequestEvent, collection: Collec
   }
 
   const labels: string[] = [];
-  let rtId = `${collection.id}${event.pattern || new URL(event.request.url).pathname}`;
+  let rtId = `${collection.id}${event.pattern || event.requestUrl().pathname}`;
 
   for (const baseTag of baseTags) {
     rtId += baseTag;
@@ -194,7 +194,7 @@ function defaultRateLimitAudience(event: RequestEvent): string[] {
 }
 
 function defaultRateLimitLabels(event: RequestEvent): string[] {
-  const url = new URL(event.request.url);
+  const url = event.requestUrl();
   return [`${event.request.method} ${url.pathname}`, url.pathname];
 }
 

@@ -92,7 +92,7 @@ async function collectionsList(app: App, event: RequestEvent): Promise<Response>
   });
 
   try {
-    const query = new URL(event.request.url).searchParams.toString();
+    const query = event.requestUrl().searchParams.toString();
     const result = provider.parseAndExec<CollectionRow>(query, app.db());
     const collections = result.items.map((row) => collectionFromRow(row));
     const responseBuilder = () =>

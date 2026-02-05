@@ -61,6 +61,10 @@ func main() {
 	serverReady := make(chan *http.Server, 1)
 	app.OnServe().Bind(&hook.Handler[*core.ServeEvent]{
 		Func: func(e *core.ServeEvent) error {
+			e.Router.Group("/_bench").GET("/ping", func(re *core.RequestEvent) error {
+				return re.String(200, "pong")
+			}).Bind(apis.SkipSuccessActivityLog())
+
 			serverReady <- e.Server
 			return e.Next()
 		},

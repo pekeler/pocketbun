@@ -1,6 +1,7 @@
 // Ported from pocketbase/tools/hook/hook.go
 
 import type { Resolver } from "./event.ts";
+import { profileEnabled, recordProfile } from "../perf/profile.ts";
 import { randomString } from "../security/random.ts";
 import { Event } from "./event.ts";
 
@@ -81,13 +82,16 @@ export class Hook<T extends Resolver> {
   }
 
   Trigger(event: T, ...oneOffHandlerFuncs: HandlerFunc<T>[]): unknown {
-    const handlers: HandlerFunc<T>[] = [];
+    const handlers: Array<{ func: HandlerFunc<T>; id?: string }> = [];
     for (const handler of this.#handlers) {
-      handlers.push(handler.Func);
+      handlers.push({ func: handler.Func, id: handler.Id });
     }
-    handlers.push(...oneOffHandlerFuncs);
+    for (const handler of oneOffHandlerFuncs) {
+      handlers.push({ func: handler });
+    }
 
     event.setNextFunc(null);
+    const doProfile = profileEnabled();
 
     for (let i = handlers.length - 1; i >= 0; i -= 1) {
       const handler = handlers[i];
@@ -97,7 +101,24 @@ export class Hook<T extends Resolver> {
       const old = event.nextFunc();
       event.setNextFunc(() => {
         event.setNextFunc(old);
-        return handler(event);
+        if (!doProfile) {
+          return handler.func(event);
+        }
+        const label = resolveHandlerLabel(handler);
+        const started = performance.now();
+        try {
+          const result = handler.func(event);
+          if (result && typeof (result as Promise<unknown>).then === "function") {
+            return (result as Promise<unknown>).finally(() => {
+              recordProfile(label, performance.now() - started);
+            });
+          }
+          recordProfile(label, performance.now() - started);
+          return result;
+        } catch (error) {
+          recordProfile(label, performance.now() - started);
+          throw error;
+        }
       });
     }
 
@@ -107,6 +128,20 @@ export class Hook<T extends Resolver> {
 
 function generateHookId(): string {
   return randomString(20);
+}
+
+function resolveHandlerLabel<T extends Resolver>(handler: { func: HandlerFunc<T>; id?: string }): string {
+  if (handler.id) {
+    return handler.id;
+  }
+  const labeled = handler.func as { __hookLabel?: string; name?: string };
+  if (typeof labeled.__hookLabel === "string" && labeled.__hookLabel) {
+    return labeled.__hookLabel;
+  }
+  if (labeled.name) {
+    return labeled.name;
+  }
+  return "anonymous";
 }
 
 export { Event };

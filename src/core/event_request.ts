@@ -135,7 +135,7 @@ export class RequestEvent extends Event {
 
     await this.bindBody(info.body);
 
-    const url = new URL(this.request.url);
+    const url = this.requestUrl();
     for (const [key, value] of url.searchParams.entries()) {
       if (!(key in info.query)) {
         info.query[key] = value;

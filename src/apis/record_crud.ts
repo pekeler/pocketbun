@@ -109,7 +109,7 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
   let result: RecordsListResult | null = null;
   let records: RecordModel[] = [];
   try {
-    const query = new URL(event.request.url).searchParams.toString();
+    const query = event.requestUrl().searchParams.toString();
     const rawResult = provider.parseAndExec<Record<string, unknown>>(query, app.db());
     records = rawResult.items.map((row) => RecordModel.fromRow(collection, row as RecordData));
     result = {

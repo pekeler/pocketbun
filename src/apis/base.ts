@@ -193,12 +193,12 @@ export function Static(fsys: string | FsRoot, indexFallback: boolean): (event: R
 
     if (stats.isDirectory()) {
       // redirect to a canonical dir url, aka. with trailing slash
-      const urlPath = new URL(event.request.url).pathname;
+      const urlPath = event.requestUrl().pathname;
       if (!urlPath.endsWith("/")) {
         return event.Redirect(301, safeRedirectPath(`${urlPath}/`));
       }
     } else {
-      let urlPath = new URL(event.request.url).pathname;
+      let urlPath = event.requestUrl().pathname;
       if (urlPath.endsWith("/")) {
         // redirect to a non-trailing slash file route
         urlPath = urlPath.replace(/\/+$/g, "");

@@ -4,10 +4,9 @@ import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { Handler } from "../tools/hook/hook.ts";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
-import { GenerateDefaultRandomId } from "../core/db.ts";
 import { TokenTypeAuth } from "../core/record_tokens.ts";
+import { profileEnabled, recordProfile } from "../tools/perf/profile.ts";
 import { ApiError, apiErrorResponse } from "../tools/router/api_error.ts";
-import { NowDateTime } from "../tools/types/index.ts";
 import { badRequest, forbidden, unauthorized } from "./api_errors.ts";
 
 // Common request event store keys used by the middlewares and api handlers.
@@ -317,6 +316,7 @@ function logRequest(
     return;
   }
 
+  const doProfile = profileEnabled();
   const status = response?.status ?? (err ? 500 : 0);
   const hasError = Boolean(err) || status >= 400;
 
@@ -324,63 +324,75 @@ function logRequest(
     return;
   }
 
-  const data: Record<string, unknown> = {
-    type: "request",
-  };
+  const buildStart = doProfile ? performance.now() : 0;
+  const attrs: unknown[] = ["type", "request"];
 
   const started = event.Get(requestEventKeyExecStart);
   if (typeof started === "number") {
-    data.execTime = Date.now() - started;
+    attrs.push("execTime", Date.now() - started);
   }
 
   if (event.Get(RequestEventKeyLogMeta) != null) {
-    data.meta = event.Get(RequestEventKeyLogMeta);
+    attrs.push("meta", event.Get(RequestEventKeyLogMeta));
   }
 
-  const url = new URL(event.request.url);
+  const url = event.requestUrl();
   const requestUri = `${url.pathname}${url.search}`;
   const method = event.request.method.toUpperCase();
 
-  data.url = cutStr(requestUri, 3000);
-  data.method = cutStr(method, 50);
-  data.status = status;
-  data.referer = cutStr(event.request.headers.get("referer") ?? "", 2000);
-  data.userAgent = cutStr(event.request.headers.get("user-agent") ?? "", 2000);
+  attrs.push(
+    "url",
+    cutStr(requestUri, 3000),
+    "method",
+    cutStr(method, 50),
+    "status",
+    status,
+    "referer",
+    cutStr(event.request.headers.get("referer") ?? "", 2000),
+    "userAgent",
+    cutStr(event.request.headers.get("user-agent") ?? "", 2000),
+  );
 
   if (event.auth) {
-    data.auth = event.auth.collection().name;
+    attrs.push("auth", event.auth.collection().name);
     if (logsConfig.logAuthId) {
-      data.authId = event.auth.id;
+      attrs.push("authId", event.auth.id);
     }
   } else {
-    data.auth = "";
+    attrs.push("auth", "");
   }
 
   if (logsConfig.logIP) {
-    data.userIP = event.realIP();
-    data.remoteIP = event.remoteIP();
+    attrs.push("userIP", event.realIP(), "remoteIP", event.remoteIP());
   }
 
   if (hasError) {
     if (responseError) {
-      data.error = responseError.message;
+      attrs.push("error", responseError.message);
       if (responseError.details != null) {
-        data.details = responseError.details;
+        attrs.push("details", responseError.details);
       }
     } else if (err) {
-      data.error = err.message;
+      attrs.push("error", err.message);
     } else {
-      data.error = `HTTP ${status}`;
+      attrs.push("error", `HTTP ${status}`);
     }
   }
 
   const level = hasError ? 8 : 0;
   if (level < logsConfig.minLevel) {
+    if (doProfile) {
+      recordProfile("logRequest.build", performance.now() - buildStart);
+    }
     return;
   }
 
+  if (doProfile) {
+    recordProfile("logRequest.build", performance.now() - buildStart);
+  }
+
   queueMicrotask(() => {
-    const timestamp = NowDateTime().String();
+    const writeStart = doProfile ? performance.now() : 0;
     let message = `${method} `;
     try {
       message += decodeURIComponent(requestUri);
@@ -389,17 +401,15 @@ function logRequest(
     }
 
     try {
-      event.app
-        .auxDb()
-        .run(`insert into {{_logs}} ([[id]], [[level]], [[message]], [[data]], [[created]]) values (?, ?, ?, ?, ?)`, [
-          GenerateDefaultRandomId(),
-          level,
-          message,
-          JSON.stringify(data),
-          timestamp,
-        ]);
-    } catch (error) {
-      event.app.Logger().Error("Failed to write request log", "error", error);
+      if (hasError) {
+        event.app.Logger().Error(message, ...attrs);
+      } else {
+        event.app.Logger().Info(message, ...attrs);
+      }
+    } finally {
+      if (doProfile) {
+        recordProfile("logRequest.write", performance.now() - writeStart);
+      }
     }
   });
 }

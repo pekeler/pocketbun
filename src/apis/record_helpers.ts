@@ -115,7 +115,7 @@ export async function RecordAuthResponseWithToken(
 
       authRecord.IgnoreEmailVisibility(true);
 
-      const expands = event.request.url.includes("?") ? new URL(event.request.url).searchParams.get(expandQueryParam) : null;
+      const expands = event.request.url.includes("?") ? event.requestUrl().searchParams.get(expandQueryParam) : null;
       const expandList = expands ? expands.split(",") : [];
       if (expandList.length > 0) {
         const failed = event.app.ExpandRecord(authRecord, expandList, expandFetch(event.app, requestInfo));
@@ -439,7 +439,7 @@ async function checkMFA(event: RequestEvent, authRecord: RecordModel, currentAut
     return { mfaId: "", response: null };
   }
 
-  let mfaId = new URL(event.request.url).searchParams.get("mfaId") ?? "";
+  let mfaId = event.requestUrl().searchParams.get("mfaId") ?? "";
   if (!mfaId) {
     const data = { mfaId: "" };
     try {

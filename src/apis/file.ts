@@ -112,7 +112,7 @@ class FileApi {
         return internalServerError(event, "Failed to load request info", error);
       }
 
-      const token = new URL(event.request.url).searchParams.get("token") ?? "";
+      const token = event.requestUrl().searchParams.get("token") ?? "";
       let authRecord = null;
       try {
         authRecord = event.app.FindAuthRecordByToken(token, TokenTypeFile);
@@ -155,7 +155,7 @@ class FileApi {
 
       const hookEvent = new FileDownloadRequestEvent(event, collection, record, fileField, originalPath, filename);
 
-      const thumbSize = new URL(event.request.url).searchParams.get("thumb") ?? "";
+      const thumbSize = event.requestUrl().searchParams.get("thumb") ?? "";
       const fieldThumbs = Array.isArray(fileField.Thumbs) ? fileField.Thumbs : [];
       if (thumbSize && (existInSlice(thumbSize, defaultThumbSizes) || existInSlice(thumbSize, fieldThumbs))) {
         let attrs;
