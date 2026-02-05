@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -21,13 +22,18 @@ import (
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/hook"
+	"github.com/pocketbase/pocketbase/tools/search"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
+
+const benchListPerPage = 30
+const benchJSONPayload = `{"items":[{"id":"aaaaaaaaaaaaaaa","title":"Item 0","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 1","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 2","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 3","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 4","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 5","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 6","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 7","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 8","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 9","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 10","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 11","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 12","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 13","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 14","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 15","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 16","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 17","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 18","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 19","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 20","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 21","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 22","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 23","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 24","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 25","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 26","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 27","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 28","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 29","collectionId":"pbc_209201611","collectionName":"bench_items"}],"page":1,"perPage":30,"totalItems":1000,"totalPages":34}` + "\n"
 
 func main() {
 	port := readEnvInt("POCKETBUN_BENCH_PORT", 8093)
 	recordCount := readEnvInt("POCKETBUN_BENCH_RECORDS", 1000)
 	queryLogLimit := readEnvInt("POCKETBUN_BENCH_QUERYLOG_LIMIT", 10)
+	disableLogs := readEnvBool("POCKETBUN_BENCH_DISABLE_LOGS")
 
 	dataDir, err := os.MkdirTemp(os.TempDir(), "pocketbase-bench-")
 	if err != nil {
@@ -45,6 +51,9 @@ func main() {
 	if err := app.RunAllMigrations(); err != nil {
 		log.Fatal(err)
 	}
+	if disableLogs {
+		app.Settings().Logs.MaxDays = 0
+	}
 
 	collection := core.NewBaseCollection("bench_items")
 	collection.ListRule = types.Pointer("1=1")
@@ -54,6 +63,8 @@ func main() {
 	if err := app.Save(collection); err != nil {
 		log.Fatal(err)
 	}
+	benchCollectionId := collection.Id
+	benchCollectionName := collection.Name
 
 	for i := 0; i < recordCount; i++ {
 		record := core.NewRecord(collection)
@@ -99,6 +110,84 @@ func main() {
 			benchGroup := e.Router.Group("/_bench").Bind(apis.SkipSuccessActivityLog())
 			benchGroup.GET("/ping", func(re *core.RequestEvent) error {
 				return re.String(200, "pong")
+			})
+			benchGroup.GET("/json", func(re *core.RequestEvent) error {
+				re.Response.Header().Set("Content-Type", "application/json")
+				_, err := re.Response.Write([]byte(benchJSONPayload))
+				return err
+			})
+			benchGroup.GET("/db_list", func(re *core.RequestEvent) error {
+				skipTotal := shouldSkipTotal(re.Request.URL.Query().Get("skipTotal"))
+
+				type benchRow struct {
+					Id    string `db:"id"`
+					Title string `db:"title"`
+				}
+				rows := make([]benchRow, 0, benchListPerPage)
+				if err := app.DB().NewQuery("SELECT id, title FROM {{bench_items}} LIMIT 30").All(&rows); err != nil {
+					return err
+				}
+
+				items := make([]map[string]any, len(rows))
+				for i, row := range rows {
+					items[i] = map[string]any{
+						"id":             row.Id,
+						"title":          row.Title,
+						"collectionId":   benchCollectionId,
+						"collectionName": benchCollectionName,
+					}
+				}
+
+				totalItems := -1
+				totalPages := -1
+				if !skipTotal {
+					var countRow struct {
+						Total int `db:"total"`
+					}
+					if err := app.DB().NewQuery("SELECT COUNT(*) as total FROM {{bench_items}}").One(&countRow); err != nil {
+						return err
+					}
+					totalItems = countRow.Total
+					if totalItems == 0 {
+						totalPages = 0
+					} else {
+						totalPages = (totalItems + benchListPerPage - 1) / benchListPerPage
+					}
+				}
+
+				return re.JSON(200, map[string]any{
+					"items":      items,
+					"page":       1,
+					"perPage":    benchListPerPage,
+					"totalItems": totalItems,
+					"totalPages": totalPages,
+				})
+			})
+			benchGroup.GET("/provider_list", func(re *core.RequestEvent) error {
+				query := app.RecordQuery(collection)
+
+				resolver := core.NewRecordFieldResolver(app, collection, nil, true)
+				if collection.ListRule != nil && *collection.ListRule != "" {
+					expr, err := search.FilterData(*collection.ListRule).BuildExpr(resolver)
+					if err != nil {
+						return err
+					}
+					query.AndWhere(expr)
+				}
+				resolver.SetAllowHiddenFields(false)
+
+				searchProvider := search.NewProvider(resolver).Query(query)
+				if !collection.IsView() {
+					searchProvider.CountCol("_rowid_")
+				}
+
+				records := []*core.Record{}
+				result, err := searchProvider.ParseAndExec(re.Request.URL.Query().Encode(), &records)
+				if err != nil {
+					return err
+				}
+
+				return re.JSON(200, result)
 			})
 			benchGroup.GET("/metrics", func(re *core.RequestEvent) error {
 				queryLogMu.Lock()
@@ -151,4 +240,26 @@ func readEnvInt(name string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+func readEnvBool(name string) bool {
+	if value := os.Getenv(name); value != "" {
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case "1", "t", "true", "y", "yes", "on":
+			return true
+		}
+	}
+	return false
+}
+
+func shouldSkipTotal(raw string) bool {
+	if raw == "" {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "1", "t", "true", "y", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }

@@ -6,6 +6,7 @@
 import type { Database, SQLQueryBindings } from "bun:sqlite";
 import type { FieldResolver } from "./field_resolver.ts";
 import { columnify } from "../inflector/inflector.ts";
+import { profileEnabled, recordProfile } from "../perf/profile.ts";
 import { buildFilterExpr, type FilterData } from "./filter.ts";
 import { buildSortExpr, parseSortFromString, type SortField } from "./sort.ts";
 import {
@@ -40,6 +41,7 @@ export class Provider {
   #skipTotal = false;
   #maxFilterExprLimit = DefaultFilterExprLimit;
   #maxSortExprLimit = DefaultSortExprLimit;
+  #profilePrefix: string | null = null;
 
   constructor(fieldResolver: FieldResolver) {
     this.#fieldResolver = fieldResolver;
@@ -52,6 +54,11 @@ export class Provider {
 
   maxSortExprLimit(max: number): this {
     this.#maxSortExprLimit = max;
+    return this;
+  }
+
+  profilePrefix(prefix: string | null): this {
+    this.#profilePrefix = prefix;
     return this;
   }
 
@@ -151,6 +158,8 @@ export class Provider {
     if (!this.#query) {
       throw ErrEmptyQuery;
     }
+    const profilePrefix = this.#profilePrefix;
+    const doProfile = Boolean(profilePrefix) && profileEnabled();
 
     const baseParams = this.#query.params ?? [];
     let selectSql = this.#query.select;
@@ -234,7 +243,17 @@ export class Provider {
     }
 
     if (this.#skipTotal) {
-      const items = db.query(pagedSql).all(...(baseParamsWithFilter as SQLQueryBindings[])) as T[];
+      let items: T[];
+      if (doProfile) {
+        const itemsStart = performance.now();
+        try {
+          items = db.query(pagedSql).all(...(baseParamsWithFilter as SQLQueryBindings[])) as T[];
+        } finally {
+          recordProfile(`${profilePrefix}.db.items`, performance.now() - itemsStart);
+        }
+      } else {
+        items = db.query(pagedSql).all(...(baseParamsWithFilter as SQLQueryBindings[])) as T[];
+      }
       return {
         items,
         page: this.#page,
@@ -244,7 +263,17 @@ export class Provider {
       };
     }
 
-    const countRow = db.query(countSql).get(...baseParamsWithFilter) as Record<string, unknown> | undefined;
+    let countRow: Record<string, unknown> | undefined;
+    if (doProfile) {
+      const countStart = performance.now();
+      try {
+        countRow = db.query(countSql).get(...baseParamsWithFilter) as Record<string, unknown> | undefined;
+      } finally {
+        recordProfile(`${profilePrefix}.db.count`, performance.now() - countStart);
+      }
+    } else {
+      countRow = db.query(countSql).get(...baseParamsWithFilter) as Record<string, unknown> | undefined;
+    }
     let totalItems = 0;
     if (countRow) {
       if ("total" in countRow) {
@@ -256,7 +285,17 @@ export class Provider {
     }
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / this.#perPage);
 
-    const items = db.query(pagedSql).all(...(baseParamsWithFilter as SQLQueryBindings[])) as T[];
+    let items: T[];
+    if (doProfile) {
+      const itemsStart = performance.now();
+      try {
+        items = db.query(pagedSql).all(...(baseParamsWithFilter as SQLQueryBindings[])) as T[];
+      } finally {
+        recordProfile(`${profilePrefix}.db.items`, performance.now() - itemsStart);
+      }
+    } else {
+      items = db.query(pagedSql).all(...(baseParamsWithFilter as SQLQueryBindings[])) as T[];
+    }
 
     return {
       items,

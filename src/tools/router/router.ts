@@ -68,125 +68,132 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
     const doProfile = profileEnabled();
 
     return async (req: Request, server?: unknown): Promise<Response> => {
-      const matchStart = doProfile ? performance.now() : 0;
-      const url = new URL(req.url);
-      const method = req.method.toUpperCase();
-      // Fallback to localhost when no server is available (ex. buildServeHandler tests).
-      const remoteAddress = getRemoteAddress(req, server) ?? "127.0.0.1:0";
-      const parts = splitPath(url.pathname);
-      const firstSegment = parts[0] ?? "";
+      const totalStart = doProfile ? performance.now() : 0;
+      try {
+        const matchStart = doProfile ? performance.now() : 0;
+        const url = new URL(req.url);
+        const method = req.method.toUpperCase();
+        // Fallback to localhost when no server is available (ex. buildServeHandler tests).
+        const remoteAddress = getRemoteAddress(req, server) ?? "127.0.0.1:0";
+        const parts = splitPath(url.pathname);
+        const firstSegment = parts[0] ?? "";
 
-      let bestMatch: { route: ResolvedRoute<E>; params: Record<string, string>; score: number } | null = null;
-      const candidates = collectCandidates(routeIndex, method, firstSegment);
+        let bestMatch: { route: ResolvedRoute<E>; params: Record<string, string>; score: number } | null = null;
+        const candidates = collectCandidates(routeIndex, method, firstSegment);
 
-      for (const route of candidates) {
-        const methodScore = matchMethodScore(method, route.method);
-        if (methodScore < 0) {
-          continue;
+        for (const route of candidates) {
+          const methodScore = matchMethodScore(method, route.method);
+          if (methodScore < 0) {
+            continue;
+          }
+
+          const match = matchPath(route.segments, parts);
+          if (!match) {
+            continue;
+          }
+
+          const score = computeScore(methodScore, route.segments);
+          if (!bestMatch || score > bestMatch.score) {
+            bestMatch = { route, params: match, score };
+          }
         }
 
-        const match = matchPath(route.segments, parts);
-        if (!match) {
-          continue;
+        if (!bestMatch) {
+          if (doProfile) {
+            recordProfile("router.match", performance.now() - matchStart);
+          }
+          return new Response("Not Found", { status: 404 });
         }
 
-        const score = computeScore(methodScore, route.segments);
-        if (!bestMatch || score > bestMatch.score) {
-          bestMatch = { route, params: match, score };
-        }
-      }
-
-      if (!bestMatch) {
+        const { route, params } = bestMatch;
         if (doProfile) {
           recordProfile("router.match", performance.now() - matchStart);
         }
-        return new Response("Not Found", { status: 404 });
-      }
+        const created = factory({
+          request: req,
+          params,
+          remoteAddress,
+          pattern: route.pattern,
+        });
 
-      const { route, params } = bestMatch;
-      if (doProfile) {
-        recordProfile("router.match", performance.now() - matchStart);
-      }
-      const created = factory({
-        request: req,
-        params,
-        remoteAddress,
-        pattern: route.pattern,
-      });
+        const { event, cleanup } = unwrapEventFactoryResult(created);
 
-      const { event, cleanup } = unwrapEventFactoryResult(created);
+        const handleStart = doProfile ? performance.now() : 0;
+        try {
+          const result = await route.hook.Trigger(event, route.action);
 
-      const handleStart = doProfile ? performance.now() : 0;
-      try {
-        const result = await route.hook.Trigger(event, route.action);
+          if (result instanceof Response) {
+            if (doProfile) {
+              recordProfile("router.handle", performance.now() - handleStart);
+            }
+            if (method === "HEAD") {
+              return new Response(null, {
+                status: result.status,
+                headers: result.headers,
+              });
+            }
+            return result;
+          }
 
-        if (result instanceof Response) {
+          if (result instanceof ApiError) {
+            if (doProfile) {
+              recordProfile("router.handle", performance.now() - handleStart);
+            }
+            const response = apiErrorResponse(event, result);
+            if (method === "HEAD") {
+              return new Response(null, { status: response.status, headers: response.headers });
+            }
+            return response;
+          }
+
+          if (result instanceof Error) {
+            if (doProfile) {
+              recordProfile("router.handle", performance.now() - handleStart);
+            }
+            const response = apiErrorResponse(event, ToApiError(result));
+            if (method === "HEAD") {
+              return new Response(null, { status: response.status, headers: response.headers });
+            }
+            return response;
+          }
+
           if (doProfile) {
             recordProfile("router.handle", performance.now() - handleStart);
           }
+          const response = new Response(null, { status: 200 });
           if (method === "HEAD") {
             return new Response(null, {
-              status: result.status,
-              headers: result.headers,
+              status: response.status,
+              headers: response.headers,
             });
           }
-          return result;
-        }
-
-        if (result instanceof ApiError) {
+          return response;
+        } catch (error) {
           if (doProfile) {
             recordProfile("router.handle", performance.now() - handleStart);
           }
-          const response = apiErrorResponse(event, result);
-          if (method === "HEAD") {
-            return new Response(null, { status: response.status, headers: response.headers });
+          if (error instanceof ApiError) {
+            const response = apiErrorResponse(event, error);
+            if (method === "HEAD") {
+              return new Response(null, { status: response.status, headers: response.headers });
+            }
+            return response;
           }
-          return response;
-        }
-
-        if (result instanceof Error) {
-          if (doProfile) {
-            recordProfile("router.handle", performance.now() - handleStart);
+          if (error instanceof Error) {
+            const response = apiErrorResponse(event, ToApiError(error));
+            if (method === "HEAD") {
+              return new Response(null, { status: response.status, headers: response.headers });
+            }
+            return response;
           }
-          const response = apiErrorResponse(event, ToApiError(result));
-          if (method === "HEAD") {
-            return new Response(null, { status: response.status, headers: response.headers });
-          }
-          return response;
+          return new Response(null, { status: 500 });
+        } finally {
+          cleanup?.();
         }
-
-        if (doProfile) {
-          recordProfile("router.handle", performance.now() - handleStart);
-        }
-        const response = new Response(null, { status: 200 });
-        if (method === "HEAD") {
-          return new Response(null, {
-            status: response.status,
-            headers: response.headers,
-          });
-        }
-        return response;
-      } catch (error) {
-        if (doProfile) {
-          recordProfile("router.handle", performance.now() - handleStart);
-        }
-        if (error instanceof ApiError) {
-          const response = apiErrorResponse(event, error);
-          if (method === "HEAD") {
-            return new Response(null, { status: response.status, headers: response.headers });
-          }
-          return response;
-        }
-        if (error instanceof Error) {
-          const response = apiErrorResponse(event, ToApiError(error));
-          if (method === "HEAD") {
-            return new Response(null, { status: response.status, headers: response.headers });
-          }
-          return response;
-        }
-        return new Response(null, { status: 500 });
       } finally {
-        cleanup?.();
+        if (doProfile) {
+          recordProfile("router.total", performance.now() - totalStart);
+        }
       }
     };
   }

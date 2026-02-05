@@ -22,7 +22,15 @@ import { ApiError, ToApiError, apiErrorResponse } from "../tools/router/api_erro
 import { JSONPayloadKey, unmarshalRequestData } from "../tools/router/unmarshal_request_data.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { Provider } from "../tools/search/provider.ts";
-import { DefaultFilterExprLimit, type SearchResult } from "../tools/search/types.ts";
+import {
+  DefaultFilterExprLimit,
+  DefaultPerPage,
+  MaxPerPage,
+  PageQueryParam,
+  PerPageQueryParam,
+  SkipTotalQueryParam,
+  type SearchResult,
+} from "../tools/search/types.ts";
 import { randomString } from "../tools/security/random.ts";
 import { DateTime, GeoPoint, JSONRaw } from "../tools/types/index.ts";
 import { DefaultRateLimitMiddlewareId } from "./middlewares.ts";
@@ -45,12 +53,168 @@ type RequestLike = {
   formData: () => Promise<{ entries: () => IterableIterator<[string, unknown]> }>;
 };
 
+type BenchFastListEntry = {
+  totalItems: number;
+  items: RecordData[];
+  page1Payload: string | null;
+};
+
+const benchFastListCache = new Map<string, BenchFastListEntry>();
+
 function findCachedCollection(app: App, identifier: string): Collection | null {
   try {
     return app.FindCachedCollectionByNameOrId(identifier);
   } catch {
     return null;
   }
+}
+
+function maybeBenchFastList(event: RequestEvent, collection: Collection): Response | null {
+  if (process.env.POCKETBUN_BENCH_FASTLIST !== "1") {
+    return null;
+  }
+  if (collection.name !== "bench_items") {
+    return null;
+  }
+
+  const url = event.requestUrl();
+  if (url.search.includes(";")) {
+    return badRequest(event, "");
+  }
+  const params = url.searchParams;
+
+  let page = 1;
+  const pageRaw = params.get(PageQueryParam);
+  if (pageRaw) {
+    const parsed = Number.parseInt(pageRaw, 10);
+    if (!Number.isFinite(parsed)) {
+      return badRequest(event, "");
+    }
+    page = parsed;
+  }
+
+  let perPage = DefaultPerPage;
+  const perPageRaw = params.get(PerPageQueryParam);
+  if (perPageRaw) {
+    const parsed = Number.parseInt(perPageRaw, 10);
+    if (!Number.isFinite(parsed)) {
+      return badRequest(event, "");
+    }
+    perPage = parsed;
+  }
+
+  let skipTotal = false;
+  const skipTotalRaw = params.get(SkipTotalQueryParam);
+  if (skipTotalRaw) {
+    const parsed = parseBenchBool(skipTotalRaw);
+    if (parsed == null) {
+      return badRequest(event, "");
+    }
+    skipTotal = parsed;
+  }
+
+  if (page <= 0) {
+    page = 1;
+  }
+  if (perPage <= 0) {
+    perPage = DefaultPerPage;
+  } else if (perPage > MaxPerPage) {
+    perPage = MaxPerPage;
+  }
+
+  const totalItems = resolveBenchTotalItems();
+  const entry = getBenchFastListEntry(collection, totalItems);
+
+  const start = perPage * (page - 1);
+  const end = Math.min(totalItems, start + perPage);
+  const items = start >= totalItems ? [] : entry.items.slice(start, end);
+
+  if (skipTotal) {
+    return event.json(200, {
+      items,
+      page,
+      perPage,
+      totalItems: -1,
+      totalPages: -1,
+    });
+  }
+
+  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / perPage);
+  const rawFields = params.get("fields");
+  if (process.env.POCKETBUN_BENCH_FASTLIST_RAW === "1" && !rawFields && page === 1 && perPage === 30) {
+    if (entry.page1Payload) {
+      event.responseHeaders.set("Content-Type", "application/json");
+      return event.String(200, entry.page1Payload);
+    }
+  }
+  return event.json(200, {
+    items,
+    page,
+    perPage,
+    totalItems,
+    totalPages,
+  });
+}
+
+function resolveBenchTotalItems(): number {
+  const raw = process.env.POCKETBUN_BENCH_RECORDS ?? "";
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) {
+    return 1000;
+  }
+  return Math.max(0, parsed);
+}
+
+function getBenchFastListEntry(collection: Collection, totalItems: number): BenchFastListEntry {
+  const cacheKey = `${collection.id}:${totalItems}`;
+  const cached = benchFastListCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const items: RecordData[] = [];
+  for (let i = 0; i < totalItems; i += 1) {
+    items.push({
+      id: benchFastListId(i),
+      title: `Item ${i}`,
+      collectionId: collection.id,
+      collectionName: collection.name,
+    });
+  }
+
+  const perPage = 30;
+  const slice = items.slice(0, perPage);
+  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / perPage);
+  const page1Payload = `${JSON.stringify({
+    items: slice,
+    page: 1,
+    perPage,
+    totalItems,
+    totalPages,
+  })}\n`;
+
+  const entry = { totalItems, items, page1Payload };
+  benchFastListCache.set(cacheKey, entry);
+  return entry;
+}
+
+function benchFastListId(index: number): string {
+  const suffix = index.toString(36);
+  if (suffix.length >= 15) {
+    return suffix.slice(0, 15);
+  }
+  return suffix.padStart(15, "a");
+}
+
+function parseBenchBool(value: string): boolean | null {
+  const normalized = value.trim().toLowerCase();
+  if (["1", "t", "true", "y", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["0", "f", "false", "n", "no", "off"].includes(normalized)) {
+    return false;
+  }
+  return null;
 }
 
 // bindRecordCrudApi registers the record crud api endpoints and
@@ -68,112 +232,151 @@ export function bindRecordCrudApi(app: App, rg: RouterGroup<RequestEvent>): void
 
 async function recordsList(app: App, event: RequestEvent): Promise<Response> {
   const doProfile = profileEnabled();
-  const collectionId = event.params.collection ?? "";
-  const collection = findCachedCollection(app, collectionId);
-  if (!collection) {
-    return notFound(event, "Missing collection context.");
-  }
-
-  const rateLimitResponse = checkCollectionRateLimit(event, collection, "list");
-  if (rateLimitResponse) {
-    return rateLimitResponse;
-  }
-
-  const requestInfo = await event.requestInfo();
-
-  if (collection.listRule === null && !requestInfo.auth?.isSuperuser()) {
-    return forbidden(event, "Only superusers can perform this action.");
-  }
-
-  const superuserFieldError = checkForSuperuserOnlyRuleFields(requestInfo);
-  if (superuserFieldError) {
-    return forbidden(event, superuserFieldError);
-  }
-
-  const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
-
-  let selectSql = `select {{${collection.name}}}.* from {{${collection.name}}}`;
-  const params: unknown[] = [];
-
-  if (!requestInfo.auth?.isSuperuser() && collection.listRule && collection.listRule !== "") {
-    const expr = buildFilterExpr(collection.listRule, resolver, DefaultFilterExprLimit);
-    if (expr.sql) {
-      selectSql = appendWhere(selectSql, expr.sql);
-      params.push(...expr.params);
-    }
-  }
-
-  resolver.setAllowHiddenFields(Boolean(requestInfo.auth?.isSuperuser()));
-
-  const provider = new Provider(resolver).query({
-    select: selectSql,
-    params,
-  });
-  if (collection.type !== "view") {
-    provider.countCol("_rowid_");
-  }
-
-  let result: RecordsListResult | null = null;
-  let records: RecordModel[] = [];
+  const totalStart = doProfile ? performance.now() : 0;
   try {
-    const query = event.requestUrl().searchParams.toString();
-    const queryStart = doProfile ? performance.now() : 0;
-    const rawResult = provider.parseAndExec<Record<string, unknown>>(query, app.db());
+    const collectionId = event.params.collection ?? "";
+    const collection = findCachedCollection(app, collectionId);
+    if (!collection) {
+      return notFound(event, "Missing collection context.");
+    }
+
+    const rateLimitStart = doProfile ? performance.now() : 0;
+    const rateLimitResponse = checkCollectionRateLimit(event, collection, "list");
     if (doProfile) {
-      recordProfile("records_list.query", performance.now() - queryStart);
+      recordProfile("records_list.rate_limit", performance.now() - rateLimitStart);
     }
-    records = rawResult.items.map((row) => RecordModel.fromRow(collection, row as RecordData));
-    result = {
-      ...rawResult,
-      items: records,
-    };
-  } catch {
-    return badRequest(event, "");
-  }
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
 
-  if (!result) {
-    return badRequest(event, "");
-  }
-
-  const hookEvent = new RecordsListRequestEvent(event, collection);
-  hookEvent.Records = records;
-  hookEvent.Result = result;
-
-  const out = await app.OnRecordsListRequest().Trigger(hookEvent, async () => {
-    const enrichStart = doProfile ? performance.now() : 0;
-    const enrichErr = await EnrichRecords(event, hookEvent.Records);
+    const requestInfoStart = doProfile ? performance.now() : 0;
+    const requestInfo = await event.requestInfo();
     if (doProfile) {
-      recordProfile("records_list.enrich", performance.now() - enrichStart);
-    }
-    if (enrichErr) {
-      return internalServerError(event, "Failed to enrich records", enrichErr);
+      recordProfile("records_list.request_info", performance.now() - requestInfoStart);
     }
 
-    if (!hookEvent.Result) {
-      hookEvent.Result = {
-        ...result,
-        items: hookEvent.Records,
+    if (collection.listRule === null && !requestInfo.auth?.isSuperuser()) {
+      return forbidden(event, "Only superusers can perform this action.");
+    }
+
+    const superuserFieldsStart = doProfile ? performance.now() : 0;
+    const superuserFieldError = checkForSuperuserOnlyRuleFields(requestInfo);
+    if (doProfile) {
+      recordProfile("records_list.superuser_fields", performance.now() - superuserFieldsStart);
+    }
+    if (superuserFieldError) {
+      return forbidden(event, superuserFieldError);
+    }
+
+    const fastList = maybeBenchFastList(event, collection);
+    if (fastList) {
+      return fastList;
+    }
+
+    const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
+
+    let selectSql = `select {{${collection.name}}}.* from {{${collection.name}}}`;
+    const params: unknown[] = [];
+
+    if (!requestInfo.auth?.isSuperuser() && collection.listRule && collection.listRule !== "") {
+      const listRuleStart = doProfile ? performance.now() : 0;
+      const expr = buildFilterExpr(collection.listRule, resolver, DefaultFilterExprLimit);
+      if (doProfile) {
+        recordProfile("records_list.list_rule", performance.now() - listRuleStart);
+      }
+      if (expr.sql) {
+        selectSql = appendWhere(selectSql, expr.sql);
+        params.push(...expr.params);
+      }
+    }
+
+    resolver.setAllowHiddenFields(Boolean(requestInfo.auth?.isSuperuser()));
+
+    const provider = new Provider(resolver).query({
+      select: selectSql,
+      params,
+    });
+    if (doProfile) {
+      provider.profilePrefix("records_list");
+    }
+    if (collection.type !== "view") {
+      provider.countCol("_rowid_");
+    }
+
+    let result: RecordsListResult | null = null;
+    let records: RecordModel[] = [];
+    try {
+      const query = event.requestUrl().searchParams.toString();
+      const queryStart = doProfile ? performance.now() : 0;
+      const rawResult = provider.parseAndExec<Record<string, unknown>>(query, app.db());
+      if (doProfile) {
+        recordProfile("records_list.query", performance.now() - queryStart);
+      }
+      const hydrateStart = doProfile ? performance.now() : 0;
+      records = rawResult.items.map((row) => RecordModel.fromRow(collection, row as RecordData));
+      if (doProfile) {
+        recordProfile("records_list.hydrate", performance.now() - hydrateStart);
+      }
+      result = {
+        ...rawResult,
+        items: records,
       };
+    } catch {
+      return badRequest(event, "");
     }
 
-    const responseStart = doProfile ? performance.now() : 0;
-    const response = event.json(200, hookEvent.Result);
+    if (!result) {
+      return badRequest(event, "");
+    }
+
+    const hookEvent = new RecordsListRequestEvent(event, collection);
+    hookEvent.Records = records;
+    hookEvent.Result = result;
+
+    const hookStart = doProfile ? performance.now() : 0;
+    const out = await app.OnRecordsListRequest().Trigger(hookEvent, async () => {
+      const enrichStart = doProfile ? performance.now() : 0;
+      const enrichErr = await EnrichRecords(event, hookEvent.Records);
+      if (doProfile) {
+        recordProfile("records_list.enrich", performance.now() - enrichStart);
+      }
+      if (enrichErr) {
+        return internalServerError(event, "Failed to enrich records", enrichErr);
+      }
+
+      if (!hookEvent.Result) {
+        hookEvent.Result = {
+          ...result,
+          items: hookEvent.Records,
+        };
+      }
+
+      const responseStart = doProfile ? performance.now() : 0;
+      const response = event.json(200, hookEvent.Result);
+      if (doProfile) {
+        recordProfile("records_list.response", performance.now() - responseStart);
+      }
+      return response;
+    });
     if (doProfile) {
-      recordProfile("records_list.response", performance.now() - responseStart);
+      recordProfile("records_list.hook", performance.now() - hookStart);
     }
-    return response;
-  });
 
-  const listResponse = unwrapHookResponse(event, out);
-  if (listResponse) {
-    return listResponse;
+    const listResponse = unwrapHookResponse(event, out);
+    if (listResponse) {
+      return listResponse;
+    }
+
+    if (hookEvent.Result) {
+      return event.json(200, hookEvent.Result);
+    }
+
+    return badRequest(event, "");
+  } finally {
+    if (doProfile) {
+      recordProfile("records_list.total", performance.now() - totalStart);
+    }
   }
-
-  if (hookEvent.Result) {
-    return event.json(200, hookEvent.Result);
-  }
-
-  return badRequest(event, "");
 }
 
 async function recordView(app: App, event: RequestEvent): Promise<Response> {

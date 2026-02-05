@@ -1,6 +1,7 @@
 // Ported from pocketbase/core/event_request.go
 
 import type { App } from "./app.ts";
+import { profileEnabled, recordProfile } from "../tools/perf/profile.ts";
 import { Event } from "../tools/router/event.ts";
 import { Record as RecordModel } from "./record_model.ts";
 
@@ -120,39 +121,59 @@ export class RequestEvent extends Event {
       return this.#cachedRequestInfo;
     }
 
-    const infoContextRaw = this.Get(RequestEventKeyInfoContext);
-    const infoContext =
-      typeof infoContextRaw === "string" && infoContextRaw !== "" ? infoContextRaw : RequestInfoContextDefault;
+    const doProfile = profileEnabled();
+    const totalStart = doProfile ? performance.now() : 0;
+    try {
+      const infoContextRaw = this.Get(RequestEventKeyInfoContext);
+      const infoContext =
+        typeof infoContextRaw === "string" && infoContextRaw !== "" ? infoContextRaw : RequestInfoContextDefault;
 
-    const info: RequestInfo = {
-      query: {},
-      headers: {},
-      body: {},
-      auth: this.auth,
-      method: this.request.method,
-      context: infoContext,
-    };
+      const info: RequestInfo = {
+        query: {},
+        headers: {},
+        body: {},
+        auth: this.auth,
+        method: this.request.method,
+        context: infoContext,
+      };
 
-    await this.bindBody(info.body);
-
-    const url = this.requestUrl();
-    for (const [key, value] of url.searchParams.entries()) {
-      if (!(key in info.query)) {
-        info.query[key] = value;
+      const bodyStart = doProfile ? performance.now() : 0;
+      await this.bindBody(info.body);
+      if (doProfile) {
+        recordProfile("request_info.body", performance.now() - bodyStart);
       }
-    }
 
-    for (const [key, value] of this.request.headers.entries()) {
-      if (value) {
-        const normalizedKey = snakecase(key ?? "");
-        if (normalizedKey) {
-          info.headers[normalizedKey] = value;
+      const queryStart = doProfile ? performance.now() : 0;
+      const url = this.requestUrl();
+      for (const [key, value] of url.searchParams.entries()) {
+        if (!(key in info.query)) {
+          info.query[key] = value;
         }
       }
-    }
+      if (doProfile) {
+        recordProfile("request_info.query", performance.now() - queryStart);
+      }
 
-    this.#cachedRequestInfo = info;
-    return info;
+      const headersStart = doProfile ? performance.now() : 0;
+      for (const [key, value] of this.request.headers.entries()) {
+        if (value) {
+          const normalizedKey = snakecase(key ?? "");
+          if (normalizedKey) {
+            info.headers[normalizedKey] = value;
+          }
+        }
+      }
+      if (doProfile) {
+        recordProfile("request_info.headers", performance.now() - headersStart);
+      }
+
+      this.#cachedRequestInfo = info;
+      return info;
+    } finally {
+      if (doProfile) {
+        recordProfile("request_info.total", performance.now() - totalStart);
+      }
+    }
   }
 
   override async bindBody<T extends object>(target: T): Promise<void> {

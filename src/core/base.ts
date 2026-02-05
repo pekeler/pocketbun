@@ -25,6 +25,7 @@ import { Hook } from "../tools/hook/hook.ts";
 import { NewTaggedHook } from "../tools/hook/tagged.ts";
 import { columnify, snakecase } from "../tools/inflector/inflector.ts";
 import { BatchHandler, NewBatchHandler } from "../tools/logger/batch_handler.ts";
+import { LogWriter } from "../tools/logger/log_writer.ts";
 import { Sendmail } from "../tools/mailer/sendmail.ts";
 import { SMTPClient } from "../tools/mailer/smtp.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
@@ -241,6 +242,7 @@ export class BaseApp implements App {
   #db: DbxDatabase | null = null;
   #auxDb: DbxDatabase | null = null;
   #logger: Logger;
+  #logWriter: LogWriter | null = null;
   #txInfo: TxAppInfo | null = null;
   #hooksEnabled = false;
   // app event hooks
@@ -946,27 +948,29 @@ export class BaseApp implements App {
         if (!this.isBootstrapped() || this.settings().logs.maxDays === 0) {
           return null;
         }
+        // Deviation: offload log persistence to a worker to avoid blocking Bun's main thread.
+        // Note: we don't batch logs in a transaction because it didn't improve throughput in Bun.
+        const logWriter = this.getLogWriter();
+        const runner = async (sql: string, values: SQLQueryBindings[]): Promise<Error | null> =>
+          await logWriter.run(sql, values);
 
-        const txErr = await this.AuxRunInTransaction(async (txApp) => {
-          for (const entry of logs) {
-            const model = new Log();
-            model.MarkAsNew();
-            model.id = GenerateDefaultRandomId();
-            model.level = Number(entry.Level);
-            model.message = entry.Message;
-            model.data = entry.Data;
-            model.created = ParseDateTime(entry.Time);
+        for (const entry of logs) {
+          const model = new Log();
+          model.MarkAsNew();
+          model.id = GenerateDefaultRandomId();
+          model.level = Number(entry.Level);
+          model.message = entry.Message;
+          model.data = entry.Data;
+          model.created = ParseDateTime(entry.Time);
 
-            const saveErr = await txApp.AuxSave(model);
-            if (saveErr) {
-              // eslint-disable-next-line no-console
-              console.warn("Failed to write log", model, saveErr);
-            }
+          const saveErr = await this.saveGenericModel(model, true, runner);
+          if (saveErr && !isLogWriterClosed(saveErr)) {
+            // eslint-disable-next-line no-console
+            console.warn("Failed to write log", model, saveErr);
           }
-          return null;
-        });
+        }
 
-        return txErr;
+        return null;
       },
     });
 
@@ -978,6 +982,8 @@ export class BaseApp implements App {
       Priority: -999,
       Func: async (event) => {
         await handler.WriteAll({});
+        this.#logWriter?.close();
+        this.#logWriter = null;
 
         if (flushTimer) {
           clearTimeout(flushTimer);
@@ -1035,8 +1041,19 @@ export class BaseApp implements App {
     return null;
   }
 
+  private getLogWriter(): LogWriter {
+    if (!this.#logWriter) {
+      this.#logWriter = new LogWriter(join(this.#dataDir, "auxiliary.db"));
+    }
+    return this.#logWriter;
+  }
+
   resetBootstrapState(): void {
     this.Cron().Stop();
+    if (this.#logWriter) {
+      this.#logWriter.close();
+      this.#logWriter = null;
+    }
     if (this.#db) {
       this.#db.close();
       this.#db = null;
@@ -2268,7 +2285,11 @@ export class BaseApp implements App {
     return afterErr ?? null;
   }
 
-  private async saveGenericModel(model: Model, runValidation: boolean): Promise<Error | null> {
+  private async saveGenericModel(
+    model: Model,
+    runValidation: boolean,
+    runner?: (sql: string, values: SQLQueryBindings[]) => Promise<Error | null>,
+  ): Promise<Error | null> {
     const isNew = model.IsNew();
     const modelEvent = new ModelEvent(this, model, isNew ? ModelEventTypeCreate : ModelEventTypeUpdate);
 
@@ -2281,7 +2302,7 @@ export class BaseApp implements App {
       }
 
       return (await (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(modelEvent, async () =>
-        this.persistGenericModel(model),
+        this.persistGenericModel(model, runner),
       )) as Error | null;
     };
 
@@ -2714,7 +2735,7 @@ export class BaseApp implements App {
     }
 
     const keys = Object.keys(data);
-    const dbErr = await baseLockRetry(() => {
+    const dbErr = await baseLockRetry(async () => {
       try {
         if (record.IsNew()) {
           const columns = keys.map((key) => `"${key}"`).join(", ");
@@ -2792,7 +2813,10 @@ export class BaseApp implements App {
     return record.PostScan();
   }
 
-  private async persistGenericModel(model: Model): Promise<Error | null> {
+  private async persistGenericModel(
+    model: Model,
+    runner?: (sql: string, values: SQLQueryBindings[]) => Promise<Error | null>,
+  ): Promise<Error | null> {
     const data: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(model as Record<string, unknown>)) {
       if (typeof value === "function" || value === undefined) {
@@ -2814,14 +2838,21 @@ export class BaseApp implements App {
       return null;
     }
 
-    const dbErr = await baseLockRetry(() => {
+    const dbErr = await baseLockRetry(async () => {
       try {
         if (model.IsNew()) {
           const columns = keys.map((key) => `"${key}"`).join(", ");
           const placeholders = keys.map(() => "?").join(", ");
           const values = keys.map((key) => normalizeDbValue(data[key]));
           const sql = `insert into {{${model.TableName()}}} (${columns}) values (${placeholders})`;
-          this.db().run(sql, values);
+          if (runner) {
+            const runErr = await runner(sql, values);
+            if (runErr) {
+              return runErr;
+            }
+          } else {
+            this.db().run(sql, values);
+          }
         } else {
           const columns = keys.filter((key) => key !== "id");
           if (columns.length > 0) {
@@ -2829,7 +2860,14 @@ export class BaseApp implements App {
             const values = columns.map((key) => normalizeDbValue(data[key]));
             values.push(normalizeDbValue(model.PK() ?? data.id));
             const sql = `update {{${model.TableName()}}} set ${assignments} where [[id]] = ?`;
-            this.db().run(sql, values);
+            if (runner) {
+              const runErr = await runner(sql, values);
+              if (runErr) {
+                return runErr;
+              }
+            } else {
+              this.db().run(sql, values);
+            }
           }
         }
       } catch (error) {
@@ -4291,6 +4329,11 @@ function getLoggerMinLevel(app: App): slog.Level {
   }
 
   return new slog.Level(app.settings().logs.minLevel);
+}
+
+function isLogWriterClosed(err: Error): boolean {
+  const message = err.message ?? "";
+  return message.includes("log writer closed") || message.includes("log writer is closed");
 }
 
 function normalizeDbValue(value: unknown): SQLQueryBindings {

@@ -2,7 +2,10 @@ module pocketbun-bench-pb
 
 go 1.24.0
 
-require github.com/pocketbase/pocketbase v0.36.2
+require (
+	github.com/pocketbase/dbx v1.11.0
+	github.com/pocketbase/pocketbase v0.36.2
+)
 
 require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
@@ -19,7 +22,6 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
-	github.com/pocketbase/dbx v1.11.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect

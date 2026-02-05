@@ -6,6 +6,7 @@ import { readFileSync, statSync, type Stats } from "node:fs";
 import { join } from "node:path";
 import type { NextFunc, Resolver } from "../hook/event.ts";
 import { File as FilesystemFile, NewFileFromMultipart } from "../filesystem/file.ts";
+import { profileEnabled, recordProfile } from "../perf/profile.ts";
 import { Pick } from "../picker/pick.ts";
 import { Store } from "../store/store.ts";
 import {
@@ -273,7 +274,13 @@ export class Event implements Resolver {
       }
     }
 
-    return this.buildResponse(status, `${JSON.stringify(output)}\n`);
+    const doProfile = profileEnabled();
+    const jsonStart = doProfile ? performance.now() : 0;
+    const payload = `${JSON.stringify(output)}\n`;
+    if (doProfile) {
+      recordProfile("event.json", performance.now() - jsonStart);
+    }
+    return this.buildResponse(status, payload);
   }
 
   XML(status: number, data: unknown): Response {

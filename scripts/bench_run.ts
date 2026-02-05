@@ -17,6 +17,7 @@ type BenchResult = {
   p50Ms: number;
   p95Ms: number;
   rps: number;
+  sampleBytes?: number;
 };
 
 const concurrency = Number.parseInt(process.env.POCKETBUN_BENCH_CONCURRENCY ?? "32", 10);
@@ -55,9 +56,15 @@ const ensureServerReady = async () => {
 
 const targets: BenchTarget[] = [
   { name: "bench_ping", path: "/_bench/ping" },
+  { name: "bench_json", path: "/_bench/json" },
+  { name: "bench_db_list", path: "/_bench/db_list" },
+  { name: "bench_db_list_skip_total", path: "/_bench/db_list?skipTotal=1" },
+  { name: "bench_provider_list", path: "/_bench/provider_list" },
+  { name: "bench_provider_list_skip_total", path: "/_bench/provider_list?skipTotal=1" },
   { name: "health", path: "/api/health" },
   { name: "admin_ui", path: "/_/" },
   { name: "records_list", path: "/api/collections/bench_items/records?page=1&perPage=30" },
+  { name: "records_list_skip_total", path: "/api/collections/bench_items/records?page=1&perPage=30&skipTotal=1" },
 ];
 
 try {
@@ -85,6 +92,9 @@ function logResult(name: string, result: BenchResult, metrics: { queryCount?: nu
   console.log(`  avg:      ${result.avgMs.toFixed(2)} ms`);
   console.log(`  p50:      ${result.p50Ms.toFixed(2)} ms`);
   console.log(`  p95:      ${result.p95Ms.toFixed(2)} ms`);
+  if (typeof result.sampleBytes === "number") {
+    console.log(`  bytes:    ${result.sampleBytes}`);
+  }
   if (metrics && typeof metrics.queryCount === "number") {
     const perReq = result.requests > 0 ? metrics.queryCount / result.requests : 0;
     console.log(`  queries:  ${metrics.queryCount} (${perReq.toFixed(4)} / req)`);
@@ -95,6 +105,7 @@ async function runBench(url: string, workers: number, duration: number): Promise
   const durations: number[] = [];
   let requests = 0;
   let errors = 0;
+  let sampleBytes: number | null = null;
   const start = performance.now();
   const end = start + duration;
 
@@ -103,7 +114,10 @@ async function runBench(url: string, workers: number, duration: number): Promise
       const t0 = performance.now();
       try {
         const res = await fetch(url);
-        await res.arrayBuffer();
+        const body = await res.arrayBuffer();
+        if (sampleBytes === null) {
+          sampleBytes = body.byteLength;
+        }
         if (!res.ok) {
           errors += 1;
         } else {
@@ -133,6 +147,7 @@ async function runBench(url: string, workers: number, duration: number): Promise
     p50Ms,
     p95Ms,
     rps,
+    sampleBytes: sampleBytes ?? undefined,
   };
 }
 

@@ -88,6 +88,10 @@ pocketbun superuser upsert admin@example.com change-me
 
 PocketBun does not ship the PocketBase `update` command. Because PocketBun is distributed as a package, update it via your package manager instead (for example `bun add -g pocketbun@latest`, `npm i -g pocketbun@latest`, or `pnpm add -g pocketbun@latest`).
 
+### Activity Logs
+
+PocketBun persists activity logs via a background worker to avoid blocking Bun’s main thread. We also skip wrapping each log batch in an explicit transaction because it didn’t improve throughput in Bun; logs are still inserted one-by-one like PocketBase.
+
 ### Thumbnails
 
 PocketBun uses Sharp for image resizing. Output bytes may differ from PocketBase’s Go imaging stack, and BMP thumbnails are emitted as PNG because Sharp doesn’t write BMP.
