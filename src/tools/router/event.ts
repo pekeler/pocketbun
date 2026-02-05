@@ -2,7 +2,7 @@
 // Deviation: Bun uses Request/Response instead of net/http ResponseWriter, so response helpers return Response values.
 
 import type { BodyInit } from "bun";
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync, type Stats } from "node:fs";
 import { join } from "node:path";
 import type { NextFunc, Resolver } from "../hook/event.ts";
 import { File as FilesystemFile, NewFileFromMultipart } from "../filesystem/file.ts";
@@ -29,6 +29,18 @@ export const DefaultMaxMemory = 32 << 20;
 
 const headerContentType = "Content-Type";
 const jsonFieldsParam = "fields";
+
+type FileCacheEntry = {
+  content: Uint8Array;
+  contentType: string;
+  mtimeMs: number;
+  size: number;
+};
+
+const fileCacheMaxBytes = 16 * 1024 * 1024;
+const fileCacheMaxEntries = 256;
+const fileCache = new Map<string, FileCacheEntry>();
+let fileCacheBytes = 0;
 
 export type CookieLike = {
   Name?: string;
@@ -290,7 +302,7 @@ export class Event implements Resolver {
     }
 
     let resolved = join(root, filename);
-    let stats: { isDirectory: () => boolean };
+    let stats: Stats;
 
     try {
       stats = statSync(resolved);
@@ -307,11 +319,28 @@ export class Event implements Resolver {
       }
     }
 
+    const cached = fileCache.get(resolved);
+    if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size) {
+      fileCache.delete(resolved);
+      fileCache.set(resolved, cached);
+      this.setResponseHeaderIfEmpty(headerContentType, cached.contentType);
+      this.responseHeaders.set("Content-Length", String(cached.size));
+      return this.buildResponse(200, cached.content);
+    }
+
     const contentType = Bun.file(resolved).type || "application/octet-stream";
     this.setResponseHeaderIfEmpty(headerContentType, contentType);
 
     const content = readFileSync(resolved);
     this.responseHeaders.set("Content-Length", String(content.length));
+
+    cacheFile(resolved, {
+      content,
+      contentType,
+      mtimeMs: stats.mtimeMs,
+      size: content.length,
+    });
+
     return this.buildResponse(200, content);
   }
 
@@ -485,6 +514,33 @@ export class Event implements Resolver {
       throw error;
     }
   }
+}
+
+function cacheFile(path: string, entry: FileCacheEntry): void {
+  if (entry.size > fileCacheMaxBytes) {
+    return;
+  }
+
+  const existing = fileCache.get(path);
+  if (existing) {
+    fileCacheBytes -= existing.size;
+    fileCache.delete(path);
+  }
+
+  while (fileCache.size >= fileCacheMaxEntries || fileCacheBytes + entry.size > fileCacheMaxBytes) {
+    const oldestKey = fileCache.keys().next().value as string | undefined;
+    if (!oldestKey) {
+      break;
+    }
+    const oldest = fileCache.get(oldestKey);
+    if (oldest) {
+      fileCacheBytes -= oldest.size;
+    }
+    fileCache.delete(oldestKey);
+  }
+
+  fileCache.set(path, entry);
+  fileCacheBytes += entry.size;
 }
 
 function serializeCookie(cookie: CookieLike): string {
