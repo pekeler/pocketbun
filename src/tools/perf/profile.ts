@@ -11,14 +11,21 @@ const enabled =
   process.env.POCKETBUN_PROFILE_HOOKS === "1" ||
   process.env.POCKETBUN_PROFILE_ROUTER === "1";
 
+const dbEnabled = process.env.POCKETBUN_PROFILE_DB === "1";
+const anyEnabled = enabled || dbEnabled;
+
 const stats = new Map<string, ProfileStat>();
 
 export function profileEnabled(): boolean {
   return enabled;
 }
 
+export function profileDbEnabled(): boolean {
+  return enabled || dbEnabled;
+}
+
 export function recordProfile(label: string, durationMs: number): void {
-  if (!enabled) {
+  if (!anyEnabled) {
     return;
   }
   const entry = stats.get(label);
@@ -33,8 +40,20 @@ export function recordProfile(label: string, durationMs: number): void {
   stats.set(label, { count: 1, totalMs: durationMs, maxMs: durationMs });
 }
 
+export function recordProfileSelf(label: string, durationMs: number): void {
+  recordProfile(`${label}.self`, durationMs);
+}
+
+export function recordDbProfile(sql: string, durationMs: number): void {
+  if (!profileDbEnabled()) {
+    return;
+  }
+  const normalized = normalizeSql(sql);
+  recordProfile(`db.sql:${normalized}`, durationMs);
+}
+
 export function profileSummary(limit = 20): string {
-  if (!enabled) {
+  if (!anyEnabled) {
     return "";
   }
   const rows = [...stats.entries()].map(([label, stat]) => {
@@ -56,4 +75,12 @@ export function profileSummary(limit = 20): string {
 
 export function resetProfile(): void {
   stats.clear();
+}
+
+function normalizeSql(sql: string): string {
+  const cleaned = sql.replace(/\s+/g, " ").trim();
+  if (cleaned.length <= 120) {
+    return cleaned;
+  }
+  return `${cleaned.slice(0, 117)}...`;
 }

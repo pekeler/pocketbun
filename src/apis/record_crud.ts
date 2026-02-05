@@ -17,6 +17,7 @@ import { ValidationError, ValidationErrors } from "../internal/compat/validation
 import { NewFileFromBytes, type File as LocalFile } from "../tools/filesystem/file.ts";
 import { columnify } from "../tools/inflector/inflector.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
+import { profileEnabled, recordProfile } from "../tools/perf/profile.ts";
 import { ApiError, ToApiError, apiErrorResponse } from "../tools/router/api_error.ts";
 import { JSONPayloadKey, unmarshalRequestData } from "../tools/router/unmarshal_request_data.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
@@ -66,6 +67,7 @@ export function bindRecordCrudApi(app: App, rg: RouterGroup<RequestEvent>): void
 }
 
 async function recordsList(app: App, event: RequestEvent): Promise<Response> {
+  const doProfile = profileEnabled();
   const collectionId = event.params.collection ?? "";
   const collection = findCachedCollection(app, collectionId);
   if (!collection) {
@@ -118,7 +120,11 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
   let records: RecordModel[] = [];
   try {
     const query = event.requestUrl().searchParams.toString();
+    const queryStart = doProfile ? performance.now() : 0;
     const rawResult = provider.parseAndExec<Record<string, unknown>>(query, app.db());
+    if (doProfile) {
+      recordProfile("records_list.query", performance.now() - queryStart);
+    }
     records = rawResult.items.map((row) => RecordModel.fromRow(collection, row as RecordData));
     result = {
       ...rawResult,
@@ -137,7 +143,11 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
   hookEvent.Result = result;
 
   const out = await app.OnRecordsListRequest().Trigger(hookEvent, async () => {
+    const enrichStart = doProfile ? performance.now() : 0;
     const enrichErr = await EnrichRecords(event, hookEvent.Records);
+    if (doProfile) {
+      recordProfile("records_list.enrich", performance.now() - enrichStart);
+    }
     if (enrichErr) {
       return internalServerError(event, "Failed to enrich records", enrichErr);
     }
@@ -149,7 +159,12 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
       };
     }
 
-    return event.json(200, hookEvent.Result);
+    const responseStart = doProfile ? performance.now() : 0;
+    const response = event.json(200, hookEvent.Result);
+    if (doProfile) {
+      recordProfile("records_list.response", performance.now() - responseStart);
+    }
+    return response;
   });
 
   const listResponse = unwrapHookResponse(event, out);

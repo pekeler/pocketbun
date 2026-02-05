@@ -1,7 +1,7 @@
 // Ported from pocketbase/tools/hook/hook.go
 
 import type { Resolver } from "./event.ts";
-import { profileEnabled, recordProfile } from "../perf/profile.ts";
+import { profileEnabled, recordProfile, recordProfileSelf } from "../perf/profile.ts";
 import { randomString } from "../security/random.ts";
 import { Event } from "./event.ts";
 
@@ -106,17 +106,41 @@ export class Hook<T extends Resolver> {
         }
         const label = resolveHandlerLabel(handler);
         const started = performance.now();
+        let downstreamMs = 0;
+        const nextFunc = event.nextFunc();
+        if (nextFunc) {
+          event.setNextFunc(() => {
+            event.setNextFunc(nextFunc);
+            const downstreamStart = performance.now();
+            try {
+              const result = nextFunc();
+              if (result && typeof (result as Promise<unknown>).then === "function") {
+                return (result as Promise<unknown>).finally(() => {
+                  downstreamMs += performance.now() - downstreamStart;
+                });
+              }
+              downstreamMs += performance.now() - downstreamStart;
+              return result;
+            } catch (error) {
+              downstreamMs += performance.now() - downstreamStart;
+              throw error;
+            }
+          });
+        }
+        const recordTiming = () => {
+          const total = performance.now() - started;
+          recordProfile(label, total);
+          recordProfileSelf(label, Math.max(0, total - downstreamMs));
+        };
         try {
           const result = handler.func(event);
           if (result && typeof (result as Promise<unknown>).then === "function") {
-            return (result as Promise<unknown>).finally(() => {
-              recordProfile(label, performance.now() - started);
-            });
+            return (result as Promise<unknown>).finally(recordTiming);
           }
-          recordProfile(label, performance.now() - started);
+          recordTiming();
           return result;
         } catch (error) {
-          recordProfile(label, performance.now() - started);
+          recordTiming();
           throw error;
         }
       });
