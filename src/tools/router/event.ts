@@ -37,6 +37,7 @@ type FileCacheEntry = {
   size: number;
 };
 
+// PocketBun-only: in-memory cache for static file responses (upstream reads from disk each time).
 const fileCacheMaxBytes = 16 * 1024 * 1024;
 const fileCacheMaxEntries = 256;
 const fileCache = new Map<string, FileCacheEntry>();

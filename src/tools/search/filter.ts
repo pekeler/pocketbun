@@ -7,6 +7,7 @@ import type { FieldResolver, ResolverResult } from "./field_resolver.ts";
 import type { MultiMatchSubquery } from "./multi_match_subquery.ts";
 import type { SqlExpr } from "./types.ts";
 import { randomString } from "../security/random.ts";
+import { Store } from "../store/store.ts";
 import { resolveIdentifierMacro } from "./identifier_macros.ts";
 import { tokenFunctions, type Token } from "./token_functions.ts";
 import { ErrFilterExprLimit } from "./types.ts";
@@ -27,6 +28,9 @@ type AstNode =
   | { type: "binary"; op: "AND" | "OR"; left: AstNode; right: AstNode }
   | { type: "compare"; op: string; left: TokenNode; right: TokenNode }
   | { type: "token"; token: TokenNode };
+
+// parsedFilterData holds a cache with previously parsed filter data expressions.
+const parsedFilterData = new Store<string, AstNode>();
 
 type TokenNode =
   | { kind: "literal"; token: Token }
@@ -53,10 +57,17 @@ export function buildFilterExpr(
   replacements: Array<Record<string, unknown>> = [],
 ): SqlExpr {
   const raw = replacePlaceholders(filter, replacements);
-  const lexer = new Lexer(raw);
-  const parser = new Parser(lexer);
-  const ast = parser.parseExpression();
-  parser.expectEnd();
+  const cacheKey = `${raw}/${maxExpressions}`;
+  const [cached, ok] = parsedFilterData.getOk(cacheKey);
+  let ast = cached;
+
+  if (!ok || !ast) {
+    const lexer = new Lexer(raw);
+    const parser = new Parser(lexer);
+    ast = parser.parseExpression();
+    parser.expectEnd();
+    parsedFilterData.setIfLessThanLimit(cacheKey, ast, 500);
+  }
   const builder = new Builder(resolver, maxExpressions);
   const expr = builder.build(ast);
   if (ast.type === "compare" && /\b(and|or)\b/i.test(expr.sql)) {
