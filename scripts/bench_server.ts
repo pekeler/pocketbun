@@ -9,6 +9,7 @@ import { NewBaseCollection } from "../src/core/collection_model.ts";
 import { TextField } from "../src/core/field_text.ts";
 import { NewRecord } from "../src/core/record_model.ts";
 import { RequestEventKeySkipSuccessActivityLog } from "../src/apis/middlewares.ts";
+import type { DbxDatabase } from "../src/tools/dbx/database.ts";
 
 const port = Number.parseInt(process.env.POCKETBUN_BENCH_PORT ?? "8092", 10);
 const recordCount = Number.parseInt(process.env.POCKETBUN_BENCH_RECORDS ?? "1000", 10);
@@ -18,13 +19,25 @@ const app = new BaseApp({ dataDir });
 app.bootstrap();
 app.runAllMigrations();
 
+let queryCount = 0;
+
 app.OnServe().Bind({
   Id: "__benchPing__",
   Priority: 1000,
   Func: (event) => {
-    event.Router.Group("/_bench").GET("/ping", (reqEvent) => {
+    const benchGroup = event.Router.Group("/_bench");
+    benchGroup.GET("/ping", (reqEvent) => {
       reqEvent.Set(RequestEventKeySkipSuccessActivityLog, true);
       return reqEvent.String(200, "pong");
+    });
+    benchGroup.GET("/metrics", (reqEvent) => {
+      reqEvent.Set(RequestEventKeySkipSuccessActivityLog, true);
+      return reqEvent.json(200, { queryCount });
+    });
+    benchGroup.POST("/reset", (reqEvent) => {
+      queryCount = 0;
+      reqEvent.Set(RequestEventKeySkipSuccessActivityLog, true);
+      return reqEvent.json(200, { ok: true });
     });
     return event.Next();
   },
@@ -48,6 +61,11 @@ for (let i = 0; i < recordCount; i += 1) {
     throw new Error(`failed to seed bench record: ${err.message}`);
   }
 }
+
+const db = app.db() as DbxDatabase;
+db.QueryLogFunc = () => {
+  queryCount += 1;
+};
 
 const server = serve(app, { httpAddr: `127.0.0.1:${port}` });
 

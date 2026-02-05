@@ -67,15 +67,17 @@ try {
   console.log(`baseUrl=${baseUrl}`);
 
   for (const target of targets) {
+    await resetMetrics(baseUrl);
     const result = await runBench(`${baseUrl}${target.path}`, concurrency, durationMs);
-    logResult(target.name, result);
+    const metrics = await fetchMetrics(baseUrl);
+    logResult(target.name, result, metrics);
   }
 } finally {
   serverProc.kill();
   await serverProc.exited;
 }
 
-function logResult(name: string, result: BenchResult): void {
+function logResult(name: string, result: BenchResult, metrics: { queryCount?: number } | null): void {
   console.log(`\n${name}`);
   console.log(`  requests: ${result.requests}`);
   console.log(`  errors:   ${result.errors}`);
@@ -83,6 +85,10 @@ function logResult(name: string, result: BenchResult): void {
   console.log(`  avg:      ${result.avgMs.toFixed(2)} ms`);
   console.log(`  p50:      ${result.p50Ms.toFixed(2)} ms`);
   console.log(`  p95:      ${result.p95Ms.toFixed(2)} ms`);
+  if (metrics && typeof metrics.queryCount === "number") {
+    const perReq = result.requests > 0 ? metrics.queryCount / result.requests : 0;
+    console.log(`  queries:  ${metrics.queryCount} (${perReq.toFixed(4)} / req)`);
+  }
 }
 
 async function runBench(url: string, workers: number, duration: number): Promise<BenchResult> {
@@ -128,6 +134,27 @@ async function runBench(url: string, workers: number, duration: number): Promise
     p95Ms,
     rps,
   };
+}
+
+async function resetMetrics(baseUrl: string): Promise<void> {
+  try {
+    await fetch(`${baseUrl}/_bench/reset`, { method: "POST" });
+  } catch {
+    // ignore
+  }
+}
+
+async function fetchMetrics(baseUrl: string): Promise<{ queryCount?: number } | null> {
+  try {
+    const res = await fetch(`${baseUrl}/_bench/metrics`);
+    if (!res.ok) {
+      return null;
+    }
+    const payload = (await res.json()) as { queryCount?: number };
+    return payload;
+  } catch {
+    return null;
+  }
 }
 
 function percentile(values: number[], p: number): number {

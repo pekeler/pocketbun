@@ -44,6 +44,14 @@ type RequestLike = {
   formData: () => Promise<{ entries: () => IterableIterator<[string, unknown]> }>;
 };
 
+function findCachedCollection(app: App, identifier: string): Collection | null {
+  try {
+    return app.FindCachedCollectionByNameOrId(identifier);
+  } catch {
+    return null;
+  }
+}
+
 // bindRecordCrudApi registers the record crud api endpoints and
 // the corresponding handlers.
 //
@@ -59,7 +67,7 @@ export function bindRecordCrudApi(app: App, rg: RouterGroup<RequestEvent>): void
 
 async function recordsList(app: App, event: RequestEvent): Promise<Response> {
   const collectionId = event.params.collection ?? "";
-  const collection = app.findCollectionByNameOrId(collectionId);
+  const collection = findCachedCollection(app, collectionId);
   if (!collection) {
     return notFound(event, "Missing collection context.");
   }
@@ -158,7 +166,7 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
 
 async function recordView(app: App, event: RequestEvent): Promise<Response> {
   const collectionId = event.params.collection ?? "";
-  const collection = app.findCollectionByNameOrId(collectionId);
+  const collection = findCachedCollection(app, collectionId);
   if (!collection) {
     return notFound(event, "Missing collection context.");
   }
@@ -247,7 +255,7 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
 
 export async function recordCreate(app: App, event: RequestEvent): Promise<Response> {
   const collectionId = event.params.collection ?? "";
-  const collection = app.findCollectionByNameOrId(collectionId);
+  const collection = findCachedCollection(app, collectionId);
   if (!collection) {
     return notFound(event, "Missing collection context.");
   }
@@ -357,7 +365,7 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
 
 export async function recordUpdate(app: App, event: RequestEvent): Promise<Response> {
   const collectionId = event.params.collection ?? "";
-  const collection = app.findCollectionByNameOrId(collectionId);
+  const collection = findCachedCollection(app, collectionId);
   if (!collection) {
     return notFound(event, "Missing collection context.");
   }
@@ -454,7 +462,7 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
 
 export async function recordDelete(app: App, event: RequestEvent): Promise<Response> {
   const collectionId = event.params.collection ?? "";
-  const collection = app.findCollectionByNameOrId(collectionId);
+  const collection = findCachedCollection(app, collectionId);
   if (!collection) {
     return notFound(event, "Missing collection context.");
   }

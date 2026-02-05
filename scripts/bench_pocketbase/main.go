@@ -4,15 +4,18 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
+	"sync/atomic"
 	"syscall"
 	"time"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
@@ -30,7 +33,7 @@ func main() {
 	}
 
 	app := pocketbase.NewWithConfig(pocketbase.Config{
-		DefaultDataDir: dataDir,
+		DefaultDataDir:  dataDir,
 		HideStartBanner: true,
 	})
 
@@ -58,12 +61,37 @@ func main() {
 		}
 	}
 
+	var queryCount int64
+	queryLog := func(_ context.Context, _ time.Duration, _ string, _ *sql.Rows, _ error) {
+		atomic.AddInt64(&queryCount, 1)
+	}
+	execLog := func(_ context.Context, _ time.Duration, _ string, _ sql.Result, _ error) {
+		atomic.AddInt64(&queryCount, 1)
+	}
+
+	if db, ok := app.ConcurrentDB().(*dbx.DB); ok {
+		db.QueryLogFunc = queryLog
+		db.ExecLogFunc = execLog
+	}
+	if db, ok := app.NonconcurrentDB().(*dbx.DB); ok {
+		db.QueryLogFunc = queryLog
+		db.ExecLogFunc = execLog
+	}
+
 	serverReady := make(chan *http.Server, 1)
 	app.OnServe().Bind(&hook.Handler[*core.ServeEvent]{
 		Func: func(e *core.ServeEvent) error {
-			e.Router.Group("/_bench").GET("/ping", func(re *core.RequestEvent) error {
+			benchGroup := e.Router.Group("/_bench").Bind(apis.SkipSuccessActivityLog())
+			benchGroup.GET("/ping", func(re *core.RequestEvent) error {
 				return re.String(200, "pong")
-			}).Bind(apis.SkipSuccessActivityLog())
+			})
+			benchGroup.GET("/metrics", func(re *core.RequestEvent) error {
+				return re.JSON(200, map[string]any{"queryCount": atomic.LoadInt64(&queryCount)})
+			})
+			benchGroup.POST("/reset", func(re *core.RequestEvent) error {
+				atomic.StoreInt64(&queryCount, 0)
+				return re.JSON(200, map[string]any{"ok": true})
+			})
 
 			serverReady <- e.Server
 			return e.Next()
