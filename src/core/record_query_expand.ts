@@ -270,7 +270,11 @@ function normalizeExpands(paths: string[]): string[] {
 
 function getCollectionByModelOrIdentifier(app: App, value: string | Collection): Collection | null {
   if (typeof value === "string") {
-    return app.findCollectionByNameOrId(value);
+    try {
+      return app.FindCachedCollectionByNameOrId(value);
+    } catch {
+      return null;
+    }
   }
   return value ?? null;
 }

@@ -234,7 +234,11 @@ export class RecordFieldResolver implements FieldResolver {
     if (collectionNameOrId === this.baseCollection.name || collectionNameOrId === this.baseCollection.id) {
       return this.baseCollection;
     }
-    return this.app.findCollectionByNameOrId(collectionNameOrId);
+    try {
+      return this.app.FindCachedCollectionByNameOrId(collectionNameOrId);
+    } catch {
+      return null;
+    }
   }
 
   registerJoin(

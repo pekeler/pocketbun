@@ -14,7 +14,14 @@ export async function recordAuthRefresh(app: App, event: RequestEvent): Promise<
   }
 
   const collectionId = event.params.collection ?? "";
-  const collection = collectionId ? app.findCollectionByNameOrId(collectionId) : null;
+  let collection = null;
+  if (collectionId) {
+    try {
+      collection = app.FindCachedCollectionByNameOrId(collectionId);
+    } catch {
+      collection = null;
+    }
+  }
   if (!collection || record.collection().id !== collection.id) {
     return forbidden(event, `The request requires auth record from ${record.collection().name} collection.`);
   }

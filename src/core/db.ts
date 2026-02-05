@@ -1,6 +1,7 @@
 // Ported from pocketbase/core/db.go (partial: id constants + validation helpers used so far).
 
 import type { App } from "./app.ts";
+import type { Collection } from "./collection_model.ts";
 import { newError } from "../internal/compat/validation.ts";
 import { pseudorandomStringWithAlphabet } from "../tools/security/random.ts";
 
@@ -54,7 +55,12 @@ export function validateRecordId(app: App, collectionNameOrId: string): (value: 
       return null;
     }
 
-    const collection = app.findCollectionByNameOrId(collectionNameOrId);
+    let collection: Collection | null = null;
+    try {
+      collection = app.FindCachedCollectionByNameOrId(collectionNameOrId);
+    } catch {
+      collection = null;
+    }
     if (!collection) {
       return newError("validation_invalid_collection", "Missing or invalid collection.");
     }

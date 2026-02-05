@@ -64,6 +64,14 @@ type CollectionsListResult = {
   items: CollectionResponse[];
 };
 
+function findCachedCollection(app: App, identifier: string): Collection | null {
+  try {
+    return app.FindCachedCollectionByNameOrId(identifier);
+  } catch {
+    return null;
+  }
+}
+
 // bindCollectionApi registers the collection api endpoints and the corresponding handlers.
 export function bindCollectionApi(app: App, rg: RouterGroup<RequestEvent>): void {
   const group = rg.group("/collections");
@@ -123,7 +131,7 @@ async function collectionView(app: App, event: RequestEvent): Promise<Response> 
     return notFound(event);
   }
 
-  const collection = app.findCollectionByNameOrId(collectionId);
+  const collection = findCachedCollection(app, collectionId);
   if (!collection) {
     return notFound(event);
   }
@@ -178,7 +186,7 @@ async function collectionUpdate(app: App, event: RequestEvent): Promise<Response
   }
 
   const collectionId = event.params.collection ?? "";
-  const collection = app.findCollectionByNameOrId(collectionId);
+  const collection = findCachedCollection(app, collectionId);
   if (!collection) {
     return notFound(event);
   }
@@ -216,7 +224,7 @@ async function collectionDelete(app: App, event: RequestEvent): Promise<Response
   }
 
   const collectionId = event.params.collection ?? "";
-  const collection = app.findCollectionByNameOrId(collectionId);
+  const collection = findCachedCollection(app, collectionId);
   if (!collection) {
     return notFound(event);
   }
@@ -251,7 +259,7 @@ async function collectionTruncate(app: App, event: RequestEvent): Promise<Respon
   }
 
   const collectionId = event.params.collection ?? "";
-  const collection = app.findCollectionByNameOrId(collectionId);
+  const collection = findCachedCollection(app, collectionId);
   if (!collection) {
     return notFound(event);
   }

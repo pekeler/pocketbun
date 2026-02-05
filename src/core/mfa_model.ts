@@ -2,7 +2,7 @@
 
 import type { DateTime } from "../tools/types/index.ts";
 import type { App } from "./app.ts";
-import { NewBaseCollection } from "./collection_model.ts";
+import { NewBaseCollection, type Collection } from "./collection_model.ts";
 import { NewRecord, Record as RecordModel } from "./record_model.ts";
 import { BaseRecordProxy } from "./record_proxy.ts";
 
@@ -100,7 +100,12 @@ export class MFA extends BaseRecordProxy {
 //	mfa.SetMethod(core.MFAMethodPassword)
 //	app.Save(mfa)
 export function NewMFA(app: App): MFA {
-  let collection = app.findCollectionByNameOrId(CollectionNameMFAs);
+  let collection: Collection | null = null;
+  try {
+    collection = app.FindCachedCollectionByNameOrId(CollectionNameMFAs);
+  } catch {
+    collection = null;
+  }
 
   if (!collection) {
     collection = NewBaseCollection("@__invalid__");

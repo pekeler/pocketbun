@@ -2,7 +2,7 @@
 
 import type { DateTime } from "../tools/types/index.ts";
 import type { App } from "./app.ts";
-import { NewBaseCollection } from "./collection_model.ts";
+import { NewBaseCollection, type Collection } from "./collection_model.ts";
 import { NewRecord, Record as RecordModel } from "./record_model.ts";
 import { BaseRecordProxy } from "./record_proxy.ts";
 
@@ -100,7 +100,12 @@ export class OTP extends BaseRecordProxy {
 //	otp.SetPassword(security.RandomStringWithAlphabet(6, "1234567890"))
 //	app.Save(otp)
 export function NewOTP(app: App): OTP {
-  let collection = app.findCollectionByNameOrId(CollectionNameOTPs);
+  let collection: Collection | null = null;
+  try {
+    collection = app.FindCachedCollectionByNameOrId(CollectionNameOTPs);
+  } catch {
+    collection = null;
+  }
 
   if (!collection) {
     collection = NewBaseCollection("__invalid__");

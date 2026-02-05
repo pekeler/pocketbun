@@ -17,7 +17,14 @@ export async function recordRequestEmailChange(app: App, event: RequestEvent): P
   }
 
   const collectionId = event.params.collection ?? "";
-  const collection = collectionId ? app.findCollectionByNameOrId(collectionId) : null;
+  let collection = null;
+  if (collectionId) {
+    try {
+      collection = app.FindCachedCollectionByNameOrId(collectionId);
+    } catch {
+      collection = null;
+    }
+  }
   if (!collection || authRecord.collection().Id !== collection.Id) {
     return forbidden(event, `The request requires auth record from ${authRecord.collection().name} collection.`);
   }

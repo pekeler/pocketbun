@@ -91,12 +91,12 @@ export class RecordQuery {
     }
 
     if (typeof collectionModelOrIdentifier === "string") {
-      const resolved = app.findCollectionByNameOrId(collectionModelOrIdentifier);
-      if (!resolved) {
+      try {
+        this.#collection = app.FindCachedCollectionByNameOrId(collectionModelOrIdentifier);
+      } catch {
         this.#collectionErr = new Error("unknown collection identifier - must be collection model, id or name");
         return;
       }
-      this.#collection = resolved;
       return;
     }
 

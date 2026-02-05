@@ -2,7 +2,7 @@
 
 import type { DateTime } from "../tools/types/index.ts";
 import type { App } from "./app.ts";
-import { NewBaseCollection } from "./collection_model.ts";
+import { NewBaseCollection, type Collection } from "./collection_model.ts";
 import { NewRecord, Record as RecordModel } from "./record_model.ts";
 import { BaseRecordProxy } from "./record_proxy.ts";
 
@@ -97,7 +97,12 @@ export class ExternalAuth extends BaseRecordProxy {
 //	ea.SetProviderId("...")
 //	app.Save(ea)
 export function NewExternalAuth(app: App): ExternalAuth {
-  let collection = app.findCollectionByNameOrId(CollectionNameExternalAuths);
+  let collection: Collection | null = null;
+  try {
+    collection = app.FindCachedCollectionByNameOrId(CollectionNameExternalAuths);
+  } catch {
+    collection = null;
+  }
 
   if (!collection) {
     collection = NewBaseCollection("@__invalid__");

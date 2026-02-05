@@ -1188,7 +1188,7 @@ export class BaseApp implements App {
   ): RecordModel {
     const collection =
       typeof collectionModelOrIdentifier === "string"
-        ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
+        ? resolveCachedCollection(this, collectionModelOrIdentifier)
         : collectionModelOrIdentifier;
 
     if (!collection) {
@@ -1219,7 +1219,7 @@ export class BaseApp implements App {
   ): RecordModel[] {
     const collection =
       typeof collectionModelOrIdentifier === "string"
-        ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
+        ? resolveCachedCollection(this, collectionModelOrIdentifier)
         : collectionModelOrIdentifier;
 
     if (!collection) {
@@ -1260,7 +1260,7 @@ export class BaseApp implements App {
   ): RecordModel[] {
     const collection =
       typeof collectionModelOrIdentifier === "string"
-        ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
+        ? resolveCachedCollection(this, collectionModelOrIdentifier)
         : collectionModelOrIdentifier;
 
     if (!collection) {
@@ -1289,7 +1289,7 @@ export class BaseApp implements App {
   FindFirstRecordByData(collectionModelOrIdentifier: Collection | string, key: string, value: unknown): RecordModel {
     const collection =
       typeof collectionModelOrIdentifier === "string"
-        ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
+        ? resolveCachedCollection(this, collectionModelOrIdentifier)
         : collectionModelOrIdentifier;
 
     if (!collection) {
@@ -1323,7 +1323,7 @@ export class BaseApp implements App {
   ): RecordModel[] {
     const collection =
       typeof collectionModelOrIdentifier === "string"
-        ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
+        ? resolveCachedCollection(this, collectionModelOrIdentifier)
         : collectionModelOrIdentifier;
 
     if (!collection) {
@@ -1391,7 +1391,7 @@ export class BaseApp implements App {
   ): number {
     const collection =
       typeof collectionModelOrIdentifier === "string"
-        ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
+        ? resolveCachedCollection(this, collectionModelOrIdentifier)
         : collectionModelOrIdentifier;
 
     if (!collection) {
@@ -1462,7 +1462,7 @@ export class BaseApp implements App {
   FindAuthRecordByEmail(collectionModelOrIdentifier: Collection | string, email: string): RecordModel {
     const collection =
       typeof collectionModelOrIdentifier === "string"
-        ? this.findCollectionByNameOrId(collectionModelOrIdentifier)
+        ? resolveCachedCollection(this, collectionModelOrIdentifier)
         : collectionModelOrIdentifier;
     if (!collection) {
       throw new Error("failed to fetch auth collection: unknown collection identifier - must be collection model, id or name");
@@ -1693,7 +1693,7 @@ export class BaseApp implements App {
   ): RecordModel | null {
     const collection =
       typeof collectionOrIdentifier === "string"
-        ? this.findCollectionByNameOrId(collectionOrIdentifier)
+        ? resolveCachedCollection(this, collectionOrIdentifier)
         : collectionOrIdentifier;
     if (!collection) {
       return null;
@@ -4320,6 +4320,14 @@ function normalizeDbValue(value: unknown): SQLQueryBindings {
     return JSON.stringify(value);
   }
   return value as SQLQueryBindings;
+}
+
+function resolveCachedCollection(app: App, identifier: string): Collection | null {
+  try {
+    return app.FindCachedCollectionByNameOrId(identifier);
+  } catch {
+    return null;
+  }
 }
 
 function isSafeIdentifier(value: string): boolean {

@@ -10,7 +10,12 @@ export function findAuthCollection(app: App, event: RequestEvent): Collection | 
     return null;
   }
 
-  const collection = app.findCollectionByNameOrId(collectionId);
+  let collection: Collection;
+  try {
+    collection = app.FindCachedCollectionByNameOrId(collectionId);
+  } catch {
+    return null;
+  }
   if (!collection || !collection.isAuth()) {
     return null;
   }

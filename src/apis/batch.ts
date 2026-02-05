@@ -338,19 +338,18 @@ function prepareInternalAction(app: App, ir: InternalRequest): PreparedAction | 
       const collectionId = params.collection ?? "";
       const bodyId = castToString(ir.Body?.id);
       if (bodyId && collectionId) {
-        const collection = app.findCollectionByNameOrId(collectionId);
-        if (collection) {
-          const existing = app.findRecordById(collection, bodyId);
-          if (existing) {
-            params.id = bodyId;
-            ir.Method = "PATCH";
-            ir.URL = `/api/collections/${collectionId}/records/${bodyId}${params.query ?? ""}`;
-            return {
-              handler: (event) => recordUpdate(app, event),
-              params,
-              pattern: patternUpdate,
-            };
-          }
+        try {
+          app.FindRecordById(collectionId, bodyId);
+          params.id = bodyId;
+          ir.Method = "PATCH";
+          ir.URL = `/api/collections/${collectionId}/records/${bodyId}${params.query ?? ""}`;
+          return {
+            handler: (event) => recordUpdate(app, event),
+            params,
+            pattern: patternUpdate,
+          };
+        } catch {
+          // record doesn't exist -> create
         }
       }
 

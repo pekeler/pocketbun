@@ -150,7 +150,12 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
       });
     }
 
-    const relCollection = app.findCollectionByNameOrId(this.CollectionId);
+    let relCollection: Collection | null = null;
+    try {
+      relCollection = app.FindCachedCollectionByNameOrId(this.CollectionId);
+    } catch {
+      relCollection = null;
+    }
     if (!relCollection) {
       return newError("validation_missing_rel_collection", "Relation connection is missing or cannot be accessed");
     }
@@ -245,7 +250,11 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
 
     let oldCollection: Collection | null = null;
     if (!collection.isNew()) {
-      oldCollection = app.findCollectionByNameOrId(collection.id);
+      try {
+        oldCollection = app.FindCachedCollectionByNameOrId(collection.id);
+      } catch {
+        oldCollection = null;
+      }
     }
 
     if (oldCollection) {
@@ -263,7 +272,12 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
       }
     }
 
-    const relCollection = app.findCollectionByNameOrId(this.CollectionId);
+    let relCollection: Collection | null = null;
+    try {
+      relCollection = app.FindCachedCollectionByNameOrId(this.CollectionId);
+    } catch {
+      relCollection = null;
+    }
     if (!relCollection || relCollection.id !== this.CollectionId) {
       return newError("validation_field_relation_missing_collection", "The relation collection doesn't exist.");
     }

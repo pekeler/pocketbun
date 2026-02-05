@@ -3,7 +3,7 @@
 import type { DateTime } from "../tools/types/index.ts";
 import type { App } from "./app.ts";
 import { ValidationErrors, required } from "../internal/compat/validation.ts";
-import { NewBaseCollection } from "./collection_model.ts";
+import { NewBaseCollection, type Collection } from "./collection_model.ts";
 import { validateCollectionId, validateRecordId } from "./db.ts";
 import { Record as RecordModel, NewRecord } from "./record_model.ts";
 import { BaseRecordProxy } from "./record_proxy.ts";
@@ -88,7 +88,12 @@ export class AuthOrigin extends BaseRecordProxy {
 //	origin.SetFingerprint("...")
 //	app.Save(origin)
 export function NewAuthOrigin(app: App): AuthOrigin {
-  let collection = app.findCollectionByNameOrId(CollectionNameAuthOrigins);
+  let collection: Collection | null = null;
+  try {
+    collection = app.FindCachedCollectionByNameOrId(CollectionNameAuthOrigins);
+  } catch {
+    collection = null;
+  }
 
   if (!collection) {
     collection = NewBaseCollection("@___invalid___");
