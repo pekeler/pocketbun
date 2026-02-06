@@ -1,10 +1,10 @@
 // PocketBun-only: runs a PocketBun-native port of the upstream pocketbase/benchmarks app.
 
 import type { AddressInfo } from "node:net";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { MustRegisterJSVM, NewWithConfig, serve } from "../index.ts";
@@ -13,7 +13,14 @@ import { NewRecord } from "../src/core/record_model.ts";
 import { registerBenchmarkModule } from "./bench_upstream_pocketbun/module.ts";
 
 const benchmarkRun = process.env.POCKETBUN_BENCHMARK_RUN ?? "create,auth,search,custom,delete";
-const resultFile = process.env.POCKETBUN_BENCHMARK_RESULT_FILE ?? "/tmp/pocketbun-benchmarks-latest.txt";
+const machineTag = sanitizeTag(process.env.POCKETBUN_BENCH_MACHINE_TAG ?? "m2-max");
+const timestampTag = createTimestampTag(new Date());
+const resultsDir = process.env.POCKETBUN_BENCH_RESULTS_DIR ?? "benchmarks/results";
+const repoResultFile =
+  process.env.POCKETBUN_BENCHMARK_RESULT_FILE ??
+  join(resultsDir, `${timestampTag}-pocketbun-upstream-${machineTag}.md`);
+const latestResultFile = process.env.POCKETBUN_BENCHMARK_RESULT_LATEST_FILE ?? "/tmp/pocketbun-benchmarks-latest.txt";
+
 const serverReadyTimeoutMs = 60_000;
 const benchmarkTimeoutMs = 120 * 60_000;
 const pollIntervalMs = 5_000;
@@ -67,12 +74,36 @@ try {
   console.log("\nResult body:");
   const resultBody = String(result.result ?? "").trim();
   console.log(resultBody || "(empty)");
-  await writeFile(resultFile, `${resultBody}\n`);
-  console.log(`\nSaved full result to: ${resultFile}`);
+
+  const metadataHeader = [
+    "# PocketBun Upstream-Port Benchmark Result",
+    "",
+    `- machine: ${machineTag}`,
+    `- timestamp: ${new Date().toISOString()}`,
+    `- tests: ${benchmarkRun}`,
+    "",
+  ].join("\n");
+
+  await mkdir(dirname(repoResultFile), { recursive: true });
+  await writeFile(repoResultFile, `${metadataHeader}${resultBody}\n`);
+
+  await mkdir(dirname(latestResultFile), { recursive: true });
+  await writeFile(latestResultFile, `${resultBody}\n`);
+
+  console.log(`\nSaved full result to: ${repoResultFile}`);
+  console.log(`Saved latest raw result to: ${latestResultFile}`);
 } finally {
   await server.stop();
   app.resetBootstrapState();
   await rm(dataDir, { recursive: true, force: true });
+}
+
+function createTimestampTag(date: Date): string {
+  return date.toISOString().replace(/:/g, "-").replace(/\.\d{3}Z$/, "Z");
+}
+
+function sanitizeTag(value: string): string {
+  return value.trim().replace(/[^a-zA-Z0-9._-]+/g, "-");
 }
 
 async function ensureServerReady(): Promise<void> {

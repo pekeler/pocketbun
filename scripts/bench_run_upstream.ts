@@ -1,26 +1,81 @@
 // PocketBun-only: runs the vendored upstream PocketBase benchmark suite locally.
+//
+// This follows vendor/pocketbase-benchmarks/README.md "Run the benchmarks":
+// 1) go build
+// 2) run the created executable with `serve`
 
 import type { AddressInfo } from "node:net";
-import { mkdtemp, rm } from "node:fs/promises";
-import { writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
-const benchmarkRun = "create,auth,search,custom,delete";
-const resultFile = "/tmp/pocketbase-benchmarks-latest.txt";
+type GoBuildConfig = {
+  goos: string;
+  goarch: string;
+  cgoEnabled: string;
+  outputPath: string;
+};
+
+const benchmarkRun = process.env.POCKETBUN_BENCHMARK_RUN ?? "create,auth,search,custom,delete";
+const machineTag = sanitizeTag(process.env.POCKETBUN_BENCH_MACHINE_TAG ?? "m2-max");
+const timestampTag = createTimestampTag(new Date());
+const resultsDir = process.env.POCKETBUN_BENCH_RESULTS_DIR ?? "benchmarks/results";
+const repoResultFile =
+  process.env.POCKETBUN_BENCHMARK_RESULT_FILE ??
+  join(resultsDir, `${timestampTag}-pocketbase-upstream-${machineTag}.md`);
+const latestResultFile = process.env.POCKETBUN_BENCHMARK_RESULT_LATEST_FILE ?? "/tmp/pocketbase-benchmarks-latest.txt";
+
 const serverReadyTimeoutMs = 60_000;
 const benchmarkTimeoutMs = 90 * 60_000;
 const pollIntervalMs = 5_000;
 
 const goBinary = process.env.POCKETBUN_GO_BIN ?? "/opt/homebrew/bin/go";
+const upstreamBuildGoos = process.env.POCKETBUN_UPSTREAM_BUILD_GOOS ?? "linux";
+const upstreamBuildGoarch = process.env.POCKETBUN_UPSTREAM_BUILD_GOARCH ?? "amd64";
+const upstreamBuildCgoEnabled = process.env.POCKETBUN_UPSTREAM_BUILD_CGO_ENABLED ?? "0";
+
 const port = await pickPort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const dataDir = await mkdtemp(join(tmpdir(), "pocketbase-benchmarks-"));
+const buildDir = await mkdtemp(join(tmpdir(), "pocketbase-bench-build-"));
+
+const upstreamBinaryPath = join(buildDir, "app-upstream");
+const hostBinaryPath = join(buildDir, "app-host");
+
+await runGoBuild({
+  goos: upstreamBuildGoos,
+  goarch: upstreamBuildGoarch,
+  cgoEnabled: upstreamBuildCgoEnabled,
+  outputPath: upstreamBinaryPath,
+});
+
+let executablePath = upstreamBinaryPath;
+
+if (!isRunnableOnCurrentHost(upstreamBuildGoos, upstreamBuildGoarch)) {
+  const hostGoos = mapNodePlatformToGoos(process.platform);
+  const hostGoarch = mapNodeArchToGoarch(process.arch);
+
+  console.log(
+    `Built upstream target ${upstreamBuildGoos}/${upstreamBuildGoarch} (CGO_ENABLED=${upstreamBuildCgoEnabled}) per upstream docs.`,
+  );
+  console.log(`Building host target ${hostGoos}/${hostGoarch} to run benchmarks on this machine...`);
+
+  await runGoBuild({
+    goos: hostGoos,
+    goarch: hostGoarch,
+    cgoEnabled: upstreamBuildCgoEnabled,
+    outputPath: hostBinaryPath,
+  });
+
+  executablePath = hostBinaryPath;
+}
+
+console.log(`Starting upstream benchmark server executable: ${basename(executablePath)}`);
 
 const serverProc = Bun.spawn({
-  cmd: [goBinary, "run", ".", "serve", `--http=127.0.0.1:${port}`, `--dir=${dataDir}`],
+  cmd: [executablePath, "serve", `--http=127.0.0.1:${port}`, `--dir=${dataDir}`],
   cwd: "vendor/pocketbase-benchmarks",
   env: { ...process.env },
   stdio: ["ignore", "inherit", "inherit"],
@@ -51,12 +106,91 @@ try {
   console.log("\nResult body:");
   const resultBody = String(result.result ?? "").trim();
   console.log(resultBody || "(empty)");
-  await writeFile(resultFile, `${resultBody}\n`);
-  console.log(`\nSaved full result to: ${resultFile}`);
+
+  const metadataHeader = [
+    "# Upstream PocketBase Benchmark Result",
+    "",
+    `- machine: ${machineTag}`,
+    `- timestamp: ${new Date().toISOString()}`,
+    `- tests: ${benchmarkRun}`,
+    `- upstream build target: ${upstreamBuildGoos}/${upstreamBuildGoarch}`,
+    `- upstream build cgo: ${upstreamBuildCgoEnabled}`,
+    `- executable used: ${basename(executablePath)}`,
+    "",
+  ].join("\n");
+
+  await mkdir(dirname(repoResultFile), { recursive: true });
+  await writeFile(repoResultFile, `${metadataHeader}${resultBody}\n`);
+
+  await mkdir(dirname(latestResultFile), { recursive: true });
+  await writeFile(latestResultFile, `${resultBody}\n`);
+
+  console.log(`\nSaved full result to: ${repoResultFile}`);
+  console.log(`Saved latest raw result to: ${latestResultFile}`);
 } finally {
   serverProc.kill();
   await serverProc.exited;
   await rm(dataDir, { recursive: true, force: true });
+  await rm(buildDir, { recursive: true, force: true });
+}
+
+async function runGoBuild(config: GoBuildConfig): Promise<void> {
+  const processEnv = {
+    ...process.env,
+    GOOS: config.goos,
+    GOARCH: config.goarch,
+    CGO_ENABLED: config.cgoEnabled,
+  };
+
+  const buildProc = Bun.spawn({
+    cmd: [goBinary, "build", "-o", config.outputPath],
+    cwd: "vendor/pocketbase-benchmarks",
+    env: processEnv,
+    stdio: ["ignore", "inherit", "inherit"],
+  });
+
+  const exitCode = await buildProc.exited;
+  if (exitCode !== 0) {
+    throw new Error(`go build failed (${config.goos}/${config.goarch}, exit=${exitCode})`);
+  }
+}
+
+function isRunnableOnCurrentHost(goos: string, goarch: string): boolean {
+  const hostGoos = mapNodePlatformToGoos(process.platform);
+  const hostGoarch = mapNodeArchToGoarch(process.arch);
+  return goos === hostGoos && goarch === hostGoarch;
+}
+
+function mapNodePlatformToGoos(platform: NodeJS.Platform): string {
+  switch (platform) {
+    case "win32":
+      return "windows";
+    default:
+      return platform;
+  }
+}
+
+function mapNodeArchToGoarch(arch: string): string {
+  switch (arch) {
+    case "x64":
+      return "amd64";
+    case "ia32":
+      return "386";
+    case "arm":
+      return "arm";
+    case "arm64":
+      return "arm64";
+    default:
+      return arch;
+  }
+}
+
+function createTimestampTag(date: Date): string {
+  return date.toISOString().replace(/:/g, "-").replace(/\.\d{3}Z$/, "Z");
+}
+
+function sanitizeTag(value: string): string {
+  return value.trim().replace(/[^a-zA-Z0-9._-]+/g, "-");
 }
 
 async function ensureServerReady(): Promise<void> {

@@ -60,6 +60,54 @@ Then visit `http://127.0.0.1:8090/_/` for the Admin UI and `http://127.0.0.1:809
 - `examples/simple` — minimal server start
 - `examples/advanced` — hooks, migrations, auth, CRUD, files, realtime, and custom routes
 
+## Performance Snapshot (Upstream Benchmarks)
+
+This snapshot is from the full vendored upstream benchmark suite on **February 6, 2026** (MacBook Pro `m2-max`):
+
+- PocketBase run: `benchmarks/results/2026-02-06T21-08-38Z-pocketbase-upstream-m2-max.md`
+- PocketBun run: `benchmarks/results/2026-02-06T21-19-34Z-pocketbun-upstream-m2-max.md`
+
+Commands:
+
+```sh
+bun run bench:upstream
+bun run bench:upstream:pocketbun
+```
+
+`bench:upstream` follows upstream run instructions by executing `go build` first, then running the built executable with `serve` (with a host-compatible fallback binary only for local execution when the upstream target cannot run on the current OS/arch).
+
+Relative metric:
+
+- Completion index (higher is better): `100 * (PocketBase completed_ms / PocketBun completed_ms)`
+- Scenarios are comparable only when both sides report `Errors: 0`
+- Parsed from the two raw result files above (`150` scenarios each, `148` overlapping names)
+
+Overall summary:
+
+- Comparable scenarios: `138`
+- Overall completion index (geometric mean): `58.9`
+
+Category summary (geometric mean over comparable scenarios):
+
+| Category | Comparable scenarios | Scenarios with errors | Completion index |
+| --- | ---: | ---: | ---: |
+| `Creating organizations (100)` | `2 / 2` | `0` | `24.6` |
+| `Creating permissions (50)` | `2 / 2` | `0` | `33.4` |
+| `Creating users (500 - expected to be slow due to passwordHash generation)` | `2 / 2` | `0` | `12.2` |
+| `Creating posts (10k, 25k, 50k, 100k)` | `2 / 8` | `6` | `24.6` |
+| `User auth with password (expected to be slow due to passwordHash verification)` | `2 / 2` | `0` | `12.5` |
+| `User auth refresh` | `2 / 2` | `0` | `70.4` |
+| `List records` | `112 / 112` | `0` | `66.5` |
+| `Go vs JS route execution` | `3 / 6` | `3` | `63.4` |
+| `Go vs JS hooks execution` | `1 / 2` | `1` | `34.6` |
+| `Deleting records` | `10 / 10` | `0` | `44.0` |
+
+Error-mismatch notes from this run pair:
+
+- Upstream PocketBase reported errors in 6 high-concurrency post-create scenarios (`posts25k`, `posts50k`, `posts100k`), while PocketBun reported `0` there.
+- Upstream PocketBase reported `500/500` errors in all three `JS route` scenarios, while PocketBun reported `0`.
+- PocketBun reported `100/100` errors in `JS OnRecordBeforeUpdateRequest hook handler`, while PocketBase reported `0`.
+
 ## Known Differences
 
 ### Library Usage (API-first)
