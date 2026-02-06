@@ -343,8 +343,7 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
     hookEvent.Records = records;
     hookEvent.Result = result;
 
-    const hookStart = doProfile ? performance.now() : 0;
-    const out = await app.OnRecordsListRequest().Trigger(hookEvent, async () => {
+    const finalizeRecordsList = async (): Promise<Response> => {
       const enrichStart = doProfile ? performance.now() : 0;
       const enrichErr = await EnrichRecords(event, hookEvent.Records);
       if (doProfile) {
@@ -367,7 +366,17 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
         recordProfile("records_list.response", performance.now() - responseStart);
       }
       return response;
-    });
+    };
+
+    const listHook = app.OnRecordsListRequest();
+    // Deviation: skip hook trigger wiring when there are no handlers.
+    // This preserves response semantics while reducing per-request allocations.
+    if (listHook.Length() === 0) {
+      return finalizeRecordsList();
+    }
+
+    const hookStart = doProfile ? performance.now() : 0;
+    const out = await listHook.Trigger(hookEvent, () => finalizeRecordsList());
     if (doProfile) {
       recordProfile("records_list.hook", performance.now() - hookStart);
     }

@@ -208,6 +208,11 @@ export function triggerRecordEnrichHooks(
   finalizer: (() => Error | null) | null,
 ): Error | null {
   const hook = app.OnRecordEnrich();
+  // Deviation: skip per-record hook chain wiring when there are no registered handlers.
+  // This keeps the observable result identical while avoiding unnecessary recursion on list routes.
+  if (hook.Length() === 0) {
+    return finalizer ? finalizer() : null;
+  }
   const event = new RecordEnrichEvent(app, requestInfo, null);
 
   const iterator = {

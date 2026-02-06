@@ -83,16 +83,48 @@ export class Hook<T extends Resolver> {
   }
 
   Trigger(event: T, ...oneOffHandlerFuncs: HandlerFunc<T>[]): unknown {
-    const handlers: Array<{ func: HandlerFunc<T>; id?: string }> = [];
-    for (const handler of this.#handlers) {
-      handlers.push({ func: handler.Func, id: handler.Id });
-    }
-    for (const handler of oneOffHandlerFuncs) {
-      handlers.push({ func: handler });
-    }
-
     event.setNextFunc(null);
     const doProfile = profileEnabled();
+
+    if (!doProfile) {
+      const handlers: HandlerFunc<T>[] = [];
+      handlers.length = this.#handlers.length + oneOffHandlerFuncs.length;
+      let index = 0;
+      for (const handler of this.#handlers) {
+        handlers[index] = handler.Func;
+        index += 1;
+      }
+      for (const handler of oneOffHandlerFuncs) {
+        handlers[index] = handler;
+        index += 1;
+      }
+
+      for (let i = handlers.length - 1; i >= 0; i -= 1) {
+        const handler = handlers[i];
+        if (!handler) {
+          continue;
+        }
+        const old = event.nextFunc();
+        event.setNextFunc(() => {
+          event.setNextFunc(old);
+          return handler(event);
+        });
+      }
+
+      return event.Next();
+    }
+
+    const handlers: Array<{ func: HandlerFunc<T>; id?: string }> = [];
+    handlers.length = this.#handlers.length + oneOffHandlerFuncs.length;
+    let index = 0;
+    for (const handler of this.#handlers) {
+      handlers[index] = { func: handler.Func, id: handler.Id };
+      index += 1;
+    }
+    for (const handler of oneOffHandlerFuncs) {
+      handlers[index] = { func: handler };
+      index += 1;
+    }
 
     for (let i = handlers.length - 1; i >= 0; i -= 1) {
       const handler = handlers[i];
@@ -102,9 +134,6 @@ export class Hook<T extends Resolver> {
       const old = event.nextFunc();
       event.setNextFunc(() => {
         event.setNextFunc(old);
-        if (!doProfile) {
-          return handler.func(event);
-        }
         const label = resolveHandlerLabel(handler);
         const started = performance.now();
         let downstreamMs = 0;
