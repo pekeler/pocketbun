@@ -1329,6 +1329,49 @@ const scenarios: Scenario[] = [
     expectedEvents: { OnRecordAuthWithOAuth2Request: 1 },
   },
   {
+    name: "OnRecordAuthWithOAuth2Request metadata serialization failure",
+    method: "POST",
+    url: "/api/collections/users/auth-with-oauth2",
+    body: JSON.stringify({
+      provider: "test",
+      code: "123",
+      redirectURL: "https://example.com",
+    }),
+    beforeTest: async (app) => {
+      const user = app.FindAuthRecordByEmail("users", "test@example.com");
+
+      setTestProvider({ Id: "test_id" });
+
+      const collection = user.collection();
+      collection.MFA.Enabled = false;
+      collection.OAuth2.Enabled = true;
+      setOAuthProviders(collection, "test");
+      const saveErr = await app.Save(collection);
+      if (saveErr) {
+        throw new Error(saveErr.message);
+      }
+
+      const externalAuth = NewExternalAuth(app);
+      externalAuth.SetCollectionRef(collection.Id);
+      externalAuth.SetRecordRef(user.Id);
+      externalAuth.SetProvider("test");
+      externalAuth.SetProviderId("test_id");
+      const relErr = await app.Save(externalAuth);
+      if (relErr) {
+        throw new Error(relErr.message);
+      }
+
+      app.OnRecordAuthWithOAuth2Request().BindFunc(async (authEvent: any) => {
+        if (authEvent.OAuth2User) {
+          authEvent.OAuth2User.RawUser.self = authEvent.OAuth2User.RawUser;
+        }
+        return authEvent.Next();
+      });
+    },
+    expectedStatus: 400,
+    expectedContent: ['"message":"Failed to authenticate."', '"data":{}'],
+  },
+  {
     name: "store name with Apple provider",
     method: "POST",
     url: "/api/collections/users/auth-with-oauth2",

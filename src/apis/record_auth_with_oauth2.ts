@@ -178,11 +178,11 @@ export async function recordAuthWithOAuth2(app: App, event: RequestEvent): Promi
       return badRequest(event, "Failed to authenticate.", submitErr);
     }
 
-    let meta: Record<string, unknown> = {};
+    let meta: Record<string, unknown>;
     try {
       meta = JSON.parse(JSON.stringify(hookEvent.OAuth2User ?? {})) as Record<string, unknown>;
-    } catch {
-      meta = {};
+    } catch (error) {
+      return badRequest(event, "Failed to authenticate.", error);
     }
     meta.isNew = hookEvent.IsNewRecord;
 

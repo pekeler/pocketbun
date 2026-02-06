@@ -520,21 +520,6 @@ function saveViewCollectionSync(app: App, newCollection: Collection, oldCollecti
 }
 
 function stableStringify(value: unknown): string {
-  const normalized = normalizeValue(JSON.parse(JSON.stringify(value)) as unknown);
-  return JSON.stringify(normalized);
-}
-
-function normalizeValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((entry) => normalizeValue(entry));
-  }
-  if (value && typeof value === "object") {
-    const record = value as Record<string, unknown>;
-    const sorted: Record<string, unknown> = {};
-    for (const key of Object.keys(record).sort()) {
-      sorted[key] = normalizeValue(record[key]);
-    }
-    return sorted;
-  }
-  return value;
+  const encoded = JSON.stringify(value);
+  return encoded ?? "null";
 }

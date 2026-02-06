@@ -129,6 +129,22 @@ describe("list", () => {
     }
   });
 
+  it("nonzeroUniques (int)", () => {
+    const scenarios = [
+      { items: [] as number[], expected: [] as number[] },
+      { items: [0], expected: [] as number[] },
+      { items: [1, 0, 2, 2, 0, 3], expected: [1, 2, 3] },
+    ];
+
+    for (const scenario of scenarios) {
+      const result = nonzeroUniques(scenario.items);
+      expect(result.length).toBe(scenario.expected.length);
+      for (let i = 0; i < result.length; i += 1) {
+        expect(result[i]).toBe(scenario.expected[i]);
+      }
+    }
+  });
+
   it("toUniqueStringSlice", () => {
     const scenarios = [
       { value: null, expected: [] as string[] },
@@ -140,6 +156,7 @@ describe("list", () => {
       { value: [0, 1, "test", ""], expected: ["0", "1", "test"] },
       { value: ["test1", "test2", "test1"], expected: ["test1", "test2"] },
       { value: '["test1", "test2", "test2"]', expected: ["test1", "test2"] },
+      { value: "[1,2]", expected: ["[1,2]"] },
       { value: new JSONArray("test1", "test2", "test1"), expected: ["test1", "test2"] },
     ];
 

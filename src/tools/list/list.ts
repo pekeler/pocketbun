@@ -53,14 +53,18 @@ export function existInSliceWithRegex(str: string, list: string[]): boolean {
 }
 
 export function toInterfaceSlice<T>(list: T[]): unknown[] {
-  return list.map((item) => item);
+  const result: unknown[] = [];
+  for (let i = 0; i < list.length; i += 1) {
+    result.push(list[i]);
+  }
+  return result;
 }
 
 export function nonzeroUniques<T>(list: T[]): T[] {
   const result: T[] = [];
   const seen = new Set<T>();
   for (const value of list) {
-    if (value === ("" as unknown as T)) {
+    if (isZeroValue(value)) {
       continue;
     }
     if (seen.has(value)) {
@@ -86,18 +90,24 @@ export function toUniqueStringSlice(value: unknown): string[] {
       return [];
     }
     if (value.includes("[")) {
-      try {
-        const parsed = JSON.parse(value);
-        if (Array.isArray(parsed)) {
-          result = parsed.map((item) => coerceToString(item));
-        } else if (parsed != null) {
-          result = [coerceToString(parsed)];
-        }
-      } catch {
+      const parsed = parseJSONEncodedStringSlice(value);
+      if (parsed) {
+        result = parsed;
+      } else {
         result = [value];
       }
     } else {
       result = [value];
+    }
+  } else if (typeof value === "object" && typeof (value as { MarshalJSON?: () => string }).MarshalJSON === "function") {
+    try {
+      const raw = (value as { MarshalJSON: () => string }).MarshalJSON();
+      const parsed = parseJSONEncodedStringSlice(raw);
+      if (parsed) {
+        result = parsed;
+      }
+    } catch {
+      result = [];
     }
   } else if (typeof value === "object" && typeof (value as { toJSON?: () => unknown }).toJSON === "function") {
     const raw = (value as { toJSON: () => unknown }).toJSON();
@@ -149,19 +159,28 @@ export function toChunks<T>(list: T[], chunkSize: number): T[][] {
   }
 
   const chunks: T[][] = [];
-  if (list.length === 0) {
-    return chunks;
-  }
-
-  let remaining = list.slice();
-  while (chunkSize < remaining.length) {
-    chunks.push(remaining.slice(0, chunkSize));
-    remaining = remaining.slice(chunkSize);
-  }
-
-  if (remaining.length > 0) {
-    chunks.push(remaining);
+  for (let i = 0; i < list.length; i += chunkSize) {
+    chunks.push(list.slice(i, i + chunkSize));
   }
 
   return chunks;
+}
+
+function isZeroValue(value: unknown): boolean {
+  return value == null || value === "" || value === 0 || value === false || value === 0n;
+}
+
+function parseJSONEncodedStringSlice(raw: string): string[] | null {
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return null;
+    }
+    if (parsed.some((item) => typeof item !== "string")) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
 }
