@@ -11,6 +11,7 @@
   },
   "scripts": {
     "upstream:sync": "bash scripts/sync_upstream_pocketbase.sh",
+    "upstream:sync:benchmarks": "bash scripts/sync_upstream_benchmarks.sh",
     "upstream:audit": "bun run scripts/audit_upstream_mapping.ts",
     "test": "bun test --concurrent",
     "start": "bun run index.ts",
@@ -22,6 +23,7 @@
     "prepack": "bun run build",
     "bench:local": "bun run scripts/bench_run.ts",
     "bench:pocketbase": "bun run scripts/bench_run_pocketbase.ts",
+    "bench:upstream": "bun run scripts/bench_run_upstream.ts",
     "e2e": "bun run scripts/e2e_run.ts",
     "e2e:install": "playwright install --with-deps"
   },
