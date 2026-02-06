@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildServeHandler } from "../../apis/serve.ts";
+import { CollectionNameSuperusers } from "../../core/collection_model.ts";
 import { newTestApp } from "../../tests/app.ts";
 import { Register } from "./jsvm.ts";
 
@@ -64,5 +65,60 @@ onModelUpdate((e) => {
     delete (globalThis as Record<string, unknown>).__pbHooksCalls;
     await cleanup();
     await rm(rootDir, { recursive: true, force: true });
+  });
+
+  it.serial("supports onRecordUpdateRequest hooks that return e.next()", async () => {
+    const { app, cleanup } = await newTestApp();
+    const rootDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-"));
+    const hooksDir = join(rootDir, "pb_hooks");
+
+    await mkdir(hooksDir, { recursive: true });
+    await writeFile(
+      join(hooksDir, "record-update.pb.js"),
+      `onRecordUpdateRequest((e) => {
+  if (e.record.get("title") != "") {
+    e.record.set("title", "js_update");
+  }
+
+  return e.next();
+}, "demo2");
+`,
+    );
+
+    try {
+      const err = Register(app, {
+        HooksDir: hooksDir,
+        TypesDir: rootDir,
+      });
+      expect(err).toBeNull();
+
+      const record = app.FindFirstRecordByFilter("demo2", "1=1");
+      expect(record).not.toBeNull();
+      const id = record?.Id ?? "";
+
+      const superuser = app.FindFirstRecordByFilter(CollectionNameSuperusers, "1=1");
+      expect(superuser).not.toBeNull();
+      const token = superuser?.NewAuthToken() ?? "";
+      expect(token).not.toBe("");
+
+      const handler = buildServeHandler(app);
+      const response = await handler(
+        new Request(`http://127.0.0.1/api/collections/demo2/records/${id}`, {
+          method: "PATCH",
+          headers: {
+            Authorization: token,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ title: "hook_update" }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { title?: string };
+      expect(body.title).toBe("js_update");
+    } finally {
+      await cleanup();
+      await rm(rootDir, { recursive: true, force: true });
+    }
   });
 });

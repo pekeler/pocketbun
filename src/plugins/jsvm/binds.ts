@@ -275,6 +275,13 @@ function toPrimitiveString(value: unknown): string {
   return String(value as string | number | boolean | bigint | symbol);
 }
 
+function toErrorValue(value: unknown): Error {
+  if (value instanceof Error) {
+    return value;
+  }
+  return new Error(String(value));
+}
+
 function toStringValue(raw: unknown, _maxReaderBytes = DefaultMaxBodySize): string {
   if (raw == null) {
     return "";
@@ -1450,12 +1457,12 @@ export function hooksBinds(app: App, target: BindTarget): void {
           const wrapped = wrapEvent(event as object);
           try {
             const result = callback(wrapped);
-            if (result instanceof Promise) {
-              throw new Error("Async hook handlers are not supported in JSVM bindings.");
+            if (result && typeof (result as PromiseLike<unknown>).then === "function") {
+              return (result as Promise<unknown>).catch((err) => toErrorValue(err));
             }
             return result;
           } catch (err) {
-            return err;
+            return toErrorValue(err);
           }
         });
       });
