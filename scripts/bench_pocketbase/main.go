@@ -34,6 +34,7 @@ func main() {
 	recordCount := readEnvInt("POCKETBUN_BENCH_RECORDS", 1000)
 	queryLogLimit := readEnvInt("POCKETBUN_BENCH_QUERYLOG_LIMIT", 10)
 	disableLogs := readEnvBool("POCKETBUN_BENCH_DISABLE_LOGS")
+	enableQueryMetrics := readEnvBool("POCKETBUN_BENCH_QUERY_METRICS")
 
 	dataDir, err := os.MkdirTemp(os.TempDir(), "pocketbase-bench-")
 	if err != nil {
@@ -66,6 +67,13 @@ func main() {
 	benchCollectionId := collection.Id
 	benchCollectionName := collection.Name
 
+	if _, err := app.DB().NewQuery("CREATE TABLE IF NOT EXISTS bench_counter (id INTEGER PRIMARY KEY, value INTEGER NOT NULL)").Execute(); err != nil {
+		log.Fatal(err)
+	}
+	if _, err := app.DB().NewQuery("INSERT OR IGNORE INTO bench_counter (id, value) VALUES (1, 0)").Execute(); err != nil {
+		log.Fatal(err)
+	}
+
 	for i := 0; i < recordCount; i++ {
 		record := core.NewRecord(collection)
 		record.Set("title", fmt.Sprintf("Item %d", i))
@@ -95,13 +103,15 @@ func main() {
 		logQuery(query)
 	}
 
-	if db, ok := app.ConcurrentDB().(*dbx.DB); ok {
-		db.QueryLogFunc = queryLogFunc
-		db.ExecLogFunc = execLogFunc
-	}
-	if db, ok := app.NonconcurrentDB().(*dbx.DB); ok {
-		db.QueryLogFunc = queryLogFunc
-		db.ExecLogFunc = execLogFunc
+	if enableQueryMetrics {
+		if db, ok := app.ConcurrentDB().(*dbx.DB); ok {
+			db.QueryLogFunc = queryLogFunc
+			db.ExecLogFunc = execLogFunc
+		}
+		if db, ok := app.NonconcurrentDB().(*dbx.DB); ok {
+			db.QueryLogFunc = queryLogFunc
+			db.ExecLogFunc = execLogFunc
+		}
 	}
 
 	serverReady := make(chan *http.Server, 1)
@@ -189,13 +199,25 @@ func main() {
 
 				return re.JSON(200, result)
 			})
+			benchGroup.POST("/db_write", func(re *core.RequestEvent) error {
+				if _, err := app.DB().NewQuery("UPDATE bench_counter SET value = value + 1 WHERE id = 1").Execute(); err != nil {
+					return err
+				}
+				return re.JSON(200, map[string]any{"ok": true})
+			})
 			benchGroup.GET("/metrics", func(re *core.RequestEvent) error {
+				if !enableQueryMetrics {
+					return re.JSON(200, map[string]any{})
+				}
 				queryLogMu.Lock()
 				logSnapshot := append([]string(nil), queryLog...)
 				queryLogMu.Unlock()
 				return re.JSON(200, map[string]any{"queryCount": atomic.LoadInt64(&queryCount), "queryLog": logSnapshot})
 			})
 			benchGroup.POST("/reset", func(re *core.RequestEvent) error {
+				if _, err := app.DB().NewQuery("UPDATE bench_counter SET value = 0 WHERE id = 1").Execute(); err != nil {
+					return err
+				}
 				atomic.StoreInt64(&queryCount, 0)
 				queryLogMu.Lock()
 				queryLog = nil

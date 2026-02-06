@@ -1,12 +1,15 @@
 // PocketBun-only: local benchmark runner for upstream PocketBase.
 
+import type { AddressInfo } from "node:net";
 import { createServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
-import type { AddressInfo } from "node:net";
 
 type BenchTarget = {
   name: string;
   path: string;
+  method?: "GET" | "POST";
+  body?: string;
+  headers?: Record<string, string>;
 };
 
 type BenchResult = {
@@ -61,6 +64,7 @@ const targets: BenchTarget[] = [
   { name: "bench_json", path: "/_bench/json" },
   { name: "bench_db_list", path: "/_bench/db_list" },
   { name: "bench_db_list_skip_total", path: "/_bench/db_list?skipTotal=1" },
+  { name: "bench_db_write", path: "/_bench/db_write", method: "POST" },
   { name: "bench_provider_list", path: "/_bench/provider_list" },
   { name: "bench_provider_list_skip_total", path: "/_bench/provider_list?skipTotal=1" },
   { name: "health", path: "/api/health" },
@@ -77,7 +81,7 @@ try {
 
   for (const target of targets) {
     await resetMetrics(baseUrl);
-    const result = await runBench(`${baseUrl}${target.path}`, concurrency, durationMs);
+    const result = await runBench(baseUrl, target, concurrency, durationMs);
     const metrics = await fetchMetrics(baseUrl);
     logResult(target.name, result, metrics);
   }
@@ -103,7 +107,11 @@ function logResult(name: string, result: BenchResult, metrics: { queryCount?: nu
   }
 }
 
-async function runBench(url: string, workers: number, duration: number): Promise<BenchResult> {
+async function runBench(baseUrl: string, target: BenchTarget, workers: number, duration: number): Promise<BenchResult> {
+  const url = `${baseUrl}${target.path}`;
+  const method = target.method ?? "GET";
+  const headers = target.headers;
+  const body = target.body;
   const durations: number[] = [];
   let requests = 0;
   let errors = 0;
@@ -115,10 +123,14 @@ async function runBench(url: string, workers: number, duration: number): Promise
     while (performance.now() < end) {
       const t0 = performance.now();
       try {
-        const res = await fetch(url);
-        const body = await res.arrayBuffer();
+        const res = await fetch(url, {
+          method,
+          headers,
+          body,
+        });
+        const responseBody = await res.arrayBuffer();
         if (sampleBytes === null) {
-          sampleBytes = body.byteLength;
+          sampleBytes = responseBody.byteLength;
         }
         if (!res.ok) {
           errors += 1;
@@ -179,7 +191,7 @@ function percentile(values: number[], p: number): number {
     return 0;
   }
   const sorted = [...values].sort((a, b) => a - b);
-  const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor(((p / 100) * (sorted.length - 1)))));
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.floor((p / 100) * (sorted.length - 1))));
   return sorted[idx] ?? 0;
 }
 

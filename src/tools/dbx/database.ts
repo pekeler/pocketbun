@@ -51,27 +51,29 @@ export class DbxDatabase extends Database {
   override query<ReturnType, ParamsType extends SQLQueryBindings | SQLQueryBindings[]>(
     sql: string,
   ): Statement<ReturnType, ParamsType extends any[] ? ParamsType : [ParamsType]> {
+    const shouldProfile = profileDbEnabled();
     const rewritten = rewriteDbxIdentifiers(sql);
     const stmt = super.query(rewritten) as Statement<ReturnType, ParamsType extends any[] ? ParamsType : [ParamsType]>;
-    if (!profileDbEnabled() && !this.QueryLogFunc) {
+    if (!shouldProfile && !this.QueryLogFunc) {
       return stmt;
     }
-    return wrapStatement(stmt, rewritten, sql, this.QueryLogFunc);
+    return wrapStatement(stmt, rewritten, sql, shouldProfile, this.QueryLogFunc);
   }
 
   override prepare<ReturnType, ParamsType extends SQLQueryBindings | SQLQueryBindings[]>(
     sql: string,
     params?: ParamsType,
   ): Statement<ReturnType, ParamsType extends any[] ? ParamsType : [ParamsType]> {
+    const shouldProfile = profileDbEnabled();
     const rewritten = rewriteDbxIdentifiers(sql);
     const stmt = super.prepare(rewritten, params) as Statement<
       ReturnType,
       ParamsType extends any[] ? ParamsType : [ParamsType]
     >;
-    if (!profileDbEnabled() && !this.QueryLogFunc) {
+    if (!shouldProfile && !this.QueryLogFunc) {
       return stmt;
     }
-    return wrapStatement(stmt, rewritten, sql, this.QueryLogFunc);
+    return wrapStatement(stmt, rewritten, sql, shouldProfile, this.QueryLogFunc);
   }
 
   newQuery(sql: string, ...params: SQLQueryBindings[]): DbxQuery {
@@ -89,6 +91,7 @@ function wrapStatement<ReturnType, ParamsType extends SQLQueryBindings | SQLQuer
   stmt: Statement<ReturnType, ParamsType extends any[] ? ParamsType : [ParamsType]>,
   profileSql: string,
   logSql: string,
+  shouldProfile: boolean,
   logFn?: QueryLogFunc,
 ): Statement<ReturnType, ParamsType extends any[] ? ParamsType : [ParamsType]> {
   if (wrappedStatements.has(stmt)) {
@@ -104,6 +107,13 @@ function wrapStatement<ReturnType, ParamsType extends SQLQueryBindings | SQLQuer
   const wrapMethod = (name: string, label: string) => {
     const fn = target[name];
     if (typeof fn !== "function") {
+      return;
+    }
+    if (!shouldProfile) {
+      target[name] = (...args: unknown[]) => {
+        logFn?.(logSql);
+        return (fn as (...callArgs: unknown[]) => unknown).apply(stmt, args);
+      };
       return;
     }
     target[name] = (...args: unknown[]) => {

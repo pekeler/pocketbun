@@ -70,6 +70,14 @@ describe("BaseApp", () => {
 
     expect(hasDb(() => app.db())).toBe(true);
     expect(hasDb(() => app.auxDb())).toBe(true);
+    const busyTimeout = app.db().query("PRAGMA busy_timeout").get() as { timeout?: number } | undefined;
+    expect(busyTimeout?.timeout).toBe(10000);
+    const journalMode = app.db().query("PRAGMA journal_mode").get() as { journal_mode?: string } | undefined;
+    expect((journalMode?.journal_mode ?? "").toLowerCase()).toBe("wal");
+    const synchronous = app.db().query("PRAGMA synchronous").get() as { synchronous?: number } | undefined;
+    expect(synchronous?.synchronous).toBe(1);
+    const foreignKeys = app.db().query("PRAGMA foreign_keys").get() as { foreign_keys?: number } | undefined;
+    expect(foreignKeys?.foreign_keys).toBe(1);
     expect(app.settings()).not.toBeNull();
     expect(app.Logger()).not.toBeNull();
     expect(app.store().get(StoreKeyCachedCollections)).not.toBeUndefined();

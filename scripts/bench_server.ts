@@ -3,23 +3,24 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { DbxDatabase } from "../src/tools/dbx/database.ts";
 import { BaseApp, serve } from "../index.ts";
-import { profileEnabled, profileSummary } from "../src/tools/perf/profile.ts";
+import { RequestEventKeySkipSuccessActivityLog } from "../src/apis/middlewares.ts";
 import { NewBaseCollection } from "../src/core/collection_model.ts";
 import { TextField } from "../src/core/field_text.ts";
 import { RecordFieldResolver } from "../src/core/record_field_resolver.ts";
 import { NewRecord, Record as RecordModel, type RecordData } from "../src/core/record_model.ts";
-import { RequestEventKeySkipSuccessActivityLog } from "../src/apis/middlewares.ts";
+import { profileEnabled, profileSummary } from "../src/tools/perf/profile.ts";
 import { buildFilterExpr } from "../src/tools/search/filter.ts";
 import { Provider } from "../src/tools/search/provider.ts";
 import { DefaultFilterExprLimit } from "../src/tools/search/types.ts";
-import type { DbxDatabase } from "../src/tools/dbx/database.ts";
 
 const port = Number.parseInt(process.env.POCKETBUN_BENCH_PORT ?? "8092", 10);
 const recordCount = Number.parseInt(process.env.POCKETBUN_BENCH_RECORDS ?? "1000", 10);
 const profileLimit = Number.parseInt(process.env.POCKETBUN_PROFILE_LIMIT ?? "30", 10);
 const benchListPerPage = 30;
 const benchDisableLogs = readEnvBool("POCKETBUN_BENCH_DISABLE_LOGS");
+const benchQueryMetrics = readEnvBool("POCKETBUN_BENCH_QUERY_METRICS");
 
 const dataDir = await mkdtemp(join(tmpdir(), "pocketbun-bench-"));
 const app = new BaseApp({ dataDir });
@@ -36,6 +37,8 @@ let benchCollectionId = "";
 let benchCollectionName = "";
 let benchItemsStmt: { all: () => { id: string; title: string }[] } | null = null;
 let benchCountStmt: { get: () => { total: number } | null } | null = null;
+let benchWriteStmt: { run: () => unknown } | null = null;
+let benchWriteResetStmt: { run: () => unknown } | null = null;
 const benchJsonPayload = `{"items":[{"id":"aaaaaaaaaaaaaaa","title":"Item 0","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 1","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 2","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 3","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 4","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 5","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 6","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 7","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 8","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 9","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 10","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 11","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 12","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 13","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 14","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 15","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 16","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 17","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 18","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 19","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 20","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 21","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 22","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 23","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 24","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 25","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 26","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 27","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 28","collectionId":"pbc_209201611","collectionName":"bench_items"},{"id":"aaaaaaaaaaaaaaa","title":"Item 29","collectionId":"pbc_209201611","collectionName":"bench_items"}],"page":1,"perPage":${benchListPerPage},"totalItems":1000,"totalPages":34}\n`;
 
 app.OnServe().Bind({
@@ -117,11 +120,25 @@ app.OnServe().Bind({
         items: records,
       });
     });
+    benchGroup.POST("/db_write", (reqEvent) => {
+      reqEvent.Set(RequestEventKeySkipSuccessActivityLog, true);
+      if (!benchWriteStmt) {
+        return reqEvent.json(500, { error: "bench write statement not ready" });
+      }
+      benchWriteStmt.run();
+      return reqEvent.json(200, { ok: true });
+    });
     benchGroup.GET("/metrics", (reqEvent) => {
       reqEvent.Set(RequestEventKeySkipSuccessActivityLog, true);
+      if (!benchQueryMetrics) {
+        return reqEvent.json(200, {});
+      }
       return reqEvent.json(200, { queryCount, queryLog });
     });
     benchGroup.POST("/reset", (reqEvent) => {
+      if (benchWriteResetStmt) {
+        benchWriteResetStmt.run();
+      }
       queryCount = 0;
       queryLog = [];
       reqEvent.Set(RequestEventKeySkipSuccessActivityLog, true);
@@ -153,18 +170,28 @@ for (let i = 0; i < recordCount; i += 1) {
 }
 
 const db = app.db() as DbxDatabase;
-db.QueryLogFunc = (sql) => {
-  queryCount += 1;
-  if (queryLog.length < queryLogLimit) {
-    queryLog.push(sql);
-  }
+if (benchQueryMetrics) {
+  db.QueryLogFunc = (sql) => {
+    queryCount += 1;
+    if (queryLog.length < queryLogLimit) {
+      queryLog.push(sql);
+    }
+  };
+}
+db.exec("create table if not exists bench_counter (id integer primary key, value integer not null)");
+db.exec("insert or ignore into bench_counter (id, value) values (1, 0)");
+benchWriteStmt = db.prepare<unknown, []>("update bench_counter set value = value + 1 where id = 1") as {
+  run: () => unknown;
+};
+benchWriteResetStmt = db.prepare<unknown, []>("update bench_counter set value = 0 where id = 1") as {
+  run: () => unknown;
 };
 benchItemsStmt = db.prepare<{ id: string; title: string }, []>(
   `select id, title from {{${collection.name}}} limit ${benchListPerPage}`,
 ) as { all: () => { id: string; title: string }[] };
-benchCountStmt = db.prepare<{ total: number }, []>(
-  `select count(*) as total from {{${collection.name}}}`,
-) as { get: () => { total: number } | null };
+benchCountStmt = db.prepare<{ total: number }, []>(`select count(*) as total from {{${collection.name}}}`) as {
+  get: () => { total: number } | null;
+};
 
 const shouldSkipTotal = (raw: string | null): boolean => {
   if (!raw) {

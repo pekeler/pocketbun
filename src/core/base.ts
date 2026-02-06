@@ -75,6 +75,7 @@ import {
 import { dropCollectionIndexes, syncRecordTableSchema, syncRecordTableSchemaSync } from "./collection_record_table_sync.ts";
 import { validateCollection, validateCollectionSync } from "./collection_validate.ts";
 import { GenerateDefaultRandomId, type PostValidator, type PreValidator } from "./db.ts";
+import { DefaultDBConnect } from "./db_connect.ts";
 import { baseLockRetry, baseLockRetrySync, defaultMaxLockRetries } from "./db_retry.ts";
 import { TableColumns, TableInfo, TableIndexes } from "./db_table.ts";
 import {
@@ -878,8 +879,8 @@ export class BaseApp implements App {
         mkdirSync(this.#dataDir, { recursive: true });
       }
 
-      this.#db = new DbxDatabase(join(this.#dataDir, "data.db"));
-      this.#auxDb = new DbxDatabase(join(this.#dataDir, "auxiliary.db"));
+      this.#db = DefaultDBConnect(join(this.#dataDir, "data.db"));
+      this.#auxDb = DefaultDBConnect(join(this.#dataDir, "auxiliary.db"));
       const loggerErr = this.initLogger();
       if (loggerErr) {
         return loggerErr;
