@@ -66,9 +66,9 @@ export class LogWriter {
     if (!this.#ready) {
       return null;
     }
+    const payload: WorkerRequest = { type: "run", sql, valuesLength: values.length };
     // Flatten values into indexed fields to keep the worker message in Bun's fast-path
     // (plain object with primitive values) while still binding parameters on the worker.
-    const payload: WorkerRequest = { type: "run", sql, valuesLength: values.length };
     for (let i = 0; i < values.length; i += 1) {
       payload[`values${i}`] = values[i] as LogValue;
     }

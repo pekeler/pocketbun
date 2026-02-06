@@ -18,6 +18,19 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 5: complete (all remaining gaps are intentional and documented)
   - Milestone 6: planned (CI + e2e tests, docs/examples, upgrade to v0.36.2, and a full port audit)
 
+### Performance TODOs (active)
+
+- [x] (2026-02-06) Re-run profiling after the fire-and-forget log worker changes; top slices now are router/middleware chain, db.get/db.all, pbGzip, records_list.query/hook (log hooks no longer dominate).
+- [x] (2026-02-06) Bench logs disabled vs enabled: logs still add ~0.34–0.40ms on records_list endpoints.
+- [x] (2026-02-06) A/B flatten vs values[] in log worker messages: flatten is slightly faster (kept).
+- [x] (2026-02-06) Compare PocketBun vs PocketBase on same bench config after latest log changes (see perf notes in work log).
+- [ ] Revisit log batching alternatives only if logging remains the dominant bottleneck (eg. worker-side multi-row INSERT), but avoid extra complexity without measurable wins.
+- [ ] Re-profile record list sub-steps (hook/enrich/hydrate/query/response) once logging overhead is minimized; optimize only the highest-cost slice.
+- [x] (2026-02-06) Concurrency sweep after log changes (1/4/16/32/64); captured records_list and skip_total scaling.
+- [ ] Keep admin UI optimizations low priority unless they also help non-admin endpoints; note any ideas rather than implement immediately.
+
+Performance notes (2026-02-06): with the fire-and-forget log worker and flattened values, records_list averages ~3.20ms and records_list_skip_total ~2.30ms; disabling logging drops to ~2.80ms/1.96ms, so logging still costs ~0.34–0.40ms. PocketBase on the same bench config is ~2.00ms/1.08ms. A concurrency sweep (1/4/16/32/64) scales to 0.13/0.41/1.65/3.24/6.47ms for records_list and 0.10/0.30/1.20/2.37/4.80ms for skip_total. Profiling shows the hottest slices are router/middleware, db.get/db.all, pbGzip, and records_list query/hook. Next: focus optimization/profiling on those slices and only add complexity if it yields measurable gains; log batching is not currently worthwhile.
+
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
 - [x] (2026-01-30 16:57Z) Align repository versioning and scaffolding with the pinned PocketBase tag.
