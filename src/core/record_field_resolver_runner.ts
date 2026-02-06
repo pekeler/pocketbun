@@ -703,7 +703,7 @@ export function isMultiValuerField(field: CollectionField | null): field is Coll
   if (!field) {
     return false;
   }
-  return [FieldTypeRelation, FieldTypeSelect, FieldTypeFile].includes(field.type);
+  return field.type === FieldTypeRelation || field.type === FieldTypeSelect || field.type === FieldTypeFile;
 }
 
 function isMultiValuerMultiple(field: CollectionField | null): boolean {

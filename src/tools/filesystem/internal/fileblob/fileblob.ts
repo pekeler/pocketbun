@@ -508,7 +508,8 @@ function escapeKey(value: string): string {
         return true;
       case rune === "/" && i === runes.length - 1:
         return true;
-      case sep === "\\" && [">", "<", ":", '"', "|", "?", "*"].includes(rune):
+      case sep === "\\" &&
+        (rune === ">" || rune === "<" || rune === ":" || rune === '"' || rune === "|" || rune === "?" || rune === "*"):
         return true;
       default:
         return false;

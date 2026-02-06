@@ -370,10 +370,11 @@ export async function resaveViewsWithChangedFields(app: App, ...excludeIds: stri
   } catch (error) {
     return error as Error;
   }
+  const excludedIds = excludeIds.length > 0 ? new Set(excludeIds) : null;
 
   return app.RunInTransaction(async (txApp) => {
     for (const collection of collections) {
-      if (excludeIds.includes(collection.id)) {
+      if (excludedIds?.has(collection.id)) {
         continue;
       }
 
@@ -428,10 +429,11 @@ export function resaveViewsWithChangedFieldsSync(app: App, ...excludeIds: string
   } catch (error) {
     return error as Error;
   }
+  const excludedIds = excludeIds.length > 0 ? new Set(excludeIds) : null;
 
   return app.RunInTransactionSync((txApp) => {
     for (const collection of collections) {
-      if (excludeIds.includes(collection.id)) {
+      if (excludedIds?.has(collection.id)) {
         continue;
       }
 

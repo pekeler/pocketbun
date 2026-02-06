@@ -43,11 +43,22 @@ export function toBoolValue(value: unknown): boolean {
   }
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
-    if (["1", "t", "true", "y", "yes", "on"].includes(normalized)) {
-      return true;
-    }
-    if (["0", "f", "false", "n", "no", "off", ""].includes(normalized)) {
-      return false;
+    switch (normalized) {
+      case "1":
+      case "t":
+      case "true":
+      case "y":
+      case "yes":
+      case "on":
+        return true;
+      case "0":
+      case "f":
+      case "false":
+      case "n":
+      case "no":
+      case "off":
+      case "":
+        return false;
     }
   }
   return Boolean(value);

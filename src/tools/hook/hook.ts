@@ -70,7 +70,8 @@ export class Hook<T extends Resolver> {
     if (idsToRemove.length === 0) {
       return;
     }
-    this.#handlers = this.#handlers.filter((handler) => !idsToRemove.includes(handler.Id ?? ""));
+    const idsToRemoveSet = new Set(idsToRemove);
+    this.#handlers = this.#handlers.filter((handler) => !idsToRemoveSet.has(handler.Id ?? ""));
   }
 
   UnbindAll(): void {

@@ -57,6 +57,16 @@ Goal: maximize long-term maintainability and upstream-syncability by keeping Poc
 ## ExecPlans
 When writing complex features or significant refactors, use an ExecPlan (as described in .agent/PLANS.md) from design to implementation.
 
+## PERFORMANCE
+- Follow `.agents/PERFORMANCE.md` for all performance work.
+- Optimize only measured hotspots and keep PocketBase behavior compatibility.
+- Prefer low-allocation hot-path code: combine multi-pass array chains, move invariants out of loops, and use `Set`/`Map` for repeated membership checks.
+- Keep changes small and verify with full checks:
+  - `bun run format:fix`
+  - `bun test --concurrent`
+  - `bun run typecheck`
+  - `bun run lint`
+
 ## Default routes/dirs to match PocketBase
 Keep these defaults unless we intentionally document a deviation:
 - REST API base path: `/api/`

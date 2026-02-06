@@ -35,7 +35,17 @@ const superuserOnlyRuleFields = ["@collection.", "@request."];
 // checkForSuperuserOnlyRuleFields loosely checks and returns an error if
 // the provided RequestInfo contains rule fields that only the superuser can use.
 export function checkForSuperuserOnlyRuleFields(requestInfo: RequestInfo): string | null {
-  if (Object.keys(requestInfo.query).length === 0 || requestInfo.auth?.isSuperuser()) {
+  if (requestInfo.auth?.isSuperuser()) {
+    return null;
+  }
+
+  let hasQuery = false;
+  for (const _key in requestInfo.query) {
+    hasQuery = true;
+    break;
+  }
+
+  if (!hasQuery) {
     return null;
   }
 

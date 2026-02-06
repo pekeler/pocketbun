@@ -226,7 +226,13 @@ function prepareIndirectRelation(
 
   for (const record of records) {
     const rows = stmt.all(record.Id) as Array<{ id?: string }>;
-    const relIds = rows.map((row) => (typeof row?.id === "string" ? row.id : "")).filter(Boolean);
+    const relIds: string[] = [];
+    for (const row of rows) {
+      const id = row?.id;
+      if (typeof id === "string" && id) {
+        relIds.push(id);
+      }
+    }
     if (relIds.length > 0) {
       record.Set(fieldName, relIds);
     }

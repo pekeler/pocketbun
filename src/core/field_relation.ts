@@ -227,7 +227,8 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
         return (record, raw) => {
           const value = toUniqueStringSlice(record.GetRaw(this.Name));
           const subtract = toUniqueStringSlice(raw);
-          const remaining = value.filter((item) => !subtract.includes(item));
+          const subtractSet = new Set(subtract);
+          const remaining = value.filter((item) => !subtractSet.has(item));
           record.SetRaw(this.Name, this.normalizeValue(remaining));
         };
       default:

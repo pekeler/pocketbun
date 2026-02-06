@@ -1,7 +1,6 @@
 // Ported from pocketbase/tools/picker/excerpt_modifier.go
 
 import { toNumberValue } from "../../internal/compat/cast.ts";
-import { existInSlice } from "../list/list.ts";
 import { Modifiers, type Modifier } from "./modifiers.ts";
 
 const whitespaceRegex = /\s+/g;
@@ -50,6 +49,9 @@ const inlineTags = [
   "sup",
   "time",
 ];
+
+const excludeTagSet = new Set(excludeTags);
+const inlineTagSet = new Set(inlineTags);
 
 export class ExcerptModifier implements Modifier {
   max: number;
@@ -202,7 +204,7 @@ function stripHtml(value: string, max: number): string {
       continue;
     }
 
-    if (existInSlice(tagName, excludeTags)) {
+    if (excludeTagSet.has(tagName)) {
       if (!closing && !selfClosing) {
         ignoreStack.push(tagName);
       }
@@ -210,7 +212,7 @@ function stripHtml(value: string, max: number): string {
       continue;
     }
 
-    const isBlock = !existInSlice(tagName, inlineTags);
+    const isBlock = !inlineTagSet.has(tagName);
     if (isBlock && !hasPrevSpace) {
       result += " ";
       hasPrevSpace = true;
@@ -224,11 +226,22 @@ function stripHtml(value: string, max: number): string {
 
 function parseBool(value: string): boolean {
   const normalized = value.trim().toLowerCase();
-  if (["1", "t", "true", "y", "yes", "on"].includes(normalized)) {
-    return true;
-  }
-  if (["0", "f", "false", "n", "no", "off", ""].includes(normalized)) {
-    return false;
+  switch (normalized) {
+    case "1":
+    case "t":
+    case "true":
+    case "y":
+    case "yes":
+    case "on":
+      return true;
+    case "0":
+    case "f":
+    case "false":
+    case "n":
+    case "no":
+    case "off":
+    case "":
+      return false;
   }
   return false;
 }

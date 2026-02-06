@@ -279,8 +279,12 @@ export class Provider {
       if ("total" in countRow) {
         totalItems = Number(countRow.total ?? 0);
       } else {
-        const first = Object.values(countRow)[0];
-        totalItems = Number(first ?? 0);
+        for (const key in countRow) {
+          if (Object.prototype.hasOwnProperty.call(countRow, key)) {
+            totalItems = Number(countRow[key] ?? 0);
+            break;
+          }
+        }
       }
     }
     const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / this.#perPage);
@@ -314,11 +318,21 @@ export class Provider {
 
 function parseBool(value: string): boolean {
   const normalized = value.trim().toLowerCase();
-  if (["1", "t", "true", "y", "yes", "on"].includes(normalized)) {
-    return true;
-  }
-  if (["0", "f", "false", "n", "no", "off"].includes(normalized)) {
-    return false;
+  switch (normalized) {
+    case "1":
+    case "t":
+    case "true":
+    case "y":
+    case "yes":
+    case "on":
+      return true;
+    case "0":
+    case "f":
+    case "false":
+    case "n":
+    case "no":
+    case "off":
+      return false;
   }
   throw new Error("invalid boolean value");
 }

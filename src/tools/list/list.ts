@@ -54,8 +54,9 @@ export function existInSliceWithRegex(str: string, list: string[]): boolean {
 
 export function toInterfaceSlice<T>(list: T[]): unknown[] {
   const result: unknown[] = [];
+  result.length = list.length;
   for (let i = 0; i < list.length; i += 1) {
-    result.push(list[i]);
+    result[i] = list[i];
   }
   return result;
 }
@@ -84,7 +85,11 @@ export function toUniqueStringSlice(value: unknown): string[] {
   let result: string[] = [];
 
   if (Array.isArray(value)) {
-    result = value.map((item) => coerceToString(item));
+    result = [];
+    result.length = value.length;
+    for (let i = 0; i < value.length; i += 1) {
+      result[i] = coerceToString(value[i]);
+    }
   } else if (typeof value === "string") {
     if (value === "") {
       return [];
@@ -112,7 +117,11 @@ export function toUniqueStringSlice(value: unknown): string[] {
   } else if (typeof value === "object" && typeof (value as { toJSON?: () => unknown }).toJSON === "function") {
     const raw = (value as { toJSON: () => unknown }).toJSON();
     if (Array.isArray(raw)) {
-      result = raw.map((item) => coerceToString(item));
+      result = [];
+      result.length = raw.length;
+      for (let i = 0; i < raw.length; i += 1) {
+        result[i] = coerceToString(raw[i]);
+      }
     } else if (raw != null) {
       result = [coerceToString(raw)];
     }
@@ -120,8 +129,7 @@ export function toUniqueStringSlice(value: unknown): string[] {
     result = [coerceToString(value)];
   }
 
-  const cleaned = result.filter((item) => item !== "");
-  return nonzeroUniques(cleaned);
+  return nonEmptyUniqueStrings(result);
 }
 
 function coerceToString(value: unknown): string {
@@ -183,4 +191,17 @@ function parseJSONEncodedStringSlice(raw: string): string[] | null {
   } catch {
     return null;
   }
+}
+
+function nonEmptyUniqueStrings(list: string[]): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  for (const value of list) {
+    if (!value || seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
 }
