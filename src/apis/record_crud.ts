@@ -323,7 +323,12 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
         recordProfile("records_list.query", performance.now() - queryStart);
       }
       const hydrateStart = doProfile ? performance.now() : 0;
-      records = rawResult.items.map((row) => RecordModel.fromRow(collection, row as RecordData));
+      const rows = rawResult.items;
+      records = [];
+      records.length = rows.length;
+      for (let i = 0; i < rows.length; i += 1) {
+        records[i] = RecordModel.fromRow(collection, rows[i] as RecordData);
+      }
       if (doProfile) {
         recordProfile("records_list.hydrate", performance.now() - hydrateStart);
       }

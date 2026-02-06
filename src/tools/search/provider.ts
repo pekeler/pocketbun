@@ -163,30 +163,42 @@ export class Provider {
     const profilePrefix = this.#profilePrefix;
     const doProfile = Boolean(profilePrefix) && profileEnabled();
 
-    const baseParams = this.#query.params ?? [];
+    const baseParams = (this.#query.params ?? []) as SQLQueryBindings[];
     let selectSql = this.#query.select;
     // PocketBun perf deviation (behavior-compatible): when skipTotal is enabled, avoid count SQL
     // setup and rewrite work entirely on the list hot path.
     let countSql = this.#skipTotal ? "" : (this.#query.count ?? "");
+    let params = baseParams;
 
-    const filterParts: string[] = [];
-    const filterParams: unknown[] = [];
-    for (const filter of this.#filter) {
-      if (filter.length > MaxFilterLength) {
-        throw ErrFilterLengthLimit;
-      }
-      const expr = buildFilterExpr(filter, this.#fieldResolver, this.#maxFilterExprLimit);
-      if (expr.sql) {
-        filterParts.push(`(${expr.sql})`);
-        filterParams.push(...expr.params);
-      }
-    }
+    if (this.#filter.length > 0) {
+      let filterParts: string[] | null = null;
+      let filterParams: SQLQueryBindings[] | null = null;
 
-    if (filterParts.length > 0) {
-      const where = filterParts.join(" AND ");
-      selectSql = appendWhere(selectSql, where);
-      if (!this.#skipTotal && countSql) {
-        countSql = appendWhere(countSql, where);
+      for (const filter of this.#filter) {
+        if (filter.length > MaxFilterLength) {
+          throw ErrFilterLengthLimit;
+        }
+        const expr = buildFilterExpr(filter, this.#fieldResolver, this.#maxFilterExprLimit);
+        if (expr.sql) {
+          filterParts ??= [];
+          filterParts.push(`(${expr.sql})`);
+          if (expr.params.length > 0) {
+            filterParams ??= [];
+            filterParams.push(...(expr.params as SQLQueryBindings[]));
+          }
+        }
+      }
+
+      if (filterParts && filterParts.length > 0) {
+        const where = filterParts.join(" AND ");
+        selectSql = appendWhere(selectSql, where);
+        if (!this.#skipTotal && countSql) {
+          countSql = appendWhere(countSql, where);
+        }
+      }
+
+      if (filterParams && filterParams.length > 0) {
+        params = [...params, ...filterParams];
       }
     }
 
@@ -194,35 +206,36 @@ export class Provider {
       throw ErrSortExprLimit;
     }
 
-    const sortParts: string[] = [];
-    for (const sortField of this.#sort) {
-      if (sortField.name.length > MaxSortFieldLength) {
-        throw ErrSortFieldLengthLimit;
-      }
-      let expr = buildSortExpr(sortField, this.#fieldResolver);
-      if (sortField.name === "@rowid" && !expr.includes(".")) {
-        expr = prefixRowidExpr(expr, selectSql);
-      }
-      if (expr) {
-        sortParts.push(expr);
+    let sortParts: string[] | null = null;
+    if (this.#sort.length > 0) {
+      for (const sortField of this.#sort) {
+        if (sortField.name.length > MaxSortFieldLength) {
+          throw ErrSortFieldLengthLimit;
+        }
+        let expr = buildSortExpr(sortField, this.#fieldResolver);
+        if (sortField.name === "@rowid" && !expr.includes(".")) {
+          expr = prefixRowidExpr(expr, selectSql);
+        }
+        if (expr) {
+          sortParts ??= [];
+          sortParts.push(expr);
+        }
       }
     }
 
-    if (sortParts.length > 0) {
+    if (sortParts && sortParts.length > 0) {
       selectSql = appendOrderBy(selectSql, sortParts.join(", "));
     }
-
-    let baseParamsWithFilter = [...baseParams, ...filterParams] as SQLQueryBindings[];
 
     if (this.#fieldResolver.updateQuery) {
       const updated = this.#fieldResolver.updateQuery({
         select: selectSql,
         count: countSql || undefined,
-        params: baseParamsWithFilter,
+        params,
       });
       selectSql = updated.select;
       countSql = updated.count ?? "";
-      baseParamsWithFilter = updated.params as SQLQueryBindings[];
+      params = (updated.params ?? params) as SQLQueryBindings[];
     }
 
     if (this.#page <= 0) {
@@ -247,12 +260,12 @@ export class Provider {
       if (doProfile) {
         const itemsStart = performance.now();
         try {
-          items = db.query(pagedSql).all(...(baseParamsWithFilter as SQLQueryBindings[])) as T[];
+          items = db.query(pagedSql).all(...params) as T[];
         } finally {
           recordProfile(`${profilePrefix}.db.items`, performance.now() - itemsStart);
         }
       } else {
-        items = db.query(pagedSql).all(...(baseParamsWithFilter as SQLQueryBindings[])) as T[];
+        items = db.query(pagedSql).all(...params) as T[];
       }
       return {
         items,
@@ -271,12 +284,12 @@ export class Provider {
     if (doProfile) {
       const countStart = performance.now();
       try {
-        countRow = db.query(countSql).get(...baseParamsWithFilter) as Record<string, unknown> | undefined;
+        countRow = db.query(countSql).get(...params) as Record<string, unknown> | undefined;
       } finally {
         recordProfile(`${profilePrefix}.db.count`, performance.now() - countStart);
       }
     } else {
-      countRow = db.query(countSql).get(...baseParamsWithFilter) as Record<string, unknown> | undefined;
+      countRow = db.query(countSql).get(...params) as Record<string, unknown> | undefined;
     }
     let totalItems = 0;
     if (countRow) {
@@ -297,12 +310,12 @@ export class Provider {
     if (doProfile) {
       const itemsStart = performance.now();
       try {
-        items = db.query(pagedSql).all(...(baseParamsWithFilter as SQLQueryBindings[])) as T[];
+        items = db.query(pagedSql).all(...params) as T[];
       } finally {
         recordProfile(`${profilePrefix}.db.items`, performance.now() - itemsStart);
       }
     } else {
-      items = db.query(pagedSql).all(...(baseParamsWithFilter as SQLQueryBindings[])) as T[];
+      items = db.query(pagedSql).all(...params) as T[];
     }
 
     return {

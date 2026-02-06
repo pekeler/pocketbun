@@ -115,15 +115,35 @@ export class RecordFieldResolver implements FieldResolver {
     let selectSql = query.select;
     let countSql = query.count ?? "";
     const baseParams = query.params ?? [];
+    const hasDirectJoins = this.joins.length > 0;
+    const hasListRuleJoins = Boolean(this.listRuleJoins && this.listRuleJoins.size > 0);
 
-    let joinMap = new Map<string, Join>();
-    for (const join of this.joins) {
-      joinMap.set(join.tableAlias, join);
+    // PocketBun perf deviation (behavior-compatible): common list routes have no dynamic joins,
+    // so skip join-map setup and param reassembly in that hot path.
+    if (!hasDirectJoins && !hasListRuleJoins) {
+      selectSql = normalizeSelectCase(selectSql);
+      if (countSql) {
+        countSql = normalizeSelectCase(countSql);
+      }
+
+      return {
+        select: selectSql,
+        count: countSql || undefined,
+        params: baseParams,
+      };
+    }
+
+    let joinMap: Map<string, Join> | null = null;
+    if (hasDirectJoins) {
+      joinMap = new Map<string, Join>();
+      for (const join of this.joins) {
+        joinMap.set(join.tableAlias, join);
+      }
     }
 
     const listRuleParams: unknown[] = [];
 
-    if (this.listRuleJoins && this.listRuleJoins.size > 0) {
+    if (hasListRuleJoins && this.listRuleJoins) {
       for (const [alias, collection] of this.listRuleJoins.entries()) {
         if (!collection.listRule || collection.listRule === "") {
           continue;
@@ -143,21 +163,35 @@ export class RecordFieldResolver implements FieldResolver {
           listRuleParams.push(...expr.params);
         }
 
-        for (const join of clone.joins) {
-          joinMap.set(join.tableAlias, join);
+        if (clone.joins.length > 0) {
+          if (!joinMap) {
+            joinMap = new Map<string, Join>();
+          }
+          for (const join of clone.joins) {
+            joinMap.set(join.tableAlias, join);
+          }
         }
       }
     }
 
-    const joinList = Array.from(joinMap.values());
-    const joinParams = collectJoinParams(joinList);
+    const joinList = joinMap ? Array.from(joinMap.values()) : [];
+    let params = baseParams;
 
     if (joinList.length > 0) {
+      const joinParams = collectJoinParams(joinList);
+      if (joinParams.length > 0) {
+        params = [...joinParams, ...params];
+      }
+
       selectSql = ensureDistinct(selectSql);
       selectSql = injectJoins(selectSql, joinList);
       if (countSql) {
         countSql = injectJoins(countSql, joinList);
       }
+    }
+
+    if (listRuleParams.length > 0) {
+      params = [...params, ...listRuleParams];
     }
 
     selectSql = normalizeSelectCase(selectSql);
@@ -168,7 +202,7 @@ export class RecordFieldResolver implements FieldResolver {
     return {
       select: selectSql,
       count: countSql || undefined,
-      params: [...joinParams, ...baseParams, ...listRuleParams],
+      params,
     };
   }
 
