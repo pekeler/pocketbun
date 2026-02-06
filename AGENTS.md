@@ -152,6 +152,8 @@ Add tests whenever:
 - `bun run lint` — run oxlint (type-aware)
 - `bun run format` — check formatting with oxfmt
 - `bun run format:fix` — apply formatting fixes with oxfmt
+- For Codex approval persistence, keep command prefixes/strings stable across runs.
+- If params/env need to change repeatedly, prefer editing a dedicated wrapper script (for example under `scripts/`) and rerun the same wrapper command instead of issuing new inline env-var command variants each time.
 
 ## Change hygiene
 - Make small, focused commits.
