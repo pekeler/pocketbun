@@ -24,6 +24,7 @@
     "bench:local": "bun run scripts/bench_run.ts",
     "bench:pocketbase": "bun run scripts/bench_run_pocketbase.ts",
     "bench:upstream": "bun run scripts/bench_run_upstream.ts",
+    "bench:upstream:pocketbun": "bun run scripts/bench_run_upstream_pocketbun.ts",
     "e2e": "bun run scripts/e2e_run.ts",
     "e2e:install": "playwright install --with-deps"
   },
