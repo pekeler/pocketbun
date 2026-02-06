@@ -537,6 +537,66 @@ describe("search provider", () => {
     }
   });
 
+  it("parse params and exec", () => {
+    const { db, calledQueries } = createTestDb();
+    try {
+      const scenarios = [
+        {
+          name: "valid params",
+          params: new URLSearchParams("page=1&perPage=9999&filter=test1>1&sort=-test2,test3&skipTotal=1"),
+          rawQuery: "?page=1&perPage=9999&filter=test1>1&sort=-test2,test3&skipTotal=1",
+          expectError: false,
+          expectResult:
+            '{"items":[{"test1":2,"test2":"test2.2","test3":""}],"page":1,"perPage":1000,"totalItems":-1,"totalPages":-1}',
+          expectedQueries: 1,
+        },
+        {
+          name: "invalid raw query",
+          params: new URLSearchParams("page=1"),
+          rawQuery: "invalid;",
+          expectError: true,
+          expectResult: "",
+          expectedQueries: 0,
+        },
+      ];
+
+      for (const scenario of scenarios) {
+        calledQueries.length = 0;
+        const resolver = new SimpleFieldResolver("test1", "test2", "test3");
+        const provider = new Provider(resolver)
+          .query({ select: baseSelect })
+          .page(2)
+          .perPage(123)
+          .sort([{ name: "test2", direction: SortAsc }])
+          .filter(["test1 > 0"]);
+
+        let result: unknown = null;
+        let err: unknown = null;
+        try {
+          result = provider.parseAndExecParams<TestRow>(scenario.params, db, scenario.rawQuery);
+        } catch (error) {
+          err = error;
+        }
+
+        const hasErr = err != null;
+        if (hasErr !== scenario.expectError) {
+          throw new Error(`Scenario ${scenario.name} expected error=${scenario.expectError} got ${hasErr}: ${String(err)}`);
+        }
+
+        if (hasErr) {
+          expect(calledQueries.length).toBe(scenario.expectedQueries);
+          continue;
+        }
+
+        expect(calledQueries.length).toBe(scenario.expectedQueries);
+        const encoded = JSON.stringify(normalizeResult(result));
+        expect(encoded).toBe(scenario.expectResult);
+      }
+    } finally {
+      db.close();
+    }
+  });
+
   it("simple resolver defaults", () => {
     const { db } = createTestDb();
     try {

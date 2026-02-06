@@ -110,11 +110,13 @@ export class Provider {
   }
 
   parse(urlQuery: string): this {
-    if (urlQuery.includes(";")) {
+    return this.parseParams(new URLSearchParams(urlQuery), urlQuery);
+  }
+
+  parseParams(params: URLSearchParams, rawQuery?: string): this {
+    if ((rawQuery ?? params.toString()).includes(";")) {
       throw new Error("invalid query");
     }
-
-    const params = new URLSearchParams(urlQuery);
 
     const skipTotalRaw = params.get(SkipTotalQueryParam);
     if (skipTotalRaw) {
@@ -163,7 +165,7 @@ export class Provider {
 
     const baseParams = this.#query.params ?? [];
     let selectSql = this.#query.select;
-    let countSql = this.#query.count ?? "";
+    let countSql = this.#skipTotal ? "" : (this.#query.count ?? "");
 
     const filterParts: string[] = [];
     const filterParams: unknown[] = [];
@@ -181,7 +183,7 @@ export class Provider {
     if (filterParts.length > 0) {
       const where = filterParts.join(" AND ");
       selectSql = appendWhere(selectSql, where);
-      if (countSql) {
+      if (!this.#skipTotal && countSql) {
         countSql = appendWhere(countSql, where);
       }
     }
@@ -221,10 +223,6 @@ export class Provider {
       baseParamsWithFilter = updated.params as SQLQueryBindings[];
     }
 
-    if (!countSql) {
-      countSql = buildCountQuery(selectSql, this.#countCol);
-    }
-
     if (this.#page <= 0) {
       this.#page = 1;
     }
@@ -261,6 +259,10 @@ export class Provider {
         totalItems: -1,
         totalPages: -1,
       };
+    }
+
+    if (!countSql) {
+      countSql = buildCountQuery(selectSql, this.#countCol);
     }
 
     let countRow: Record<string, unknown> | undefined;
@@ -312,6 +314,11 @@ export class Provider {
 
   parseAndExec<T>(urlQuery: string, db: Database): SearchResult<T> {
     this.parse(urlQuery);
+    return this.exec<T>(db);
+  }
+
+  parseAndExecParams<T>(params: URLSearchParams, db: Database, rawQuery?: string): SearchResult<T> {
+    this.parseParams(params, rawQuery);
     return this.exec<T>(db);
   }
 }

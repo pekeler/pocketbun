@@ -106,10 +106,10 @@ app.OnServe().Bind({
         provider.countCol("_rowid_");
       }
 
-      const query = reqEvent.requestUrl().searchParams.toString();
+      const url = reqEvent.requestUrl();
       let rawResult: { items: RecordData[]; [key: string]: unknown };
       try {
-        rawResult = provider.parseAndExec<RecordData>(query, app.db());
+        rawResult = provider.parseAndExecParams<RecordData>(url.searchParams, app.db(), url.search);
       } catch {
         return reqEvent.json(400, { error: "bad request" });
       }

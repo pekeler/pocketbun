@@ -26,7 +26,8 @@ function logsList(app: App, event: RequestEvent): Response {
   const provider = new Provider(resolver).query({ select: "select * from {{_logs}}" });
 
   try {
-    const result = provider.parseAndExec(event.requestUrl().searchParams.toString(), app.auxDb());
+    const url = event.requestUrl();
+    const result = provider.parseAndExecParams(url.searchParams, app.auxDb(), url.search);
     result.items = result.items.map((item) => {
       if (!item || typeof item !== "object" || Array.isArray(item)) {
         return item;

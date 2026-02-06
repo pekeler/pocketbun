@@ -316,9 +316,9 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
     let result: RecordsListResult | null = null;
     let records: RecordModel[] = [];
     try {
-      const query = event.requestUrl().searchParams.toString();
+      const url = event.requestUrl();
       const queryStart = doProfile ? performance.now() : 0;
-      const rawResult = provider.parseAndExec<Record<string, unknown>>(query, app.db());
+      const rawResult = provider.parseAndExecParams<Record<string, unknown>>(url.searchParams, app.db(), url.search);
       if (doProfile) {
         recordProfile("records_list.query", performance.now() - queryStart);
       }
