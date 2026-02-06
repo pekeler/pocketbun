@@ -879,6 +879,8 @@ export class BaseApp implements App {
         mkdirSync(this.#dataDir, { recursive: true });
       }
 
+      // PocketBun perf deviation (behavior-compatible): keep DB bootstrap through DefaultDBConnect
+      // to preserve PRAGMA tuning (WAL, synchronous, busy_timeout) used by benchmarks and production.
       this.#db = DefaultDBConnect(join(this.#dataDir, "data.db"));
       this.#auxDb = DefaultDBConnect(join(this.#dataDir, "auxiliary.db"));
       const loggerErr = this.initLogger();

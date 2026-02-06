@@ -224,6 +224,7 @@ function snakecase(input: string): string {
   return normalized;
 }
 
+// PocketBun perf deviation (behavior-compatible): bounded cache for normalized header keys.
 const snakecaseCache = new Map<string, string>();
 
 function isValidIP(ip: string): boolean {

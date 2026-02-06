@@ -165,6 +165,8 @@ export class Provider {
 
     const baseParams = this.#query.params ?? [];
     let selectSql = this.#query.select;
+    // PocketBun perf deviation (behavior-compatible): when skipTotal is enabled, avoid count SQL
+    // setup and rewrite work entirely on the list hot path.
     let countSql = this.#skipTotal ? "" : (this.#query.count ?? "");
 
     const filterParts: string[] = [];

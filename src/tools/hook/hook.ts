@@ -89,6 +89,8 @@ export class Hook<T extends Resolver> {
     const oneOffLen = oneOffHandlerFuncs.length;
 
     if (!doProfile) {
+      // PocketBun perf deviation (behavior-compatible): avoid temporary handler array/object
+      // allocation on the hot path and keep direct next-chain wiring.
       if (handlersLen === 0 && oneOffLen === 1) {
         const single = oneOffHandlerFuncs[0];
         if (!single) {

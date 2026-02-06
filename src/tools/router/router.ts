@@ -86,6 +86,8 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
         const parts = splitPath(url.pathname);
         const firstSegment = parts[0] ?? "";
 
+        // PocketBun perf deviation (behavior-compatible): avoid per-request candidate list allocations
+        // and only allocate params maps for dynamic route matches.
         let bestMatch: RouteMatch<E> | null = null;
 
         const methodMap = routeIndex.byMethod.get(method);

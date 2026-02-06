@@ -102,6 +102,7 @@ export class Event implements Resolver {
   #flushHandler: (() => void) | null;
   #cachedUrl: URL | null = null;
   #cachedUrlRaw: string | null = null;
+  // PocketBun perf deviation (behavior-compatible): cache `fields` query extraction per request.
   #cachedJsonFields: string | null | undefined = undefined;
 
   constructor(options: EventOptions) {
@@ -528,6 +529,9 @@ export class Event implements Resolver {
     this.#written = true;
     this.#status = status;
 
+    // PocketBun perf deviation (behavior-compatible): branch on valid status range to keep
+    // the common response path exception-free; preserve upstream-compatible fallback behavior
+    // for non-standard test statuses.
     if (Number.isInteger(status) && status >= 200 && status <= 599) {
       return new Response(body, {
         status,
