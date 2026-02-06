@@ -982,7 +982,9 @@ export class BaseApp implements App {
       Priority: -999,
       Func: async (event) => {
         await handler.WriteAll({});
-        this.#logWriter?.close();
+        if (this.#logWriter) {
+          await this.#logWriter.close();
+        }
         this.#logWriter = null;
 
         if (flushTimer) {
@@ -1051,7 +1053,7 @@ export class BaseApp implements App {
   resetBootstrapState(): void {
     this.Cron().Stop();
     if (this.#logWriter) {
-      this.#logWriter.close();
+      void this.#logWriter.close();
       this.#logWriter = null;
     }
     if (this.#db) {

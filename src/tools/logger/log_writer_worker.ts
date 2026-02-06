@@ -5,9 +5,9 @@ import { rewriteDbxIdentifiers } from "../dbx/identifiers.ts";
 
 type RunMessage = {
   type: "run";
-  id: number;
   sql: string;
-  values: unknown[];
+  valuesLength: number;
+  [key: `values${number}`]: LogValue | undefined;
 };
 
 type InitMessage = {
@@ -20,7 +20,7 @@ type CloseMessage = {
 };
 
 type WorkerMessage = RunMessage | InitMessage | CloseMessage;
-type WorkerResponse = { id: number; error?: string };
+type WorkerResponse = { id: number; ok?: boolean; error?: string };
 type WorkerMessageEvent = { data: WorkerMessage };
 type WorkerGlobal = {
   postMessage: (message: WorkerResponse) => void;
@@ -29,37 +29,64 @@ type WorkerGlobal = {
 };
 
 const workerGlobal = globalThis as unknown as WorkerGlobal;
+type LogValue = string | number | boolean | bigint | null | undefined | Uint8Array;
 
 let db: Database | null = null;
+const logWorkerErrors = process.env.POCKETBUN_LOG_WORKER_ERRORS === "1";
+
+function resolveValues(message: RunMessage): SQLQueryBindings[] {
+  const length = message.valuesLength;
+  if (length <= 0) {
+    return [];
+  }
+  const values: SQLQueryBindings[] = Array.from({ length });
+  const record = message as unknown as Record<string, LogValue>;
+  // Values are flattened into numbered fields by LogWriter to avoid arrays in the worker message.
+  for (let i = 0; i < length; i += 1) {
+    values[i] = record[`values${i}`] as SQLQueryBindings;
+  }
+  return values;
+}
 
 const handleRun = (message: RunMessage) => {
   if (!db) {
-    workerGlobal.postMessage({ id: message.id, error: "log writer not initialized" });
     return;
   }
 
   try {
     const rewritten = rewriteDbxIdentifiers(message.sql);
-    db.run(rewritten, message.values as SQLQueryBindings[]);
-    workerGlobal.postMessage({ id: message.id });
+    const values = resolveValues(message);
+    db.run(rewritten, values);
   } catch (error) {
-    const err = error as Error;
-    workerGlobal.postMessage({ id: message.id, error: err.message ?? String(err) });
+    if (logWorkerErrors) {
+      const err = error as Error;
+      console.error("Failed to write log", err.message ?? String(err));
+    }
   }
 };
 
 const handleInit = (message: InitMessage) => {
   if (db) {
+    workerGlobal.postMessage({ id: -1, ok: true });
     return;
   }
-  db = new Database(message.dbPath);
-  db.run("PRAGMA busy_timeout = 10000");
-  db.run("PRAGMA journal_mode = WAL");
-  db.run("PRAGMA journal_size_limit = 200000000");
-  db.run("PRAGMA synchronous = NORMAL");
-  db.run("PRAGMA foreign_keys = ON");
-  db.run("PRAGMA temp_store = MEMORY");
-  db.run("PRAGMA cache_size = -32000");
+  try {
+    db = new Database(message.dbPath);
+    db.run("PRAGMA busy_timeout = 10000");
+    db.run("PRAGMA journal_mode = WAL");
+    db.run("PRAGMA journal_size_limit = 200000000");
+    db.run("PRAGMA synchronous = NORMAL");
+    db.run("PRAGMA foreign_keys = ON");
+    db.run("PRAGMA temp_store = MEMORY");
+    db.run("PRAGMA cache_size = -32000");
+    workerGlobal.postMessage({ id: -1, ok: true });
+  } catch (error) {
+    if (logWorkerErrors) {
+      console.error("Failed to initialize log writer DB", error);
+    }
+    db = null;
+    workerGlobal.postMessage({ id: -1, ok: false });
+  }
 };
 
 const handleClose = () => {
@@ -67,6 +94,7 @@ const handleClose = () => {
     db.close();
     db = null;
   }
+  workerGlobal.postMessage({ id: 0 });
   workerGlobal.close();
 };
 
