@@ -99,30 +99,24 @@ export class Hook<T extends Resolver> {
         return single(event);
       }
 
-      let next = event.nextFunc();
-      for (let i = oneOffLen - 1; i >= 0; i -= 1) {
-        const handler = oneOffHandlerFuncs[i];
-        if (!handler) {
-          continue;
-        }
-        const downstream = next;
-        next = () => {
-          event.setNextFunc(downstream);
+      // PocketBun perf deviation (behavior-compatible): execute the chain with a
+      // single cursor-driven next func to avoid per-handler closure allocations.
+      const totalLen = handlersLen + oneOffLen;
+      let index = 0;
+      const next = (): unknown => {
+        while (index < totalLen) {
+          const current = index;
+          index += 1;
+          const handler = current < handlersLen ? this.#handlers[current]?.Func : oneOffHandlerFuncs[current - handlersLen];
+          if (!handler) {
+            continue;
+          }
+          event.setNextFunc(next);
           return handler(event);
-        };
-      }
-
-      for (let i = handlersLen - 1; i >= 0; i -= 1) {
-        const handler = this.#handlers[i]?.Func;
-        if (!handler) {
-          continue;
         }
-        const downstream = next;
-        next = () => {
-          event.setNextFunc(downstream);
-          return handler(event);
-        };
-      }
+        event.setNextFunc(null);
+        return null;
+      };
 
       event.setNextFunc(next);
       return event.Next();
