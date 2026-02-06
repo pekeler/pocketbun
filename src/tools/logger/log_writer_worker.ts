@@ -1,6 +1,7 @@
 // PocketBun-only: worker that writes logs to SQLite without blocking the main event loop.
 
 import { Database, type SQLQueryBindings } from "bun:sqlite";
+import { applyDefaultDbPragmas } from "../dbx/connect_pragmas.ts";
 import { rewriteDbxIdentifiers } from "../dbx/identifiers.ts";
 
 type RunMessage = {
@@ -72,13 +73,7 @@ const handleInit = (message: InitMessage) => {
   }
   try {
     db = new Database(message.dbPath);
-    db.run("PRAGMA busy_timeout = 10000");
-    db.run("PRAGMA journal_mode = WAL");
-    db.run("PRAGMA journal_size_limit = 200000000");
-    db.run("PRAGMA synchronous = NORMAL");
-    db.run("PRAGMA foreign_keys = ON");
-    db.run("PRAGMA temp_store = MEMORY");
-    db.run("PRAGMA cache_size = -32000");
+    applyDefaultDbPragmas(db);
     workerGlobal.postMessage({ id: -1, ok: true });
   } catch (error) {
     if (logWorkerErrors) {
