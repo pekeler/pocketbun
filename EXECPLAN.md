@@ -31,15 +31,17 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-06) Re-profile record list sub-steps (hook/enrich/hydrate/query/response) with logs disabled and optimize highest-cost controllable slice (no-handler hook wiring).
 - [x] (2026-02-06) Concurrency sweep after log changes (1/4/16/32/64); captured records_list and skip_total scaling.
 - [ ] Keep admin UI optimizations low priority unless they also help non-admin endpoints; note any ideas rather than implement immediately.
-- [ ] Continue request-info/header normalization and event JSON/response allocation work (completed: request URL reuse + provider parse/count fast paths; remaining: header normalization and JSON/response allocation paths).
+- [x] (2026-02-06) Continue request-info/header normalization and event JSON/response allocation work (completed: header snakecase cache, JSON `fields` lookup cache, and non-exception response status fast path).
+- [x] (2026-02-06) Reduce router match-path allocations by iterating method buckets directly (no per-request candidate slice) and skipping params map allocation for static matches.
 - [x] (2026-02-06) Investigated and fixed `bench_db_write` bottleneck: `BaseApp.bootstrap()` was opening DBs directly with `new DbxDatabase(...)`, bypassing `DefaultDBConnect` PRAGMAs (`WAL`, `synchronous=NORMAL`, etc.); switched bootstrap to `DefaultDBConnect`.
 
-Performance notes (2026-02-06): the benchmark suite now includes `bench_db_write` (`POST /_bench/db_write`) and query metrics are opt-in (`POCKETBUN_BENCH_QUERY_METRICS=1`) to avoid default measurement overhead. The major write-path regression was traced to bootstrap DB initialization bypassing `DefaultDBConnect`; after fixing that, sequential runs at concurrency=32/duration=15000ms are: PocketBun `bench_db_write` ~0.94ms avg / 33,981 rps vs PocketBase ~1.05ms / 30,486 rps. Read-paths also improved with proper PRAGMAs: PocketBun `records_list` ~2.94ms and `records_list_skip_total` ~2.15ms vs PocketBase ~2.31ms / ~1.31ms. After request URL reuse plus provider `skipTotal` fast paths (same bench config, logs disabled), latest run shows PocketBun ahead on write/list paths and essentially at skip-total parity: PocketBun `bench_db_write` ~1.03ms / 31,100 rps vs PocketBase ~1.36ms / 23,493 rps; `records_list` ~2.57ms / 12,445 rps vs ~2.97ms / 10,778 rps; `records_list_skip_total` ~1.77ms / 18,078 rps vs ~1.78ms / 17,992 rps.
+Performance notes (2026-02-06): the benchmark suite now includes `bench_db_write` (`POST /_bench/db_write`) and query metrics are opt-in (`POCKETBUN_BENCH_QUERY_METRICS=1`) to avoid default measurement overhead. The major write-path regression was traced to bootstrap DB initialization bypassing `DefaultDBConnect`; after fixing that, sequential runs at concurrency=32/duration=15000ms are: PocketBun `bench_db_write` ~0.94ms avg / 33,981 rps vs PocketBase ~1.05ms / 30,486 rps. Read-paths also improved with proper PRAGMAs: PocketBun `records_list` ~2.94ms and `records_list_skip_total` ~2.15ms vs PocketBase ~2.31ms / ~1.31ms. After request URL reuse plus provider `skipTotal` fast paths (same bench config, logs disabled), latest run shows PocketBun ahead on write/list paths and essentially at skip-total parity: PocketBun `bench_db_write` ~1.03ms / 31,100 rps vs PocketBase ~1.36ms / 23,493 rps; `records_list` ~2.57ms / 12,445 rps vs ~2.97ms / 10,778 rps; `records_list_skip_total` ~1.77ms / 18,078 rps vs ~1.78ms / 17,992 rps. After hook/request-info/router/response-path optimizations and fresh paired logs-disabled runs (same config), PocketBun remains clearly faster on write and near parity on full list, while PocketBase still leads skip-total reads: PocketBun `bench_db_write` ~0.94ms / 34,017 rps vs PocketBase ~1.04ms / 30,804 rps; `records_list` ~2.41ms / 13,266 rps vs ~2.40ms / 13,332 rps; `records_list_skip_total` ~1.64ms / 19,515 rps vs ~1.27ms / 25,103 rps. Profile reruns show router matching work reduced `router.match` avg (~0.0029ms -> ~0.0026ms) while `event.json` stayed roughly flat (~0.0038ms), so the next wins are likely outside JSON serialization.
 
 - [x] (2026-02-06) Threaded router-parsed URL into `Event`/`RequestEvent` and validated compatibility against upstream request usage (`*http.Request.URL` reuse in Go).
 - [x] (2026-02-06) Re-ran full required validation gate: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
 - [x] (2026-02-06) Re-ran both benchmark runners with logs disabled (`bench:local` and `bench:pocketbase`) to refresh deltas after URL-path optimization.
 - [x] (2026-02-06) Re-ran both benchmark runners with logs disabled after provider `skipTotal` optimization and parsed-params reuse to refresh deltas.
+- [x] (2026-02-06) Re-ran profiling + logs-disabled benchmark pair after hook/request-info/router/response-path optimizations and recorded fresh deltas.
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
@@ -151,6 +153,10 @@ Performance notes (2026-02-06): the benchmark suite now includes `bench_db_write
   Evidence: `src/tools/search/provider.ts` built `countSql` and ran `buildCountQuery(...)` before the `skipTotal` branch.
 - Observation: Reusing parsed `URLSearchParams` and skipping count-query construction moved `records_list_skip_total` to near parity in the latest run.
   Evidence: logs-disabled run at concurrency=32/duration=15000ms: PocketBun `records_list_skip_total` ~1.77ms / 18,078 rps vs PocketBase ~1.78ms / 17,992 rps.
+- Observation: Router matching was still paying avoidable allocation costs (candidate slice building and params map creation for static routes).
+  Evidence: after iterating route buckets directly and avoiding params-map allocation for static matches, profile `router.match` average improved from ~0.0029ms to ~0.0026ms.
+- Observation: Event response-path cleanup (cached JSON `fields` lookup and non-exception status handling) preserved behavior but didn’t materially reduce JSON serialization cost.
+  Evidence: `src/tools/router/event.test.ts` still passes non-standard status scenarios (123/234), while profile `event.json` remained ~0.0038ms avg before/after.
 - Observation: package.json version is 0.0.0 but pocketbase_tag.txt is v0.36.1, so SemVer compatibility is not yet encoded.
   Evidence: package.json and pocketbase_tag.txt in the repo root.
 - Observation: vendor/pocketbase-admin-ui/dist exists but there is no adjacent license file in vendor/pocketbase-admin-ui/.
@@ -194,6 +200,12 @@ Performance notes (2026-02-06): the benchmark suite now includes `bench_db_write
   Date/Author: 2026-02-06 / Codex
 - Decision: Add a provider API that consumes pre-parsed `URLSearchParams` and bypass count-query construction when `skipTotal` is enabled.
   Rationale: Request URLs are already parsed at router/event level; avoiding query-string reserialization/reparse and unused count SQL work reduces hot-path overhead while preserving upstream response semantics.
+  Date/Author: 2026-02-06 / Codex
+- Decision: Iterate router candidate buckets directly during matching and skip params allocation for static-route matches.
+  Rationale: This removes per-request temporary array/object churn on a hot path while preserving route scoring and compatibility behavior.
+  Date/Author: 2026-02-06 / Codex
+- Decision: Replace exception-driven response construction with a status-range branch in `Event.buildResponse`, while keeping fallback support for non-standard status codes.
+  Rationale: Avoiding `try/catch` on the normal response path reduces overhead and still matches upstream-compatible behavior validated by router event tests.
   Date/Author: 2026-02-06 / Codex
 
 - Decision: Structure the port as incremental, end-to-end slices that always end in runnable behavior with tests, starting with /api/health and static Admin UI.
@@ -301,7 +313,7 @@ Performance notes (2026-02-06): the benchmark suite now includes `bench_db_write
 
 ## Outcomes & Retrospective
 
-Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. Realtime (SSE) support is now ported with tests. Collection CRUD/import parity is now in place. pb_hooks/pb_migrations loader coverage is now in place via dedicated jsvm loader tests. The active performance milestone now includes write-path benchmarking, request URL reuse in the router/event stack, and provider-level `skipTotal` fast paths; in the latest A/B run PocketBun leads write/full-list paths and is at near parity on `records_list_skip_total`.
+Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. Realtime (SSE) support is now ported with tests. Collection CRUD/import parity is now in place. pb_hooks/pb_migrations loader coverage is now in place via dedicated jsvm loader tests. The active performance milestone now includes write-path benchmarking, request URL reuse in the router/event stack, provider-level `skipTotal` fast paths, and router/request-info/response-path allocation reductions; in the latest A/B run PocketBun leads write performance, `records_list` is effectively at parity, and `records_list_skip_total` still trails PocketBase.
 
 ## Context and Orientation
 

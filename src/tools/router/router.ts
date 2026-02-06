@@ -28,6 +28,7 @@ type ResolvedRoute<E extends RouterEvent> = {
   pathPattern: string;
   pattern: string;
   segments: Segment[];
+  hasDynamicSegments: boolean;
   hook: Hook<E>;
   action: Handler<E>;
 };
@@ -35,6 +36,12 @@ type ResolvedRoute<E extends RouterEvent> = {
 type RouteIndex<E extends RouterEvent> = {
   any: Map<string, Array<ResolvedRoute<E>>>;
   byMethod: Map<string, Map<string, Array<ResolvedRoute<E>>>>;
+};
+
+type RouteMatch<E extends RouterEvent> = {
+  route: ResolvedRoute<E>;
+  params: Record<string, string> | null;
+  score: number;
 };
 
 // Router defines a thin wrapper around the standard Go [http.ServeMux] by
@@ -79,25 +86,20 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
         const parts = splitPath(url.pathname);
         const firstSegment = parts[0] ?? "";
 
-        let bestMatch: { route: ResolvedRoute<E>; params: Record<string, string>; score: number } | null = null;
-        const candidates = collectCandidates(routeIndex, method, firstSegment);
+        let bestMatch: RouteMatch<E> | null = null;
 
-        for (const route of candidates) {
-          const methodScore = matchMethodScore(method, route.method);
-          if (methodScore < 0) {
-            continue;
-          }
+        const methodMap = routeIndex.byMethod.get(method);
+        bestMatch = considerCandidates(bestMatch, methodMap?.get(firstSegment), method, parts);
+        bestMatch = considerCandidates(bestMatch, methodMap?.get("*"), method, parts);
 
-          const match = matchPath(route.segments, parts);
-          if (!match) {
-            continue;
-          }
-
-          const score = computeScore(methodScore, route.segments);
-          if (!bestMatch || score > bestMatch.score) {
-            bestMatch = { route, params: match, score };
-          }
+        if (method === "HEAD") {
+          const getMap = routeIndex.byMethod.get("GET");
+          bestMatch = considerCandidates(bestMatch, getMap?.get(firstSegment), method, parts);
+          bestMatch = considerCandidates(bestMatch, getMap?.get("*"), method, parts);
         }
+
+        bestMatch = considerCandidates(bestMatch, routeIndex.any.get(firstSegment), method, parts);
+        bestMatch = considerCandidates(bestMatch, routeIndex.any.get("*"), method, parts);
 
         if (!bestMatch) {
           if (doProfile) {
@@ -113,7 +115,7 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
         const created = factory({
           request: req,
           requestUrl: url,
-          params,
+          params: params ?? {},
           remoteAddress,
           pattern: route.pattern,
         });
@@ -258,12 +260,14 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
         actionMeta.__hookLabel = `route:${pattern}`;
       }
       const segments = parsePattern(pathPattern);
+      const hasDynamicSegments = segments.some((segment) => segment.type !== "static");
 
       out.push({
         method: child.Method,
         pathPattern,
         pattern,
         segments,
+        hasDynamicSegments,
         hook,
         action,
       });
@@ -298,10 +302,24 @@ function splitPath(pathname: string): string[] {
   return trimmed.split("/");
 }
 
-function matchPath(segments: Segment[], pathname: string | string[]): Record<string, string> | null {
-  const params: Record<string, string> = {};
-  const parts = Array.isArray(pathname) ? pathname : splitPath(pathname);
+function matchPathStatic(segments: Segment[], parts: string[]): boolean {
+  if (parts.length !== segments.length) {
+    return false;
+  }
 
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i];
+    const part = parts[i];
+    if (!segment || segment.type !== "static" || segment.value !== part) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function matchPathDynamic(segments: Segment[], parts: string[]): Record<string, string> | null {
+  const params: Record<string, string> = {};
   for (let i = 0, j = 0; i < segments.length; i += 1, j += 1) {
     const segment = segments[i];
     const part = parts[j];
@@ -334,6 +352,41 @@ function matchPath(segments: Segment[], pathname: string | string[]): Record<str
   }
 
   return params;
+}
+
+function considerCandidates<E extends RouterEvent>(
+  bestMatch: RouteMatch<E> | null,
+  candidates: Array<ResolvedRoute<E>> | undefined,
+  method: string,
+  parts: string[],
+): RouteMatch<E> | null {
+  if (!candidates) {
+    return bestMatch;
+  }
+
+  for (const route of candidates) {
+    const methodScore = matchMethodScore(method, route.method);
+    if (methodScore < 0) {
+      continue;
+    }
+
+    let params: Record<string, string> | null = null;
+    if (route.hasDynamicSegments) {
+      params = matchPathDynamic(route.segments, parts);
+      if (!params) {
+        continue;
+      }
+    } else if (!matchPathStatic(route.segments, parts)) {
+      continue;
+    }
+
+    const score = computeScore(methodScore, route.segments);
+    if (!bestMatch || score > bestMatch.score) {
+      bestMatch = { route, params, score };
+    }
+  }
+
+  return bestMatch;
 }
 
 function matchMethodScore(method: string, routeMethod: string): number {
@@ -413,35 +466,6 @@ function pushRoute<E extends RouterEvent>(
     return;
   }
   target.set(key, [route]);
-}
-
-function collectCandidates<E extends RouterEvent>(
-  index: RouteIndex<E>,
-  method: string,
-  firstSegment: string,
-): Array<ResolvedRoute<E>> {
-  const candidates: Array<ResolvedRoute<E>> = [];
-  const methods = method === "HEAD" ? [method, "GET"] : [method];
-
-  for (const methodName of methods) {
-    const map = index.byMethod.get(methodName);
-    if (map) {
-      appendCandidates(candidates, map.get(firstSegment));
-      appendCandidates(candidates, map.get("*"));
-    }
-  }
-
-  appendCandidates(candidates, index.any.get(firstSegment));
-  appendCandidates(candidates, index.any.get("*"));
-
-  return candidates;
-}
-
-function appendCandidates<E extends RouterEvent>(out: Array<ResolvedRoute<E>>, list?: Array<ResolvedRoute<E>>): void {
-  if (!list) {
-    return;
-  }
-  out.push(...list);
 }
 
 function getRemoteAddress(req: Request, server?: unknown): string | null {

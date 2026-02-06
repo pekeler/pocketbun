@@ -205,11 +205,26 @@ export class RequestEvent extends Event {
 }
 
 function snakecase(input: string): string {
-  return input
+  const cached = snakecaseCache.get(input);
+  if (cached != null) {
+    return cached;
+  }
+
+  const normalized = input
     .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
     .replace(/[-\s]+/g, "_")
     .toLowerCase();
+
+  // Keep the cache bounded since header names are low-cardinality in practice.
+  if (snakecaseCache.size >= 256) {
+    snakecaseCache.clear();
+  }
+  snakecaseCache.set(input, normalized);
+
+  return normalized;
 }
+
+const snakecaseCache = new Map<string, string>();
 
 function isValidIP(ip: string): boolean {
   if (ip.includes(":")) {

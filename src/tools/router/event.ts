@@ -102,6 +102,7 @@ export class Event implements Resolver {
   #flushHandler: (() => void) | null;
   #cachedUrl: URL | null = null;
   #cachedUrlRaw: string | null = null;
+  #cachedJsonFields: string | null | undefined = undefined;
 
   constructor(options: EventOptions) {
     this.request = options.request;
@@ -273,7 +274,7 @@ export class Event implements Resolver {
 
     let output = data;
     if (status >= 200 && status <= 299) {
-      const rawFields = this.requestUrl().searchParams.get(jsonFieldsParam) ?? "";
+      const rawFields = this.cachedJsonFields();
       if (rawFields) {
         output = Pick(data, rawFields);
       }
@@ -281,7 +282,7 @@ export class Event implements Resolver {
 
     const doProfile = profileEnabled();
     const jsonStart = doProfile ? performance.now() : 0;
-    const payload = `${JSON.stringify(output)}\n`;
+    const payload = JSON.stringify(output) + "\n";
     if (doProfile) {
       recordProfile("event.json", performance.now() - jsonStart);
     }
@@ -507,25 +508,39 @@ export class Event implements Resolver {
     }
   }
 
+  private cachedJsonFields(): string | null {
+    if (this.#cachedJsonFields !== undefined) {
+      return this.#cachedJsonFields;
+    }
+
+    const rawUrl = this.request.url;
+    if (!rawUrl.includes("?") || !rawUrl.includes(`${jsonFieldsParam}=`)) {
+      this.#cachedJsonFields = null;
+      return this.#cachedJsonFields;
+    }
+
+    const rawFields = this.requestUrl().searchParams.get(jsonFieldsParam);
+    this.#cachedJsonFields = rawFields && rawFields !== "" ? rawFields : null;
+    return this.#cachedJsonFields;
+  }
+
   private buildResponse(status: number, body: BodyInit | null): Response {
     this.#written = true;
     this.#status = status;
-    try {
+
+    if (Number.isInteger(status) && status >= 200 && status <= 599) {
       return new Response(body, {
         status,
         headers: this.responseHeaders,
       });
-    } catch (error) {
-      if (error instanceof RangeError) {
-        const fallback = new Response(body, {
-          status: 200,
-          headers: this.responseHeaders,
-        });
-        Object.defineProperty(fallback, "status", { value: status });
-        return fallback;
-      }
-      throw error;
     }
+
+    const fallback = new Response(body, {
+      status: 200,
+      headers: this.responseHeaders,
+    });
+    Object.defineProperty(fallback, "status", { value: status });
+    return fallback;
   }
 }
 

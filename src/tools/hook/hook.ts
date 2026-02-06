@@ -85,32 +85,44 @@ export class Hook<T extends Resolver> {
   Trigger(event: T, ...oneOffHandlerFuncs: HandlerFunc<T>[]): unknown {
     event.setNextFunc(null);
     const doProfile = profileEnabled();
+    const handlersLen = this.#handlers.length;
+    const oneOffLen = oneOffHandlerFuncs.length;
 
     if (!doProfile) {
-      const handlers: HandlerFunc<T>[] = [];
-      handlers.length = this.#handlers.length + oneOffHandlerFuncs.length;
-      let index = 0;
-      for (const handler of this.#handlers) {
-        handlers[index] = handler.Func;
-        index += 1;
-      }
-      for (const handler of oneOffHandlerFuncs) {
-        handlers[index] = handler;
-        index += 1;
+      if (handlersLen === 0 && oneOffLen === 1) {
+        const single = oneOffHandlerFuncs[0];
+        if (!single) {
+          return event.Next();
+        }
+        return single(event);
       }
 
-      for (let i = handlers.length - 1; i >= 0; i -= 1) {
-        const handler = handlers[i];
+      let next = event.nextFunc();
+      for (let i = oneOffLen - 1; i >= 0; i -= 1) {
+        const handler = oneOffHandlerFuncs[i];
         if (!handler) {
           continue;
         }
-        const old = event.nextFunc();
-        event.setNextFunc(() => {
-          event.setNextFunc(old);
+        const downstream = next;
+        next = () => {
+          event.setNextFunc(downstream);
           return handler(event);
-        });
+        };
       }
 
+      for (let i = handlersLen - 1; i >= 0; i -= 1) {
+        const handler = this.#handlers[i]?.Func;
+        if (!handler) {
+          continue;
+        }
+        const downstream = next;
+        next = () => {
+          event.setNextFunc(downstream);
+          return handler(event);
+        };
+      }
+
+      event.setNextFunc(next);
       return event.Next();
     }
 
