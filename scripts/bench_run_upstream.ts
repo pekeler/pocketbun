@@ -5,7 +5,7 @@
 // 2) run the created executable with `serve`
 
 import type { AddressInfo } from "node:net";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
@@ -35,11 +35,17 @@ const goBinary = process.env.POCKETBUN_GO_BIN ?? "/opt/homebrew/bin/go";
 const upstreamBuildGoos = process.env.POCKETBUN_UPSTREAM_BUILD_GOOS ?? "linux";
 const upstreamBuildGoarch = process.env.POCKETBUN_UPSTREAM_BUILD_GOARCH ?? "amd64";
 const upstreamBuildCgoEnabled = process.env.POCKETBUN_UPSTREAM_BUILD_CGO_ENABLED ?? "0";
+const upstreamBenchRootDir = "vendor/pocketbase-benchmarks";
 
 const port = await pickPort();
 const baseUrl = `http://127.0.0.1:${port}`;
-const dataDir = await mkdtemp(join(tmpdir(), "pocketbase-benchmarks-"));
+const runRootDir = await mkdtemp(join(tmpdir(), "pocketbase-bench-run-"));
+const dataDir = join(runRootDir, "pb_data");
 const buildDir = await mkdtemp(join(tmpdir(), "pocketbase-bench-build-"));
+
+await mkdir(dataDir, { recursive: true });
+await copyDirIfExists(join(upstreamBenchRootDir, "pb_hooks"), join(runRootDir, "pb_hooks"));
+await copyDirIfExists(join(upstreamBenchRootDir, "pb_migrations"), join(runRootDir, "pb_migrations"));
 
 const upstreamBinaryPath = join(buildDir, "app-upstream");
 const hostBinaryPath = join(buildDir, "app-host");
@@ -76,7 +82,7 @@ console.log(`Starting upstream benchmark server executable: ${basename(executabl
 
 const serverProc = Bun.spawn({
   cmd: [executablePath, "serve", `--http=127.0.0.1:${port}`, `--dir=${dataDir}`],
-  cwd: "vendor/pocketbase-benchmarks",
+  cwd: upstreamBenchRootDir,
   env: { ...process.env },
   stdio: ["ignore", "inherit", "inherit"],
 });
@@ -130,7 +136,7 @@ try {
 } finally {
   serverProc.kill();
   await serverProc.exited;
-  await rm(dataDir, { recursive: true, force: true });
+  await rm(runRootDir, { recursive: true, force: true });
   await rm(buildDir, { recursive: true, force: true });
 }
 
@@ -144,7 +150,7 @@ async function runGoBuild(config: GoBuildConfig): Promise<void> {
 
   const buildProc = Bun.spawn({
     cmd: [goBinary, "build", "-o", config.outputPath],
-    cwd: "vendor/pocketbase-benchmarks",
+    cwd: upstreamBenchRootDir,
     env: processEnv,
     stdio: ["ignore", "inherit", "inherit"],
   });
@@ -152,6 +158,17 @@ async function runGoBuild(config: GoBuildConfig): Promise<void> {
   const exitCode = await buildProc.exited;
   if (exitCode !== 0) {
     throw new Error(`go build failed (${config.goos}/${config.goarch}, exit=${exitCode})`);
+  }
+}
+
+async function copyDirIfExists(source: string, destination: string): Promise<void> {
+  try {
+    await cp(source, destination, { recursive: true, force: true });
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return;
+    }
+    throw error;
   }
 }
 

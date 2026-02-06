@@ -64,7 +64,7 @@ Then visit `http://127.0.0.1:8090/_/` for the Admin UI and `http://127.0.0.1:809
 
 This snapshot is from the full vendored upstream benchmark suite on **February 6, 2026** (MacBook Pro `m2-max`):
 
-- PocketBase run: `benchmarks/results/2026-02-06T21-08-38Z-pocketbase-upstream-m2-max.md`
+- PocketBase run: `benchmarks/results/2026-02-06T22-11-33Z-pocketbase-upstream-m2-max.md`
 - PocketBun run: `benchmarks/results/2026-02-06T21-19-34Z-pocketbun-upstream-m2-max.md`
 
 Commands:
@@ -76,36 +76,38 @@ bun run bench:upstream:pocketbun
 
 `bench:upstream` follows upstream run instructions by executing `go build` first, then running the built executable with `serve` (with a host-compatible fallback binary only for local execution when the upstream target cannot run on the current OS/arch).
 
-Relative metric:
+Metric used:
 
-- Completion index (higher is better): `100 * (PocketBase completed_ms / PocketBun completed_ms)`
+- Reported as plain language: `X% faster` or `X% slower` based on `Completed` time
+- Example: PocketBase `100ms` vs PocketBun `80ms` => PocketBun is `20% faster`
+- Example: PocketBase `100ms` vs PocketBun `120ms` => PocketBun is `20% slower`
 - Scenarios are comparable only when both sides report `Errors: 0`
-- Parsed from the two raw result files above (`150` scenarios each, `148` overlapping names)
+- Parsed from the two raw result files above (`150` scenarios each, `150` overlapping names)
 
 Overall summary:
 
-- Comparable scenarios: `138`
-- Overall completion index (geometric mean): `58.9`
+- Comparable scenarios: `143`
+- Overall result (geometric mean): PocketBun is `61.6% slower`
+- Equivalent time ratio (geometric mean): PocketBun takes `1.62x` PocketBase time
 
 Category summary (geometric mean over comparable scenarios):
 
-| Category | Comparable scenarios | Scenarios with errors | Completion index |
+| Category | Comparable scenarios | Scenarios with errors | PocketBun vs PocketBase |
 | --- | ---: | ---: | ---: |
-| `Creating organizations (100)` | `2 / 2` | `0` | `24.6` |
-| `Creating permissions (50)` | `2 / 2` | `0` | `33.4` |
-| `Creating users (500 - expected to be slow due to passwordHash generation)` | `2 / 2` | `0` | `12.2` |
-| `Creating posts (10k, 25k, 50k, 100k)` | `2 / 8` | `6` | `24.6` |
-| `User auth with password (expected to be slow due to passwordHash verification)` | `2 / 2` | `0` | `12.5` |
-| `User auth refresh` | `2 / 2` | `0` | `70.4` |
-| `List records` | `112 / 112` | `0` | `66.5` |
-| `Go vs JS route execution` | `3 / 6` | `3` | `63.4` |
-| `Go vs JS hooks execution` | `1 / 2` | `1` | `34.6` |
-| `Deleting records` | `10 / 10` | `0` | `44.0` |
+| `Creating organizations (100)` | `2 / 2` | `0` | `222.3% slower` |
+| `Creating permissions (50)` | `2 / 2` | `0` | `301.2% slower` |
+| `Creating users (500 - expected to be slow due to passwordHash generation)` | `2 / 2` | `0` | `742.0% slower` |
+| `Creating posts (10k, 25k, 50k, 100k)` | `2 / 8` | `6` | `271.2% slower` |
+| `User auth with password (expected to be slow due to passwordHash verification)` | `2 / 2` | `0` | `696.5% slower` |
+| `User auth refresh` | `2 / 2` | `0` | `8.3% faster` |
+| `List records` | `114 / 114` | `0` | `43.7% slower` |
+| `Go vs JS route execution` | `6 / 6` | `0` | `40.1% slower` |
+| `Go vs JS hooks execution` | `1 / 2` | `1` | `190.5% slower` |
+| `Deleting records` | `10 / 10` | `0` | `127.7% slower` |
 
 Error-mismatch notes from this run pair:
 
 - Upstream PocketBase reported errors in 6 high-concurrency post-create scenarios (`posts25k`, `posts50k`, `posts100k`), while PocketBun reported `0` there.
-- Upstream PocketBase reported `500/500` errors in all three `JS route` scenarios, while PocketBun reported `0`.
 - PocketBun reported `100/100` errors in `JS OnRecordBeforeUpdateRequest hook handler`, while PocketBase reported `0`.
 
 ## Known Differences
