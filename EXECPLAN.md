@@ -25,14 +25,19 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-06) A/B flatten vs values[] in log worker messages: flatten is slightly faster (kept).
 - [x] (2026-02-06) Compare PocketBun vs PocketBase on same bench config after latest log changes (see perf notes in work log).
 - [x] (2026-02-06) Expand local benchmark suite with write-path coverage (`bench_db_write`) on both PocketBun and PocketBase runners.
+- [x] (2026-02-06) Remove duplicate request URL parsing on the hot path by threading the router-parsed URL into `Event`/`RequestEvent` (`router.buildHandler` -> `requestUrl` option).
 - [ ] Revisit log batching alternatives only if logging remains the dominant bottleneck (eg. worker-side multi-row INSERT), but avoid extra complexity without measurable wins.
 - [x] (2026-02-06) Re-profile record list sub-steps (hook/enrich/hydrate/query/response) with logs disabled and optimize highest-cost controllable slice (no-handler hook wiring).
 - [x] (2026-02-06) Concurrency sweep after log changes (1/4/16/32/64); captured records_list and skip_total scaling.
 - [ ] Keep admin UI optimizations low priority unless they also help non-admin endpoints; note any ideas rather than implement immediately.
-- [ ] Revisit request-info/header normalization and event JSON/response allocation paths; these are likely next app-level deltas after the hook fast paths.
+- [ ] Continue request-info/header normalization and event JSON/response allocation work (completed: request URL reuse; remaining: header normalization and JSON/response allocation paths).
 - [x] (2026-02-06) Investigated and fixed `bench_db_write` bottleneck: `BaseApp.bootstrap()` was opening DBs directly with `new DbxDatabase(...)`, bypassing `DefaultDBConnect` PRAGMAs (`WAL`, `synchronous=NORMAL`, etc.); switched bootstrap to `DefaultDBConnect`.
 
-Performance notes (2026-02-06): the benchmark suite now includes `bench_db_write` (`POST /_bench/db_write`) and query metrics are opt-in (`POCKETBUN_BENCH_QUERY_METRICS=1`) to avoid default measurement overhead. The major write-path regression was traced to bootstrap DB initialization bypassing `DefaultDBConnect`; after fixing that, sequential runs at concurrency=32/duration=15000ms are: PocketBun `bench_db_write` ~0.94ms avg / 33,981 rps vs PocketBase ~1.05ms / 30,486 rps. Read-paths also improved with proper PRAGMAs: PocketBun `records_list` ~2.94ms and `records_list_skip_total` ~2.15ms vs PocketBase ~2.31ms / ~1.31ms.
+Performance notes (2026-02-06): the benchmark suite now includes `bench_db_write` (`POST /_bench/db_write`) and query metrics are opt-in (`POCKETBUN_BENCH_QUERY_METRICS=1`) to avoid default measurement overhead. The major write-path regression was traced to bootstrap DB initialization bypassing `DefaultDBConnect`; after fixing that, sequential runs at concurrency=32/duration=15000ms are: PocketBun `bench_db_write` ~0.94ms avg / 33,981 rps vs PocketBase ~1.05ms / 30,486 rps. Read-paths also improved with proper PRAGMAs: PocketBun `records_list` ~2.94ms and `records_list_skip_total` ~2.15ms vs PocketBase ~2.31ms / ~1.31ms. After the request URL reuse optimization and a fresh logs-disabled re-run (same concurrency/duration), PocketBun is ahead on writes and full `records_list` (`bench_db_write` ~0.97ms / 33,069 rps vs PocketBase ~1.09ms / 29,272 rps; `records_list` ~2.44ms / 13,117 rps vs ~2.68ms / 11,953 rps), while PocketBase still leads on skip-total list paths (`bench_db_list_skip_total` ~0.84ms vs ~1.03ms; `records_list_skip_total` ~1.46ms vs ~1.73ms).
+
+- [x] (2026-02-06) Threaded router-parsed URL into `Event`/`RequestEvent` and validated compatibility against upstream request usage (`*http.Request.URL` reuse in Go).
+- [x] (2026-02-06) Re-ran full required validation gate: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
+- [x] (2026-02-06) Re-ran both benchmark runners with logs disabled (`bench:local` and `bench:pocketbase`) to refresh deltas after URL-path optimization.
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
@@ -138,6 +143,10 @@ Performance notes (2026-02-06): the benchmark suite now includes `bench_db_write
 
 ## Surprises & Discoveries
 
+- Observation: `net/http` in upstream PocketBase parses URL once and reuses `req.URL`, while our Bun path was reparsing with `new URL(req.url)` in both router and event-level helpers.
+  Evidence: `.upstream/pocketbase/tools/router/router.go` passes `*http.Request` through the event factory, and `.upstream/pocketbase/core/event_request.go` reads `e.Request.URL.Query()` directly.
+- Observation: After removing duplicate URL parsing, full `records_list` improved, but skip-total list paths remain a measurable gap vs PocketBase.
+  Evidence: logs-disabled run at concurrency=32/duration=15000ms: PocketBun `records_list` ~2.44ms vs PocketBase ~2.68ms, while PocketBun `records_list_skip_total` ~1.73ms vs PocketBase ~1.46ms.
 - Observation: package.json version is 0.0.0 but pocketbase_tag.txt is v0.36.1, so SemVer compatibility is not yet encoded.
   Evidence: package.json and pocketbase_tag.txt in the repo root.
 - Observation: vendor/pocketbase-admin-ui/dist exists but there is no adjacent license file in vendor/pocketbase-admin-ui/.
@@ -176,6 +185,9 @@ Performance notes (2026-02-06): the benchmark suite now includes `bench_db_write
 ## Decision Log
 
 - (2026-02-04) Reversed the earlier "no CLI" decision: PocketBun now includes a CLI script compatible with the PocketBase binary to ease migration, so cmd/serve + migratecmd + pocketbase CLI tests are now in scope.
+- Decision: Reuse the router-parsed URL by extending router event factory options with `requestUrl` and threading it into `Event`/`RequestEvent`.
+  Rationale: This matches upstream’s single parsed-request URL model and removes duplicate `new URL(...)` allocations on hot request paths without changing behavior.
+  Date/Author: 2026-02-06 / Codex
 
 - Decision: Structure the port as incremental, end-to-end slices that always end in runnable behavior with tests, starting with /api/health and static Admin UI.
   Rationale: Early behavioral parity and tests reduce drift and make later ports safer.
@@ -282,7 +294,7 @@ Performance notes (2026-02-06): the benchmark suite now includes `bench_db_write
 
 ## Outcomes & Retrospective
 
-Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. Realtime (SSE) support is now ported with tests. Collection CRUD/import parity is now in place. pb_hooks/pb_migrations loader coverage is now in place via dedicated jsvm loader tests.
+Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. Realtime (SSE) support is now ported with tests. Collection CRUD/import parity is now in place. pb_hooks/pb_migrations loader coverage is now in place via dedicated jsvm loader tests. The active performance milestone now includes write-path benchmarking and request URL reuse in the router/event stack; PocketBun currently leads on write throughput and full records list while PocketBase still leads on skip-total list paths, which remains the next focused optimization area.
 
 ## Context and Orientation
 
@@ -497,3 +509,4 @@ Plan change note: 2026-02-03, recorded tools/security encrypt/jwt test ports and
 Plan change note: 2026-02-04, removed the ghupdate self-update plugin/command because PocketBun is distributed as a package; documented package-manager updates in README.
 Plan change note: 2026-02-04, added Milestone 6 for CI, e2e tests, docs/examples, the v0.36.2 upgrade workflow, and a post-upgrade port audit.
 Plan change note: 2026-02-04, split the S3 client merge into per-file modules while keeping s3.ts as the s3.go entrypoint with delegated methods.
+Plan change note: 2026-02-06, continued Milestone 7 by threading router-parsed URLs into Event/RequestEvent, re-running full validation and both benchmark runners, and updating the performance TODOs with the remaining skip-total gap focus.

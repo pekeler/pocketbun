@@ -17,6 +17,7 @@ type EventFactoryResult<E extends RouterEvent> = E | { event: E; cleanup?: () =>
 
 export type EventFactory<E extends RouterEvent> = (options: {
   request: Request;
+  requestUrl: URL;
   params: Record<string, string>;
   remoteAddress: string | null;
   pattern: string;
@@ -111,6 +112,7 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
         }
         const created = factory({
           request: req,
+          requestUrl: url,
           params,
           remoteAddress,
           pattern: route.pattern,

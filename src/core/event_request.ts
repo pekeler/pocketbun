@@ -47,11 +47,13 @@ export class RequestEvent extends Event {
     remoteAddress?: string | null;
     pattern?: string;
     rawHeaders?: Record<string, string[]>;
+    requestUrl?: URL;
   }) {
     super({
       request: options.request,
       params: options.params,
       remoteAddress: options.remoteAddress,
+      requestUrl: options.requestUrl,
     });
     this.app = options.app;
     this.auth = null;

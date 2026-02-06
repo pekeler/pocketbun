@@ -83,6 +83,7 @@ type EventOptions = {
   remoteAddress?: string | null;
   next?: NextFunc | null;
   flush?: (() => void) | null;
+  requestUrl?: URL;
 };
 
 // Event specifies based Route handler event that is usually intended
@@ -110,6 +111,10 @@ export class Event implements Resolver {
     this.#remoteAddress = options.remoteAddress ?? null;
     this.#data = new Store();
     this.#flushHandler = options.flush ?? null;
+    if (options.requestUrl) {
+      this.#cachedUrl = options.requestUrl;
+      this.#cachedUrlRaw = this.request.url;
+    }
   }
 
   Next(): unknown {

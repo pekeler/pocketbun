@@ -40,8 +40,8 @@ export function buildServeHandler(app: App, config: ServeConfig = {}): (req: Req
     throw new Error("The OnServe listener was not initialized. Did you forget to call the ServeEvent.Next() method?");
   }
 
-  return router.buildHandler(({ request, params, remoteAddress, pattern }) => {
-    return new RequestEvent({ app, request, params, remoteAddress, pattern });
+  return router.buildHandler(({ request, requestUrl, params, remoteAddress, pattern }) => {
+    return new RequestEvent({ app, request, requestUrl, params, remoteAddress, pattern });
   });
 }
 
