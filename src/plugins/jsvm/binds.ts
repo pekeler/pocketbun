@@ -1457,6 +1457,99 @@ export function httpClientBinds(target: BindTarget): void {
         statusCode: response.status,
       };
     },
+    // PocketBun-only async alternative to send().
+    sendAsync: async (params: Record<string, unknown>) => {
+      const method = toPrimitiveString(params.method ?? "GET").toUpperCase();
+      const url = toPrimitiveString(params.url ?? "");
+      const headers: Record<string, string> = {};
+      const providedHeaders = params.headers as Record<string, string> | undefined;
+      if (providedHeaders) {
+        for (const [key, value] of Object.entries(providedHeaders)) {
+          headers[key.toLowerCase()] = toPrimitiveString(value);
+        }
+      }
+      if (!("user-agent" in headers)) {
+        headers["user-agent"] = "Go-http-client/1.1";
+      }
+      if (!("accept-encoding" in headers)) {
+        headers["accept-encoding"] = "gzip";
+      }
+
+      let body: Uint8Array | string | undefined;
+      let contentTypeOverride: string | null = headers["content-type"] ?? null;
+
+      if (params.body instanceof HooksFormData) {
+        const { body: multipartBody, contentType } = params.body.toMultipart();
+        body = multipartBody;
+        contentTypeOverride = contentType;
+      } else if (params.body != null) {
+        body = toPrimitiveString(params.body);
+      } else if (params.data && typeof params.data === "object") {
+        body = JSON.stringify(params.data);
+        if (!contentTypeOverride) {
+          contentTypeOverride = "application/json";
+        }
+      }
+
+      if (contentTypeOverride) {
+        headers["content-type"] = contentTypeOverride;
+      }
+
+      const timeoutSeconds = Number(params.timeout ?? 120);
+      const controller = new AbortController();
+      const timeoutHandle =
+        timeoutSeconds > 0 ? setTimeout(() => controller.abort(new Error("timeout")), timeoutSeconds * 1000) : null;
+      try {
+        const response = await fetch(url, {
+          method,
+          headers,
+          body,
+          signal: controller.signal,
+        });
+
+        const bodyBytes = new Uint8Array(await response.arrayBuffer());
+        const raw = new TextDecoder().decode(bodyBytes);
+        let json: unknown = null;
+        try {
+          json = JSON.parse(raw);
+        } catch {
+          // ignore
+        }
+
+        const headerMap: Record<string, string[]> = {};
+        for (const [key, value] of response.headers.entries()) {
+          const canonical = canonicalHeaderName(key);
+          headerMap[canonical] = headerMap[canonical] ?? [];
+          headerMap[canonical].push(value);
+        }
+
+        const setCookie = response.headers.get("set-cookie");
+        if (setCookie) {
+          headerMap["Set-Cookie"] = headerMap["Set-Cookie"] ?? [];
+          headerMap["Set-Cookie"].push(setCookie);
+        }
+
+        const cookies = parseCookies(headerMap["Set-Cookie"] ?? []);
+
+        return {
+          json,
+          headers: headerMap,
+          cookies,
+          raw,
+          body: bodyBytes,
+          statusCode: response.status,
+        };
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          throw new Error("timeout");
+        }
+        throw error;
+      } finally {
+        if (timeoutHandle != null) {
+          clearTimeout(timeoutHandle);
+        }
+      }
+    },
   };
 }
 

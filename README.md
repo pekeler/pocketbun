@@ -165,6 +165,9 @@ Current extensions:
 - JSVM `$filesystem` and `$os` bindings expose async I/O helpers:
   - sync: `$filesystem.fileFromPath(...)`, `$filesystem.fileFromURL(...)`, `$os.readFile(...)`, `$os.writeFile(...)`, ...
   - async: `await $filesystem.fileFromPathAsync(...)`, `await $filesystem.fileFromURLAsync(...)`, `await $os.readFileAsync(...)`, `await $os.writeFileAsync(...)`, ...
+- JSVM `$http` binding exposes an async request helper:
+  - sync: `$http.send(...)`
+  - async: `await $http.sendAsync(...)`
 
 Example:
 

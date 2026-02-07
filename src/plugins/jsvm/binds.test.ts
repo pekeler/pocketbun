@@ -967,7 +967,7 @@ console.log(server.port);`);
     const scope: BindScope = {};
     httpClientBinds(scope);
     expect(countKeys(scope)).toBe(2);
-    expect(countKeys(scope.$http)).toBe(1);
+    expect(countKeys(scope.$http)).toBe(2);
   });
 
   it("http client binds send", async () => {
@@ -1033,6 +1033,14 @@ server.listen(0, "127.0.0.1", () => {
       }
       expect(timeoutErr).not.toBeNull();
 
+      let timeoutAsyncErr: Error | null = null;
+      try {
+        await scope.$http.sendAsync({ url: `http://127.0.0.1:${server.port}/?testTimeout=3`, timeout: 1 });
+      } catch (err) {
+        timeoutAsyncErr = err as Error;
+      }
+      expect(timeoutAsyncErr).not.toBeNull();
+
       const test0 = scope.$http.send({ url: `http://127.0.0.1:${server.port}/?testError=1` });
       const test1 = scope.$http.send({
         method: "post",
@@ -1056,12 +1064,24 @@ server.listen(0, "127.0.0.1", () => {
         url: `http://127.0.0.1:${server.port}/`,
         body: "test",
       });
+      const test5 = await scope.$http.sendAsync({
+        method: "post",
+        url: `http://127.0.0.1:${server.port}/`,
+        body: "test-async",
+      });
       const test4Payload = JSON.parse(new TextDecoder().decode(test4.body));
       expect(test4Payload.body).toBe("test");
       expect(test4Payload.method).toBe("POST");
       expect(test4Payload.headers.accept_encoding).toBe("gzip");
       expect(test4Payload.headers.content_length).toBe("4");
       expect(test4Payload.headers.user_agent).toBe("Go-http-client/1.1");
+
+      const test5Payload = JSON.parse(new TextDecoder().decode(test5.body));
+      expect(test5Payload.body).toBe("test-async");
+      expect(test5Payload.method).toBe("POST");
+      expect(test5Payload.headers.accept_encoding).toBe("gzip");
+      expect(test5Payload.headers.content_length).toBe("10");
+      expect(test5Payload.headers.user_agent).toBe("Go-http-client/1.1");
 
       const scenarios: Array<[any, Record<string, unknown>]> = [
         [test0, { statusCode: "400" }],
@@ -1100,6 +1120,14 @@ server.listen(0, "127.0.0.1", () => {
         ],
         [
           test4,
+          {
+            statusCode: "200",
+            "headers.X-Custom.0": "custom_header",
+            "cookies.sessionId.value": "123456",
+          },
+        ],
+        [
+          test5,
           {
             statusCode: "200",
             "headers.X-Custom.0": "custom_header",

@@ -1199,6 +1199,29 @@ declare namespace $http {
     // @deprecated please use toString(result.body) instead
     raw: string;
   };
+
+  /**
+   * PocketBun-only async variant of send().
+   */
+  function sendAsync(config: {
+    url: string;
+    body?: string | FormData;
+    method?: string; // default to "GET"
+    headers?: { [key: string]: string };
+    timeout?: number; // default to 120
+
+    // @deprecated please use body instead
+    data?: { [key: string]: any };
+  }): Promise<{
+    statusCode: number;
+    headers: { [key: string]: Array<string> };
+    cookies: { [key: string]: http.Cookie };
+    json: any;
+    body: Array<number>;
+
+    // @deprecated please use toString(result.body) instead
+    raw: string;
+  }>;
 }
 
 // -------------------------------------------------------------------
