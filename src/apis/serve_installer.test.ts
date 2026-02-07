@@ -4,9 +4,51 @@ import { describe, expect, it } from "bun:test";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { newTestApp } from "../tests/app.ts";
 import { findOrCreateInstallerSuperuserAsync } from "./installer.ts";
-import { serveAsync } from "./serve.ts";
+import { buildServeHandler, serveAsync } from "./serve.ts";
 
 describe("serve installer", () => {
+  it("supports async OnServe hooks in serveAsync", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      app.OnServe().Bind({
+        Id: "__pbTestAsyncOnServeHook__",
+        Func: async (event) => {
+          await Bun.sleep(1);
+          event.Router.get("/__pb_async_on_serve", (reqEvent) => reqEvent.String(200, "ok"));
+          return event.Next();
+        },
+      });
+
+      const server = await serveAsync(app, { httpAddr: "127.0.0.1:0" });
+      try {
+        const res = await fetch(`http://${server.hostname}:${server.port}/__pb_async_on_serve`);
+        expect(res.status).toBe(200);
+        expect(await res.text()).toBe("ok");
+      } finally {
+        await server.stop();
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("keeps buildServeHandler sync-only for async OnServe hooks", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      app.OnServe().Bind({
+        Id: "__pbTestBuildServeHandlerAsyncOnServe__",
+        Func: async (event) => {
+          await Bun.sleep(1);
+          return event.Next();
+        },
+      });
+
+      expect(() => buildServeHandler(app)).toThrow("Async OnServe hooks are not supported in buildServeHandler.");
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("runs the configured ServeEvent installer func in serveAsync", async () => {
     const { app, cleanup } = await newTestApp();
     try {

@@ -43,10 +43,26 @@ async function ensureReady(app: App): Promise<void> {
 }
 
 export function buildServeHandler(app: App, config: ServeConfig = {}): (req: Request, server?: unknown) => Promise<Response> {
-  return buildServeHandlerWithEvent(app, config).handler;
+  return buildServeHandlerWithEventSync(app, config).handler;
 }
 
-function buildServeHandlerWithEvent(app: App, config: ServeConfig = {}): BuiltServeHandler {
+function buildServeHandlerWithEventSync(app: App, config: ServeConfig = {}): BuiltServeHandler {
+  return buildServeHandlerWithEvent(app, config, false);
+}
+
+async function buildServeHandlerWithEventAsync(app: App, config: ServeConfig = {}): Promise<BuiltServeHandler> {
+  return await buildServeHandlerWithEvent(app, config, true);
+}
+
+// PocketBun async deviation: keep the upstream-compatible sync behavior in
+// buildServeHandler()/serve(), while allowing async OnServe hooks in serveAsync().
+function buildServeHandlerWithEvent(app: App, config: ServeConfig, allowAsyncServeHooks: false): BuiltServeHandler;
+function buildServeHandlerWithEvent(app: App, config: ServeConfig, allowAsyncServeHooks: true): Promise<BuiltServeHandler>;
+function buildServeHandlerWithEvent(
+  app: App,
+  config: ServeConfig = {},
+  allowAsyncServeHooks: boolean,
+): BuiltServeHandler | Promise<BuiltServeHandler> {
   const router = NewRouter(app);
   router.Bind(
     CORS({
@@ -63,7 +79,23 @@ function buildServeHandlerWithEvent(app: App, config: ServeConfig = {}): BuiltSe
     return null;
   });
   if (triggerResult instanceof Promise) {
-    throw new Error("Async OnServe hooks are not supported in buildServeHandler.");
+    if (!allowAsyncServeHooks) {
+      throw new Error("Async OnServe hooks are not supported in buildServeHandler.");
+    }
+    return triggerResult.then((err) => {
+      if (err) {
+        throw err;
+      }
+      if (!initialized) {
+        throw new Error("The OnServe listener was not initialized. Did you forget to call the ServeEvent.Next() method?");
+      }
+      return {
+        serveEvent,
+        handler: router.buildHandler(({ request, requestUrl, params, remoteAddress, pattern }) => {
+          return new RequestEvent({ app, request, requestUrl, params, remoteAddress, pattern });
+        }),
+      };
+    });
   }
   if (!initialized) {
     throw new Error("The OnServe listener was not initialized. Did you forget to call the ServeEvent.Next() method?");
@@ -84,19 +116,19 @@ export function serve(app: App, config: ServeConfig = {}): ReturnType<typeof Bun
 
   app.runAllMigrations();
 
-  return startServer(app, config);
+  return startServerSync(app, config);
 }
 
 // serveAsync is a PocketBun-only async alternative to serve().
 export async function serveAsync(app: App, config: ServeConfig = {}): Promise<ReturnType<typeof Bun.serve>> {
   await ensureReady(app);
-  return startServer(app, config);
+  return startServerAsync(app, config);
 }
 
-function startServer(app: App, config: ServeConfig): ReturnType<typeof Bun.serve> {
+function startServerSync(app: App, config: ServeConfig): ReturnType<typeof Bun.serve> {
   const addr = config.httpAddr ?? "127.0.0.1:8090";
   const { hostname, port } = parseAddr(addr);
-  const { handler, serveEvent } = buildServeHandlerWithEvent(app, config);
+  const { handler, serveEvent } = buildServeHandlerWithEventSync(app, config);
 
   const server = Bun.serve({
     hostname,
@@ -105,18 +137,21 @@ function startServer(app: App, config: ServeConfig): ReturnType<typeof Bun.serve
   });
 
   serveEvent.Server = server;
+  startInstallerAsync(app, config, server, serveEvent);
+  return server;
+}
 
-  if (serveEvent.InstallerFunc) {
-    const baseURL = buildBaseURL(server, config);
-    const installerFunc = serveEvent.InstallerFunc;
-    FireAndForget(async () => {
-      const installerErr = await loadInstallerAsync(app, baseURL, installerFunc);
-      if (installerErr) {
-        app.Logger().Warn("Failed to initialize installer", "error", installerErr);
-      }
-    });
-  }
-
+async function startServerAsync(app: App, config: ServeConfig): Promise<ReturnType<typeof Bun.serve>> {
+  const addr = config.httpAddr ?? "127.0.0.1:8090";
+  const { hostname, port } = parseAddr(addr);
+  const { handler, serveEvent } = await buildServeHandlerWithEventAsync(app, config);
+  const server = Bun.serve({
+    hostname,
+    port,
+    fetch: handler,
+  });
+  serveEvent.Server = server;
+  startInstallerAsync(app, config, server, serveEvent);
   return server;
 }
 
@@ -139,6 +174,25 @@ function parseAddr(addr: string): { hostname: string; port: number } {
 function buildBaseURL(server: ReturnType<typeof Bun.serve>, config: ServeConfig): string {
   const scheme = config.httpsAddr ? "https" : "http";
   return `${scheme}://${server.hostname}:${server.port}`;
+}
+
+function startInstallerAsync(
+  app: App,
+  config: ServeConfig,
+  server: ReturnType<typeof Bun.serve>,
+  serveEvent: ServeEvent,
+): void {
+  if (!serveEvent.InstallerFunc) {
+    return;
+  }
+  const baseURL = buildBaseURL(server, config);
+  const installerFunc = serveEvent.InstallerFunc;
+  FireAndForget(async () => {
+    const installerErr = await loadInstallerAsync(app, baseURL, installerFunc);
+    if (installerErr) {
+      app.Logger().Warn("Failed to initialize installer", "error", installerErr);
+    }
+  });
 }
 
 function bindAdminUI(router: Router<RequestEvent>): void {
