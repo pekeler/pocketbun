@@ -1939,6 +1939,23 @@ export class BaseApp implements App {
     return null;
   }
 
+  // RestartAsync is a PocketBun-only async alternative to Restart().
+  async RestartAsync(): Promise<Error | null> {
+    if (process.platform === "win32") {
+      return new Error("restart is not supported on windows");
+    }
+
+    // Deviation: Bun can't execve the current process, so we rebootstrap in-process.
+    try {
+      this.resetBootstrapState();
+      await this.bootstrapAsync();
+    } catch (error) {
+      return error as Error;
+    }
+
+    return null;
+  }
+
   async Save(model: Model): Promise<Error | null> {
     return this.saveModel(model, true);
   }

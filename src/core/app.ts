@@ -150,6 +150,8 @@ export interface App {
   //
   // NB! It relies on execve which is supported only on UNIX based systems.
   Restart(): Error | null;
+  // RestartAsync is a PocketBun-only async alternative to Restart().
+  RestartAsync?(): Promise<Error | null>;
   Save(model: Model): Promise<Error | null>;
   SaveNoValidate(model: Model): Promise<Error | null>;
   SaveWithContext(ctx: unknown, model: Model): Promise<Error | null>;

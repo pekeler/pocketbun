@@ -147,6 +147,9 @@ Current extensions:
 - Base app bootstrap now exposes an async startup variant:
   - sync: `app.bootstrap()`
   - async: `await app.bootstrapAsync()`
+- Base app restart now exposes an async variant:
+  - sync: `app.Restart()`
+  - async: `await app.RestartAsync()`
 - Migration helper now exposes an async startup variant:
   - sync: `migrate(app, mode)`
   - async: `await migrateAsync(app, mode)`

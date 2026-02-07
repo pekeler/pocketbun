@@ -113,6 +113,23 @@ describe("BaseApp", () => {
     await rm(dataDir, { recursive: true, force: true });
   });
 
+  it("BaseAppRestartAsync", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+
+    const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
+    const app = new BaseApp({ dataDir });
+    await app.bootstrapAsync();
+
+    const restartErr = await app.RestartAsync();
+    expect(restartErr).toBeNull();
+    expect(app.isBootstrapped()).toBe(true);
+
+    app.resetBootstrapState();
+    await rm(dataDir, { recursive: true, force: true });
+  });
+
   it("NewBaseAppTx", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
     const app = new BaseApp({ dataDir });

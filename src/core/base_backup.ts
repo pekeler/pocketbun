@@ -286,7 +286,7 @@ export async function RestoreBackup(app: App, ctx: unknown, name: string): Promi
           };
 
           // restart the app
-          const restartErr = e.App.Restart();
+          const restartErr = typeof e.App.RestartAsync === "function" ? await e.App.RestartAsync() : e.App.Restart();
           if (restartErr) {
             const revertErr = await revertDataDirChanges();
             if (revertErr) {
