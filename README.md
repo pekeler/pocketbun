@@ -162,6 +162,9 @@ Current extensions:
 - JSVM plugin registration now exposes async startup variants:
   - sync: `RegisterJSVM(...)`, `MustRegisterJSVM(...)`
   - async: `await RegisterJSVMAsync(...)`, `await MustRegisterJSVMAsync(...)`
+- JSVM `$filesystem` and `$os` bindings expose async I/O helpers:
+  - sync: `$filesystem.fileFromPath(...)`, `$filesystem.fileFromURL(...)`, `$os.readFile(...)`, `$os.writeFile(...)`, ...
+  - async: `await $filesystem.fileFromPathAsync(...)`, `await $filesystem.fileFromURLAsync(...)`, `await $os.readFileAsync(...)`, `await $os.writeFileAsync(...)`, ...
 
 Example:
 

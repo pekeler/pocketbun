@@ -661,12 +661,14 @@ console.log(server.port);`);
       const scope: BindScope = {};
       filesystemBinds(scope);
 
-      expect(countKeys(scope.$filesystem)).toBe(4);
+      expect(countKeys(scope.$filesystem)).toBe(6);
 
       const testFile = join(app.DataDir(), "data.db");
 
       const fileFromPath = scope.$filesystem.fileFromPath(testFile) as File;
       expect(fileFromPath.OriginalName).toBe("data.db");
+      const fileFromPathAsync = (await scope.$filesystem.fileFromPathAsync(testFile)) as File;
+      expect(fileFromPathAsync.OriginalName).toBe("data.db");
 
       const fileFromBytes = scope.$filesystem.fileFromBytes([1, 2, 3], "test") as File;
       expect(fileFromBytes.OriginalName).toBe("test");
@@ -681,6 +683,8 @@ console.log(server.port);`);
 
       const fileFromURL = scope.$filesystem.fileFromURL(`http://127.0.0.1:${server.port}/test`) as File;
       expect(fileFromURL.OriginalName).toBe("test");
+      const fileFromURLAsync = (await scope.$filesystem.fileFromURLAsync(`http://127.0.0.1:${server.port}/test`)) as File;
+      expect(fileFromURLAsync.OriginalName).toBe("test");
 
       let urlErr: Error | null = null;
       try {
@@ -689,6 +693,14 @@ console.log(server.port);`);
         urlErr = err as Error;
       }
       expect(urlErr).not.toBeNull();
+
+      let asyncUrlErr: Error | null = null;
+      try {
+        await scope.$filesystem.fileFromURLAsync(`http://127.0.0.1:${server.port}/error`);
+      } catch (err) {
+        asyncUrlErr = err as Error;
+      }
+      expect(asyncUrlErr).not.toBeNull();
     } finally {
       await server.stop();
       await cleanup();
@@ -1301,6 +1313,41 @@ server.listen(0, "127.0.0.1", () => {
   it("os binds count", () => {
     const scope: BindScope = {};
     osBinds(scope);
-    expect(countKeys(scope.$os)).toBe(20);
+    expect(countKeys(scope.$os)).toBe(30);
+  });
+
+  it("os async binds", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      osBinds(scope);
+
+      const asyncDir = join(app.DataDir(), "os_async_dir");
+      const asyncFile = join(asyncDir, "tmp.txt");
+      const asyncFileRenamed = join(asyncDir, "tmp2.txt");
+
+      await scope.$os.mkdirAllAsync(asyncDir);
+      const dirInfo = await scope.$os.statAsync(asyncDir);
+      expect(dirInfo.isDirectory()).toBe(true);
+
+      await scope.$os.writeFileAsync(asyncFile, "abcd");
+      const fileData = await scope.$os.readFileAsync(asyncFile);
+      expect(new TextDecoder().decode(fileData)).toBe("abcd");
+
+      const entries = await scope.$os.readDirAsync(asyncDir);
+      const names = entries.map((entry: any) => (typeof entry === "string" ? entry : entry.name));
+      expect(names).toContain("tmp.txt");
+
+      await scope.$os.renameAsync(asyncFile, asyncFileRenamed);
+      await scope.$os.truncateAsync(asyncFileRenamed, 1);
+
+      const truncated = await scope.$os.readFileAsync(asyncFileRenamed);
+      expect(new TextDecoder().decode(truncated)).toBe("a");
+
+      await scope.$os.removeAsync(asyncFileRenamed);
+      await scope.$os.removeAllAsync(asyncDir);
+    } finally {
+      await cleanup();
+    }
   });
 });

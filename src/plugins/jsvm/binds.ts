@@ -2,6 +2,16 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, rmSync, renameSync, truncateSync } from "node:fs";
+import {
+  mkdir as mkdirAsync,
+  readFile as readFileAsync,
+  readdir as readdirAsync,
+  rename as renameAsync,
+  rm as rmAsync,
+  stat as statAsync,
+  truncate as truncateAsync,
+  writeFile as writeFileAsync,
+} from "node:fs/promises";
 import { basename, dirname, extname, isAbsolute, join, relative, sep, normalize } from "node:path";
 import type { App } from "../../core/app.ts";
 import type { ServeEvent } from "../../core/events.ts";
@@ -63,7 +73,7 @@ import {
   Between,
   NotBetween,
 } from "../../tools/dbx/expr.ts";
-import { NewFileFromBytes, NewFileFromMultipart, NewFileFromPath } from "../../tools/filesystem/file.ts";
+import { NewFileFromBytes, NewFileFromMultipart, NewFileFromPath, NewFileFromPathAsync } from "../../tools/filesystem/file.ts";
 import {
   ApiError,
   NewBadRequestError,
@@ -1184,6 +1194,8 @@ function runSyncFetch(
 export function filesystemBinds(target: BindTarget): void {
   target.$filesystem = {
     fileFromPath: NewFileFromPath,
+    // PocketBun-only async alternative to fileFromPath.
+    fileFromPathAsync: NewFileFromPathAsync,
     fileFromBytes: (bytes: unknown, name: string) => {
       let normalized: Uint8Array | null = null;
       if (bytes instanceof Uint8Array) {
@@ -1218,6 +1230,44 @@ export function filesystemBinds(target: BindTarget): void {
         // Keep rawName if decoding fails.
       }
       return NewFileFromBytes(response.body, originalName);
+    },
+    // PocketBun-only async alternative to fileFromURL.
+    fileFromURLAsync: async (url: string, secTimeout = 120) => {
+      const headers = {
+        "user-agent": "Go-http-client/1.1",
+        "accept-encoding": "gzip",
+      };
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), secTimeout * 1000);
+      try {
+        const response = await fetch(url, {
+          method: "GET",
+          headers,
+          signal: controller.signal,
+        });
+        if (response.status < 200 || response.status >= 300) {
+          throw new Error(`failed to download url ${url} (${response.status})`);
+        }
+
+        const rawName = basename(new URL(url).pathname);
+        let originalName = rawName;
+        try {
+          originalName = decodeURIComponent(rawName);
+        } catch {
+          // Keep rawName if decoding fails.
+        }
+
+        const body = new Uint8Array(await response.arrayBuffer());
+        return NewFileFromBytes(body, originalName);
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          throw new Error(`failed to download url ${url} (timeout)`);
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeoutId);
+      }
     },
   };
 }
@@ -1255,17 +1305,28 @@ export function osBinds(target: BindTarget): void {
     getenv: (key: string) => process.env[key],
     dirFS: (path: string) => ({ root: path }),
     stat: (path: string) => statSync(path),
+    // PocketBun-only async alternatives to keep hook-side I/O non-blocking when desired.
+    statAsync: (path: string) => statAsync(path),
     readFile: (path: string) => readFileSync(path),
+    readFileAsync: (path: string) => readFileAsync(path),
     writeFile: (path: string, data: string | Uint8Array) => writeFileSync(path, data),
+    writeFileAsync: (path: string, data: string | Uint8Array) => writeFileAsync(path, data),
     readDir: (path: string) => readdirSync(path),
+    readDirAsync: (path: string) => readdirAsync(path),
     tempDir: () => process.env.TMPDIR ?? "/tmp",
     truncate: (path: string, size: number) => truncateSync(path, size),
+    truncateAsync: (path: string, size: number) => truncateAsync(path, size),
     getwd: () => process.cwd(),
     mkdir: (path: string) => mkdirSync(path),
+    mkdirAsync: (path: string) => mkdirAsync(path),
     mkdirAll: (path: string) => mkdirSync(path, { recursive: true }),
+    mkdirAllAsync: (path: string) => mkdirAsync(path, { recursive: true }),
     rename: (oldPath: string, newPath: string) => renameSync(oldPath, newPath),
+    renameAsync: (oldPath: string, newPath: string) => renameAsync(oldPath, newPath),
     remove: (path: string) => rmSync(path),
+    removeAsync: (path: string) => rmAsync(path),
     removeAll: (path: string) => rmSync(path, { recursive: true, force: true }),
+    removeAllAsync: (path: string) => rmAsync(path, { recursive: true, force: true }),
     openRoot: () => {
       throw new Error("openRoot is not supported in Bun hooks");
     },

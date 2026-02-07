@@ -872,6 +872,10 @@ declare namespace $security {
  */
 declare namespace $filesystem {
   let fileFromPath: filesystem.newFileFromPath;
+  /**
+   * PocketBun-only async variant of fileFromPath.
+   */
+  export function fileFromPathAsync(path: string): Promise<filesystem.File>;
   let fileFromBytes: filesystem.newFileFromBytes;
   let fileFromMultipart: filesystem.newFileFromMultipart;
 
@@ -890,6 +894,10 @@ declare namespace $filesystem {
    * ```
    */
   export function fileFromURL(url: string, secTimeout?: number): filesystem.File;
+  /**
+   * PocketBun-only async variant of fileFromURL.
+   */
+  export function fileFromURLAsync(url: string, secTimeout?: number): Promise<filesystem.File>;
 }
 
 // -------------------------------------------------------------------
@@ -960,17 +968,27 @@ declare namespace $os {
   export let getenv: os.getenv;
   export let dirFS: os.dirFS;
   export let readFile: os.readFile;
+  export function readFileAsync(name: string): Promise<string | Array<number>>;
   export let writeFile: os.writeFile;
+  export function writeFileAsync(name: string, data: string | Array<number>): Promise<void>;
   export let stat: os.stat;
+  export function statAsync(name: string): Promise<unknown>;
   export let readDir: os.readDir;
+  export function readDirAsync(name: string): Promise<Array<unknown>>;
   export let tempDir: os.tempDir;
   export let truncate: os.truncate;
+  export function truncateAsync(name: string, size: number): Promise<void>;
   export let getwd: os.getwd;
   export let mkdir: os.mkdir;
+  export function mkdirAsync(name: string): Promise<void>;
   export let mkdirAll: os.mkdirAll;
+  export function mkdirAllAsync(path: string): Promise<void>;
   export let rename: os.rename;
+  export function renameAsync(oldpath: string, newpath: string): Promise<void>;
   export let remove: os.remove;
+  export function removeAsync(path: string): Promise<void>;
   export let removeAll: os.removeAll;
+  export function removeAllAsync(path: string): Promise<void>;
   export let openRoot: os.openRoot;
   export let openInRoot: os.openInRoot;
 }
