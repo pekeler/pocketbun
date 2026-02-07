@@ -5,7 +5,9 @@ import type { App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { ServeEvent } from "../core/events.ts";
 import { Router } from "../tools/router/router.ts";
+import { FireAndForget } from "../tools/routine/routine.ts";
 import { NewRouter, Static, StaticWildcardParam } from "./base.ts";
+import { DefaultInstallerFunc, loadInstallerAsync } from "./installer.ts";
 import { CORS } from "./middlewares_cors.ts";
 import { Gzip } from "./middlewares_gzip.ts";
 
@@ -19,6 +21,10 @@ export type ServeConfig = {
 };
 
 type AppWithAsyncBootstrap = App & { bootstrapAsync: () => Promise<void> };
+type BuiltServeHandler = {
+  handler: (req: Request, server?: unknown) => Promise<Response>;
+  serveEvent: ServeEvent;
+};
 
 function hasAsyncBootstrap(app: App): app is AppWithAsyncBootstrap {
   return typeof (app as { bootstrapAsync?: unknown }).bootstrapAsync === "function";
@@ -37,6 +43,10 @@ async function ensureReady(app: App): Promise<void> {
 }
 
 export function buildServeHandler(app: App, config: ServeConfig = {}): (req: Request, server?: unknown) => Promise<Response> {
+  return buildServeHandlerWithEvent(app, config).handler;
+}
+
+function buildServeHandlerWithEvent(app: App, config: ServeConfig = {}): BuiltServeHandler {
   const router = NewRouter(app);
   router.Bind(
     CORS({
@@ -46,6 +56,7 @@ export function buildServeHandler(app: App, config: ServeConfig = {}): (req: Req
   bindAdminUI(router);
 
   const serveEvent = new ServeEvent(app, router);
+  serveEvent.InstallerFunc = DefaultInstallerFunc;
   let initialized = false;
   const triggerResult = app.OnServe().Trigger(serveEvent, () => {
     initialized = true;
@@ -58,9 +69,12 @@ export function buildServeHandler(app: App, config: ServeConfig = {}): (req: Req
     throw new Error("The OnServe listener was not initialized. Did you forget to call the ServeEvent.Next() method?");
   }
 
-  return router.buildHandler(({ request, requestUrl, params, remoteAddress, pattern }) => {
-    return new RequestEvent({ app, request, requestUrl, params, remoteAddress, pattern });
-  });
+  return {
+    serveEvent,
+    handler: router.buildHandler(({ request, requestUrl, params, remoteAddress, pattern }) => {
+      return new RequestEvent({ app, request, requestUrl, params, remoteAddress, pattern });
+    }),
+  };
 }
 
 export function serve(app: App, config: ServeConfig = {}): ReturnType<typeof Bun.serve> {
@@ -82,13 +96,28 @@ export async function serveAsync(app: App, config: ServeConfig = {}): Promise<Re
 function startServer(app: App, config: ServeConfig): ReturnType<typeof Bun.serve> {
   const addr = config.httpAddr ?? "127.0.0.1:8090";
   const { hostname, port } = parseAddr(addr);
-  const handler = buildServeHandler(app, config);
+  const { handler, serveEvent } = buildServeHandlerWithEvent(app, config);
 
-  return Bun.serve({
+  const server = Bun.serve({
     hostname,
     port,
     fetch: handler,
   });
+
+  serveEvent.Server = server;
+
+  if (serveEvent.InstallerFunc) {
+    const baseURL = buildBaseURL(server, config);
+    const installerFunc = serveEvent.InstallerFunc;
+    FireAndForget(async () => {
+      const installerErr = await loadInstallerAsync(app, baseURL, installerFunc);
+      if (installerErr) {
+        app.Logger().Warn("Failed to initialize installer", "error", installerErr);
+      }
+    });
+  }
+
+  return server;
 }
 
 function parseAddr(addr: string): { hostname: string; port: number } {
@@ -105,6 +134,11 @@ function parseAddr(addr: string): { hostname: string; port: number } {
   const [host, portStr] = trimmed.split(":");
   const port = Number.parseInt(portStr ?? "", 10);
   return { hostname: host || "127.0.0.1", port: Number.isFinite(port) ? port : 8090 };
+}
+
+function buildBaseURL(server: ReturnType<typeof Bun.serve>, config: ServeConfig): string {
+  const scheme = config.httpsAddr ? "https" : "http";
+  return `${scheme}://${server.hostname}:${server.port}`;
 }
 
 function bindAdminUI(router: Router<RequestEvent>): void {

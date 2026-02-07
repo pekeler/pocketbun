@@ -113,7 +113,11 @@ export class BackupEvent extends Event {
   }
 }
 
-export type ServeInstallerFunc = (app: App, systemSuperuser: RecordModel, baseURL: string) => Error | null;
+export type ServeInstallerFunc = (
+  app: App,
+  systemSuperuser: RecordModel,
+  baseURL: string,
+) => Error | null | Promise<Error | null>;
 
 export class ServeEvent extends Event {
   App: App;

@@ -72,6 +72,7 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
 - [x] (2026-02-07) Added `Record.SetPasswordAsync` / `Record.SetRandomPasswordAsync` and migrated async API/CLI call sites (`record_auth_password_reset_confirm`, `record_auth_otp_request`, `record_auth_with_oauth2`, `cmd/superuser`) to avoid sync bcrypt hashing on async paths.
 - [x] (2026-02-07) Added async installer helper alternatives (`findOrCreateInstallerSuperuserAsync`, `loadInstallerAsync`) and tests, preserving upstream-compatible sync installer helpers while avoiding sync password hashing/save on async installer flows.
 - [x] (2026-02-07) Reduced sync startup filesystem syscall count by removing redundant `existsSync` checks in sync bootstrap/JSVM temp/types paths and relying on recursive `mkdir*` semantics instead.
+- [x] (2026-02-07) Wired serve-path installer initialization to the new async installer helper (`ServeEvent.InstallerFunc` now runs in `serve`/`serveAsync` via `loadInstallerAsync`) and added a dedicated serve installer test.
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
