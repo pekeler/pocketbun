@@ -3,8 +3,7 @@
 import { describe, expect, it } from "bun:test";
 import { rm, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { NewFileFromPath } from "./file.ts";
-import { detectMimeTypeFromBytes } from "./file.ts";
+import { NewFileFromPath, PathReader, detectMimeTypeFromBytes } from "./file.ts";
 import { NewLocal, NewLocalAsync, NotFoundError, metadataOriginalName, type Attributes } from "./filesystem.ts";
 import { createTestDir } from "./test_utils.ts";
 
@@ -226,6 +225,28 @@ describe("filesystem system", () => {
       expect(await fsys.Exists(fileKey)).toBe(true);
       const attrs = await fsys.Attributes(fileKey);
       expect(attrs.Metadata[metadataOriginalName]).toBe(file.OriginalName);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("upload file prefers async disk reads for path-backed readers", async () => {
+    const dir = await createTestDir();
+    try {
+      const fsys = NewLocal(dir);
+      const fileKey = "newdir/newkey-async.txt";
+      const file = NewFileFromPath(join(dir, "image.svg"));
+      const reader = file.Reader;
+      if (!(reader instanceof PathReader)) {
+        throw new Error("expected path reader");
+      }
+
+      (reader as unknown as { Open: () => never }).Open = () => {
+        throw new Error("sync open should not be used for path readers");
+      };
+
+      await fsys.UploadFile(file, fileKey);
+      expect(await fsys.Exists(fileKey)).toBe(true);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
