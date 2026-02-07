@@ -7,7 +7,7 @@ import type { App } from "./app.ts";
 import { CreateAsync, ExtractAsync } from "../tools/archive/index.ts";
 import { NewFileFromPathAsync } from "../tools/filesystem/file.ts";
 import { snakecase } from "../tools/inflector/inflector.ts";
-import { MoveDirContent } from "../tools/osutils/dir.ts";
+import { MoveDirContentAsync } from "../tools/osutils/dir.ts";
 import { pseudorandomString } from "../tools/security/random.ts";
 import { LocalAutocertCacheDirName, LocalBackupsDirName, LocalTempDirName } from "./base_paths.ts";
 import { BackupEvent } from "./events.ts";
@@ -234,19 +234,19 @@ export async function RestoreBackup(app: App, ctx: unknown, name: string): Promi
           const oldTempDataDir = join(localTempDir, `old_pb_data_${pseudorandomString(8)}`);
 
           const replaceErr = await e.App.RunInTransaction((txApp) => {
-            return txApp.AuxRunInTransaction((auxApp) => {
+            return txApp.AuxRunInTransaction(async (auxApp) => {
               // move the current pb_data content to a special temp location
               // that will hold the old data between dirs replace
               // (the temp dir will be automatically removed on the next app start)
               try {
-                MoveDirContent(auxApp.dataDir(), oldTempDataDir, ...e.Exclude);
+                await MoveDirContentAsync(auxApp.dataDir(), oldTempDataDir, ...e.Exclude);
               } catch (error) {
                 return new Error(`failed to move the current pb_data content to a temp location: ${(error as Error).message}`);
               }
 
               // move the extracted archive content to the app's pb_data
               try {
-                MoveDirContent(extractedDataDir, auxApp.dataDir(), ...e.Exclude);
+                await MoveDirContentAsync(extractedDataDir, auxApp.dataDir(), ...e.Exclude);
               } catch (error) {
                 return new Error(`failed to move the extracted archive content to pb_data: ${(error as Error).message}`);
               }
@@ -261,15 +261,15 @@ export async function RestoreBackup(app: App, ctx: unknown, name: string): Promi
 
           const revertDataDirChanges = async (): Promise<Error | null> => {
             return e.App.RunInTransaction((txApp) => {
-              return txApp.AuxRunInTransaction((auxApp) => {
+              return txApp.AuxRunInTransaction(async (auxApp) => {
                 try {
-                  MoveDirContent(auxApp.dataDir(), extractedDataDir, ...e.Exclude);
+                  await MoveDirContentAsync(auxApp.dataDir(), extractedDataDir, ...e.Exclude);
                 } catch (error) {
                   return new Error(`failed to revert the extracted dir change: ${(error as Error).message}`);
                 }
 
                 try {
-                  MoveDirContent(oldTempDataDir, auxApp.dataDir(), ...e.Exclude);
+                  await MoveDirContentAsync(oldTempDataDir, auxApp.dataDir(), ...e.Exclude);
                 } catch (error) {
                   return new Error(`failed to revert old pb_data dir change: ${(error as Error).message}`);
                 }

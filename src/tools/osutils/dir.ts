@@ -1,6 +1,7 @@
 // Ported from pocketbase/tools/osutils/dir.go
 
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync } from "node:fs";
+import { mkdir, readdir, rename, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { existInSlice } from "../list/list.ts";
 
@@ -62,6 +63,75 @@ export function MoveDirContent(src: string, dest: string, ...rootExclude: string
       renameSync(oldPath, newPath);
     } catch (error) {
       const rollbackErrors = tryRollback();
+      if (rollbackErrors.length > 0) {
+        rollbackErrors.push(error as Error);
+        throw new AggregateError(rollbackErrors, rollbackErrors.map((err) => err.message).join("\n"));
+      }
+      throw error as Error;
+    }
+
+    moved.set(oldPath, newPath);
+  }
+}
+
+// MoveDirContentAsync moves the src dir content, that is not listed in the exclude list,
+// to dest dir (it will be created if missing).
+//
+// Deviation: PocketBun-only async alternative for non-blocking runtime I/O.
+export async function MoveDirContentAsync(src: string, dest: string, ...rootExclude: string[]): Promise<void> {
+  const entries = await readdir(src, { withFileTypes: true });
+
+  // make sure that the dest dir exist
+  let manuallyCreatedDestDir = false;
+  try {
+    await stat(dest);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw err;
+    }
+    await mkdir(dest);
+    manuallyCreatedDestDir = true;
+  }
+
+  const moved = new Map<string, string>();
+
+  const tryRollback = async (): Promise<Error[]> => {
+    const errs: Error[] = [];
+
+    for (const [oldPath, newPath] of moved.entries()) {
+      try {
+        await rename(newPath, oldPath);
+      } catch (error) {
+        errs.push(error as Error);
+      }
+    }
+
+    // try to delete manually the created dest dir if all moved files were restored
+    if (manuallyCreatedDestDir && errs.length === 0) {
+      try {
+        await rm(dest);
+      } catch (error) {
+        errs.push(error as Error);
+      }
+    }
+
+    return errs;
+  };
+
+  for (const entry of entries) {
+    const basename = entry.name;
+
+    if (existInSlice(basename, rootExclude)) {
+      continue;
+    }
+
+    const oldPath = join(src, basename);
+    const newPath = join(dest, basename);
+
+    try {
+      await rename(oldPath, newPath);
+    } catch (error) {
+      const rollbackErrors = await tryRollback();
       if (rollbackErrors.length > 0) {
         rollbackErrors.push(error as Error);
         throw new AggregateError(rollbackErrors, rollbackErrors.map((err) => err.message).join("\n"));
