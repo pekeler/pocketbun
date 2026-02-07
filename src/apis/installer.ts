@@ -10,6 +10,11 @@ import { LaunchURL } from "../tools/osutils/cmd.ts";
 import { IsProbablyGoRun } from "../tools/osutils/run.ts";
 
 export type InstallerFunc = (app: App, systemSuperuser: RecordModel, baseURL: string) => Error | null;
+export type InstallerFuncAsync = (
+  app: App,
+  systemSuperuser: RecordModel,
+  baseURL: string,
+) => Error | null | Promise<Error | null>;
 
 // DefaultInstallerFunc is the default PocketBase installer function.
 //
@@ -53,6 +58,30 @@ export function loadInstaller(app: App, baseURL: string, installerFunc: Installe
   }
 }
 
+// loadInstallerAsync is a PocketBun-only async alternative to loadInstaller().
+export async function loadInstallerAsync(
+  app: App,
+  baseURL: string,
+  installerFunc: InstallerFuncAsync | null,
+): Promise<Error | null> {
+  if (!installerFunc || !needInstallerSuperuser(app)) {
+    return null;
+  }
+
+  let superuser: RecordModel;
+  try {
+    superuser = await findOrCreateInstallerSuperuserAsync(app);
+  } catch (error) {
+    return error as Error;
+  }
+
+  try {
+    return (await installerFunc(app, superuser, baseURL)) as Error | null;
+  } catch (error) {
+    return error as Error;
+  }
+}
+
 export function needInstallerSuperuser(app: App): boolean {
   try {
     const total = app.CountRecords(
@@ -86,6 +115,32 @@ export function findOrCreateInstallerSuperuser(app: App): RecordModel {
   record.SetRandomPassword();
 
   const saveErr = app.SaveSync(record);
+  if (saveErr) {
+    throw saveErr;
+  }
+
+  return record;
+}
+
+// findOrCreateInstallerSuperuserAsync is a PocketBun-only async alternative
+// to findOrCreateInstallerSuperuser().
+export async function findOrCreateInstallerSuperuserAsync(app: App): Promise<RecordModel> {
+  const collection = app.FindCachedCollectionByNameOrId(CollectionNameSuperusers);
+
+  try {
+    return app.FindAuthRecordByEmail(collection, DefaultInstallerEmail);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message && message !== "record not found") {
+      throw error;
+    }
+  }
+
+  const record = NewRecord(collection);
+  record.SetEmail(DefaultInstallerEmail);
+  await record.SetRandomPasswordAsync();
+
+  const saveErr = await app.Save(record);
   if (saveErr) {
     throw saveErr;
   }

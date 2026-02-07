@@ -3,7 +3,7 @@
 import "../migrations/index.ts";
 import "./fields_register.ts";
 import type { Database, SQLQueryBindings } from "bun:sqlite";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { SqlExpr } from "../tools/search/types.ts";
@@ -900,9 +900,7 @@ export class BaseApp implements App {
     const event = new BootstrapEvent(this);
     const result = this.OnBootstrap().Trigger(event, () => {
       this.resetBootstrapState();
-      if (!existsSync(this.#dataDir)) {
-        mkdirSync(this.#dataDir, { recursive: true });
-      }
+      mkdirSync(this.#dataDir, { recursive: true });
 
       // PocketBun perf deviation (behavior-compatible): keep DB bootstrap through DefaultDBConnect
       // to preserve PRAGMA tuning (WAL, synchronous, busy_timeout) used by benchmarks and production.
@@ -3564,7 +3562,7 @@ export class BaseApp implements App {
     const systemHookIdSettings = "__pbSettingsSystemHook__";
 
     const saveFunc = (me: ModelEvent): Error | Promise<Error | null> | null => {
-      const handleNext = (nextErr: Error | null): Error | null => {
+      const handleNextSync = (nextErr: Error | null): Error | null => {
         if (nextErr) {
           return nextErr;
         }
@@ -3582,12 +3580,31 @@ export class BaseApp implements App {
         return null;
       };
 
+      const handleNextAsync = async (nextErr: Error | null): Promise<Error | null> => {
+        if (nextErr) {
+          return nextErr;
+        }
+
+        const model = me.Model;
+        if (model && model.PK() === ParamsKeySettings) {
+          const postErr = this.settings().PostScan();
+          // PocketBun-only async path: keep settings save hooks non-blocking when save pipeline is async.
+          const reloadErr = await this.ReloadSettingsAsync();
+          if (postErr && reloadErr) {
+            return new Error(`${postErr.message}; ${reloadErr.message}`);
+          }
+          return postErr ?? reloadErr ?? null;
+        }
+
+        return null;
+      };
+
       const nextResult = me.Next();
       if (nextResult instanceof Promise) {
-        return nextResult.then((err) => handleNext(err as Error | null));
+        return nextResult.then((err) => handleNextAsync(err as Error | null));
       }
 
-      return handleNext(nextResult as Error | null);
+      return handleNextSync(nextResult as Error | null);
     };
 
     this.OnModelAfterCreateSuccess([ParamsTableName]).Bind({

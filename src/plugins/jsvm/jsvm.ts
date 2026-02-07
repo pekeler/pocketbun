@@ -3,7 +3,7 @@
 // to preserve the same JS-facing bindings and pb_hooks compatibility.
 
 import type { Dirent } from "node:fs";
-import { readdirSync, readFileSync, statSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, extname, join, resolve } from "node:path";
@@ -353,9 +353,7 @@ async function executeModuleAsync(fileName: string, content: string, globals: Re
 function writeTempModule(fileName: string, content: string): string {
   const baseTmp = process.env.TMPDIR ?? "/tmp";
   const tmpDir = join(baseTmp, "pb_hooks_tmp");
-  if (!existsSync(tmpDir)) {
-    mkdirSync(tmpDir, { recursive: true });
-  }
+  mkdirSync(tmpDir, { recursive: true });
   const tmpPath = join(tmpDir, fileName);
   writeFileSync(tmpPath, content);
   return tmpPath;
@@ -428,9 +426,7 @@ function refreshTypesFile(typesDir: string): void {
   const source = join(resolve(process.cwd()), "src/plugins/jsvm/internal/types/generated/types.d.ts");
   const destination = join(typesDir, typesFileName);
   const data = readFileSync(source, "utf8");
-  if (!existsSync(typesDir)) {
-    mkdirSync(typesDir, { recursive: true });
-  }
+  mkdirSync(typesDir, { recursive: true });
   writeFileSync(destination, data);
 }
 
