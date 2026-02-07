@@ -95,6 +95,8 @@ export interface App {
   SubscriptionsBroker(): Broker;
   isBootstrapped(): boolean;
   bootstrap(): void;
+  // bootstrapAsync is a PocketBun-only async alternative to bootstrap().
+  bootstrapAsync?(): Promise<void>;
   resetBootstrapState(): void;
   db(): Database;
   auxDb(): Database;

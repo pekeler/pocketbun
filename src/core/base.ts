@@ -4,6 +4,7 @@ import "../migrations/index.ts";
 import "./fields_register.ts";
 import type { Database, SQLQueryBindings } from "bun:sqlite";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { SqlExpr } from "../tools/search/types.ts";
 import type { App, Logger } from "./app.ts";
@@ -943,6 +944,62 @@ export class BaseApp implements App {
     } else {
       checkBootstrapped();
     }
+  }
+
+  // bootstrapAsync is a PocketBun-only async alternative to bootstrap().
+  async bootstrapAsync(): Promise<void> {
+    const event = new BootstrapEvent(this);
+    const result = this.OnBootstrap().Trigger(event, async () => {
+      this.resetBootstrapState();
+      await mkdir(this.#dataDir, { recursive: true });
+
+      // PocketBun perf deviation (behavior-compatible): keep DB bootstrap through DefaultDBConnect
+      // to preserve PRAGMA tuning (WAL, synchronous, busy_timeout) used by benchmarks and production.
+      this.#db = DefaultDBConnect(join(this.#dataDir, "data.db"));
+      this.#auxDb = DefaultDBConnect(join(this.#dataDir, "auxiliary.db"));
+      const loggerErr = this.initLogger();
+      if (loggerErr) {
+        return loggerErr;
+      }
+      try {
+        this.runSystemMigrations();
+      } catch (error) {
+        return error as Error;
+      }
+      const reloadErr = this.ReloadCachedCollections();
+      if (reloadErr) {
+        return reloadErr;
+      }
+      this.reloadSettings();
+      try {
+        await rm(join(this.#dataDir, LocalTempDirName), { recursive: true, force: true });
+      } catch {
+        // ignore cleanup failures
+      }
+      this.#bootstrapped = true;
+      return null;
+    });
+
+    const checkBootstrapped = () => {
+      if (!this.isBootstrapped()) {
+        this.Logger().Warn("OnBootstrap hook didn't fail but the app is still not bootstrapped - maybe missing e.Next()?");
+      }
+    };
+
+    if (result instanceof Promise) {
+      const err = await result;
+      if (err) {
+        throw err;
+      }
+      checkBootstrapped();
+      return;
+    }
+
+    if (result instanceof Error) {
+      throw result;
+    }
+
+    checkBootstrapped();
   }
 
   private initLogger(): Error | null {

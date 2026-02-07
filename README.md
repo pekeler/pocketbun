@@ -144,11 +144,14 @@ Current extensions:
 - Template registry now exposes async filesystem loading variants:
   - sync: `registry.LoadFiles(...)`, `registry.LoadFS(...)`
   - async: `await registry.LoadFilesAsync(...)`, `await registry.LoadFSAsync(...)`
+- Base app bootstrap now exposes an async startup variant:
+  - sync: `app.bootstrap()`
+  - async: `await app.bootstrapAsync()`
 
 Example:
 
 ```ts
-import { CreateAsync, ExtractAsync, NewRegistry } from "pocketbun";
+import { BaseApp, CreateAsync, ExtractAsync, NewRegistry } from "pocketbun";
 
 await CreateAsync("pb_data", "/tmp/pb_backup.zip", "backups");
 await ExtractAsync("/tmp/pb_backup.zip", "/tmp/pb_restore");
@@ -156,6 +159,9 @@ await ExtractAsync("/tmp/pb_backup.zip", "/tmp/pb_restore");
 const registry = NewRegistry();
 const renderer = await registry.LoadFilesAsync("views/base.html", "views/content.html");
 const html = renderer.Render({ title: "Hello" });
+
+const app = new BaseApp({ dataDir: "pb_data" });
+await app.bootstrapAsync();
 ```
 
 ### CLI Updates

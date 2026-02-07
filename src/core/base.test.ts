@@ -93,6 +93,26 @@ describe("BaseApp", () => {
     await rm(dataDir, { recursive: true, force: true });
   });
 
+  it("BaseAppBootstrapAsync", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
+    await rm(dataDir, { recursive: true, force: true });
+
+    const app = new BaseApp({ dataDir });
+
+    expect(app.isBootstrapped()).toBe(false);
+    await app.bootstrapAsync();
+    expect(app.isBootstrapped()).toBe(true);
+
+    const statInfo = await stat(dataDir);
+    expect(statInfo.isDirectory()).toBe(true);
+
+    expect(hasDb(() => app.db())).toBe(true);
+    expect(hasDb(() => app.auxDb())).toBe(true);
+
+    app.resetBootstrapState();
+    await rm(dataDir, { recursive: true, force: true });
+  });
+
   it("NewBaseAppTx", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
     const app = new BaseApp({ dataDir });

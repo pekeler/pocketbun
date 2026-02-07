@@ -105,7 +105,7 @@ export class PocketBase extends BaseApp {
   // Execute initializes the application (if needed) and executes the root command.
   async Execute(): Promise<Error | null> {
     if (!this.skipBootstrap()) {
-      this.bootstrap();
+      await this.bootstrapAsync();
     }
 
     let resolveDone: (() => void) | null = null;

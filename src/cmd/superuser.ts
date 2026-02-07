@@ -14,7 +14,7 @@ export type SuperuserOtpResult = {
 };
 
 export async function superuserUpsert(app: App, email: string, password: string): Promise<Record> {
-  ensureReady(app);
+  await ensureReady(app);
   validateEmail(email, "missing or invalid email address");
 
   const superusers = getSuperusersCollection(app);
@@ -37,7 +37,7 @@ export async function superuserUpsert(app: App, email: string, password: string)
 }
 
 export async function superuserCreate(app: App, email: string, password: string): Promise<Record> {
-  ensureReady(app);
+  await ensureReady(app);
   validateEmail(email, "missing or invalid email address");
 
   const superusers = getSuperusersCollection(app);
@@ -54,7 +54,7 @@ export async function superuserCreate(app: App, email: string, password: string)
 }
 
 export async function superuserUpdate(app: App, email: string, password: string): Promise<Record> {
-  ensureReady(app);
+  await ensureReady(app);
   validateEmail(email, "missing or invalid email address");
 
   let superuser: Record;
@@ -75,7 +75,7 @@ export async function superuserUpdate(app: App, email: string, password: string)
 }
 
 export async function superuserDelete(app: App, email: string): Promise<boolean> {
-  ensureReady(app);
+  await ensureReady(app);
   validateEmail(email, "invalid or missing email address");
 
   let superuser: Record;
@@ -94,7 +94,7 @@ export async function superuserDelete(app: App, email: string): Promise<boolean>
 }
 
 export async function superuserOTP(app: App, email: string): Promise<SuperuserOtpResult> {
-  ensureReady(app);
+  await ensureReady(app);
   validateEmail(email, "invalid or missing email address");
 
   let superuser: Record;
@@ -258,9 +258,19 @@ function superuserOTPCommand(app: App): Command {
   return command;
 }
 
-function ensureReady(app: App): void {
+type AppWithAsyncBootstrap = App & { bootstrapAsync: () => Promise<void> };
+
+function hasAsyncBootstrap(app: App): app is AppWithAsyncBootstrap {
+  return typeof (app as { bootstrapAsync?: unknown }).bootstrapAsync === "function";
+}
+
+async function ensureReady(app: App): Promise<void> {
   if (!app.isBootstrapped()) {
-    app.bootstrap();
+    if (hasAsyncBootstrap(app)) {
+      await app.bootstrapAsync();
+    } else {
+      app.bootstrap();
+    }
   }
 
   app.runSystemMigrations();
