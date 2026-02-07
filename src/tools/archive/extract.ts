@@ -3,7 +3,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
-import { inflateRawSync } from "node:zlib";
+import { inflateRaw, inflateRawSync } from "node:zlib";
 
 // Extract extracts the zip archive at "src" to "dest".
 //
@@ -112,7 +112,7 @@ export async function ExtractAsync(src: string, dest: string): Promise<void> {
       continue;
     }
 
-    const fileData = extractFileData(data, entry);
+    const fileData = await extractFileDataAsync(data, entry);
 
     await ensureDir(dirname(targetPath));
     await writeFile(targetPath, fileData);
@@ -200,7 +200,42 @@ function extractFileData(data: Uint8Array, entry: CentralEntry): Uint8Array {
   throw new Error(`unsupported compression method: ${entry.compression}`);
 }
 
+async function extractFileDataAsync(data: Uint8Array, entry: CentralEntry): Promise<Uint8Array> {
+  const view = new DataView(data.buffer, data.byteOffset + entry.localHeaderOffset);
+  const signature = view.getUint32(0, true);
+  if (signature !== 0x04034b50) {
+    throw new Error("invalid zip: bad local file header signature");
+  }
+
+  const nameLength = view.getUint16(26, true);
+  const extraLength = view.getUint16(28, true);
+  const dataStart = entry.localHeaderOffset + 30 + nameLength + extraLength;
+  const dataEnd = dataStart + entry.compressedSize;
+
+  const compressed = data.slice(dataStart, dataEnd);
+  if (entry.compression === 0) {
+    return compressed;
+  }
+  if (entry.compression === 8) {
+    return await inflateRawAsync(compressed);
+  }
+
+  throw new Error(`unsupported compression method: ${entry.compression}`);
+}
+
 function normalizeDest(dest: string): string {
   const resolved = resolve(dest);
   return resolved.endsWith(sep) ? resolved : resolved + sep;
+}
+
+async function inflateRawAsync(compressed: Uint8Array): Promise<Uint8Array> {
+  return await new Promise((resolve, reject) => {
+    inflateRaw(compressed, (err, out) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(new Uint8Array(out));
+    });
+  });
 }

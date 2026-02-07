@@ -80,6 +80,7 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
 - [x] (2026-02-07) Added async uploaded-file MIME validator support (`UploadedFileMimeTypeAsync`) and switched async backup upload validation to it, with regression coverage for path-backed readers avoiding sync `Open()` in async validation flow.
 - [x] (2026-02-07) Optimized file-path reader hot paths by removing eager full-file reads in `NewFileFromPathAsync`, adding sample-based extension detection helpers (`detectExtensionAsync` + sync helper parity), switching `PathReader.Open()` to fd-backed streaming reads (closer to upstream), and adding regression coverage that async path-backed detection avoids sync `Open()`.
 - [x] (2026-02-07) Added a non-buffering filesystem reader API (`System.GetReaderAsync`) and switched backup S3 restore temp-zip writes to chunked stream copy instead of eager `readAll()` buffering.
+- [x] (2026-02-07) Removed synchronous zlib work from archive async paths by switching `CreateAsync` and `ExtractAsync` to async raw deflate/inflate helpers.
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.

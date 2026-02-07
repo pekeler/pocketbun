@@ -3,7 +3,7 @@
 import { lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { lstat, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, posix, relative } from "node:path";
-import { deflateRawSync } from "node:zlib";
+import { deflateRaw, deflateRawSync } from "node:zlib";
 
 const textEncoder = new TextEncoder();
 const crcTable = buildCrcTable();
@@ -37,7 +37,7 @@ export async function CreateAsync(src: string, dest: string, ...skipPaths: strin
 
   try {
     const files = await collectFilesAsync(src, skipPaths);
-    const zip = buildZip(files);
+    const zip = await buildZipAsync(files);
     await writeFile(dest, zip);
   } catch (error) {
     try {
@@ -161,6 +161,76 @@ function buildZip(entries: ZipEntry[]): Uint8Array {
         date,
         crc,
         compressedSize: compressed.length,
+        uncompressedSize: entry.data.length,
+        nameLength: nameBytes.length,
+        extraLength: extra.length,
+        externalAttrs: (entry.mode & 0xffff) << 16,
+        localHeaderOffset,
+      }),
+    );
+    central.push(nameBytes);
+    central.push(extra);
+  }
+
+  const centralOffset = writer.length;
+  writer.push(central.concat());
+
+  writer.push(
+    buildEndOfCentralDirectory({
+      entries: entries.length,
+      centralSize: central.length,
+      centralOffset,
+    }),
+  );
+
+  return writer.concat();
+}
+
+async function buildZipAsync(entries: ZipEntry[]): Promise<Uint8Array> {
+  const writer = new ChunkWriter();
+  const central = new ChunkWriter();
+
+  const compressedEntries = await Promise.all(
+    entries.map(async (entry) => {
+      const compressed = entry.data.length === 0 ? await deflateRawAsync(entry.data, 0) : await deflateRawAsync(entry.data, 1);
+      const crc = crc32(entry.data);
+      return { entry, compressed, crc };
+    }),
+  );
+
+  for (const item of compressedEntries) {
+    const entry = item.entry;
+    const nameBytes = textEncoder.encode(entry.name);
+    const localHeaderOffset = writer.length;
+
+    const { date, time } = toDosDateTime(entry.modTime);
+    const extra = buildExtendedTimestampExtra(entry.modTime);
+    const flags = 0x08;
+
+    writer.push(
+      buildLocalHeader({
+        flags,
+        time,
+        date,
+        crc: 0,
+        compressedSize: 0,
+        uncompressedSize: 0,
+        nameLength: nameBytes.length,
+        extraLength: extra.length,
+      }),
+    );
+    writer.push(nameBytes);
+    writer.push(extra);
+    writer.push(item.compressed);
+    writer.push(buildDataDescriptor(item.crc, item.compressed.length, entry.data.length));
+
+    central.push(
+      buildCentralHeader({
+        flags,
+        time,
+        date,
+        crc: item.crc,
+        compressedSize: item.compressed.length,
         uncompressedSize: entry.data.length,
         nameLength: nameBytes.length,
         extraLength: extra.length,
@@ -351,6 +421,18 @@ function crc32(data: Uint8Array): number {
     crc = (crc >>> 8) ^ crcTable[index]!;
   }
   return (crc ^ 0xffffffff) >>> 0;
+}
+
+async function deflateRawAsync(data: Uint8Array, level: number): Promise<Uint8Array> {
+  return await new Promise((resolve, reject) => {
+    deflateRaw(data, { level }, (err, out) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(new Uint8Array(out));
+    });
+  });
 }
 
 class ChunkWriter {
