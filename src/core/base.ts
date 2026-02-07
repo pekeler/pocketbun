@@ -1636,14 +1636,10 @@ export class BaseApp implements App {
       throw new Error(`invalid token type "${tokenType}"`);
     }
 
-    const collection = this.findCollectionById(collectionId);
-    if (!collection || !collection.isAuth()) {
+    const record = this.FindRecordById(collectionId, id);
+    const collection = record.collection();
+    if (!collection.isAuth()) {
       throw new Error("the token is not associated to an auth collection record");
-    }
-
-    const record = this.findRecordById(collection, id);
-    if (!record) {
-      throw new Error("record not found");
     }
 
     const baseTokenKey = resolveBaseTokenKey(collection, tokenType);

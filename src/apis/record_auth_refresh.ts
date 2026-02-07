@@ -13,23 +13,10 @@ export async function recordAuthRefresh(app: App, event: RequestEvent): Promise<
     return unauthorized(event, "The request requires valid record authorization token.");
   }
 
-  const collectionId = event.params.collection ?? "";
-  let collection = null;
-  if (collectionId) {
-    try {
-      collection = app.FindCachedCollectionByNameOrId(collectionId);
-    } catch {
-      collection = null;
-    }
-  }
-  if (!collection || record.collection().id !== collection.id) {
-    return forbidden(event, `The request requires auth record from ${record.collection().name} collection.`);
-  }
-
   const hookEvent = new RecordAuthRefreshRequestEvent(event, record.collection(), record);
+  const currentToken = getAuthTokenFromRequest(event);
 
   const out = await app.OnRecordAuthRefreshRequest().Trigger(hookEvent, async () => {
-    const currentToken = getAuthTokenFromRequest(event);
     let tokenToReturn = currentToken;
 
     if (currentToken) {
@@ -54,20 +41,12 @@ export async function recordAuthRefresh(app: App, event: RequestEvent): Promise<
     return out;
   }
 
-  return RecordAuthResponseWithToken(event, record, getAuthTokenFromRequest(event), "", null);
+  return RecordAuthResponseWithToken(event, record, currentToken, "", null);
 }
 
 function unauthorized(event: RequestEvent, message: string): Response {
   return event.json(401, {
     status: 401,
-    message,
-    data: {},
-  });
-}
-
-function forbidden(event: RequestEvent, message: string): Response {
-  return event.json(403, {
-    status: 403,
     message,
     data: {},
   });

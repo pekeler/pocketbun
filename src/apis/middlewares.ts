@@ -139,6 +139,11 @@ export function RequireSameCollectionContextAuth(collectionPathParam: string): H
 
       const collectionParam = collectionPathParam || "collection";
       const collectionId = event.params[collectionParam] ?? "";
+      const authCollection = event.auth.collection();
+      if (collectionId === authCollection.id || collectionId === authCollection.name) {
+        return event.Next();
+      }
+
       let collection: ReturnType<App["FindCachedCollectionByNameOrId"]> | null = null;
       try {
         collection = event.app.FindCachedCollectionByNameOrId(collectionId);
@@ -146,8 +151,8 @@ export function RequireSameCollectionContextAuth(collectionPathParam: string): H
         collection = null;
       }
 
-      if (!collection || event.auth.collection().id !== collection.id) {
-        return forbidden(event, `The request requires auth record from ${event.auth.collection().name} collection.`);
+      if (!collection || authCollection.id !== collection.id) {
+        return forbidden(event, `The request requires auth record from ${authCollection.name} collection.`);
       }
 
       return event.Next();

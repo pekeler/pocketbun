@@ -54,23 +54,33 @@ try {
   await ensureServerReady();
 
   if (
+    benchmarkRun === "probe:create-errors" ||
     benchmarkRun === "probe:create-latency" ||
     benchmarkRun === "probe:create-organizations" ||
-    benchmarkRun === "probe:create-users"
+    benchmarkRun === "probe:create-users" ||
+    benchmarkRun === "probe:create-users-upstream" ||
+    benchmarkRun === "probe:auth-refresh"
   ) {
     if (benchmarkProfileEnabled) {
       await resetRemoteProfile();
     }
     const token = await authSuperuser();
     await importProbeSchema(token);
-    const probeReport = await runCreateLatencyProbe(
-      token,
-      benchmarkRun === "probe:create-organizations"
-        ? "organizations-only"
-        : benchmarkRun === "probe:create-users"
-          ? "users-only"
-          : "full",
-    );
+    const probeReport =
+      benchmarkRun === "probe:create-errors"
+        ? await runCreateErrorProbe(token)
+        : benchmarkRun === "probe:auth-refresh"
+          ? await runAuthRefreshProbe(token)
+        : await runCreateLatencyProbe(
+            token,
+            benchmarkRun === "probe:create-organizations"
+              ? "organizations-only"
+              : benchmarkRun === "probe:create-users"
+                ? "users-only"
+                : benchmarkRun === "probe:create-users-upstream"
+                  ? "users-upstream"
+                  : "full",
+          );
     if (benchmarkProfileEnabled) {
       const summary = await fetchRemoteProfileSummary();
       if (summary) {
@@ -129,6 +139,13 @@ try {
     console.log("\nResult body:");
     const resultBody = String(result.result ?? "").trim();
     console.log(resultBody || "(empty)");
+    if (benchmarkProfileEnabled) {
+      const summary = await fetchRemoteProfileSummary();
+      if (summary) {
+        console.log("\nPROFILE SUMMARY");
+        console.log(summary);
+      }
+    }
 
     const metadataHeader = [
       "# PocketBun Upstream-Port Benchmark Result",
@@ -318,6 +335,12 @@ async function authSuperuser(): Promise<string> {
   return token;
 }
 
+type ProbeFailure = {
+  kind: "http" | "transport";
+  count: number;
+  sample: string;
+};
+
 type ProbeAuthIdentity = {
   id: string;
   email: string;
@@ -341,12 +364,194 @@ type CreateLatencyResult = {
   errors: number;
 };
 
-type CreateLatencyProbeMode = "full" | "organizations-only" | "users-only";
+type CreateLatencyProbeMode = "full" | "organizations-only" | "users-only" | "users-upstream";
+
+type AuthRefreshScenario = {
+  label: string;
+  iterations: number;
+  concurrency: number;
+};
+
+type AuthRefreshResult = {
+  scenario: AuthRefreshScenario;
+  completedMs: number;
+  avgMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  errors: number;
+};
+
+async function runAuthRefreshProbe(superuserToken: string): Promise<string> {
+  const identity = await ensureProbeAuthIdentity(superuserToken);
+  const authResponse = await fetch(`${baseUrl}/api/collections/users/auth-with-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      identity: identity.email,
+      password: identity.password,
+    }),
+  });
+  if (!authResponse.ok) {
+    const body = compactErrorSample(await authResponse.text());
+    throw new Error(`failed to auth probe user: HTTP ${authResponse.status} ${body}`);
+  }
+  const authPayload = (await authResponse.json()) as { token?: string };
+  const authToken = authPayload.token ?? "";
+  if (!authToken) {
+    throw new Error("failed to read auth probe token");
+  }
+
+  const scenarios: AuthRefreshScenario[] = [
+    { label: "high concurrency", iterations: 1000, concurrency: 1000 },
+    { label: "medium concurrency", iterations: 1000, concurrency: 100 },
+  ];
+
+  const results: AuthRefreshResult[] = [];
+  for (const scenario of scenarios) {
+    console.log(
+      `\nRunning PocketBun auth refresh probe (${scenario.label}, reqs=${scenario.iterations}, conc=${scenario.concurrency})...`,
+    );
+    const result = await runAuthRefreshScenario(scenario, authToken);
+    results.push(result);
+  }
+
+  const reportLines = ["## Auth refresh probe", ""];
+  for (const result of results) {
+    reportLines.push(`### ${result.scenario.label}`);
+    reportLines.push(`- reqs: ${result.scenario.iterations}`);
+    reportLines.push(`- concurrency: ${result.scenario.concurrency}`);
+    reportLines.push(`- completed_ms: ${result.completedMs.toFixed(3)}`);
+    reportLines.push(`- avg_ms: ${result.avgMs.toFixed(3)}`);
+    reportLines.push(`- p50_ms: ${result.p50Ms.toFixed(3)}`);
+    reportLines.push(`- p95_ms: ${result.p95Ms.toFixed(3)}`);
+    reportLines.push(`- errors: ${result.errors}`);
+    reportLines.push("");
+  }
+
+  const report = reportLines.join("\n");
+  console.log("\n" + report);
+  return report;
+}
+
+async function runCreateErrorProbe(superuserToken: string): Promise<string> {
+  const collection = "posts25k";
+  const iterations = 12500;
+  const concurrency = 500;
+  const types = ["a", "b", "c", "d"];
+  const probeIdentity = await ensureProbeAuthIdentity(superuserToken);
+  const userIds = [probeIdentity.id];
+
+  const updateCollectionResponse = await fetch(`${baseUrl}/api/collections/${collection}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: superuserToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ createRule: "" }),
+  });
+  if (!updateCollectionResponse.ok) {
+    throw new Error(`failed to set ${collection}.createRule for probe: HTTP ${updateCollectionResponse.status}`);
+  }
+
+  console.log(
+    `\nRunning PocketBun create probe (collection=${collection}, reqs=${iterations}, conc=${concurrency}, createRule="")...`,
+  );
+
+  let nextIndex = 0;
+  const httpFailures = new Map<number, { count: number; sample: string }>();
+  const transportFailures = new Map<string, { count: number; sample: string }>();
+
+  const started = performance.now();
+  const workerCount = Math.min(concurrency, iterations);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const i = nextIndex;
+      nextIndex += 1;
+      if (i >= iterations) {
+        return;
+      }
+
+      const payload = {
+        title: `${collection}-probe-${i}`,
+        description:
+          "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec sit amet sodales nisl, quis pretium nunc.",
+        public: i % 2 !== 0,
+        type: [types[i % types.length], types[(i + 1) % types.length]],
+        author: userIds[i % userIds.length] ?? userIds[0] ?? "",
+      };
+
+      try {
+        const response = await fetch(`${baseUrl}/api/collections/${collection}/records`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (response.status >= 400) {
+          const sample = compactErrorSample(await response.text());
+          const existing = httpFailures.get(response.status);
+          if (existing) {
+            existing.count += 1;
+          } else {
+            httpFailures.set(response.status, { count: 1, sample });
+          }
+        } else {
+          response.body?.cancel();
+        }
+      } catch (error) {
+        const sample = compactErrorSample(String(error));
+        const existing = transportFailures.get(sample);
+        if (existing) {
+          existing.count += 1;
+        } else {
+          transportFailures.set(sample, { count: 1, sample });
+        }
+      }
+    }
+  });
+  await Promise.all(workers);
+  const completedMs = performance.now() - started;
+
+  const failures: ProbeFailure[] = [];
+  for (const [status, entry] of httpFailures) {
+    failures.push({ kind: "http", count: entry.count, sample: `HTTP ${status}: ${entry.sample}` });
+  }
+  for (const entry of transportFailures.values()) {
+    failures.push({ kind: "transport", count: entry.count, sample: entry.sample });
+  }
+  failures.sort((a, b) => b.count - a.count);
+
+  const totalErrors = failures.reduce((sum, item) => sum + item.count, 0);
+
+  const reportLines = [
+    "## Create error probe",
+    `- collection: ${collection}`,
+    `- reqs: ${iterations}`,
+    `- concurrency: ${concurrency}`,
+    `- elapsed_ms: ${Math.round(completedMs)}`,
+    `- total_errors: ${totalErrors}`,
+    "",
+    "### Failure buckets",
+  ];
+
+  if (failures.length === 0) {
+    reportLines.push("- none");
+  } else {
+    for (const failure of failures) {
+      reportLines.push(`- ${failure.kind}: ${failure.count} (${failure.sample})`);
+    }
+  }
+
+  const report = reportLines.join("\n");
+  console.log("\n" + report);
+  return report;
+}
 
 async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatencyProbeMode): Promise<string> {
   const runTag = Date.now();
   const usersProbeDependencies =
-    mode === "users-only" ? await ensureCreateUsersProbeDependencies(superuserToken, runTag) : null;
+    mode === "users-only" || mode === "users-upstream"
+      ? await ensureCreateUsersProbeDependencies(superuserToken, runTag)
+      : null;
   const scenarios: CreateLatencyScenario[] =
     mode === "organizations-only"
       ? [
@@ -365,13 +570,13 @@ async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatency
             payload: (index) => ({ name: `probe-org-rule-${runTag}-${index}` }),
           },
         ]
-      : mode === "users-only"
+      : mode === "users-only" || mode === "users-upstream"
         ? [
             {
               collection: "users",
               rule: "",
-              iterations: 150,
-              concurrency: 25,
+              iterations: mode === "users-upstream" ? 250 : 150,
+              concurrency: mode === "users-upstream" ? 50 : 25,
               payload: (index) => {
                 const deps = usersProbeDependencies;
                 if (!deps) {
@@ -392,8 +597,8 @@ async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatency
             {
               collection: "users",
               rule: "@request.body.email != '' && @request.body.permissions:length > 0",
-              iterations: 150,
-              concurrency: 25,
+              iterations: mode === "users-upstream" ? 250 : 150,
+              concurrency: mode === "users-upstream" ? 50 : 25,
               payload: (index) => {
                 const deps = usersProbeDependencies;
                 if (!deps) {
@@ -517,6 +722,66 @@ async function runCreateLatencyScenario(scenario: CreateLatencyScenario): Promis
           console.log(
             `  sample transport error (${scenario.collection} rule=${JSON.stringify(scenario.rule)}): ${compactErrorSample(String(error))}`,
           );
+        }
+      } finally {
+        durationsMs.push(performance.now() - requestStarted);
+      }
+    }
+  });
+  await Promise.all(workers);
+
+  const completedMs = performance.now() - started;
+  const avgMs = durationsMs.length > 0 ? durationsMs.reduce((sum, value) => sum + value, 0) / durationsMs.length : 0;
+
+  return {
+    scenario,
+    completedMs,
+    avgMs,
+    p50Ms: percentile(durationsMs, 50),
+    p95Ms: percentile(durationsMs, 95),
+    errors,
+  };
+}
+
+async function runAuthRefreshScenario(scenario: AuthRefreshScenario, authToken: string): Promise<AuthRefreshResult> {
+  let nextIndex = 0;
+  let errors = 0;
+  const durationsMs: number[] = [];
+  const workerCount = Math.min(scenario.concurrency, scenario.iterations);
+
+  const started = performance.now();
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const current = nextIndex;
+      nextIndex += 1;
+      if (current >= scenario.iterations) {
+        return;
+      }
+
+      const requestStarted = performance.now();
+      try {
+        const response = await fetch(`${baseUrl}/api/collections/users/auth-refresh`, {
+          method: "POST",
+          headers: {
+            Authorization: authToken,
+          },
+        });
+
+        if (response.status >= 400) {
+          errors += 1;
+          if (errors <= 4) {
+            const sample = compactErrorSample(await response.text());
+            console.log(`  sample auth-refresh error (${scenario.label}): HTTP ${response.status} ${sample}`);
+          } else {
+            response.body?.cancel();
+          }
+        } else {
+          response.body?.cancel();
+        }
+      } catch (error) {
+        errors += 1;
+        if (errors <= 4) {
+          console.log(`  sample auth-refresh transport error (${scenario.label}): ${compactErrorSample(String(error))}`);
         }
       } finally {
         durationsMs.push(performance.now() - requestStarted);
