@@ -2,7 +2,6 @@
 
 import type { Resolver } from "./event.ts";
 import type { Handler, HandlerFunc } from "./hook.ts";
-import { existInSlice } from "../list/list.ts";
 import { Hook } from "./hook.ts";
 
 // Tagger defines an interface for event data structs that support tags/groups/categories/etc.
@@ -23,19 +22,19 @@ class MainHook<T extends Tagger> {
 // if the TaggedHook.tags are empty or includes at least one of the event data tag(s).
 export class TaggedHook<T extends Tagger> {
   #main: MainHook<T>;
-  #tags: string[];
+  #tagSet: Set<string> | null;
 
   constructor(hook: Hook<T>, tags: string[]) {
     this.#main = new MainHook(hook);
-    this.#tags = tags;
+    this.#tagSet = tags.length > 0 ? new Set(tags) : null;
   }
 
   CanTriggerOn(tagsToCheck: string[]): boolean {
-    if (this.#tags.length === 0) {
+    if (!this.#tagSet) {
       return true;
     }
     for (const tag of tagsToCheck) {
-      if (existInSlice(tag, this.#tags)) {
+      if (this.#tagSet.has(tag)) {
         return true;
       }
     }

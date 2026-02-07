@@ -111,11 +111,11 @@ const serverProc = Bun.spawn({
 try {
   await ensureServerReady();
 
-  if (benchmarkRun === "probe:create-errors") {
+  if (benchmarkRun === "probe:create-errors" || benchmarkRun === "probe:create-latency") {
     const token = await authSuperuser();
     await importProbeSchema(token);
 
-    const probeReport = await runCreateErrorProbe(token);
+    const probeReport = benchmarkRun === "probe:create-errors" ? await runCreateErrorProbe(token) : await runCreateLatencyProbe(token);
 
     const metadataHeader = [
       "# Upstream PocketBase Benchmark Probe",
@@ -626,6 +626,23 @@ type ProbeAuthIdentity = {
   password: string;
 };
 
+type CreateLatencyScenario = {
+  collection: "organizations" | "permissions";
+  rule: string;
+  iterations: number;
+  concurrency: number;
+  payload: (index: number) => Record<string, unknown>;
+};
+
+type CreateLatencyResult = {
+  scenario: CreateLatencyScenario;
+  completedMs: number;
+  avgMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  errors: number;
+};
+
 async function runCreateErrorProbe(superuserToken: string): Promise<string> {
   const collection = "posts25k";
   const iterations = 12500;
@@ -735,6 +752,154 @@ async function runCreateErrorProbe(superuserToken: string): Promise<string> {
   const report = reportLines.join("\n");
   console.log("\n" + report);
   return report;
+}
+
+async function runCreateLatencyProbe(superuserToken: string): Promise<string> {
+  const runTag = Date.now();
+  const scenarios: CreateLatencyScenario[] = [
+    {
+      collection: "organizations",
+      rule: "",
+      iterations: 500,
+      concurrency: 10,
+      payload: (index) => ({ name: `probe-org-${runTag}-${index}` }),
+    },
+    {
+      collection: "organizations",
+      rule: "@request.body.name != ''",
+      iterations: 500,
+      concurrency: 10,
+      payload: (index) => ({ name: `probe-org-rule-${runTag}-${index}` }),
+    },
+    {
+      collection: "permissions",
+      rule: "",
+      iterations: 250,
+      concurrency: 5,
+      payload: (index) => ({ name: `probe-perm-${runTag}-${index}`, active: index % 2 === 0 }),
+    },
+    {
+      collection: "permissions",
+      rule: "@request.body.name != ''",
+      iterations: 250,
+      concurrency: 5,
+      payload: (index) => ({ name: `probe-perm-rule-${runTag}-${index}`, active: index % 2 === 0 }),
+    },
+  ];
+
+  const results: CreateLatencyResult[] = [];
+  for (const scenario of scenarios) {
+    await setCollectionCreateRule(superuserToken, scenario.collection, scenario.rule);
+    console.log(
+      `\nRunning upstream create latency probe (${scenario.collection}, reqs=${scenario.iterations}, conc=${scenario.concurrency}, rule=${JSON.stringify(scenario.rule)})...`,
+    );
+    const result = await runCreateLatencyScenario(scenario);
+    results.push(result);
+  }
+
+  const reportLines = ["## Create latency probe", ""];
+  for (const result of results) {
+    reportLines.push(`### ${result.scenario.collection} createRule=${JSON.stringify(result.scenario.rule)}`);
+    reportLines.push(`- reqs: ${result.scenario.iterations}`);
+    reportLines.push(`- concurrency: ${result.scenario.concurrency}`);
+    reportLines.push(`- completed_ms: ${result.completedMs.toFixed(3)}`);
+    reportLines.push(`- avg_ms: ${result.avgMs.toFixed(3)}`);
+    reportLines.push(`- p50_ms: ${result.p50Ms.toFixed(3)}`);
+    reportLines.push(`- p95_ms: ${result.p95Ms.toFixed(3)}`);
+    reportLines.push(`- errors: ${result.errors}`);
+    reportLines.push("");
+  }
+
+  const report = reportLines.join("\n");
+  console.log("\n" + report);
+  return report;
+}
+
+async function runCreateLatencyScenario(scenario: CreateLatencyScenario): Promise<CreateLatencyResult> {
+  let nextIndex = 0;
+  let errors = 0;
+  const durationsMs: number[] = [];
+  const workerCount = Math.min(scenario.concurrency, scenario.iterations);
+
+  const started = performance.now();
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const current = nextIndex;
+      nextIndex += 1;
+      if (current >= scenario.iterations) {
+        return;
+      }
+
+      const requestStarted = performance.now();
+      try {
+        const response = await fetch(`${baseUrl}/api/collections/${scenario.collection}/records`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(scenario.payload(current)),
+        });
+
+        if (response.status >= 400) {
+          errors += 1;
+          if (errors <= 4) {
+            const sample = compactErrorSample(await response.text());
+            console.log(
+              `  sample error (${scenario.collection} rule=${JSON.stringify(scenario.rule)}): HTTP ${response.status} ${sample}`,
+            );
+          } else {
+            response.body?.cancel();
+          }
+        } else {
+          response.body?.cancel();
+        }
+      } catch (error) {
+        errors += 1;
+        if (errors <= 4) {
+          console.log(
+            `  sample transport error (${scenario.collection} rule=${JSON.stringify(scenario.rule)}): ${compactErrorSample(String(error))}`,
+          );
+        }
+      } finally {
+        durationsMs.push(performance.now() - requestStarted);
+      }
+    }
+  });
+  await Promise.all(workers);
+
+  const completedMs = performance.now() - started;
+  const avgMs = durationsMs.length > 0 ? durationsMs.reduce((sum, value) => sum + value, 0) / durationsMs.length : 0;
+
+  return {
+    scenario,
+    completedMs,
+    avgMs,
+    p50Ms: percentile(durationsMs, 50),
+    p95Ms: percentile(durationsMs, 95),
+    errors,
+  };
+}
+
+async function setCollectionCreateRule(superuserToken: string, collection: string, createRule: string): Promise<void> {
+  const updateCollectionResponse = await fetch(`${baseUrl}/api/collections/${collection}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: superuserToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ createRule }),
+  });
+  if (!updateCollectionResponse.ok) {
+    const body = compactErrorSample(await updateCollectionResponse.text());
+    throw new Error(`failed to set ${collection}.createRule for probe: HTTP ${updateCollectionResponse.status} ${body}`);
+  }
+}
+
+function percentile(values: number[], p: number): number {
+  if (values.length === 0) {
+    return 0;
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.max(0, Math.min(sorted.length - 1, Math.floor((p / 100) * (sorted.length - 1))));
+  return sorted[index] ?? 0;
 }
 
 async function ensureProbeAuthIdentity(superuserToken: string): Promise<ProbeAuthIdentity> {

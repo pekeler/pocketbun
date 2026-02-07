@@ -38,6 +38,7 @@ export class Record {
   #ignoreEmailVisibility = false;
   #customVisibility = new Store<string, boolean>();
   #expand: Store<string, unknown> | null = null;
+  #hookTags: string[] | null = null;
 
   static fromRow(collection: Collection, row: RecordData): Record {
     const record = new Record(collection, {}, false);
@@ -481,7 +482,13 @@ export class Record {
   }
 
   HookTags(): string[] {
-    return [this.#collection.name, this.#collection.id];
+    const cached = this.#hookTags;
+    if (cached && cached[0] === this.#collection.name && cached[1] === this.#collection.id) {
+      return cached;
+    }
+    const tags = [this.#collection.name, this.#collection.id];
+    this.#hookTags = tags;
+    return tags;
   }
 
   BaseFilesPath(): string {
@@ -548,17 +555,13 @@ export class Record {
     const exportData: RecordData = {};
     const includeHidden = Boolean(options.includeHidden);
     const ignoreEmailVisibility = Boolean(options.ignoreEmailVisibility) || this.#ignoreEmailVisibility;
-    const customVisibility = this.#customVisibility.getAll();
+    const hasCustomVisibility = this.#customVisibility.length() > 0;
+    const customVisibility = hasCustomVisibility ? this.#customVisibility.getAll() : null;
 
     for (const field of this.#collection.Fields) {
       const name = field.GetName();
-      let isVisible = customVisibility.get(name);
-      if (isVisible === undefined) {
-        isVisible = !field.GetHidden();
-      }
-      if (!isVisible && includeHidden) {
-        isVisible = true;
-      }
+      const custom = customVisibility?.get(name);
+      const isVisible = custom ?? (includeHidden ? true : !field.GetHidden());
       if (!isVisible) {
         continue;
       }
@@ -567,7 +570,7 @@ export class Record {
 
     if (this.#exportCustomData) {
       for (const [key, value] of Object.entries(this.CustomData())) {
-        const customFlag = customVisibility.get(key);
+        const customFlag = customVisibility?.get(key);
         if (customFlag === false) {
           continue;
         }
@@ -588,17 +591,17 @@ export class Record {
       }
     }
 
-    const collectionIdVisible = customVisibility.get(FieldNameCollectionId);
-    if (collectionIdVisible !== false) {
+    const collectionIdVisible = customVisibility?.get(FieldNameCollectionId);
+    if (!hasCustomVisibility || collectionIdVisible !== false) {
       exportData[FieldNameCollectionId] = this.#collection.id;
     }
-    const collectionNameVisible = customVisibility.get(FieldNameCollectionName);
-    if (collectionNameVisible !== false) {
+    const collectionNameVisible = customVisibility?.get(FieldNameCollectionName);
+    if (!hasCustomVisibility || collectionNameVisible !== false) {
       exportData[FieldNameCollectionName] = this.#collection.name;
     }
 
-    const expandVisible = customVisibility.get(FieldNameExpand);
-    if (expandVisible !== false && this.#expand) {
+    const expandVisible = customVisibility?.get(FieldNameExpand);
+    if ((!hasCustomVisibility || expandVisible !== false) && this.#expand) {
       exportData[FieldNameExpand] = Object.fromEntries(this.#expand.getAll());
     }
 

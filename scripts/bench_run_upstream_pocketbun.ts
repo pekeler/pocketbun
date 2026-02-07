@@ -10,11 +10,17 @@ import { setTimeout as delay } from "node:timers/promises";
 import { MustRegisterJSVM, NewWithConfig, serve } from "../index.ts";
 import { CollectionNameSuperusers } from "../src/core/collection_model.ts";
 import { NewRecord } from "../src/core/record_model.ts";
+import { configureProfile, profileEnabled, profileSummary, resetProfile } from "../src/tools/perf/profile.ts";
 import { registerBenchmarkModule } from "./bench_upstream_pocketbun/module.ts";
 import { benchmarkSchema } from "./bench_upstream_pocketbun/schema.ts";
 
 const benchmarkRunOverrideFile = process.env.POCKETBUN_BENCHMARK_RUN_FILE ?? "/tmp/pocketbun-bench-upstream-run.txt";
 const benchmarkRun = await resolveBenchmarkRun(benchmarkRunOverrideFile);
+const benchmarkProfileOverrideFile = process.env.POCKETBUN_BENCHMARK_PROFILE_FILE ?? "/tmp/pocketbun-bench-upstream-profile.txt";
+const benchmarkProfileEnabled = await resolveBooleanOverride(benchmarkProfileOverrideFile, false);
+if (benchmarkProfileEnabled) {
+  configureProfile({ enabled: true });
+}
 const machineTag = sanitizeTag(process.env.POCKETBUN_BENCH_MACHINE_TAG ?? "m2-max");
 const timestampTag = createTimestampTag(new Date());
 const resultsDir = process.env.POCKETBUN_BENCH_RESULTS_DIR ?? "benchmarks/results";
@@ -57,56 +63,90 @@ const server = serve(app, { httpAddr: `127.0.0.1:${port}` });
 try {
   await ensureServerReady();
 
-  const runNames = benchmarkRun
-    .split(",")
-    .map((name) => name.trim())
-    .filter((name) => name !== "");
-  if (runNames.includes("auth") && !runNames.includes("create")) {
+  if (benchmarkRun === "probe:create-latency") {
+    if (profileEnabled()) {
+      resetProfile();
+    }
     const token = await authSuperuser();
     await importProbeSchema(token);
-    await ensureProbeAuthIdentity(token);
+    const probeReport = await runCreateLatencyProbe(token);
+    if (profileEnabled()) {
+      const summary = profileSummary(80);
+      if (summary) {
+        console.log("\nPROFILE SUMMARY");
+        console.log(summary);
+      }
+    }
+
+    const metadataHeader = [
+      "# PocketBun Upstream-Port Benchmark Probe",
+      "",
+      `- machine: ${machineTag}`,
+      `- timestamp: ${new Date().toISOString()}`,
+      `- mode: ${benchmarkRun}`,
+      "",
+    ].join("\n");
+
+    await mkdir(dirname(repoResultFile), { recursive: true });
+    await writeFile(repoResultFile, `${metadataHeader}${probeReport}\n`);
+
+    await mkdir(dirname(latestResultFile), { recursive: true });
+    await writeFile(latestResultFile, `${probeReport}\n`);
+
+    console.log(`\nSaved probe report to: ${repoResultFile}`);
+    console.log(`Saved latest probe report to: ${latestResultFile}`);
+  } else {
+    const runNames = benchmarkRun
+      .split(",")
+      .map((name) => name.trim())
+      .filter((name) => name !== "");
+    if (runNames.includes("auth") && !runNames.includes("create")) {
+      const token = await authSuperuser();
+      await importProbeSchema(token);
+      await ensureProbeAuthIdentity(token);
+    }
+
+    const trigger = await fetch(`${baseUrl}/benchmarks?run=${encodeURIComponent(benchmarkRun)}`);
+    if (!trigger.ok) {
+      throw new Error(`failed to start PocketBun upstream benchmarks: HTTP ${trigger.status}`);
+    }
+
+    const triggerText = (await trigger.text()).trim();
+    console.log(`\nPocketBun benchmark trigger response: ${triggerText}`);
+    console.log(`Waiting for completion (run=${benchmarkRun})...`);
+
+    const token = await authSuperuser();
+    const result = await waitForBenchmarkResult(token);
+
+    console.log("\nPocketBun upstream benchmark result");
+    console.log(`  tests: ${String(result.tests ?? "")}`);
+    if (typeof result.error === "string" && result.error !== "") {
+      console.log(`  error: ${result.error}`);
+      throw new Error(`PocketBun benchmark reported error: ${result.error}`);
+    }
+    console.log("  status: completed");
+    console.log("\nResult body:");
+    const resultBody = String(result.result ?? "").trim();
+    console.log(resultBody || "(empty)");
+
+    const metadataHeader = [
+      "# PocketBun Upstream-Port Benchmark Result",
+      "",
+      `- machine: ${machineTag}`,
+      `- timestamp: ${new Date().toISOString()}`,
+      `- tests: ${benchmarkRun}`,
+      "",
+    ].join("\n");
+
+    await mkdir(dirname(repoResultFile), { recursive: true });
+    await writeFile(repoResultFile, `${metadataHeader}${resultBody}\n`);
+
+    await mkdir(dirname(latestResultFile), { recursive: true });
+    await writeFile(latestResultFile, `${resultBody}\n`);
+
+    console.log(`\nSaved full result to: ${repoResultFile}`);
+    console.log(`Saved latest raw result to: ${latestResultFile}`);
   }
-
-  const trigger = await fetch(`${baseUrl}/benchmarks?run=${encodeURIComponent(benchmarkRun)}`);
-  if (!trigger.ok) {
-    throw new Error(`failed to start PocketBun upstream benchmarks: HTTP ${trigger.status}`);
-  }
-
-  const triggerText = (await trigger.text()).trim();
-  console.log(`\nPocketBun benchmark trigger response: ${triggerText}`);
-  console.log(`Waiting for completion (run=${benchmarkRun})...`);
-
-  const token = await authSuperuser();
-  const result = await waitForBenchmarkResult(token);
-
-  console.log("\nPocketBun upstream benchmark result");
-  console.log(`  tests: ${String(result.tests ?? "")}`);
-  if (typeof result.error === "string" && result.error !== "") {
-    console.log(`  error: ${result.error}`);
-    throw new Error(`PocketBun benchmark reported error: ${result.error}`);
-  }
-  console.log("  status: completed");
-  console.log("\nResult body:");
-  const resultBody = String(result.result ?? "").trim();
-  console.log(resultBody || "(empty)");
-
-  const metadataHeader = [
-    "# PocketBun Upstream-Port Benchmark Result",
-    "",
-    `- machine: ${machineTag}`,
-    `- timestamp: ${new Date().toISOString()}`,
-    `- tests: ${benchmarkRun}`,
-    "",
-  ].join("\n");
-
-  await mkdir(dirname(repoResultFile), { recursive: true });
-  await writeFile(repoResultFile, `${metadataHeader}${resultBody}\n`);
-
-  await mkdir(dirname(latestResultFile), { recursive: true });
-  await writeFile(latestResultFile, `${resultBody}\n`);
-
-  console.log(`\nSaved full result to: ${repoResultFile}`);
-  console.log(`Saved latest raw result to: ${latestResultFile}`);
 } finally {
   await server.stop();
   app.resetBootstrapState();
@@ -146,6 +186,43 @@ async function resolveBenchmarkRun(overrideFile: string): Promise<string> {
   }
 
   return "create,auth,search,custom,delete";
+}
+
+async function resolveBooleanOverride(overrideFile: string, defaultValue: boolean): Promise<boolean> {
+  try {
+    const raw = await readFile(overrideFile, "utf8");
+    const firstNonCommentLine = raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line !== "" && !line.startsWith("#"));
+
+    const parsed = parseBoolean(firstNonCommentLine);
+    if (parsed !== null) {
+      console.log(`Using boolean override from ${overrideFile}: ${parsed}`);
+      return parsed;
+    }
+  } catch (error) {
+    const errno = error as NodeJS.ErrnoException;
+    if (errno.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  return defaultValue;
+}
+
+function parseBoolean(value: string | null | undefined): boolean | null {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  if (normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on") {
+    return true;
+  }
+  if (normalized === "0" || normalized === "false" || normalized === "no" || normalized === "off") {
+    return false;
+  }
+  return null;
 }
 
 async function ensureServerReady(): Promise<void> {
@@ -195,6 +272,171 @@ type ProbeAuthIdentity = {
   email: string;
   password: string;
 };
+
+type CreateLatencyScenario = {
+  collection: "organizations" | "permissions";
+  rule: string;
+  iterations: number;
+  concurrency: number;
+  payload: (index: number) => Record<string, unknown>;
+};
+
+type CreateLatencyResult = {
+  scenario: CreateLatencyScenario;
+  completedMs: number;
+  avgMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  errors: number;
+};
+
+async function runCreateLatencyProbe(superuserToken: string): Promise<string> {
+  const runTag = Date.now();
+  const scenarios: CreateLatencyScenario[] = [
+    {
+      collection: "organizations",
+      rule: "",
+      iterations: 500,
+      concurrency: 10,
+      payload: (index) => ({ name: `probe-org-${runTag}-${index}` }),
+    },
+    {
+      collection: "organizations",
+      rule: "@request.body.name != ''",
+      iterations: 500,
+      concurrency: 10,
+      payload: (index) => ({ name: `probe-org-rule-${runTag}-${index}` }),
+    },
+    {
+      collection: "permissions",
+      rule: "",
+      iterations: 250,
+      concurrency: 5,
+      payload: (index) => ({ name: `probe-perm-${runTag}-${index}`, active: index % 2 === 0 }),
+    },
+    {
+      collection: "permissions",
+      rule: "@request.body.name != ''",
+      iterations: 250,
+      concurrency: 5,
+      payload: (index) => ({ name: `probe-perm-rule-${runTag}-${index}`, active: index % 2 === 0 }),
+    },
+  ];
+
+  const results: CreateLatencyResult[] = [];
+  for (const scenario of scenarios) {
+    await setCollectionCreateRule(superuserToken, scenario.collection, scenario.rule);
+    console.log(
+      `\nRunning PocketBun create latency probe (${scenario.collection}, reqs=${scenario.iterations}, conc=${scenario.concurrency}, rule=${JSON.stringify(scenario.rule)})...`,
+    );
+    const result = await runCreateLatencyScenario(scenario);
+    results.push(result);
+  }
+
+  const reportLines = ["## Create latency probe", ""];
+  for (const result of results) {
+    reportLines.push(`### ${result.scenario.collection} createRule=${JSON.stringify(result.scenario.rule)}`);
+    reportLines.push(`- reqs: ${result.scenario.iterations}`);
+    reportLines.push(`- concurrency: ${result.scenario.concurrency}`);
+    reportLines.push(`- completed_ms: ${result.completedMs.toFixed(3)}`);
+    reportLines.push(`- avg_ms: ${result.avgMs.toFixed(3)}`);
+    reportLines.push(`- p50_ms: ${result.p50Ms.toFixed(3)}`);
+    reportLines.push(`- p95_ms: ${result.p95Ms.toFixed(3)}`);
+    reportLines.push(`- errors: ${result.errors}`);
+    reportLines.push("");
+  }
+
+  const report = reportLines.join("\n");
+  console.log("\n" + report);
+  return report;
+}
+
+async function runCreateLatencyScenario(scenario: CreateLatencyScenario): Promise<CreateLatencyResult> {
+  let nextIndex = 0;
+  let errors = 0;
+  const durationsMs: number[] = [];
+  const workerCount = Math.min(scenario.concurrency, scenario.iterations);
+
+  const started = performance.now();
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const current = nextIndex;
+      nextIndex += 1;
+      if (current >= scenario.iterations) {
+        return;
+      }
+
+      const requestStarted = performance.now();
+      try {
+        const response = await fetch(`${baseUrl}/api/collections/${scenario.collection}/records`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(scenario.payload(current)),
+        });
+
+        if (response.status >= 400) {
+          errors += 1;
+          if (errors <= 4) {
+            const sample = compactErrorSample(await response.text());
+            console.log(
+              `  sample error (${scenario.collection} rule=${JSON.stringify(scenario.rule)}): HTTP ${response.status} ${sample}`,
+            );
+          } else {
+            response.body?.cancel();
+          }
+        } else {
+          response.body?.cancel();
+        }
+      } catch (error) {
+        errors += 1;
+        if (errors <= 4) {
+          console.log(
+            `  sample transport error (${scenario.collection} rule=${JSON.stringify(scenario.rule)}): ${compactErrorSample(String(error))}`,
+          );
+        }
+      } finally {
+        durationsMs.push(performance.now() - requestStarted);
+      }
+    }
+  });
+  await Promise.all(workers);
+
+  const completedMs = performance.now() - started;
+  const avgMs = durationsMs.length > 0 ? durationsMs.reduce((sum, value) => sum + value, 0) / durationsMs.length : 0;
+
+  return {
+    scenario,
+    completedMs,
+    avgMs,
+    p50Ms: percentile(durationsMs, 50),
+    p95Ms: percentile(durationsMs, 95),
+    errors,
+  };
+}
+
+async function setCollectionCreateRule(superuserToken: string, collection: string, createRule: string): Promise<void> {
+  const updateCollectionResponse = await fetch(`${baseUrl}/api/collections/${collection}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: superuserToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ createRule }),
+  });
+  if (!updateCollectionResponse.ok) {
+    const body = compactErrorSample(await updateCollectionResponse.text());
+    throw new Error(`failed to set ${collection}.createRule for probe: HTTP ${updateCollectionResponse.status} ${body}`);
+  }
+}
+
+function percentile(values: number[], p: number): number {
+  if (values.length === 0) {
+    return 0;
+  }
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.max(0, Math.min(sorted.length - 1, Math.floor((p / 100) * (sorted.length - 1))));
+  return sorted[index] ?? 0;
+}
 
 async function ensureProbeAuthIdentity(superuserToken: string): Promise<ProbeAuthIdentity> {
   const usersResponse = await fetch(`${baseUrl}/api/collections/users/records?perPage=200&fields=id,email`, {

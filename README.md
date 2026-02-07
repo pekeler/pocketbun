@@ -64,8 +64,8 @@ Then visit `http://127.0.0.1:8090/_/` for the Admin UI and `http://127.0.0.1:809
 
 This snapshot is from the full vendored upstream benchmark suite on **February 7, 2026** (MacBook Pro `m2-max`):
 
-- PocketBase run: `benchmarks/results/2026-02-07T07-42-37Z-pocketbase-upstream-m2-max.md`
-- PocketBun run: `benchmarks/results/2026-02-07T09-05-24Z-pocketbun-upstream-m2-max.md`
+- PocketBase run: `benchmarks/results/2026-02-07T10-00-24Z-pocketbase-upstream-m2-max.md`
+- PocketBun run: `benchmarks/results/2026-02-07T10-12-16Z-pocketbun-upstream-m2-max.md`
 
 Commands:
 
@@ -87,23 +87,23 @@ Metric used:
 Overall summary:
 
 - Comparable scenarios: `148`
-- Overall result (geometric mean): PocketBun is `18.9% slower`
-- Equivalent time ratio (geometric mean): PocketBun takes `1.19x` PocketBase time
+- Overall result (geometric mean): PocketBun is `16.3% slower`
+- Equivalent time ratio (geometric mean): PocketBun takes `1.16x` PocketBase time
 
 Category summary (geometric mean over comparable scenarios):
 
 | Category | Comparable scenarios | Scenarios with errors | PocketBun vs PocketBase |
 | --- | ---: | ---: | ---: |
-| `Creating organizations (100)` | `2 / 2` | `0` | `490.3% slower` |
-| `Creating permissions (50)` | `2 / 2` | `0` | `561.4% slower` |
-| `Creating users (500 - expected to be slow due to passwordHash generation)` | `2 / 2` | `0` | `328.1% slower` |
-| `Creating posts (10k, 25k, 50k, 100k)` | `8 / 8` | `0` | `444.1% slower` |
-| `User auth with password (expected to be slow due to passwordHash verification)` | `2 / 2` | `0` | `2.6% faster` |
-| `User auth refresh` | `2 / 2` | `0` | `136.5% slower` |
-| `List records` | `112 / 112` | `0` | `6.4% faster` |
-| `Go vs JS route execution` | `6 / 6` | `0` | `51.5% slower` |
-| `Go vs JS hooks execution` | `2 / 2` | `0` | `10.1% slower` |
-| `Deleting records` | `10 / 10` | `0` | `63.9% slower` |
+| `Creating organizations (100)` | `2 / 2` | `0` | `364.3% slower` |
+| `Creating permissions (50)` | `2 / 2` | `0` | `725.9% slower` |
+| `Creating users (500 - expected to be slow due to passwordHash generation)` | `2 / 2` | `0` | `330.7% slower` |
+| `Creating posts (10k, 25k, 50k, 100k)` | `8 / 8` | `0` | `256.3% slower` |
+| `User auth with password (expected to be slow due to passwordHash verification)` | `2 / 2` | `0` | `4.7% faster` |
+| `User auth refresh` | `2 / 2` | `0` | `63.2% slower` |
+| `List records` | `112 / 112` | `0` | `4.2% faster` |
+| `Go vs JS route execution` | `6 / 6` | `0` | `71.0% slower` |
+| `Go vs JS hooks execution` | `2 / 2` | `0` | `6.8% faster` |
+| `Deleting records` | `10 / 10` | `0` | `32.8% slower` |
 
 ## Known Differences
 

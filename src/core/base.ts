@@ -230,6 +230,30 @@ export type BaseAppConfig = {
 
 export { LocalAutocertCacheDirName, LocalBackupsDirName, LocalStorageDirName, LocalTempDirName };
 
+type PreparedRunStatement = {
+  run: (...bindings: SQLQueryBindings[]) => unknown;
+};
+
+// PocketBun-only: cache record write prepared statements by db+shape to avoid repeated SQL parsing.
+const recordWriteStmtCache = new WeakMap<DbxDatabase, Map<string, PreparedRunStatement>>();
+
+function getPreparedRecordWriteStmt(db: DbxDatabase, key: string, createSql: () => string): PreparedRunStatement {
+  let cache = recordWriteStmtCache.get(db);
+  if (!cache) {
+    cache = new Map();
+    recordWriteStmtCache.set(db, cache);
+  }
+
+  const cached = cache.get(key);
+  if (cached) {
+    return cached;
+  }
+
+  const statement = db.prepare(createSql()) as unknown as PreparedRunStatement;
+  cache.set(key, statement);
+  return statement;
+}
+
 // BaseApp implements core.App and defines the base PocketBase app structure.
 export class BaseApp implements App {
   #dataDir: string;
@@ -2739,23 +2763,30 @@ export class BaseApp implements App {
       return new Error("empty primary key is not allowed");
     }
 
+    const db = this.db() as DbxDatabase;
     const keys = Object.keys(data);
     const dbErr = await baseLockRetry(async () => {
       try {
         if (record.IsNew()) {
-          const columns = keys.map((key) => `"${key}"`).join(", ");
-          const placeholders = keys.map(() => "?").join(", ");
           const values = keys.map((key) => normalizeDbValue(data[key]));
-          const sql = `insert into "${record.TableName()}" (${columns}) values (${placeholders})`;
-          this.db().run(sql, values);
+          const statementKey = `insert:${record.TableName()}:${keys.join(",")}`;
+          const statement = getPreparedRecordWriteStmt(db, statementKey, () => {
+            const columns = keys.map((key) => `"${key}"`).join(", ");
+            const placeholders = keys.map(() => "?").join(", ");
+            return `insert into "${record.TableName()}" (${columns}) values (${placeholders})`;
+          });
+          statement.run(...values);
         } else {
           const columns = keys.filter((key) => key !== "id");
           if (columns.length > 0) {
-            const assignments = columns.map((key) => `"${key}" = ?`).join(", ");
             const values = columns.map((key) => normalizeDbValue(data[key]));
             values.push(record.Id);
-            const sql = `update "${record.TableName()}" set ${assignments} where id = ?`;
-            this.db().run(sql, values);
+            const statementKey = `update:${record.TableName()}:${columns.join(",")}`;
+            const statement = getPreparedRecordWriteStmt(db, statementKey, () => {
+              const assignments = columns.map((key) => `"${key}" = ?`).join(", ");
+              return `update "${record.TableName()}" set ${assignments} where id = ?`;
+            });
+            statement.run(...values);
           }
         }
       } catch (err) {
@@ -2786,23 +2817,30 @@ export class BaseApp implements App {
       return new Error("empty primary key is not allowed");
     }
 
+    const db = this.db() as DbxDatabase;
     const keys = Object.keys(data);
     const dbErr = baseLockRetrySync(() => {
       try {
         if (record.IsNew()) {
-          const columns = keys.map((key) => `"${key}"`).join(", ");
-          const placeholders = keys.map(() => "?").join(", ");
           const values = keys.map((key) => normalizeDbValue(data[key]));
-          const sql = `insert into "${record.TableName()}" (${columns}) values (${placeholders})`;
-          this.db().run(sql, values);
+          const statementKey = `insert:${record.TableName()}:${keys.join(",")}`;
+          const statement = getPreparedRecordWriteStmt(db, statementKey, () => {
+            const columns = keys.map((key) => `"${key}"`).join(", ");
+            const placeholders = keys.map(() => "?").join(", ");
+            return `insert into "${record.TableName()}" (${columns}) values (${placeholders})`;
+          });
+          statement.run(...values);
         } else {
           const columns = keys.filter((key) => key !== "id");
           if (columns.length > 0) {
-            const assignments = columns.map((key) => `"${key}" = ?`).join(", ");
             const values = columns.map((key) => normalizeDbValue(data[key]));
             values.push(record.Id);
-            const sql = `update "${record.TableName()}" set ${assignments} where id = ?`;
-            this.db().run(sql, values);
+            const statementKey = `update:${record.TableName()}:${columns.join(",")}`;
+            const statement = getPreparedRecordWriteStmt(db, statementKey, () => {
+              const assignments = columns.map((key) => `"${key}" = ?`).join(", ");
+              return `update "${record.TableName()}" set ${assignments} where id = ?`;
+            });
+            statement.run(...values);
           }
         }
       } catch (err) {

@@ -6,13 +6,12 @@ type ProfileStat = {
   maxMs: number;
 };
 
-const enabled =
+let enabled =
   process.env.POCKETBUN_PROFILE === "1" ||
   process.env.POCKETBUN_PROFILE_HOOKS === "1" ||
   process.env.POCKETBUN_PROFILE_ROUTER === "1";
 
-const dbEnabled = process.env.POCKETBUN_PROFILE_DB === "1";
-const anyEnabled = enabled || dbEnabled;
+let dbEnabled = process.env.POCKETBUN_PROFILE_DB === "1";
 
 const stats = new Map<string, ProfileStat>();
 
@@ -24,8 +23,17 @@ export function profileDbEnabled(): boolean {
   return enabled || dbEnabled;
 }
 
+export function configureProfile(options: { enabled?: boolean; dbEnabled?: boolean }): void {
+  if (typeof options.enabled === "boolean") {
+    enabled = options.enabled;
+  }
+  if (typeof options.dbEnabled === "boolean") {
+    dbEnabled = options.dbEnabled;
+  }
+}
+
 export function recordProfile(label: string, durationMs: number): void {
-  if (!anyEnabled) {
+  if (!profileDbEnabled()) {
     return;
   }
   const entry = stats.get(label);
@@ -53,7 +61,7 @@ export function recordDbProfile(sql: string, durationMs: number): void {
 }
 
 export function profileSummary(limit = 20): string {
-  if (!anyEnabled) {
+  if (!profileDbEnabled()) {
     return "";
   }
   const rows = [...stats.entries()].map(([label, stat]) => {
