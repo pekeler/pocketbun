@@ -79,6 +79,14 @@ export async function ExtractAsync(src: string, dest: string): Promise<void> {
 
   // normalize dest path to check later for Zip Slip
   const destRoot = normalizeDest(dest);
+  const ensuredDirs = new Set<string>();
+  const ensureDir = async (path: string): Promise<void> => {
+    if (ensuredDirs.has(path)) {
+      return;
+    }
+    await mkdir(path, { recursive: true });
+    ensuredDirs.add(path);
+  };
 
   let offset = centralOffset;
   for (let i = 0; i < totalEntries; i += 1) {
@@ -96,7 +104,7 @@ export async function ExtractAsync(src: string, dest: string): Promise<void> {
     const isRegular = mode === 0 || (mode & 0o100000) === 0o100000;
 
     if (isDir) {
-      await mkdir(targetPath, { recursive: true });
+      await ensureDir(targetPath);
       continue;
     }
 
@@ -106,7 +114,7 @@ export async function ExtractAsync(src: string, dest: string): Promise<void> {
 
     const fileData = extractFileData(data, entry);
 
-    await mkdir(dirname(targetPath), { recursive: true });
+    await ensureDir(dirname(targetPath));
     await writeFile(targetPath, fileData);
   }
 

@@ -107,8 +107,7 @@ async function collectFilesAsync(src: string, skipPaths: string[]): Promise<ZipE
         continue;
       }
 
-      const info = await lstat(fullPath);
-      const data = await readFile(fullPath);
+      const [info, data] = await Promise.all([lstat(fullPath), readFile(fullPath)]);
 
       entries.push({
         name: rel,
