@@ -19,3 +19,4 @@ export {
 } from "./src/plugins/migratecmd/migratecmd.ts";
 export { Create, CreateAsync, Extract, ExtractAsync } from "./src/tools/archive/index.ts";
 export { DbxDatabase, attachDbxRewrite, rewriteDbxIdentifiers } from "./src/tools/dbx/index.ts";
+export { NewRegistry } from "./src/tools/template/registry.ts";

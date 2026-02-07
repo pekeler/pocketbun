@@ -72,6 +72,40 @@ describe("Registry", () => {
     }
   });
 
+  it("LoadFilesAsync", async () => {
+    const r = NewRegistry();
+
+    await r.LoadFilesAsync("file1.missing", "file2.missing");
+
+    const missingKey = "file1.missing,file2.missing";
+    const missingRenderer = r.cache.get(missingKey);
+
+    expect(missingRenderer).toBeTruthy();
+    expect(missingRenderer?.template).toBeNull();
+    expect(missingRenderer?.parseError).toBeTruthy();
+
+    const dir = await mkdtemp(join(tmpdir(), "template_test_async"));
+    try {
+      await writeFile(join(dir, "base.html"), `Base:{{template "content" .}}`);
+      await writeFile(join(dir, "content.html"), `{{define "content"}}Content:{{.|raw}}{{end}}`);
+
+      const files = [join(dir, "base.html"), join(dir, "content.html")];
+
+      await r.LoadFilesAsync(...files);
+
+      const renderer = r.cache.get(files.join(","));
+
+      expect(renderer).toBeTruthy();
+      expect(renderer?.template).toBeTruthy();
+      expect(renderer?.parseError).toBeNull();
+
+      const result = renderer?.Render("<h1>123</h1>");
+      expect(result).toBe("Base:Content:<h1>123</h1>");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("LoadString", () => {
     const r = NewRegistry();
 
@@ -121,6 +155,43 @@ describe("Registry", () => {
       const key = String(fsys as unknown) + files.join(",");
 
       r.LoadFS(fsys, ...files);
+
+      const renderer = r.cache.get(key);
+      expect(renderer).toBeTruthy();
+      expect(renderer?.template).toBeTruthy();
+      expect(renderer?.parseError).toBeNull();
+
+      const result = renderer?.Render("<h1>123</h1>");
+      expect(result).toBe("Base:Content:<h1>123</h1>");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("LoadFSAsync", async () => {
+    const r = NewRegistry();
+
+    const missingFs = { root: "__missing__" };
+    const missingFiles = ["missing1", "missing2"];
+    const missingKey = String(missingFs as unknown) + missingFiles.join(",");
+
+    await r.LoadFSAsync(missingFs, ...missingFiles);
+
+    const missingRenderer = r.cache.get(missingKey);
+    expect(missingRenderer).toBeTruthy();
+    expect(missingRenderer?.template).toBeNull();
+    expect(missingRenderer?.parseError).toBeTruthy();
+
+    const dir = await mkdtemp(join(tmpdir(), "template_test2_async"));
+    try {
+      await writeFile(join(dir, "base.html"), `Base:{{template "content" .}}`);
+      await writeFile(join(dir, "content.html"), `{{define "content"}}Content:{{.|raw}}{{end}}`);
+
+      const fsys = { root: dir };
+      const files = ["base.html", "content.html"];
+      const key = String(fsys as unknown) + files.join(",");
+
+      await r.LoadFSAsync(fsys, ...files);
 
       const renderer = r.cache.get(key);
       expect(renderer).toBeTruthy();

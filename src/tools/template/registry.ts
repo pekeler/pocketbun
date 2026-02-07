@@ -1,6 +1,7 @@
 // Ported from pocketbase/tools/template/registry.go
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { Store } from "../store/store.ts";
 import { buildRenderer, type TemplateFunc, type TemplateFuncs, type TemplateSource, SafeString, Renderer } from "./renderer.ts";
@@ -54,6 +55,22 @@ export class Registry {
     return found;
   }
 
+  // LoadFilesAsync caches (if not already) the specified filenames set as a
+  // single template and returns a ready to use Renderer instance.
+  //
+  // There must be at least 1 filename specified.
+  async LoadFilesAsync(...filenames: string[]): Promise<Renderer> {
+    const key = filenames.join(",");
+
+    let found = this.cache.get(key);
+    if (!found) {
+      found = await this.loadFilesInternalAsync(filenames);
+      this.cache.set(key, found);
+    }
+
+    return found;
+  }
+
   // LoadString caches (if not already) the specified inline string as a
   // single template and returns a ready to use Renderer instance.
   LoadString(text: string): Renderer {
@@ -85,6 +102,23 @@ export class Registry {
     return found;
   }
 
+  // LoadFSAsync caches (if not already) the specified fs and globPatterns
+  // pair as single template and returns a ready to use Renderer instance.
+  //
+  // There must be at least 1 file matching the provided globPattern(s)
+  // (note that most file names serves as glob patterns matching themselves).
+  async LoadFSAsync(fsys: unknown, ...globPatterns: string[]): Promise<Renderer> {
+    const key = String(fsys) + globPatterns.join(",");
+
+    let found = this.cache.get(key);
+    if (!found) {
+      found = await this.loadFSInternalAsync(fsys, globPatterns);
+      this.cache.set(key, found);
+    }
+
+    return found;
+  }
+
   private loadFilesInternal(filenames: string[]): Renderer {
     if (filenames.length === 0) {
       return new Renderer(null, new Error("missing template filenames"));
@@ -95,6 +129,26 @@ export class Registry {
         name: basename(filename),
         content: readFileSync(filename, "utf8"),
       }));
+
+      return buildRenderer(sources, this.funcs);
+    } catch (error) {
+      return new Renderer(null, error as Error);
+    }
+  }
+
+  private async loadFilesInternalAsync(filenames: string[]): Promise<Renderer> {
+    if (filenames.length === 0) {
+      return new Renderer(null, new Error("missing template filenames"));
+    }
+
+    try {
+      const sources: TemplateSource[] = [];
+      for (const filename of filenames) {
+        sources.push({
+          name: basename(filename),
+          content: await readFile(filename, "utf8"),
+        });
+      }
 
       return buildRenderer(sources, this.funcs);
     } catch (error) {
@@ -119,6 +173,33 @@ export class Registry {
         name: basename(file),
         content: readFileSync(join(root, file), "utf8"),
       }));
+
+      return buildRenderer(sources, this.funcs);
+    } catch (error) {
+      return new Renderer(null, error as Error);
+    }
+  }
+
+  private async loadFSInternalAsync(fsys: unknown, globPatterns: string[]): Promise<Renderer> {
+    try {
+      if (globPatterns.length === 0) {
+        return new Renderer(null, new Error("missing template patterns"));
+      }
+
+      const root = resolveFSRoot(fsys);
+      const files = await resolveFSMatchesAsync(root, globPatterns);
+
+      if (files.length === 0) {
+        return new Renderer(null, new Error("no template files matched"));
+      }
+
+      const sources: TemplateSource[] = [];
+      for (const file of files) {
+        sources.push({
+          name: basename(file),
+          content: await readFile(join(root, file), "utf8"),
+        });
+      }
 
       return buildRenderer(sources, this.funcs);
     } catch (error) {
@@ -162,6 +243,47 @@ function resolveFSMatches(root: string, patterns: string[]): string[] {
         const full = join(root, pattern);
         const stat = statSync(full);
         if (!stat.isDirectory()) {
+          found = [pattern];
+        }
+      } catch {
+        found = [];
+      }
+    } else {
+      const regex = globToRegex(pattern);
+      found = entries.filter((entry) => regex.test(entry));
+    }
+
+    if (found.length === 0) {
+      missing = true;
+    } else {
+      matches.push(...found);
+    }
+  }
+
+  if (missing) {
+    throw new Error("no template files matched");
+  }
+
+  return Array.from(new Set(matches));
+}
+
+async function resolveFSMatchesAsync(root: string, patterns: string[]): Promise<string[]> {
+  const entries = (await readdir(root, { withFileTypes: true }))
+    .filter((entry) => !entry.isDirectory())
+    .map((entry) => entry.name);
+
+  const matches: string[] = [];
+  let missing = false;
+
+  for (const pattern of patterns) {
+    const hasWildcard = pattern.includes("*") || pattern.includes("?") || pattern.includes("[");
+    let found: string[] = [];
+
+    if (!hasWildcard) {
+      try {
+        const full = join(root, pattern);
+        const info = await stat(full);
+        if (!info.isDirectory()) {
           found = [pattern];
         }
       } catch {

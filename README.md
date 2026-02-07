@@ -141,14 +141,21 @@ Current extensions:
 - Archive helpers now expose both sync and async variants:
   - sync: `Create`, `Extract`
   - async: `CreateAsync`, `ExtractAsync`
+- Template registry now exposes async filesystem loading variants:
+  - sync: `registry.LoadFiles(...)`, `registry.LoadFS(...)`
+  - async: `await registry.LoadFilesAsync(...)`, `await registry.LoadFSAsync(...)`
 
 Example:
 
 ```ts
-import { CreateAsync, ExtractAsync } from "pocketbun";
+import { CreateAsync, ExtractAsync, NewRegistry } from "pocketbun";
 
 await CreateAsync("pb_data", "/tmp/pb_backup.zip", "backups");
 await ExtractAsync("/tmp/pb_backup.zip", "/tmp/pb_restore");
+
+const registry = NewRegistry();
+const renderer = await registry.LoadFilesAsync("views/base.html", "views/content.html");
+const html = renderer.Render({ title: "Hello" });
 ```
 
 ### CLI Updates
