@@ -4,13 +4,13 @@
 // Deviation: CreateThumb is async because Bun image processing relies on async libraries.
 
 import { mkdirSync } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, open } from "node:fs/promises";
 import { posix } from "node:path";
 import sharp from "sharp";
 import { Bucket, NewBucket } from "./blob/bucket.ts";
 import { ErrNotFound, NotFoundError, type Attributes as BlobAttributes, type WriterOptions } from "./blob/driver.ts";
 import { ErrEOF, isNotFoundError } from "./blob/errors.ts";
-import { BytesReader, File, ReadFileReaderBytesAsync, detectMimeTypeFromBytes, normalizeName } from "./file.ts";
+import { BytesReader, File, PathReader, ReadFileReaderBytesAsync, detectMimeTypeFromBytes, normalizeName } from "./file.ts";
 import { New as NewFileBlob, NewAsync as NewFileBlobAsync } from "./internal/fileblob/fileblob.ts";
 import { S3 } from "./internal/s3blob/s3/s3.ts";
 import { New as NewS3Blob } from "./internal/s3blob/s3blob.ts";
@@ -287,18 +287,27 @@ export class System {
       throw new Error("missing file reader");
     }
 
-    const content = await ReadFileReaderBytesAsync(file.Reader);
-
-    const contentType = detectMimeTypeFromBytes(content);
     let originalName = file.OriginalName;
     if (originalName.length > 255) {
       originalName = originalName.slice(0, 255);
     }
 
+    if (file.Reader instanceof PathReader) {
+      const sample = await readPathSample(file.Reader.Path);
+      const writer = await this.#bucket.NewWriter(
+        this.#ctx,
+        fileKey,
+        makeWriterOptions(detectMimeTypeFromBytes(sample), { [metadataOriginalName]: originalName }),
+      );
+      await streamPathToWriterAndClose(file.Reader.Path, writer);
+      return;
+    }
+
+    const content = await ReadFileReaderBytesAsync(file.Reader);
     const writer = await this.#bucket.NewWriter(
       this.#ctx,
       fileKey,
-      makeWriterOptions(contentType, { [metadataOriginalName]: originalName }),
+      makeWriterOptions(detectMimeTypeFromBytes(content), { [metadataOriginalName]: originalName }),
     );
     await writeAllAndClose(writer, content);
   }
@@ -771,7 +780,7 @@ async function writeAllAndClose(
 ) {
   let writeErr: Error | null = null;
   try {
-    await writer.write(data);
+    await writeChunkFully(writer, data);
   } catch (error) {
     writeErr = error as Error;
   }
@@ -788,6 +797,69 @@ async function writeAllAndClose(
 
   if (writeErr) {
     throw writeErr;
+  }
+}
+
+async function streamPathToWriterAndClose(
+  path: string,
+  writer: { write: (data?: Uint8Array | null) => Promise<number>; close: () => Promise<void> },
+): Promise<void> {
+  const inFile = await open(path, "r");
+  let writeErr: Error | null = null;
+  try {
+    const buffer = new Uint8Array(64 * 1024);
+    for (;;) {
+      const readResult = await inFile.read(buffer, 0, buffer.length, null);
+      const bytesRead = readResult.bytesRead ?? 0;
+      if (bytesRead <= 0) {
+        break;
+      }
+      await writeChunkFully(writer, buffer.subarray(0, bytesRead));
+    }
+  } catch (error) {
+    writeErr = error as Error;
+  }
+
+  try {
+    await writer.close();
+  } catch (error) {
+    const closeErr = error as Error;
+    if (writeErr) {
+      throw new AggregateError([writeErr, closeErr], `${writeErr.message}; ${closeErr.message}`);
+    }
+    throw closeErr;
+  } finally {
+    await inFile.close();
+  }
+
+  if (writeErr) {
+    throw writeErr;
+  }
+}
+
+async function writeChunkFully(
+  writer: { write: (data?: Uint8Array | null) => Promise<number> },
+  data: Uint8Array,
+): Promise<void> {
+  let offset = 0;
+  while (offset < data.length) {
+    const written = await writer.write(data.subarray(offset));
+    if (written <= 0) {
+      throw new Error("failed to write file chunk");
+    }
+    offset += written;
+  }
+}
+
+async function readPathSample(path: string, maxBytes = 4096): Promise<Uint8Array> {
+  const inFile = await open(path, "r");
+  try {
+    const sample = new Uint8Array(maxBytes);
+    const result = await inFile.read(sample, 0, sample.length, 0);
+    const bytesRead = result.bytesRead ?? 0;
+    return bytesRead > 0 ? sample.subarray(0, bytesRead) : new Uint8Array();
+  } finally {
+    await inFile.close();
   }
 }
 
