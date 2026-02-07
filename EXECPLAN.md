@@ -31,6 +31,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-06) Re-profile record list sub-steps (hook/enrich/hydrate/query/response) with logs disabled and optimize highest-cost controllable slice (no-handler hook wiring).
 - [x] (2026-02-06) Replace non-profile `Hook.Trigger` closure-chain setup with a cursor-driven single `next` runner to reduce per-request middleware/hook allocation churn.
 - [x] (2026-02-06) Concurrency sweep after log changes (1/4/16/32/64); captured records_list and skip_total scaling.
+- [ ] (low priority) Stabilize upstream baseline measurements by running the upstream suite on a dedicated server and/or increasing scenario durations/iterations (the very short create scenarios show high run-to-run variance on VM/laptop environments).
 - [ ] Keep admin UI optimizations low priority unless they also help non-admin endpoints; note any ideas rather than implement immediately.
 - [x] (2026-02-06) Continue request-info/header normalization and event JSON/response allocation work (completed: header snakecase cache, JSON `fields` lookup cache, and non-exception response status fast path).
 - [x] (2026-02-06) Reduce router match-path allocations by iterating method buckets directly (no per-request candidate slice) and skipping params map allocation for static matches.

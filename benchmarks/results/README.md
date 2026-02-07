@@ -6,6 +6,7 @@ Naming convention:
 
 - `<timestamp>-pocketbase-upstream-<machine-tag>.md`
 - `<timestamp>-pocketbun-upstream-<machine-tag>.md`
+- `best-of-pocketbase-upstream-<machine-tag>.md` (synthetic baseline: minimum zero-error `Completed` per scenario merged from local PocketBase upstream snapshots)
 
 Example machine tags:
 

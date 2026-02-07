@@ -64,7 +64,7 @@ Then visit `http://127.0.0.1:8090/_/` for the Admin UI and `http://127.0.0.1:809
 
 This snapshot is from the full vendored upstream benchmark suite on **February 7, 2026** (MacBook Pro `m2-max`):
 
-- PocketBase run: `benchmarks/results/2026-02-07T10-00-24Z-pocketbase-upstream-m2-max.md`
+- PocketBase run (best-of baseline): `benchmarks/results/best-of-pocketbase-upstream-m2-max.md`
 - PocketBun run: `benchmarks/results/2026-02-07T10-12-16Z-pocketbun-upstream-m2-max.md`
 
 Commands:
@@ -81,29 +81,30 @@ Metric used:
 - Reported as plain language: `X% faster` or `X% slower` based on `Completed` time
 - Example: PocketBase `100ms` vs PocketBun `80ms` => PocketBun is `20% faster`
 - Example: PocketBase `100ms` vs PocketBun `120ms` => PocketBun is `20% slower`
+- `best-of-pocketbase-upstream-m2-max.md` is a synthetic baseline built from local `*-pocketbase-upstream-m2-max.md` snapshots by taking the lowest zero-error `Completed` value per scenario.
 - Scenarios are comparable only when both sides report `Errors: 0`
 - Parsed from the two raw result files above (`148` overlapping scenario names)
 
 Overall summary:
 
 - Comparable scenarios: `148`
-- Overall result (geometric mean): PocketBun is `16.3% slower`
-- Equivalent time ratio (geometric mean): PocketBun takes `1.16x` PocketBase time
+- Overall result (geometric mean): PocketBun is `84.8% slower`
+- Equivalent time ratio (geometric mean): PocketBun takes `1.85x` PocketBase time
 
 Category summary (geometric mean over comparable scenarios):
 
 | Category | Comparable scenarios | Scenarios with errors | PocketBun vs PocketBase |
 | --- | ---: | ---: | ---: |
-| `Creating organizations (100)` | `2 / 2` | `0` | `364.3% slower` |
-| `Creating permissions (50)` | `2 / 2` | `0` | `725.9% slower` |
+| `Creating organizations (100)` | `2 / 2` | `0` | `524.4% slower` |
+| `Creating permissions (50)` | `2 / 2` | `0` | `833.2% slower` |
 | `Creating users (500 - expected to be slow due to passwordHash generation)` | `2 / 2` | `0` | `330.7% slower` |
-| `Creating posts (10k, 25k, 50k, 100k)` | `8 / 8` | `0` | `256.3% slower` |
+| `Creating posts (10k, 25k, 50k, 100k)` | `8 / 8` | `0` | `257.4% slower` |
 | `User auth with password (expected to be slow due to passwordHash verification)` | `2 / 2` | `0` | `4.7% faster` |
-| `User auth refresh` | `2 / 2` | `0` | `63.2% slower` |
-| `List records` | `112 / 112` | `0` | `4.2% faster` |
-| `Go vs JS route execution` | `6 / 6` | `0` | `71.0% slower` |
-| `Go vs JS hooks execution` | `2 / 2` | `0` | `6.8% faster` |
-| `Deleting records` | `10 / 10` | `0` | `32.8% slower` |
+| `User auth refresh` | `2 / 2` | `0` | `173.7% slower` |
+| `List records` | `112 / 112` | `0` | `64.6% slower` |
+| `Go vs JS route execution` | `6 / 6` | `0` | `78.4% slower` |
+| `Go vs JS hooks execution` | `2 / 2` | `0` | `32.3% slower` |
+| `Deleting records` | `10 / 10` | `0` | `119.3% slower` |
 
 ## Known Differences
 
