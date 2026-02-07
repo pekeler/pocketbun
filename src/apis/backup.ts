@@ -219,10 +219,14 @@ class ResponseRecorder {
     return this.#headers.get(name.toLowerCase());
   }
 
-  end(body?: Uint8Array): void {
+  write(body?: Uint8Array): void {
     if (body) {
       this.#chunks.push(body);
     }
+  }
+
+  end(body?: Uint8Array): void {
+    this.write(body);
   }
 
   toResponse(): Response {

@@ -37,6 +37,29 @@ class ResponseRecorder {
   header(name: string): string {
     return this.getHeader(name) ?? "";
   }
+
+  body(): Uint8Array {
+    if (this.#chunks.length === 0) {
+      return new Uint8Array();
+    }
+    if (this.#chunks.length === 1) {
+      return this.#chunks[0] ?? new Uint8Array();
+    }
+
+    let total = 0;
+    for (const chunk of this.#chunks) {
+      total += chunk.length;
+    }
+
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of this.#chunks) {
+      merged.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    return merged;
+  }
 }
 
 describe("filesystem system", () => {
@@ -417,6 +440,7 @@ describe("filesystem system", () => {
 
         const attrs = await fsys.Attributes(scenario.path);
         expect(res.header("Content-Length")).toBe(String(attrs.Size));
+        expect(res.body().length).toBe(attrs.Size);
       }
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -586,6 +610,7 @@ describe("filesystem system", () => {
       expect(res.statusCode).toBe(206);
       expect(res.header("Content-Range")).toBe(`bytes 0-20/${attrs.Size}`);
       expect(res.header("Content-Length")).toBe("21");
+      expect(res.body().length).toBe(21);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -600,6 +625,7 @@ describe("filesystem system", () => {
       expect(err).toBeNull();
       expect(res.statusCode).toBe(206);
       expect(res.header("Content-Type").startsWith("multipart/byteranges; boundary=")).toBe(true);
+      expect(res.body().length).toBe(0);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

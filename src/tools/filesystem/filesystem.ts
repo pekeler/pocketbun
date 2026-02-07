@@ -441,78 +441,84 @@ export class System {
       statusCode?: number;
       setHeader: (k: string, v: string) => void;
       getHeader: (k: string) => string | undefined;
+      write?: (body: Uint8Array) => void;
       end: (body?: Uint8Array) => void;
     },
     req: { headers?: Record<string, string | string[]>; url?: string },
     fileKey: string,
     name: string,
   ): Promise<Error | null> {
-    let reader: SystemReader | null = null;
+    let reader: Awaited<ReturnType<Bucket["NewReader"]>> | null = null;
     try {
-      reader = await this.GetReader(fileKey);
+      reader = await this.#bucket.NewReader(this.#ctx, fileKey);
     } catch (error) {
-      return error as Error;
+      return mapFsError(error);
     }
 
-    const body = reader.readAll();
-    const size = body.length;
-    const realContentType = reader.ContentType();
+    try {
+      const size = reader.Size();
+      const realContentType = reader.ContentType();
 
-    const url = new URL(req.url ?? "/", "http://localhost");
-    const forceAttachment = url.searchParams.get(forceAttachmentParam) === "1";
+      const url = new URL(req.url ?? "/", "http://localhost");
+      const forceAttachment = url.searchParams.get(forceAttachmentParam) === "1";
 
-    let disposition = "attachment";
-    if (!forceAttachment && inlineServeContentTypes.has(realContentType)) {
-      disposition = "inline";
-    }
+      let disposition = "attachment";
+      if (!forceAttachment && inlineServeContentTypes.has(realContentType)) {
+        disposition = "inline";
+      }
 
-    let extContentType = realContentType;
-    const ext = posix.extname(name);
-    if (ext in manualExtensionContentTypes) {
-      extContentType = manualExtensionContentTypes[ext] ?? extContentType;
-    }
+      let extContentType = realContentType;
+      const ext = posix.extname(name);
+      if (ext in manualExtensionContentTypes) {
+        extContentType = manualExtensionContentTypes[ext] ?? extContentType;
+      }
 
-    setHeaderIfMissing(res, "Content-Disposition", `${disposition}; filename=${name}`);
-    setHeaderIfMissing(res, "Content-Type", extContentType);
-    setHeaderIfMissing(
-      res,
-      "Content-Security-Policy",
-      "default-src 'none'; media-src 'self'; style-src 'unsafe-inline'; sandbox",
-    );
-    setHeaderIfMissing(res, "Cache-Control", "max-age=2592000, stale-while-revalidate=86400");
+      setHeaderIfMissing(res, "Content-Disposition", `${disposition}; filename=${name}`);
+      setHeaderIfMissing(res, "Content-Type", extContentType);
+      setHeaderIfMissing(
+        res,
+        "Content-Security-Policy",
+        "default-src 'none'; media-src 'self'; style-src 'unsafe-inline'; sandbox",
+      );
+      setHeaderIfMissing(res, "Cache-Control", "max-age=2592000, stale-while-revalidate=86400");
 
-    let statusCode = 200;
-    let responseBody = body;
+      const rangeHeader = req.headers?.Range ?? req.headers?.range;
+      const rangeValue = Array.isArray(rangeHeader) ? rangeHeader[0] : rangeHeader;
+      if (rangeValue && rangeValue.startsWith("bytes=")) {
+        const ranges = rangeValue
+          .slice(6)
+          .split(",")
+          .map((part) => part.trim());
+        if (ranges.length > 1) {
+          res.statusCode = 206;
+          res.setHeader("Content-Type", "multipart/byteranges; boundary=BOUNDARY");
+          res.setHeader("Content-Length", "0");
+          res.end();
+          return null;
+        }
 
-    const rangeHeader = req.headers?.Range ?? req.headers?.range;
-    const rangeValue = Array.isArray(rangeHeader) ? rangeHeader[0] : rangeHeader;
-    if (rangeValue && rangeValue.startsWith("bytes=")) {
-      const ranges = rangeValue
-        .slice(6)
-        .split(",")
-        .map((part) => part.trim());
-      if (ranges.length > 1) {
-        statusCode = 206;
-        res.setHeader("Content-Type", "multipart/byteranges; boundary=BOUNDARY");
-        responseBody = new Uint8Array();
-      } else {
         const rangeSpec = ranges[0] ?? "";
         const [startRaw, endRaw] = rangeSpec.split("-").map((part) => part.trim());
         const start = startRaw === "" ? 0 : Number(startRaw);
         const end = endRaw === "" ? size - 1 : Number(endRaw);
-        const safeStart = Number.isFinite(start) ? start : 0;
-        const safeEnd = Number.isFinite(end) ? end : size - 1;
-        responseBody = body.slice(safeStart, safeEnd + 1);
-        statusCode = 206;
+        const safeStart = normalizeRangeStart(start, size);
+        const safeEnd = normalizeRangeEnd(end, size, safeStart);
+        const rangeLength = safeEnd >= safeStart ? safeEnd - safeStart + 1 : 0;
+        res.statusCode = 206;
         res.setHeader("Content-Range", `bytes ${safeStart}-${safeEnd}/${size}`);
+        res.setHeader("Content-Length", String(rangeLength));
+        await writeReaderToResponse(reader, res, safeStart, rangeLength);
+        return null;
       }
+
+      res.statusCode = 200;
+      res.setHeader("Content-Length", String(size));
+      await writeReaderToResponse(reader, res, 0, size);
+
+      return null;
+    } finally {
+      reader.close();
     }
-
-    res.statusCode = statusCode;
-    res.setHeader("Content-Length", String(responseBody.length));
-    res.end(responseBody);
-
-    return null;
   }
 
   // CreateThumb creates a new thumb image for the file at originalKey location.
@@ -861,6 +867,95 @@ async function readPathSample(path: string, maxBytes = 4096): Promise<Uint8Array
   } finally {
     await inFile.close();
   }
+}
+
+async function writeReaderToResponse(
+  reader: Awaited<ReturnType<Bucket["NewReader"]>>,
+  res: { write?: (body: Uint8Array) => void; end: (body?: Uint8Array) => void },
+  startOffset: number,
+  length: number,
+): Promise<void> {
+  reader.seek(startOffset, 0);
+
+  if (length <= 0) {
+    res.end();
+    return;
+  }
+
+  if (typeof res.write !== "function") {
+    const body = await readReaderRange(reader, length);
+    res.end(body);
+    return;
+  }
+
+  let remaining = length;
+  while (remaining > 0) {
+    const chunk = await reader.read(Math.min(64 * 1024, remaining));
+    if (!chunk || chunk.length === 0) {
+      break;
+    }
+    const out = chunk.length > remaining ? chunk.subarray(0, remaining) : chunk;
+    res.write(out);
+    remaining -= out.length;
+  }
+  res.end();
+}
+
+async function readReaderRange(reader: Awaited<ReturnType<Bucket["NewReader"]>>, length: number): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  let remaining = length;
+  while (remaining > 0) {
+    const chunk = await reader.read(Math.min(64 * 1024, remaining));
+    if (!chunk || chunk.length === 0) {
+      break;
+    }
+    const out = chunk.length > remaining ? chunk.subarray(0, remaining) : chunk;
+    chunks.push(out);
+    total += out.length;
+    remaining -= out.length;
+  }
+
+  if (chunks.length === 0) {
+    return new Uint8Array();
+  }
+  if (chunks.length === 1) {
+    return chunks[0] ?? new Uint8Array();
+  }
+
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return body;
+}
+
+function normalizeRangeStart(start: number, size: number): number {
+  if (!Number.isFinite(start)) {
+    return 0;
+  }
+  if (start < 0) {
+    return 0;
+  }
+  if (size <= 0) {
+    return 0;
+  }
+  return Math.min(start, size - 1);
+}
+
+function normalizeRangeEnd(end: number, size: number, safeStart: number): number {
+  if (size <= 0) {
+    return -1;
+  }
+  if (!Number.isFinite(end)) {
+    return size - 1;
+  }
+  if (end < safeStart) {
+    return safeStart;
+  }
+  return Math.min(end, size - 1);
 }
 
 // note: expects key to be in a canonical form (eg. "accept-encoding" should be "Accept-Encoding").
