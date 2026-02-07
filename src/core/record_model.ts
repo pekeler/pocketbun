@@ -467,6 +467,18 @@ export class Record {
       .map((entry) => entry.key);
 
     for (const key of sortedKeys) {
+      // PocketBun perf deviation (behavior-compatible): avoid duplicate bcrypt hashing
+      // in the auth create/update flow.
+      //
+      // `ReplaceModifiers` is followed by form load, where `password` is hashed again.
+      // For plain `password` keys the observable resolved value is the casted plain string,
+      // so we can skip setter execution here and preserve the same exported body value.
+      if (this.#collection.isAuth() && key === FieldNamePassword) {
+        delete dataCopy[key];
+        dataCopy[FieldNamePassword] = toStringValue(data[key]);
+        continue;
+      }
+
       const field = recordCopy.SetIfFieldExists(key, data[key]);
       if (field) {
         delete dataCopy[key];

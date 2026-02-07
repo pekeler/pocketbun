@@ -53,7 +53,11 @@ const serverProc = Bun.spawn({
 try {
   await ensureServerReady();
 
-  if (benchmarkRun === "probe:create-latency" || benchmarkRun === "probe:create-organizations") {
+  if (
+    benchmarkRun === "probe:create-latency" ||
+    benchmarkRun === "probe:create-organizations" ||
+    benchmarkRun === "probe:create-users"
+  ) {
     if (benchmarkProfileEnabled) {
       await resetRemoteProfile();
     }
@@ -61,7 +65,11 @@ try {
     await importProbeSchema(token);
     const probeReport = await runCreateLatencyProbe(
       token,
-      benchmarkRun === "probe:create-organizations" ? "organizations-only" : "full",
+      benchmarkRun === "probe:create-organizations"
+        ? "organizations-only"
+        : benchmarkRun === "probe:create-users"
+          ? "users-only"
+          : "full",
     );
     if (benchmarkProfileEnabled) {
       const summary = await fetchRemoteProfileSummary();
@@ -317,7 +325,7 @@ type ProbeAuthIdentity = {
 };
 
 type CreateLatencyScenario = {
-  collection: "organizations" | "permissions";
+  collection: "organizations" | "permissions" | "users";
   rule: string;
   iterations: number;
   concurrency: number;
@@ -333,10 +341,12 @@ type CreateLatencyResult = {
   errors: number;
 };
 
-type CreateLatencyProbeMode = "full" | "organizations-only";
+type CreateLatencyProbeMode = "full" | "organizations-only" | "users-only";
 
 async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatencyProbeMode): Promise<string> {
   const runTag = Date.now();
+  const usersProbeDependencies =
+    mode === "users-only" ? await ensureCreateUsersProbeDependencies(superuserToken, runTag) : null;
   const scenarios: CreateLatencyScenario[] =
     mode === "organizations-only"
       ? [
@@ -355,6 +365,53 @@ async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatency
             payload: (index) => ({ name: `probe-org-rule-${runTag}-${index}` }),
           },
         ]
+      : mode === "users-only"
+        ? [
+            {
+              collection: "users",
+              rule: "",
+              iterations: 150,
+              concurrency: 25,
+              payload: (index) => {
+                const deps = usersProbeDependencies;
+                if (!deps) {
+                  throw new Error("missing users probe dependencies");
+                }
+                const username = `probe-user-${runTag}-${index}`;
+                return {
+                  email: `${username}@example.com`,
+                  username,
+                  name: username,
+                  organization: deps.organizationId,
+                  permissions: deps.permissionIds,
+                  password: probePassword,
+                  passwordConfirm: probePassword,
+                };
+              },
+            },
+            {
+              collection: "users",
+              rule: "@request.body.email != '' && @request.body.permissions:length > 0",
+              iterations: 150,
+              concurrency: 25,
+              payload: (index) => {
+                const deps = usersProbeDependencies;
+                if (!deps) {
+                  throw new Error("missing users probe dependencies");
+                }
+                const username = `probe-user-rule-${runTag}-${index}`;
+                return {
+                  email: `${username}@example.com`,
+                  username,
+                  name: username,
+                  organization: deps.organizationId,
+                  permissions: deps.permissionIds,
+                  password: probePassword,
+                  passwordConfirm: probePassword,
+                };
+              },
+            },
+          ]
       : [
           {
             collection: "organizations",
@@ -534,6 +591,64 @@ async function setCollectionCreateRule(superuserToken: string, collection: strin
     const body = compactErrorSample(await updateCollectionResponse.text());
     throw new Error(`failed to set ${collection}.createRule for probe: HTTP ${updateCollectionResponse.status} ${body}`);
   }
+}
+
+type CreateUsersProbeDependencies = {
+  organizationId: string;
+  permissionIds: [string, string, string];
+};
+
+async function ensureCreateUsersProbeDependencies(
+  superuserToken: string,
+  runTag: number,
+): Promise<CreateUsersProbeDependencies> {
+  const organizationName = `probe-user-org-${runTag}`;
+  const createOrganizationResponse = await fetch(`${baseUrl}/api/collections/organizations/records`, {
+    method: "POST",
+    headers: {
+      Authorization: superuserToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ name: organizationName }),
+  });
+  if (!createOrganizationResponse.ok) {
+    const body = compactErrorSample(await createOrganizationResponse.text());
+    throw new Error(`failed to create users probe organization: HTTP ${createOrganizationResponse.status} ${body}`);
+  }
+  const createdOrganization = (await createOrganizationResponse.json()) as { id?: string };
+  const organizationId = createdOrganization.id ?? "";
+  if (!organizationId) {
+    throw new Error("failed to read users probe organization id");
+  }
+
+  const permissionIds: string[] = [];
+  for (let i = 0; i < 3; i += 1) {
+    const createPermissionResponse = await fetch(`${baseUrl}/api/collections/permissions/records`, {
+      method: "POST",
+      headers: {
+        Authorization: superuserToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        name: `probe-user-perm-${runTag}-${i}`,
+        active: i % 2 === 0,
+      }),
+    });
+    if (!createPermissionResponse.ok) {
+      const body = compactErrorSample(await createPermissionResponse.text());
+      throw new Error(`failed to create users probe permission: HTTP ${createPermissionResponse.status} ${body}`);
+    }
+    const createdPermission = (await createPermissionResponse.json()) as { id?: string };
+    if (!createdPermission.id) {
+      throw new Error("failed to read users probe permission id");
+    }
+    permissionIds.push(createdPermission.id);
+  }
+
+  return {
+    organizationId,
+    permissionIds: [permissionIds[0]!, permissionIds[1]!, permissionIds[2]!],
+  };
 }
 
 function percentile(values: number[], p: number): number {
