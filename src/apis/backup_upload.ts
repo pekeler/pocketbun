@@ -3,7 +3,7 @@
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { File } from "../tools/filesystem/file.ts";
-import { UploadedFileMimeType } from "../core/validators/file.ts";
+import { UploadedFileMimeTypeAsync } from "../core/validators/file.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { NewFileFromBytes } from "../tools/filesystem/file.ts";
 import { badRequest, noContent } from "./api_errors.ts";
@@ -71,7 +71,7 @@ class BackupUploadForm {
     if (requiredErr) {
       errors.file = requiredErr;
     } else {
-      const mimeErr = UploadedFileMimeType(["application/zip"])(this.File);
+      const mimeErr = await UploadedFileMimeTypeAsync(["application/zip"])(this.File);
       if (mimeErr) {
         errors.file = mimeErr;
       } else {

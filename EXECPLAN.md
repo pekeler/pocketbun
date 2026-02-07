@@ -77,6 +77,7 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
 - [x] (2026-02-07) Removed synchronous disk reads from `System.UploadFile` when `File.Reader` is path-backed by adding an async `PathReader` fast path (`readFile(...)`) and a regression test to ensure the sync `Open().readAll()` fallback is not used for local path uploads.
 - [x] (2026-02-07) Added `FormData.toMultipartAsync()` for JSVM async HTTP sends, wired `$http.sendAsync` to it, and added regression coverage that path-backed files avoid sync `Open().readAll()` reads in async paths.
 - [x] (2026-02-07) Added shared filesystem reader helpers (`ReadFileReaderBytes*`) and switched async call sites (`System.UploadFile`, JSVM multipart async send, batch multipart re-encoding) to the centralized async fast path for path-backed files.
+- [x] (2026-02-07) Added async uploaded-file MIME validator support (`UploadedFileMimeTypeAsync`) and switched async backup upload validation to it, with regression coverage for path-backed readers avoiding sync `Open()` in async validation flow.
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
@@ -206,6 +207,8 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
   Evidence: `src/plugins/jsvm/form_data.ts` now provides `toMultipartAsync()` with a `PathReader` async fast path (`readFile(...)`), `$http.sendAsync` uses it, and the regression test (`toMultipartAsync prefers async disk reads for path-backed readers`) fails if sync `Open()` is called.
 - Observation: File-reader byte extraction logic had started diverging across modules, and batch multipart re-encoding still opened readers synchronously inside an async flow.
   Evidence: `src/tools/filesystem/file.ts` now owns `ReadFileReaderBytes`/`ReadFileReaderBytesAsync`, and `src/tools/filesystem/filesystem.ts`, `src/plugins/jsvm/form_data.ts`, and `src/apis/batch.ts` now call the shared async helper; new tests in `src/tools/filesystem/file.test.ts` assert path-backed async reads bypass sync `Open()`.
+- Observation: Backup upload validation was async overall but still called the sync MIME validator, leaving a sync reader-open path inside an async request flow.
+  Evidence: `src/core/validators/file.ts` now provides `UploadedFileMimeTypeAsync` (using `ReadFileReaderBytesAsync`), `src/apis/backup_upload.ts` awaits it, and `src/core/validators/file.test.ts` now asserts path-backed async MIME validation succeeds even when `PathReader.Open` is forced to throw.
 - Observation: No-join `updateQuery`/provider allocation trims reduced profiled internal list-handler CPU slightly, but end-to-end `records_list_skip_total` remained effectively unchanged in local benchmark runs.
   Evidence: profile averages moved modestly (`records_list.query` ~0.0230ms -> ~0.0224ms; `records_list.total` ~0.0333ms -> ~0.0325ms), while benchmarked `records_list_skip_total` stayed around ~1.78–1.80ms.
 - Observation: Replacing non-profile hook closure-chain construction with a cursor-driven `next` reduced middleware-inclusive router cost and gave a small but consistent improvement on list-path throughput.

@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/validators/file.go
 
 import { newError } from "../../internal/compat/validation.ts";
-import { File } from "../../tools/filesystem/file.ts";
+import { File, ReadFileReaderBytes, ReadFileReaderBytesAsync } from "../../tools/filesystem/file.ts";
 import { detectMimeTypeFromBytes } from "../../tools/filesystem/file.ts";
 import { ErrUnsupportedValueType } from "./validators.ts";
 
@@ -65,10 +65,53 @@ export function UploadedFileMimeType(validTypes: string[]) {
     }
 
     try {
-      const reader = file.Reader.Open();
-      const bytes = reader.readAll();
-      reader.close();
+      const bytes = ReadFileReaderBytes(file.Reader);
+      const mime = detectMimeTypeFromBytes(bytes);
+      for (const allowed of validTypes) {
+        if (mimeMatches(mime, allowed)) {
+          return null;
+        }
+      }
+    } catch {
+      return baseErr;
+    }
 
+    return newError(
+      "validation_invalid_mime_type",
+      `${JSON.stringify(file.Name)} mime type must be one of: ${validTypes.join(", ")}.`,
+    );
+  };
+}
+
+// UploadedFileMimeTypeAsync is a PocketBun-only async alternative to UploadedFileMimeType.
+//
+// It preserves validator behavior while allowing non-blocking reads for path-backed files.
+export function UploadedFileMimeTypeAsync(validTypes: string[]) {
+  return async (value: unknown): Promise<Error | null> => {
+    if (value == null) {
+      return null;
+    }
+
+    if (!(value instanceof File)) {
+      return ErrUnsupportedValueType;
+    }
+
+    const file = value as File;
+    const baseErr = newError(
+      "validation_invalid_mime_type",
+      `Failed to upload ${JSON.stringify(file.OriginalName)} due to unsupported file type.`,
+    );
+
+    if (validTypes.length === 0) {
+      return baseErr;
+    }
+
+    if (!file.Reader) {
+      return baseErr;
+    }
+
+    try {
+      const bytes = await ReadFileReaderBytesAsync(file.Reader);
       const mime = detectMimeTypeFromBytes(bytes);
       for (const allowed of validTypes) {
         if (mimeMatches(mime, allowed)) {
