@@ -517,15 +517,33 @@ export class Record {
     actionName: string,
     actionFunc: () => Error | null | Promise<Error | null>,
   ): Error | null | Promise<Error | null> {
-    let next = actionFunc;
+    const interceptors: RecordInterceptor[] = [];
     for (const field of this.#collection.Fields) {
       const interceptor = field as unknown as RecordInterceptor;
       if (typeof interceptor.Intercept === "function") {
-        const prev = next;
-        next = () => interceptor.Intercept(ctx, app, this, actionName, prev);
+        interceptors.push(interceptor);
       }
     }
-    return next();
+
+    if (interceptors.length === 0) {
+      return actionFunc();
+    }
+
+    // Keep upstream execution order while avoiding per-interceptor closure wrapping.
+    let index = interceptors.length - 1;
+    const run = (): Error | null | Promise<Error | null> => {
+      if (index < 0) {
+        return actionFunc();
+      }
+      const current = interceptors[index];
+      index -= 1;
+      if (!current) {
+        return run();
+      }
+      return current.Intercept(ctx, app, this, actionName, run);
+    };
+
+    return run();
   }
 
   callFieldInterceptorsSync(ctx: unknown, app: unknown, actionName: string, actionFunc: () => Error | null): Error | null {

@@ -1,6 +1,42 @@
 // PocketBun-only: rewrites dbx placeholders for bun:sqlite compatibility.
 
+const rewriteCache = new Map<string, string>();
+const maxRewriteCacheEntries = 2048;
+
+function getCachedRewrite(sql: string): string | null {
+  const cached = rewriteCache.get(sql);
+  if (cached == null) {
+    return null;
+  }
+  // refresh insertion order for basic LRU-like behavior
+  rewriteCache.delete(sql);
+  rewriteCache.set(sql, cached);
+  return cached;
+}
+
+function setCachedRewrite(sql: string, rewritten: string): void {
+  rewriteCache.set(sql, rewritten);
+  if (rewriteCache.size <= maxRewriteCacheEntries) {
+    return;
+  }
+  const oldest = rewriteCache.keys().next().value as string | undefined;
+  if (oldest) {
+    rewriteCache.delete(oldest);
+  }
+}
+
 export function rewriteDbxIdentifiers(sql: string): string {
+  // Fast path: no dbx placeholder delimiters in the SQL.
+  // This covers the majority of hot-path record DML queries.
+  if (sql.indexOf("[") === -1 && sql.indexOf("{") === -1) {
+    return sql;
+  }
+
+  const cached = getCachedRewrite(sql);
+  if (cached != null) {
+    return cached;
+  }
+
   let result = "";
   let i = 0;
   let mode: QuoteMode = "none";
@@ -149,6 +185,7 @@ export function rewriteDbxIdentifiers(sql: string): string {
     }
   }
 
+  setCachedRewrite(sql, result);
   return result;
 }
 

@@ -567,7 +567,11 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
       form.GrantSuperuserAccess();
     }
     const formLoadStart = doProfile ? performance.now() : 0;
-    await form.LoadAsync(data);
+    if (collection.IsAuth() && Object.prototype.hasOwnProperty.call(data, FieldNamePassword)) {
+      await form.LoadAsync(data);
+    } else {
+      form.Load(data);
+    }
     if (doProfile) {
       recordProfile("record_create.form_load", performance.now() - formLoadStart);
     }
@@ -764,7 +768,11 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
   if (hasSuperuser) {
     form.GrantSuperuserAccess();
   }
-  await form.LoadAsync(data);
+  if (collection.IsAuth() && Object.prototype.hasOwnProperty.call(data, FieldNamePassword)) {
+    await form.LoadAsync(data);
+  } else {
+    form.Load(data);
+  }
   if (!form.HasManageAccess()) {
     let manageSelect = `select 1 from {{${collection.name}}}`;
     const manageParams: SQLQueryBindings[] = [record.Id];

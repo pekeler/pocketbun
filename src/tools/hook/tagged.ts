@@ -10,22 +10,14 @@ export interface Tagger extends Resolver {
   Tags(): string[];
 }
 
-class MainHook<T extends Tagger> {
-  Hook: Hook<T>;
-
-  constructor(hook: Hook<T>) {
-    this.Hook = hook;
-  }
-}
-
 // TaggedHook defines a proxy hook which register handlers that are triggered only
 // if the TaggedHook.tags are empty or includes at least one of the event data tag(s).
 export class TaggedHook<T extends Tagger> {
-  #main: MainHook<T>;
+  #hook: Hook<T>;
   #tagSet: Set<string> | null;
 
   constructor(hook: Hook<T>, tags: string[]) {
-    this.#main = new MainHook(hook);
+    this.#hook = hook;
     this.#tagSet = tags.length > 0 ? new Set(tags) : null;
   }
 
@@ -42,6 +34,10 @@ export class TaggedHook<T extends Tagger> {
   }
 
   Bind(handler: Handler<T>): string {
+    if (!this.#tagSet) {
+      return this.#hook.Bind(handler);
+    }
+
     const fn = handler.Func;
     handler.Func = (event: T) => {
       if (this.CanTriggerOn(event.Tags())) {
@@ -49,11 +45,15 @@ export class TaggedHook<T extends Tagger> {
       }
       return event.Next();
     };
-    return this.#main.Hook.Bind(handler);
+    return this.#hook.Bind(handler);
   }
 
   BindFunc(fn: HandlerFunc<T>): string {
-    return this.#main.Hook.BindFunc((event: T) => {
+    if (!this.#tagSet) {
+      return this.#hook.BindFunc(fn);
+    }
+
+    return this.#hook.BindFunc((event: T) => {
       if (this.CanTriggerOn(event.Tags())) {
         return fn(event);
       }
@@ -62,23 +62,38 @@ export class TaggedHook<T extends Tagger> {
   }
 
   Trigger(event: T, ...oneOffHandlerFuncs: HandlerFunc<T>[]): unknown {
-    return this.#main.Hook.Trigger(event, ...oneOffHandlerFuncs);
+    return this.#hook.Trigger(event, ...oneOffHandlerFuncs);
   }
 
   Unbind(...idsToRemove: string[]): void {
-    this.#main.Hook.Unbind(...idsToRemove);
+    this.#hook.Unbind(...idsToRemove);
   }
 
   UnbindAll(): void {
-    this.#main.Hook.UnbindAll();
+    this.#hook.UnbindAll();
   }
 
   Length(): number {
-    return this.#main.Hook.Length();
+    return this.#hook.Length();
   }
 }
 
+const untaggedHookCache = new WeakMap<Hook<Tagger>, TaggedHook<Tagger>>();
+
 // NewTaggedHook creates a new TaggedHook with the provided main hook and optional tags.
 export function NewTaggedHook<T extends Tagger>(hook: Hook<T>, ...tags: string[]): TaggedHook<T> {
+  // PocketBun perf deviation (behavior-compatible): untagged hooks are used in hot paths
+  // (model/record create/update flow), so cache and reuse the wrapper instance.
+  if (tags.length === 0) {
+    const typedHook = hook as unknown as Hook<Tagger>;
+    const cached = untaggedHookCache.get(typedHook);
+    if (cached) {
+      return cached as unknown as TaggedHook<T>;
+    }
+    const created = new TaggedHook(hook, tags);
+    untaggedHookCache.set(typedHook, created as unknown as TaggedHook<Tagger>);
+    return created;
+  }
+
   return new TaggedHook(hook, tags);
 }

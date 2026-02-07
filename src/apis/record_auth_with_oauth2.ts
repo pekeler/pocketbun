@@ -272,7 +272,11 @@ async function oauth2Submit(
       if (createContext.hasSuperuser) {
         form.GrantSuperuserAccess();
       }
-      await form.LoadAsync(createContext.data);
+      if (event.Collection.IsAuth() && Object.prototype.hasOwnProperty.call(createContext.data, FieldNamePassword)) {
+        await form.LoadAsync(createContext.data);
+      } else {
+        form.Load(createContext.data);
+      }
 
       if (createContext.skipPlainPasswordRecordValidators) {
         const raw = createContext.record.GetRaw(FieldNamePassword);
