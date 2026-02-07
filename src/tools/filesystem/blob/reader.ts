@@ -31,7 +31,7 @@ export class Reader {
 
   async read(size?: number): Promise<Uint8Array | null> {
     await this.#ensureReader();
-    const chunk = this.#r.read(size);
+    const chunk = typeof this.#r.readAsync === "function" ? await this.#r.readAsync(size) : this.#r.read(size);
     if (chunk) {
       this.#relativeOffset += chunk.length;
     }
@@ -40,7 +40,7 @@ export class Reader {
 
   async readAll(): Promise<Uint8Array> {
     await this.#ensureReader();
-    const chunk = this.#r.readAll();
+    const chunk = typeof this.#r.readAllAsync === "function" ? await this.#r.readAllAsync() : this.#r.readAll();
     this.#relativeOffset += chunk.length;
     return chunk;
   }

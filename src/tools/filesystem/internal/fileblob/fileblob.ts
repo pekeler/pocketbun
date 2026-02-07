@@ -1,10 +1,10 @@
 // Ported from pocketbase/tools/filesystem/internal/fileblob/fileblob.go
 // Deviation: async driver methods use non-blocking fs/promises APIs where possible.
-// Deviation: reader primitives remain sync for compatibility, but writer paths also expose writeAsync for non-blocking writes.
+// Deviation: reader/writer primitives keep sync methods for compatibility, but also expose async read/write variants.
 
 import type { Dirent, Stats } from "node:fs";
 import { createHash } from "node:crypto";
-import { closeSync, mkdirSync, openSync, readSync, statSync, write as writeFd, writeSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, read as readFd, readSync, statSync, write as writeFd, writeSync } from "node:fs";
 import { mkdir, open, readdir, rename, rm, rmdir, stat, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
@@ -415,11 +415,50 @@ class FileRangeReader implements DriverReader {
     return bytesRead === buffer.length ? buffer : buffer.slice(0, bytesRead);
   }
 
+  async readAsync(size?: number): Promise<Uint8Array | null> {
+    if (this.#remaining !== null && this.#remaining <= 0) {
+      return null;
+    }
+    const remaining = this.#remaining ?? Math.max(0, this.#attrs.Size - this.#offset);
+    const toRead = size && size > 0 ? Math.min(size, remaining) : remaining;
+    if (toRead <= 0) {
+      return null;
+    }
+    const buffer = new Uint8Array(toRead);
+    const bytesRead = await readFdAsync(this.#fd, buffer, 0, toRead, this.#offset);
+    if (bytesRead <= 0) {
+      return null;
+    }
+    this.#offset += bytesRead;
+    if (this.#remaining !== null) {
+      this.#remaining -= bytesRead;
+    }
+    return bytesRead === buffer.length ? buffer : buffer.slice(0, bytesRead);
+  }
+
   readAll(): Uint8Array {
     const chunks: Uint8Array[] = [];
     let total = 0;
     let chunk: Uint8Array | null;
     while ((chunk = this.read())) {
+      chunks.push(chunk);
+      total += chunk.length;
+    }
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const part of chunks) {
+      merged.set(part, offset);
+      offset += part.length;
+    }
+    return merged;
+  }
+
+  async readAllAsync(): Promise<Uint8Array> {
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    let chunk: Uint8Array | null;
+    // eslint-disable-next-line no-cond-assign
+    while ((chunk = await this.readAsync())) {
       chunks.push(chunk);
       total += chunk.length;
     }
@@ -581,6 +620,18 @@ function writeFdAsync(fd: number, data: Uint8Array): Promise<number> {
         return;
       }
       resolve(bytesWritten ?? 0);
+    });
+  });
+}
+
+function readFdAsync(fd: number, buffer: Uint8Array, offset: number, length: number, position: number | null): Promise<number> {
+  return new Promise((resolve, reject) => {
+    readFd(fd, buffer, offset, length, position, (err, bytesRead) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(bytesRead ?? 0);
     });
   });
 }

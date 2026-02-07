@@ -73,6 +73,9 @@ export type WriterOptions = {
 export interface DriverReader {
   read(size?: number): Uint8Array | null;
   readAll(): Uint8Array;
+  // PocketBun-only async alternatives to read/readAll.
+  readAsync?(size?: number): Promise<Uint8Array | null>;
+  readAllAsync?(): Promise<Uint8Array>;
   close(): void;
   Attributes(): ReaderAttributes;
 }
