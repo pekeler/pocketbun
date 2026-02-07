@@ -147,11 +147,14 @@ Current extensions:
 - Base app bootstrap now exposes an async startup variant:
   - sync: `app.bootstrap()`
   - async: `await app.bootstrapAsync()`
+- JSVM plugin registration now exposes async startup variants:
+  - sync: `RegisterJSVM(...)`, `MustRegisterJSVM(...)`
+  - async: `await RegisterJSVMAsync(...)`, `await MustRegisterJSVMAsync(...)`
 
 Example:
 
 ```ts
-import { BaseApp, CreateAsync, ExtractAsync, NewRegistry } from "pocketbun";
+import { BaseApp, CreateAsync, ExtractAsync, NewRegistry, RegisterJSVMAsync } from "pocketbun";
 
 await CreateAsync("pb_data", "/tmp/pb_backup.zip", "backups");
 await ExtractAsync("/tmp/pb_backup.zip", "/tmp/pb_restore");
@@ -162,6 +165,7 @@ const html = renderer.Render({ title: "Hello" });
 
 const app = new BaseApp({ dataDir: "pb_data" });
 await app.bootstrapAsync();
+await RegisterJSVMAsync(app, {});
 ```
 
 ### CLI Updates

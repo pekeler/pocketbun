@@ -9,7 +9,13 @@ export { type App } from "./src/core/app.ts";
 export { type ServeEvent } from "./src/core/events.ts";
 export { migrate, type MigrateMode } from "./src/core/migrate.ts";
 export { New, NewWithConfig, PocketBase, type PocketBaseConfig, Version } from "./src/pocketbase.ts";
-export { Register as RegisterJSVM, MustRegister as MustRegisterJSVM, type Config as JSVMConfig } from "./src/plugins/jsvm/jsvm.ts";
+export {
+  Register as RegisterJSVM,
+  MustRegister as MustRegisterJSVM,
+  RegisterAsync as RegisterJSVMAsync,
+  MustRegisterAsync as MustRegisterJSVMAsync,
+  type Config as JSVMConfig,
+} from "./src/plugins/jsvm/jsvm.ts";
 export {
   Register as RegisterMigrateCmd,
   MustRegister as MustRegisterMigrateCmd,

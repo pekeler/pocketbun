@@ -4,7 +4,7 @@
 import { join } from "node:path";
 import type { ServeEvent } from "./core/events.ts";
 import { Static } from "./apis/base.ts";
-import { MustRegister as RegisterJSVM } from "./plugins/jsvm/jsvm.ts";
+import { MustRegisterAsync as RegisterJSVM } from "./plugins/jsvm/jsvm.ts";
 import { MustRegister as RegisterMigrateCmd, TemplateLangJS } from "./plugins/migratecmd/migratecmd.ts";
 import { New } from "./pocketbase.ts";
 import { IsProbablyGoRun } from "./tools/osutils/run.ts";
@@ -77,7 +77,7 @@ export async function main(): Promise<void> {
   // ---------------------------------------------------------------
 
   // load jsvm (pb_hooks and pb_migrations)
-  RegisterJSVM(app, {
+  await RegisterJSVM(app, {
     MigrationsDir: flags.migrationsDir,
     HooksDir: flags.hooksDir,
     HooksWatch: flags.hooksWatch,

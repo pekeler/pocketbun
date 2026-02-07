@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { buildServeHandler } from "../../apis/serve.ts";
 import { CollectionNameSuperusers } from "../../core/collection_model.ts";
 import { newTestApp } from "../../tests/app.ts";
-import { Register } from "./jsvm.ts";
+import { Register, RegisterAsync } from "./jsvm.ts";
 
 describe("jsvm loader", () => {
   it.serial("loads hooks and migrations from pb_* directories", async () => {
@@ -86,7 +86,7 @@ onModelUpdate((e) => {
     );
 
     try {
-      const err = Register(app, {
+      const err = await RegisterAsync(app, {
         HooksDir: hooksDir,
         TypesDir: rootDir,
       });
