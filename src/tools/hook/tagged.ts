@@ -38,14 +38,14 @@ export class TaggedHook<T extends Tagger> {
       return this.#hook.Bind(handler);
     }
 
-    const fn = handler.Func;
-    handler.Func = (event: T) => {
-      if (this.CanTriggerOn(event.Tags())) {
-        return fn(event);
-      }
-      return event.Next();
-    };
-    return this.#hook.Bind(handler);
+    // PocketBun perf deviation (behavior-compatible): avoid wrapping every tagged
+    // handler with a runtime `event.Next()` branch. Hook.Trigger will skip
+    // non-matching tagged handlers directly.
+    const taggedHandler = {
+      ...handler,
+      __pbTagSet: this.#tagSet,
+    } as Handler<T> & { __pbTagSet?: Set<string> | null };
+    return this.#hook.Bind(taggedHandler);
   }
 
   BindFunc(fn: HandlerFunc<T>): string {
@@ -53,12 +53,11 @@ export class TaggedHook<T extends Tagger> {
       return this.#hook.BindFunc(fn);
     }
 
-    return this.#hook.BindFunc((event: T) => {
-      if (this.CanTriggerOn(event.Tags())) {
-        return fn(event);
-      }
-      return event.Next();
-    });
+    const taggedHandler = {
+      Func: fn,
+      __pbTagSet: this.#tagSet,
+    } as Handler<T> & { __pbTagSet?: Set<string> | null };
+    return this.#hook.Bind(taggedHandler);
   }
 
   Trigger(event: T, ...oneOffHandlerFuncs: HandlerFunc<T>[]): unknown {

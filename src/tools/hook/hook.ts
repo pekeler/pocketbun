@@ -16,6 +16,12 @@ export type Handler<T extends Resolver> = {
   Priority?: number;
 };
 
+type InternalHandler<T extends Resolver> = Handler<T> & {
+  // PocketBun perf deviation (behavior-compatible): optional matcher metadata
+  // attached by TaggedHook so Hook.Trigger can skip non-matching handlers.
+  __pbTagSet?: Set<string> | null;
+};
+
 // Hook defines a generic concurrent safe structure for managing event hooks.
 //
 // When using custom event it must embed the base [hook.Event].
@@ -37,29 +43,30 @@ export type Handler<T extends Resolver> = {
 //
 //	h.Trigger(&CustomEvent{ SomeField: 123 })
 export class Hook<T extends Resolver> {
-  #handlers: Handler<T>[] = [];
+  #handlers: InternalHandler<T>[] = [];
 
   Bind(handler: Handler<T>): string {
+    const internalHandler = handler as InternalHandler<T>;
     let exists = false;
-    if (!handler.Id) {
-      handler.Id = generateHookId();
-      while (this.#handlers.some((existing) => existing.Id === handler.Id)) {
-        handler.Id = generateHookId();
+    if (!internalHandler.Id) {
+      internalHandler.Id = generateHookId();
+      while (this.#handlers.some((existing) => existing.Id === internalHandler.Id)) {
+        internalHandler.Id = generateHookId();
       }
     } else {
-      const index = this.#handlers.findIndex((existing) => existing.Id === handler.Id);
+      const index = this.#handlers.findIndex((existing) => existing.Id === internalHandler.Id);
       if (index >= 0) {
-        this.#handlers[index] = handler;
+        this.#handlers[index] = internalHandler;
         exists = true;
       }
     }
 
     if (!exists) {
-      this.#handlers.push(handler);
+      this.#handlers.push(internalHandler);
     }
 
     this.#handlers.sort((a, b) => (a.Priority ?? 0) - (b.Priority ?? 0));
-    return handler.Id ?? "";
+    return internalHandler.Id ?? "";
   }
 
   BindFunc(fn: HandlerFunc<T>): string {
@@ -87,6 +94,7 @@ export class Hook<T extends Resolver> {
     const doProfile = profileEnabled();
     const handlersLen = this.#handlers.length;
     const oneOffLen = oneOffHandlerFuncs.length;
+    const tagCache: { tags?: string[] } = {};
 
     if (!doProfile) {
       // PocketBun perf deviation (behavior-compatible): avoid temporary handler array/object
@@ -107,7 +115,15 @@ export class Hook<T extends Resolver> {
         while (index < totalLen) {
           const current = index;
           index += 1;
-          const handler = current < handlersLen ? this.#handlers[current]?.Func : oneOffHandlerFuncs[current - handlersLen];
+          if (current < handlersLen) {
+            const handler = this.#handlers[current];
+            if (!handler || !canRunTaggedHandler(handler, event, tagCache)) {
+              continue;
+            }
+            return handler.Func(event);
+          }
+
+          const handler = oneOffHandlerFuncs[current - handlersLen];
           if (!handler) {
             continue;
           }
@@ -122,15 +138,14 @@ export class Hook<T extends Resolver> {
     }
 
     const handlers: Array<{ func: HandlerFunc<T>; id?: string }> = [];
-    handlers.length = this.#handlers.length + oneOffHandlerFuncs.length;
-    let index = 0;
     for (const handler of this.#handlers) {
-      handlers[index] = { func: handler.Func, id: handler.Id };
-      index += 1;
+      if (!canRunTaggedHandler(handler, event, tagCache)) {
+        continue;
+      }
+      handlers.push({ func: handler.Func, id: handler.Id });
     }
     for (const handler of oneOffHandlerFuncs) {
-      handlers[index] = { func: handler };
-      index += 1;
+      handlers.push({ func: handler });
     }
 
     for (let i = handlers.length - 1; i >= 0; i -= 1) {
@@ -185,6 +200,26 @@ export class Hook<T extends Resolver> {
 
     return event.Next();
   }
+}
+
+function canRunTaggedHandler<T extends Resolver>(handler: InternalHandler<T>, event: T, cache: { tags?: string[] }): boolean {
+  const tagSet = handler.__pbTagSet;
+  if (!tagSet || tagSet.size === 0) {
+    return true;
+  }
+
+  if (!cache.tags) {
+    const tagger = event as unknown as { Tags?: () => string[] };
+    cache.tags = typeof tagger.Tags === "function" ? (tagger.Tags() ?? []) : [];
+  }
+
+  for (const tag of cache.tags) {
+    if (tagSet.has(tag)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function generateHookId(): string {
