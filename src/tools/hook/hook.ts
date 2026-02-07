@@ -111,7 +111,6 @@ export class Hook<T extends Resolver> {
           if (!handler) {
             continue;
           }
-          event.setNextFunc(next);
           return handler(event);
         }
         event.setNextFunc(null);

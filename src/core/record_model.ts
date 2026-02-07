@@ -448,14 +448,35 @@ export class Record {
   }
 
   ReplaceModifiers(data: RecordData): RecordData {
-    if (Object.keys(data).length === 0) {
+    const dataKeys = Object.keys(data);
+    if (dataKeys.length === 0) {
       return data;
     }
 
     const dataCopy: RecordData = { ...data };
     const recordCopy = this.Fresh();
 
-    const sortedKeys = Object.keys(data)
+    if (dataKeys.length === 1) {
+      const onlyKey = dataKeys[0];
+      if (!onlyKey) {
+        return dataCopy;
+      }
+
+      if (this.#collection.isAuth() && onlyKey === FieldNamePassword) {
+        delete dataCopy[onlyKey];
+        dataCopy[FieldNamePassword] = toStringValue(data[onlyKey]);
+        return dataCopy;
+      }
+
+      const field = recordCopy.SetIfFieldExists(onlyKey, data[onlyKey]);
+      if (field) {
+        delete dataCopy[onlyKey];
+        dataCopy[field.GetName()] = recordCopy.Get(field.GetName());
+      }
+      return dataCopy;
+    }
+
+    const sortedKeys = dataKeys
       .map((key, index) => ({ key, index }))
       .sort((a, b) => {
         const lenDiff = a.key.length - b.key.length;
