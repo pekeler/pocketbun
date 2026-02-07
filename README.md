@@ -39,12 +39,10 @@ todo
 Create a small server script (for example `server.ts`):
 
 ```ts
-import { BaseApp, serve } from "pocketbun";
+import { BaseApp, serveAsync } from "pocketbun";
 
 const app = new BaseApp({ dataDir: "pb_data" });
-app.bootstrap();
-
-serve(app, { httpAddr: "127.0.0.1:8090" });
+await serveAsync(app, { httpAddr: "127.0.0.1:8090" });
 ```
 
 Run it:
@@ -115,14 +113,14 @@ Category summary (geometric mean over comparable scenarios):
 PocketBun ships as a library and also provides a CLI wrapper. Use the library exports to run migrations, start the server, and manage superusers:
 
 ```ts
-import { BaseApp, migrate, serve, superuser } from "pocketbun";
+import { BaseApp, migrateAsync, serveAsync, superuser } from "pocketbun";
 
 const app = new BaseApp({ dataDir: "pb_data" });
 
-migrate(app);
-serve(app, { httpAddr: "127.0.0.1:8090" });
+await migrateAsync(app);
+await serveAsync(app, { httpAddr: "127.0.0.1:8090" });
 
-superuser.upsert(app, "admin@example.com", "change-me");
+await superuser.upsert(app, "admin@example.com", "change-me");
 ```
 
 CLI usage (PocketBase-style):
