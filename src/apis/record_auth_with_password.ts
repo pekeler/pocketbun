@@ -95,7 +95,7 @@ export async function recordAuthWithPassword(app: App, event: RequestEvent): Pro
   hookEvent.IdentityField = form.identityField;
 
   const out = await app.OnRecordAuthWithPasswordRequest().Trigger(hookEvent, async () => {
-    if (!hookEvent.Record || !hookEvent.Record.ValidatePassword(hookEvent.Password)) {
+    if (!hookEvent.Record || !(await hookEvent.Record.ValidatePasswordAsync(hookEvent.Password))) {
       return badRequest(event, "Failed to authenticate.");
     }
 

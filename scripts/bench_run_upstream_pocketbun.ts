@@ -1,7 +1,7 @@
 // PocketBun-only: runs a PocketBun-native port of the upstream pocketbase/benchmarks app.
 
 import type { AddressInfo } from "node:net";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -11,8 +11,10 @@ import { MustRegisterJSVM, NewWithConfig, serve } from "../index.ts";
 import { CollectionNameSuperusers } from "../src/core/collection_model.ts";
 import { NewRecord } from "../src/core/record_model.ts";
 import { registerBenchmarkModule } from "./bench_upstream_pocketbun/module.ts";
+import { benchmarkSchema } from "./bench_upstream_pocketbun/schema.ts";
 
-const benchmarkRun = process.env.POCKETBUN_BENCHMARK_RUN ?? "create,auth,search,custom,delete";
+const benchmarkRunOverrideFile = process.env.POCKETBUN_BENCHMARK_RUN_FILE ?? "/tmp/pocketbun-bench-upstream-run.txt";
+const benchmarkRun = await resolveBenchmarkRun(benchmarkRunOverrideFile);
 const machineTag = sanitizeTag(process.env.POCKETBUN_BENCH_MACHINE_TAG ?? "m2-max");
 const timestampTag = createTimestampTag(new Date());
 const resultsDir = process.env.POCKETBUN_BENCH_RESULTS_DIR ?? "benchmarks/results";
@@ -24,6 +26,9 @@ const latestResultFile = process.env.POCKETBUN_BENCHMARK_RESULT_LATEST_FILE ?? "
 const serverReadyTimeoutMs = 60_000;
 const benchmarkTimeoutMs = 120 * 60_000;
 const pollIntervalMs = 5_000;
+const probePassword = "1234567890";
+const probeUserEmail = "users0@example.com";
+const probeUserUsername = "users0";
 
 const hooksDir = fileURLToPath(new URL("../vendor/pocketbase-benchmarks/pb_hooks", import.meta.url));
 const port = await pickPort();
@@ -51,6 +56,16 @@ const server = serve(app, { httpAddr: `127.0.0.1:${port}` });
 
 try {
   await ensureServerReady();
+
+  const runNames = benchmarkRun
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name !== "");
+  if (runNames.includes("auth") && !runNames.includes("create")) {
+    const token = await authSuperuser();
+    await importProbeSchema(token);
+    await ensureProbeAuthIdentity(token);
+  }
 
   const trigger = await fetch(`${baseUrl}/benchmarks?run=${encodeURIComponent(benchmarkRun)}`);
   if (!trigger.ok) {
@@ -106,6 +121,33 @@ function sanitizeTag(value: string): string {
   return value.trim().replace(/[^a-zA-Z0-9._-]+/g, "-");
 }
 
+async function resolveBenchmarkRun(overrideFile: string): Promise<string> {
+  const envRun = process.env.POCKETBUN_BENCHMARK_RUN?.trim();
+  if (envRun) {
+    return envRun;
+  }
+
+  try {
+    const raw = await readFile(overrideFile, "utf8");
+    const firstNonCommentLine = raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line !== "" && !line.startsWith("#"));
+
+    if (firstNonCommentLine) {
+      console.log(`Using benchmark run override from ${overrideFile}: ${firstNonCommentLine}`);
+      return firstNonCommentLine;
+    }
+  } catch (error) {
+    const errno = error as NodeJS.ErrnoException;
+    if (errno.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  return "create,auth,search,custom,delete";
+}
+
 async function ensureServerReady(): Promise<void> {
   const deadline = Date.now() + serverReadyTimeoutMs;
 
@@ -146,6 +188,124 @@ async function authSuperuser(): Promise<string> {
   }
 
   return token;
+}
+
+type ProbeAuthIdentity = {
+  id: string;
+  email: string;
+  password: string;
+};
+
+async function ensureProbeAuthIdentity(superuserToken: string): Promise<ProbeAuthIdentity> {
+  const usersResponse = await fetch(`${baseUrl}/api/collections/users/records?perPage=200&fields=id,email`, {
+    headers: { Authorization: superuserToken },
+  });
+  if (!usersResponse.ok) {
+    throw new Error(`failed to fetch users for probe: HTTP ${usersResponse.status}`);
+  }
+  const usersPayload = (await usersResponse.json()) as { items?: Array<{ id?: string; email?: string }> };
+  const existingUser = usersPayload.items?.find((item) => item.email === probeUserEmail);
+  if (existingUser?.id && existingUser.email) {
+    return {
+      id: existingUser.id,
+      email: existingUser.email,
+      password: probePassword,
+    };
+  }
+
+  const probeOrganizationName = `probe-org-${Date.now()}`;
+  const createOrganizationResponse = await fetch(`${baseUrl}/api/collections/organizations/records`, {
+    method: "POST",
+    headers: {
+      Authorization: superuserToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: probeOrganizationName,
+    }),
+  });
+  if (!createOrganizationResponse.ok) {
+    const body = compactErrorSample(await createOrganizationResponse.text());
+    throw new Error(`failed to create probe organization: HTTP ${createOrganizationResponse.status} ${body}`);
+  }
+  const createdOrganization = (await createOrganizationResponse.json()) as { id?: string };
+  if (!createdOrganization.id) {
+    throw new Error("failed to read created probe organization id");
+  }
+
+  const probePermissionName = `probe-perm-${Date.now()}`;
+  const createPermissionResponse = await fetch(`${baseUrl}/api/collections/permissions/records`, {
+    method: "POST",
+    headers: {
+      Authorization: superuserToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: probePermissionName,
+      active: true,
+    }),
+  });
+  if (!createPermissionResponse.ok) {
+    const body = compactErrorSample(await createPermissionResponse.text());
+    throw new Error(`failed to create probe permission: HTTP ${createPermissionResponse.status} ${body}`);
+  }
+  const createdPermission = (await createPermissionResponse.json()) as { id?: string };
+  if (!createdPermission.id) {
+    throw new Error("failed to read created probe permission id");
+  }
+
+  const createUserResponse = await fetch(`${baseUrl}/api/collections/users/records`, {
+    method: "POST",
+    headers: {
+      Authorization: superuserToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email: probeUserEmail,
+      username: probeUserUsername,
+      organization: createdOrganization.id,
+      permissions: [createdPermission.id],
+      password: probePassword,
+      passwordConfirm: probePassword,
+    }),
+  });
+  if (!createUserResponse.ok) {
+    const body = compactErrorSample(await createUserResponse.text());
+    throw new Error(`failed to create probe user: HTTP ${createUserResponse.status} ${body}`);
+  }
+  const createdUser = (await createUserResponse.json()) as { id?: string; email?: string };
+  if (!createdUser.id || !createdUser.email) {
+    throw new Error("failed to read created probe user");
+  }
+
+  return {
+    id: createdUser.id,
+    email: createdUser.email,
+    password: probePassword,
+  };
+}
+
+async function importProbeSchema(token: string): Promise<void> {
+  const importResponse = await fetch(`${baseUrl}/api/collections/import`, {
+    method: "PUT",
+    headers: {
+      Authorization: token,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      deleteMissing: true,
+      collections: JSON.parse(benchmarkSchema) as unknown[],
+    }),
+  });
+
+  if (!importResponse.ok) {
+    const body = compactErrorSample(await importResponse.text());
+    throw new Error(`failed to import probe schema: HTTP ${importResponse.status} ${body}`);
+  }
+}
+
+function compactErrorSample(raw: string): string {
+  return raw.replace(/\s+/g, " ").trim().slice(0, 240);
 }
 
 async function ensureDefaultSuperuser(): Promise<void> {

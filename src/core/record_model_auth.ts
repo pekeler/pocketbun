@@ -20,6 +20,7 @@ declare module "./record_model.ts" {
     SetPassword(password: string): void;
     SetRandomPassword(): string;
     ValidatePassword(password: string): boolean;
+    ValidatePasswordAsync(password: string): Promise<boolean>;
   }
 }
 
@@ -83,5 +84,13 @@ export function attachRecordAuthMethods(RecordCtor: { prototype: Record }): void
       return false;
     }
     return raw.Validate(password);
+  };
+
+  RecordCtor.prototype.ValidatePasswordAsync = async function (this: Record, password: string): Promise<boolean> {
+    const raw = this.GetRaw(FieldNamePassword);
+    if (!(raw instanceof PasswordFieldValue)) {
+      return false;
+    }
+    return await raw.ValidateAsync(password);
   };
 }

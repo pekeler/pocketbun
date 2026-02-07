@@ -29,7 +29,7 @@ describe("RecordUpsert", () => {
       const scenarios: Array<{
         name: string;
         data: Record<string, unknown>;
-        record: RecordModel;
+        buildRecord: () => RecordModel;
         managerAccessLevel?: boolean;
         superuserAccessLevel?: boolean;
         expected: string[];
@@ -47,7 +47,7 @@ describe("RecordUpsert", () => {
             password: "456",
             passwordConfirm: "789",
           },
-          record: NewRecord(demo1Col),
+          buildRecord: () => NewRecord(demo1Col),
           expected: [
             '"text":"test_text"',
             '"number":456',
@@ -66,7 +66,7 @@ describe("RecordUpsert", () => {
             password: "456",
             passwordConfirm: "789",
           },
-          record: NewRecord(usersCol),
+          buildRecord: () => NewRecord(usersCol),
           expected: ['"email":"test@example.com"', '"password":"456"'],
           notExpected: ['"oldPassword"', '"passwordConfirm"'],
         },
@@ -80,7 +80,7 @@ describe("RecordUpsert", () => {
             passwordConfirm: "789",
           },
           managerAccessLevel: true,
-          record: NewRecord(usersCol),
+          buildRecord: () => NewRecord(usersCol),
           expected: ['"email":"test@example.com"', '"tokenKey":""', '"password":"456"'],
           notExpected: ['"oldPassword"', '"passwordConfirm"'],
         },
@@ -94,7 +94,7 @@ describe("RecordUpsert", () => {
             passwordConfirm: "789",
           },
           superuserAccessLevel: true,
-          record: NewRecord(usersCol),
+          buildRecord: () => NewRecord(usersCol),
           expected: ['"email":"test@example.com"', '"tokenKey":"abc"', '"password":"456"'],
           notExpected: ['"oldPassword"', '"passwordConfirm"'],
         },
@@ -104,38 +104,56 @@ describe("RecordUpsert", () => {
             file_one: file,
             url: file,
           },
-          record: NewRecord(demo1Col),
+          buildRecord: () => NewRecord(demo1Col),
           expected: ['"file_one":{', '"originalName":"test.txt"', '"url":""'],
         },
       ];
 
-      for (const scenario of scenarios) {
-        const form = new RecordUpsert(app, scenario.record);
-        if (scenario.managerAccessLevel) {
-          form.GrantManagerAccess();
-        }
-        if (scenario.superuserAccessLevel) {
-          form.GrantSuperuserAccess();
-        }
+      const loaders = [
+        {
+          name: "sync",
+          load: async (form: RecordUpsert, data: Record<string, unknown>) => {
+            form.Load(data);
+          },
+        },
+        {
+          name: "async",
+          load: async (form: RecordUpsert, data: Record<string, unknown>) => {
+            await form.LoadAsync(data);
+          },
+        },
+      ];
 
-        if (!form.HasManageAccess() && (scenario.managerAccessLevel || scenario.superuserAccessLevel)) {
-          throw new Error("Expected the form to have manage access level (manager or superuser)");
-        }
-
-        form.Load(scenario.data);
-
-        const loaded = { ...scenario.record.FieldsData(), ...scenario.record.CustomData() };
-        const rawStr = JSON.stringify(loaded);
-
-        for (const expected of scenario.expected) {
-          if (!rawStr.includes(expected)) {
-            throw new Error(`Couldn't find ${expected} in ${rawStr}`);
+      for (const loader of loaders) {
+        for (const scenario of scenarios) {
+          const record = scenario.buildRecord();
+          const form = new RecordUpsert(app, record);
+          if (scenario.managerAccessLevel) {
+            form.GrantManagerAccess();
           }
-        }
+          if (scenario.superuserAccessLevel) {
+            form.GrantSuperuserAccess();
+          }
 
-        for (const notExpected of scenario.notExpected ?? []) {
-          if (rawStr.includes(notExpected)) {
-            throw new Error(`Didn't expect ${notExpected} in ${rawStr}`);
+          if (!form.HasManageAccess() && (scenario.managerAccessLevel || scenario.superuserAccessLevel)) {
+            throw new Error("Expected the form to have manage access level (manager or superuser)");
+          }
+
+          await loader.load(form, scenario.data);
+
+          const loaded = { ...record.FieldsData(), ...record.CustomData() };
+          const rawStr = JSON.stringify(loaded);
+
+          for (const expected of scenario.expected) {
+            if (!rawStr.includes(expected)) {
+              throw new Error(`[${loader.name}] Couldn't find ${expected} in ${rawStr}`);
+            }
+          }
+
+          for (const notExpected of scenario.notExpected ?? []) {
+            if (rawStr.includes(notExpected)) {
+              throw new Error(`[${loader.name}] Didn't expect ${notExpected} in ${rawStr}`);
+            }
           }
         }
       }

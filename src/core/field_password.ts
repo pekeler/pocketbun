@@ -24,7 +24,7 @@ export const FieldTypePassword = "password";
 
 const bcryptMinCost = 4;
 const bcryptMaxCost = 31;
-const bcryptDefaultCost = 12;
+const bcryptDefaultCost = 10;
 
 // PasswordField defines "password" type field for storing bcrypt hashed strings
 // (usually used only internally for the "password" auth collection system field).
@@ -230,6 +230,16 @@ export class PasswordField implements Field, GetterFinder, SetterFinder, DriverV
   }
 
   private setValue(record: RecordLike, raw: unknown): void {
+    record.SetRaw(this.Name, this.createPasswordValue(raw));
+  }
+
+  // PocketBun-only: async hashing variant used by hot request paths to avoid
+  // blocking Bun's main thread under high concurrency.
+  async SetValueAsync(record: RecordLike, raw: unknown): Promise<void> {
+    record.SetRaw(this.Name, await this.createPasswordValueAsync(raw));
+  }
+
+  private createPasswordValue(raw: unknown): PasswordFieldValue {
     const value = new PasswordFieldValue(toStringValue(raw));
     if (value.Plain !== "") {
       const cost = this.Cost > 0 ? this.Cost : bcryptDefaultCost;
@@ -242,7 +252,23 @@ export class PasswordField implements Field, GetterFinder, SetterFinder, DriverV
         value.LastError = error as Error;
       }
     }
-    record.SetRaw(this.Name, value);
+    return value;
+  }
+
+  private async createPasswordValueAsync(raw: unknown): Promise<PasswordFieldValue> {
+    const value = new PasswordFieldValue(toStringValue(raw));
+    if (value.Plain !== "") {
+      const cost = this.Cost > 0 ? this.Cost : bcryptDefaultCost;
+      try {
+        value.Hash = await Bun.password.hash(value.Plain, {
+          algorithm: "bcrypt",
+          cost,
+        });
+      } catch (error) {
+        value.LastError = error as Error;
+      }
+    }
+    return value;
   }
 }
 
@@ -262,6 +288,13 @@ export class PasswordFieldValue {
       return false;
     }
     return Bun.password.verifySync(pass, this.Hash);
+  }
+
+  async ValidateAsync(pass: string): Promise<boolean> {
+    if (!this.Hash || this.LastError) {
+      return false;
+    }
+    return await Bun.password.verify(pass, this.Hash);
   }
 }
 

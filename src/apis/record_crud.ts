@@ -540,7 +540,7 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
   if (hasSuperuser) {
     form.GrantSuperuserAccess();
   }
-  form.Load(data);
+  await form.LoadAsync(data);
 
   if (skipPlainPasswordRecordValidators) {
     const raw = record.GetRaw(FieldNamePassword);
@@ -657,7 +657,7 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
   if (hasSuperuser) {
     form.GrantSuperuserAccess();
   }
-  form.Load(data);
+  await form.LoadAsync(data);
   if (!form.HasManageAccess()) {
     let manageSelect = `select 1 from {{${collection.name}}}`;
     const manageParams: SQLQueryBindings[] = [record.Id];

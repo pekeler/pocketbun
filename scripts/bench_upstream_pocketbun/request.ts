@@ -1,5 +1,6 @@
 // Ported from vendor/pocketbase-benchmarks/benchmarks/request.go.
 import type { BodyInit } from "bun";
+import { setTimeout as delay } from "node:timers/promises";
 
 export type BenchRequestOptions = {
   Body?: BodyInit | null;
@@ -38,19 +39,38 @@ export class BenchRequest {
       headers.set("content-type", "application/json");
     }
 
-    const response = await fetch(this.Url, {
-      method: this.Method,
-      body: this.Body,
-      headers,
-      signal: this.Context,
-    });
+    // PocketBun-only: mirror upstream benchmark-runner retry behavior for
+    // transient local socket exhaustion under very high client concurrency.
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      try {
+        response = await fetch(this.Url, {
+          method: this.Method,
+          body: this.Body,
+          headers,
+          signal: this.Context,
+        });
+        break;
+      } catch (error) {
+        if (!String(error).includes("can't assign requested address")) {
+          throw error;
+        }
+        await delay(2);
+      }
+    }
+    if (response == null) {
+      throw new Error(`request transport failed for ${this.Method} ${this.Url}`);
+    }
 
     if (response.status >= 400) {
       throw new Error(`request failed with status ${response.status}`);
     }
 
+    // Read to EOF so HTTP keep-alive connections are reusable.
+    const bodyRaw = await response.text();
+
     if (destBody != null) {
-      const payload = (await response.json()) as Record<string, unknown>;
+      const payload = JSON.parse(bodyRaw) as Record<string, unknown>;
       Object.assign(destBody, payload);
     }
   }

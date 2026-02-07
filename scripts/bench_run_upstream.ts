@@ -38,6 +38,9 @@ const latestResultFile = process.env.POCKETBUN_BENCHMARK_RESULT_LATEST_FILE ?? "
 const serverReadyTimeoutMs = 60_000;
 const benchmarkTimeoutMs = 90 * 60_000;
 const pollIntervalMs = 5_000;
+const probePassword = "1234567890";
+const probeUserEmail = "users0@example.com";
+const probeUserUsername = "users0";
 
 const goBinary = process.env.POCKETBUN_GO_BIN ?? "/opt/homebrew/bin/go";
 const upstreamBuildGoos = process.env.POCKETBUN_UPSTREAM_BUILD_GOOS ?? "linux";
@@ -135,6 +138,16 @@ try {
     console.log(`\nSaved probe report to: ${repoResultFile}`);
     console.log(`Saved latest probe report to: ${latestResultFile}`);
   } else {
+    const runNames = benchmarkRun
+      .split(",")
+      .map((name) => name.trim())
+      .filter((name) => name !== "");
+    if (runNames.includes("auth") && !runNames.includes("create")) {
+      const token = await authSuperuser();
+      await importProbeSchema(token);
+      await ensureProbeAuthIdentity(token);
+    }
+
     const trigger = await fetch(`${baseUrl}/benchmarks?run=${encodeURIComponent(benchmarkRun)}`);
     if (!trigger.ok) {
       throw new Error(`failed to start upstream benchmarks: HTTP ${trigger.status}`);
@@ -607,88 +620,19 @@ type ProbeFailure = {
   sample: string;
 };
 
+type ProbeAuthIdentity = {
+  id: string;
+  email: string;
+  password: string;
+};
+
 async function runCreateErrorProbe(superuserToken: string): Promise<string> {
   const collection = "posts25k";
   const iterations = 12500;
   const concurrency = 500;
   const types = ["a", "b", "c", "d"];
-
-  const usersResponse = await fetch(`${baseUrl}/api/collections/users/records?perPage=200&fields=id`, {
-    headers: { Authorization: superuserToken },
-  });
-  if (!usersResponse.ok) {
-    throw new Error(`failed to fetch users for probe: HTTP ${usersResponse.status}`);
-  }
-  const usersPayload = (await usersResponse.json()) as { items?: Array<{ id?: string }> };
-  const userIds = (usersPayload.items ?? []).map((item) => item.id ?? "").filter((id) => id !== "");
-  if (userIds.length === 0) {
-    const probeOrganizationName = `probe-org-${Date.now()}`;
-    const createOrganizationResponse = await fetch(`${baseUrl}/api/collections/organizations/records`, {
-      method: "POST",
-      headers: {
-        Authorization: superuserToken,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: probeOrganizationName,
-      }),
-    });
-    if (!createOrganizationResponse.ok) {
-      const body = compactErrorSample(await createOrganizationResponse.text());
-      throw new Error(`failed to create probe organization: HTTP ${createOrganizationResponse.status} ${body}`);
-    }
-    const createdOrganization = (await createOrganizationResponse.json()) as { id?: string };
-    if (!createdOrganization.id) {
-      throw new Error("failed to read created probe organization id");
-    }
-
-    const probePermissionName = `probe-perm-${Date.now()}`;
-    const createPermissionResponse = await fetch(`${baseUrl}/api/collections/permissions/records`, {
-      method: "POST",
-      headers: {
-        Authorization: superuserToken,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: probePermissionName,
-        active: true,
-      }),
-    });
-    if (!createPermissionResponse.ok) {
-      const body = compactErrorSample(await createPermissionResponse.text());
-      throw new Error(`failed to create probe permission: HTTP ${createPermissionResponse.status} ${body}`);
-    }
-    const createdPermission = (await createPermissionResponse.json()) as { id?: string };
-    if (!createdPermission.id) {
-      throw new Error("failed to read created probe permission id");
-    }
-
-    const probeIdentity = `probe-user-${Date.now()}@example.com`;
-    const createUserResponse = await fetch(`${baseUrl}/api/collections/users/records`, {
-      method: "POST",
-      headers: {
-        Authorization: superuserToken,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: probeIdentity,
-        username: probeIdentity.replace(/@.*/, "").slice(0, 32),
-        organization: createdOrganization.id,
-        permissions: [createdPermission.id],
-        password: "1234567890",
-        passwordConfirm: "1234567890",
-      }),
-    });
-    if (!createUserResponse.ok) {
-      const body = compactErrorSample(await createUserResponse.text());
-      throw new Error(`failed to create probe user: HTTP ${createUserResponse.status} ${body}`);
-    }
-    const createdUser = (await createUserResponse.json()) as { id?: string };
-    if (!createdUser.id) {
-      throw new Error("failed to read created probe user id");
-    }
-    userIds.push(createdUser.id);
-  }
+  const probeIdentity = await ensureProbeAuthIdentity(superuserToken);
+  const userIds = [probeIdentity.id];
 
   const updateCollectionResponse = await fetch(`${baseUrl}/api/collections/${collection}`, {
     method: "PATCH",
@@ -791,6 +735,95 @@ async function runCreateErrorProbe(superuserToken: string): Promise<string> {
   const report = reportLines.join("\n");
   console.log("\n" + report);
   return report;
+}
+
+async function ensureProbeAuthIdentity(superuserToken: string): Promise<ProbeAuthIdentity> {
+  const usersResponse = await fetch(`${baseUrl}/api/collections/users/records?perPage=200&fields=id,email`, {
+    headers: { Authorization: superuserToken },
+  });
+  if (!usersResponse.ok) {
+    throw new Error(`failed to fetch users for probe: HTTP ${usersResponse.status}`);
+  }
+  const usersPayload = (await usersResponse.json()) as { items?: Array<{ id?: string; email?: string }> };
+  const existingUser = usersPayload.items?.find((item) => item.email === probeUserEmail);
+  if (existingUser?.id && existingUser.email) {
+    return {
+      id: existingUser.id,
+      email: existingUser.email,
+      password: probePassword,
+    };
+  }
+
+  const probeOrganizationName = `probe-org-${Date.now()}`;
+  const createOrganizationResponse = await fetch(`${baseUrl}/api/collections/organizations/records`, {
+    method: "POST",
+    headers: {
+      Authorization: superuserToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: probeOrganizationName,
+    }),
+  });
+  if (!createOrganizationResponse.ok) {
+    const body = compactErrorSample(await createOrganizationResponse.text());
+    throw new Error(`failed to create probe organization: HTTP ${createOrganizationResponse.status} ${body}`);
+  }
+  const createdOrganization = (await createOrganizationResponse.json()) as { id?: string };
+  if (!createdOrganization.id) {
+    throw new Error("failed to read created probe organization id");
+  }
+
+  const probePermissionName = `probe-perm-${Date.now()}`;
+  const createPermissionResponse = await fetch(`${baseUrl}/api/collections/permissions/records`, {
+    method: "POST",
+    headers: {
+      Authorization: superuserToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      name: probePermissionName,
+      active: true,
+    }),
+  });
+  if (!createPermissionResponse.ok) {
+    const body = compactErrorSample(await createPermissionResponse.text());
+    throw new Error(`failed to create probe permission: HTTP ${createPermissionResponse.status} ${body}`);
+  }
+  const createdPermission = (await createPermissionResponse.json()) as { id?: string };
+  if (!createdPermission.id) {
+    throw new Error("failed to read created probe permission id");
+  }
+
+  const createUserResponse = await fetch(`${baseUrl}/api/collections/users/records`, {
+    method: "POST",
+    headers: {
+      Authorization: superuserToken,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email: probeUserEmail,
+      username: probeUserUsername,
+      organization: createdOrganization.id,
+      permissions: [createdPermission.id],
+      password: probePassword,
+      passwordConfirm: probePassword,
+    }),
+  });
+  if (!createUserResponse.ok) {
+    const body = compactErrorSample(await createUserResponse.text());
+    throw new Error(`failed to create probe user: HTTP ${createUserResponse.status} ${body}`);
+  }
+  const createdUser = (await createUserResponse.json()) as { id?: string; email?: string };
+  if (!createdUser.id || !createdUser.email) {
+    throw new Error("failed to read created probe user");
+  }
+
+  return {
+    id: createdUser.id,
+    email: createdUser.email,
+    password: probePassword,
+  };
 }
 
 function compactErrorSample(raw: string): string {

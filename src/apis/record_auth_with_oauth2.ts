@@ -271,7 +271,7 @@ async function oauth2Submit(
       if (createContext.hasSuperuser) {
         form.GrantSuperuserAccess();
       }
-      form.Load(createContext.data);
+      await form.LoadAsync(createContext.data);
 
       if (createContext.skipPlainPasswordRecordValidators) {
         const raw = createContext.record.GetRaw(FieldNamePassword);

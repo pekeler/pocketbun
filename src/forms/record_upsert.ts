@@ -2,7 +2,7 @@
 
 import type { App } from "../core/app.ts";
 import type { Record as RecordModel } from "../core/record_model.ts";
-import { PasswordFieldValue } from "../core/field_password.ts";
+import { PasswordField, PasswordFieldValue } from "../core/field_password.ts";
 import { FieldNameExpand } from "../core/record_model.ts";
 import { NormalizeUniqueIndexError } from "../core/validators/db.ts";
 import { Equal } from "../core/validators/equal.ts";
@@ -75,8 +75,47 @@ export class RecordUpsert {
 
   // Load loads the provided data into the form and the related record.
   Load(data: Record<string, unknown>): void {
-    const excludeFields = new Set<string>([FieldNameExpand]);
+    const { excludeFields, isAuth } = this.prepareLoad(data);
 
+    for (const [key, value] of Object.entries(data)) {
+      if (excludeFields.has(key)) {
+        continue;
+      }
+
+      const field = this.record.SetIfFieldExists(key, value);
+      this.restoreHiddenFieldValue(field, isAuth);
+    }
+  }
+
+  // LoadAsync loads the provided data into the form and the related record,
+  // using async password hashing for auth records.
+  async LoadAsync(data: Record<string, unknown>): Promise<void> {
+    const { excludeFields, isAuth } = this.prepareLoad(data);
+
+    for (const [key, value] of Object.entries(data)) {
+      if (excludeFields.has(key)) {
+        continue;
+      }
+
+      let field = null;
+      if (isAuth && key === "password") {
+        const passwordField = this.record.collection().Fields.GetByName("password");
+        if (passwordField instanceof PasswordField) {
+          await passwordField.SetValueAsync(this.record, value);
+          field = passwordField;
+        } else {
+          field = this.record.SetIfFieldExists(key, value);
+        }
+      } else {
+        field = this.record.SetIfFieldExists(key, value);
+      }
+
+      this.restoreHiddenFieldValue(field, isAuth);
+    }
+  }
+
+  private prepareLoad(data: Record<string, unknown>): { excludeFields: Set<string>; isAuth: boolean } {
+    const excludeFields = new Set<string>([FieldNameExpand]);
     const isAuth = this.record.collection().isAuth();
     if (isAuth) {
       if (Object.prototype.hasOwnProperty.call(data, "password")) {
@@ -92,21 +131,17 @@ export class RecordUpsert {
       excludeFields.add("passwordConfirm");
       excludeFields.add("oldPassword");
     }
+    return { excludeFields, isAuth };
+  }
 
-    for (const [key, value] of Object.entries(data)) {
-      if (excludeFields.has(key)) {
-        continue;
-      }
-
-      const field = this.record.SetIfFieldExists(key, value);
-      if (
-        this.accessLevel !== accessLevelSuperuser &&
-        field &&
-        field.GetHidden() &&
-        (!isAuth || field.GetName() !== "password")
-      ) {
-        this.record.SetRaw(field.GetName(), this.record.Original().GetRaw(field.GetName()));
-      }
+  private restoreHiddenFieldValue(field: { GetHidden: () => boolean; GetName: () => string } | null, isAuth: boolean): void {
+    if (
+      this.accessLevel !== accessLevelSuperuser &&
+      field &&
+      field.GetHidden() &&
+      (!isAuth || field.GetName() !== "password")
+    ) {
+      this.record.SetRaw(field.GetName(), this.record.Original().GetRaw(field.GetName()));
     }
   }
 

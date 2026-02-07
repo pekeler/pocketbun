@@ -378,6 +378,32 @@ describe("password field", () => {
     }
   });
 
+  it("uses bcrypt default cost when Cost is not set", () => {
+    const collection = NewBaseCollection("test_collection");
+    const field = Object.assign(new PasswordField(), { Name: "test", Cost: 0 });
+    collection.Fields.Add(field);
+
+    const setter = field.FindSetter("test");
+    if (!setter) {
+      throw new Error("Missing password setter");
+    }
+
+    const record = NewRecord(collection);
+    setter(record, "abc123456");
+
+    const raw = record.GetRaw("test");
+    if (!(raw instanceof PasswordFieldValue)) {
+      throw new Error("Expected PasswordFieldValue");
+    }
+
+    const parts = raw.Hash.split("$");
+    if (parts.length < 3) {
+      throw new Error(`Invalid bcrypt hash format: ${raw.Hash}`);
+    }
+
+    expect(parts[2]).toBe("10");
+  });
+
   it("find getter", () => {
     const scenarios = [
       {
