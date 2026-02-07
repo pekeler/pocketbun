@@ -1,5 +1,7 @@
 // Ported from pocketbase/apis/middlewares_gzip.go
 
+import { promisify } from "node:util";
+import { gzip as gzipCallback } from "node:zlib";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { Handler } from "../tools/hook/hook.ts";
 
@@ -9,6 +11,8 @@ export type GzipConfig = {
   Level?: number;
   MinLength?: number;
 };
+
+const gzipAsync = promisify(gzipCallback);
 
 export function Gzip(): Handler<RequestEvent> {
   return GzipWithConfig({});
@@ -53,7 +57,7 @@ export function GzipWithConfig(config: GzipConfig): Handler<RequestEvent> {
         return new Response(body, { status: result.status, headers });
       }
 
-      const compressed = Bun.gzipSync(body, { level: level as -1 | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 });
+      const compressed = await gzipAsync(body, { level: level as -1 | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 });
       headers.set("Content-Encoding", "gzip");
       headers.delete("Content-Length");
 
