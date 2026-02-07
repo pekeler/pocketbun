@@ -145,29 +145,48 @@ export class RequestEvent extends Event {
         recordProfile("request_info.body", performance.now() - bodyStart);
       }
 
-      const queryStart = doProfile ? performance.now() : 0;
-      const url = this.requestUrl();
-      for (const [key, value] of url.searchParams.entries()) {
-        if (!(key in info.query)) {
-          info.query[key] = value;
-        }
-      }
-      if (doProfile) {
-        recordProfile("request_info.query", performance.now() - queryStart);
-      }
+      // PocketBun perf deviation (behavior-compatible): lazily compute request query/headers.
+      // Most hot paths read only `body`/`auth`, so avoid per-request map population unless needed.
+      let lazyQuery: Record<string, string> | null = null;
+      let lazyHeaders: Record<string, string> | null = null;
 
-      const headersStart = doProfile ? performance.now() : 0;
-      for (const [key, value] of this.request.headers.entries()) {
-        if (value) {
-          const normalizedKey = snakecase(key ?? "");
-          if (normalizedKey) {
-            info.headers[normalizedKey] = value;
+      Object.defineProperty(info, "query", {
+        enumerable: true,
+        configurable: true,
+        get: () => {
+          if (lazyQuery) {
+            return lazyQuery;
           }
-        }
-      }
-      if (doProfile) {
-        recordProfile("request_info.headers", performance.now() - headersStart);
-      }
+          const queryStart = doProfile ? performance.now() : 0;
+          lazyQuery = parseRequestInfoQuery(this.requestUrl().searchParams);
+          if (doProfile) {
+            recordProfile("request_info.query", performance.now() - queryStart);
+          }
+          return lazyQuery;
+        },
+        set: (value: Record<string, string>) => {
+          lazyQuery = value;
+        },
+      });
+
+      Object.defineProperty(info, "headers", {
+        enumerable: true,
+        configurable: true,
+        get: () => {
+          if (lazyHeaders) {
+            return lazyHeaders;
+          }
+          const headersStart = doProfile ? performance.now() : 0;
+          lazyHeaders = parseRequestInfoHeaders(this.request.headers);
+          if (doProfile) {
+            recordProfile("request_info.headers", performance.now() - headersStart);
+          }
+          return lazyHeaders;
+        },
+        set: (value: Record<string, string>) => {
+          lazyHeaders = value;
+        },
+      });
 
       this.#cachedRequestInfo = info;
       return info;
@@ -226,6 +245,31 @@ function snakecase(input: string): string {
 
 // PocketBun perf deviation (behavior-compatible): bounded cache for normalized header keys.
 const snakecaseCache = new Map<string, string>();
+
+function parseRequestInfoQuery(searchParams: URLSearchParams): Record<string, string> {
+  const query: Record<string, string> = {};
+  for (const [key, value] of searchParams.entries()) {
+    if (!(key in query)) {
+      query[key] = value;
+    }
+  }
+  return query;
+}
+
+function parseRequestInfoHeaders(headers: Headers): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of headers.entries()) {
+    if (!value) {
+      continue;
+    }
+    const normalizedKey = snakecase(key ?? "");
+    if (!normalizedKey) {
+      continue;
+    }
+    out[normalizedKey] = value;
+  }
+  return out;
+}
 
 function isValidIP(ip: string): boolean {
   if (ip.includes(":")) {

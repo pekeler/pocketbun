@@ -27,6 +27,13 @@ const benchmarkTransportMode = await resolveBenchmarkTransportMode(benchmarkTran
 const benchmarkDebugErrorsFile =
   process.env.POCKETBUN_BENCHMARK_DEBUG_ERRORS_FILE ?? "/tmp/pocketbun-bench-upstream-debug-errors.txt";
 const benchmarkDebugErrors = await resolveBooleanOverride(process.env.POCKETBUN_BENCHMARK_DEBUG_ERRORS, benchmarkDebugErrorsFile, false);
+const benchmarkWarmupRequestsFile =
+  process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS_FILE ?? "/tmp/pocketbun-bench-upstream-warmup-requests.txt";
+const benchmarkWarmupRequests = await resolveIntOverride(
+  process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS,
+  benchmarkWarmupRequestsFile,
+  0,
+);
 const machineTag = sanitizeTag(process.env.POCKETBUN_BENCH_MACHINE_TAG ?? "m2-max");
 const timestampTag = createTimestampTag(new Date());
 const resultsDir = process.env.POCKETBUN_BENCH_RESULTS_DIR ?? "benchmarks/results";
@@ -111,11 +118,21 @@ const serverProc = Bun.spawn({
 try {
   await ensureServerReady();
 
-  if (benchmarkRun === "probe:create-errors" || benchmarkRun === "probe:create-latency") {
+  if (
+    benchmarkRun === "probe:create-errors" ||
+    benchmarkRun === "probe:create-latency" ||
+    benchmarkRun === "probe:create-organizations"
+  ) {
     const token = await authSuperuser();
     await importProbeSchema(token);
 
-    const probeReport = benchmarkRun === "probe:create-errors" ? await runCreateErrorProbe(token) : await runCreateLatencyProbe(token);
+    const probeReport =
+      benchmarkRun === "probe:create-errors"
+        ? await runCreateErrorProbe(token)
+        : await runCreateLatencyProbe(
+            token,
+            benchmarkRun === "probe:create-organizations" ? "organizations-only" : "full",
+          );
 
     const metadataHeader = [
       "# Upstream PocketBase Benchmark Probe",
@@ -561,6 +578,38 @@ async function resolveBooleanOverride(
   return defaultValue;
 }
 
+async function resolveIntOverride(
+  envValue: string | undefined,
+  overrideFile: string,
+  defaultValue: number,
+): Promise<number> {
+  const parsedEnv = parseNonNegativeInt(envValue);
+  if (parsedEnv !== null) {
+    return parsedEnv;
+  }
+
+  try {
+    const raw = await readFile(overrideFile, "utf8");
+    const firstNonCommentLine = raw
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line !== "" && !line.startsWith("#"));
+
+    const parsedFile = parseNonNegativeInt(firstNonCommentLine);
+    if (parsedFile !== null) {
+      console.log(`Using integer override from ${overrideFile}: ${parsedFile}`);
+      return parsedFile;
+    }
+  } catch (error) {
+    const errno = error as NodeJS.ErrnoException;
+    if (errno.code !== "ENOENT") {
+      throw error;
+    }
+  }
+
+  return defaultValue;
+}
+
 function parseBoolean(value: string | null | undefined): boolean | null {
   const normalized = value?.trim().toLowerCase();
   if (!normalized) {
@@ -573,6 +622,18 @@ function parseBoolean(value: string | null | undefined): boolean | null {
     return false;
   }
   return null;
+}
+
+function parseNonNegativeInt(value: string | null | undefined): number | null {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return null;
+  }
+  const parsed = Number.parseInt(normalized, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null;
+  }
+  return parsed;
 }
 
 async function ensureServerReady(): Promise<void> {
@@ -642,6 +703,8 @@ type CreateLatencyResult = {
   p95Ms: number;
   errors: number;
 };
+
+type CreateLatencyProbeMode = "full" | "organizations-only";
 
 async function runCreateErrorProbe(superuserToken: string): Promise<string> {
   const collection = "posts25k";
@@ -754,38 +817,56 @@ async function runCreateErrorProbe(superuserToken: string): Promise<string> {
   return report;
 }
 
-async function runCreateLatencyProbe(superuserToken: string): Promise<string> {
+async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatencyProbeMode): Promise<string> {
   const runTag = Date.now();
-  const scenarios: CreateLatencyScenario[] = [
-    {
-      collection: "organizations",
-      rule: "",
-      iterations: 500,
-      concurrency: 10,
-      payload: (index) => ({ name: `probe-org-${runTag}-${index}` }),
-    },
-    {
-      collection: "organizations",
-      rule: "@request.body.name != ''",
-      iterations: 500,
-      concurrency: 10,
-      payload: (index) => ({ name: `probe-org-rule-${runTag}-${index}` }),
-    },
-    {
-      collection: "permissions",
-      rule: "",
-      iterations: 250,
-      concurrency: 5,
-      payload: (index) => ({ name: `probe-perm-${runTag}-${index}`, active: index % 2 === 0 }),
-    },
-    {
-      collection: "permissions",
-      rule: "@request.body.name != ''",
-      iterations: 250,
-      concurrency: 5,
-      payload: (index) => ({ name: `probe-perm-rule-${runTag}-${index}`, active: index % 2 === 0 }),
-    },
-  ];
+  const scenarios: CreateLatencyScenario[] =
+    mode === "organizations-only"
+      ? [
+          {
+            collection: "organizations",
+            rule: "",
+            iterations: 50,
+            concurrency: 10,
+            payload: (index) => ({ name: `probe-org-${runTag}-${index}` }),
+          },
+          {
+            collection: "organizations",
+            rule: "@request.body.name != ''",
+            iterations: 50,
+            concurrency: 10,
+            payload: (index) => ({ name: `probe-org-rule-${runTag}-${index}` }),
+          },
+        ]
+      : [
+          {
+            collection: "organizations",
+            rule: "",
+            iterations: 500,
+            concurrency: 10,
+            payload: (index) => ({ name: `probe-org-${runTag}-${index}` }),
+          },
+          {
+            collection: "organizations",
+            rule: "@request.body.name != ''",
+            iterations: 500,
+            concurrency: 10,
+            payload: (index) => ({ name: `probe-org-rule-${runTag}-${index}` }),
+          },
+          {
+            collection: "permissions",
+            rule: "",
+            iterations: 250,
+            concurrency: 5,
+            payload: (index) => ({ name: `probe-perm-${runTag}-${index}`, active: index % 2 === 0 }),
+          },
+          {
+            collection: "permissions",
+            rule: "@request.body.name != ''",
+            iterations: 250,
+            concurrency: 5,
+            payload: (index) => ({ name: `probe-perm-rule-${runTag}-${index}`, active: index % 2 === 0 }),
+          },
+        ];
 
   const results: CreateLatencyResult[] = [];
   for (const scenario of scenarios) {
@@ -816,6 +897,10 @@ async function runCreateLatencyProbe(superuserToken: string): Promise<string> {
 }
 
 async function runCreateLatencyScenario(scenario: CreateLatencyScenario): Promise<CreateLatencyResult> {
+  if (benchmarkWarmupRequests > 0) {
+    await runCreateLatencyWarmup(scenario, benchmarkWarmupRequests);
+  }
+
   let nextIndex = 0;
   let errors = 0;
   const durationsMs: number[] = [];
@@ -876,6 +961,46 @@ async function runCreateLatencyScenario(scenario: CreateLatencyScenario): Promis
     p95Ms: percentile(durationsMs, 95),
     errors,
   };
+}
+
+async function runCreateLatencyWarmup(scenario: CreateLatencyScenario, warmupRequests: number): Promise<void> {
+  const total = Math.max(0, Math.floor(warmupRequests));
+  if (total === 0) {
+    return;
+  }
+
+  let nextIndex = 0;
+  let errors = 0;
+  const indexOffset = 1_000_000;
+  const workerCount = Math.min(scenario.concurrency, total);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const current = nextIndex;
+      nextIndex += 1;
+      if (current >= total) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`${baseUrl}/api/collections/${scenario.collection}/records`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(scenario.payload(indexOffset + current)),
+        });
+        if (response.status >= 400) {
+          errors += 1;
+        }
+        response.body?.cancel();
+      } catch {
+        errors += 1;
+      }
+    }
+  });
+  await Promise.all(workers);
+
+  if (errors > 0) {
+    console.log(`  warmup errors (${scenario.collection}): ${errors}/${total}`);
+  }
 }
 
 async function setCollectionCreateRule(superuserToken: string, collection: string, createRule: string): Promise<void> {
