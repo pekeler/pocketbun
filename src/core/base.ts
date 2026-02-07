@@ -164,6 +164,8 @@ import {
   InterceptorActionUpdate,
   InterceptorActionUpdateExecute,
   InterceptorActionValidate,
+  type AsyncValidationRequirement,
+  type AsyncFieldValueValidator,
   type Field,
 } from "./field.ts";
 import { FieldTypeFile } from "./field_file.ts";
@@ -2546,6 +2548,7 @@ export class BaseApp implements App {
     }
 
     const event = new ModelEvent(this, model, ModelEventTypeValidate, ctx);
+    event.AllowAsync = true;
     const result = (await this.OnModelValidate().Trigger(event, async (modelEvent) => {
       const recordInfo = resolveRecordProxy(model);
       if (!recordInfo && model instanceof Collection) {
@@ -2580,6 +2583,7 @@ export class BaseApp implements App {
     }
 
     const event = new ModelEvent(this, model, ModelEventTypeValidate);
+    event.AllowAsync = false;
     const result = this.OnModelValidate().Trigger(event, (modelEvent) => {
       const recordInfo = resolveRecordProxy(model);
       if (!recordInfo && model instanceof Collection) {
@@ -2770,12 +2774,51 @@ export class BaseApp implements App {
   private validateRecord(record: RecordModel): Error | null {
     const errors: Record<string, Error> = {};
     for (const field of record.collection().Fields) {
+      const asyncRequirement = field as unknown as Partial<AsyncValidationRequirement>;
+      const requiresAsyncValidation =
+        typeof asyncRequirement.RequiresAsyncValidation === "function"
+          ? asyncRequirement.RequiresAsyncValidation()
+          : asyncRequirement.RequiresAsyncValidation === true;
+      if (requiresAsyncValidation) {
+        errors[field.GetName()] = newError(
+          "validation_async_required",
+          "This field requires async validation. Use app.Validate(...) or app.Save(...).",
+        );
+        continue;
+      }
+
       const err = field.ValidateValue(null, this, record);
       if (err) {
         errors[field.GetName()] = err;
       }
     }
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+  }
+
+  private async validateRecordAsync(record: RecordModel): Promise<Error | null> {
+    const errors: Record<string, Error> = {};
+    for (const field of record.collection().Fields) {
+      const asyncValidator = field as unknown as Partial<AsyncFieldValueValidator>;
+      const maybeErr =
+        typeof asyncValidator.ValidateValueAsync === "function"
+          ? asyncValidator.ValidateValueAsync(null, this, record)
+          : field.ValidateValue(null, this, record);
+      const err = maybeErr instanceof Promise ? ((await maybeErr) as Error | null) : (maybeErr as Error | null);
+      if (err) {
+        errors[field.GetName()] = err;
+      }
+    }
+    return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+  }
+
+  private hasAsyncRecordValidator(record: RecordModel): boolean {
+    for (const field of record.collection().Fields) {
+      const asyncValidator = field as unknown as Partial<AsyncFieldValueValidator>;
+      if (typeof asyncValidator.ValidateValueAsync === "function") {
+        return true;
+      }
+    }
+    return false;
   }
 
   private onRecordSaveExecute(record: RecordModel): Error | null {
@@ -4102,15 +4145,28 @@ export class BaseApp implements App {
           return e.Next();
         }
         return e.Record.callFieldInterceptors(e.Context, e.App, InterceptorActionValidate, () => {
+          const runNext = (): Error | null | Promise<Error | null> => {
+            const nextResult = e.Next();
+            if (nextResult instanceof Promise) {
+              return nextResult.then((result) => result as Error | null);
+            }
+            return nextResult as Error | null;
+          };
+
+          if (e.AllowAsync && this.hasAsyncRecordValidator(e.Record as RecordModel)) {
+            return this.validateRecordAsync(e.Record as RecordModel).then((err) => {
+              if (err) {
+                return err;
+              }
+              return runNext();
+            });
+          }
+
           const err = this.validateRecord(e.Record as RecordModel);
           if (err) {
             return err;
           }
-          const nextResult = e.Next();
-          if (nextResult instanceof Promise) {
-            return nextResult.then((result) => result as Error | null);
-          }
-          return nextResult as Error | null;
+          return runNext();
         });
       },
     });

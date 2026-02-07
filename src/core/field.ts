@@ -69,6 +69,20 @@ export interface Field {
   ValidateSettings(ctx: unknown, app: unknown, collection: CollectionLike): Error | null;
 }
 
+// AsyncFieldValueValidator defines an optional field interface for async
+// value validation in non-blocking runtime paths.
+export interface AsyncFieldValueValidator {
+  ValidateValueAsync(ctx: unknown, app: unknown, record: RecordLike): Error | null | Promise<Error | null>;
+}
+
+// AsyncValidationRequirement defines an optional field interface for
+// declaring that full validation can run only via async model APIs.
+export interface AsyncValidationRequirement {
+  // Boolean marker preferred for ergonomics in custom fields.
+  // For backwards compatibility we also accept a method form.
+  RequiresAsyncValidation: boolean | (() => boolean);
+}
+
 // MaxBodySizeCalculator defines an optional field interface for
 // specifying the max size of a field value.
 export interface MaxBodySizeCalculator {

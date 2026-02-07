@@ -12,6 +12,7 @@ import { JSONArray } from "../tools/types/json_array.ts";
 import {
   Fields,
   type DriverValuer,
+  type AsyncFieldValueValidator,
   type Field,
   type GetterFinder,
   type GetterFunc,
@@ -32,7 +33,7 @@ import {
   InterceptorActionUpdateExecute,
 } from "./field.ts";
 import { internalCustomFieldKeyPrefix } from "./record_model.ts";
-import { UploadedFileMimeType, UploadedFileSize } from "./validators/file.ts";
+import { UploadedFileMimeType, UploadedFileMimeTypeAsync, UploadedFileSize } from "./validators/file.ts";
 
 export const FieldTypeFile = "file";
 export const DefaultFileFieldMaxSize = 5 << 20;
@@ -72,7 +73,15 @@ const uploadedFilesPrefix = `${internalCustomFieldKeyPrefix}_uploadedFilesPrefix
 //     // []string{"old2.txt",}
 //     record.Set("documents-", "old1.txt")
 export class FileField
-  implements Field, MultiValuer, DriverValuer, GetterFinder, SetterFinder, RecordInterceptor, MaxBodySizeCalculator
+  implements
+    Field,
+    AsyncFieldValueValidator,
+    MultiValuer,
+    DriverValuer,
+    GetterFinder,
+    SetterFinder,
+    RecordInterceptor,
+    MaxBodySizeCalculator
 {
   Name = "";
   Id = "";
@@ -255,6 +264,66 @@ export class FileField
       const mimeTypes = Array.isArray(this.MimeTypes) ? this.MimeTypes : [];
       if (mimeTypes.length > 0) {
         const mimeErr = UploadedFileMimeType(mimeTypes)(upload);
+        if (mimeErr) {
+          return mimeErr;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  async ValidateValueAsync(_ctx: unknown, app: App, record: RecordLike): Promise<Error | null> {
+    const files = this.toSliceValue(record.GetRaw(this.Name));
+    if (files.length === 0) {
+      if (this.Required) {
+        return ErrRequired;
+      }
+      return null;
+    }
+
+    const oldExistingStrings = this.toSliceValue(this.getLatestOldValue(app, record));
+    const existingStrings = toInterfaceSlice(this.extractPlainStrings(files));
+    const addedStrings = this.excludeFiles(existingStrings, oldExistingStrings);
+
+    if (addedStrings.length > 0) {
+      const invalidFiles = addedStrings.map((value) => {
+        let invalid = toStringValue(value);
+        if (invalid.length > 250) {
+          invalid = invalid.slice(0, 250);
+        }
+        return invalid;
+      });
+
+      return newError("validation_invalid_file", "Invalid new files: {{.invalidFiles}}.").setParams({
+        invalidFiles,
+      });
+    }
+
+    const maxSelect = this.effectiveMaxSelect();
+    if (files.length > maxSelect) {
+      return newError("validation_too_many_files", "The maximum allowed files is {{.maxSelect}}").setParams({
+        maxSelect,
+      });
+    }
+
+    const uploads = this.extractUploadableFiles(files);
+    for (const upload of uploads) {
+      if (upload.Name.length < 1 || upload.Name.length > 150) {
+        return newError("validation_invalid_file", "Invalid file name.");
+      }
+      if (!looseFilenameRegex.test(upload.Name)) {
+        return newError("validation_invalid_file", "Invalid file name.");
+      }
+
+      const sizeErr = UploadedFileSize(this.effectiveMaxSize())(upload);
+      if (sizeErr) {
+        return sizeErr;
+      }
+
+      const mimeTypes = Array.isArray(this.MimeTypes) ? this.MimeTypes : [];
+      if (mimeTypes.length > 0) {
+        const mimeErr = await UploadedFileMimeTypeAsync(mimeTypes)(upload);
         if (mimeErr) {
           return mimeErr;
         }

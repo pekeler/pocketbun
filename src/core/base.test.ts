@@ -11,8 +11,11 @@ import { BatchHandler } from "../tools/logger/batch_handler.ts";
 import { Sendmail } from "../tools/mailer/sendmail.ts";
 import { SMTPClient } from "../tools/mailer/smtp.ts";
 import { BaseApp } from "./base.ts";
+import { NewBaseCollection } from "./collection_model.ts";
 import { StoreKeyCachedCollections } from "./collection_query.ts";
 import { TerminateEvent } from "./events.ts";
+import { TextField } from "./field_text.ts";
+import { NewRecord } from "./record_model.ts";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -430,6 +433,35 @@ describe("BaseApp", () => {
       app.OnTerminate().Trigger(event);
       app.OnTerminate().Trigger(event);
       app.OnTerminate().Trigger(event);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("BaseAppValidateUsesAsyncFieldValidatorOnlyInAsyncPath", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const collection = NewBaseCollection("async_validate");
+      const field = Object.assign(new TextField(), {
+        Id: "testfield",
+        Name: "title",
+      });
+
+      field.ValidateValue = () => new Error("sync validator should not run");
+      (field as unknown as { ValidateValueAsync: () => Promise<Error | null> }).ValidateValueAsync = async () => null;
+      (field as unknown as { RequiresAsyncValidation: boolean }).RequiresAsyncValidation = true;
+
+      collection.Fields.Add(field);
+
+      const record = NewRecord(collection);
+      record.Set("title", "test");
+
+      const asyncErr = await app.Validate(record);
+      expect(asyncErr).toBeNull();
+
+      const syncErr = app.ValidateSync(record);
+      expect(syncErr).not.toBeNull();
+      expect(syncErr?.message.includes("requires async validation")).toBe(true);
     } finally {
       await cleanup();
     }

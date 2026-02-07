@@ -166,6 +166,62 @@ Current extensions:
 - JSVM `$http` binding exposes an async request helper:
   - sync: `$http.send(...)`
   - async: `await $http.sendAsync(...)`
+- Field value validation supports an async extension method for custom fields:
+  - PocketBase-compatible sync API: `ValidateValue(...)`
+  - PocketBun async extension: `async ValidateValueAsync(...)`
+  - Optional strict marker: `RequiresAsyncValidation = true` (or method form `RequiresAsyncValidation()`)
+  - Used by async model paths (`await app.Validate(...)`, `await app.Save(...)`)
+  - If `RequiresAsyncValidation` is `true`, sync model paths fail fast with a validation error
+
+Example (realistic): custom webhook URL field that does non-blocking reachability checks in async flows:
+
+```ts
+import { toStringValue } from "../internal/compat/cast.ts";
+import { newError } from "../internal/compat/validation.ts";
+import type { App } from "./app.ts";
+import type { RecordLike } from "./field.ts";
+import { TextField } from "./field_text.ts";
+
+class WebhookUrlField extends TextField {
+  // Enforce full validation through async app APIs only.
+  RequiresAsyncValidation = true;
+
+  async ValidateValueAsync(ctx: unknown, app: App, record: RecordLike): Promise<Error | null> {
+    const value = toStringValue(record.GetRaw(this.Name));
+    const baseErr = this.ValidatePlainValue(value);
+    if (baseErr || value === "") {
+      return baseErr;
+    }
+
+    // Async-only extra check: verify the webhook endpoint responds.
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1500);
+      const response = await fetch(value, { method: "HEAD", signal: controller.signal });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        return newError("validation_webhook_unreachable", "Webhook URL must be reachable.");
+      }
+    } catch {
+      return newError("validation_webhook_unreachable", "Webhook URL must be reachable.");
+    }
+
+    return null;
+  }
+}
+```
+
+Use it with async model APIs:
+
+```ts
+const err = await app.Validate(record); // runs ValidateValueAsync when available
+```
+
+If you call sync model APIs while `RequiresAsyncValidation` is `true`, validation fails:
+
+```ts
+const err = app.ValidateSync(record); // -> "This field requires async validation..."
+```
 
 Example:
 

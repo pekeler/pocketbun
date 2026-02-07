@@ -1,10 +1,13 @@
 // Ported from pocketbase/core/field_file_test.go
 
 import { describe, expect, it } from "bun:test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { App } from "./app.ts";
 import { newTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
-import { NewFileFromBytes } from "../tools/filesystem/file.ts";
+import { NewFileFromBytes, NewFileFromPath, PathReader, type ReadSeekCloser } from "../tools/filesystem/file.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { JSONArray } from "../tools/types/json_array.ts";
 import { NewBaseCollection } from "./collection_model.ts";
@@ -368,6 +371,49 @@ describe("file field", () => {
         expect(Boolean(err)).toBe(scenario.expectError);
       }
     } finally {
+      await cleanup();
+    }
+  });
+
+  it("validate value async", async () => {
+    const { app, cleanup } = await newTestApp();
+    const tempDir = await mkdtemp(join(tmpdir(), "pb_file_field_async_validate_"));
+    try {
+      const filePath = join(tempDir, "test.txt");
+      await writeFile(filePath, "hello world");
+
+      class ThrowingPathReader extends PathReader {
+        override Open(): ReadSeekCloser {
+          throw new Error("sync Open should not be called in async validation");
+        }
+      }
+
+      const upload = NewFileFromPath(filePath);
+      upload.Reader = new ThrowingPathReader(filePath);
+
+      const field = Object.assign(new FileField(), {
+        Name: "file",
+        MaxSize: 1024,
+        MaxSelect: 1,
+        MimeTypes: ["text/plain"],
+      });
+
+      const collection = NewBaseCollection("test_collection");
+      collection.Fields.Add(field);
+
+      const record = NewRecord(collection);
+      record.SetRaw("file", upload);
+
+      const syncErr = field.ValidateValue(null, app, record);
+      expect(syncErr).not.toBeNull();
+
+      const asyncErr = await field.ValidateValueAsync(null, app, record);
+      expect(asyncErr).toBeNull();
+
+      const modelAsyncErr = await app.Validate(record);
+      expect(modelAsyncErr).toBeNull();
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
       await cleanup();
     }
   });

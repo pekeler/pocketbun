@@ -232,6 +232,9 @@ export class ModelEvent extends Event {
   Context: unknown;
   Type: string;
   Model: Model | null;
+  // PocketBun-only internal marker used by the model->record bridge to
+  // allow async-only validators in async validation pipelines.
+  AllowAsync = false;
   #base: BaseModelEventData;
 
   constructor(app: App, model: Model | null, type: string, context: unknown = null) {
@@ -301,6 +304,8 @@ export class RecordEvent extends Event {
   Context: unknown;
   Type: string;
   Record: RecordModel | null;
+  // PocketBun-only internal marker copied from ModelEvent.AllowAsync.
+  AllowAsync = false;
   #base: BaseRecordEventData;
 
   constructor(app: App, record: RecordModel | null, type: string, context: unknown = null) {
@@ -438,12 +443,14 @@ export function syncModelEventWithRecordEvent(modelEvent: ModelEvent, recordEven
   modelEvent.App = recordEvent.App;
   modelEvent.Context = recordEvent.Context;
   modelEvent.Type = recordEvent.Type;
+  modelEvent.AllowAsync = recordEvent.AllowAsync;
 }
 
 export function syncRecordEventWithModelEvent(recordEvent: RecordEvent, modelEvent: ModelEvent): void {
   recordEvent.App = modelEvent.App;
   recordEvent.Context = modelEvent.Context;
   recordEvent.Type = modelEvent.Type;
+  recordEvent.AllowAsync = modelEvent.AllowAsync;
 }
 
 export function newRecordEventFromModelEvent(modelEvent: ModelEvent): {
@@ -465,7 +472,9 @@ export function newRecordEventFromModelEvent(modelEvent: ModelEvent): {
     return { event: null, ok: false };
   }
   return {
-    event: new RecordEvent(modelEvent.App, record, modelEvent.Type, modelEvent.Context),
+    event: Object.assign(new RecordEvent(modelEvent.App, record, modelEvent.Type, modelEvent.Context), {
+      AllowAsync: modelEvent.AllowAsync,
+    }),
     ok: true,
   };
 }
