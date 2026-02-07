@@ -1,7 +1,7 @@
 // Ported from pocketbase/tools/filesystem/file.go
 
-import { readFileSync, statSync } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { closeSync, openSync, readSync, statSync } from "node:fs";
+import { open, readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { snakecase } from "../inflector/inflector.ts";
 import { randomStringWithAlphabet } from "../security/random.ts";
@@ -45,6 +45,45 @@ export async function ReadFileReaderBytesAsync(reader: FileReader | null | undef
   }
 
   return ReadFileReaderBytes(reader);
+}
+
+const mimeDetectionSampleSize = 4096;
+
+function readFileReaderSampleBytes(reader: FileReader, maxBytes = mimeDetectionSampleSize): Uint8Array {
+  if (reader instanceof PathReader) {
+    const fd = openSync(reader.Path, "r");
+    try {
+      const raw = new Uint8Array(maxBytes);
+      const read = readSync(fd, raw, 0, maxBytes, 0);
+      return read > 0 ? raw.slice(0, read) : new Uint8Array();
+    } finally {
+      closeSync(fd);
+    }
+  }
+
+  const opened = reader.Open();
+  try {
+    return opened.read(maxBytes) ?? new Uint8Array();
+  } finally {
+    opened.close();
+  }
+}
+
+async function readFileReaderSampleBytesAsync(reader: FileReader, maxBytes = mimeDetectionSampleSize): Promise<Uint8Array> {
+  if (reader instanceof PathReader) {
+    const handle = await open(reader.Path, "r");
+    try {
+      const raw = new Uint8Array(maxBytes);
+      const result = await handle.read(raw, 0, maxBytes, 0);
+      const read = result.bytesRead ?? 0;
+      return read > 0 ? raw.slice(0, read) : new Uint8Array();
+    } finally {
+      await handle.close();
+    }
+  }
+
+  // Fallback for non-path readers that only expose sync Open()/read().
+  return readFileReaderSampleBytes(reader, maxBytes);
 }
 
 // File defines a single file [io.ReadSeekCloser] resource.
@@ -94,13 +133,13 @@ export function NewFileFromPath(path: string): File {
 // Deviation: PocketBun-only async alternative that eagerly reads file content
 // to avoid sync filesystem I/O in async runtime paths.
 export async function NewFileFromPathAsync(path: string): Promise<File> {
-  const [info, raw] = await Promise.all([stat(path), readFile(path)]);
+  const info = await stat(path);
 
   const f = new File();
-  f.Reader = new BytesReader(raw);
+  f.Reader = new PathReader(path);
   f.Size = info.size;
   f.OriginalName = basename(path);
-  f.Name = normalizeName(f.Reader, f.OriginalName);
+  f.Name = await normalizeNameAsync(f.Reader, f.OriginalName);
   return f;
 }
 
@@ -177,7 +216,7 @@ export class PathReader implements FileReader {
 
   // Open implements the [filesystem.FileReader] interface.
   Open(): ReadSeekCloser {
-    return new BufferReadSeekCloser(readFileSync(this.Path));
+    return new LocalFileReadSeekCloser(this.Path);
   }
 }
 
@@ -251,6 +290,94 @@ class BufferReadSeekCloser implements ReadSeekCloser {
   }
 }
 
+class LocalFileReadSeekCloser implements ReadSeekCloser {
+  #fd: number;
+  #offset: number;
+  #size: number;
+  #closed = false;
+
+  constructor(path: string) {
+    this.#fd = openSync(path, "r");
+    this.#size = statSync(path).size;
+    this.#offset = 0;
+  }
+
+  read(size?: number): Uint8Array | null {
+    if (this.#closed || this.#offset >= this.#size) {
+      return null;
+    }
+
+    const remaining = this.#size - this.#offset;
+    const toRead = size && size > 0 ? Math.min(size, remaining) : remaining;
+    if (toRead <= 0) {
+      return null;
+    }
+
+    const buffer = new Uint8Array(toRead);
+    const bytesRead = readSync(this.#fd, buffer, 0, toRead, this.#offset);
+    if (bytesRead <= 0) {
+      return null;
+    }
+
+    this.#offset += bytesRead;
+    return bytesRead === buffer.length ? buffer : buffer.slice(0, bytesRead);
+  }
+
+  readAll(): Uint8Array {
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+
+    for (;;) {
+      const chunk = this.read(64 * 1024);
+      if (!chunk || chunk.length === 0) {
+        break;
+      }
+      chunks.push(chunk);
+      total += chunk.length;
+    }
+
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const part of chunks) {
+      merged.set(part, offset);
+      offset += part.length;
+    }
+
+    return merged;
+  }
+
+  seek(offset: number, whence = 0): number {
+    if (whence === 1) {
+      this.#offset += offset;
+    } else if (whence === 2) {
+      this.#offset = this.#size + offset;
+    } else {
+      this.#offset = offset;
+    }
+
+    if (this.#offset < 0) {
+      this.#offset = 0;
+    }
+    if (this.#offset > this.#size) {
+      this.#offset = this.#size;
+    }
+
+    return this.#offset;
+  }
+
+  close(): void {
+    if (this.#closed) {
+      return;
+    }
+    this.#closed = true;
+    closeSync(this.#fd);
+  }
+
+  size(): number {
+    return this.#size;
+  }
+}
+
 const extInvalidCharsRegex = /[^\w.*\-+=#]+/g;
 const randomAlphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -269,6 +396,54 @@ export function normalizeName(fr: FileReader, name: string): string {
   if (cleanExt === ".") {
     // try to detect the extension from the file content
     cleanExt = detectExtension(fr) ?? ".";
+  }
+  if (cleanExt === ".") {
+    cleanExt = ".";
+  }
+  if (cleanExt.length > 20) {
+    // keep only the last 20 characters (it is multibyte safe after the regex replace)
+    cleanExt = `.${cleanExt.slice(cleanExt.length - 20).replace(/^\.+|\.+$/g, "")}`;
+  }
+
+  // name
+  //
+  // note: leading dot is trimmed to prevent various subtle issues with files
+  // sync programs as they sometimes have special handling for "invisible" files
+  // ---
+  let baseName = name;
+  if (originalExt && baseName.endsWith(originalExt)) {
+    baseName = baseName.slice(0, -originalExt.length);
+  }
+  baseName = baseName.replace(/^\.+|\.+$/g, "");
+  let cleanName = snakecase(baseName);
+
+  if (cleanName.length < 3) {
+    // the name is too short so we concatenate an additional random part
+    cleanName += randomStringWithAlphabet(10, randomAlphabet);
+  } else if (cleanName.length > 100) {
+    // keep only the first 100 characters (it is multibyte safe after Snakecase)
+    cleanName = cleanName.slice(0, 100);
+  }
+
+  return `${cleanName}_${randomStringWithAlphabet(10, randomAlphabet)}${cleanExt}`; // ensure that there is always a random part
+}
+
+// normalizeNameAsync is a PocketBun-only async alternative to normalizeName().
+export async function normalizeNameAsync(fr: FileReader, name: string): Promise<string> {
+  // cut the name even if it is not multibyte safe to avoid operating on too large strings
+  // ---
+  const originalLength = name.length;
+  if (originalLength > 300) {
+    name = name.slice(originalLength - 300);
+  }
+
+  // extension
+  // ---
+  const originalExt = extractExtension(name);
+  let cleanExt = `.${originalExt.replace(extInvalidCharsRegex, "").replace(/^\.+|\.+$/g, "")}`;
+  if (cleanExt === ".") {
+    // try to detect the extension from the file content
+    cleanExt = (await detectExtensionAsync(fr)) ?? ".";
   }
   if (cleanExt === ".") {
     cleanExt = ".";
@@ -325,9 +500,15 @@ export function extractExtension(name: string): string {
 
 // detectExtension tries to detect the extension from file mime type.
 export function detectExtension(fr: FileReader): string | null {
-  const reader = fr.Open();
-  const raw = reader.readAll();
-  reader.close();
+  const raw = readFileReaderSampleBytes(fr);
+
+  const mime = detectMimeTypeFromBytes(raw);
+  return mimeToExtension(mime);
+}
+
+// detectExtensionAsync is a PocketBun-only async alternative to detectExtension().
+export async function detectExtensionAsync(fr: FileReader): Promise<string | null> {
+  const raw = await readFileReaderSampleBytesAsync(fr);
 
   const mime = detectMimeTypeFromBytes(raw);
   return mimeToExtension(mime);

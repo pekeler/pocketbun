@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
   BytesReader,
   MultipartReader,
+  detectExtensionAsync,
   NewFileFromBytes,
   NewFileFromMultipart,
   NewFileFromPath,
@@ -60,7 +61,7 @@ describe("filesystem file", () => {
       expect(f.OriginalName).toBe(originalName);
       expect(f.Name).toMatch(/^image_special_\w{10}\.png$/);
       expect(f.Size).toBeGreaterThan(0);
-      expect(f.Reader).toBeInstanceOf(BytesReader);
+      expect(f.Reader).toBeInstanceOf(PathReader);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -181,6 +182,22 @@ describe("filesystem file", () => {
 
       const bytes = await ReadFileReaderBytesAsync(reader);
       expect(bytes.length).toBeGreaterThan(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("detectExtensionAsync prefers async sample reads for path readers", async () => {
+    const dir = await createTestDir();
+    try {
+      class ThrowingPathReader extends PathReader {
+        override Open(): never {
+          throw new Error("sync open should not be used for path readers");
+        }
+      }
+
+      const ext = await detectExtensionAsync(new ThrowingPathReader(join(dir, "image_noext")));
+      expect(ext).toBe(".jpg");
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

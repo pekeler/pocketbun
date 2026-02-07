@@ -78,6 +78,7 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
 - [x] (2026-02-07) Added `FormData.toMultipartAsync()` for JSVM async HTTP sends, wired `$http.sendAsync` to it, and added regression coverage that path-backed files avoid sync `Open().readAll()` reads in async paths.
 - [x] (2026-02-07) Added shared filesystem reader helpers (`ReadFileReaderBytes*`) and switched async call sites (`System.UploadFile`, JSVM multipart async send, batch multipart re-encoding) to the centralized async fast path for path-backed files.
 - [x] (2026-02-07) Added async uploaded-file MIME validator support (`UploadedFileMimeTypeAsync`) and switched async backup upload validation to it, with regression coverage for path-backed readers avoiding sync `Open()` in async validation flow.
+- [x] (2026-02-07) Optimized file-path reader hot paths by removing eager full-file reads in `NewFileFromPathAsync`, adding sample-based extension detection helpers (`detectExtensionAsync` + sync helper parity), switching `PathReader.Open()` to fd-backed streaming reads (closer to upstream), and adding regression coverage that async path-backed detection avoids sync `Open()`.
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
