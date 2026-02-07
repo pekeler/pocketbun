@@ -147,6 +147,12 @@ Current extensions:
 - Base app bootstrap now exposes an async startup variant:
   - sync: `app.bootstrap()`
   - async: `await app.bootstrapAsync()`
+- Migration helper now exposes an async startup variant:
+  - sync: `migrate(app, mode)`
+  - async: `await migrateAsync(app, mode)`
+- Serve helper now exposes an async startup variant:
+  - sync: `serve(app, config)`
+  - async: `await serveAsync(app, config)`
 - Base app filesystem factory now exposes async variants:
   - sync: `app.NewFilesystem()`, `app.NewBackupsFilesystem()`
   - async: `await app.NewFilesystemAsync()`, `await app.NewBackupsFilesystemAsync()`
@@ -157,7 +163,15 @@ Current extensions:
 Example:
 
 ```ts
-import { BaseApp, CreateAsync, ExtractAsync, NewRegistry, RegisterJSVMAsync } from "pocketbun";
+import {
+  BaseApp,
+  CreateAsync,
+  ExtractAsync,
+  NewRegistry,
+  RegisterJSVMAsync,
+  migrateAsync,
+  serveAsync,
+} from "pocketbun";
 
 await CreateAsync("pb_data", "/tmp/pb_backup.zip", "backups");
 await ExtractAsync("/tmp/pb_backup.zip", "/tmp/pb_restore");
@@ -168,9 +182,13 @@ const html = renderer.Render({ title: "Hello" });
 
 const app = new BaseApp({ dataDir: "pb_data" });
 await app.bootstrapAsync();
+await migrateAsync(app, "app");
 await RegisterJSVMAsync(app, {});
 const fsys = await app.NewFilesystemAsync();
 await fsys.Close();
+
+const server = await serveAsync(app, { httpAddr: "127.0.0.1:8090" });
+server.stop(true);
 ```
 
 ### CLI Updates

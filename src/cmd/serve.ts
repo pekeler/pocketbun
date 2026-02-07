@@ -1,7 +1,7 @@
 // Ported from pocketbase/cmd/serve.go
 
 import type { App } from "../core/app.ts";
-import { serve } from "../apis/serve.ts";
+import { serveAsync } from "../apis/serve.ts";
 import { Command } from "../tools/cli/command.ts";
 
 export function NewServeCommand(app: App, showStartBanner: boolean): Command {
@@ -17,7 +17,7 @@ export function NewServeCommand(app: App, showStartBanner: boolean): Command {
     SilenceUsage: true,
   });
 
-  command.RunE = (_cmd, args) => {
+  command.RunE = async (_cmd, args) => {
     if (args.length > 0) {
       if (!state.httpAddr) {
         state.httpAddr = "0.0.0.0:80";
@@ -30,7 +30,7 @@ export function NewServeCommand(app: App, showStartBanner: boolean): Command {
     }
 
     try {
-      serve(app, {
+      await serveAsync(app, {
         httpAddr: state.httpAddr,
         httpsAddr: state.httpsAddr,
         showStartBanner,

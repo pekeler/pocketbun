@@ -1,13 +1,13 @@
 // PocketBun-only: package entrypoint that re-exports the public API.
 
-export { buildServeHandler, serve, type ServeConfig } from "./src/apis/serve.ts";
+export { buildServeHandler, serve, serveAsync, type ServeConfig } from "./src/apis/serve.ts";
 export { Static, StaticWildcardParam } from "./src/apis/base.ts";
 export { superuser, superuserCreate, superuserDelete, superuserOTP, superuserUpdate, superuserUpsert } from "./src/cmd/superuser.ts";
 export { type SuperuserOtpResult } from "./src/cmd/superuser.ts";
 export { BaseApp, type BaseAppConfig } from "./src/core/base.ts";
 export { type App } from "./src/core/app.ts";
 export { type ServeEvent } from "./src/core/events.ts";
-export { migrate, type MigrateMode } from "./src/core/migrate.ts";
+export { migrate, migrateAsync, type MigrateMode } from "./src/core/migrate.ts";
 export { New, NewWithConfig, PocketBase, type PocketBaseConfig, Version } from "./src/pocketbase.ts";
 export {
   Register as RegisterJSVM,

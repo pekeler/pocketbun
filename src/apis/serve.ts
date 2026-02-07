@@ -18,6 +18,24 @@ export type ServeConfig = {
   certificateDomains?: string[];
 };
 
+type AppWithAsyncBootstrap = App & { bootstrapAsync: () => Promise<void> };
+
+function hasAsyncBootstrap(app: App): app is AppWithAsyncBootstrap {
+  return typeof (app as { bootstrapAsync?: unknown }).bootstrapAsync === "function";
+}
+
+async function ensureReady(app: App): Promise<void> {
+  if (!app.isBootstrapped()) {
+    if (hasAsyncBootstrap(app)) {
+      await app.bootstrapAsync();
+    } else {
+      app.bootstrap();
+    }
+  }
+
+  app.runAllMigrations();
+}
+
 export function buildServeHandler(app: App, config: ServeConfig = {}): (req: Request, server?: unknown) => Promise<Response> {
   const router = NewRouter(app);
   router.Bind(
@@ -52,6 +70,16 @@ export function serve(app: App, config: ServeConfig = {}): ReturnType<typeof Bun
 
   app.runAllMigrations();
 
+  return startServer(app, config);
+}
+
+// serveAsync is a PocketBun-only async alternative to serve().
+export async function serveAsync(app: App, config: ServeConfig = {}): Promise<ReturnType<typeof Bun.serve>> {
+  await ensureReady(app);
+  return startServer(app, config);
+}
+
+function startServer(app: App, config: ServeConfig): ReturnType<typeof Bun.serve> {
   const addr = config.httpAddr ?? "127.0.0.1:8090";
   const { hostname, port } = parseAddr(addr);
   const handler = buildServeHandler(app, config);
