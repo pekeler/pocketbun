@@ -66,6 +66,36 @@ export function New(dir: string, opts?: Partial<Options>): Driver {
   return new FileDriver(absdir, options);
 }
 
+// NewAsync is a PocketBun-only async alternative to New().
+export async function NewAsync(dir: string, opts?: Partial<Options>): Promise<Driver> {
+  const options: Options = {
+    Metadata: opts?.Metadata ?? MetadataInSidecar,
+    DirFileMode: opts?.DirFileMode ?? 0o777,
+    CreateDir: opts?.CreateDir ?? false,
+    NoTempDir: opts?.NoTempDir ?? false,
+  };
+
+  const absdir = resolve(dir);
+  let info: Stats | null = null;
+
+  try {
+    info = (await stat(absdir)) as Stats;
+  } catch (err) {
+    if (options.CreateDir && (err as NodeJS.ErrnoException).code === "ENOENT") {
+      await mkdir(absdir, { recursive: true, mode: options.DirFileMode });
+      info = (await stat(absdir)) as Stats;
+    } else {
+      throw err;
+    }
+  }
+
+  if (!info?.isDirectory()) {
+    throw new Error(`${absdir} is not a directory`);
+  }
+
+  return new FileDriver(absdir, options);
+}
+
 class FileDriver implements Driver {
   #opts: Options;
   #dir: string;

@@ -5,7 +5,7 @@ import { rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { NewFileFromPath } from "./file.ts";
 import { detectMimeTypeFromBytes } from "./file.ts";
-import { NewLocal, NotFoundError, metadataOriginalName, type Attributes } from "./filesystem.ts";
+import { NewLocal, NewLocalAsync, NotFoundError, metadataOriginalName, type Attributes } from "./filesystem.ts";
 import { createTestDir } from "./test_utils.ts";
 
 class ResponseRecorder {
@@ -41,6 +41,17 @@ class ResponseRecorder {
 }
 
 describe("filesystem system", () => {
+  it("new local async", async () => {
+    const dir = await createTestDir();
+    try {
+      const fsys = await NewLocalAsync(dir);
+      expect(await fsys.Exists("test/sub1.txt")).toBe(true);
+      await fsys.Close();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("exists", async () => {
     const dir = await createTestDir();
     try {

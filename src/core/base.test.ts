@@ -166,6 +166,10 @@ describe("BaseApp", () => {
     expect(local).not.toBeNull();
     await local.Close();
 
+    const localAsync = await app.NewFilesystemAsync();
+    expect(localAsync).not.toBeNull();
+    await localAsync.Close();
+
     app.settings().s3.enabled = true;
     let s3Err: Error | null = null;
     try {
@@ -174,6 +178,14 @@ describe("BaseApp", () => {
       s3Err = err as Error;
     }
     expect(s3Err).not.toBeNull();
+
+    let s3AsyncErr: Error | null = null;
+    try {
+      await app.NewFilesystemAsync();
+    } catch (err) {
+      s3AsyncErr = err as Error;
+    }
+    expect(s3AsyncErr).not.toBeNull();
 
     await rm(dataDir, { recursive: true, force: true });
   });
@@ -186,6 +198,10 @@ describe("BaseApp", () => {
     expect(local).not.toBeNull();
     await local.Close();
 
+    const localAsync = await app.NewBackupsFilesystemAsync();
+    expect(localAsync).not.toBeNull();
+    await localAsync.Close();
+
     app.settings().backups.s3.enabled = true;
     let s3Err: Error | null = null;
     try {
@@ -194,6 +210,14 @@ describe("BaseApp", () => {
       s3Err = err as Error;
     }
     expect(s3Err).not.toBeNull();
+
+    let s3AsyncErr: Error | null = null;
+    try {
+      await app.NewBackupsFilesystemAsync();
+    } catch (err) {
+      s3AsyncErr = err as Error;
+    }
+    expect(s3AsyncErr).not.toBeNull();
 
     await rm(dataDir, { recursive: true, force: true });
   });

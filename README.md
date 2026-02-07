@@ -147,6 +147,9 @@ Current extensions:
 - Base app bootstrap now exposes an async startup variant:
   - sync: `app.bootstrap()`
   - async: `await app.bootstrapAsync()`
+- Base app filesystem factory now exposes async variants:
+  - sync: `app.NewFilesystem()`, `app.NewBackupsFilesystem()`
+  - async: `await app.NewFilesystemAsync()`, `await app.NewBackupsFilesystemAsync()`
 - JSVM plugin registration now exposes async startup variants:
   - sync: `RegisterJSVM(...)`, `MustRegisterJSVM(...)`
   - async: `await RegisterJSVMAsync(...)`, `await MustRegisterJSVMAsync(...)`
@@ -166,6 +169,8 @@ const html = renderer.Render({ title: "Hello" });
 const app = new BaseApp({ dataDir: "pb_data" });
 await app.bootstrapAsync();
 await RegisterJSVMAsync(app, {});
+const fsys = await app.NewFilesystemAsync();
+await fsys.Close();
 ```
 
 ### CLI Updates

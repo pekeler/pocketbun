@@ -118,12 +118,16 @@ export interface App {
   // NB! Make sure to call Close() on the returned result
   // after you are done working with it.
   NewFilesystem(): System;
+  // NewFilesystemAsync is a PocketBun-only async alternative to NewFilesystem().
+  NewFilesystemAsync?(): Promise<System>;
   // NewBackupsFilesystem creates a new local or S3 filesystem instance
   // for managing app backups based on the current app settings.
   //
   // NB! Make sure to call Close() on the returned result
   // after you are done working with it.
   NewBackupsFilesystem(): System;
+  // NewBackupsFilesystemAsync is a PocketBun-only async alternative to NewBackupsFilesystem().
+  NewBackupsFilesystemAsync?(): Promise<System>;
   // CreateBackup creates a new backup of the current app pb_data directory.
   //
   // Backups can be stored on S3 if it is configured in app.Settings().Backups.

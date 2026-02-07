@@ -554,7 +554,7 @@ export class FileField
   }
 
   private async deleteEmptyRecordDir(ctx: unknown, app: App, record: RecordLike): Promise<Error | null> {
-    const fsys = app.NewFilesystem();
+    const fsys = typeof app.NewFilesystemAsync === "function" ? await app.NewFilesystemAsync() : app.NewFilesystem();
     fsys.SetContext(ctx);
 
     const dir = (record as unknown as RecordModel).BaseFilesPath();
@@ -618,7 +618,7 @@ export class FileField
       return new Error("uploading files requires the record to have a valid nonempty id");
     }
 
-    const fsys = app.NewFilesystem();
+    const fsys = typeof app.NewFilesystemAsync === "function" ? await app.NewFilesystemAsync() : app.NewFilesystem();
     fsys.SetContext(ctx);
 
     const succeeded: string[] = [];
@@ -672,7 +672,7 @@ export class FileField
       return [filenames, new Error("the record doesn't have an id")];
     }
 
-    const fsys = app.NewFilesystem();
+    const fsys = typeof app.NewFilesystemAsync === "function" ? await app.NewFilesystemAsync() : app.NewFilesystem();
     fsys.SetContext(ctx);
 
     const failures: Error[] = [];

@@ -11,7 +11,8 @@ import { badRequest, noContent } from "./api_errors.ts";
 export async function backupUpload(app: App, event: RequestEvent): Promise<Response> {
   let fsys;
   try {
-    fsys = app.NewBackupsFilesystem();
+    fsys =
+      typeof app.NewBackupsFilesystemAsync === "function" ? await app.NewBackupsFilesystemAsync() : app.NewBackupsFilesystem();
   } catch (error) {
     return badRequest(event, "Failed to load backups filesystem.", error as Error);
   }

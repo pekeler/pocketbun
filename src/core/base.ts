@@ -21,7 +21,7 @@ import { JSONEach } from "../tools/dbutils/json.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
 import { HashExp, Not } from "../tools/dbx/expr.ts";
 import { SelectQuery } from "../tools/dbx/select_query.ts";
-import { NewLocal, NewS3 } from "../tools/filesystem/filesystem.ts";
+import { NewLocal, NewLocalAsync, NewS3 } from "../tools/filesystem/filesystem.ts";
 import { Hook } from "../tools/hook/hook.ts";
 import { NewTaggedHook } from "../tools/hook/tagged.ts";
 import { columnify, snakecase } from "../tools/inflector/inflector.ts";
@@ -1824,6 +1824,19 @@ export class BaseApp implements App {
     return NewLocal(join(this.#dataDir, LocalStorageDirName));
   }
 
+  // NewFilesystemAsync is a PocketBun-only async alternative to NewFilesystem().
+  async NewFilesystemAsync() {
+    if (this.#settings.s3.enabled) {
+      const s3 = this.#settings.s3;
+      if (!s3.bucket || !s3.region || !s3.endpoint || !s3.accessKey || !s3.secret) {
+        throw new Error("missing or invalid s3 config");
+      }
+      return NewS3(s3.bucket, s3.region, s3.endpoint, s3.accessKey, s3.secret, s3.forcePathStyle);
+    }
+
+    return await NewLocalAsync(join(this.#dataDir, LocalStorageDirName));
+  }
+
   NewBackupsFilesystem() {
     if (this.#settings.backups.s3.enabled) {
       const s3 = this.#settings.backups.s3;
@@ -1834,6 +1847,19 @@ export class BaseApp implements App {
     }
 
     return NewLocal(join(this.#dataDir, LocalBackupsDirName));
+  }
+
+  // NewBackupsFilesystemAsync is a PocketBun-only async alternative to NewBackupsFilesystem().
+  async NewBackupsFilesystemAsync() {
+    if (this.#settings.backups.s3.enabled) {
+      const s3 = this.#settings.backups.s3;
+      if (!s3.bucket || !s3.region || !s3.endpoint || !s3.accessKey || !s3.secret) {
+        throw new Error("missing or invalid s3 config");
+      }
+      return NewS3(s3.bucket, s3.region, s3.endpoint, s3.accessKey, s3.secret, s3.forcePathStyle);
+    }
+
+    return await NewLocalAsync(join(this.#dataDir, LocalBackupsDirName));
   }
 
   // CreateBackup creates a new backup of the current app pb_data directory.
@@ -3457,7 +3483,7 @@ export class BaseApp implements App {
 
         let fsys;
         try {
-          fsys = this.NewFilesystem();
+          fsys = await this.NewFilesystemAsync();
         } catch (error) {
           this.Logger().Error("Failed to initialize filesystem for delete hook", "error", String(error));
           return await event.Next();

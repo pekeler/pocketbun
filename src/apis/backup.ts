@@ -36,7 +36,8 @@ async function backupsList(app: App, event: RequestEvent): Promise<Response> {
 
   let fsys;
   try {
-    fsys = app.NewBackupsFilesystem();
+    fsys =
+      typeof app.NewBackupsFilesystemAsync === "function" ? await app.NewBackupsFilesystemAsync() : app.NewBackupsFilesystem();
   } catch (error) {
     clearTimeout(timeout);
     return badRequest(event, "Failed to load backups filesystem.", error as Error);
@@ -76,7 +77,8 @@ async function backupDownload(app: App, event: RequestEvent): Promise<Response> 
 
   let fsys;
   try {
-    fsys = app.NewBackupsFilesystem();
+    fsys =
+      typeof app.NewBackupsFilesystemAsync === "function" ? await app.NewBackupsFilesystemAsync() : app.NewBackupsFilesystem();
   } catch (error) {
     clearTimeout(timeout);
     return internalServerError(event, "Failed to load backups filesystem.", error as Error);
@@ -110,7 +112,8 @@ async function backupDelete(app: App, event: RequestEvent): Promise<Response> {
 
   let fsys;
   try {
-    fsys = app.NewBackupsFilesystem();
+    fsys =
+      typeof app.NewBackupsFilesystemAsync === "function" ? await app.NewBackupsFilesystemAsync() : app.NewBackupsFilesystem();
   } catch (error) {
     clearTimeout(timeout);
     return internalServerError(event, "Failed to load backups filesystem.", error as Error);
@@ -150,7 +153,8 @@ async function backupRestore(app: App, event: RequestEvent): Promise<Response> {
 
   let fsys;
   try {
-    fsys = app.NewBackupsFilesystem();
+    fsys =
+      typeof app.NewBackupsFilesystemAsync === "function" ? await app.NewBackupsFilesystemAsync() : app.NewBackupsFilesystem();
   } catch (error) {
     clearTimeout(timeout);
     return internalServerError(event, "Failed to load backups filesystem.", error as Error);

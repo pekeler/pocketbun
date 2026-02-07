@@ -4,13 +4,14 @@
 // Deviation: CreateThumb is async because Bun image processing relies on async libraries.
 
 import { mkdirSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import { posix } from "node:path";
 import sharp from "sharp";
 import { Bucket, NewBucket } from "./blob/bucket.ts";
 import { ErrNotFound, NotFoundError, type Attributes as BlobAttributes, type WriterOptions } from "./blob/driver.ts";
 import { ErrEOF, isNotFoundError } from "./blob/errors.ts";
 import { BytesReader, File, detectMimeTypeFromBytes, normalizeName } from "./file.ts";
-import { New as NewFileBlob } from "./internal/fileblob/fileblob.ts";
+import { New as NewFileBlob, NewAsync as NewFileBlobAsync } from "./internal/fileblob/fileblob.ts";
 import { S3 } from "./internal/s3blob/s3/s3.ts";
 import { New as NewS3Blob } from "./internal/s3blob/s3blob.ts";
 
@@ -85,6 +86,13 @@ export class System {
   static NewLocal(dirPath: string): System {
     mkdirSync(dirPath, { recursive: true });
     const drv = NewFileBlob(dirPath, { NoTempDir: true });
+    return new System(NewBucket(drv));
+  }
+
+  // NewLocalAsync is a PocketBun-only async alternative to NewLocal().
+  static async NewLocalAsync(dirPath: string): Promise<System> {
+    await mkdir(dirPath, { recursive: true });
+    const drv = await NewFileBlobAsync(dirPath, { NoTempDir: true });
     return new System(NewBucket(drv));
   }
 
@@ -577,6 +585,13 @@ export class System {
 // NB! Make sure to call `Close()` after you are done working with it.
 export function NewLocal(dirPath: string): System {
   return System.NewLocal(dirPath);
+}
+
+// NewLocalAsync initializes a new local filesystem instance asynchronously.
+//
+// NB! Make sure to call `Close()` after you are done working with it.
+export async function NewLocalAsync(dirPath: string): Promise<System> {
+  return await System.NewLocalAsync(dirPath);
 }
 
 // NewS3 initializes an S3 filesystem instance.

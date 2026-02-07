@@ -145,7 +145,8 @@ class FileApi {
 
     let fsys: System;
     try {
-      fsys = event.app.NewFilesystem();
+      fsys =
+        typeof event.app.NewFilesystemAsync === "function" ? await event.app.NewFilesystemAsync() : event.app.NewFilesystem();
     } catch (error) {
       return internalServerError(event, "Filesystem initialization failure.", error);
     }

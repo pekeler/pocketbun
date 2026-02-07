@@ -85,7 +85,10 @@ class BackupCreateForm {
 
     let fsys;
     try {
-      fsys = this.app.NewBackupsFilesystem();
+      fsys =
+        typeof this.app.NewBackupsFilesystemAsync === "function"
+          ? await this.app.NewBackupsFilesystemAsync()
+          : this.app.NewBackupsFilesystem();
     } catch (error) {
       return error as Error;
     }
