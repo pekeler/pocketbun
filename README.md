@@ -93,7 +93,7 @@ Overall summary:
 
 Category summary (geometric mean over comparable scenarios):
 
-| Category | PocketBun vs PocketBase |
+| Benchmark category | PocketBun vs PocketBase |
 | --- | ---: |
 | `Creating organizations (100)` | `257.6% slower` |
 | `Creating permissions (50)` | `151.2% slower` |
@@ -102,10 +102,10 @@ Category summary (geometric mean over comparable scenarios):
 | `User auth with password (expected to be slow due to passwordHash verification)` | `0.5% faster` |
 | `User auth refresh` | `52.1% slower` |
 | `List records` | `40.6% slower` |
-| `route execution (PocketBase Go)` | `64.5% slower` |
-| `route execution (PocketBase JS)` | `77.5% slower` |
-| `hooks execution (PocketBase Go)` | `21.5% faster` |
-| `hooks execution (PocketBase JS)` | `68.1% faster` |
+| `Route execution (PocketBase Go)` | `64.5% slower` |
+| `Route execution (PocketBase JS)` | `77.5% slower` |
+| `Hooks execution (PocketBase Go)` | `21.5% faster` |
+| `Hooks execution (PocketBase JS)` | `68.1% faster` |
 | `Deleting records` | `68.1% slower` |
 
 ## Known Differences
