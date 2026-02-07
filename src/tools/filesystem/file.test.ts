@@ -9,6 +9,7 @@ import {
   NewFileFromBytes,
   NewFileFromMultipart,
   NewFileFromPath,
+  NewFileFromPathAsync,
   NewFileFromURL,
   PathReader,
 } from "./file.ts";
@@ -36,6 +37,28 @@ describe("filesystem file", () => {
       expect(f.Name).toMatch(/^image_special_\w{10}\.png$/);
       expect(f.Size).toBeGreaterThan(0);
       expect(f.Reader).toBeInstanceOf(PathReader);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("NewFileFromPathAsync", async () => {
+    const dir = await createTestDir();
+    try {
+      let missingErr: Error | null = null;
+      try {
+        await NewFileFromPathAsync("missing");
+      } catch (error) {
+        missingErr = error as Error;
+      }
+      expect(missingErr).not.toBeNull();
+
+      const originalName = "image_!@ special";
+      const f = await NewFileFromPathAsync(join(dir, originalName));
+      expect(f.OriginalName).toBe(originalName);
+      expect(f.Name).toMatch(/^image_special_\w{10}\.png$/);
+      expect(f.Size).toBeGreaterThan(0);
+      expect(f.Reader).toBeInstanceOf(BytesReader);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

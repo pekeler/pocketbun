@@ -5,7 +5,7 @@ import { mkdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { App } from "./app.ts";
 import { CreateAsync, ExtractAsync } from "../tools/archive/index.ts";
-import { NewFileFromPath } from "../tools/filesystem/file.ts";
+import { NewFileFromPathAsync } from "../tools/filesystem/file.ts";
 import { snakecase } from "../tools/inflector/inflector.ts";
 import { MoveDirContent } from "../tools/osutils/dir.ts";
 import { pseudorandomString } from "../tools/security/random.ts";
@@ -101,7 +101,7 @@ export async function CreateBackup(app: App, ctx: unknown, name: string): Promis
         const fsys = e.App.NewBackupsFilesystem();
         try {
           fsys.SetContext(e.Context);
-          const file = NewFileFromPath(tempPath);
+          const file = await NewFileFromPathAsync(tempPath);
           file.OriginalName = e.Name;
           file.Name = file.OriginalName;
           await fsys.UploadFile(file, file.Name);

@@ -1,6 +1,7 @@
 // Ported from pocketbase/tools/filesystem/file.go
 
 import { readFileSync, statSync } from "node:fs";
+import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { snakecase } from "../inflector/inflector.ts";
 import { randomStringWithAlphabet } from "../security/random.ts";
@@ -54,6 +55,21 @@ export function NewFileFromPath(path: string): File {
 
   const f = new File();
   f.Reader = new PathReader(path);
+  f.Size = info.size;
+  f.OriginalName = basename(path);
+  f.Name = normalizeName(f.Reader, f.OriginalName);
+  return f;
+}
+
+// NewFileFromPathAsync creates a new File instance from the provided local file path.
+//
+// Deviation: PocketBun-only async alternative that eagerly reads file content
+// to avoid sync filesystem I/O in async runtime paths.
+export async function NewFileFromPathAsync(path: string): Promise<File> {
+  const [info, raw] = await Promise.all([stat(path), readFile(path)]);
+
+  const f = new File();
+  f.Reader = new BytesReader(raw);
   f.Size = info.size;
   f.OriginalName = basename(path);
   f.Name = normalizeName(f.Reader, f.OriginalName);

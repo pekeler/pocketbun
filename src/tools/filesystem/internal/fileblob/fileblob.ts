@@ -1,21 +1,11 @@
 // Ported from pocketbase/tools/filesystem/internal/fileblob/fileblob.go
-// Deviation: uses synchronous filesystem operations inside async driver methods for simplicity.
+// Deviation: async driver methods use non-blocking fs/promises APIs where possible.
+// Deviation: low-level reader/writer primitives remain sync because DriverReader/DriverWriter are sync interfaces.
 
-import type { Stats } from "node:fs";
+import type { Dirent, Stats } from "node:fs";
 import { createHash } from "node:crypto";
-import {
-  closeSync,
-  mkdirSync,
-  openSync,
-  readFileSync,
-  readSync,
-  readdirSync,
-  renameSync,
-  rmdirSync,
-  statSync,
-  unlinkSync,
-  writeSync,
-} from "node:fs";
+import { closeSync, mkdirSync, openSync, readSync, statSync, writeSync } from "node:fs";
+import { mkdir, open, readdir, rename, rm, rmdir, stat, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import type {
@@ -31,7 +21,7 @@ import type {
 } from "../../blob/driver.ts";
 import { ErrNotFound } from "../../blob/driver.ts";
 import { HexEscape, HexUnescape } from "../../blob/hex.ts";
-import { attrsExt, errAttrsExt, getAttrs, setAttrs, type XAttrs } from "./attrs.ts";
+import { attrsExt, errAttrsExt, getAttrsAsync, setAttrsAsync, type XAttrs } from "./attrs.ts";
 
 const defaultPageSize = 1000;
 
@@ -95,7 +85,7 @@ class FileDriver implements Driver {
   }
 
   async Attributes(_ctx: AbortSignal | null, key: string): Promise<Attributes> {
-    const { info, attrs } = this.#forKey(key);
+    const { info, attrs } = await this.#forKeyAsync(key);
     const modTime = info.mtime;
     const size = info.size;
     const modHex = Math.round(modTime.getTime() * 1e6).toString(16);
@@ -131,7 +121,7 @@ class FileDriver implements Driver {
 
     const files: Array<{ key: string; info: Stats; md5: Uint8Array | null }> = [];
 
-    walkDir(root, (path, entry) => {
+    await walkDirAsync(root, async (path, entry) => {
       if (path.endsWith(attrsExt)) {
         return;
       }
@@ -150,13 +140,13 @@ class FileDriver implements Driver {
 
       let md5: Uint8Array | null = null;
       try {
-        const xa = getAttrs(path);
+        const xa = await getAttrsAsync(path);
         md5 = xa.MD5.length > 0 ? xa.MD5 : null;
       } catch {
         md5 = null;
       }
 
-      const info = statSync(path) as Stats;
+      const info = (await stat(path)) as Stats;
       files.push({ key, info, md5 });
     });
 
@@ -227,7 +217,7 @@ class FileDriver implements Driver {
   }
 
   async NewRangeReader(_ctx: AbortSignal | null, key: string, offset: number, length: number): Promise<DriverReader> {
-    const { path, info, attrs } = this.#forKey(key);
+    const { path, info, attrs } = await this.#forKeyAsync(key);
     const fd = openSync(path, "r");
     return new FileRangeReader(fd, offset, length, {
       ContentType: attrs.ContentType,
@@ -238,7 +228,7 @@ class FileDriver implements Driver {
 
   async NewTypedWriter(_ctx: AbortSignal | null, key: string, contentType: string, opts: WriterOptions): Promise<DriverWriter> {
     const path = this.#path(key);
-    mkdirSync(dirname(path), { recursive: true, mode: this.#opts.DirFileMode });
+    await mkdir(dirname(path), { recursive: true, mode: this.#opts.DirFileMode });
     const temp = createTemp(path, this.#opts.NoTempDir);
 
     if (this.#opts.Metadata === MetadataDontWrite) {
@@ -260,8 +250,7 @@ class FileDriver implements Driver {
   }
 
   async Copy(ctx: AbortSignal | null, dstKey: string, srcKey: string): Promise<void> {
-    const { path: srcPath, attrs } = this.#forKey(srcKey);
-    const raw = readFileSync(srcPath);
+    const { path: srcPath, attrs } = await this.#forKeyAsync(srcKey);
 
     const wopts: WriterOptions = {
       CacheControl: attrs.CacheControl,
@@ -276,21 +265,63 @@ class FileDriver implements Driver {
       Metadata: attrs.Metadata,
     };
 
-    const writer = await this.NewTypedWriter(ctx, dstKey, attrs.ContentType, wopts);
-    writer.write(raw);
-    await writer.close();
+    const controller = new AbortController();
+    if (ctx) {
+      if (ctx.aborted) {
+        controller.abort(ctx.reason);
+      } else {
+        ctx.addEventListener("abort", () => controller.abort(ctx.reason), { once: true });
+      }
+    }
+
+    const writer = await this.NewTypedWriter(controller.signal, dstKey, attrs.ContentType, wopts);
+    const fh = await open(srcPath, "r");
+    let closeStarted = false;
+    try {
+      const buffer = new Uint8Array(64 * 1024);
+      for (;;) {
+        const readResult = await fh.read(buffer, 0, buffer.length, null);
+        const bytesRead = readResult.bytesRead ?? 0;
+        if (bytesRead <= 0) {
+          break;
+        }
+        let writeOffset = 0;
+        while (writeOffset < bytesRead) {
+          const written = writer.write(buffer.subarray(writeOffset, bytesRead));
+          if (written <= 0) {
+            throw new Error("failed to write copied blob chunk");
+          }
+          writeOffset += written;
+        }
+      }
+      closeStarted = true;
+      await writer.close();
+    } catch (err) {
+      controller.abort(err);
+      if (!closeStarted) {
+        try {
+          await writer.close();
+        } catch {
+          // ignore
+        }
+      }
+      throw err;
+    } finally {
+      await fh.close();
+    }
   }
 
   async Delete(_ctx: AbortSignal | null, key: string): Promise<void> {
     const path = this.#path(key);
-    const info = statSync(path);
+    const info = await stat(path);
     if (info.isDirectory()) {
-      rmdirSync(path);
+      await rmdir(path);
     } else {
-      unlinkSync(path);
+      await unlink(path);
     }
+
     try {
-      unlinkSync(path + attrsExt);
+      await unlink(path + attrsExt);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
         throw err;
@@ -306,15 +337,15 @@ class FileDriver implements Driver {
     return p;
   }
 
-  #forKey(key: string): { path: string; info: Stats; attrs: XAttrs } {
+  async #forKeyAsync(key: string): Promise<{ path: string; info: Stats; attrs: XAttrs }> {
     const path = this.#path(key);
-    const info = statSync(path) as Stats;
+    const info = (await stat(path)) as Stats;
     if (info.isDirectory()) {
       const err = new Error("not found") as NodeJS.ErrnoException;
       err.code = "ENOENT";
       throw err;
     }
-    const attrs = getAttrs(path);
+    const attrs = await getAttrsAsync(path);
     return { path, info, attrs };
   }
 }
@@ -414,12 +445,12 @@ class FileWriterWithSidecar implements DriverWriter {
       }
 
       this.#attrs.MD5 = Uint8Array.from(this.#hash.digest());
-      setAttrs(this.#path, this.#attrs);
+      await setAttrsAsync(this.#path, this.#attrs);
       try {
-        renameSync(this.#tempPath, this.#path);
+        await rename(this.#tempPath, this.#path);
       } catch (err) {
         try {
-          unlinkSync(this.#path + attrsExt);
+          await rm(this.#path + attrsExt, { force: true });
         } catch {
           // ignore
         }
@@ -427,7 +458,7 @@ class FileWriterWithSidecar implements DriverWriter {
       }
     } finally {
       try {
-        unlinkSync(this.#tempPath);
+        await rm(this.#tempPath, { force: true });
       } catch {
         // ignore
       }
@@ -461,10 +492,10 @@ class FileWriter implements DriverWriter {
       if (this.#ctx?.aborted) {
         throw this.#ctx.reason ?? new Error("context canceled");
       }
-      renameSync(this.#tempPath, this.#path);
+      await rename(this.#tempPath, this.#path);
     } finally {
       try {
-        unlinkSync(this.#tempPath);
+        await rm(this.#tempPath, { force: true });
       } catch {
         // ignore
       }
@@ -530,18 +561,27 @@ function unescapeKey(value: string): string {
   return HexUnescape(result);
 }
 
-function walkDir(root: string, cb: (path: string, entry: { isDirectory(): boolean }) => void): void {
-  let entries: Array<{ name: string; isDirectory(): boolean }> = [];
-  try {
-    entries = readdirSync(root, { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    const fullPath = join(root, entry.name);
-    cb(fullPath, entry);
-    if (entry.isDirectory()) {
-      walkDir(fullPath, cb);
+async function walkDirAsync(root: string, cb: (path: string, entry: Dirent) => Promise<void> | void): Promise<void> {
+  const stack = [root];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) {
+      continue;
+    }
+
+    let entries: Dirent[] = [];
+    try {
+      entries = await readdir(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const fullPath = join(current, entry.name);
+      await cb(fullPath, entry);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+      }
     }
   }
 }
