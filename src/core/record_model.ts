@@ -39,6 +39,7 @@ export class Record {
   #customVisibility = new Store<string, boolean>();
   #expand: Store<string, unknown> | null = null;
   #hookTags: string[] | null = null;
+  #fieldInterceptors: RecordInterceptor[] | null = null;
 
   static fromRow(collection: Collection, row: RecordData): Record {
     const record = new Record(collection, {}, false);
@@ -538,13 +539,7 @@ export class Record {
     actionName: string,
     actionFunc: () => Error | null | Promise<Error | null>,
   ): Error | null | Promise<Error | null> {
-    const interceptors: RecordInterceptor[] = [];
-    for (const field of this.#collection.Fields) {
-      const interceptor = field as unknown as RecordInterceptor;
-      if (typeof interceptor.Intercept === "function") {
-        interceptors.push(interceptor);
-      }
-    }
+    const interceptors = this.#resolveFieldInterceptors();
 
     if (interceptors.length === 0) {
       return actionFunc();
@@ -573,6 +568,23 @@ export class Record {
       return new Error("async field interceptors are not supported in sync save");
     }
     return result ?? null;
+  }
+
+  #resolveFieldInterceptors(): RecordInterceptor[] {
+    if (this.#fieldInterceptors) {
+      return this.#fieldInterceptors;
+    }
+
+    const interceptors: RecordInterceptor[] = [];
+    for (const field of this.#collection.Fields) {
+      const interceptor = field as unknown as RecordInterceptor;
+      if (typeof interceptor.Intercept === "function") {
+        interceptors.push(interceptor);
+      }
+    }
+
+    this.#fieldInterceptors = interceptors;
+    return interceptors;
   }
 
   DBExport(): RecordData {
