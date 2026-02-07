@@ -1,6 +1,6 @@
 // Ported from pocketbase/plugins/migratecmd/automigrate.go
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { App } from "../../core/app.ts";
 import type { Collection } from "../../core/collection_model.ts";
@@ -98,13 +98,13 @@ export async function automigrateOnCollectionChange(p: PluginContext, e: Collect
 
     // ensure that the local migrations dir exist
     try {
-      mkdirSync(dir, { recursive: true });
+      await mkdir(dir, { recursive: true });
     } catch (error) {
       return new Error(`failed to create migration dir: ${String(error)}`);
     }
 
     try {
-      writeFileSync(filePath, template);
+      await writeFile(filePath, template);
     } catch (error) {
       return new Error(`failed to save automigrate file: ${String(error)}`);
     }

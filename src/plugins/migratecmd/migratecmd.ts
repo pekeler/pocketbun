@@ -1,6 +1,6 @@
 // Ported from pocketbase/plugins/migratecmd/migratecmd.go
 
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { App } from "../../core/app.ts";
 import { collectionFromRow, type CollectionRow } from "../../core/collection_model.ts";
@@ -104,19 +104,19 @@ export class MigrateCmdPlugin {
       SilenceUsage: true,
     });
 
-    command.RunE = (_command, args) => {
+    command.RunE = async (_command, args) => {
       const cmd = args.length > 0 ? (args[0] ?? "") : "";
 
       switch (cmd) {
         case "create": {
-          const { error } = this.migrateCreateHandler("", args.slice(1), true);
+          const { error } = await this.migrateCreateHandler("", args.slice(1), true);
           if (error) {
             return error;
           }
           break;
         }
         case "collections": {
-          const { error } = this.migrateCollectionsHandler(args.slice(1), true);
+          const { error } = await this.migrateCollectionsHandler(args.slice(1), true);
           if (error) {
             return error;
           }
@@ -143,7 +143,11 @@ export class MigrateCmdPlugin {
     return command;
   }
 
-  migrateCreateHandler(template: string, args: string[], interactive: boolean): { fileName: string; error: Error | null } {
+  async migrateCreateHandler(
+    template: string,
+    args: string[],
+    interactive: boolean,
+  ): Promise<{ fileName: string; error: Error | null }> {
     if (args.length < 1) {
       return { fileName: "", error: new Error("missing migration file name") };
     }
@@ -178,14 +182,14 @@ export class MigrateCmdPlugin {
 
     // ensure that the migrations dir exist
     try {
-      mkdirSync(dir, { recursive: true });
+      await mkdir(dir, { recursive: true });
     } catch (error) {
       return { fileName: "", error: error as Error };
     }
 
     // save the migration file
     try {
-      writeFileSync(resultFilePath, template);
+      await writeFile(resultFilePath, template);
     } catch (error) {
       return {
         fileName: "",
@@ -200,7 +204,7 @@ export class MigrateCmdPlugin {
     return { fileName: filename, error: null };
   }
 
-  migrateCollectionsHandler(args: string[], interactive: boolean): { fileName: string; error: Error | null } {
+  async migrateCollectionsHandler(args: string[], interactive: boolean): Promise<{ fileName: string; error: Error | null }> {
     const createArgs = ["collections_snapshot", ...args];
 
     let collections: CollectionRow[] = [];
@@ -223,7 +227,7 @@ export class MigrateCmdPlugin {
       return { fileName: "", error: new Error(`failed to resolve template: ${String(error)}`) };
     }
 
-    return this.migrateCreateHandler(template, createArgs, interactive);
+    return await this.migrateCreateHandler(template, createArgs, interactive);
   }
 
   automigrateOnCollectionChange(e: Parameters<typeof automigrateOnCollectionChange>[1]): Promise<Error | null> {
