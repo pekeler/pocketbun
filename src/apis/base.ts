@@ -271,12 +271,20 @@ function resolveFsRoot(fsys: string | FsRoot): string {
 }
 
 function mergeEventHeaders(response: Response, eventHeaders: Headers): Response {
-  const merged = new Headers(response.headers);
+  let merged: Headers | null = null;
   for (const [key, value] of eventHeaders.entries()) {
-    if (!merged.has(key)) {
+    if (!response.headers.has(key)) {
+      if (!merged) {
+        merged = new Headers(response.headers);
+      }
       merged.set(key, value);
     }
   }
+
+  if (!merged) {
+    return response;
+  }
+
   return new Response(response.body, {
     status: response.status,
     headers: merged,

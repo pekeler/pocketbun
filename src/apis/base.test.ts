@@ -51,6 +51,32 @@ describe("apis base", () => {
     }
   });
 
+  it("WrapStdHandler merges event response headers only when missing", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const request = new Request("http://localhost/");
+      const event = new RequestEvent({ app, request });
+      event.responseHeaders.set("X-PocketBun", "event");
+      event.responseHeaders.set("X-Override", "event");
+
+      const response = await WrapStdHandler(() => {
+        return new Response("ok", {
+          status: 201,
+          headers: {
+            "X-Override": "handler",
+          },
+        });
+      })(event);
+
+      expect(response.status).toBe(201);
+      expect(await response.text()).toBe("ok");
+      expect(response.headers.get("X-PocketBun")).toBe("event");
+      expect(response.headers.get("X-Override")).toBe("handler");
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("Static", async () => {
     const { app, cleanup } = await newTestApp();
     try {
