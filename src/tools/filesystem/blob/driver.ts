@@ -79,6 +79,8 @@ export interface DriverReader {
 
 export interface DriverWriter {
   write(data?: Uint8Array | null): number;
+  // PocketBun-only async alternative to write().
+  writeAsync?(data?: Uint8Array | null): Promise<number>;
   close(): Promise<void> | void;
 }
 

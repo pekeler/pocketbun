@@ -1,10 +1,10 @@
 // Ported from pocketbase/tools/filesystem/internal/fileblob/fileblob.go
 // Deviation: async driver methods use non-blocking fs/promises APIs where possible.
-// Deviation: low-level reader/writer primitives remain sync because DriverReader/DriverWriter are sync interfaces.
+// Deviation: reader primitives remain sync for compatibility, but writer paths also expose writeAsync for non-blocking writes.
 
 import type { Dirent, Stats } from "node:fs";
 import { createHash } from "node:crypto";
-import { closeSync, mkdirSync, openSync, readSync, statSync, writeSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, readSync, statSync, write as writeFd, writeSync } from "node:fs";
 import { mkdir, open, readdir, rename, rm, rmdir, stat, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
@@ -317,7 +317,8 @@ class FileDriver implements Driver {
         }
         let writeOffset = 0;
         while (writeOffset < bytesRead) {
-          const written = writer.write(buffer.subarray(writeOffset, bytesRead));
+          const chunk = buffer.subarray(writeOffset, bytesRead);
+          const written = typeof writer.writeAsync === "function" ? await writer.writeAsync(chunk) : writer.write(chunk);
           if (written <= 0) {
             throw new Error("failed to write copied blob chunk");
           }
@@ -467,6 +468,17 @@ class FileWriterWithSidecar implements DriverWriter {
     return written;
   }
 
+  async writeAsync(data?: Uint8Array | null): Promise<number> {
+    if (!data || data.length === 0) {
+      return 0;
+    }
+    const written = await writeFdAsync(this.#fd, data);
+    if (written > 0) {
+      this.#hash.update(data.slice(0, written));
+    }
+    return written;
+  }
+
   async close(): Promise<void> {
     closeSync(this.#fd);
     try {
@@ -516,6 +528,13 @@ class FileWriter implements DriverWriter {
     return writeSync(this.#fd, data);
   }
 
+  async writeAsync(data?: Uint8Array | null): Promise<number> {
+    if (!data || data.length === 0) {
+      return 0;
+    }
+    return await writeFdAsync(this.#fd, data);
+  }
+
   async close(): Promise<void> {
     closeSync(this.#fd);
     try {
@@ -552,6 +571,18 @@ function createTemp(path: string, noTempDir: boolean): { fd: number; path: strin
   const error = new Error(`createtemp ${path}.*.tmp`) as NodeJS.ErrnoException;
   error.code = "EEXIST";
   throw error;
+}
+
+function writeFdAsync(fd: number, data: Uint8Array): Promise<number> {
+  return new Promise((resolve, reject) => {
+    writeFd(fd, data, 0, data.length, null, (err, bytesWritten) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(bytesWritten ?? 0);
+    });
+  });
 }
 
 function escapeKey(value: string): string {

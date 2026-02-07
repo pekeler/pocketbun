@@ -50,7 +50,7 @@ export class Writer {
     }
 
     if (this.#w) {
-      return this.#write(data);
+      return await this.#write(data);
     }
 
     if (this.#bufChunks && this.#bufSize === 0 && data.length >= sniffLen) {
@@ -70,7 +70,7 @@ export class Writer {
       return data.length;
     }
 
-    return this.#write(data);
+    return await this.#write(data);
   }
 
   async close(): Promise<void> {
@@ -141,15 +141,17 @@ export class Writer {
     this.#ctx = null;
     this.#opts = null;
 
-    return this.#write(data);
+    return await this.#write(data);
   }
 
-  #write(data: Uint8Array): number {
+  async #write(data: Uint8Array): Promise<number> {
     if (!this.#w) {
       return 0;
     }
-    const written = this.#w.write(data);
-    return written;
+    if (typeof this.#w.writeAsync === "function") {
+      return await this.#w.writeAsync(data);
+    }
+    return this.#w.write(data);
   }
 }
 
