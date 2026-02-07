@@ -5,6 +5,7 @@ import type { RouterGroup } from "../tools/router/group.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { RequestEventKeyInfoContext, RequestInfoContextBatch, RequestInfoContextDefault } from "../core/event_request.ts";
 import { BatchRequestEvent, InternalRequest } from "../core/event_request_batch.ts";
+import { readRequestBytesAndRebind, readRequestTextAndRebind } from "../internal/compat/request_body.ts";
 import { ValidationError, ValidationErrors, newError, ErrRequired } from "../internal/compat/validation.ts";
 import { NewFileFromBytes, File as LocalFile } from "../tools/filesystem/file.ts";
 import { JSONPayloadKey, unmarshalRequestData } from "../tools/router/unmarshal_request_data.ts";
@@ -75,7 +76,7 @@ async function batchTransaction(app: App, event: RequestEvent): Promise<Response
     return limitResponse;
   }
 
-  const parsed = await readBatchRequests(event.request);
+  const parsed = await readBatchRequests(event);
   if (parsed.error) {
     return badBatchRequest(event, "Failed to read the submitted batch data.", parsed.error);
   }
@@ -477,14 +478,24 @@ async function extractPrefixedFiles(form: RequestFormData, ...prefixes: string[]
 }
 
 async function readBatchRequests(
-  request: Request,
+  event: RequestEvent,
 ): Promise<{ requests: InternalRequest[]; form: RequestFormData | null; error: Error | null }> {
-  const contentType = (request.headers.get("content-type") ?? "").toLowerCase();
+  const rawContentType = event.request.headers.get("content-type") ?? "";
+  const contentType = rawContentType.toLowerCase();
 
   if (contentType.includes("multipart/form-data")) {
     try {
+      const bound = await readRequestBytesAndRebind(event.request);
+      event.request = bound.request;
+      const parserRequest = new Request("http://localhost", {
+        method: "POST",
+        headers: {
+          "content-type": rawContentType,
+        },
+        body: bound.body,
+      });
       // eslint-disable-next-line typescript-eslint/no-deprecated -- Bun's Request.formData keeps batch multipart parsing aligned with upstream.
-      const form = await request.clone().formData();
+      const form = await parserRequest.formData();
       const raw: Record<string, string[]> = {};
       for (const [key, value] of form.entries()) {
         if (typeof value === "string") {
@@ -505,7 +516,9 @@ async function readBatchRequests(
 
   if (contentType.includes("application/x-www-form-urlencoded")) {
     try {
-      const text = await request.clone().text();
+      const bound = await readRequestTextAndRebind(event.request);
+      event.request = bound.request;
+      const text = bound.text;
       const params = new URLSearchParams(text);
       const raw: Record<string, string[]> = {};
       for (const [key, value] of params.entries()) {
@@ -525,7 +538,9 @@ async function readBatchRequests(
 
   if (contentType.includes("application/json") || contentType === "") {
     try {
-      const text = await request.clone().text();
+      const bound = await readRequestTextAndRebind(event.request);
+      event.request = bound.request;
+      const text = bound.text;
       if (text.trim() === "") {
         return { requests: [], form: null, error: null };
       }

@@ -2,6 +2,7 @@
 
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
+import { readRequestTextAndRebind } from "../internal/compat/request_body.ts";
 import { Message } from "../tools/subscriptions/message.ts";
 
 const oauth2SubscriptionTopic = "@oauth2";
@@ -75,7 +76,9 @@ async function readRedirectData(event: RequestEvent): Promise<OAuth2RedirectData
     const contentType = event.request.headers.get("content-type") ?? "";
     try {
       if (contentType.includes("application/json")) {
-        const parsed = await event.request.clone().json();
+        const bound = await readRequestTextAndRebind(event.request);
+        event.request = bound.request;
+        const parsed = JSON.parse(bound.text) as unknown;
         if (parsed && typeof parsed === "object") {
           const raw = parsed as Record<string, unknown>;
           data.State = typeof raw.state === "string" ? raw.state : "";
@@ -86,7 +89,9 @@ async function readRedirectData(event: RequestEvent): Promise<OAuth2RedirectData
         return data;
       }
 
-      const body = await event.request.clone().text();
+      const bound = await readRequestTextAndRebind(event.request);
+      event.request = bound.request;
+      const body = bound.text;
       const params = new URLSearchParams(body);
       data.State = params.get("state") ?? "";
       data.Code = params.get("code") ?? "";

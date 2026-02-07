@@ -5,6 +5,7 @@ import type { BodyInit } from "bun";
 import { readFileSync, statSync, type Stats } from "node:fs";
 import { join } from "node:path";
 import type { NextFunc, Resolver } from "../hook/event.ts";
+import { readRequestTextAndRebind } from "../../internal/compat/request_body.ts";
 import { File as FilesystemFile, NewFileFromMultipart } from "../filesystem/file.ts";
 import { profileEnabled, recordProfile } from "../perf/profile.ts";
 import { Pick } from "../picker/pick.ts";
@@ -453,7 +454,9 @@ export class Event implements Resolver {
     const contentType = (this.request.headers.get(headerContentType) ?? "").toLowerCase();
 
     if (contentType.startsWith("application/json")) {
-      const parsed = await this.request.clone().json();
+      const bound = await readRequestTextAndRebind(this.request);
+      this.request = bound.request;
+      const parsed = JSON.parse(bound.text) as unknown;
       if (parsed && typeof parsed === "object") {
         Object.assign(target, parsed as object);
       }
@@ -472,7 +475,9 @@ export class Event implements Resolver {
     }
 
     if (contentType.startsWith("application/x-www-form-urlencoded")) {
-      const raw = await this.request.clone().text();
+      const bound = await readRequestTextAndRebind(this.request);
+      this.request = bound.request;
+      const raw = bound.text;
       const params = new URLSearchParams(raw);
       const data: Record<string, string[]> = {};
       for (const [key, value] of params.entries()) {
@@ -487,7 +492,9 @@ export class Event implements Resolver {
     }
 
     if (contentType.startsWith("text/xml") || contentType.startsWith("application/xml")) {
-      const raw = await this.request.clone().text();
+      const bound = await readRequestTextAndRebind(this.request);
+      this.request = bound.request;
+      const raw = bound.text;
       const data = parseXmlBody(raw);
       const err = unmarshalRequestData(data, target as Record<string, unknown>);
       if (err) {

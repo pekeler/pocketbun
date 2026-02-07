@@ -1,6 +1,7 @@
 // Ported from pocketbase/core/event_request.go
 
 import type { App } from "./app.ts";
+import { readRequestTextAndRebind } from "../internal/compat/request_body.ts";
 import { profileEnabled, recordProfile } from "../tools/perf/profile.ts";
 import { Event } from "../tools/router/event.ts";
 import { Record as RecordModel } from "./record_model.ts";
@@ -249,13 +250,9 @@ async function bindJSONBody(request: Request): Promise<{ request: Request; body:
     }
   }
 
-  const raw = await request.text();
-  const method = request.method.toUpperCase();
-  const reboundInit: RequestInit = {};
-  if (method !== "GET" && method !== "HEAD") {
-    reboundInit.body = raw;
-  }
-  const rebound = new Request(request, reboundInit);
+  const bound = await readRequestTextAndRebind(request);
+  const rebound = bound.request;
+  const raw = bound.text;
   if (raw.trim() === "") {
     return { request: rebound, body: {} };
   }

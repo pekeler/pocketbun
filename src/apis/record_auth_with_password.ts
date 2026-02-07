@@ -7,6 +7,7 @@ import type { Record as RecordModel } from "../core/record_model.ts";
 import { RequestEventKeyInfoContext, RequestInfoContextPasswordAuth } from "../core/event_request.ts";
 import { RecordAuthWithPasswordRequestEvent } from "../core/events.ts";
 import { MFAMethodPassword } from "../core/mfa_model.ts";
+import { readRequestTextAndRebind } from "../internal/compat/request_body.ts";
 import { ValidationError, ValidationErrors, ErrRequired, newError, required } from "../internal/compat/validation.ts";
 import { findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
 import { HashExp, NewExp } from "../tools/dbx/expr.ts";
@@ -31,7 +32,9 @@ export async function recordAuthWithPassword(app: App, event: RequestEvent): Pro
 
   if (event.request.body) {
     try {
-      const parsed = await event.request.clone().json();
+      const bound = await readRequestTextAndRebind(event.request);
+      event.request = bound.request;
+      const parsed = JSON.parse(bound.text) as unknown;
       if (parsed && typeof parsed === "object") {
         const raw = parsed as Record<string, unknown>;
         if (typeof raw.identity === "string") {

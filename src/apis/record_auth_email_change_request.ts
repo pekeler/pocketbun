@@ -5,6 +5,7 @@ import type { RequestEvent } from "../core/event_request.ts";
 import type { Record as RecordModel } from "../core/record_model.ts";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { RecordRequestEmailChangeRequestEvent } from "../core/events.ts";
+import { readRequestTextAndRebind } from "../internal/compat/request_body.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { SendRecordChangeEmail } from "../mails/record.ts";
 import { badRequest, forbidden, noContent, unauthorized } from "./api_errors.ts";
@@ -36,7 +37,9 @@ export async function recordRequestEmailChange(app: App, event: RequestEvent): P
   const form = { newEmail: "" };
   if (event.request.body) {
     try {
-      const parsed = await event.request.clone().json();
+      const bound = await readRequestTextAndRebind(event.request);
+      event.request = bound.request;
+      const parsed = JSON.parse(bound.text) as unknown;
       if (parsed && typeof parsed === "object") {
         const raw = parsed as Record<string, unknown>;
         if (typeof raw.newEmail === "string") {

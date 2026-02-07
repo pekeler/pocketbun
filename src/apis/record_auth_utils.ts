@@ -3,6 +3,7 @@
 import type { App } from "../core/app.ts";
 import type { Collection } from "../core/collection_model.ts";
 import type { RequestEvent } from "../core/event_request.ts";
+import { readRequestTextAndRebind } from "../internal/compat/request_body.ts";
 
 export function findAuthCollection(app: App, event: RequestEvent): Collection | null {
   const collectionId = event.params.collection ?? "";
@@ -40,7 +41,9 @@ export async function readJsonBody(
 
   let raw = "";
   try {
-    raw = await event.request.clone().text();
+    const bound = await readRequestTextAndRebind(event.request);
+    event.request = bound.request;
+    raw = bound.text;
   } catch (error) {
     return { data: null, error: error as Error };
   }

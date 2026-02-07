@@ -15,6 +15,7 @@ import { TextField } from "../core/field_text.ts";
 import { MFAMethodOAuth2 } from "../core/mfa_model.ts";
 import { FieldNameEmail, FieldNamePassword, NewRecord } from "../core/record_model.ts";
 import { RecordUpsert } from "../forms/record_upsert.ts";
+import { readRequestTextAndRebind } from "../internal/compat/request_body.ts";
 import { ValidationErrors, ErrRequired, newError, required } from "../internal/compat/validation.ts";
 import { AuthUser } from "../tools/auth/auth.ts";
 import { SetAuthURLParam } from "../tools/auth/oauth2.ts";
@@ -485,7 +486,9 @@ async function parseOAuth2Form(event: RequestEvent): Promise<{ data: OAuth2Form;
   }
 
   try {
-    const parsed = await event.request.clone().json();
+    const bound = await readRequestTextAndRebind(event.request);
+    event.request = bound.request;
+    const parsed = JSON.parse(bound.text) as unknown;
     if (parsed && typeof parsed === "object") {
       const raw = parsed as Record<string, unknown>;
       if (typeof raw.provider === "string") {
