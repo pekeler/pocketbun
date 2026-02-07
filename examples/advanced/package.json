@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "client": "bun run client.ts",
     "start": "bun run main.ts",
-    "superuser": "pocketbun superuser upsert admin@example.com change-me --dir pb_data",
-    "client": "bun run client.ts"
+    "superuser": "pocketbun superuser upsert admin@example.com change-me --dir pb_data"
   },
   "dependencies": {
     "pocketbase": "^0.26.2",

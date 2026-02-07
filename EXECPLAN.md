@@ -63,6 +63,7 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
 - [x] (2026-02-06) Re-ran both benchmark runners with logs disabled after provider `skipTotal` optimization and parsed-params reuse to refresh deltas.
 - [x] (2026-02-06) Re-ran profiling + logs-disabled benchmark pair after hook/request-info/router/response-path optimizations and recorded fresh deltas.
 - [x] (2026-02-07) Continued the async runtime I/O slices by removing sync fd open/temp-create/close calls from fileblob async paths (`NewRangeReader`, `NewTypedWriter`, async writer close) while preserving the sync-compatible reader/writer methods.
+- [x] (2026-02-07) Switched shipped examples (`examples/base`, `examples/simple`, `examples/advanced`) to async-first startup (`MustRegisterAsync`/`RegisterJSVMAsync`, `serveAsync`) and removed early manual bootstrap in advanced example so JSVM bootstrap hooks execute in the intended order.
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
@@ -170,6 +171,8 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
 
 - Observation: `net/http` in upstream PocketBase parses URL once and reuses `req.URL`, while our Bun path was reparsing with `new URL(req.url)` in both router and event-level helpers.
   Evidence: `.upstream/pocketbase/tools/router/router.go` passes `*http.Request` through the event factory, and `.upstream/pocketbase/core/event_request.go` reads `e.Request.URL.Query()` directly.
+- Observation: the advanced example bootstrapped `BaseApp` before JSVM registration, so JSVM bootstrap hook work (like types refresh) could be skipped in that example flow.
+  Evidence: `examples/advanced/main.ts` called `app.bootstrap()` before `RegisterJSVM(...)`; this was changed to register first and use `serveAsync(...)` to bootstrap.
 - Observation: Provider `skipTotal` still built/updated count SQL strings even though totals were disabled; this was avoidable CPU work on the hot path.
   Evidence: `src/tools/search/provider.ts` built `countSql` and ran `buildCountQuery(...)` before the `skipTotal` branch.
 - Observation: Reusing parsed `URLSearchParams` and skipping count-query construction moved `records_list_skip_total` to near parity in the latest run.
@@ -241,6 +244,9 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
 - Decision: Reuse the router-parsed URL by extending router event factory options with `requestUrl` and threading it into `Event`/`RequestEvent`.
   Rationale: This matches upstream’s single parsed-request URL model and removes duplicate `new URL(...)` allocations on hot request paths without changing behavior.
   Date/Author: 2026-02-06 / Codex
+- Decision: Keep shipped examples async-first by using JSVM async registration and `serveAsync` instead of explicit sync bootstrap/serve calls.
+  Rationale: Examples are the primary user-facing entrypoint and should model non-blocking startup and correct hook registration order in PocketBun.
+  Date/Author: 2026-02-07 / Codex
 - Decision: Add a provider API that consumes pre-parsed `URLSearchParams` and bypass count-query construction when `skipTotal` is enabled.
   Rationale: Request URLs are already parsed at router/event level; avoiding query-string reserialization/reparse and unused count SQL work reduces hot-path overhead while preserving upstream response semantics.
   Date/Author: 2026-02-06 / Codex

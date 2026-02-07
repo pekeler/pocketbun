@@ -1,7 +1,15 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { BaseApp, RegisterJSVM, RegisterMigrateCmd, Static, TemplateLangJS, type ServeEvent, serve } from "../../index.ts";
+import {
+  BaseApp,
+  RegisterJSVMAsync,
+  RegisterMigrateCmd,
+  Static,
+  TemplateLangJS,
+  type ServeEvent,
+  serveAsync,
+} from "../../index.ts";
 
 const rootDir = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(rootDir, "pb_data");
@@ -17,9 +25,9 @@ await Promise.all([
 ]);
 
 const app = new BaseApp({ dataDir });
-app.bootstrap();
 
-RegisterJSVM(app, {
+// PocketBun-only async variant to avoid sync fs startup work in JSVM setup.
+await RegisterJSVMAsync(app, {
   HooksDir: hooksDir,
   HooksWatch: true,
   HooksPoolSize: 5,
@@ -42,4 +50,4 @@ app.OnServe().Bind({
   Priority: 999,
 });
 
-serve(app, { httpAddr: "127.0.0.1:8090" });
+await serveAsync(app, { httpAddr: "127.0.0.1:8090" });

@@ -1,11 +1,11 @@
 // Ported from pocketbase/examples/base/main.go
 
 import { join } from "node:path";
-import { Static } from "../../src/apis/base.ts";
 import type { ServeEvent } from "../../src/core/events.ts";
-import { New } from "../../src/pocketbase.ts";
-import { MustRegister as RegisterJSVM } from "../../src/plugins/jsvm/jsvm.ts";
+import { Static } from "../../src/apis/base.ts";
+import { MustRegisterAsync as RegisterJSVM } from "../../src/plugins/jsvm/jsvm.ts";
 import { MustRegister as RegisterMigrateCmd, TemplateLangJS } from "../../src/plugins/migratecmd/migratecmd.ts";
+import { New } from "../../src/pocketbase.ts";
 import { IsProbablyGoRun } from "../../src/tools/osutils/run.ts";
 
 export async function main(): Promise<void> {
@@ -26,12 +26,48 @@ export async function main(): Promise<void> {
   };
 
   app.RootCmd.PersistentFlags().StringVar(flags, "hooksDir", "hooksDir", flags.hooksDir, "the directory with the JS app hooks");
-  app.RootCmd.PersistentFlags().BoolVar(flags, "hooksWatch", "hooksWatch", flags.hooksWatch, "auto restart the app on pb_hooks file change; it has no effect on Windows");
-  app.RootCmd.PersistentFlags().IntVar(flags, "hooksPool", "hooksPool", flags.hooksPool, "the total prewarm goja.Runtime instances for the JS app hooks execution");
-  app.RootCmd.PersistentFlags().StringVar(flags, "migrationsDir", "migrationsDir", flags.migrationsDir, "the directory with the user defined migrations");
-  app.RootCmd.PersistentFlags().BoolVar(flags, "automigrate", "automigrate", flags.automigrate, "enable/disable auto migrations");
-  app.RootCmd.PersistentFlags().StringVar(flags, "publicDir", "publicDir", flags.publicDir, "the directory to serve static files");
-  app.RootCmd.PersistentFlags().BoolVar(flags, "indexFallback", "indexFallback", flags.indexFallback, "fallback the request to index.html on missing static path, e.g. when pretty urls are used with SPA");
+  app.RootCmd.PersistentFlags().BoolVar(
+    flags,
+    "hooksWatch",
+    "hooksWatch",
+    flags.hooksWatch,
+    "auto restart the app on pb_hooks file change; it has no effect on Windows",
+  );
+  app.RootCmd.PersistentFlags().IntVar(
+    flags,
+    "hooksPool",
+    "hooksPool",
+    flags.hooksPool,
+    "the total prewarm goja.Runtime instances for the JS app hooks execution",
+  );
+  app.RootCmd.PersistentFlags().StringVar(
+    flags,
+    "migrationsDir",
+    "migrationsDir",
+    flags.migrationsDir,
+    "the directory with the user defined migrations",
+  );
+  app.RootCmd.PersistentFlags().BoolVar(
+    flags,
+    "automigrate",
+    "automigrate",
+    flags.automigrate,
+    "enable/disable auto migrations",
+  );
+  app.RootCmd.PersistentFlags().StringVar(
+    flags,
+    "publicDir",
+    "publicDir",
+    flags.publicDir,
+    "the directory to serve static files",
+  );
+  app.RootCmd.PersistentFlags().BoolVar(
+    flags,
+    "indexFallback",
+    "indexFallback",
+    flags.indexFallback,
+    "fallback the request to index.html on missing static path, e.g. when pretty urls are used with SPA",
+  );
 
   app.RootCmd.ParseFlags(process.argv.slice(2));
 
@@ -39,8 +75,9 @@ export async function main(): Promise<void> {
   // Plugins and hooks:
   // ---------------------------------------------------------------
 
+  // PocketBun-only async variant to avoid sync fs startup work in JSVM setup.
   // load jsvm (pb_hooks and pb_migrations)
-  RegisterJSVM(app, {
+  await RegisterJSVM(app, {
     MigrationsDir: flags.migrationsDir,
     HooksDir: flags.hooksDir,
     HooksWatch: flags.hooksWatch,
