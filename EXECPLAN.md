@@ -62,6 +62,7 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
 - [x] (2026-02-06) Re-ran both benchmark runners with logs disabled (`bench:local` and `bench:pocketbase`) to refresh deltas after URL-path optimization.
 - [x] (2026-02-06) Re-ran both benchmark runners with logs disabled after provider `skipTotal` optimization and parsed-params reuse to refresh deltas.
 - [x] (2026-02-06) Re-ran profiling + logs-disabled benchmark pair after hook/request-info/router/response-path optimizations and recorded fresh deltas.
+- [x] (2026-02-07) Continued the async runtime I/O slices by removing sync fd open/temp-create/close calls from fileblob async paths (`NewRangeReader`, `NewTypedWriter`, async writer close) while preserving the sync-compatible reader/writer methods.
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.

@@ -4,8 +4,18 @@
 
 import type { Dirent, Stats } from "node:fs";
 import { createHash } from "node:crypto";
-import { closeSync, mkdirSync, openSync, read as readFd, readSync, statSync, write as writeFd, writeSync } from "node:fs";
-import { mkdir, open, readdir, rename, rm, rmdir, stat, unlink } from "node:fs/promises";
+import {
+  close as closeFd,
+  closeSync,
+  mkdirSync,
+  open as openFd,
+  read as readFd,
+  readSync,
+  statSync,
+  write as writeFd,
+  writeSync,
+} from "node:fs";
+import { mkdir, open as openFile, readdir, rename, rm, rmdir, stat, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import type {
@@ -248,7 +258,7 @@ class FileDriver implements Driver {
 
   async NewRangeReader(_ctx: AbortSignal | null, key: string, offset: number, length: number): Promise<DriverReader> {
     const { path, info, attrs } = await this.#forKeyAsync(key);
-    const fd = openSync(path, "r");
+    const fd = await openFdAsync(path, "r");
     return new FileRangeReader(fd, offset, length, {
       ContentType: attrs.ContentType,
       ModTime: info.mtime,
@@ -259,7 +269,7 @@ class FileDriver implements Driver {
   async NewTypedWriter(_ctx: AbortSignal | null, key: string, contentType: string, opts: WriterOptions): Promise<DriverWriter> {
     const path = this.#path(key);
     await mkdir(dirname(path), { recursive: true, mode: this.#opts.DirFileMode });
-    const temp = createTemp(path, this.#opts.NoTempDir);
+    const temp = await createTempAsync(path, this.#opts.NoTempDir);
 
     if (this.#opts.Metadata === MetadataDontWrite) {
       return new FileWriter(temp.fd, temp.path, path, _ctx ?? null);
@@ -305,7 +315,7 @@ class FileDriver implements Driver {
     }
 
     const writer = await this.NewTypedWriter(controller.signal, dstKey, attrs.ContentType, wopts);
-    const fh = await open(srcPath, "r");
+    const fh = await openFile(srcPath, "r");
     let closeStarted = false;
     try {
       const buffer = new Uint8Array(64 * 1024);
@@ -519,7 +529,7 @@ class FileWriterWithSidecar implements DriverWriter {
   }
 
   async close(): Promise<void> {
-    closeSync(this.#fd);
+    await closeFdAsync(this.#fd);
     try {
       if (this.#ctx?.aborted) {
         throw this.#ctx.reason ?? new Error("context canceled");
@@ -575,7 +585,7 @@ class FileWriter implements DriverWriter {
   }
 
   async close(): Promise<void> {
-    closeSync(this.#fd);
+    await closeFdAsync(this.#fd);
     try {
       if (this.#ctx?.aborted) {
         throw this.#ctx.reason ?? new Error("context canceled");
@@ -591,13 +601,13 @@ class FileWriter implements DriverWriter {
   }
 }
 
-function createTemp(path: string, noTempDir: boolean): { fd: number; path: string } {
+async function createTempAsync(path: string, noTempDir: boolean): Promise<{ fd: number; path: string }> {
   let attempt = 0;
   while (attempt < 10000) {
     const base = noTempDir ? path : join(tmpdir(), path.split(sep).pop() ?? "tmp");
     const name = `${base}.${Date.now().toString(16)}.${Math.floor(Math.random() * 1e9).toString(16)}.tmp`;
     try {
-      const fd = openSync(name, "wx+", 0o666);
+      const fd = await openFdAsync(name, "wx+", 0o666);
       return { fd, path: name };
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "EEXIST") {
@@ -610,6 +620,37 @@ function createTemp(path: string, noTempDir: boolean): { fd: number; path: strin
   const error = new Error(`createtemp ${path}.*.tmp`) as NodeJS.ErrnoException;
   error.code = "EEXIST";
   throw error;
+}
+
+function openFdAsync(path: string, flags: string, mode?: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const onOpen = (err: NodeJS.ErrnoException | null, fd: number) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(fd);
+    };
+
+    if (typeof mode === "number") {
+      openFd(path, flags, mode, onOpen);
+      return;
+    }
+
+    openFd(path, flags, onOpen);
+  });
+}
+
+function closeFdAsync(fd: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    closeFd(fd, (err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve();
+    });
+  });
 }
 
 function writeFdAsync(fd: number, data: Uint8Array): Promise<number> {
