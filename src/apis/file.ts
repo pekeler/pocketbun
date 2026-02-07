@@ -266,12 +266,32 @@ function headersToObject(headers: Headers): Record<string, string> {
 class ResponseRecorder {
   statusCode = 200;
   #headers = new Map<string, string>();
-  #chunks: Uint8Array[] = [];
+  #controller: ReadableStreamDefaultController<Uint8Array> | null = null;
+  #pendingChunks: Uint8Array[] = [];
+  #ended = false;
+  #stream: ReadableStream<Uint8Array>;
 
   constructor(initial: Headers) {
     for (const [key, value] of initial.entries()) {
       this.setHeader(key, value);
     }
+
+    this.#stream = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        this.#controller = controller;
+        for (const chunk of this.#pendingChunks) {
+          controller.enqueue(chunk);
+        }
+        this.#pendingChunks = [];
+        if (this.#ended) {
+          controller.close();
+        }
+      },
+      cancel: () => {
+        this.#controller = null;
+        this.#pendingChunks = [];
+      },
+    });
   }
 
   setHeader(name: string, value: string): void {
@@ -283,13 +303,26 @@ class ResponseRecorder {
   }
 
   write(body?: Uint8Array): void {
-    if (body) {
-      this.#chunks.push(body);
+    if (!body || body.length === 0 || this.#ended) {
+      return;
+    }
+
+    if (this.#controller) {
+      this.#controller.enqueue(body);
+    } else {
+      this.#pendingChunks.push(body);
     }
   }
 
   end(body?: Uint8Array): void {
     this.write(body);
+    if (this.#ended) {
+      return;
+    }
+    this.#ended = true;
+    if (this.#controller) {
+      this.#controller.close();
+    }
   }
 
   toResponse(): Response {
@@ -297,31 +330,8 @@ class ResponseRecorder {
     for (const [key, value] of this.#headers.entries()) {
       headers.set(key, value);
     }
-    return new Response(concatChunks(this.#chunks), { status: this.statusCode, headers });
+    return new Response(this.#stream, { status: this.statusCode, headers });
   }
-}
-
-function concatChunks(chunks: Uint8Array[]): Uint8Array {
-  if (chunks.length === 0) {
-    return new Uint8Array();
-  }
-  if (chunks.length === 1) {
-    return chunks[0] ?? new Uint8Array();
-  }
-
-  let total = 0;
-  for (const chunk of chunks) {
-    total += chunk.length;
-  }
-
-  const out = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    out.set(chunk, offset);
-    offset += chunk.length;
-  }
-
-  return out;
 }
 
 // Deviation: local semaphore + singleflight to model Go sync primitives without extra deps.
