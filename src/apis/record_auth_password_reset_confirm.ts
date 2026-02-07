@@ -52,7 +52,7 @@ export async function recordConfirmPasswordReset(app: App, event: RequestEvent):
   const hookEvent = new RecordConfirmPasswordResetRequestEvent(event, collection, authRecord);
 
   const out = await app.OnRecordConfirmPasswordResetRequest().Trigger(hookEvent, async () => {
-    authRecord.SetPassword(form.password);
+    await authRecord.SetPasswordAsync(form.password);
 
     if (!authRecord.Verified()) {
       try {

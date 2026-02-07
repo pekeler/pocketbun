@@ -94,7 +94,7 @@ export async function recordRequestOTP(app: App, event: RequestEvent): Promise<R
       const createdOtp = NewOTP(app);
       createdOtp.SetCollectionRef(hookEvent.Record.collection().Id);
       createdOtp.SetRecordRef(hookEvent.Record.Id);
-      createdOtp.ProxyRecord().SetPassword(hookEvent.Password);
+      await createdOtp.ProxyRecord().SetPasswordAsync(hookEvent.Password);
       const saveErr = await app.Save(createdOtp);
       if (saveErr) {
         return internalServerError(event, "Failed to create OTP record.", saveErr);

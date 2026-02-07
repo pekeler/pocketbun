@@ -340,7 +340,7 @@ async function oauth2Submit(
         loggedRecord && loggedRecord.Id === event.Record.Id && loggedRecord.collection().Id === event.Record.collection().Id;
 
       if (!isLoggedAuthRecord && event.Record.Email() && !event.Record.Verified()) {
-        event.Record.SetRandomPassword();
+        await event.Record.SetRandomPasswordAsync();
         needUpdate = true;
       }
 

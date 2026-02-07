@@ -26,7 +26,7 @@ export async function superuserUpsert(app: App, email: string, password: string)
   }
 
   superuser.SetEmail(email);
-  superuser.SetPassword(password);
+  await superuser.SetPasswordAsync(password);
 
   const err = await app.Save(superuser);
   if (err) {
@@ -43,7 +43,7 @@ export async function superuserCreate(app: App, email: string, password: string)
   const superusers = getSuperusersCollection(app);
   const superuser = NewRecord(superusers);
   superuser.SetEmail(email);
-  superuser.SetPassword(password);
+  await superuser.SetPasswordAsync(password);
 
   const err = await app.Save(superuser);
   if (err) {
@@ -64,7 +64,7 @@ export async function superuserUpdate(app: App, email: string, password: string)
     throw new Error(`superuser with email ${JSON.stringify(email)} doesn't exist`);
   }
 
-  superuser.SetPassword(password);
+  await superuser.SetPasswordAsync(password);
 
   const err = await app.Save(superuser);
   if (err) {
@@ -112,7 +112,7 @@ export async function superuserOTP(app: App, email: string): Promise<SuperuserOt
   const otp = NewOTP(app);
   otp.SetCollectionRef(superuser.collection().id);
   otp.SetRecordRef(superuser.Id);
-  otp.ProxyRecord().SetPassword(password);
+  await otp.ProxyRecord().SetPasswordAsync(password);
 
   const err = await app.Save(otp);
   if (err) {
