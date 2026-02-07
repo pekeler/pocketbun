@@ -78,7 +78,8 @@ export async function recordAuthWithOTP(app: App, event: RequestEvent): Promise<
     return tooManyRequests(event, "Too many attempts, please try again later with a new OTP.");
   }
 
-  if (!otp.ProxyRecord().ValidatePassword(form.password)) {
+  // PocketBun-only async verify to avoid blocking Bun's event loop on bcrypt checks.
+  if (!(await otp.ProxyRecord().ValidatePasswordAsync(form.password))) {
     return badRequest(event, "Invalid or expired OTP");
   }
 

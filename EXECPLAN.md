@@ -68,6 +68,7 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
 - [x] (2026-02-07) Removed serial per-file `stat` + `readFile` work from JSVM async loader startup by switching `filesContentAsync` to `readdir(..., { withFileTypes: true })` and ordered concurrent reads.
 - [x] (2026-02-07) Removed serial async template file reads in `Registry.LoadFilesAsync` / `Registry.LoadFSAsync` by switching to ordered `Promise.all` source loading.
 - [x] (2026-02-07) Reduced async archive I/O overhead by parallelizing per-file `lstat` + `readFile` in `CreateAsync` and memoizing recursive `mkdir` calls in `ExtractAsync` to avoid redundant directory creation churn.
+- [x] (2026-02-07) Switched async auth/runtime paths that validate passwords (`record_auth_with_otp`, `record_auth_email_change_confirm`, `RecordUpsert` old-password checks) to `ValidatePasswordAsync` to avoid sync bcrypt verification blocking.
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.

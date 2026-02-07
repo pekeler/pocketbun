@@ -147,7 +147,7 @@ export class RecordUpsert {
     }
   }
 
-  private validateFormFields(): Error | null {
+  private async validateFormFieldsAsync(): Promise<Error | null> {
     if (!this.record.collection().isAuth()) {
       return null;
     }
@@ -203,7 +203,7 @@ export class RecordUpsert {
       if (err) {
         errors.oldPassword = err;
       } else {
-        const oldErr = this.checkOldPassword(this.oldPassword);
+        const oldErr = await this.checkOldPasswordAsync(this.oldPassword);
         if (oldErr) {
           errors.oldPassword = oldErr;
         }
@@ -213,12 +213,13 @@ export class RecordUpsert {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
-  private checkOldPassword(value: unknown): Error | null {
+  private async checkOldPasswordAsync(value: unknown): Promise<Error | null> {
     if (typeof value !== "string") {
       return ErrUnsupportedValueType;
     }
 
-    if (!this.record.Original().ValidatePassword(value)) {
+    // PocketBun-only async verify to avoid blocking form submits on bcrypt checks.
+    if (!(await this.record.Original().ValidatePasswordAsync(value))) {
       return newError("validation_invalid_old_password", "Missing or invalid old password.");
     }
 
@@ -303,7 +304,7 @@ export class RecordUpsert {
 
   // Submit validates the form specific validations and attempts to save the form record.
   async Submit(): Promise<Error | null> {
-    const err = this.validateFormFields();
+    const err = await this.validateFormFieldsAsync();
     if (err) {
       return err;
     }

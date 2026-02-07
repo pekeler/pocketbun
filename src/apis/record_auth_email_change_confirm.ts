@@ -37,7 +37,7 @@ export async function recordConfirmEmailChange(app: App, event: RequestEvent): P
     }
   }
 
-  const validationErr = validateEmailChangeConfirmForm(app, collection.Id, form);
+  const validationErr = await validateEmailChangeConfirmForm(app, collection.Id, form);
   if (validationErr) {
     return badRequest(event, "An error occurred while validating the submitted data.", validationErr);
   }
@@ -71,11 +71,11 @@ export async function recordConfirmEmailChange(app: App, event: RequestEvent): P
   return noContent(event, 204);
 }
 
-function validateEmailChangeConfirmForm(
+async function validateEmailChangeConfirmForm(
   app: App,
   collectionId: string,
   form: { token: string; password: string },
-): Error | null {
+): Promise<Error | null> {
   const errors: Record<string, Error> = {};
 
   const tokenRequired = required(form.token);
@@ -94,7 +94,7 @@ function validateEmailChangeConfirmForm(
   } else if (form.password.length < 1 || form.password.length > 100) {
     errors.password = newError("validation_length_out_of_range", "The length must be between 1 and 100.");
   } else {
-    const passwordErr = checkPassword(app, collectionId, form.token, form.password);
+    const passwordErr = await checkPasswordAsync(app, collectionId, form.token, form.password);
     if (passwordErr) {
       errors.password = passwordErr;
     }
@@ -108,13 +108,14 @@ function checkToken(app: App, collectionId: string, token: string): Error | null
   return parsed.error ?? null;
 }
 
-function checkPassword(app: App, collectionId: string, token: string, password: string): Error | null {
+async function checkPasswordAsync(app: App, collectionId: string, token: string, password: string): Promise<Error | null> {
   if (!password) {
     return null;
   }
 
   const parsed = parseEmailChangeToken(app, collectionId, token);
-  if (!parsed.record || !parsed.record.ValidatePassword(password)) {
+  // PocketBun-only async verify to keep auth checks non-blocking in request handlers.
+  if (!parsed.record || !(await parsed.record.ValidatePasswordAsync(password))) {
     return newError("validation_invalid_password", "Missing or invalid auth record password.");
   }
 
