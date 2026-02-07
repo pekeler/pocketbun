@@ -12,6 +12,8 @@ import {
   NewFileFromPathAsync,
   NewFileFromURL,
   PathReader,
+  ReadFileReaderBytes,
+  ReadFileReaderBytesAsync,
 } from "./file.ts";
 import { createTestDir } from "./test_utils.ts";
 
@@ -151,6 +153,36 @@ describe("filesystem file", () => {
     for (const scenario of scenarios) {
       const f = NewFileFromBytes(new TextEncoder().encode("abc"), scenario.name);
       expect(f.Name).toMatch(scenario.pattern);
+    }
+  });
+
+  it("ReadFileReaderBytes", async () => {
+    const dir = await createTestDir();
+    try {
+      const file = NewFileFromPath(join(dir, "image_!@ special"));
+      const bytes = ReadFileReaderBytes(file.Reader);
+      expect(bytes.length).toBeGreaterThan(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("ReadFileReaderBytesAsync prefers async disk reads for path readers", async () => {
+    const dir = await createTestDir();
+    try {
+      const file = NewFileFromPath(join(dir, "image_!@ special"));
+      const reader = file.Reader;
+      if (!(reader instanceof PathReader)) {
+        throw new Error("expected path reader");
+      }
+      (reader as unknown as { Open: () => never }).Open = () => {
+        throw new Error("sync open should not be used for path readers");
+      };
+
+      const bytes = await ReadFileReaderBytesAsync(reader);
+      expect(bytes.length).toBeGreaterThan(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });

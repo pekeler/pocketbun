@@ -7,7 +7,7 @@ import { RequestEventKeyInfoContext, RequestInfoContextBatch, RequestInfoContext
 import { BatchRequestEvent, InternalRequest } from "../core/event_request_batch.ts";
 import { readRequestBytesAndRebind, readRequestTextAndRebind } from "../internal/compat/request_body.ts";
 import { ValidationError, ValidationErrors, newError, ErrRequired } from "../internal/compat/validation.ts";
-import { NewFileFromBytes, File as LocalFile } from "../tools/filesystem/file.ts";
+import { NewFileFromBytes, ReadFileReaderBytesAsync, File as LocalFile } from "../tools/filesystem/file.ts";
 import { JSONPayloadKey, unmarshalRequestData } from "../tools/router/unmarshal_request_data.ts";
 import { forbidden } from "./api_errors.ts";
 import { applyBodyLimit, DefaultBodyLimitMiddlewareId } from "./middlewares_body_limit.ts";
@@ -435,12 +435,11 @@ async function multipartDataFromInternalRequest(ir: InternalRequest): Promise<{ 
   form.append(JSONPayloadKey, JSON.stringify(regularFields));
 
   for (const entry of fileFields) {
-    const reader = entry.file.Reader?.Open();
-    if (!reader) {
+    if (!entry.file.Reader) {
       continue;
     }
-    const data = reader.readAll();
-    reader.close();
+
+    const data = await ReadFileReaderBytesAsync(entry.file.Reader);
     const file = new File([data], entry.file.Name);
     form.append(entry.key, file);
   }

@@ -1,8 +1,7 @@
 // Ported from pocketbase/plugins/jsvm/form_data.go
 
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { File, PathReader } from "../../tools/filesystem/file.ts";
+import { File, ReadFileReaderBytes, ReadFileReaderBytesAsync } from "../../tools/filesystem/file.ts";
 
 export class FormData {
   #data: Map<string, unknown[]>;
@@ -125,7 +124,7 @@ export class FormData {
           pushChunk(`Content-Disposition: form-data; name="${key}"; filename="${filename}"\r\n`);
           pushChunk("Content-Type: application/octet-stream\r\n\r\n");
 
-          pushChunk(readFileBytesSync(rawValue));
+          pushChunk(ReadFileReaderBytes(rawValue.Reader));
           pushChunk("\r\n");
         } else {
           pushChunk(`Content-Disposition: form-data; name="${key}"\r\n\r\n`);
@@ -173,7 +172,7 @@ export class FormData {
           pushChunk(`Content-Disposition: form-data; name="${key}"; filename="${filename}"\r\n`);
           pushChunk("Content-Type: application/octet-stream\r\n\r\n");
 
-          pushChunk(await readFileBytesAsync(rawValue));
+          pushChunk(await ReadFileReaderBytesAsync(rawValue.Reader));
           pushChunk("\r\n");
         } else {
           pushChunk(`Content-Disposition: form-data; name="${key}"\r\n\r\n`);
@@ -197,36 +196,5 @@ export class FormData {
       body,
       contentType: `multipart/form-data; boundary=${boundary}`,
     };
-  }
-}
-
-function readFileBytesSync(file: File): Uint8Array {
-  const reader = file.Reader?.Open();
-  if (!reader) {
-    return new Uint8Array();
-  }
-  try {
-    return reader.readAll();
-  } finally {
-    reader.close();
-  }
-}
-
-async function readFileBytesAsync(file: File): Promise<Uint8Array> {
-  const reader = file.Reader;
-  if (!reader) {
-    return new Uint8Array();
-  }
-
-  if (reader instanceof PathReader) {
-    // PocketBun async deviation: avoid sync disk reads in async hook paths.
-    return await readFile(reader.Path);
-  }
-
-  const opened = reader.Open();
-  try {
-    return opened.readAll();
-  } finally {
-    opened.close();
   }
 }

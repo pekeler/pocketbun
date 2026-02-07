@@ -19,6 +19,34 @@ export interface FileReader {
   Open(): ReadSeekCloser;
 }
 
+// ReadFileReaderBytes returns the entire content of the provided FileReader.
+export function ReadFileReaderBytes(reader: FileReader | null | undefined): Uint8Array {
+  if (!reader) {
+    return new Uint8Array();
+  }
+
+  const opened = reader.Open();
+  try {
+    return opened.readAll();
+  } finally {
+    opened.close();
+  }
+}
+
+// ReadFileReaderBytesAsync is a PocketBun-only async alternative to ReadFileReaderBytes().
+export async function ReadFileReaderBytesAsync(reader: FileReader | null | undefined): Promise<Uint8Array> {
+  if (!reader) {
+    return new Uint8Array();
+  }
+
+  if (reader instanceof PathReader) {
+    // PocketBun async deviation: avoid sync disk reads for path-backed files.
+    return await readFile(reader.Path);
+  }
+
+  return ReadFileReaderBytes(reader);
+}
+
 // File defines a single file [io.ReadSeekCloser] resource.
 //
 // The file could be from a local path, multipart/form-data header, etc.

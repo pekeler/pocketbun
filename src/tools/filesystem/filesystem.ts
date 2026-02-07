@@ -4,13 +4,13 @@
 // Deviation: CreateThumb is async because Bun image processing relies on async libraries.
 
 import { mkdirSync } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { posix } from "node:path";
 import sharp from "sharp";
 import { Bucket, NewBucket } from "./blob/bucket.ts";
 import { ErrNotFound, NotFoundError, type Attributes as BlobAttributes, type WriterOptions } from "./blob/driver.ts";
 import { ErrEOF, isNotFoundError } from "./blob/errors.ts";
-import { BytesReader, File, PathReader, type FileReader, detectMimeTypeFromBytes, normalizeName } from "./file.ts";
+import { BytesReader, File, ReadFileReaderBytesAsync, detectMimeTypeFromBytes, normalizeName } from "./file.ts";
 import { New as NewFileBlob, NewAsync as NewFileBlobAsync } from "./internal/fileblob/fileblob.ts";
 import { S3 } from "./internal/s3blob/s3/s3.ts";
 import { New as NewS3Blob } from "./internal/s3blob/s3blob.ts";
@@ -271,7 +271,7 @@ export class System {
       throw new Error("missing file reader");
     }
 
-    const content = await readFileContent(file.Reader);
+    const content = await ReadFileReaderBytesAsync(file.Reader);
 
     const contentType = detectMimeTypeFromBytes(content);
     let originalName = file.OriginalName;
@@ -689,20 +689,6 @@ function mapFsError(error: unknown): Error {
     return error;
   }
   return new Error(String(error));
-}
-
-async function readFileContent(reader: FileReader): Promise<Uint8Array> {
-  if (reader instanceof PathReader) {
-    // PocketBun async deviation: keep upload paths non-blocking for disk-backed files.
-    return await readFile(reader.Path);
-  }
-
-  const opened = reader.Open();
-  try {
-    return opened.readAll();
-  } finally {
-    opened.close();
-  }
 }
 
 function makeWriterOptions(contentType: string, metadata: Record<string, string> = {}): WriterOptions {
