@@ -99,6 +99,8 @@ export class RecordUpsert {
 
       let field = null;
       if (isAuth && key === "password") {
+        // PocketBun perf deviation companion to Record.ReplaceModifiers:
+        // modifier resolution keeps auth passwords as plain strings and we hash exactly once here.
         const passwordField = this.record.collection().Fields.GetByName("password");
         if (passwordField instanceof PasswordField) {
           await passwordField.SetValueAsync(this.record, value);

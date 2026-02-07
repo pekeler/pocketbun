@@ -473,6 +473,9 @@ export class Record {
       // `ReplaceModifiers` is followed by form load, where `password` is hashed again.
       // For plain `password` keys the observable resolved value is the casted plain string,
       // so we can skip setter execution here and preserve the same exported body value.
+      //
+      // Keep in sync with RecordUpsert.LoadAsync (src/forms/record_upsert.ts), which is
+      // the canonical hashing point for CRUD request bodies.
       if (this.#collection.isAuth() && key === FieldNamePassword) {
         delete dataCopy[key];
         dataCopy[FieldNamePassword] = toStringValue(data[key]);
