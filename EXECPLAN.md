@@ -85,6 +85,7 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
 - [x] (2026-02-07) Hardened local blob writer internals to drain full write buffers in both sync and async driver writers, preventing partial-write truncation risk under high I/O pressure.
 - [x] (2026-02-07) Removed eager file buffering from `System.Serve` by streaming blob reader chunks (including single-range responses) directly into response writers, with recorder updates to accept streamed chunks in file/backup API paths.
 - [x] (2026-02-07) Removed final response re-buffering in file/backup API download recorders by switching them from chunk-accumulation to stream-backed `Response` bodies.
+- [x] (2026-02-07) Removed final response chunk concatenation from `WrapStdHandler`/`WrapStdMiddleware` writer path by switching `BufferedResponseWriter` in `apis/base.ts` to stream-backed `Response` bodies.
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.

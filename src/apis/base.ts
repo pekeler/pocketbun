@@ -286,10 +286,30 @@ function mergeEventHeaders(response: Response, eventHeaders: Headers): Response 
 class BufferedResponseWriter implements StdResponseWriter {
   statusCode = 200;
   headers: Headers;
-  #chunks: Uint8Array[] = [];
+  #controller: ReadableStreamDefaultController<Uint8Array> | null = null;
+  #pendingChunks: Uint8Array[] = [];
+  #closed = false;
+  #stream: ReadableStream<Uint8Array>;
+  static #textEncoder = new TextEncoder();
 
   constructor(headers: Headers) {
     this.headers = headers;
+    this.#stream = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        this.#controller = controller;
+        for (const chunk of this.#pendingChunks) {
+          controller.enqueue(chunk);
+        }
+        this.#pendingChunks = [];
+        if (this.#closed) {
+          controller.close();
+        }
+      },
+      cancel: () => {
+        this.#controller = null;
+        this.#pendingChunks = [];
+      },
+    });
   }
 
   writeHead(status: number, headers?: Record<string, string>): void {
@@ -302,28 +322,37 @@ class BufferedResponseWriter implements StdResponseWriter {
   }
 
   write(chunk: string | Uint8Array): void {
-    if (typeof chunk === "string") {
-      this.#chunks.push(new TextEncoder().encode(chunk));
+    if (this.#closed) {
       return;
     }
-    this.#chunks.push(chunk);
+
+    const chunkBytes = typeof chunk === "string" ? BufferedResponseWriter.#textEncoder.encode(chunk) : chunk;
+    if (chunkBytes.length === 0) {
+      return;
+    }
+
+    if (this.#controller) {
+      this.#controller.enqueue(chunkBytes);
+      return;
+    }
+
+    this.#pendingChunks.push(chunkBytes);
+  }
+
+  #closeStream(): void {
+    if (this.#closed) {
+      return;
+    }
+
+    this.#closed = true;
+    if (this.#controller) {
+      this.#controller.close();
+    }
   }
 
   toResponse(): Response {
-    let body: Uint8Array | null = null;
-    if (this.#chunks.length === 1) {
-      body = this.#chunks[0] ?? null;
-    } else if (this.#chunks.length > 1) {
-      const total = this.#chunks.reduce((sum, part) => sum + part.length, 0);
-      const buffer = new Uint8Array(total);
-      let offset = 0;
-      for (const part of this.#chunks) {
-        buffer.set(part, offset);
-        offset += part.length;
-      }
-      body = buffer;
-    }
-    return new Response(body, {
+    this.#closeStream();
+    return new Response(this.#stream, {
       status: this.statusCode,
       headers: this.headers,
     });
