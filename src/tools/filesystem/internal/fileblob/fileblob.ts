@@ -510,22 +510,36 @@ class FileWriterWithSidecar implements DriverWriter {
     if (!data || data.length === 0) {
       return 0;
     }
-    const written = writeSync(this.#fd, data);
-    if (written > 0) {
-      this.#hash.update(data.slice(0, written));
+
+    let total = 0;
+    while (total < data.length) {
+      const written = writeSync(this.#fd, data.subarray(total));
+      if (written <= 0) {
+        throw new Error("failed writing file chunk");
+      }
+      total += written;
     }
-    return written;
+
+    this.#hash.update(data);
+    return total;
   }
 
   async writeAsync(data?: Uint8Array | null): Promise<number> {
     if (!data || data.length === 0) {
       return 0;
     }
-    const written = await writeFdAsync(this.#fd, data);
-    if (written > 0) {
-      this.#hash.update(data.slice(0, written));
+
+    let total = 0;
+    while (total < data.length) {
+      const written = await writeFdAsync(this.#fd, data.subarray(total));
+      if (written <= 0) {
+        throw new Error("failed writing file chunk");
+      }
+      total += written;
     }
-    return written;
+
+    this.#hash.update(data);
+    return total;
   }
 
   async close(): Promise<void> {
@@ -574,14 +588,34 @@ class FileWriter implements DriverWriter {
     if (!data || data.length === 0) {
       return 0;
     }
-    return writeSync(this.#fd, data);
+
+    let total = 0;
+    while (total < data.length) {
+      const written = writeSync(this.#fd, data.subarray(total));
+      if (written <= 0) {
+        throw new Error("failed writing file chunk");
+      }
+      total += written;
+    }
+
+    return total;
   }
 
   async writeAsync(data?: Uint8Array | null): Promise<number> {
     if (!data || data.length === 0) {
       return 0;
     }
-    return await writeFdAsync(this.#fd, data);
+
+    let total = 0;
+    while (total < data.length) {
+      const written = await writeFdAsync(this.#fd, data.subarray(total));
+      if (written <= 0) {
+        throw new Error("failed writing file chunk");
+      }
+      total += written;
+    }
+
+    return total;
   }
 
   async close(): Promise<void> {
