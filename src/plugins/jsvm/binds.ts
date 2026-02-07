@@ -1479,7 +1479,7 @@ export function httpClientBinds(target: BindTarget): void {
       let contentTypeOverride: string | null = headers["content-type"] ?? null;
 
       if (params.body instanceof HooksFormData) {
-        const { body: multipartBody, contentType } = params.body.toMultipart();
+        const { body: multipartBody, contentType } = await params.body.toMultipartAsync();
         body = multipartBody;
         contentTypeOverride = contentType;
       } else if (params.body != null) {

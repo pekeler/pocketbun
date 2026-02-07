@@ -75,6 +75,7 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
 - [x] (2026-02-07) Wired serve-path installer initialization to the new async installer helper (`ServeEvent.InstallerFunc` now runs in `serve`/`serveAsync` via `loadInstallerAsync`) and added a dedicated serve installer test.
 - [x] (2026-02-07) Split serve handler/server startup into sync+async paths so `serveAsync` can await async `OnServe` hooks while preserving upstream-compatible sync behavior in `buildServeHandler`/`serve`; added coverage for both supported and rejected async-hook scenarios.
 - [x] (2026-02-07) Removed synchronous disk reads from `System.UploadFile` when `File.Reader` is path-backed by adding an async `PathReader` fast path (`readFile(...)`) and a regression test to ensure the sync `Open().readAll()` fallback is not used for local path uploads.
+- [x] (2026-02-07) Added `FormData.toMultipartAsync()` for JSVM async HTTP sends, wired `$http.sendAsync` to it, and added regression coverage that path-backed files avoid sync `Open().readAll()` reads in async paths.
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
@@ -200,6 +201,8 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
   Evidence: adding a dedicated async `OnServe` test (`src/apis/serve_installer.test.ts`) required splitting serve startup into sync/async builder paths and preserving a sync-only error path for `buildServeHandler`.
 - Observation: `System.UploadFile` used a synchronous reader path even in async runtime flow when given `NewFileFromPath(...)` files, which could block on local disk reads.
   Evidence: `src/tools/filesystem/filesystem.ts` now detects `PathReader` and uses `readFile(...)`, and the new regression test (`upload file prefers async disk reads for path-backed readers`) fails if sync `Open()` is invoked.
+- Observation: JSVM async HTTP client sends were still using sync multipart file reads, including disk-backed hook files, which can block the event loop under async hook load.
+  Evidence: `src/plugins/jsvm/form_data.ts` now provides `toMultipartAsync()` with a `PathReader` async fast path (`readFile(...)`), `$http.sendAsync` uses it, and the regression test (`toMultipartAsync prefers async disk reads for path-backed readers`) fails if sync `Open()` is called.
 - Observation: No-join `updateQuery`/provider allocation trims reduced profiled internal list-handler CPU slightly, but end-to-end `records_list_skip_total` remained effectively unchanged in local benchmark runs.
   Evidence: profile averages moved modestly (`records_list.query` ~0.0230ms -> ~0.0224ms; `records_list.total` ~0.0333ms -> ~0.0325ms), while benchmarked `records_list_skip_total` stayed around ~1.78–1.80ms.
 - Observation: Replacing non-profile hook closure-chain construction with a cursor-driven `next` reduced middleware-inclusive router cost and gave a small but consistent improvement on list-path throughput.

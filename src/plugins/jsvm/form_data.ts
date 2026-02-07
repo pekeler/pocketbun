@@ -1,7 +1,8 @@
 // Ported from pocketbase/plugins/jsvm/form_data.go
 
 import { randomUUID } from "node:crypto";
-import { File } from "../../tools/filesystem/file.ts";
+import { readFile } from "node:fs/promises";
+import { File, PathReader } from "../../tools/filesystem/file.ts";
 
 export class FormData {
   #data: Map<string, unknown[]>;
@@ -124,10 +125,7 @@ export class FormData {
           pushChunk(`Content-Disposition: form-data; name="${key}"; filename="${filename}"\r\n`);
           pushChunk("Content-Type: application/octet-stream\r\n\r\n");
 
-          const reader = rawValue.Reader?.Open();
-          const buffer = reader?.readAll() ?? new Uint8Array();
-          reader?.close();
-          pushChunk(buffer);
+          pushChunk(readFileBytesSync(rawValue));
           pushChunk("\r\n");
         } else {
           pushChunk(`Content-Disposition: form-data; name="${key}"\r\n\r\n`);
@@ -151,5 +149,84 @@ export class FormData {
       body,
       contentType: `multipart/form-data; boundary=${boundary}`,
     };
+  }
+
+  // toMultipartAsync is a PocketBun-only async alternative to toMultipart().
+  async toMultipartAsync(): Promise<{ body: Uint8Array; contentType: string }> {
+    const boundary = `----pb_hooks_${randomUUID()}`;
+    const chunks: Uint8Array[] = [];
+
+    const pushChunk = (chunk: string | Uint8Array): void => {
+      if (typeof chunk === "string") {
+        chunks.push(new TextEncoder().encode(chunk));
+      } else {
+        chunks.push(chunk);
+      }
+    };
+
+    for (const [key, values] of this.#data.entries()) {
+      for (const rawValue of values) {
+        pushChunk(`--${boundary}\r\n`);
+
+        if (rawValue instanceof File) {
+          const filename = rawValue.OriginalName || rawValue.Name || "file";
+          pushChunk(`Content-Disposition: form-data; name="${key}"; filename="${filename}"\r\n`);
+          pushChunk("Content-Type: application/octet-stream\r\n\r\n");
+
+          pushChunk(await readFileBytesAsync(rawValue));
+          pushChunk("\r\n");
+        } else {
+          pushChunk(`Content-Disposition: form-data; name="${key}"\r\n\r\n`);
+          pushChunk(String(rawValue));
+          pushChunk("\r\n");
+        }
+      }
+    }
+
+    pushChunk(`--${boundary}--\r\n`);
+
+    const totalSize = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const body = new Uint8Array(totalSize);
+    let offset = 0;
+    for (const chunk of chunks) {
+      body.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    return {
+      body,
+      contentType: `multipart/form-data; boundary=${boundary}`,
+    };
+  }
+}
+
+function readFileBytesSync(file: File): Uint8Array {
+  const reader = file.Reader?.Open();
+  if (!reader) {
+    return new Uint8Array();
+  }
+  try {
+    return reader.readAll();
+  } finally {
+    reader.close();
+  }
+}
+
+async function readFileBytesAsync(file: File): Promise<Uint8Array> {
+  const reader = file.Reader;
+  if (!reader) {
+    return new Uint8Array();
+  }
+
+  if (reader instanceof PathReader) {
+    // PocketBun async deviation: avoid sync disk reads in async hook paths.
+    return await readFile(reader.Path);
+  }
+
+  const opened = reader.Open();
+  try {
+    return opened.readAll();
+  } finally {
+    opened.close();
   }
 }
