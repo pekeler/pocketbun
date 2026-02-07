@@ -182,6 +182,22 @@ export class System {
     }
   }
 
+  // GetReaderAsync returns a non-buffering async file content reader for the given fileKey.
+  //
+  // Deviation: PocketBun-only async alternative that avoids eager in-memory buffering.
+  //
+  // NB! Make sure to call close() on the returned result after use.
+  //
+  // If the file doesn't exist returns ErrNotFound.
+  async GetReaderAsync(fileKey: string): Promise<SystemAsyncReader> {
+    try {
+      const reader = await this.#bucket.NewReader(this.#ctx, fileKey);
+      return new SystemAsyncReader(reader);
+    } catch (error) {
+      throw mapFsError(error);
+    }
+  }
+
   // Deprecated: Please use GetReader(fileKey) instead.
   async GetFile(fileKey: string): Promise<SystemReader> {
     console.warn("Deprecated: Please replace GetFile with GetReader.");
@@ -664,6 +680,49 @@ export class SystemReader {
 
   size(): number {
     return this.#attrs.Size;
+  }
+}
+
+// SystemAsyncReader is a non-buffering async file reader wrapper.
+//
+// Deviation: PocketBun-only async alternative to SystemReader.
+export class SystemAsyncReader {
+  #reader: Awaited<ReturnType<Bucket["NewReader"]>>;
+
+  constructor(reader: Awaited<ReturnType<Bucket["NewReader"]>>) {
+    this.#reader = reader;
+  }
+
+  async read(size?: number): Promise<Uint8Array | null> {
+    return await this.#reader.read(size);
+  }
+
+  async readAll(): Promise<Uint8Array> {
+    return await this.#reader.readAll();
+  }
+
+  seek(offset: number, whence = 0): number {
+    return this.#reader.seek(offset, whence);
+  }
+
+  close(): void {
+    this.#reader.close();
+  }
+
+  ContentType(): string {
+    return this.#reader.ContentType();
+  }
+
+  ModTime(): Date {
+    return this.#reader.ModTime();
+  }
+
+  Size(): number {
+    return this.#reader.Size();
+  }
+
+  size(): number {
+    return this.#reader.Size();
   }
 }
 

@@ -454,6 +454,31 @@ describe("filesystem system", () => {
     }
   });
 
+  it("get reader async", async () => {
+    const dir = await createTestDir();
+    try {
+      const fsys = NewLocal(dir);
+
+      let missingErr: Error | null = null;
+      try {
+        await fsys.GetReaderAsync("test/missing.txt");
+      } catch (error) {
+        missingErr = error as Error;
+      }
+      expect(missingErr instanceof NotFoundError).toBe(true);
+
+      const reader = await fsys.GetReaderAsync("test/sub1.txt");
+      const part1 = await reader.read(2);
+      const part2 = await reader.readAll();
+      reader.close();
+
+      expect(new TextDecoder().decode(part1 ?? new Uint8Array())).toBe("su");
+      expect(new TextDecoder().decode(part2)).toBe("b1");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("get reuploadable file", async () => {
     const dir = await createTestDir();
     try {

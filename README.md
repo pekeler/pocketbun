@@ -157,6 +157,9 @@ Current extensions:
 - Base app filesystem factory now exposes async variants:
   - sync: `app.NewFilesystem()`, `app.NewBackupsFilesystem()`
   - async: `await app.NewFilesystemAsync()`, `await app.NewBackupsFilesystemAsync()`
+- Filesystem readers now expose a non-buffering async variant:
+  - sync: `await fsys.GetReader(...)` (buffered `SystemReader`)
+  - async: `await fsys.GetReaderAsync(...)` (streaming `SystemAsyncReader`)
 - JSVM plugin registration now exposes async startup variants:
   - sync: `RegisterJSVM(...)`, `MustRegisterJSVM(...)`
   - async: `await RegisterJSVMAsync(...)`, `await MustRegisterJSVMAsync(...)`

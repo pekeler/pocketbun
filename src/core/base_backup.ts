@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/base_backup.go
 // Deviation: backup/restore file I/O uses async fs + async archive helpers to avoid blocking the event loop.
 
-import { mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { App } from "./app.ts";
 import { CreateAsync, ExtractAsync } from "../tools/archive/index.ts";
@@ -201,11 +201,12 @@ export async function RestoreBackup(app: App, ctx: unknown, name: string): Promi
         try {
           // extract the zip
           if (e.App.settings().backups.s3.enabled) {
-            const reader = await fsys.GetReader(name);
+            const reader =
+              typeof fsys.GetReaderAsync === "function" ? await fsys.GetReaderAsync(name) : await fsys.GetReader(name);
             const tempZipPath = join(localTempDir, `pb_restore_zip_${pseudorandomString(6)}`);
             try {
-              // create a temp zip file from the blob.Reader and try to extract it
-              await writeFile(tempZipPath, reader.readAll());
+              // create a temp zip file from the blob reader and try to extract it
+              await writeReaderToFile(tempZipPath, reader);
               await ExtractAsync(tempZipPath, extractedDataDir);
             } finally {
               reader.close();
@@ -411,4 +412,33 @@ function generateBackupName(app: App, prefix: string): string {
 
 function pad2(value: number): string {
   return value < 10 ? `0${value}` : String(value);
+}
+
+type ReadableBackupSource = {
+  read: (size?: number) => Uint8Array | null | Promise<Uint8Array | null>;
+  close: () => void;
+};
+
+async function writeReaderToFile(path: string, reader: ReadableBackupSource): Promise<void> {
+  const out = await open(path, "w");
+  try {
+    for (;;) {
+      const chunk = await Promise.resolve(reader.read(64 * 1024));
+      if (!chunk || chunk.length === 0) {
+        break;
+      }
+
+      let offset = 0;
+      while (offset < chunk.length) {
+        const result = await out.write(chunk, offset, chunk.length - offset, null);
+        const bytesWritten = result.bytesWritten ?? 0;
+        if (bytesWritten <= 0) {
+          throw new Error("failed writing backup chunk");
+        }
+        offset += bytesWritten;
+      }
+    }
+  } finally {
+    await out.close();
+  }
 }
