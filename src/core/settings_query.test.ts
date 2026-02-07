@@ -73,6 +73,51 @@ describe("ReloadSettings", () => {
     }
   });
 
+  it("reloads settings through the async alternative and awaits async hooks", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      app.db().query("delete from _params").run();
+
+      app.settings().meta.appName = "test_name_after_delete";
+      app.resetEventCalls();
+
+      const initErr = await app.ReloadSettingsAsync?.();
+      expect(initErr).toBeNull();
+      expectEventCalls(app, {
+        OnModelCreate: 1,
+        OnModelCreateExecute: 1,
+        OnModelAfterCreateSuccess: 1,
+        OnModelValidate: 1,
+        OnSettingsReload: 1,
+      });
+
+      app
+        .db()
+        .query("update _params set value = ? where id = ?")
+        .run(new JSONRaw(`{"meta":{"appName":"test_name_after_update"}}`).String(), ParamsKeySettings);
+
+      let asyncHookDone = false;
+      app.OnSettingsReload().BindFunc(async (e) => {
+        await Bun.sleep(10);
+        asyncHookDone = true;
+        return await e.Next();
+      });
+
+      app.resetEventCalls();
+
+      const err = await app.ReloadSettingsAsync?.();
+      expect(err).toBeNull();
+      expect(asyncHookDone).toBeTrue();
+
+      expectEventCalls(app, { OnSettingsReload: 1 });
+
+      const rawValue = readParamValue(app);
+      expect(rawValue).toContain("test_name_after_update");
+    } finally {
+      await cleanup();
+    }
+  });
+
   it.serial("reloads settings with encryption", async () => {
     const { app, cleanup } = await newTestApp();
     const originalEnv = process.env.pb_test_env;

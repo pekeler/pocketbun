@@ -64,6 +64,7 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
 - [x] (2026-02-06) Re-ran profiling + logs-disabled benchmark pair after hook/request-info/router/response-path optimizations and recorded fresh deltas.
 - [x] (2026-02-07) Continued the async runtime I/O slices by removing sync fd open/temp-create/close calls from fileblob async paths (`NewRangeReader`, `NewTypedWriter`, async writer close) while preserving the sync-compatible reader/writer methods.
 - [x] (2026-02-07) Switched shipped examples (`examples/base`, `examples/simple`, `examples/advanced`) to async-first startup (`MustRegisterAsync`/`RegisterJSVMAsync`, `serveAsync`) and removed early manual bootstrap in advanced example so JSVM bootstrap hooks execute in the intended order.
+- [x] (2026-02-07) Added async settings reload plumbing (`ReloadSettingsAsync` in `settings_query`, `reloadSettingsAsync`/`ReloadSettingsAsync` in `BaseApp` + `App` interface), switched `bootstrapAsync` to use it, and updated `OnSettingsReload` logger hook chaining to support async downstream handlers without dropping cleanup work.
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
@@ -183,6 +184,8 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
   Evidence: `src/tools/router/event.test.ts` still passes non-standard status scenarios (123/234), while profile `event.json` remained ~0.0038ms avg before/after.
 - Observation: Some non-obvious perf deviations from the 2026-02-05..2026-02-06 optimization window were not explicitly marked and could be accidentally dropped during upstream syncs.
   Evidence: retro audit of commits since 2026-02-05 identified missing markers in router/event/hook/request/provider/base hot-path changes; inline `PocketBun perf deviation` comments were added.
+- Observation: `OnSettingsReload` logger middleware assumed synchronous downstream handlers and would short-circuit cleanup behavior when downstream returned a Promise.
+  Evidence: the new async settings reload test initially failed (`asyncHookDone` remained false) because the logger hook returned early on Promise from `event.Next()`; switching it to Promise chaining restored awaited behavior.
 - Observation: No-join `updateQuery`/provider allocation trims reduced profiled internal list-handler CPU slightly, but end-to-end `records_list_skip_total` remained effectively unchanged in local benchmark runs.
   Evidence: profile averages moved modestly (`records_list.query` ~0.0230ms -> ~0.0224ms; `records_list.total` ~0.0333ms -> ~0.0325ms), while benchmarked `records_list_skip_total` stayed around ~1.78–1.80ms.
 - Observation: Replacing non-profile hook closure-chain construction with a cursor-driven `next` reduced middleware-inclusive router cost and gave a small but consistent improvement on list-path throughput.
@@ -246,6 +249,9 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
   Date/Author: 2026-02-06 / Codex
 - Decision: Keep shipped examples async-first by using JSVM async registration and `serveAsync` instead of explicit sync bootstrap/serve calls.
   Rationale: Examples are the primary user-facing entrypoint and should model non-blocking startup and correct hook registration order in PocketBun.
+  Date/Author: 2026-02-07 / Codex
+- Decision: Keep `ReloadSettings()` behavior-compatible and add `ReloadSettingsAsync()` as a PocketBun-only superset API, then update the built-in settings-reload logger hook to chain async downstream handlers.
+  Rationale: This preserves upstream sync semantics for existing call sites while making async startup paths truly async and preventing internal settings-reload hooks from dropping async work.
   Date/Author: 2026-02-07 / Codex
 - Decision: Add a provider API that consumes pre-parsed `URLSearchParams` and bypass count-query construction when `skipTotal` is enabled.
   Rationale: Request URLs are already parsed at router/event level; avoiding query-string reserialization/reparse and unused count SQL work reduces hot-path overhead while preserving upstream response semantics.

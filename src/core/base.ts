@@ -210,7 +210,7 @@ import {
   TokenTypeVerification,
 } from "./record_tokens.ts";
 import { ParamsKeySettings, ParamsTableName, Settings } from "./settings_model.ts";
-import { ReloadSettings as ReloadSettingsHelper } from "./settings_query.ts";
+import { ReloadSettings as ReloadSettingsHelper, ReloadSettingsAsync as ReloadSettingsAsyncHelper } from "./settings_query.ts";
 import { Store } from "./store.ts";
 import { NormalizeUniqueIndexError } from "./validators/db.ts";
 import {
@@ -970,7 +970,7 @@ export class BaseApp implements App {
       if (reloadErr) {
         return reloadErr;
       }
-      this.reloadSettings();
+      await this.reloadSettingsAsync();
       try {
         await rm(join(this.#dataDir, LocalTempDirName), { recursive: true, force: true });
       } catch {
@@ -1090,35 +1090,16 @@ export class BaseApp implements App {
           return result;
         }
         if (result instanceof Promise) {
-          event.App.Logger().Warn("OnSettingsReload handlers should not be async; skipping log cleanup");
-          return null;
+          return result.then((nextResult) => {
+            if (nextResult instanceof Error) {
+              return nextResult;
+            }
+            applySettingsLoggerReload(event.App);
+            return null;
+          });
         }
 
-        const logger = event.App.Logger();
-        const loggerHandler = logger.Handler();
-        if (loggerHandler instanceof BatchHandler) {
-          loggerHandler.SetLevel(getLoggerMinLevel(event.App));
-        }
-
-        // try to clear old logs not matching the new settings
-        const createdBefore = NowDateTime().addDate(0, 0, -1 * event.App.settings().logs.maxDays);
-        try {
-          event.App.auxDb().run(`delete from {{${LogsTableName}}} where [[created]] <= ? or [[level]] < ?`, [
-            createdBefore.toString(),
-            event.App.settings().logs.minLevel,
-          ]);
-        } catch (error) {
-          logger.Debug("Failed to cleanup old logs", "error", error);
-        }
-
-        // no logs are allowed -> try to reclaim preserved disk space after delete operation
-        if (event.App.settings().logs.maxDays === 0) {
-          try {
-            event.App.auxDb().run("VACUUM");
-          } catch (error) {
-            logger.Debug("Failed to VACUUM aux database", "error", error);
-          }
-        }
+        applySettingsLoggerReload(event.App);
 
         return null;
       },
@@ -1230,8 +1211,22 @@ export class BaseApp implements App {
     return err;
   }
 
+  // reloadSettingsAsync is a PocketBun-only async alternative to reloadSettings().
+  async reloadSettingsAsync(): Promise<Error | null> {
+    const err = await ReloadSettingsAsyncHelper(this);
+    if (err) {
+      this.Logger().Warn("Failed to reload settings", "error", err);
+    }
+    return err;
+  }
+
   ReloadSettings(): Error | null {
     return this.reloadSettings();
+  }
+
+  // ReloadSettingsAsync is a PocketBun-only async alternative to ReloadSettings().
+  async ReloadSettingsAsync(): Promise<Error | null> {
+    return await this.reloadSettingsAsync();
   }
 
   NewMailClient() {
@@ -4465,6 +4460,36 @@ function resolveBaseTokenKey(collection: Collection, tokenType: string): string 
       return collection.EmailChangeToken.Secret;
     default:
       return "";
+  }
+}
+
+function applySettingsLoggerReload(app: App): void {
+  const logger = app.Logger();
+  const loggerHandler = logger.Handler();
+  if (loggerHandler instanceof BatchHandler) {
+    loggerHandler.SetLevel(getLoggerMinLevel(app));
+  }
+
+  // try to clear old logs not matching the new settings
+  const createdBefore = NowDateTime().addDate(0, 0, -1 * app.settings().logs.maxDays);
+  try {
+    app
+      .auxDb()
+      .run(`delete from {{${LogsTableName}}} where [[created]] <= ? or [[level]] < ?`, [
+        createdBefore.toString(),
+        app.settings().logs.minLevel,
+      ]);
+  } catch (error) {
+    logger.Debug("Failed to cleanup old logs", "error", error);
+  }
+
+  // no logs are allowed -> try to reclaim preserved disk space after delete operation
+  if (app.settings().logs.maxDays === 0) {
+    try {
+      app.auxDb().run("VACUUM");
+    } catch (error) {
+      logger.Debug("Failed to VACUUM aux database", "error", error);
+    }
   }
 }
 

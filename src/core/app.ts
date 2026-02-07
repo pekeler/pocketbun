@@ -104,7 +104,11 @@ export interface App {
   auxHasTable(name: string): boolean;
   AuxHasTable(name: string): boolean;
   reloadSettings(): Error | null;
+  // reloadSettingsAsync is a PocketBun-only async alternative to reloadSettings().
+  reloadSettingsAsync?(): Promise<Error | null>;
   ReloadSettings(): Error | null;
+  // ReloadSettingsAsync is a PocketBun-only async alternative to ReloadSettings().
+  ReloadSettingsAsync?(): Promise<Error | null>;
   runSystemMigrations(): void;
   runAppMigrations(): void;
   runAllMigrations(): void;
