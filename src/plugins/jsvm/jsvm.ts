@@ -2,8 +2,9 @@
 // Note: upstream uses a goja VM; PocketBun runs native Bun modules but keeps the jsvm layer
 // to preserve the same JS-facing bindings and pb_hooks compatibility.
 
+import type { Dirent } from "node:fs";
 import { readdirSync, readFileSync, statSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, extname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -397,27 +398,27 @@ function filesContent(dirPath: string, pattern: string): Map<string, string> | n
 }
 
 async function filesContentAsync(dirPath: string, pattern: string): Promise<Map<string, string> | null> {
-  let entries: string[];
+  let entries: Dirent[];
   try {
-    entries = (await readdir(dirPath)).sort();
+    entries = await readdir(dirPath, { withFileTypes: true });
   } catch {
     return new Map();
   }
 
   const regex = pattern ? new RegExp(pattern) : null;
-  const result = new Map<string, string>();
+  const sorted = entries.sort((a, b) => a.name.localeCompare(b.name));
+  const fileNames = sorted
+    .filter((entry) => !entry.isDirectory() && (!regex || regex.test(entry.name)))
+    .map((entry) => entry.name);
+  const contents = await Promise.all(fileNames.map(async (name) => await readFile(join(dirPath, name), "utf8")));
 
-  for (const name of entries) {
-    const full = join(dirPath, name);
-    const info = await stat(full);
-    if (info.isDirectory()) {
-      continue;
+  const result = new Map<string, string>();
+  for (let i = 0; i < fileNames.length; i += 1) {
+    const fileName = fileNames[i];
+    const content = contents[i];
+    if (fileName && content !== undefined) {
+      result.set(fileName, content);
     }
-    if (regex && !regex.test(name)) {
-      continue;
-    }
-    const raw = await readFile(full, "utf8");
-    result.set(name, raw);
   }
 
   return result;

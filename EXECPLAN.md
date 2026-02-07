@@ -65,6 +65,7 @@ Performance notes (2026-02-07, requester-path correction): after replacing Pocke
 - [x] (2026-02-07) Continued the async runtime I/O slices by removing sync fd open/temp-create/close calls from fileblob async paths (`NewRangeReader`, `NewTypedWriter`, async writer close) while preserving the sync-compatible reader/writer methods.
 - [x] (2026-02-07) Switched shipped examples (`examples/base`, `examples/simple`, `examples/advanced`) to async-first startup (`MustRegisterAsync`/`RegisterJSVMAsync`, `serveAsync`) and removed early manual bootstrap in advanced example so JSVM bootstrap hooks execute in the intended order.
 - [x] (2026-02-07) Added async settings reload plumbing (`ReloadSettingsAsync` in `settings_query`, `reloadSettingsAsync`/`ReloadSettingsAsync` in `BaseApp` + `App` interface), switched `bootstrapAsync` to use it, and updated `OnSettingsReload` logger hook chaining to support async downstream handlers without dropping cleanup work.
+- [x] (2026-02-07) Removed serial per-file `stat` + `readFile` work from JSVM async loader startup by switching `filesContentAsync` to `readdir(..., { withFileTypes: true })` and ordered concurrent reads.
 
 - [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
 - [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
