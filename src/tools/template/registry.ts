@@ -142,13 +142,12 @@ export class Registry {
     }
 
     try {
-      const sources: TemplateSource[] = [];
-      for (const filename of filenames) {
-        sources.push({
+      const sources: TemplateSource[] = await Promise.all(
+        filenames.map(async (filename) => ({
           name: basename(filename),
           content: await readFile(filename, "utf8"),
-        });
-      }
+        })),
+      );
 
       return buildRenderer(sources, this.funcs);
     } catch (error) {
@@ -193,13 +192,12 @@ export class Registry {
         return new Renderer(null, new Error("no template files matched"));
       }
 
-      const sources: TemplateSource[] = [];
-      for (const file of files) {
-        sources.push({
+      const sources: TemplateSource[] = await Promise.all(
+        files.map(async (file) => ({
           name: basename(file),
           content: await readFile(join(root, file), "utf8"),
-        });
-      }
+        })),
+      );
 
       return buildRenderer(sources, this.funcs);
     } catch (error) {
