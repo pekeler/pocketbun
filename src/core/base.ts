@@ -4300,7 +4300,7 @@ function runHookNextWithSync<TModelEvent extends { Next: () => unknown }, TEvent
 ): unknown {
   syncToEvent(modelEvent, event);
   const result = modelEvent.Next();
-  if (result instanceof Promise) {
+  if (isPromiseLike(result)) {
     return result.then((value) => {
       syncToModel(event, modelEvent);
       return value;
@@ -4311,7 +4311,7 @@ function runHookNextWithSync<TModelEvent extends { Next: () => unknown }, TEvent
 }
 
 function syncAfterHookResult(result: unknown, sync: () => void): unknown {
-  if (result instanceof Promise) {
+  if (isPromiseLike(result)) {
     return result.then((value) => {
       sync();
       return value;
@@ -4322,10 +4322,17 @@ function syncAfterHookResult(result: unknown, sync: () => void): unknown {
 }
 
 function ensureSyncHookResult(result: unknown, context: string): Error | null {
-  if (result instanceof Promise) {
+  if (isPromiseLike(result)) {
     return new Error(`async handlers are not supported in sync ${context}`);
   }
   return result instanceof Error ? result : null;
+}
+
+function isPromiseLike<T = unknown>(value: unknown): value is Promise<T> {
+  if (value == null) {
+    return false;
+  }
+  return (typeof value === "object" || typeof value === "function") && typeof (value as { then?: unknown }).then === "function";
 }
 
 function appendOrderBy(baseSql: string, clause: string): string {

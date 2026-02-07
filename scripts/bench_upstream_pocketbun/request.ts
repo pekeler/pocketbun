@@ -66,12 +66,13 @@ export class BenchRequest {
       throw new Error(`request failed with status ${response.status}`);
     }
 
-    // Read to EOF so HTTP keep-alive connections are reusable.
-    const bodyRaw = await response.text();
-
-    if (destBody != null) {
-      const payload = JSON.parse(bodyRaw) as Record<string, unknown>;
-      Object.assign(destBody, payload);
+    if (destBody == null) {
+      response.body?.cancel();
+      return;
     }
+
+    const bodyRaw = await response.text();
+    const payload = JSON.parse(bodyRaw) as Record<string, unknown>;
+    Object.assign(destBody, payload);
   }
 }

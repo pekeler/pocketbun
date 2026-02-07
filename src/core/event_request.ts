@@ -133,17 +133,11 @@ export class RequestEvent extends Event {
       const info: RequestInfo = {
         query: {},
         headers: {},
-        body: {},
+        body: await this.#resolveBoundBody(),
         auth: this.auth,
         method: this.request.method,
         context: infoContext,
       };
-
-      const bodyStart = doProfile ? performance.now() : 0;
-      await this.bindBody(info.body);
-      if (doProfile) {
-        recordProfile("request_info.body", performance.now() - bodyStart);
-      }
 
       // PocketBun perf deviation (behavior-compatible): lazily compute request query/headers.
       // Most hot paths read only `body`/`auth`, so avoid per-request map population unless needed.
@@ -198,19 +192,7 @@ export class RequestEvent extends Event {
   }
 
   override async bindBody<T extends object>(target: T): Promise<void> {
-    if (this.#cachedRequestInfo) {
-      Object.assign(target, this.#cachedRequestInfo.body);
-      return;
-    }
-
-    if (this.#cachedBody) {
-      Object.assign(target, this.#cachedBody);
-      return;
-    }
-
-    const body: Record<string, unknown> = {};
-    await super.bindBody(body);
-    this.#cachedBody = body;
+    const body = await this.#resolveBoundBody();
     Object.assign(target, body);
   }
 
@@ -221,6 +203,69 @@ export class RequestEvent extends Event {
   getStopSignal(): { stopped: boolean; error?: Error } | null {
     return this.#stopSignal;
   }
+
+  async #resolveBoundBody(): Promise<Record<string, unknown>> {
+    if (this.#cachedRequestInfo) {
+      return this.#cachedRequestInfo.body;
+    }
+
+    if (this.#cachedBody) {
+      return this.#cachedBody;
+    }
+
+    const doProfile = profileEnabled();
+    const bodyStart = doProfile ? performance.now() : 0;
+    let body: Record<string, unknown>;
+    // PocketBun perf deviation (behavior-compatible for bindBody callers):
+    // parse JSON directly from the original request stream to avoid clone()
+    // overhead on hot write paths; the parsed object is cached for subsequent calls.
+    const contentType = (this.request.headers.get("content-type") ?? "").toLowerCase();
+    if (contentType.startsWith("application/json")) {
+      const bound = await bindJSONBody(this.request);
+      this.request = bound.request;
+      body = bound.body;
+    } else {
+      body = {};
+      await super.bindBody(body);
+    }
+    if (doProfile) {
+      recordProfile("request_info.body", performance.now() - bodyStart);
+    }
+    this.#cachedBody = body;
+    return body;
+  }
+}
+
+async function bindJSONBody(request: Request): Promise<{ request: Request; body: Record<string, unknown> }> {
+  if (!request.body) {
+    return { request, body: {} };
+  }
+
+  const contentLengthRaw = request.headers.get("content-length");
+  if (contentLengthRaw !== null) {
+    const contentLength = Number(contentLengthRaw);
+    if (!Number.isNaN(contentLength) && contentLength === 0) {
+      return { request, body: {} };
+    }
+  }
+
+  const raw = await request.text();
+  const method = request.method.toUpperCase();
+  const reboundInit: RequestInit = {};
+  if (method !== "GET" && method !== "HEAD") {
+    reboundInit.body = raw;
+  }
+  const rebound = new Request(request, reboundInit);
+  if (raw.trim() === "") {
+    return { request: rebound, body: {} };
+  }
+
+  const parsed = JSON.parse(raw) as unknown;
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { request: rebound, body: {} };
+  }
+
+  return { request: rebound, body: parsed as Record<string, unknown> };
 }
 
 function snakecase(input: string): string {

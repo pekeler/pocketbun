@@ -7,11 +7,6 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
-import { MustRegisterJSVM, NewWithConfig, serve } from "../index.ts";
-import { CollectionNameSuperusers } from "../src/core/collection_model.ts";
-import { NewRecord } from "../src/core/record_model.ts";
-import { configureProfile, profileEnabled, profileSummary, resetProfile } from "../src/tools/perf/profile.ts";
-import { registerBenchmarkModule } from "./bench_upstream_pocketbun/module.ts";
 import { benchmarkSchema } from "./bench_upstream_pocketbun/schema.ts";
 
 const benchmarkRunOverrideFile = process.env.POCKETBUN_BENCHMARK_RUN_FILE ?? "/tmp/pocketbun-bench-upstream-run.txt";
@@ -21,9 +16,6 @@ const benchmarkProfileEnabled = await resolveBooleanOverride(benchmarkProfileOve
 const benchmarkWarmupRequestsFile =
   process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS_FILE ?? "/tmp/pocketbun-bench-upstream-warmup-requests.txt";
 const benchmarkWarmupRequests = await resolveIntOverride(benchmarkWarmupRequestsFile, 0);
-if (benchmarkProfileEnabled) {
-  configureProfile({ enabled: true });
-}
 const machineTag = sanitizeTag(process.env.POCKETBUN_BENCH_MACHINE_TAG ?? "m2-max");
 const timestampTag = createTimestampTag(new Date());
 const resultsDir = process.env.POCKETBUN_BENCH_RESULTS_DIR ?? "benchmarks/results";
@@ -40,35 +32,30 @@ const probeUserEmail = "users0@example.com";
 const probeUserUsername = "users0";
 
 const hooksDir = fileURLToPath(new URL("../vendor/pocketbase-benchmarks/pb_hooks", import.meta.url));
+const serverScriptPath = fileURLToPath(new URL("./bench_upstream_pocketbun/server.ts", import.meta.url));
 const port = await pickPort();
 const baseUrl = `http://127.0.0.1:${port}`;
 const dataDir = await mkdtemp(join(tmpdir(), "pocketbun-benchmarks-"));
-
-const app = NewWithConfig({
-  HideStartBanner: true,
-  DefaultDataDir: dataDir,
-  DefaultQueryTimeout: 120,
+const serverProc = Bun.spawn({
+  cmd: ["bun", "run", serverScriptPath],
+  cwd: process.cwd(),
+  env: {
+    ...process.env,
+    POCKETBUN_BENCH_SERVER_PORT: String(port),
+    POCKETBUN_BENCH_SERVER_BASE_URL: baseUrl,
+    POCKETBUN_BENCH_SERVER_DATA_DIR: dataDir,
+    POCKETBUN_BENCH_SERVER_HOOKS_DIR: hooksDir,
+    POCKETBUN_BENCH_SERVER_PROFILE: benchmarkProfileEnabled ? "1" : "0",
+  },
+  stdio: ["ignore", "inherit", "inherit"],
 });
-
-MustRegisterJSVM(app, {
-  HooksPoolSize: 50,
-  HooksDir: hooksDir,
-});
-registerBenchmarkModule(app, baseUrl);
-if (!app.isBootstrapped()) {
-  app.bootstrap();
-}
-app.runAllMigrations();
-await ensureDefaultSuperuser();
-
-const server = serve(app, { httpAddr: `127.0.0.1:${port}` });
 
 try {
   await ensureServerReady();
 
   if (benchmarkRun === "probe:create-latency" || benchmarkRun === "probe:create-organizations") {
-    if (profileEnabled()) {
-      resetProfile();
+    if (benchmarkProfileEnabled) {
+      await resetRemoteProfile();
     }
     const token = await authSuperuser();
     await importProbeSchema(token);
@@ -76,8 +63,8 @@ try {
       token,
       benchmarkRun === "probe:create-organizations" ? "organizations-only" : "full",
     );
-    if (profileEnabled()) {
-      const summary = profileSummary(80);
+    if (benchmarkProfileEnabled) {
+      const summary = await fetchRemoteProfileSummary();
       if (summary) {
         console.log("\nPROFILE SUMMARY");
         console.log(summary);
@@ -154,8 +141,8 @@ try {
     console.log(`Saved latest raw result to: ${latestResultFile}`);
   }
 } finally {
-  await server.stop();
-  app.resetBootstrapState();
+  serverProc.kill();
+  await serverProc.exited;
   await rm(dataDir, { recursive: true, force: true });
 }
 
@@ -283,6 +270,21 @@ async function ensureServerReady(): Promise<void> {
   }
 
   throw new Error("PocketBun benchmark server did not become ready in time");
+}
+
+async function resetRemoteProfile(): Promise<void> {
+  const response = await fetch(`${baseUrl}/_bench/profile-reset`, { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`failed to reset benchmark profile: HTTP ${response.status}`);
+  }
+}
+
+async function fetchRemoteProfileSummary(): Promise<string> {
+  const response = await fetch(`${baseUrl}/_bench/profile-summary`);
+  if (!response.ok) {
+    throw new Error(`failed to fetch benchmark profile summary: HTTP ${response.status}`);
+  }
+  return (await response.text()).trim();
 }
 
 async function authSuperuser(): Promise<string> {
@@ -653,22 +655,6 @@ async function importProbeSchema(token: string): Promise<void> {
 
 function compactErrorSample(raw: string): string {
   return raw.replace(/\s+/g, " ").trim().slice(0, 240);
-}
-
-async function ensureDefaultSuperuser(): Promise<void> {
-  if (app.CountRecords(CollectionNameSuperusers) > 0) {
-    return;
-  }
-
-  const superusersCollection = app.FindCollectionByNameOrId(CollectionNameSuperusers);
-  const superuser = NewRecord(superusersCollection);
-  superuser.Set("email", "test@example.com");
-  superuser.Set("password", "1234567890");
-
-  const saveErr = await app.Save(superuser);
-  if (saveErr) {
-    throw new Error(`failed to create benchmark superuser: ${saveErr.message}`);
-  }
 }
 
 async function waitForBenchmarkResult(token: string): Promise<{ tests?: unknown; result?: unknown; error?: unknown }> {

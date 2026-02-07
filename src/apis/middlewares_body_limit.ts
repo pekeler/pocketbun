@@ -77,11 +77,18 @@ export async function applyBodyLimit(event: RequestEvent, limitBytes: number): P
     return null;
   }
 
-  const contentLength = Number(event.request.headers.get("content-length") ?? 0);
-  if (Number.isFinite(contentLength) && contentLength > limitBytes) {
-    return requestEntityTooLarge(event);
+  const rawContentLength = event.request.headers.get("content-length");
+  if (rawContentLength && rawContentLength !== "") {
+    const contentLength = Number(rawContentLength);
+    if (Number.isFinite(contentLength)) {
+      if (contentLength > limitBytes) {
+        return requestEntityTooLarge(event);
+      }
+      return null;
+    }
   }
 
+  // Fallback for bodies without a reliable Content-Length header.
   if (!event.request.body) {
     return null;
   }

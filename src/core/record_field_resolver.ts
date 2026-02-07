@@ -62,8 +62,18 @@ export class RecordFieldResolver implements FieldResolver {
     if (this.requestInfo) {
       this.staticRequestInfo.context = this.requestInfo.context;
       this.staticRequestInfo.method = this.requestInfo.method;
-      this.staticRequestInfo.query = this.requestInfo.query;
-      this.staticRequestInfo.headers = this.requestInfo.headers;
+      // PocketBun perf deviation (behavior-compatible): avoid forcing
+      // request query/headers extraction when rules don't access them.
+      Object.defineProperty(this.staticRequestInfo, "query", {
+        enumerable: true,
+        configurable: true,
+        get: () => this.requestInfo?.query ?? {},
+      });
+      Object.defineProperty(this.staticRequestInfo, "headers", {
+        enumerable: true,
+        configurable: true,
+        get: () => this.requestInfo?.headers ?? {},
+      });
       this.staticRequestInfo.body = this.requestInfo.body;
       this.staticRequestInfo.auth = null;
       if (this.requestInfo.auth) {
