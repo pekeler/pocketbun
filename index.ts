@@ -17,4 +17,5 @@ export {
   TemplateLangJS,
   type Config as MigrateCmdConfig,
 } from "./src/plugins/migratecmd/migratecmd.ts";
+export { Create, CreateAsync, Extract, ExtractAsync } from "./src/tools/archive/index.ts";
 export { DbxDatabase, attachDbxRewrite, rewriteDbxIdentifiers } from "./src/tools/dbx/index.ts";

@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, symlinkSync, wri
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Create } from "./create.ts";
-import { Extract } from "./extract.ts";
+import { Extract, ExtractAsync } from "./extract.ts";
 
 describe("archive extract", () => {
   it("extract failure", () => {
@@ -30,6 +30,30 @@ describe("archive extract", () => {
     try {
       Create(testDir, zipPath, "a/b/c", "test2", "sub2");
       Extract(zipPath, extractedPath);
+
+      const availableFiles = listFiles(extractedPath);
+      const expectedFiles = [join(extractedPath, "test"), join(extractedPath, "a/test"), join(extractedPath, "a/b/sub1")];
+
+      expect(availableFiles.length).toBe(expectedFiles.length);
+
+      for (const expected of expectedFiles) {
+        expect(availableFiles.includes(expected)).toBe(true);
+      }
+    } finally {
+      rmSync(testDir, { recursive: true, force: true });
+      rmSync(zipPath, { recursive: true, force: true });
+      rmSync(extractedPath, { recursive: true, force: true });
+    }
+  });
+
+  it("extract async success", async () => {
+    const testDir = createTestDir();
+    const zipPath = join(tmpdir(), "pb_test_async.zip");
+    const extractedPath = join(tmpdir(), "pb_zip_extract_async");
+
+    try {
+      Create(testDir, zipPath, "a/b/c", "test2", "sub2");
+      await ExtractAsync(zipPath, extractedPath);
 
       const availableFiles = listFiles(extractedPath);
       const expectedFiles = [join(extractedPath, "test"), join(extractedPath, "a/test"), join(extractedPath, "a/b/sub1")];

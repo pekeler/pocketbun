@@ -1,8 +1,9 @@
 // Ported from pocketbase/apis/base.go.
 // Deviation: Bun doesn't expose net/http handlers, so WrapStd* adapts fetch-style handlers.
 // Deviation: Bun uses filesystem paths instead of fs.FS; MustSubFS returns a root wrapper.
+// Deviation: static file route checks use async fs APIs to avoid blocking the event loop under load.
 
-import { statSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import { join, posix as pathPosix } from "node:path";
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
@@ -183,7 +184,7 @@ export function Static(fsys: string | FsRoot, indexFallback: boolean): (event: R
     let stats: { isDirectory: () => boolean };
 
     try {
-      stats = statSync(join(root, filename));
+      stats = await stat(join(root, filename));
     } catch {
       if (indexFallback && filename !== IndexPage) {
         return event.FileFS(fsys, IndexPage);

@@ -132,6 +132,25 @@ pocketbun serve
 pocketbun superuser upsert admin@example.com change-me
 ```
 
+### Async API Extensions
+
+PocketBun keeps sync APIs where PocketBase exposes sync behavior, but adds async alternatives for I/O-heavy operations.
+
+Current extensions:
+
+- Archive helpers now expose both sync and async variants:
+  - sync: `Create`, `Extract`
+  - async: `CreateAsync`, `ExtractAsync`
+
+Example:
+
+```ts
+import { CreateAsync, ExtractAsync } from "pocketbun";
+
+await CreateAsync("pb_data", "/tmp/pb_backup.zip", "backups");
+await ExtractAsync("/tmp/pb_backup.zip", "/tmp/pb_restore");
+```
+
 ### CLI Updates
 
 PocketBun does not ship the PocketBase `update` command. Because PocketBun is distributed as a package, update it via your package manager instead (for example `bun add -g pocketbun@latest`, `npm i -g pocketbun@latest`, or `pnpm add -g pocketbun@latest`).

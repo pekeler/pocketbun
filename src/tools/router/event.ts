@@ -1,8 +1,10 @@
 // Ported from pocketbase/tools/router/event.go
 // Deviation: Bun uses Request/Response instead of net/http ResponseWriter, so response helpers return Response values.
+// Deviation: static file reads/stats use async fs APIs to avoid blocking the event loop under load.
 
 import type { BodyInit } from "bun";
-import { readFileSync, statSync, type Stats } from "node:fs";
+import type { Stats } from "node:fs";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { NextFunc, Resolver } from "../hook/event.ts";
 import { readRequestTextAndRebind } from "../../internal/compat/request_body.ts";
@@ -321,7 +323,7 @@ export class Event implements Resolver {
     let stats: Stats;
 
     try {
-      stats = statSync(resolved);
+      stats = await stat(resolved);
     } catch {
       return ErrFileNotFound;
     }
@@ -329,7 +331,7 @@ export class Event implements Resolver {
     if (stats.isDirectory()) {
       resolved = join(resolved, IndexPage);
       try {
-        stats = statSync(resolved);
+        stats = await stat(resolved);
       } catch {
         return ErrFileNotFound;
       }
@@ -347,7 +349,7 @@ export class Event implements Resolver {
     const contentType = Bun.file(resolved).type || "application/octet-stream";
     this.setResponseHeaderIfEmpty(headerContentType, contentType);
 
-    const content = readFileSync(resolved);
+    const content = await readFile(resolved);
     this.responseHeaders.set("Content-Length", String(content.length));
 
     cacheFile(resolved, {

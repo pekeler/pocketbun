@@ -1,9 +1,10 @@
 // Ported from pocketbase/core/base_backup.go
+// Deviation: backup/restore file I/O uses async fs + async archive helpers to avoid blocking the event loop.
 
-import { mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import type { App } from "./app.ts";
-import { Create, Extract } from "../tools/archive/index.ts";
+import { CreateAsync, ExtractAsync } from "../tools/archive/index.ts";
 import { NewFileFromPath } from "../tools/filesystem/file.ts";
 import { snakecase } from "../tools/inflector/inflector.ts";
 import { MoveDirContent } from "../tools/osutils/dir.ts";
@@ -57,7 +58,7 @@ export async function CreateBackup(app: App, ctx: unknown, name: string): Promis
       // make sure that the special temp directory exists
       // note: it needs to be inside the current pb_data to avoid "cross-device link" errors
       const localTempDir = join(e.App.dataDir(), LocalTempDirName);
-      mkdirSync(localTempDir, { recursive: true });
+      await mkdir(localTempDir, { recursive: true });
 
       // archive pb_data in a temp directory, exluding the "backups" and the temp dirs
       //
@@ -66,7 +67,7 @@ export async function CreateBackup(app: App, ctx: unknown, name: string): Promis
       const tempPath = join(localTempDir, `pb_backup_${pseudorandomString(6)}`);
 
       const createErr = await e.App.RunInTransaction((txApp) => {
-        return txApp.AuxRunInTransaction((auxApp) => {
+        return txApp.AuxRunInTransaction(async (auxApp) => {
           // run manual checkpoint and truncate the WAL files
           // (errors are ignored because it is not that important and the PRAGMA may not be supported by the used driver)
           try {
@@ -82,7 +83,7 @@ export async function CreateBackup(app: App, ctx: unknown, name: string): Promis
           }
 
           try {
-            Create(auxApp.dataDir(), tempPath, ...e.Exclude);
+            await CreateAsync(auxApp.dataDir(), tempPath, ...e.Exclude);
             return null;
           } catch (error) {
             return error as Error;
@@ -110,7 +111,7 @@ export async function CreateBackup(app: App, ctx: unknown, name: string): Promis
       } catch (error) {
         return error as Error;
       } finally {
-        rmSync(tempPath, { force: true });
+        await rm(tempPath, { force: true });
       }
 
       return null;
@@ -175,7 +176,7 @@ export async function RestoreBackup(app: App, ctx: unknown, name: string): Promi
       // make sure that the special temp directory exists
       // note: it needs to be inside the current pb_data to avoid "cross-device link" errors
       const localTempDir = join(e.App.dataDir(), LocalTempDirName);
-      mkdirSync(localTempDir, { recursive: true });
+      await mkdir(localTempDir, { recursive: true });
 
       let fsys: ReturnType<App["NewBackupsFilesystem"]> | null = null;
       try {
@@ -198,14 +199,14 @@ export async function RestoreBackup(app: App, ctx: unknown, name: string): Promi
             const tempZipPath = join(localTempDir, `pb_restore_zip_${pseudorandomString(6)}`);
             try {
               // create a temp zip file from the blob.Reader and try to extract it
-              writeFileSync(tempZipPath, reader.readAll());
-              Extract(tempZipPath, extractedDataDir);
+              await writeFile(tempZipPath, reader.readAll());
+              await ExtractAsync(tempZipPath, extractedDataDir);
             } finally {
               reader.close();
               try {
                 // remove the temp zip file since we no longer need it
                 // (this is in case the app restarts and the defer calls are not called)
-                rmSync(tempZipPath, { force: true });
+                await rm(tempZipPath, { force: true });
               } catch (error) {
                 e.App.Logger().Warn(
                   "[RestoreBackup] Failed to remove the temp zip backup file",
@@ -220,12 +221,12 @@ export async function RestoreBackup(app: App, ctx: unknown, name: string): Promi
             // manually construct the local path to avoid creating a copy of the zip file
             // since the blob reader currently doesn't implement ReaderAt
             const zipPath = join(e.App.dataDir(), LocalBackupsDirName, basename(name));
-            Extract(zipPath, extractedDataDir);
+            await ExtractAsync(zipPath, extractedDataDir);
           }
 
           // ensure that at least a database file exists
           try {
-            statSync(join(extractedDataDir, "data.db"));
+            await stat(join(extractedDataDir, "data.db"));
           } catch (error) {
             return new Error(`data.db file is missing or invalid: ${(error as Error).message}`);
           }
@@ -289,7 +290,7 @@ export async function RestoreBackup(app: App, ctx: unknown, name: string): Promi
             return new Error(`failed to restart the app process: ${restartErr.message}`);
           }
         } finally {
-          rmSync(extractedDataDir, { recursive: true, force: true });
+          await rm(extractedDataDir, { recursive: true, force: true });
         }
       } finally {
         await fsys.Close();

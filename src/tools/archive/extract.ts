@@ -1,6 +1,7 @@
 // Ported from pocketbase/tools/archive/extract.go
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import { inflateRawSync } from "node:zlib";
 
@@ -53,6 +54,60 @@ export function Extract(src: string, dest: string): void {
 
     mkdirSync(dirname(targetPath), { recursive: true });
     writeFileSync(targetPath, fileData);
+  }
+
+  if (centralOffset + centralSize > data.length) {
+    throw new Error("invalid zip: central directory extends beyond file size");
+  }
+}
+
+// ExtractAsync is PocketBun-only async alternative to Extract.
+//
+// It preserves the same behavior while avoiding synchronous filesystem I/O.
+export async function ExtractAsync(src: string, dest: string): Promise<void> {
+  const data = await readFile(src);
+
+  const eocdOffset = findEndOfCentralDirectory(data);
+  if (eocdOffset < 0) {
+    throw new Error("invalid zip: missing end of central directory");
+  }
+
+  const eocdView = new DataView(data.buffer, data.byteOffset + eocdOffset, 22);
+  const totalEntries = eocdView.getUint16(10, true);
+  const centralSize = eocdView.getUint32(12, true);
+  const centralOffset = eocdView.getUint32(16, true);
+
+  // normalize dest path to check later for Zip Slip
+  const destRoot = normalizeDest(dest);
+
+  let offset = centralOffset;
+  for (let i = 0; i < totalEntries; i += 1) {
+    const entry = readCentralDirectoryEntry(data, offset);
+    offset = entry.nextOffset;
+
+    const targetPath = resolve(destRoot, entry.name);
+    if (!targetPath.startsWith(destRoot)) {
+      throw new Error(`invalid file path: ${targetPath}`);
+    }
+
+    const mode = entry.mode;
+    const isDir = entry.name.endsWith("/") || (mode & 0o040000) === 0o040000;
+    const isSymlink = (mode & 0o120000) === 0o120000;
+    const isRegular = mode === 0 || (mode & 0o100000) === 0o100000;
+
+    if (isDir) {
+      await mkdir(targetPath, { recursive: true });
+      continue;
+    }
+
+    if (!isRegular || isSymlink) {
+      continue;
+    }
+
+    const fileData = extractFileData(data, entry);
+
+    await mkdir(dirname(targetPath), { recursive: true });
+    await writeFile(targetPath, fileData);
   }
 
   if (centralOffset + centralSize > data.length) {

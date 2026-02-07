@@ -5,7 +5,7 @@ import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { newTestApp } from "../tests/app.ts";
-import { Extract } from "../tools/archive/extract.ts";
+import { ExtractAsync } from "../tools/archive/extract.ts";
 import { existInSliceWithRegex } from "../tools/list/list.ts";
 import { LocalBackupsDirName } from "./base.ts";
 import { StoreKeyActiveBackup } from "./store.ts";
@@ -17,7 +17,7 @@ function getEntryNames(entries: Array<{ name: string }>): string[] {
 async function verifyBackupContent(path: string) {
   const dir = await mkdtemp(join(tmpdir(), "backup_test_"));
   try {
-    Extract(path, dir);
+    await ExtractAsync(path, dir);
 
     const expectedRootEntries = [
       "storage",

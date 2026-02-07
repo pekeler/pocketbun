@@ -4,7 +4,7 @@ import { describe, expect, it } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { Create } from "./create.ts";
+import { Create, CreateAsync } from "./create.ts";
 
 describe("archive create", () => {
   it("create failure", () => {
@@ -34,6 +34,23 @@ describe("archive create", () => {
     } finally {
       rmSync(testDir, { recursive: true, force: true });
       rmSync(join(tmpdir(), "pb_test.zip"), { recursive: true, force: true });
+    }
+  });
+
+  it("create async success", async () => {
+    const testDir = createTestDir();
+    try {
+      const zipName = "pb_test_async.zip";
+      const zipPath = join(tmpdir(), zipName);
+
+      await CreateAsync(testDir, zipPath, "a/b/c", "test");
+
+      const stat = statSync(zipPath);
+      expect(basename(zipPath)).toBe(zipName);
+      expect(stat.size).toBe(544);
+    } finally {
+      rmSync(testDir, { recursive: true, force: true });
+      rmSync(join(tmpdir(), "pb_test_async.zip"), { recursive: true, force: true });
     }
   });
 });

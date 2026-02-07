@@ -1,6 +1,7 @@
 // Ported from pocketbase/tools/archive/create.go
 
 import { lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { lstat, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, posix, relative } from "node:path";
 import { deflateRawSync } from "node:zlib";
 
@@ -15,12 +16,32 @@ export function Create(src: string, dest: string, ...skipPaths: string[]): void 
   mkdirSync(dirname(dest), { recursive: true });
 
   try {
-    const files = collectFiles(src, skipPaths);
+    const files = collectFilesSync(src, skipPaths);
     const zip = buildZip(files);
     writeFileSync(dest, zip);
   } catch (error) {
     try {
       rmSync(dest, { force: true });
+    } catch {
+      // ignore cleanup errors
+    }
+    throw error;
+  }
+}
+
+// CreateAsync is PocketBun-only async alternative to Create.
+//
+// It preserves the same behavior while avoiding synchronous filesystem I/O.
+export async function CreateAsync(src: string, dest: string, ...skipPaths: string[]): Promise<void> {
+  await mkdir(dirname(dest), { recursive: true });
+
+  try {
+    const files = await collectFilesAsync(src, skipPaths);
+    const zip = buildZip(files);
+    await writeFile(dest, zip);
+  } catch (error) {
+    try {
+      await rm(dest, { force: true });
     } catch {
       // ignore cleanup errors
     }
@@ -36,7 +57,7 @@ type ZipEntry = {
 };
 
 // note remove after similar method is added in the std lib (https://github.com/golang/go/issues/54898)
-function collectFiles(src: string, skipPaths: string[]): ZipEntry[] {
+function collectFilesSync(src: string, skipPaths: string[]): ZipEntry[] {
   const entries: ZipEntry[] = [];
 
   const walk = (dir: string) => {
@@ -66,6 +87,39 @@ function collectFiles(src: string, skipPaths: string[]): ZipEntry[] {
   };
 
   walk(src);
+  return entries;
+}
+
+async function collectFilesAsync(src: string, skipPaths: string[]): Promise<ZipEntry[]> {
+  const entries: ZipEntry[] = [];
+
+  const walk = async (dir: string): Promise<void> => {
+    const items = await readdir(dir, { withFileTypes: true });
+    for (const item of items) {
+      const fullPath = join(dir, item.name);
+      if (item.isDirectory()) {
+        await walk(fullPath);
+        continue;
+      }
+
+      const rel = normalizeRelPath(relative(src, fullPath));
+      if (shouldSkip(rel, skipPaths)) {
+        continue;
+      }
+
+      const info = await lstat(fullPath);
+      const data = await readFile(fullPath);
+
+      entries.push({
+        name: rel,
+        data: new Uint8Array(data),
+        modTime: info.mtime,
+        mode: info.mode,
+      });
+    }
+  };
+
+  await walk(src);
   return entries;
 }
 

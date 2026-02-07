@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BaseApp, RegisterJSVM, RegisterMigrateCmd, Static, TemplateLangJS, type ServeEvent, serve } from "../../index.ts";
@@ -9,10 +9,12 @@ const hooksDir = join(rootDir, "pb_hooks");
 const migrationsDir = join(rootDir, "pb_migrations");
 const publicDir = join(rootDir, "pb_public");
 
-mkdirSync(dataDir, { recursive: true });
-mkdirSync(hooksDir, { recursive: true });
-mkdirSync(migrationsDir, { recursive: true });
-mkdirSync(publicDir, { recursive: true });
+await Promise.all([
+  mkdir(dataDir, { recursive: true }),
+  mkdir(hooksDir, { recursive: true }),
+  mkdir(migrationsDir, { recursive: true }),
+  mkdir(publicDir, { recursive: true }),
+]);
 
 const app = new BaseApp({ dataDir });
 app.bootstrap();
