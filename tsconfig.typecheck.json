@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["index.ts", "src/**/*.ts"],
+  "exclude": ["dist", "node_modules", "scripts", "tests", "vendor/pocketbase-benchmarks"]
+}

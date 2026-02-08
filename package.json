@@ -15,7 +15,7 @@
     "upstream:audit": "bun run scripts/audit_upstream_mapping.ts",
     "test": "bun test --concurrent",
     "start": "bun run index.ts",
-    "typecheck": "bun x tsc -p tsconfig.json --noEmit",
+    "typecheck": "bun x tsc -p tsconfig.typecheck.json --noEmit",
     "lint": "oxlint --type-aware src tests",
     "format": "oxfmt --check src tests",
     "format:fix": "oxfmt --write src tests",
