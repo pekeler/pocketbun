@@ -113,6 +113,8 @@ Conventions:
   - Web `Request`/`Response`, `URL`, `fetch`, streams
 - Avoid Node-only dependencies and Node-specific runtime assumptions.
   - `node:` builtins are OK only if Bun supports them and they keep things simpler.
+- Tooling/scripts must use Bun runtime entrypoints (`bun ...` / `bun run ...`) instead of `node ...`.
+  - Prefer `.js` script files for Bun tooling helpers unless there is a specific reason to use another extension.
 - Keep dependencies minimal; prefer small utilities over frameworks.
 
 ## TypeScript rules (keep it friendly for JS-minded devs)
