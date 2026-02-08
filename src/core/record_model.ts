@@ -25,6 +25,7 @@ export const FieldNameVerified = "verified";
 export const FieldNameCollectionId = "collectionId";
 export const FieldNameCollectionName = "collectionName";
 export const FieldNameExpand = "expand";
+export const RecordModelTypeHookTag = "__pb_record_model__";
 
 export const internalCustomFieldKeyPrefix = "@pbInternal";
 
@@ -523,7 +524,9 @@ export class Record {
     if (cached && cached[0] === this.#collection.name && cached[1] === this.#collection.id) {
       return cached;
     }
-    const tags = [this.#collection.name, this.#collection.id];
+    // Deviation: append a stable type tag so model-level system hooks can skip
+    // non-record events without running conversion handlers.
+    const tags = [this.#collection.name, this.#collection.id, RecordModelTypeHookTag];
     this.#hookTags = tags;
     return tags;
   }

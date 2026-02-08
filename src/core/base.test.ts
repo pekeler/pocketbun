@@ -77,10 +77,16 @@ describe("BaseApp", () => {
     expect(busyTimeout?.timeout).toBe(10000);
     const journalMode = app.db().query("PRAGMA journal_mode").get() as { journal_mode?: string } | undefined;
     expect((journalMode?.journal_mode ?? "").toLowerCase()).toBe("wal");
+    const journalSizeLimit = app.db().query("PRAGMA journal_size_limit").get() as { journal_size_limit?: number } | undefined;
+    expect(journalSizeLimit?.journal_size_limit).toBe(200000000);
     const synchronous = app.db().query("PRAGMA synchronous").get() as { synchronous?: number } | undefined;
     expect(synchronous?.synchronous).toBe(1);
     const foreignKeys = app.db().query("PRAGMA foreign_keys").get() as { foreign_keys?: number } | undefined;
     expect(foreignKeys?.foreign_keys).toBe(1);
+    const tempStore = app.db().query("PRAGMA temp_store").get() as { temp_store?: number } | undefined;
+    expect(tempStore?.temp_store).toBe(2);
+    const cacheSize = app.db().query("PRAGMA cache_size").get() as { cache_size?: number } | undefined;
+    expect(cacheSize?.cache_size).toBe(-32000);
     expect(app.settings()).not.toBeNull();
     expect(app.Logger()).not.toBeNull();
     expect(app.store().get(StoreKeyCachedCollections)).not.toBeUndefined();

@@ -193,7 +193,13 @@ import {
   FindOTPById as FindOTPByIdQuery,
 } from "./otp_query.ts";
 import { RecordFieldResolver } from "./record_field_resolver.ts";
-import { FieldNameEmail, FieldNamePassword, Record as RecordModel, type RecordData } from "./record_model.ts";
+import {
+  FieldNameEmail,
+  FieldNamePassword,
+  Record as RecordModel,
+  RecordModelTypeHookTag,
+  type RecordData,
+} from "./record_model.ts";
 import { registerSuperuserHooks } from "./record_model_superusers.ts";
 import { RecordQuery, buildRecordFilterExpr, combineSqlExprs, type RecordQueryFilter } from "./record_query.ts";
 import {
@@ -2039,6 +2045,10 @@ export class BaseApp implements App {
       const executeAction = record.IsNew() ? InterceptorActionCreateExecute : InterceptorActionUpdateExecute;
       const afterSuccess = isNew ? InterceptorActionAfterCreate : InterceptorActionAfterUpdate;
       const afterError = isNew ? InterceptorActionAfterCreateError : InterceptorActionAfterUpdateError;
+      const modelHook = isNew ? this.OnModelCreate() : this.OnModelUpdate();
+      const modelExecuteHook = isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute();
+      const modelAfterSuccessHook = isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess();
+      const modelAfterErrorHook = isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError();
 
       const runPersist = async (): Promise<Error | null> =>
         this.runRecordInterceptors(record, executeAction, () => {
@@ -2060,22 +2070,29 @@ export class BaseApp implements App {
             }
           }
 
-          return (await (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(
-            modelEvent,
-            runPersist,
-          )) as Error | null;
+          // Deviation: skip hook trigger wiring when there are no handlers.
+          // This preserves behavior while reducing hot-path allocations in record writes.
+          if (modelExecuteHook.Length() === 0) {
+            return runPersist();
+          }
+
+          return (await modelExecuteHook.Trigger(modelEvent, runPersist)) as Error | null;
         });
 
-      const saveErr = (await (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(
-        modelEvent,
-        runValidatedExecute,
-      )) as Error | null;
+      const saveErr =
+        modelHook.Length() === 0
+          ? await runValidatedExecute()
+          : ((await modelHook.Trigger(modelEvent, runValidatedExecute)) as Error | null);
 
       if (saveErr) {
+        if (modelAfterErrorHook.Length() === 0) {
+          const afterErr = await this.runRecordInterceptors(record, afterError, () => saveErr);
+          return afterErr ?? saveErr;
+        }
+
         const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
-        const afterErr = (await (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
-          errorEvent,
-          async () => this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
+        const afterErr = (await modelAfterErrorHook.Trigger(errorEvent, async () =>
+          this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
         )) as Error | null;
         return afterErr ?? errorEvent.Error;
       }
@@ -2086,26 +2103,37 @@ export class BaseApp implements App {
             if (action === InterceptorActionCreate) {
               record.markNew(true);
             }
+            if (modelAfterErrorHook.Length() === 0) {
+              const result = await this.runRecordInterceptors(record, afterError, () => txErr);
+              return result ?? null;
+            }
+
             const errorEvent = new ModelErrorEvent(modelEvent, txErr);
-            const result = (await (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
-              errorEvent,
-              async () => this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
+            const result = (await modelAfterErrorHook.Trigger(errorEvent, async () =>
+              this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
             )) as Error | null;
             return result ?? null;
           }
-          const result = (await (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
-            modelEvent,
-            async () => this.runRecordInterceptors(record, afterSuccess, () => null),
+
+          if (modelAfterSuccessHook.Length() === 0) {
+            const result = await this.runRecordInterceptors(record, afterSuccess, () => null);
+            return result ?? null;
+          }
+
+          const result = (await modelAfterSuccessHook.Trigger(modelEvent, async () =>
+            this.runRecordInterceptors(record, afterSuccess, () => null),
           )) as Error | null;
           return result ?? null;
         });
         return null;
       }
 
-      const afterErr = (await (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
-        modelEvent,
-        async () => this.runRecordInterceptors(record, afterSuccess, () => null),
-      )) as Error | null;
+      const afterErr =
+        modelAfterSuccessHook.Length() === 0
+          ? await this.runRecordInterceptors(record, afterSuccess, () => null)
+          : ((await modelAfterSuccessHook.Trigger(modelEvent, async () =>
+              this.runRecordInterceptors(record, afterSuccess, () => null),
+            )) as Error | null);
       return afterErr ?? null;
     }
 
@@ -2637,18 +2665,37 @@ export class BaseApp implements App {
       const executeAction = InterceptorActionDeleteExecute;
       const afterSuccess = InterceptorActionAfterDelete;
       const afterError = InterceptorActionAfterDeleteError;
+      const modelDeleteHook = this.OnModelDelete();
+      const modelDeleteExecuteHook = this.OnModelDeleteExecute();
+      const modelAfterDeleteSuccessHook = this.OnModelAfterDeleteSuccess();
+      const modelAfterDeleteErrorHook = this.OnModelAfterDeleteError();
 
       const runDelete = async (): Promise<Error | null> =>
         this.runRecordInterceptors(record, action, async () =>
           this.runRecordInterceptors(record, executeAction, () => this.deleteRecord(record)),
         );
-      const deleteErr = (await this.OnModelDelete().Trigger(modelEvent, async () =>
-        this.OnModelDeleteExecute().Trigger(modelEvent, runDelete),
-      )) as Error | null;
+      const runDeleteExecute = async (): Promise<Error | null> => {
+        // Deviation: skip hook trigger wiring when there are no handlers.
+        // This preserves behavior while reducing hot-path allocations in record deletes.
+        if (modelDeleteExecuteHook.Length() === 0) {
+          return runDelete();
+        }
+
+        return (await modelDeleteExecuteHook.Trigger(modelEvent, runDelete)) as Error | null;
+      };
+      const deleteErr =
+        modelDeleteHook.Length() === 0
+          ? await runDeleteExecute()
+          : ((await modelDeleteHook.Trigger(modelEvent, runDeleteExecute)) as Error | null);
 
       if (deleteErr) {
+        if (modelAfterDeleteErrorHook.Length() === 0) {
+          const afterErr = await this.runRecordInterceptors(record, afterError, () => deleteErr);
+          return afterErr ?? deleteErr;
+        }
+
         const errorEvent = new ModelErrorEvent(modelEvent, deleteErr);
-        const afterErr = (await this.OnModelAfterDeleteError().Trigger(errorEvent, async () =>
+        const afterErr = (await modelAfterDeleteErrorHook.Trigger(errorEvent, async () =>
           this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
         )) as Error | null;
         return afterErr ?? errorEvent.Error;
@@ -2657,13 +2704,24 @@ export class BaseApp implements App {
       if (this.#txInfo) {
         this.#txInfo.OnComplete(async (txErr) => {
           if (txErr) {
+            if (modelAfterDeleteErrorHook.Length() === 0) {
+              const result = await this.runRecordInterceptors(record, afterError, () => txErr);
+              return result ?? null;
+            }
+
             const errorEvent = new ModelErrorEvent(modelEvent, txErr);
-            const result = (await this.OnModelAfterDeleteError().Trigger(errorEvent, async () =>
+            const result = (await modelAfterDeleteErrorHook.Trigger(errorEvent, async () =>
               this.runRecordInterceptors(record, afterError, () => errorEvent.Error),
             )) as Error | null;
             return result ?? null;
           }
-          const result = (await this.OnModelAfterDeleteSuccess().Trigger(modelEvent, async () =>
+
+          if (modelAfterDeleteSuccessHook.Length() === 0) {
+            const result = await this.runRecordInterceptors(record, afterSuccess, () => null);
+            return result ?? null;
+          }
+
+          const result = (await modelAfterDeleteSuccessHook.Trigger(modelEvent, async () =>
             this.runRecordInterceptors(record, afterSuccess, () => null),
           )) as Error | null;
           return result ?? null;
@@ -2671,9 +2729,12 @@ export class BaseApp implements App {
         return null;
       }
 
-      const afterErr = (await this.OnModelAfterDeleteSuccess().Trigger(modelEvent, async () =>
-        this.runRecordInterceptors(record, afterSuccess, () => null),
-      )) as Error | null;
+      const afterErr =
+        modelAfterDeleteSuccessHook.Length() === 0
+          ? await this.runRecordInterceptors(record, afterSuccess, () => null)
+          : ((await modelAfterDeleteSuccessHook.Trigger(modelEvent, async () =>
+              this.runRecordInterceptors(record, afterSuccess, () => null),
+            )) as Error | null);
       return afterErr ?? null;
     }
 
@@ -3737,8 +3798,11 @@ export class BaseApp implements App {
 
   private registerCollectionHooks(): void {
     const systemHookIdCollection = "__pbCollectionSystemHook__";
+    // Deviation: scope model-level collection bridges to collection models only.
+    // Collection model events expose `_collections` via ModelEvent.Tags().
+    const collectionModelTag = "_collections";
 
-    this.OnModelValidate().Bind({
+    this.OnModelValidate([collectionModelTag]).Bind({
       Id: systemHookIdCollection,
       Priority: -99,
       Func: (me) => {
@@ -3753,7 +3817,7 @@ export class BaseApp implements App {
       },
     });
 
-    this.OnModelCreate().Bind({
+    this.OnModelCreate([collectionModelTag]).Bind({
       Id: systemHookIdCollection,
       Priority: -99,
       Func: (me) => {
@@ -3768,7 +3832,7 @@ export class BaseApp implements App {
       },
     });
 
-    this.OnModelCreateExecute().Bind({
+    this.OnModelCreateExecute([collectionModelTag]).Bind({
       Id: systemHookIdCollection,
       Priority: -99,
       Func: (me) => {
@@ -3783,7 +3847,7 @@ export class BaseApp implements App {
       },
     });
 
-    this.OnModelAfterCreateSuccess().Bind({
+    this.OnModelAfterCreateSuccess([collectionModelTag]).Bind({
       Id: systemHookIdCollection,
       Priority: -99,
       Func: (me) => {
@@ -3798,7 +3862,7 @@ export class BaseApp implements App {
       },
     });
 
-    this.OnModelAfterCreateError().Bind({
+    this.OnModelAfterCreateError([collectionModelTag]).Bind({
       Id: systemHookIdCollection,
       Priority: -99,
       Func: (me) => {
@@ -3818,7 +3882,7 @@ export class BaseApp implements App {
       },
     });
 
-    this.OnModelUpdate().Bind({
+    this.OnModelUpdate([collectionModelTag]).Bind({
       Id: systemHookIdCollection,
       Priority: -99,
       Func: (me) => {
@@ -3833,7 +3897,7 @@ export class BaseApp implements App {
       },
     });
 
-    this.OnModelUpdateExecute().Bind({
+    this.OnModelUpdateExecute([collectionModelTag]).Bind({
       Id: systemHookIdCollection,
       Priority: -99,
       Func: (me) => {
@@ -3848,7 +3912,7 @@ export class BaseApp implements App {
       },
     });
 
-    this.OnModelAfterUpdateSuccess().Bind({
+    this.OnModelAfterUpdateSuccess([collectionModelTag]).Bind({
       Id: systemHookIdCollection,
       Priority: -99,
       Func: (me) => {
@@ -3863,7 +3927,7 @@ export class BaseApp implements App {
       },
     });
 
-    this.OnModelAfterUpdateError().Bind({
+    this.OnModelAfterUpdateError([collectionModelTag]).Bind({
       Id: systemHookIdCollection,
       Priority: -99,
       Func: (me) => {
@@ -3883,7 +3947,7 @@ export class BaseApp implements App {
       },
     });
 
-    this.OnModelDelete().Bind({
+    this.OnModelDelete([collectionModelTag]).Bind({
       Id: systemHookIdCollection,
       Priority: -99,
       Func: (me) => {
@@ -3898,7 +3962,7 @@ export class BaseApp implements App {
       },
     });
 
-    this.OnModelDeleteExecute().Bind({
+    this.OnModelDeleteExecute([collectionModelTag]).Bind({
       Id: systemHookIdCollection,
       Priority: -99,
       Func: (me) => {
@@ -3913,7 +3977,7 @@ export class BaseApp implements App {
       },
     });
 
-    this.OnModelAfterDeleteSuccess().Bind({
+    this.OnModelAfterDeleteSuccess([collectionModelTag]).Bind({
       Id: systemHookIdCollection,
       Priority: -99,
       Func: (me) => {
@@ -3928,7 +3992,7 @@ export class BaseApp implements App {
       },
     });
 
-    this.OnModelAfterDeleteError().Bind({
+    this.OnModelAfterDeleteError([collectionModelTag]).Bind({
       Id: systemHookIdCollection,
       Priority: -99,
       Func: (me) => {
@@ -3951,8 +4015,21 @@ export class BaseApp implements App {
 
   private registerRecordHooks(): void {
     const systemHookIdRecord = "__pbRecordSystemHook__";
+    const onRecordValidateHook = this.OnRecordValidate();
+    const onRecordCreateHook = this.OnRecordCreate();
+    const onRecordCreateExecuteHook = this.OnRecordCreateExecute();
+    const onRecordAfterCreateSuccessHook = this.OnRecordAfterCreateSuccess();
+    const onRecordAfterCreateErrorHook = this.OnRecordAfterCreateError();
+    const onRecordUpdateHook = this.OnRecordUpdate();
+    const onRecordUpdateExecuteHook = this.OnRecordUpdateExecute();
+    const onRecordAfterUpdateSuccessHook = this.OnRecordAfterUpdateSuccess();
+    const onRecordAfterUpdateErrorHook = this.OnRecordAfterUpdateError();
+    const onRecordDeleteHook = this.OnRecordDelete();
+    const onRecordDeleteExecuteHook = this.OnRecordDeleteExecute();
+    const onRecordAfterDeleteSuccessHook = this.OnRecordAfterDeleteSuccess();
+    const onRecordAfterDeleteErrorHook = this.OnRecordAfterDeleteError();
 
-    this.OnModelValidate().Bind({
+    this.OnModelValidate([RecordModelTypeHookTag]).Bind({
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
@@ -3960,74 +4037,90 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const result = this.OnRecordValidate().Trigger(re, (event) =>
+        const result = onRecordValidateHook.Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
         return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
-    this.OnModelCreate().Bind({
+    this.OnModelCreate([RecordModelTypeHookTag]).Bind({
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
+        // Deviation: skip model->record event conversion when no record create handlers are registered.
+        if (onRecordCreateHook.Length() === 0) {
+          return me.Next();
+        }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
           return me.Next();
         }
-        const result = this.OnRecordCreate().Trigger(re, (event) =>
+        const result = onRecordCreateHook.Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
         return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
-    this.OnModelCreateExecute().Bind({
+    this.OnModelCreateExecute([RecordModelTypeHookTag]).Bind({
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
+        // Deviation: skip model->record event conversion when no record create-execute handlers are registered.
+        if (onRecordCreateExecuteHook.Length() === 0) {
+          return me.Next();
+        }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
           return me.Next();
         }
-        const result = this.OnRecordCreateExecute().Trigger(re, (event) =>
+        const result = onRecordCreateExecuteHook.Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
         return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
-    this.OnModelAfterCreateSuccess().Bind({
+    this.OnModelAfterCreateSuccess([RecordModelTypeHookTag]).Bind({
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
+        // Deviation: skip model->record event conversion when no record after-create-success handlers are registered.
+        if (onRecordAfterCreateSuccessHook.Length() === 0) {
+          return me.Next();
+        }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
           return me.Next();
         }
-        const result = this.OnRecordAfterCreateSuccess().Trigger(re, (event) =>
+        const result = onRecordAfterCreateSuccessHook.Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
         return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
-    this.OnModelAfterCreateError().Bind({
+    this.OnModelAfterCreateError([RecordModelTypeHookTag]).Bind({
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
+        // Deviation: skip model->record error event conversion when no record after-create-error handlers are registered.
+        if (onRecordAfterCreateErrorHook.Length() === 0) {
+          return me.Next();
+        }
         const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
         if (!ok || !re) {
           return me.Next();
         }
-        const result = this.OnRecordAfterCreateError().Trigger(re, (event) =>
+        const result = onRecordAfterCreateErrorHook.Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelErrorEventWithRecordErrorEvent, syncRecordErrorEventWithModelErrorEvent),
         );
         return syncAfterHookResult(result, () => syncModelErrorEventWithRecordErrorEvent(me, re));
       },
     });
 
-    this.OnModelUpdate().Bind({
+    this.OnModelUpdate([RecordModelTypeHookTag]).Bind({
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
@@ -4035,59 +4128,90 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const result = this.OnRecordUpdate().Trigger(re, (event) =>
+        const result = onRecordUpdateHook.Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
         return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
-    this.OnModelUpdateExecute().Bind({
+    this.OnModelUpdateExecute([RecordModelTypeHookTag]).Bind({
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
+        // Deviation: skip model->record event conversion when no record update-execute handlers are registered.
+        if (onRecordUpdateExecuteHook.Length() === 0) {
+          return me.Next();
+        }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
           return me.Next();
         }
-        const result = this.OnRecordUpdateExecute().Trigger(re, (event) =>
+        const result = onRecordUpdateExecuteHook.Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
         return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
-    this.OnModelAfterUpdateSuccess().Bind({
+    this.OnModelAfterUpdateSuccess([RecordModelTypeHookTag]).Bind({
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
+        // Deviation: skip model->record event conversion when no record after-update-success handlers are registered.
+        if (onRecordAfterUpdateSuccessHook.Length() === 0) {
+          return me.Next();
+        }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
           return me.Next();
         }
-        const result = this.OnRecordAfterUpdateSuccess().Trigger(re, (event) =>
+        const result = onRecordAfterUpdateSuccessHook.Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
         return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
-    this.OnModelAfterUpdateError().Bind({
+    this.OnModelAfterUpdateError([RecordModelTypeHookTag]).Bind({
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
+        // Deviation: skip model->record error event conversion when no record after-update-error handlers are registered.
+        if (onRecordAfterUpdateErrorHook.Length() === 0) {
+          return me.Next();
+        }
         const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
         if (!ok || !re) {
           return me.Next();
         }
-        const result = this.OnRecordAfterUpdateError().Trigger(re, (event) =>
+        const result = onRecordAfterUpdateErrorHook.Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelErrorEventWithRecordErrorEvent, syncRecordErrorEventWithModelErrorEvent),
         );
         return syncAfterHookResult(result, () => syncModelErrorEventWithRecordErrorEvent(me, re));
       },
     });
 
-    this.OnModelDelete().Bind({
+    this.OnModelDelete([RecordModelTypeHookTag]).Bind({
+      Id: systemHookIdRecord,
+      Priority: -99,
+      Func: (me) => {
+        // Deviation: skip model->record event conversion when no record delete handlers are registered.
+        if (onRecordDeleteHook.Length() === 0) {
+          return me.Next();
+        }
+        const { event: re, ok } = newRecordEventFromModelEvent(me);
+        if (!ok || !re) {
+          return me.Next();
+        }
+        const result = onRecordDeleteHook.Trigger(re, (event) =>
+          runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
+        );
+        return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
+      },
+    });
+
+    this.OnModelDeleteExecute([RecordModelTypeHookTag]).Bind({
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
@@ -4095,65 +4219,58 @@ export class BaseApp implements App {
         if (!ok || !re) {
           return me.Next();
         }
-        const result = this.OnRecordDelete().Trigger(re, (event) =>
+        const result = onRecordDeleteExecuteHook.Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
         return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
-    this.OnModelDeleteExecute().Bind({
-      Id: systemHookIdRecord,
-      Priority: -99,
-      Func: (me) => {
-        const { event: re, ok } = newRecordEventFromModelEvent(me);
-        if (!ok || !re) {
-          return me.Next();
-        }
-        const result = this.OnRecordDeleteExecute().Trigger(re, (event) =>
-          runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
-        );
-        return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
-      },
-    });
-
-    this.OnRecordDeleteExecute().Bind({
+    onRecordDeleteExecuteHook.Bind({
       Id: systemHookIdRecord,
       Priority: 99,
       Func: (event) => this.onRecordDeleteExecute(event),
     });
 
-    this.OnModelAfterDeleteSuccess().Bind({
+    this.OnModelAfterDeleteSuccess([RecordModelTypeHookTag]).Bind({
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
+        // Deviation: skip model->record event conversion when no record after-delete-success handlers are registered.
+        if (onRecordAfterDeleteSuccessHook.Length() === 0) {
+          return me.Next();
+        }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
           return me.Next();
         }
-        const result = this.OnRecordAfterDeleteSuccess().Trigger(re, (event) =>
+        const result = onRecordAfterDeleteSuccessHook.Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelEventWithRecordEvent, syncRecordEventWithModelEvent),
         );
         return syncAfterHookResult(result, () => syncModelEventWithRecordEvent(me, re));
       },
     });
 
-    this.OnModelAfterDeleteError().Bind({
+    this.OnModelAfterDeleteError([RecordModelTypeHookTag]).Bind({
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
+        // Deviation: skip model->record error event conversion when no record after-delete-error handlers are registered.
+        if (onRecordAfterDeleteErrorHook.Length() === 0) {
+          return me.Next();
+        }
         const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
         if (!ok || !re) {
           return me.Next();
         }
-        const result = this.OnRecordAfterDeleteError().Trigger(re, (event) =>
+        const result = onRecordAfterDeleteErrorHook.Trigger(re, (event) =>
           runHookNextWithSync(me, event, syncModelErrorEventWithRecordErrorEvent, syncRecordErrorEventWithModelErrorEvent),
         );
         return syncAfterHookResult(result, () => syncModelErrorEventWithRecordErrorEvent(me, re));
       },
     });
 
-    this.OnRecordValidate().Bind({
+    onRecordValidateHook.Bind({
       Id: systemHookIdRecord,
       Priority: 99,
       Func: (e) => {
