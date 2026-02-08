@@ -7,6 +7,8 @@ import { toStringValue } from "../internal/compat/cast.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import {
   Fields,
+  InterceptorActionAfterCreate,
+  InterceptorActionAfterUpdate,
   type Field,
   type GetterFinder,
   type GetterFunc,
@@ -185,6 +187,11 @@ export class PasswordField implements Field, GetterFinder, SetterFinder, DriverV
       }
     }
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+  }
+
+  // Intercept implements the [RecordInterceptor] interface.
+  CanInterceptAction(actionName: string): boolean {
+    return actionName === InterceptorActionAfterCreate || actionName === InterceptorActionAfterUpdate;
   }
 
   // Intercept implements the [RecordInterceptor] interface.

@@ -60,6 +60,7 @@ type BenchFastListEntry = {
 };
 
 const benchFastListCache = new Map<string, BenchFastListEntry>();
+const emptyUploadedFiles = new Map<string, LocalFile[]>();
 
 function findCachedCollection(app: App, identifier: string): Collection | null {
   try {
@@ -903,34 +904,34 @@ async function parseRequestData(
   request: RequestLike,
   preboundBody: Record<string, unknown> | null = null,
 ): Promise<ParsedRequestData> {
-  const contentType = (request.headers.get("content-type") ?? "").toLowerCase();
-  const files = new Map<string, LocalFile[]>();
+  const rawContentType = request.headers.get("content-type") ?? "";
+  if (preboundBody && !rawContentType.toLowerCase().includes("multipart/form-data")) {
+    return { data: preboundBody as RecordData, files: emptyUploadedFiles, error: null };
+  }
+  const contentType = rawContentType.toLowerCase();
 
   if (!request.body) {
-    return { data: {}, files, error: null };
-  }
-
-  if (preboundBody && !contentType.includes("multipart/form-data")) {
-    return { data: preboundBody as RecordData, files, error: null };
+    return { data: {}, files: emptyUploadedFiles, error: null };
   }
 
   if (contentType.includes("application/json")) {
     const text = await request.text();
     if (text.trim() === "") {
-      return { data: {}, files, error: null };
+      return { data: {}, files: emptyUploadedFiles, error: null };
     }
     try {
       const parsed = JSON.parse(text) as unknown;
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        return { data: {}, files, error: new Error("invalid json") };
+        return { data: {}, files: emptyUploadedFiles, error: new Error("invalid json") };
       }
-      return { data: parsed as RecordData, files, error: null };
+      return { data: parsed as RecordData, files: emptyUploadedFiles, error: null };
     } catch (error) {
-      return { data: {}, files, error: error as Error };
+      return { data: {}, files: emptyUploadedFiles, error: error as Error };
     }
   }
 
   if (contentType.includes("multipart/form-data")) {
+    const files = new Map<string, LocalFile[]>();
     const form = await request.formData();
     const raw: Record<string, string[]> = {};
 
@@ -971,7 +972,7 @@ async function parseRequestData(
   if (contentType.includes("application/x-www-form-urlencoded")) {
     const text = await request.text();
     if (text.trim() === "") {
-      return { data: {}, files, error: null };
+      return { data: {}, files: emptyUploadedFiles, error: null };
     }
     const params = new URLSearchParams(text);
     const raw: Record<string, string[]> = {};
@@ -981,17 +982,17 @@ async function parseRequestData(
     const data: RecordData = {};
     const err = unmarshalRequestData(raw, data);
     if (err) {
-      return { data, files, error: err };
+      return { data, files: emptyUploadedFiles, error: err };
     }
-    return { data, files, error: null };
+    return { data, files: emptyUploadedFiles, error: null };
   }
 
   const text = await request.text();
   if (text.trim() === "") {
-    return { data: {}, files, error: null };
+    return { data: {}, files: emptyUploadedFiles, error: null };
   }
 
-  return { data: {}, files, error: new Error("unsupported content type") };
+  return { data: {}, files: emptyUploadedFiles, error: new Error("unsupported content type") };
 }
 
 export function resolveRecordData(

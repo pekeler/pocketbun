@@ -6,6 +6,8 @@ import { ValidationErrors, newError } from "../internal/compat/validation.ts";
 import { NowDateTime, ParseDateTime } from "../tools/types/index.ts";
 import {
   Fields,
+  InterceptorActionCreate,
+  InterceptorActionUpdate,
   type Field,
   type RecordInterceptor,
   type RecordLike,
@@ -154,6 +156,17 @@ export class AutodateField implements Field, SetterFinder, RecordInterceptor {
       default:
         return null;
     }
+  }
+
+  // Intercept implements the [RecordInterceptor] interface.
+  CanInterceptAction(actionName: string): boolean {
+    if (actionName === InterceptorActionCreate) {
+      return this.OnCreate;
+    }
+    if (actionName === InterceptorActionUpdate) {
+      return this.OnUpdate;
+    }
+    return false;
   }
 
   // Intercept implements the [RecordInterceptor] interface.

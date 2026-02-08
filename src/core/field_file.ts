@@ -341,6 +341,23 @@ export class FileField
   // Intercept implements the [RecordInterceptor] interface.
   //
   // note: files delete after records deletion is handled globally by the app FileManager hook
+  CanInterceptAction(actionName: string): boolean {
+    switch (actionName) {
+      case InterceptorActionCreateExecute:
+      case InterceptorActionUpdateExecute:
+      case InterceptorActionAfterCreateError:
+      case InterceptorActionAfterUpdateError:
+      case InterceptorActionAfterCreate:
+      case InterceptorActionAfterUpdate:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  // Intercept implements the [RecordInterceptor] interface.
+  //
+  // note: files delete after records deletion is handled globally by the app FileManager hook
   async Intercept(
     ctx: unknown,
     app: App,

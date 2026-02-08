@@ -2849,7 +2849,7 @@ export class BaseApp implements App {
   }
 
   private validateRecord(record: RecordModel): Error | null {
-    const errors: Record<string, Error> = {};
+    let errors: Record<string, Error> | null = null;
     for (const field of record.collection().Fields) {
       const asyncRequirement = field as unknown as Partial<AsyncValidationRequirement>;
       const requiresAsyncValidation =
@@ -2857,6 +2857,9 @@ export class BaseApp implements App {
           ? asyncRequirement.RequiresAsyncValidation()
           : asyncRequirement.RequiresAsyncValidation === true;
       if (requiresAsyncValidation) {
+        if (!errors) {
+          errors = {};
+        }
         errors[field.GetName()] = newError(
           "validation_async_required",
           "This field requires async validation. Use app.Validate(...) or app.Save(...).",
@@ -2866,14 +2869,17 @@ export class BaseApp implements App {
 
       const err = field.ValidateValue(null, this, record);
       if (err) {
+        if (!errors) {
+          errors = {};
+        }
         errors[field.GetName()] = err;
       }
     }
-    return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+    return errors ? new ValidationErrors(errors) : null;
   }
 
   private async validateRecordAsync(record: RecordModel): Promise<Error | null> {
-    const errors: Record<string, Error> = {};
+    let errors: Record<string, Error> | null = null;
     for (const field of record.collection().Fields) {
       const asyncValidator = field as unknown as Partial<AsyncFieldValueValidator>;
       const maybeErr =
@@ -2882,10 +2888,13 @@ export class BaseApp implements App {
           : field.ValidateValue(null, this, record);
       const err = maybeErr instanceof Promise ? ((await maybeErr) as Error | null) : (maybeErr as Error | null);
       if (err) {
+        if (!errors) {
+          errors = {};
+        }
         errors[field.GetName()] = err;
       }
     }
-    return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+    return errors ? new ValidationErrors(errors) : null;
   }
 
   private hasAsyncRecordValidator(record: RecordModel): boolean {

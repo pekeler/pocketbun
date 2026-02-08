@@ -8,6 +8,8 @@ import { ErrRequired, ValidationErrors, newError, required } from "../internal/c
 import { randomStringByRegex } from "../tools/security/random.ts";
 import {
   Fields,
+  InterceptorActionCreate,
+  InterceptorActionValidate,
   type Field,
   type SetterFinder,
   type SetterFunc,
@@ -96,6 +98,10 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
   AutogeneratePattern = "";
   Required = false;
   PrimaryKey = false;
+  // PocketBun perf deviation (behavior-compatible): cache compiled pattern regexes
+  // to avoid recompiling on every ValidatePlainValue() call.
+  #cachedPattern = "";
+  #cachedPatternRegex: RegExp | null = null;
 
   // Type implements [Field.Type] interface method.
   Type(): string {
@@ -198,7 +204,7 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
       return null;
     }
 
-    const length = Array.from(value).length;
+    const length = countRunes(value);
 
     if (this.Min > 0 && length < this.Min) {
       return newError("validation_min_text_constraint", "Must be at least {{.min}} character(s).").setParams({
@@ -216,9 +222,15 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     }
 
     if (this.Pattern !== "") {
-      const regex = new RegExp(this.Pattern);
-      if (!regex.test(value)) {
-        return newError("validation_invalid_format", "Invalid value format.");
+      if (this.Pattern === defaultLowercaseRecordIdPattern) {
+        if (!isAsciiLowercaseAlnum(value)) {
+          return newError("validation_invalid_format", "Invalid value format.");
+        }
+      } else {
+        const regex = this.resolvePatternRegex();
+        if (!regex.test(value)) {
+          return newError("validation_invalid_format", "Invalid value format.");
+        }
       }
     }
 
@@ -244,6 +256,17 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     }
 
     return null;
+  }
+
+  private resolvePatternRegex(): RegExp {
+    if (this.#cachedPatternRegex && this.#cachedPattern === this.Pattern) {
+      return this.#cachedPatternRegex;
+    }
+
+    const compiled = new RegExp(this.Pattern);
+    this.#cachedPattern = this.Pattern;
+    this.#cachedPatternRegex = compiled;
+    return compiled;
   }
 
   // ValidateSettings implements [Field.ValidateSettings] interface method.
@@ -357,6 +380,14 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
   }
 
   // Intercept implements the [RecordInterceptor] interface.
+  CanInterceptAction(actionName: string): boolean {
+    if (this.AutogeneratePattern === "") {
+      return false;
+    }
+    return actionName === InterceptorActionValidate || actionName === InterceptorActionCreate;
+  }
+
+  // Intercept implements the [RecordInterceptor] interface.
   Intercept(_ctx: unknown, _app: App, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null {
     switch (actionName) {
       case "validate":
@@ -407,3 +438,28 @@ type RecordLike = {
 };
 
 Fields[FieldTypeText] = () => new TextField();
+
+function countRunes(value: string): number {
+  // Fast path: no surrogate pairs => .length equals rune count.
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    if (code >= 0xd800 && code <= 0xdfff) {
+      return Array.from(value).length;
+    }
+  }
+
+  return value.length;
+}
+
+function isAsciiLowercaseAlnum(value: string): boolean {
+  for (let i = 0; i < value.length; i += 1) {
+    const code = value.charCodeAt(i);
+    const isDigit = code >= 48 && code <= 57;
+    const isLower = code >= 97 && code <= 122;
+    if (!isDigit && !isLower) {
+      return false;
+    }
+  }
+
+  return true;
+}

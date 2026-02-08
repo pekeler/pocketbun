@@ -41,6 +41,7 @@ export class Record {
   #expand: Store<string, unknown> | null = null;
   #hookTags: string[] | null = null;
   #fieldInterceptors: RecordInterceptor[] | null = null;
+  #fieldInterceptorsByAction: Map<string, RecordInterceptor[]> | null = null;
 
   static fromRow(collection: Collection, row: RecordData): Record {
     const record = new Record(collection, {}, false);
@@ -542,7 +543,7 @@ export class Record {
     actionName: string,
     actionFunc: () => Error | null | Promise<Error | null>,
   ): Error | null | Promise<Error | null> {
-    const interceptors = this.#resolveFieldInterceptors();
+    const interceptors = this.#resolveFieldInterceptorsForAction(actionName);
 
     if (interceptors.length === 0) {
       return actionFunc();
@@ -588,6 +589,33 @@ export class Record {
 
     this.#fieldInterceptors = interceptors;
     return interceptors;
+  }
+
+  #resolveFieldInterceptorsForAction(actionName: string): RecordInterceptor[] {
+    const byAction = this.#fieldInterceptorsByAction;
+    if (byAction) {
+      const cached = byAction.get(actionName);
+      if (cached) {
+        return cached;
+      }
+    }
+
+    const interceptors = this.#resolveFieldInterceptors();
+    if (interceptors.length === 0) {
+      return interceptors;
+    }
+
+    // Deviation: cache action-filtered interceptors so write hot paths skip
+    // guaranteed no-op field interceptor calls.
+    const filtered = interceptors.filter((interceptor) => {
+      return interceptor.CanInterceptAction?.(actionName) ?? true;
+    });
+
+    if (!this.#fieldInterceptorsByAction) {
+      this.#fieldInterceptorsByAction = new Map<string, RecordInterceptor[]>();
+    }
+    this.#fieldInterceptorsByAction.set(actionName, filtered);
+    return filtered;
   }
 
   DBExport(): RecordData {

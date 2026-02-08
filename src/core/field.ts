@@ -121,6 +121,9 @@ export interface RecordInterceptor {
     actionName: string,
     actionFunc: () => Error | null | Promise<Error | null>,
   ): Error | null | Promise<Error | null>;
+  // Optional performance hint used by the Bun port to skip guaranteed no-op
+  // interceptor calls while preserving observable hook behavior.
+  CanInterceptAction?(actionName: string): boolean;
 }
 
 export type RecordLike = {
