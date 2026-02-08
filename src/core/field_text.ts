@@ -388,7 +388,13 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
   }
 
   // Intercept implements the [RecordInterceptor] interface.
-  Intercept(_ctx: unknown, _app: App, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null {
+  Intercept(
+    _ctx: unknown,
+    _app: App,
+    record: RecordLike,
+    actionName: string,
+    actionFunc: () => Error | null | Promise<Error | null>,
+  ): Error | null | Promise<Error | null> {
     switch (actionName) {
       case "validate":
       case "create":

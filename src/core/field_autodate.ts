@@ -170,43 +170,59 @@ export class AutodateField implements Field, SetterFinder, RecordInterceptor {
   }
 
   // Intercept implements the [RecordInterceptor] interface.
-  Intercept(_ctx: unknown, _app: App, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null {
+  Intercept(
+    _ctx: unknown,
+    _app: App,
+    record: RecordLike,
+    actionName: string,
+    actionFunc: () => Error | null | Promise<Error | null>,
+  ): Error | null | Promise<Error | null> {
     const typed = record as RecordLike & {
       GetDateTime: (field: string) => { IsZero: () => boolean; Equal: (other: unknown) => boolean };
       Original: () => RecordLike;
     };
     switch (actionName) {
-      case "create":
+      case InterceptorActionCreate:
         if (this.OnCreate && typed.GetDateTime(this.Name).Equal(this.getLastKnownValue(typed))) {
           const now = NowDateTime();
           record.SetRaw(this.Name, now);
           record.SetRaw(autodateLastKnownPrefix + this.Name, now);
         }
-        {
-          const err = actionFunc();
-          if (err) {
-            return err;
-          }
-        }
-        record.SetRaw(autodateLastKnownPrefix + this.Name, record.GetRaw(this.Name));
-        return null;
-      case "update":
+        return this.finishIntercept(record, actionFunc);
+      case InterceptorActionUpdate:
         if (this.OnUpdate && typed.GetDateTime(this.Name).Equal(this.getLastKnownValue(typed))) {
           const now = NowDateTime();
           record.SetRaw(this.Name, now);
           record.SetRaw(autodateLastKnownPrefix + this.Name, now);
         }
-        {
-          const err = actionFunc();
-          if (err) {
-            return err;
-          }
-        }
-        record.SetRaw(autodateLastKnownPrefix + this.Name, record.GetRaw(this.Name));
-        return null;
+        return this.finishIntercept(record, actionFunc);
       default:
         return actionFunc();
     }
+  }
+
+  private finishIntercept(
+    record: RecordLike,
+    actionFunc: () => Error | null | Promise<Error | null>,
+  ): Error | null | Promise<Error | null> {
+    const result = actionFunc();
+
+    if (result instanceof Promise) {
+      return result.then((err) => {
+        if (err) {
+          return err;
+        }
+        record.SetRaw(autodateLastKnownPrefix + this.Name, record.GetRaw(this.Name));
+        return null;
+      });
+    }
+
+    if (result) {
+      return result;
+    }
+
+    record.SetRaw(autodateLastKnownPrefix + this.Name, record.GetRaw(this.Name));
+    return null;
   }
 
   private getLastKnownValue(record: RecordLike) {

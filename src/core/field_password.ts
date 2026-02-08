@@ -195,7 +195,13 @@ export class PasswordField implements Field, GetterFinder, SetterFinder, DriverV
   }
 
   // Intercept implements the [RecordInterceptor] interface.
-  Intercept(_ctx: unknown, _app: App, record: RecordLike, actionName: string, actionFunc: () => Error | null): Error | null {
+  Intercept(
+    _ctx: unknown,
+    _app: App,
+    record: RecordLike,
+    actionName: string,
+    actionFunc: () => Error | null | Promise<Error | null>,
+  ): Error | null | Promise<Error | null> {
     if (actionName === "afterCreate" || actionName === "afterUpdate") {
       const value = this.getPasswordValue(record);
       value.Plain = "";

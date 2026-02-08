@@ -312,6 +312,7 @@ export class Command {
   #flags = new FlagSet();
   #persistentFlags = new FlagSet();
   #children: Command[] = [];
+  #helpCommand: Command | null = null;
   #parent: Command | null = null;
   #errWriter: { write: (chunk: string) => void } | null = null;
 
@@ -404,8 +405,20 @@ export class Command {
     this.#errWriter = writer;
   }
 
-  SetHelpCommand(_cmd: Command): void {
-    // TODO: implement help subcommand handling when needed.
+  SetHelpCommand(cmd: Command): void {
+    if (this.#helpCommand) {
+      this.RemoveCommand(this.#helpCommand);
+    }
+
+    this.#helpCommand = cmd;
+
+    // Allow callers to disable help command registration by passing an
+    // empty-use command (matching the current PocketBun root command usage).
+    if (!cmd.name()) {
+      return;
+    }
+
+    this.AddCommand(cmd);
   }
 
   name(): string {
