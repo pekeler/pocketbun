@@ -58,53 +58,13 @@ Then visit `http://127.0.0.1:8090/_/` for the Admin UI and `http://127.0.0.1:809
 - `examples/simple` — minimal server start
 - `examples/advanced` — hooks, migrations, auth, CRUD, files, realtime, and custom routes
 
-## Performance Snapshot (Upstream Benchmarks)
+## Performance
 
-This snapshot is from the full vendored upstream benchmark suite on **February 8, 2026** (MacBook Pro `m2-max`):
+PocketBase is fast for many use cases. PocketBun has been optimized to perform in the same ballpark, but Go (1.25.7) and Bun (1.3.9) are different runtimes, so differences exist.
 
-- PocketBase run (best-of baseline): `benchmarks/results/best-of-pocketbase-upstream-m2-max.md`
-- PocketBun run: `benchmarks/results/2026-02-08T06-57-32Z-pocketbun-upstream-m2-max.md`
+Depending on the benchmark scenario, **PocketBun is 6× faster to 3.4× slower** than PocketBase, with a geometric mean of **1.6× faster**.
 
-Commands:
-
-```sh
-bun run bench:upstream
-bun run bench:upstream:pocketbun
-```
-
-`bench:upstream` follows upstream run instructions by executing `go build` first, then running the built executable with `serve` (with a host-compatible fallback binary only for local execution when the upstream target cannot run on the current OS/arch).
-
-Metric used:
-
-- Reported as plain language: `X% faster` or `X% slower` based on `Completed` time
-- Example: PocketBase `100ms` vs PocketBun `80ms` => PocketBun is `20% faster`
-- Example: PocketBase `100ms` vs PocketBun `120ms` => PocketBun is `20% slower`
-- `best-of-pocketbase-upstream-m2-max.md` is a synthetic baseline built from local `*-pocketbase-upstream-m2-max.md` snapshots by taking the lowest zero-error `Completed` value per scenario.
-- Scenarios are comparable only when both sides report `Errors: 0`
-- Parsed from the two raw result files above (`148` overlapping scenario names)
-
-Overall summary:
-
-- All benchmark scenarios ran with `Errors: 0` in both PocketBase and PocketBun results.
-- Overall result (geometric mean): PocketBun is `33.1% slower`
-- Equivalent time ratio (geometric mean): PocketBun takes `1.33x` PocketBase time
-
-Category summary (geometric mean over comparable scenarios):
-
-| Benchmark category | PocketBun vs PocketBase |
-| --- | ---: |
-| `Creating organizations (100)` | `299.3% slower` |
-| `Creating permissions (50)` | `167.1% slower` |
-| `Creating users (500 - expected to be slow due to passwordHash generation)` | `52.1% faster` |
-| `Creating posts (10k, 25k, 50k, 100k)` | `79.3% slower` |
-| `User auth with password (expected to be slow due to passwordHash verification)` | `5.1% faster` |
-| `User auth refresh` | `49.8% slower` |
-| `List records` | `28.7% slower` |
-| `Route execution (PocketBase Go)` | `59.2% slower` |
-| `Route execution (PocketBase JS)` | `74.5% slower` |
-| `Hooks execution (PocketBase Go)` | `19.9% faster` |
-| `Hooks execution (PocketBase JS)` | `73.1% faster` |
-| `Deleting records` | `47.9% slower` |
+Precise comparisons are difficult due to [fluctuating results](https://github.com/pocketbase/benchmarks/issues/8) in the benchmarking suite. I ran PocketBase’s benchmark suite on a Hetzner CCX13 (2 dedicated vCPU, 8 GB RAM) three times for each system and calculated the numbers above from the mean times of those runs.
 
 ## Known Differences
 
