@@ -1,20 +1,33 @@
 // Ported from pocketbase/tools/security/random_by_regex.go
 // Note: implements a minimal regex parser for the subset used by PocketBase patterns.
 
-import { randomInt } from "node:crypto";
+import { randomFillSync } from "node:crypto";
 
 const defaultMaxRepeat = 6;
+const maxPatternCacheEntries = 128;
+const randomPoolSize = 2048;
+const randomUInt32Base = 0x1_0000_0000;
 
 const anyCharNotNLPairs: Array<[number, number]> = [
   ["A".charCodeAt(0), "Z".charCodeAt(0)],
   ["a".charCodeAt(0), "z".charCodeAt(0)],
   ["0".charCodeAt(0), "9".charCodeAt(0)],
 ];
+const anyCharNotNLSelector = buildRuneSelector(anyCharNotNLPairs);
 const printableAsciiPairs: Array<[number, number]> = [[32, 126]];
+const parsedPatternCache = new Map<string, AstNode>();
+const randomPool = new Uint32Array(randomPoolSize);
+let randomPoolIndex = randomPool.length;
+
+type RuneSelector = {
+  ranges: Array<[number, number]>;
+  cumulative: number[];
+  total: number;
+};
 
 type AstNode =
   | { type: "literal"; value: string }
-  | { type: "charClass"; ranges: Array<[number, number]> }
+  | { type: "charClass"; selector: RuneSelector }
   | { type: "any" }
   | { type: "concat"; parts: AstNode[] }
   | { type: "alternate"; options: AstNode[] }
@@ -27,11 +40,32 @@ export function randomStringByRegex(pattern: string, ...flags: number[]): string
   if (flags.length > 0) {
     throw new Error("regex flags are not supported");
   }
-  const parser = new Parser(pattern);
-  const ast = parser.parseExpression();
+  const ast = parsePattern(pattern);
   const writer: string[] = [];
   writeRandomString(ast, writer);
   return writer.join("");
+}
+
+function parsePattern(pattern: string): AstNode {
+  const cached = parsedPatternCache.get(pattern);
+  if (cached) {
+    // Keep most recently used entries hot.
+    parsedPatternCache.delete(pattern);
+    parsedPatternCache.set(pattern, cached);
+    return cached;
+  }
+
+  const parser = new Parser(pattern);
+  const parsed = parser.parseExpression();
+
+  if (parsedPatternCache.size >= maxPatternCacheEntries) {
+    const oldest = parsedPatternCache.keys().next().value;
+    if (typeof oldest === "string") {
+      parsedPatternCache.delete(oldest);
+    }
+  }
+  parsedPatternCache.set(pattern, parsed);
+  return parsed;
 }
 
 function writeRandomString(node: AstNode, out: string[]): void {
@@ -40,10 +74,10 @@ function writeRandomString(node: AstNode, out: string[]): void {
       out.push(node.value);
       return;
     case "charClass":
-      out.push(String.fromCharCode(randomRuneFromPairs(node.ranges)));
+      out.push(String.fromCharCode(randomRuneFromSelector(node.selector)));
       return;
     case "any":
-      out.push(String.fromCharCode(randomRuneFromPairs(anyCharNotNLPairs)));
+      out.push(String.fromCharCode(randomRuneFromSelector(anyCharNotNLSelector)));
       return;
     case "concat":
       for (const part of node.parts) {
@@ -75,40 +109,76 @@ function writeRandomString(node: AstNode, out: string[]): void {
   }
 }
 
-function randomRuneFromPairs(pairs: Array<[number, number]>): number {
-  if (pairs.length === 0) {
+function buildRuneSelector(ranges: Array<[number, number]>): RuneSelector {
+  if (ranges.length === 0) {
     throw new Error("no runes to choose from");
   }
 
-  const cumulative: number[] = [];
+  const normalizedRanges: Array<[number, number]> = [];
+  const cumulative = Array.from({ length: ranges.length }, () => 0);
   let total = 0;
-  for (const [start, end] of pairs) {
+  let index = 0;
+  for (const [start, end] of ranges) {
     if (start > end) {
       throw new Error("invalid rune range");
     }
+    normalizedRanges.push([start, end]);
     total += end - start + 1;
-    cumulative.push(total);
+    cumulative[index] = total;
+    index += 1;
   }
 
+  return {
+    ranges: normalizedRanges,
+    cumulative,
+    total,
+  };
+}
+
+function randomRuneFromSelector(selector: RuneSelector): number {
+  const { ranges, cumulative, total } = selector;
   const idx = randomNumber(total);
   for (let i = 0; i < cumulative.length; i += 1) {
     const boundary = cumulative[i];
     if (boundary !== undefined && idx < boundary) {
       const prev = i === 0 ? 0 : (cumulative[i - 1] ?? 0);
       const offset = idx - prev;
-      const range = pairs[i] ?? [0, 0];
+      const range = ranges[i] ?? [0, 0];
       return range[0] + offset;
     }
   }
 
-  return pairs[0]?.[0] ?? 0;
+  return ranges[0]?.[0] ?? 0;
 }
 
 function randomNumber(maxSoft: number): number {
   if (maxSoft <= 0) {
     return 0;
   }
-  return randomInt(0, maxSoft);
+
+  // Deviation for Bun performance: keep cryptographic randomness but reduce per-call
+  // overhead by reading from a buffered crypto-filled uint32 pool.
+  const max = Math.floor(maxSoft);
+  if (max <= 1) {
+    return 0;
+  }
+  const limit = Math.floor(randomUInt32Base / max) * max;
+  while (true) {
+    const value = nextRandomUint32();
+    if (value < limit) {
+      return value % max;
+    }
+  }
+}
+
+function nextRandomUint32(): number {
+  if (randomPoolIndex >= randomPool.length) {
+    randomFillSync(randomPool);
+    randomPoolIndex = 0;
+  }
+  const value = randomPool[randomPoolIndex] ?? 0;
+  randomPoolIndex += 1;
+  return value;
 }
 
 class Parser {
@@ -225,9 +295,9 @@ class Parser {
       if (inverted.length === 0) {
         throw new Error("negated character class has no valid ranges");
       }
-      return { type: "charClass", ranges: inverted };
+      return createCharClassNode(inverted);
     }
-    return { type: "charClass", ranges };
+    return createCharClassNode(ranges);
   }
 
   readClassChar(): string {
@@ -236,7 +306,7 @@ class Parser {
       const next = this.consume() ?? "";
       const node = this.parseEscape(next);
       if (node.type === "charClass") {
-        const first = node.ranges[0] ?? [0, 0];
+        const first = node.selector.ranges[0] ?? [0, 0];
         return String.fromCharCode(first[0]);
       }
       if (node.type === "literal") {
@@ -249,25 +319,19 @@ class Parser {
   parseEscape(ch: string): AstNode {
     switch (ch) {
       case "d":
-        return { type: "charClass", ranges: [[48, 57]] };
+        return createCharClassNode([[48, 57]]);
       case "w":
-        return {
-          type: "charClass",
-          ranges: [
-            [48, 57],
-            [65, 90],
-            [95, 95],
-            [97, 122],
-          ],
-        };
+        return createCharClassNode([
+          [48, 57],
+          [65, 90],
+          [95, 95],
+          [97, 122],
+        ]);
       case "s":
-        return {
-          type: "charClass",
-          ranges: [
-            [9, 13],
-            [32, 32],
-          ],
-        };
+        return createCharClassNode([
+          [9, 13],
+          [32, 32],
+        ]);
       default:
         return { type: "literal", value: ch };
     }
@@ -336,6 +400,10 @@ class Parser {
   eof(): boolean {
     return this.#pos >= this.#pattern.length;
   }
+}
+
+function createCharClassNode(ranges: Array<[number, number]>): AstNode {
+  return { type: "charClass", selector: buildRuneSelector(ranges) };
 }
 
 function invertRanges(ranges: Array<[number, number]>, base: Array<[number, number]>): Array<[number, number]> {
