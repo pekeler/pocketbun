@@ -294,7 +294,7 @@ export class PasswordFieldValue {
     if (!this.Hash || this.LastError) {
       return false;
     }
-    return await Bun.password.verify(pass, this.Hash);
+    return Bun.password.verify(pass, this.Hash);
   }
 }
 

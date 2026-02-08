@@ -300,7 +300,7 @@ async function saveViewCollection(
 
     newCollection.Fields = viewFields;
 
-    return await txApp.Save(newCollection);
+    return txApp.Save(newCollection);
   });
 }
 

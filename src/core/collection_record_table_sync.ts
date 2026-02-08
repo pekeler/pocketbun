@@ -23,7 +23,7 @@ export async function syncRecordTableSchema(
     return null;
   }
 
-  return await app.RunInTransaction((txApp) => {
+  return app.RunInTransaction((txApp) => {
     const db = txApp.db();
     const hasOldTable = oldCollection ? txApp.HasTable(oldCollection.name) : false;
 

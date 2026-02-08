@@ -1226,7 +1226,7 @@ export class BaseApp implements App {
 
   // ReloadSettingsAsync is a PocketBun-only async alternative to ReloadSettings().
   async ReloadSettingsAsync(): Promise<Error | null> {
-    return await this.reloadSettingsAsync();
+    return this.reloadSettingsAsync();
   }
 
   NewMailClient() {
@@ -1617,12 +1617,12 @@ export class BaseApp implements App {
 
   // Ported from pocketbase/core/otp_query.go.
   async DeleteAllOTPsByRecord(authRecord: RecordModel): Promise<Error | null> {
-    return await DeleteAllOTPsByRecordQuery(this, authRecord);
+    return DeleteAllOTPsByRecordQuery(this, authRecord);
   }
 
   // Ported from pocketbase/core/otp_query.go.
   async DeleteExpiredOTPs(): Promise<Error | null> {
-    return await DeleteExpiredOTPsQuery(this);
+    return DeleteExpiredOTPsQuery(this);
   }
 
   // Ported from pocketbase/core/mfa_query.go.
@@ -1642,12 +1642,12 @@ export class BaseApp implements App {
 
   // Ported from pocketbase/core/mfa_query.go.
   async DeleteAllMFAsByRecord(authRecord: RecordModel): Promise<Error | null> {
-    return await DeleteAllMFAsByRecordQuery(this, authRecord);
+    return DeleteAllMFAsByRecordQuery(this, authRecord);
   }
 
   // Ported from pocketbase/core/mfa_query.go.
   async DeleteExpiredMFAs(): Promise<Error | null> {
-    return await DeleteExpiredMFAsQuery(this);
+    return DeleteExpiredMFAsQuery(this);
   }
 
   FindAllAuthOriginsByRecord(authRecord: RecordModel): AuthOrigin[] {
@@ -1667,7 +1667,7 @@ export class BaseApp implements App {
   }
 
   async DeleteAllAuthOriginsByRecord(authRecord: RecordModel): Promise<Error | null> {
-    return await DeleteAllAuthOriginsByRecordQuery(this, authRecord);
+    return DeleteAllAuthOriginsByRecordQuery(this, authRecord);
   }
 
   findAuthRecordByToken(token: string, validTypes: string[] = []): RecordModel {
@@ -1829,7 +1829,7 @@ export class BaseApp implements App {
       return NewS3(s3.bucket, s3.region, s3.endpoint, s3.accessKey, s3.secret, s3.forcePathStyle);
     }
 
-    return await NewLocalAsync(join(this.#dataDir, LocalStorageDirName));
+    return NewLocalAsync(join(this.#dataDir, LocalStorageDirName));
   }
 
   NewBackupsFilesystem() {
@@ -1854,7 +1854,7 @@ export class BaseApp implements App {
       return NewS3(s3.bucket, s3.region, s3.endpoint, s3.accessKey, s3.secret, s3.forcePathStyle);
     }
 
-    return await NewLocalAsync(join(this.#dataDir, LocalBackupsDirName));
+    return NewLocalAsync(join(this.#dataDir, LocalBackupsDirName));
   }
 
   // CreateBackup creates a new backup of the current app pb_data directory.
@@ -1876,7 +1876,7 @@ export class BaseApp implements App {
   //
   // Backups can be stored on S3 if it is configured in app.Settings().Backups.
   async CreateBackup(ctx: unknown, name: string): Promise<Error | null> {
-    return await CreateBackupHelper(this, ctx, name);
+    return CreateBackupHelper(this, ctx, name);
   }
 
   // RestoreBackup restores the backup with the specified name and restarts
@@ -1912,7 +1912,7 @@ export class BaseApp implements App {
   // it is possible the restore to fail during the `os.Rename` operations
   // (see https://github.com/pocketbase/pocketbase/issues/4647).
   async RestoreBackup(ctx: unknown, name: string): Promise<Error | null> {
-    return await RestoreBackupHelper(this, ctx, name);
+    return RestoreBackupHelper(this, ctx, name);
   }
 
   // Restart restarts (aka. replaces) the current running application process.
@@ -1996,19 +1996,19 @@ export class BaseApp implements App {
   }
 
   async AuxSave(model: Model): Promise<Error | null> {
-    return await this.withDatabase(this.auxDb() as DbxDatabase, () => this.saveModel(model, true));
+    return this.withDatabase(this.auxDb() as DbxDatabase, () => this.saveModel(model, true));
   }
 
   async AuxSaveNoValidate(model: Model): Promise<Error | null> {
-    return await this.withDatabase(this.auxDb() as DbxDatabase, () => this.saveModel(model, false));
+    return this.withDatabase(this.auxDb() as DbxDatabase, () => this.saveModel(model, false));
   }
 
   async AuxSaveWithContext(_ctx: unknown, model: Model): Promise<Error | null> {
-    return await this.withDatabase(this.auxDb() as DbxDatabase, () => this.saveModel(model, true));
+    return this.withDatabase(this.auxDb() as DbxDatabase, () => this.saveModel(model, true));
   }
 
   async AuxSaveNoValidateWithContext(_ctx: unknown, model: Model): Promise<Error | null> {
-    return await this.withDatabase(this.auxDb() as DbxDatabase, () => this.saveModel(model, false));
+    return this.withDatabase(this.auxDb() as DbxDatabase, () => this.saveModel(model, false));
   }
 
   private async runRecordInterceptors(
@@ -2017,9 +2017,9 @@ export class BaseApp implements App {
     actionFunc: () => Error | null | Promise<Error | null>,
   ): Promise<Error | null> {
     if (!this.#hooksEnabled) {
-      return await actionFunc();
+      return actionFunc();
     }
-    return await record.callFieldInterceptors(null, this, action, actionFunc);
+    return record.callFieldInterceptors(null, this, action, actionFunc);
   }
 
   private runRecordInterceptorsSync(record: RecordModel, action: string, actionFunc: () => Error | null): Error | null {
@@ -2163,7 +2163,7 @@ export class BaseApp implements App {
     }
 
     if (!(model instanceof Collection)) {
-      return await this.saveGenericModel(model, runValidation);
+      return this.saveGenericModel(model, runValidation);
     }
 
     const isNew = model.isNew();
@@ -2535,7 +2535,7 @@ export class BaseApp implements App {
   }
 
   async Validate(model: Model): Promise<Error | null> {
-    return await this.ValidateWithContext(null, model);
+    return this.ValidateWithContext(null, model);
   }
 
   async ValidateWithContext(ctx: unknown, model: Model): Promise<Error | null> {
@@ -2549,16 +2549,8 @@ export class BaseApp implements App {
 
     const event = new ModelEvent(this, model, ModelEventTypeValidate, ctx);
     event.AllowAsync = true;
-    const result = (await this.OnModelValidate().Trigger(event, async (modelEvent) => {
-      const recordInfo = resolveRecordProxy(model);
-      if (!recordInfo && model instanceof Collection) {
-        const original = model.isNew() ? null : this.findCollectionById(model.LastSavedPK());
-        const validationErr = await this.validateCollection(model, original);
-        if (validationErr) {
-          return validationErr;
-        }
-      }
 
+    const runValidateNext = (modelEvent: ModelEvent): Error | null | Promise<Error | null> => {
       const postValidator = model as Partial<PostValidator>;
       if (typeof postValidator.PostValidate === "function") {
         const postErr = postValidator.PostValidate(ctx, this);
@@ -2567,10 +2559,34 @@ export class BaseApp implements App {
         }
       }
 
-      return await modelEvent.Next();
-    })) as Error | null;
+      const nextResult = modelEvent.Next();
+      if (isPromiseLike(nextResult)) {
+        return nextResult.then((result) => result as Error | null);
+      }
+      return nextResult as Error | null;
+    };
 
-    return result ?? null;
+    const isCollectionModel = !resolveRecordProxy(model) && model instanceof Collection;
+    const triggerResult = this.OnModelValidate().Trigger(event, (modelEvent) => {
+      if (!isCollectionModel) {
+        return runValidateNext(modelEvent);
+      }
+
+      const original = model.isNew() ? null : this.findCollectionById(model.LastSavedPK());
+      return this.validateCollection(model, original).then((validationErr) => {
+        if (validationErr) {
+          return validationErr;
+        }
+        return runValidateNext(modelEvent);
+      });
+    });
+
+    if (isPromiseLike(triggerResult)) {
+      const resolved = (await triggerResult) as Error | null;
+      return resolved ?? null;
+    }
+
+    return (triggerResult as Error | null) ?? null;
   }
 
   ValidateSync(model: Model): Error | null {
@@ -2662,7 +2678,7 @@ export class BaseApp implements App {
     }
 
     if (!(model instanceof Collection)) {
-      return await this.deleteGenericModel(model);
+      return this.deleteGenericModel(model);
     }
 
     const modelEvent = new ModelEvent(this, model, ModelEventTypeDelete);
@@ -2691,7 +2707,7 @@ export class BaseApp implements App {
   }
 
   async RunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null> {
-    return await RunInTransactionHelper(
+    return RunInTransactionHelper(
       {
         app: this,
         db: () => this.db(),
@@ -2719,7 +2735,7 @@ export class BaseApp implements App {
   }
 
   async AuxRunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null> {
-    return await AuxRunInTransactionHelper(this, () => this.auxDb(), fn);
+    return AuxRunInTransactionHelper(this, () => this.auxDb(), fn);
   }
 
   AuxRunInTransactionSync(fn: (txApp: App) => Error | null): Error | null {
@@ -2743,13 +2759,13 @@ export class BaseApp implements App {
   // Note that this method will also trigger the records related
   // cascade and file delete actions.
   async TruncateCollection(collection: Collection): Promise<Error | null> {
-    return await TruncateCollectionQuery(this, collection);
+    return TruncateCollectionQuery(this, collection);
   }
 
   // ImportCollectionsByMarshaledJSON is the same as ImportCollections
   // but accept marshaled json array as import data (usually used for the autogenerated snapshots).
   async ImportCollectionsByMarshaledJSON(rawSliceOfMaps: string | Uint8Array, deleteMissing: boolean): Promise<Error | null> {
-    return await importCollectionsByMarshaledJSON(this, rawSliceOfMaps, deleteMissing);
+    return importCollectionsByMarshaledJSON(this, rawSliceOfMaps, deleteMissing);
   }
 
   // ImportCollections imports the provided collections data in a single transaction.
@@ -2760,7 +2776,7 @@ export class BaseApp implements App {
   // that are not present in the imported configuration, WILL BE DELETED
   // (this includes their related records data).
   async ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Promise<Error | null> {
-    return await importCollections(this, toImport, deleteMissing);
+    return importCollections(this, toImport, deleteMissing);
   }
 
   SyncRecordTableSchema(newCollection: Collection, oldCollection: Collection | null): Promise<Error | null> {
@@ -2873,7 +2889,7 @@ export class BaseApp implements App {
         return nextResult;
       }
 
-      return await cascadeRecordDelete(txApp, record, refs);
+      return cascadeRecordDelete(txApp, record, refs);
     });
     event.App = originalApp;
 
@@ -3121,7 +3137,7 @@ export class BaseApp implements App {
       return new Error("the model can be deleted only if it is existing and has a non-empty primary key");
     }
 
-    return await baseLockRetry(() => {
+    return baseLockRetry(() => {
       try {
         this.db().run(`delete from {{${record.TableName()}}} where id = ?`, [pk]);
         return null;
@@ -3504,7 +3520,7 @@ export class BaseApp implements App {
   }
 
   private async validateCollection(collection: Collection, original: Collection | null): Promise<Error | null> {
-    return await validateCollection(this, collection, original);
+    return validateCollection(this, collection, original);
   }
 
   private validateCollectionSync(collection: Collection, original: Collection | null): Error | null {
@@ -3512,7 +3528,7 @@ export class BaseApp implements App {
   }
 
   private async syncRecordTableSchema(newCollection: Collection, oldCollection: Collection | null): Promise<Error | null> {
-    return await syncRecordTableSchema(this, newCollection, oldCollection);
+    return syncRecordTableSchema(this, newCollection, oldCollection);
   }
 
   private syncRecordTableSchemaSync(newCollection: Collection, oldCollection: Collection | null): Error | null {
@@ -3526,12 +3542,12 @@ export class BaseApp implements App {
       Func: async (event) => {
         const model = event.Model;
         if (!model) {
-          return await event.Next();
+          return event.Next();
         }
 
         const baseFilesPath = resolveBaseFilesPath(model);
         if (!baseFilesPath || !supportFiles(model)) {
-          return await event.Next();
+          return event.Next();
         }
 
         let fsys;
@@ -3539,7 +3555,7 @@ export class BaseApp implements App {
           fsys = await this.NewFilesystemAsync();
         } catch (error) {
           this.Logger().Error("Failed to initialize filesystem for delete hook", "error", String(error));
-          return await event.Next();
+          return event.Next();
         }
 
         try {
@@ -3552,7 +3568,7 @@ export class BaseApp implements App {
           await fsys.Close();
         }
 
-        return await event.Next();
+        return event.Next();
       },
     });
 
@@ -4343,7 +4359,7 @@ export class BaseApp implements App {
   }
 
   async SaveView(name: string, selectQuery: string): Promise<Error | null> {
-    return await SaveView(this, name, selectQuery);
+    return SaveView(this, name, selectQuery);
   }
 
   SaveViewSync(name: string, selectQuery: string): Error | null {
@@ -4355,7 +4371,7 @@ export class BaseApp implements App {
   }
 
   async CreateViewFields(selectQuery: string): Promise<FieldsList> {
-    return await CreateViewFields(this, selectQuery);
+    return CreateViewFields(this, selectQuery);
   }
 
   CreateViewFieldsSync(selectQuery: string): FieldsList {

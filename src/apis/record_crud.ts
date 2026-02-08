@@ -465,28 +465,30 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
       }
     }
 
-    const hookEvent = new RecordRequestEvent(event, collection, record);
-    const out = await app.OnRecordViewRequest().Trigger(hookEvent, async () => {
-      const recordRef = hookEvent.Record ?? record;
+    const finalizeView = async (recordRef: RecordModel): Promise<Response> => {
       const enrichErr = await EnrichRecord(event, recordRef);
       if (enrichErr) {
         return internalServerError(event, "Failed to enrich record", enrichErr);
       }
       return event.json(200, recordRef.publicExport());
-    });
+    };
+
+    const viewHook = app.OnRecordViewRequest();
+    // Deviation: skip hook trigger wiring when there are no handlers.
+    // This preserves response semantics while reducing per-request allocations.
+    if (viewHook.Length() === 0) {
+      return finalizeView(record);
+    }
+
+    const hookEvent = new RecordRequestEvent(event, collection, record);
+    const out = await viewHook.Trigger(hookEvent, () => finalizeView(hookEvent.Record ?? record));
 
     const viewResponse = unwrapHookResponse(event, out);
     if (viewResponse) {
       return viewResponse;
     }
 
-    const recordRef = hookEvent.Record ?? record;
-    const enrichErr = await EnrichRecord(event, recordRef);
-    if (enrichErr) {
-      return internalServerError(event, "Failed to enrich record", enrichErr);
-    }
-
-    return event.json(200, recordRef.publicExport());
+    return finalizeView(hookEvent.Record ?? record);
   } catch {
     return badRequest(event, "");
   }
@@ -667,14 +669,14 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
 
     const createHook = app.OnRecordCreateRequest();
     if (createHook.Length() === 0) {
-      return await finalizeCreate(app, record);
+      return finalizeCreate(app, record);
     }
 
     const hookEvent = new RecordRequestEvent(event, collection, record);
     const hookStart = doProfile ? performance.now() : 0;
-    const out = await createHook.Trigger(hookEvent, async () => {
+    const out = await createHook.Trigger(hookEvent, () => {
       const recordRef = hookEvent.Record ?? record;
-      return await finalizeCreate(hookEvent.App, recordRef);
+      return finalizeCreate(hookEvent.App, recordRef);
     });
     if (doProfile) {
       recordProfile("record_create.hook", performance.now() - hookStart);
@@ -782,24 +784,31 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
     }
   }
 
-  const hookEvent = new RecordRequestEvent(event, collection, record);
-  const out = await app.OnRecordUpdateRequest().Trigger(hookEvent, async () => {
-    const recordRef = hookEvent.Record ?? record;
-    form.SetApp(hookEvent.App);
-    form.SetRecord(recordRef);
-
+  const finalizeUpdate = async (targetApp: App, targetRecord: RecordModel): Promise<Response> => {
+    form.SetApp(targetApp);
+    form.SetRecord(targetRecord);
     const submitErr = await form.Submit();
     if (submitErr) {
       return badRequest(event, "Failed to update record.", submitErr);
     }
 
-    const enrichErr = await EnrichRecord(event, recordRef);
+    const enrichErr = await EnrichRecord(event, targetRecord);
     if (enrichErr) {
       return internalServerError(event, "Failed to enrich record", enrichErr);
     }
 
-    return event.json(200, recordRef.publicExport());
-  });
+    return event.json(200, targetRecord.publicExport());
+  };
+
+  const updateHook = app.OnRecordUpdateRequest();
+  // Deviation: skip hook trigger wiring when there are no handlers.
+  // This preserves response semantics while reducing per-request allocations.
+  if (updateHook.Length() === 0) {
+    return finalizeUpdate(app, record);
+  }
+
+  const hookEvent = new RecordRequestEvent(event, collection, record);
+  const out = await updateHook.Trigger(hookEvent, () => finalizeUpdate(hookEvent.App, hookEvent.Record ?? record));
 
   const updateResponse = unwrapHookResponse(event, out);
   if (updateResponse) {
@@ -853,10 +862,8 @@ export async function recordDelete(app: App, event: RequestEvent): Promise<Respo
     return notFound(event, "");
   }
 
-  const hookEvent = new RecordRequestEvent(event, collection, record);
-  const out = await app.OnRecordDeleteRequest().Trigger(hookEvent, async () => {
-    const recordRef = hookEvent.Record ?? record;
-    const deleteErr = await app.Delete(recordRef);
+  const finalizeDelete = async (targetRecord: RecordModel): Promise<Response> => {
+    const deleteErr = await app.Delete(targetRecord);
     if (deleteErr) {
       if (deleteErr instanceof ApiError) {
         return apiErrorResponse(event, deleteErr);
@@ -869,6 +876,19 @@ export async function recordDelete(app: App, event: RequestEvent): Promise<Respo
     }
 
     return noContent(event);
+  };
+
+  const deleteHook = app.OnRecordDeleteRequest();
+  // Deviation: skip hook trigger wiring when there are no handlers.
+  // This preserves response semantics while reducing per-request allocations.
+  if (deleteHook.Length() === 0) {
+    return finalizeDelete(record);
+  }
+
+  const hookEvent = new RecordRequestEvent(event, collection, record);
+  const out = await deleteHook.Trigger(hookEvent, () => {
+    const recordRef = hookEvent.Record ?? record;
+    return finalizeDelete(recordRef);
   });
 
   const deleteResponse = unwrapHookResponse(event, out);

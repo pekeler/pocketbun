@@ -45,7 +45,7 @@ export async function SaveView(app: App, name: string, selectQuery: string): Pro
     return new Error("missing view name");
   }
 
-  return await app.RunInTransaction(async (txApp) => {
+  return app.RunInTransaction(async (txApp) => {
     const deleteErr = DeleteView(txApp, trimmedName);
     if (deleteErr) {
       return deleteErr;

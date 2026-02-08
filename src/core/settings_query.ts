@@ -75,7 +75,7 @@ export async function ReloadSettingsAsync(app: App): Promise<Error | null> {
 
   if (!row?.id) {
     app.settings().MarkAsNew();
-    return await app.Save(app.settings());
+    return app.Save(app.settings());
   }
 
   const param = new Param();

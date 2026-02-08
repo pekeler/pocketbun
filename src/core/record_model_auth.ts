@@ -117,6 +117,6 @@ export function attachRecordAuthMethods(RecordCtor: { prototype: Record }): void
     if (!(raw instanceof PasswordFieldValue)) {
       return false;
     }
-    return await raw.ValidateAsync(password);
+    return raw.ValidateAsync(password);
   };
 }

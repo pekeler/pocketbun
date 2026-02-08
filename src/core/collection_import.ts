@@ -92,7 +92,7 @@ export async function importCollections(
     return left.updated.compare(right.updated);
   });
 
-  return await app.RunInTransaction(async (txApp) => {
+  return app.RunInTransaction(async (txApp) => {
     const rows = txApp
       .db()
       .query(

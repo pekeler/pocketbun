@@ -12,7 +12,7 @@ export function execLockRetry(timeoutMs: number, maxRetries = defaultMaxLockRetr
   return async (op: () => Error | null | Promise<Error | null>): Promise<Error | null> => {
     const deadline = timeoutMs > 0 ? Date.now() + timeoutMs : null;
 
-    return await baseLockRetry(async () => {
+    return baseLockRetry(async () => {
       if (deadline !== null && Date.now() > deadline) {
         return new Error("lock retry timeout");
       }

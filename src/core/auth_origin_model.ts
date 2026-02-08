@@ -138,7 +138,7 @@ export function recordRefHooks(app: App, collectionName: string, ...optCollectio
         e.Collection.name === collectionName ||
         (optCollectionTypes.length > 0 && !optCollectionTypes.includes(e.Collection.type))
       ) {
-        return await e.Next();
+        return e.Next();
       }
 
       const collection = e.Collection;
@@ -179,7 +179,7 @@ export function recordRefHooks(app: App, collectionName: string, ...optCollectio
   app.OnRecordDeleteExecute().Bind({
     Func: async (e) => {
       if (!e.Record) {
-        return await e.Next();
+        return e.Next();
       }
 
       const collection = e.Record.collection();

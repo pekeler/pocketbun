@@ -41,7 +41,7 @@ const reservedAuthKeys = ["passwordConfirm", "oldPassword"];
 
 export async function validateCollection(app: App, collection: Collection, original: Collection | null): Promise<Error | null> {
   const validator = new CollectionValidator(app, collection, original);
-  return await validator.run();
+  return validator.run();
 }
 
 export function validateCollectionSync(app: App, collection: Collection, original: Collection | null): Error | null {
@@ -190,7 +190,7 @@ class CollectionValidator {
       return this.validateAuthOptions();
     }
     if (this.#next.IsView()) {
-      return await this.validateViewOptions();
+      return this.validateViewOptions();
     }
     return null;
   }

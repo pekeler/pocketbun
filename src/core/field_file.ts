@@ -374,7 +374,7 @@ export class FileField
       case InterceptorActionAfterCreateError:
       case InterceptorActionAfterUpdateError: {
         if (app.IsTransactional()) {
-          return await actionFunc();
+          return actionFunc();
         }
 
         const [failedToDelete, deleteErr] = await this.deleteNewlyUploadedFiles(ctx, app, record);
@@ -399,7 +399,7 @@ export class FileField
           }
         }
 
-        return await actionFunc();
+        return actionFunc();
       }
       case InterceptorActionAfterCreate:
       case InterceptorActionAfterUpdate: {
@@ -410,10 +410,10 @@ export class FileField
           return err;
         }
 
-        return await actionFunc();
+        return actionFunc();
       }
       default:
-        return await actionFunc();
+        return actionFunc();
     }
   }
 

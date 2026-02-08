@@ -21,12 +21,8 @@ const expandQueryParam = "expand";
 export const ErrMFA = new Error("mfa required");
 
 // Ported from pocketbase/apis/record_helpers.go (simplified for Bun response flow).
-export async function execAfterSuccessTx(
-  _checkTx: boolean,
-  _app: App,
-  fn: () => Response | Promise<Response>,
-): Promise<Response> {
-  return await fn();
+export function execAfterSuccessTx(_checkTx: boolean, _app: App, fn: () => Response | Promise<Response>): Promise<Response> {
+  return Promise.resolve(fn());
 }
 
 const ruleQueryParams = [FilterQueryParam, SortQueryParam];
@@ -166,11 +162,7 @@ export async function RecordAuthResponseWithToken(
   return event.json(200, { token, record: authRecord, meta });
 }
 
-export async function EnrichRecord(
-  event: RequestEvent,
-  record: RecordModel,
-  ...defaultExpands: string[]
-): Promise<Error | null> {
+export function EnrichRecord(event: RequestEvent, record: RecordModel, ...defaultExpands: string[]): Promise<Error | null> {
   return EnrichRecords(event, [record], ...defaultExpands);
 }
 
@@ -561,7 +553,7 @@ async function authAlert(event: RequestEvent, authRecord: RecordModel): Promise<
     }
   }
 
-  return await event.app.Save(currentOrigin);
+  return event.app.Save(currentOrigin);
 }
 
 function appendWhere(baseSql: string, clause: string): string {

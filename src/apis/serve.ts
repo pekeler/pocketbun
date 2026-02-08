@@ -51,7 +51,7 @@ function buildServeHandlerWithEventSync(app: App, config: ServeConfig = {}): Bui
 }
 
 async function buildServeHandlerWithEventAsync(app: App, config: ServeConfig = {}): Promise<BuiltServeHandler> {
-  return await buildServeHandlerWithEvent(app, config, true);
+  return buildServeHandlerWithEvent(app, config, true);
 }
 
 // PocketBun async deviation: keep the upstream-compatible sync behavior in

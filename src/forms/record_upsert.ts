@@ -299,17 +299,23 @@ export class RecordUpsert {
       return cbErr ?? rollbackErr;
     }
 
-    return await manualRollback();
+    return manualRollback();
   }
 
   // Submit validates the form specific validations and attempts to save the form record.
   async Submit(): Promise<Error | null> {
+    // PocketBun perf deviation (behavior-compatible): non-auth collections have
+    // no form-level validations, so skip async validation machinery on hot CRUD paths.
+    if (!this.record.collection().isAuth()) {
+      return this.app.SaveWithContext(this.ctx, this.record);
+    }
+
     const err = await this.validateFormFieldsAsync();
     if (err) {
       return err;
     }
 
-    return await this.app.SaveWithContext(this.ctx, this.record);
+    return this.app.SaveWithContext(this.ctx, this.record);
   }
 
   // syncPasswordFields syncs the form's auth password fields with their
