@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 import { MustRegisterJSVM, NewWithConfig, serve } from "../../index.ts";
 import { CollectionNameSuperusers } from "../../src/core/collection_model.ts";
 import { NewRecord } from "../../src/core/record_model.ts";
-import { configureProfile, profileEnabled, profileSummary, resetProfile } from "../../src/tools/perf/profile.ts";
 import { registerBenchmarkModule } from "./module.ts";
 
 const port = parsePort(process.env.POCKETBUN_BENCH_SERVER_PORT);
@@ -18,10 +17,6 @@ const baseUrl = process.env.POCKETBUN_BENCH_SERVER_BASE_URL?.trim() || `http://1
 const hooksDir =
   process.env.POCKETBUN_BENCH_SERVER_HOOKS_DIR?.trim() ||
   fileURLToPath(new URL("../../vendor/pocketbase-benchmarks/pb_hooks", import.meta.url));
-
-if (parseBoolean(process.env.POCKETBUN_BENCH_SERVER_PROFILE)) {
-  configureProfile({ enabled: true });
-}
 
 const app = NewWithConfig({
   HideStartBanner: true,
@@ -36,18 +31,6 @@ MustRegisterJSVM(app, {
 registerBenchmarkModule(app, baseUrl);
 
 app.OnServe().BindFunc((event) => {
-  event.Router.GET("/_bench/profile-summary", (requestEvent) => {
-    const summary = profileEnabled() ? profileSummary(80) : "";
-    return requestEvent.string(200, summary ?? "");
-  });
-
-  event.Router.POST("/_bench/profile-reset", (requestEvent) => {
-    if (profileEnabled()) {
-      resetProfile();
-    }
-    return requestEvent.noContent(204);
-  });
-
   return event.Next();
 });
 
@@ -85,11 +68,6 @@ function parsePort(raw: string | undefined): number {
     throw new Error("POCKETBUN_BENCH_SERVER_PORT must be a valid TCP port");
   }
   return parsed;
-}
-
-function parseBoolean(value: string | undefined): boolean {
-  const normalized = value?.trim().toLowerCase();
-  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
 }
 
 async function ensureDefaultSuperuser(app: ReturnType<typeof NewWithConfig>): Promise<void> {

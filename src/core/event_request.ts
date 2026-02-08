@@ -2,7 +2,6 @@
 
 import type { App } from "./app.ts";
 import { readRequestTextAndRebind } from "../internal/compat/request_body.ts";
-import { profileEnabled, recordProfile } from "../tools/perf/profile.ts";
 import { Event } from "../tools/router/event.ts";
 import { Record as RecordModel } from "./record_model.ts";
 
@@ -124,72 +123,56 @@ export class RequestEvent extends Event {
       return this.#cachedRequestInfo;
     }
 
-    const doProfile = profileEnabled();
-    const totalStart = doProfile ? performance.now() : 0;
-    try {
-      const infoContextRaw = this.Get(RequestEventKeyInfoContext);
-      const infoContext =
-        typeof infoContextRaw === "string" && infoContextRaw !== "" ? infoContextRaw : RequestInfoContextDefault;
+    const infoContextRaw = this.Get(RequestEventKeyInfoContext);
+    const infoContext =
+      typeof infoContextRaw === "string" && infoContextRaw !== "" ? infoContextRaw : RequestInfoContextDefault;
 
-      const info: RequestInfo = {
-        query: {},
-        headers: {},
-        body: await this.#resolveBoundBody(),
-        auth: this.auth,
-        method: this.request.method,
-        context: infoContext,
-      };
+    const info: RequestInfo = {
+      query: {},
+      headers: {},
+      body: await this.#resolveBoundBody(),
+      auth: this.auth,
+      method: this.request.method,
+      context: infoContext,
+    };
 
-      // PocketBun perf deviation (behavior-compatible): lazily compute request query/headers.
-      // Most hot paths read only `body`/`auth`, so avoid per-request map population unless needed.
-      let lazyQuery: Record<string, string> | null = null;
-      let lazyHeaders: Record<string, string> | null = null;
+    // PocketBun perf deviation (behavior-compatible): lazily compute request query/headers.
+    // Most hot paths read only `body`/`auth`, so avoid per-request map population unless needed.
+    let lazyQuery: Record<string, string> | null = null;
+    let lazyHeaders: Record<string, string> | null = null;
 
-      Object.defineProperty(info, "query", {
-        enumerable: true,
-        configurable: true,
-        get: () => {
-          if (lazyQuery) {
-            return lazyQuery;
-          }
-          const queryStart = doProfile ? performance.now() : 0;
-          lazyQuery = parseRequestInfoQuery(this.requestUrl().searchParams);
-          if (doProfile) {
-            recordProfile("request_info.query", performance.now() - queryStart);
-          }
+    Object.defineProperty(info, "query", {
+      enumerable: true,
+      configurable: true,
+      get: () => {
+        if (lazyQuery) {
           return lazyQuery;
-        },
-        set: (value: Record<string, string>) => {
-          lazyQuery = value;
-        },
-      });
+        }
+        lazyQuery = parseRequestInfoQuery(this.requestUrl().searchParams);
+        return lazyQuery;
+      },
+      set: (value: Record<string, string>) => {
+        lazyQuery = value;
+      },
+    });
 
-      Object.defineProperty(info, "headers", {
-        enumerable: true,
-        configurable: true,
-        get: () => {
-          if (lazyHeaders) {
-            return lazyHeaders;
-          }
-          const headersStart = doProfile ? performance.now() : 0;
-          lazyHeaders = parseRequestInfoHeaders(this.request.headers);
-          if (doProfile) {
-            recordProfile("request_info.headers", performance.now() - headersStart);
-          }
+    Object.defineProperty(info, "headers", {
+      enumerable: true,
+      configurable: true,
+      get: () => {
+        if (lazyHeaders) {
           return lazyHeaders;
-        },
-        set: (value: Record<string, string>) => {
-          lazyHeaders = value;
-        },
-      });
+        }
+        lazyHeaders = parseRequestInfoHeaders(this.request.headers);
+        return lazyHeaders;
+      },
+      set: (value: Record<string, string>) => {
+        lazyHeaders = value;
+      },
+    });
 
-      this.#cachedRequestInfo = info;
-      return info;
-    } finally {
-      if (doProfile) {
-        recordProfile("request_info.total", performance.now() - totalStart);
-      }
-    }
+    this.#cachedRequestInfo = info;
+    return info;
   }
 
   override async bindBody<T extends object>(target: T): Promise<void> {
@@ -214,8 +197,6 @@ export class RequestEvent extends Event {
       return this.#cachedBody;
     }
 
-    const doProfile = profileEnabled();
-    const bodyStart = doProfile ? performance.now() : 0;
     let body: Record<string, unknown>;
     // PocketBun perf deviation (behavior-compatible for bindBody callers):
     // parse JSON directly from the original request stream to avoid clone()
@@ -228,9 +209,6 @@ export class RequestEvent extends Event {
     } else {
       body = {};
       await super.bindBody(body);
-    }
-    if (doProfile) {
-      recordProfile("request_info.body", performance.now() - bodyStart);
     }
     this.#cachedBody = body;
     return body;

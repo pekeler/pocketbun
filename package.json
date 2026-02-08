@@ -21,8 +21,6 @@
     "format:fix": "oxfmt --write src tests",
     "build": "bun build index.ts src/cli.ts --outdir dist --target bun --format esm --packages external",
     "prepack": "bun run build",
-    "bench:local": "bun run scripts/bench_run.ts",
-    "bench:pocketbase": "bun run scripts/bench_run_pocketbase.ts",
     "bench:upstream": "bun run scripts/bench_run_upstream.ts",
     "bench:upstream:pocketbun": "bun run scripts/bench_run_upstream_pocketbun.ts",
     "bench:upstream:factor-summary": "bun scripts/bench_upstream_factor_summary.js",

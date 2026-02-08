@@ -1,7 +1,6 @@
 // Ported from pocketbase/tools/hook/hook.go
 
 import type { Resolver } from "./event.ts";
-import { profileEnabled, recordProfile, recordProfileSelf } from "../perf/profile.ts";
 import { randomString } from "../security/random.ts";
 import { Event } from "./event.ts";
 
@@ -91,113 +90,47 @@ export class Hook<T extends Resolver> {
 
   Trigger(event: T, ...oneOffHandlerFuncs: HandlerFunc<T>[]): unknown {
     event.setNextFunc(null);
-    const doProfile = profileEnabled();
     const handlersLen = this.#handlers.length;
     const oneOffLen = oneOffHandlerFuncs.length;
     const tagCache: { tags?: string[] } = {};
 
-    if (!doProfile) {
-      // PocketBun perf deviation (behavior-compatible): avoid temporary handler array/object
-      // allocation on the hot path and keep direct next-chain wiring.
-      if (handlersLen === 0 && oneOffLen === 1) {
-        const single = oneOffHandlerFuncs[0];
-        if (!single) {
-          return event.Next();
-        }
-        return single(event);
+    // PocketBun perf deviation (behavior-compatible): avoid temporary handler array/object
+    // allocation on the hot path and keep direct next-chain wiring.
+    if (handlersLen === 0 && oneOffLen === 1) {
+      const single = oneOffHandlerFuncs[0];
+      if (!single) {
+        return event.Next();
       }
+      return single(event);
+    }
 
-      // PocketBun perf deviation (behavior-compatible): execute the chain with a
-      // single cursor-driven next func to avoid per-handler closure allocations.
-      const totalLen = handlersLen + oneOffLen;
-      let index = 0;
-      const next = (): unknown => {
-        while (index < totalLen) {
-          const current = index;
-          index += 1;
-          if (current < handlersLen) {
-            const handler = this.#handlers[current];
-            if (!handler || !canRunTaggedHandler(handler, event, tagCache)) {
-              continue;
-            }
-            return handler.Func(event);
-          }
-
-          const handler = oneOffHandlerFuncs[current - handlersLen];
-          if (!handler) {
+    // PocketBun perf deviation (behavior-compatible): execute the chain with a
+    // single cursor-driven next func to avoid per-handler closure allocations.
+    const totalLen = handlersLen + oneOffLen;
+    let index = 0;
+    const next = (): unknown => {
+      while (index < totalLen) {
+        const current = index;
+        index += 1;
+        if (current < handlersLen) {
+          const handler = this.#handlers[current];
+          if (!handler || !canRunTaggedHandler(handler, event, tagCache)) {
             continue;
           }
-          return handler(event);
+          return handler.Func(event);
         }
-        event.setNextFunc(null);
-        return null;
-      };
 
-      event.setNextFunc(next);
-      return event.Next();
-    }
-
-    const handlers: Array<{ func: HandlerFunc<T>; id?: string }> = [];
-    for (const handler of this.#handlers) {
-      if (!canRunTaggedHandler(handler, event, tagCache)) {
-        continue;
+        const handler = oneOffHandlerFuncs[current - handlersLen];
+        if (!handler) {
+          continue;
+        }
+        return handler(event);
       }
-      handlers.push({ func: handler.Func, id: handler.Id });
-    }
-    for (const handler of oneOffHandlerFuncs) {
-      handlers.push({ func: handler });
-    }
+      event.setNextFunc(null);
+      return null;
+    };
 
-    for (let i = handlers.length - 1; i >= 0; i -= 1) {
-      const handler = handlers[i];
-      if (!handler) {
-        continue;
-      }
-      const old = event.nextFunc();
-      event.setNextFunc(() => {
-        event.setNextFunc(old);
-        const label = resolveHandlerLabel(handler);
-        const started = performance.now();
-        let downstreamMs = 0;
-        const nextFunc = event.nextFunc();
-        if (nextFunc) {
-          event.setNextFunc(() => {
-            event.setNextFunc(nextFunc);
-            const downstreamStart = performance.now();
-            try {
-              const result = nextFunc();
-              if (result && typeof (result as Promise<unknown>).then === "function") {
-                return (result as Promise<unknown>).finally(() => {
-                  downstreamMs += performance.now() - downstreamStart;
-                });
-              }
-              downstreamMs += performance.now() - downstreamStart;
-              return result;
-            } catch (error) {
-              downstreamMs += performance.now() - downstreamStart;
-              throw error;
-            }
-          });
-        }
-        const recordTiming = () => {
-          const total = performance.now() - started;
-          recordProfile(label, total);
-          recordProfileSelf(label, Math.max(0, total - downstreamMs));
-        };
-        try {
-          const result = handler.func(event);
-          if (result && typeof (result as Promise<unknown>).then === "function") {
-            return (result as Promise<unknown>).finally(recordTiming);
-          }
-          recordTiming();
-          return result;
-        } catch (error) {
-          recordTiming();
-          throw error;
-        }
-      });
-    }
-
+    event.setNextFunc(next);
     return event.Next();
   }
 }
@@ -224,20 +157,6 @@ function canRunTaggedHandler<T extends Resolver>(handler: InternalHandler<T>, ev
 
 function generateHookId(): string {
   return randomString(20);
-}
-
-function resolveHandlerLabel<T extends Resolver>(handler: { func: HandlerFunc<T>; id?: string }): string {
-  if (handler.id) {
-    return handler.id;
-  }
-  const labeled = handler.func as { __hookLabel?: string; name?: string };
-  if (typeof labeled.__hookLabel === "string" && labeled.__hookLabel) {
-    return labeled.__hookLabel;
-  }
-  if (labeled.name) {
-    return labeled.name;
-  }
-  return "anonymous";
 }
 
 export { Event };

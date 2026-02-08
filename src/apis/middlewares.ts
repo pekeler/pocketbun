@@ -5,7 +5,6 @@ import type { RequestEvent } from "../core/event_request.ts";
 import type { Handler } from "../tools/hook/hook.ts";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { TokenTypeAuth } from "../core/record_tokens.ts";
-import { profileEnabled, recordProfile } from "../tools/perf/profile.ts";
 import { ApiError, apiErrorResponse } from "../tools/router/api_error.ts";
 import { badRequest, forbidden, unauthorized } from "./api_errors.ts";
 
@@ -321,7 +320,6 @@ function logRequest(
     return;
   }
 
-  const doProfile = profileEnabled();
   const status = response?.status ?? (err ? 500 : 0);
   const hasError = Boolean(err) || status >= 400;
 
@@ -329,7 +327,6 @@ function logRequest(
     return;
   }
 
-  const buildStart = doProfile ? performance.now() : 0;
   const attrs: unknown[] = ["type", "request"];
 
   const started = event.Get(requestEventKeyExecStart);
@@ -386,18 +383,10 @@ function logRequest(
 
   const level = hasError ? 8 : 0;
   if (level < logsConfig.minLevel) {
-    if (doProfile) {
-      recordProfile("logRequest.build", performance.now() - buildStart);
-    }
     return;
   }
 
-  if (doProfile) {
-    recordProfile("logRequest.build", performance.now() - buildStart);
-  }
-
   queueMicrotask(() => {
-    const writeStart = doProfile ? performance.now() : 0;
     let message = `${method} `;
     try {
       message += decodeURIComponent(requestUri);
@@ -405,16 +394,10 @@ function logRequest(
       message += requestUri;
     }
 
-    try {
-      if (hasError) {
-        event.app.Logger().Error(message, ...attrs);
-      } else {
-        event.app.Logger().Info(message, ...attrs);
-      }
-    } finally {
-      if (doProfile) {
-        recordProfile("logRequest.write", performance.now() - writeStart);
-      }
+    if (hasError) {
+      event.app.Logger().Error(message, ...attrs);
+    } else {
+      event.app.Logger().Info(message, ...attrs);
     }
   });
 }

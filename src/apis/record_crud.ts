@@ -17,7 +17,6 @@ import { ValidationError, ValidationErrors } from "../internal/compat/validation
 import { NewFileFromBytes, type File as LocalFile } from "../tools/filesystem/file.ts";
 import { columnify } from "../tools/inflector/inflector.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
-import { profileEnabled, recordProfile } from "../tools/perf/profile.ts";
 import { ApiError, ToApiError, apiErrorResponse } from "../tools/router/api_error.ts";
 import { JSONPayloadKey, unmarshalRequestData } from "../tools/router/unmarshal_request_data.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
@@ -242,166 +241,117 @@ export function bindRecordCrudApi(app: App, rg: RouterGroup<RequestEvent>): void
 }
 
 async function recordsList(app: App, event: RequestEvent): Promise<Response> {
-  const doProfile = profileEnabled();
-  const totalStart = doProfile ? performance.now() : 0;
-  try {
-    const collectionId = event.params.collection ?? "";
-    const collection = findCachedCollection(app, collectionId);
-    if (!collection) {
-      return notFound(event, "Missing collection context.");
-    }
+  const collectionId = event.params.collection ?? "";
+  const collection = findCachedCollection(app, collectionId);
+  if (!collection) {
+    return notFound(event, "Missing collection context.");
+  }
 
-    const rateLimitStart = doProfile ? performance.now() : 0;
-    const rateLimitResponse = checkCollectionRateLimit(event, collection, "list");
-    if (doProfile) {
-      recordProfile("records_list.rate_limit", performance.now() - rateLimitStart);
-    }
-    if (rateLimitResponse) {
-      return rateLimitResponse;
-    }
+  const rateLimitResponse = checkCollectionRateLimit(event, collection, "list");
+  if (rateLimitResponse) {
+    return rateLimitResponse;
+  }
 
-    const requestInfoStart = doProfile ? performance.now() : 0;
-    const requestInfo = await event.requestInfo();
-    if (doProfile) {
-      recordProfile("records_list.request_info", performance.now() - requestInfoStart);
-    }
+  const requestInfo = await event.requestInfo();
+  if (collection.listRule === null && !requestInfo.auth?.isSuperuser()) {
+    return forbidden(event, "Only superusers can perform this action.");
+  }
 
-    if (collection.listRule === null && !requestInfo.auth?.isSuperuser()) {
-      return forbidden(event, "Only superusers can perform this action.");
-    }
+  const superuserFieldError = checkForSuperuserOnlyRuleFields(requestInfo);
+  if (superuserFieldError) {
+    return forbidden(event, superuserFieldError);
+  }
 
-    const superuserFieldsStart = doProfile ? performance.now() : 0;
-    const superuserFieldError = checkForSuperuserOnlyRuleFields(requestInfo);
-    if (doProfile) {
-      recordProfile("records_list.superuser_fields", performance.now() - superuserFieldsStart);
-    }
-    if (superuserFieldError) {
-      return forbidden(event, superuserFieldError);
-    }
+  const fastList = maybeBenchFastList(event, collection);
+  if (fastList) {
+    return fastList;
+  }
 
-    const fastList = maybeBenchFastList(event, collection);
-    if (fastList) {
-      return fastList;
-    }
+  const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
 
-    const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
+  let selectSql = `select {{${collection.name}}}.* from {{${collection.name}}}`;
+  const params: unknown[] = [];
 
-    let selectSql = `select {{${collection.name}}}.* from {{${collection.name}}}`;
-    const params: unknown[] = [];
-
-    if (!requestInfo.auth?.isSuperuser() && collection.listRule && collection.listRule !== "") {
-      const listRuleStart = doProfile ? performance.now() : 0;
-      const expr = buildFilterExpr(collection.listRule, resolver, DefaultFilterExprLimit);
-      if (doProfile) {
-        recordProfile("records_list.list_rule", performance.now() - listRuleStart);
-      }
-      if (expr.sql) {
-        selectSql = appendWhere(selectSql, expr.sql);
-        params.push(...expr.params);
-      }
-    }
-
-    resolver.setAllowHiddenFields(Boolean(requestInfo.auth?.isSuperuser()));
-
-    const provider = new Provider(resolver).query({
-      select: selectSql,
-      params,
-    });
-    if (doProfile) {
-      provider.profilePrefix("records_list");
-    }
-    if (collection.type !== "view") {
-      provider.countCol("_rowid_");
-    }
-
-    let result: RecordsListResult | null = null;
-    let records: RecordModel[] = [];
-    try {
-      const url = event.requestUrl();
-      const queryStart = doProfile ? performance.now() : 0;
-      const rawResult = provider.parseAndExecParams<Record<string, unknown>>(url.searchParams, app.db(), url.search);
-      if (doProfile) {
-        recordProfile("records_list.query", performance.now() - queryStart);
-      }
-      const hydrateStart = doProfile ? performance.now() : 0;
-      const rows = rawResult.items;
-      records = [];
-      records.length = rows.length;
-      for (let i = 0; i < rows.length; i += 1) {
-        records[i] = RecordModel.fromRow(collection, rows[i] as RecordData);
-      }
-      if (doProfile) {
-        recordProfile("records_list.hydrate", performance.now() - hydrateStart);
-      }
-      result = {
-        ...rawResult,
-        items: records,
-      };
-    } catch {
-      return badRequest(event, "");
-    }
-
-    if (!result) {
-      return badRequest(event, "");
-    }
-
-    const hookEvent = new RecordsListRequestEvent(event, collection);
-    hookEvent.Records = records;
-    hookEvent.Result = result;
-
-    const finalizeRecordsList = async (): Promise<Response> => {
-      const enrichStart = doProfile ? performance.now() : 0;
-      const enrichErr = await EnrichRecords(event, hookEvent.Records);
-      if (doProfile) {
-        recordProfile("records_list.enrich", performance.now() - enrichStart);
-      }
-      if (enrichErr) {
-        return internalServerError(event, "Failed to enrich records", enrichErr);
-      }
-
-      if (!hookEvent.Result) {
-        hookEvent.Result = {
-          ...result,
-          items: hookEvent.Records,
-        };
-      }
-
-      const responseStart = doProfile ? performance.now() : 0;
-      const response = event.json(200, hookEvent.Result);
-      if (doProfile) {
-        recordProfile("records_list.response", performance.now() - responseStart);
-      }
-      return response;
-    };
-
-    const listHook = app.OnRecordsListRequest();
-    // Deviation: skip hook trigger wiring when there are no handlers.
-    // This preserves response semantics while reducing per-request allocations.
-    if (listHook.Length() === 0) {
-      return finalizeRecordsList();
-    }
-
-    const hookStart = doProfile ? performance.now() : 0;
-    const out = await listHook.Trigger(hookEvent, () => finalizeRecordsList());
-    if (doProfile) {
-      recordProfile("records_list.hook", performance.now() - hookStart);
-    }
-
-    const listResponse = unwrapHookResponse(event, out);
-    if (listResponse) {
-      return listResponse;
-    }
-
-    if (hookEvent.Result) {
-      return event.json(200, hookEvent.Result);
-    }
-
-    return badRequest(event, "");
-  } finally {
-    if (doProfile) {
-      recordProfile("records_list.total", performance.now() - totalStart);
+  if (!requestInfo.auth?.isSuperuser() && collection.listRule && collection.listRule !== "") {
+    const expr = buildFilterExpr(collection.listRule, resolver, DefaultFilterExprLimit);
+    if (expr.sql) {
+      selectSql = appendWhere(selectSql, expr.sql);
+      params.push(...expr.params);
     }
   }
+
+  resolver.setAllowHiddenFields(Boolean(requestInfo.auth?.isSuperuser()));
+
+  const provider = new Provider(resolver).query({
+    select: selectSql,
+    params,
+  });
+  if (collection.type !== "view") {
+    provider.countCol("_rowid_");
+  }
+
+  let result: RecordsListResult | null = null;
+  let records: RecordModel[] = [];
+  try {
+    const url = event.requestUrl();
+    const rawResult = provider.parseAndExecParams<Record<string, unknown>>(url.searchParams, app.db(), url.search);
+    const rows = rawResult.items;
+    records = [];
+    records.length = rows.length;
+    for (let i = 0; i < rows.length; i += 1) {
+      records[i] = RecordModel.fromRow(collection, rows[i] as RecordData);
+    }
+    result = {
+      ...rawResult,
+      items: records,
+    };
+  } catch {
+    return badRequest(event, "");
+  }
+
+  if (!result) {
+    return badRequest(event, "");
+  }
+
+  const hookEvent = new RecordsListRequestEvent(event, collection);
+  hookEvent.Records = records;
+  hookEvent.Result = result;
+
+  const finalizeRecordsList = async (): Promise<Response> => {
+    const enrichErr = await EnrichRecords(event, hookEvent.Records);
+    if (enrichErr) {
+      return internalServerError(event, "Failed to enrich records", enrichErr);
+    }
+
+    if (!hookEvent.Result) {
+      hookEvent.Result = {
+        ...result,
+        items: hookEvent.Records,
+      };
+    }
+
+    return event.json(200, hookEvent.Result);
+  };
+
+  const listHook = app.OnRecordsListRequest();
+  // Deviation: skip hook trigger wiring when there are no handlers.
+  // This preserves response semantics while reducing per-request allocations.
+  if (listHook.Length() === 0) {
+    return finalizeRecordsList();
+  }
+
+  const out = await listHook.Trigger(hookEvent, () => finalizeRecordsList());
+
+  const listResponse = unwrapHookResponse(event, out);
+  if (listResponse) {
+    return listResponse;
+  }
+
+  if (hookEvent.Result) {
+    return event.json(200, hookEvent.Result);
+  }
+
+  return badRequest(event, "");
 }
 
 async function recordView(app: App, event: RequestEvent): Promise<Response> {
@@ -506,208 +456,149 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
     return badRequest(event, "Unsupported collection type.", null);
   }
 
-  const doProfile = profileEnabled();
-  const totalStart = doProfile ? performance.now() : 0;
+  const rateLimitResponse = checkCollectionRateLimit(event, collection, "create");
+  if (rateLimitResponse) {
+    return rateLimitResponse;
+  }
+
+  let requestInfo: RequestInfo;
   try {
-    const rateLimitStart = doProfile ? performance.now() : 0;
-    const rateLimitResponse = checkCollectionRateLimit(event, collection, "create");
-    if (doProfile) {
-      recordProfile("record_create.rate_limit", performance.now() - rateLimitStart);
-    }
-    if (rateLimitResponse) {
-      return rateLimitResponse;
-    }
+    requestInfo = await event.requestInfo();
+  } catch (error) {
+    return badRequest(event, "Failed to read the submitted data.", error as Error);
+  }
 
-    let requestInfo: RequestInfo;
-    const requestInfoStart = doProfile ? performance.now() : 0;
-    try {
-      requestInfo = await event.requestInfo();
-    } catch (error) {
-      return badRequest(event, "Failed to read the submitted data.", error as Error);
-    } finally {
-      if (doProfile) {
-        recordProfile("record_create.request_info", performance.now() - requestInfoStart);
-      }
-    }
+  const parsed = await parseRequestData(event.request, requestInfo.body);
+  if (parsed.error) {
+    return badRequest(event, "Failed to read the submitted data.", parsed.error);
+  }
 
-    const parseStart = doProfile ? performance.now() : 0;
-    const parsed = await parseRequestData(event.request, requestInfo.body);
-    if (doProfile) {
-      recordProfile("record_create.parse_data", performance.now() - parseStart);
-    }
-    if (parsed.error) {
-      return badRequest(event, "Failed to read the submitted data.", parsed.error);
-    }
+  const hasSuperuser = Boolean(requestInfo.auth?.isSuperuser());
 
-    const hasSuperuser = Boolean(requestInfo.auth?.isSuperuser());
+  if (!hasSuperuser && collection.createRule === null) {
+    return forbidden(event, "Only superusers can perform this action.");
+  }
 
-    if (!hasSuperuser && collection.createRule === null) {
-      return forbidden(event, "Only superusers can perform this action.");
-    }
+  const record = NewRecord(collection);
 
-    const record = NewRecord(collection);
+  requestInfo.body = parsed.data;
+  const data = resolveRecordData(record, requestInfo, parsed.files);
+  requestInfo.body = data;
 
-    const resolveDataStart = doProfile ? performance.now() : 0;
-    requestInfo.body = parsed.data;
-    let data = resolveRecordData(record, requestInfo, parsed.files);
-    requestInfo.body = data;
-    if (doProfile) {
-      recordProfile("record_create.resolve_data", performance.now() - resolveDataStart);
+  let skipPlainPasswordRecordValidators = false;
+  if (requestInfo.context === RequestInfoContextOAuth2) {
+    if (!(FieldNamePassword in data)) {
+      const generated = randomString(30);
+      data[FieldNamePassword] = generated;
+      data[`${FieldNamePassword}Confirm`] = generated;
+      skipPlainPasswordRecordValidators = true;
     }
+  }
 
-    let skipPlainPasswordRecordValidators = false;
-    if (requestInfo.context === RequestInfoContextOAuth2) {
-      if (!(FieldNamePassword in data)) {
-        const generated = randomString(30);
-        data[FieldNamePassword] = generated;
-        data[`${FieldNamePassword}Confirm`] = generated;
-        skipPlainPasswordRecordValidators = true;
-      }
-    }
+  const form = new RecordUpsert(app, record);
+  if (hasSuperuser) {
+    form.GrantSuperuserAccess();
+  }
+  if (collection.IsAuth() && Object.prototype.hasOwnProperty.call(data, FieldNamePassword)) {
+    await form.LoadAsync(data);
+  } else {
+    form.Load(data);
+  }
 
-    const form = new RecordUpsert(app, record);
-    if (hasSuperuser) {
-      form.GrantSuperuserAccess();
+  if (skipPlainPasswordRecordValidators) {
+    const raw = record.GetRaw(FieldNamePassword);
+    if (raw instanceof PasswordFieldValue) {
+      raw.Plain = "";
     }
-    const formLoadStart = doProfile ? performance.now() : 0;
-    if (collection.IsAuth() && Object.prototype.hasOwnProperty.call(data, FieldNamePassword)) {
-      await form.LoadAsync(data);
-    } else {
-      form.Load(data);
-    }
-    if (doProfile) {
-      recordProfile("record_create.form_load", performance.now() - formLoadStart);
-    }
+  }
 
-    if (skipPlainPasswordRecordValidators) {
-      const raw = record.GetRaw(FieldNamePassword);
-      if (raw instanceof PasswordFieldValue) {
-        raw.Plain = "";
-      }
-    }
-
-    const rulesStart = doProfile ? performance.now() : 0;
-    if (!hasSuperuser && collection.createRule !== null) {
-      let createContext: CreateRuleContext | null = null;
-      const ensureCreateContext = (): CreateRuleContext | Error => {
-        if (createContext) {
-          return createContext;
-        }
-        const created = buildCreateRuleContext(collection, record);
-        if (created instanceof Error) {
-          return created;
-        }
-        createContext = created;
+  if (!hasSuperuser && collection.createRule !== null) {
+    let createContext: CreateRuleContext | null = null;
+    const ensureCreateContext = (): CreateRuleContext | Error => {
+      if (createContext) {
         return createContext;
-      };
-
-      if (collection.createRule && collection.createRule !== "") {
-        const createContextOrError = ensureCreateContext();
-        if (createContextOrError instanceof Error) {
-          return badRequest(event, "Failed to create record", createContextOrError);
-        }
-
-        const ruleErr = checkCreateRule(app, createContextOrError, requestInfo);
-        if (ruleErr) {
-          return badRequest(event, "Failed to create record", ruleErr);
-        }
       }
-
-      // Deviation: skip dummy create-rule context generation when only auth manage checks may apply.
-      // Non-auth collections can never satisfy hasAuthManageAccess.
-      if (!form.HasManageAccess() && collection.IsAuth()) {
-        const createContextOrError = ensureCreateContext();
-        if (createContextOrError instanceof Error) {
-          return badRequest(event, "Failed to create record", createContextOrError);
-        }
-
-        if (
-          hasAuthManageAccess(
-            app,
-            requestInfo,
-            createContextOrError.collection,
-            createContextOrError.selectSql,
-            createContextOrError.params,
-          )
-        ) {
-          form.GrantManagerAccess();
-        }
+      const created = buildCreateRuleContext(collection, record);
+      if (created instanceof Error) {
+        return created;
       }
-    }
-    if (doProfile) {
-      recordProfile("record_create.rules", performance.now() - rulesStart);
-    }
-
-    const finalizeCreate = async (targetApp: App, targetRecord: RecordModel): Promise<Response> => {
-      form.SetApp(targetApp);
-      form.SetRecord(targetRecord);
-
-      const submitStart = doProfile ? performance.now() : 0;
-      const submitErr = await form.Submit();
-      if (doProfile) {
-        recordProfile("record_create.submit", performance.now() - submitStart);
-      }
-      if (submitErr) {
-        return badRequest(event, "Failed to create record.", submitErr);
-      }
-
-      const enrichStart = doProfile ? performance.now() : 0;
-      const enrichErr = await EnrichRecord(event, targetRecord);
-      if (doProfile) {
-        recordProfile("record_create.enrich", performance.now() - enrichStart);
-      }
-      if (enrichErr) {
-        return internalServerError(event, "Failed to enrich record", enrichErr);
-      }
-
-      const responseStart = doProfile ? performance.now() : 0;
-      const response = event.json(200, targetRecord.publicExport());
-      if (doProfile) {
-        recordProfile("record_create.response", performance.now() - responseStart);
-      }
-      return response;
+      createContext = created;
+      return createContext;
     };
 
-    const createHook = app.OnRecordCreateRequest();
-    if (createHook.Length() === 0) {
-      return finalizeCreate(app, record);
+    if (collection.createRule && collection.createRule !== "") {
+      const createContextOrError = ensureCreateContext();
+      if (createContextOrError instanceof Error) {
+        return badRequest(event, "Failed to create record", createContextOrError);
+      }
+
+      const ruleErr = checkCreateRule(app, createContextOrError, requestInfo);
+      if (ruleErr) {
+        return badRequest(event, "Failed to create record", ruleErr);
+      }
     }
 
-    const hookEvent = new RecordRequestEvent(event, collection, record);
-    const hookStart = doProfile ? performance.now() : 0;
-    const out = await createHook.Trigger(hookEvent, () => {
-      const recordRef = hookEvent.Record ?? record;
-      return finalizeCreate(hookEvent.App, recordRef);
-    });
-    if (doProfile) {
-      recordProfile("record_create.hook", performance.now() - hookStart);
+    // Deviation: skip dummy create-rule context generation when only auth manage checks may apply.
+    // Non-auth collections can never satisfy hasAuthManageAccess.
+    if (!form.HasManageAccess() && collection.IsAuth()) {
+      const createContextOrError = ensureCreateContext();
+      if (createContextOrError instanceof Error) {
+        return badRequest(event, "Failed to create record", createContextOrError);
+      }
+
+      if (
+        hasAuthManageAccess(
+          app,
+          requestInfo,
+          createContextOrError.collection,
+          createContextOrError.selectSql,
+          createContextOrError.params,
+        )
+      ) {
+        form.GrantManagerAccess();
+      }
+    }
+  }
+
+  const finalizeCreate = async (targetApp: App, targetRecord: RecordModel): Promise<Response> => {
+    form.SetApp(targetApp);
+    form.SetRecord(targetRecord);
+
+    const submitErr = await form.Submit();
+    if (submitErr) {
+      return badRequest(event, "Failed to create record.", submitErr);
     }
 
-    const createResponse = unwrapHookResponse(event, out);
-    if (createResponse) {
-      return createResponse;
-    }
-
-    const enrichStart = doProfile ? performance.now() : 0;
-    const enrichErr = await EnrichRecord(event, record);
-    if (doProfile) {
-      recordProfile("record_create.enrich", performance.now() - enrichStart);
-    }
+    const enrichErr = await EnrichRecord(event, targetRecord);
     if (enrichErr) {
       return internalServerError(event, "Failed to enrich record", enrichErr);
     }
 
-    const responseStart = doProfile ? performance.now() : 0;
-    const response = event.json(200, record.publicExport());
-    if (doProfile) {
-      recordProfile("record_create.response", performance.now() - responseStart);
-    }
-    return response;
-  } finally {
-    if (doProfile) {
-      recordProfile("record_create.total", performance.now() - totalStart);
-    }
+    return event.json(200, targetRecord.publicExport());
+  };
+
+  const createHook = app.OnRecordCreateRequest();
+  if (createHook.Length() === 0) {
+    return finalizeCreate(app, record);
   }
+
+  const hookEvent = new RecordRequestEvent(event, collection, record);
+  const out = await createHook.Trigger(hookEvent, () => {
+    const recordRef = hookEvent.Record ?? record;
+    return finalizeCreate(hookEvent.App, recordRef);
+  });
+
+  const createResponse = unwrapHookResponse(event, out);
+  if (createResponse) {
+    return createResponse;
+  }
+
+  const enrichErr = await EnrichRecord(event, record);
+  if (enrichErr) {
+    return internalServerError(event, "Failed to enrich record", enrichErr);
+  }
+
+  return event.json(200, record.publicExport());
 }
 
 export async function recordUpdate(app: App, event: RequestEvent): Promise<Response> {

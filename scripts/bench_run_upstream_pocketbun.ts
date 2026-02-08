@@ -11,8 +11,6 @@ import { benchmarkSchema } from "./bench_upstream_pocketbun/schema.ts";
 
 const benchmarkRunOverrideFile = process.env.POCKETBUN_BENCHMARK_RUN_FILE ?? "/tmp/pocketbun-bench-upstream-run.txt";
 const benchmarkRun = await resolveBenchmarkRun(benchmarkRunOverrideFile);
-const benchmarkProfileOverrideFile = process.env.POCKETBUN_BENCHMARK_PROFILE_FILE ?? "/tmp/pocketbun-bench-upstream-profile.txt";
-const benchmarkProfileEnabled = await resolveBooleanOverride(benchmarkProfileOverrideFile, false);
 const benchmarkWarmupRequestsFile =
   process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS_FILE ?? "/tmp/pocketbun-bench-upstream-warmup-requests.txt";
 const benchmarkWarmupRequests = await resolveIntOverride(benchmarkWarmupRequestsFile, 0);
@@ -45,7 +43,6 @@ const serverProc = Bun.spawn({
     POCKETBUN_BENCH_SERVER_BASE_URL: baseUrl,
     POCKETBUN_BENCH_SERVER_DATA_DIR: dataDir,
     POCKETBUN_BENCH_SERVER_HOOKS_DIR: hooksDir,
-    POCKETBUN_BENCH_SERVER_PROFILE: benchmarkProfileEnabled ? "1" : "0",
   },
   stdio: ["ignore", "inherit", "inherit"],
 });
@@ -61,9 +58,6 @@ try {
     benchmarkRun === "probe:create-users-upstream" ||
     benchmarkRun === "probe:auth-refresh"
   ) {
-    if (benchmarkProfileEnabled) {
-      await resetRemoteProfile();
-    }
     const token = await authSuperuser();
     await importProbeSchema(token);
     const probeReport =
@@ -81,14 +75,6 @@ try {
                   ? "users-upstream"
                   : "full",
           );
-    if (benchmarkProfileEnabled) {
-      const summary = await fetchRemoteProfileSummary();
-      if (summary) {
-        console.log("\nPROFILE SUMMARY");
-        console.log(summary);
-      }
-    }
-
     const metadataHeader = [
       "# PocketBun Upstream-Port Benchmark Probe",
       "",
@@ -139,13 +125,6 @@ try {
     console.log("\nResult body:");
     const resultBody = String(result.result ?? "").trim();
     console.log(resultBody || "(empty)");
-    if (benchmarkProfileEnabled) {
-      const summary = await fetchRemoteProfileSummary();
-      if (summary) {
-        console.log("\nPROFILE SUMMARY");
-        console.log(summary);
-      }
-    }
 
     const metadataHeader = [
       "# PocketBun Upstream-Port Benchmark Result",
@@ -206,29 +185,6 @@ async function resolveBenchmarkRun(overrideFile: string): Promise<string> {
   return "create,auth,search,custom,delete";
 }
 
-async function resolveBooleanOverride(overrideFile: string, defaultValue: boolean): Promise<boolean> {
-  try {
-    const raw = await readFile(overrideFile, "utf8");
-    const firstNonCommentLine = raw
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .find((line) => line !== "" && !line.startsWith("#"));
-
-    const parsed = parseBoolean(firstNonCommentLine);
-    if (parsed !== null) {
-      console.log(`Using boolean override from ${overrideFile}: ${parsed}`);
-      return parsed;
-    }
-  } catch (error) {
-    const errno = error as NodeJS.ErrnoException;
-    if (errno.code !== "ENOENT") {
-      throw error;
-    }
-  }
-
-  return defaultValue;
-}
-
 async function resolveIntOverride(overrideFile: string, defaultValue: number): Promise<number> {
   try {
     const raw = await readFile(overrideFile, "utf8");
@@ -250,20 +206,6 @@ async function resolveIntOverride(overrideFile: string, defaultValue: number): P
   }
 
   return defaultValue;
-}
-
-function parseBoolean(value: string | null | undefined): boolean | null {
-  const normalized = value?.trim().toLowerCase();
-  if (!normalized) {
-    return null;
-  }
-  if (normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on") {
-    return true;
-  }
-  if (normalized === "0" || normalized === "false" || normalized === "no" || normalized === "off") {
-    return false;
-  }
-  return null;
 }
 
 function parseNonNegativeInt(value: string | null | undefined): number | null {
@@ -295,21 +237,6 @@ async function ensureServerReady(): Promise<void> {
   }
 
   throw new Error("PocketBun benchmark server did not become ready in time");
-}
-
-async function resetRemoteProfile(): Promise<void> {
-  const response = await fetch(`${baseUrl}/_bench/profile-reset`, { method: "POST" });
-  if (!response.ok) {
-    throw new Error(`failed to reset benchmark profile: HTTP ${response.status}`);
-  }
-}
-
-async function fetchRemoteProfileSummary(): Promise<string> {
-  const response = await fetch(`${baseUrl}/_bench/profile-summary`);
-  if (!response.ok) {
-    throw new Error(`failed to fetch benchmark profile summary: HTTP ${response.status}`);
-  }
-  return (await response.text()).trim();
 }
 
 async function authSuperuser(): Promise<string> {

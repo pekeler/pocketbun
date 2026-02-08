@@ -3,7 +3,6 @@
 import type { Resolver } from "../hook/event.ts";
 import type { Handler } from "./route.ts";
 import { Hook } from "../hook/hook.ts";
-import { profileEnabled, recordProfile } from "../perf/profile.ts";
 import { ApiError, NewNotFoundError, ToApiError, apiErrorResponse } from "./api_error.ts";
 import { RouterGroup } from "./group.ts";
 
@@ -73,133 +72,102 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
 
     const routes = this.resolveRoutes();
     const routeIndex = buildRouteIndex(routes);
-    const doProfile = profileEnabled();
 
     return async (req: Request, server?: unknown): Promise<Response> => {
-      const totalStart = doProfile ? performance.now() : 0;
+      const url = new URL(req.url);
+      const method = req.method.toUpperCase();
+      // Fallback to localhost when no server is available (ex. buildServeHandler tests).
+      const remoteAddress = getRemoteAddress(req, server) ?? "127.0.0.1:0";
+      const parts = splitPath(url.pathname);
+      const firstSegment = parts[0] ?? "";
+
+      // PocketBun perf deviation (behavior-compatible): avoid per-request candidate list allocations
+      // and only allocate params maps for dynamic route matches.
+      let bestMatch: RouteMatch<E> | null = null;
+
+      const methodMap = routeIndex.byMethod.get(method);
+      bestMatch = considerCandidates(bestMatch, methodMap?.get(firstSegment), method, parts);
+      bestMatch = considerCandidates(bestMatch, methodMap?.get("*"), method, parts);
+
+      if (method === "HEAD") {
+        const getMap = routeIndex.byMethod.get("GET");
+        bestMatch = considerCandidates(bestMatch, getMap?.get(firstSegment), method, parts);
+        bestMatch = considerCandidates(bestMatch, getMap?.get("*"), method, parts);
+      }
+
+      bestMatch = considerCandidates(bestMatch, routeIndex.any.get(firstSegment), method, parts);
+      bestMatch = considerCandidates(bestMatch, routeIndex.any.get("*"), method, parts);
+
+      if (!bestMatch) {
+        return new Response("Not Found", { status: 404 });
+      }
+
+      const { route, params } = bestMatch;
+      const created = factory({
+        request: req,
+        requestUrl: url,
+        params: params ?? {},
+        remoteAddress,
+        pattern: route.pattern,
+      });
+
+      const { event, cleanup } = unwrapEventFactoryResult(created);
+
       try {
-        const matchStart = doProfile ? performance.now() : 0;
-        const url = new URL(req.url);
-        const method = req.method.toUpperCase();
-        // Fallback to localhost when no server is available (ex. buildServeHandler tests).
-        const remoteAddress = getRemoteAddress(req, server) ?? "127.0.0.1:0";
-        const parts = splitPath(url.pathname);
-        const firstSegment = parts[0] ?? "";
+        const result = await route.hook.Trigger(event, route.action);
 
-        // PocketBun perf deviation (behavior-compatible): avoid per-request candidate list allocations
-        // and only allocate params maps for dynamic route matches.
-        let bestMatch: RouteMatch<E> | null = null;
-
-        const methodMap = routeIndex.byMethod.get(method);
-        bestMatch = considerCandidates(bestMatch, methodMap?.get(firstSegment), method, parts);
-        bestMatch = considerCandidates(bestMatch, methodMap?.get("*"), method, parts);
-
-        if (method === "HEAD") {
-          const getMap = routeIndex.byMethod.get("GET");
-          bestMatch = considerCandidates(bestMatch, getMap?.get(firstSegment), method, parts);
-          bestMatch = considerCandidates(bestMatch, getMap?.get("*"), method, parts);
-        }
-
-        bestMatch = considerCandidates(bestMatch, routeIndex.any.get(firstSegment), method, parts);
-        bestMatch = considerCandidates(bestMatch, routeIndex.any.get("*"), method, parts);
-
-        if (!bestMatch) {
-          if (doProfile) {
-            recordProfile("router.match", performance.now() - matchStart);
-          }
-          return new Response("Not Found", { status: 404 });
-        }
-
-        const { route, params } = bestMatch;
-        if (doProfile) {
-          recordProfile("router.match", performance.now() - matchStart);
-        }
-        const created = factory({
-          request: req,
-          requestUrl: url,
-          params: params ?? {},
-          remoteAddress,
-          pattern: route.pattern,
-        });
-
-        const { event, cleanup } = unwrapEventFactoryResult(created);
-
-        const handleStart = doProfile ? performance.now() : 0;
-        try {
-          const result = await route.hook.Trigger(event, route.action);
-
-          if (result instanceof Response) {
-            if (doProfile) {
-              recordProfile("router.handle", performance.now() - handleStart);
-            }
-            if (method === "HEAD") {
-              return new Response(null, {
-                status: result.status,
-                headers: result.headers,
-              });
-            }
-            return result;
-          }
-
-          if (result instanceof ApiError) {
-            if (doProfile) {
-              recordProfile("router.handle", performance.now() - handleStart);
-            }
-            const response = apiErrorResponse(event, result);
-            if (method === "HEAD") {
-              return new Response(null, { status: response.status, headers: response.headers });
-            }
-            return response;
-          }
-
-          if (result instanceof Error) {
-            if (doProfile) {
-              recordProfile("router.handle", performance.now() - handleStart);
-            }
-            const response = apiErrorResponse(event, ToApiError(result));
-            if (method === "HEAD") {
-              return new Response(null, { status: response.status, headers: response.headers });
-            }
-            return response;
-          }
-
-          if (doProfile) {
-            recordProfile("router.handle", performance.now() - handleStart);
-          }
-          const response = new Response(null, { status: 200 });
+        if (result instanceof Response) {
           if (method === "HEAD") {
             return new Response(null, {
-              status: response.status,
-              headers: response.headers,
+              status: result.status,
+              headers: result.headers,
             });
           }
+          return result;
+        }
+
+        if (result instanceof ApiError) {
+          const response = apiErrorResponse(event, result);
+          if (method === "HEAD") {
+            return new Response(null, { status: response.status, headers: response.headers });
+          }
           return response;
-        } catch (error) {
-          if (doProfile) {
-            recordProfile("router.handle", performance.now() - handleStart);
-          }
-          if (error instanceof ApiError) {
-            const response = apiErrorResponse(event, error);
-            if (method === "HEAD") {
-              return new Response(null, { status: response.status, headers: response.headers });
-            }
-            return response;
-          }
-          if (error instanceof Error) {
-            const response = apiErrorResponse(event, ToApiError(error));
-            if (method === "HEAD") {
-              return new Response(null, { status: response.status, headers: response.headers });
-            }
-            return response;
-          }
-          return new Response(null, { status: 500 });
-        } finally {
-          cleanup?.();
         }
+
+        if (result instanceof Error) {
+          const response = apiErrorResponse(event, ToApiError(result));
+          if (method === "HEAD") {
+            return new Response(null, { status: response.status, headers: response.headers });
+          }
+          return response;
+        }
+
+        const response = new Response(null, { status: 200 });
+        if (method === "HEAD") {
+          return new Response(null, {
+            status: response.status,
+            headers: response.headers,
+          });
+        }
+        return response;
+      } catch (error) {
+        if (error instanceof ApiError) {
+          const response = apiErrorResponse(event, error);
+          if (method === "HEAD") {
+            return new Response(null, { status: response.status, headers: response.headers });
+          }
+          return response;
+        }
+        if (error instanceof Error) {
+          const response = apiErrorResponse(event, ToApiError(error));
+          if (method === "HEAD") {
+            return new Response(null, { status: response.status, headers: response.headers });
+          }
+          return response;
+        }
+        return new Response(null, { status: 500 });
       } finally {
-        if (doProfile) {
-          recordProfile("router.total", performance.now() - totalStart);
-        }
+        cleanup?.();
       }
     };
   }
