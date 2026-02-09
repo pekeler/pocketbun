@@ -8,6 +8,7 @@ import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { NextFunc, Resolver } from "../hook/event.ts";
 import { readRequestTextAndRebind } from "../../internal/compat/request_body.ts";
+import { parseMultipartFormData } from "../../internal/compat/request_form_data.ts";
 import { File as FilesystemFile, NewFileFromMultipart } from "../filesystem/file.ts";
 import { Pick } from "../picker/pick.ts";
 import { Store } from "../store/store.ts";
@@ -59,7 +60,9 @@ export type CookieLike = {
 };
 
 type FormDataLike = {
-  entries(): IterableIterator<[string, unknown]>;
+  entries?: () => IterableIterator<[string, unknown]>;
+  forEach?: (cb: (value: unknown, key: string) => void) => void;
+  [Symbol.iterator]?: () => IterableIterator<[string, unknown]>;
 };
 
 type XmlChildNode = {
@@ -205,8 +208,7 @@ export class Event implements Resolver {
   }
 
   async FindUploadedFiles(key: string): Promise<FilesystemFile[]> {
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Bun supports Request.formData() for multipart parsing.
-    const form = await this.request.clone().formData();
+    const form = await parseMultipartFormData(this.request, { preserveBody: true });
     const entries = form.getAll(key);
     if (!entries.length) {
       throw ErrFileNotFound;
@@ -460,8 +462,7 @@ export class Event implements Resolver {
     }
 
     if (contentType.startsWith("multipart/form-data")) {
-      // eslint-disable-next-line @typescript-eslint/no-deprecated -- Bun supports Request.formData() for multipart parsing.
-      const form = await this.request.clone().formData();
+      const form = await parseMultipartFormData(this.request, { preserveBody: true });
       const data = collectFormData(form);
       const err = unmarshalRequestData(data, target as Record<string, unknown>);
       if (err) {
@@ -696,14 +697,54 @@ function expandIPv6(input: string): string | null {
 
 function collectFormData(form: FormDataLike): Record<string, string[]> {
   const data: Record<string, string[]> = {};
-  for (const [key, value] of form.entries()) {
+  const appendValue = (key: string, value: unknown): void => {
     if (typeof value !== "string") {
-      continue;
+      return;
     }
     data[key] = data[key] ?? [];
     data[key]?.push(value);
+  };
+
+  let lastError: Error | null = null;
+
+  if (typeof form.forEach === "function") {
+    try {
+      form.forEach((value, key) => {
+        appendValue(key, value);
+      });
+      return data;
+    } catch (error) {
+      lastError = error as Error;
+    }
   }
-  return data;
+
+  if (typeof form.entries === "function") {
+    try {
+      for (const [key, value] of form.entries()) {
+        appendValue(key, value);
+      }
+      return data;
+    } catch (error) {
+      lastError = error as Error;
+    }
+  }
+
+  if (typeof form[Symbol.iterator] === "function") {
+    try {
+      for (const [key, value] of form as unknown as Iterable<[string, unknown]>) {
+        appendValue(key, value);
+      }
+      return data;
+    } catch (error) {
+      lastError = error as Error;
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+
+  throw new TypeError("invalid multipart form data object");
 }
 
 function parseXmlBody(raw: string): Record<string, string[]> {

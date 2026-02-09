@@ -1038,6 +1038,49 @@ describe("migratecmd automigrate", () => {
     }
   });
 
+  it("collection create preserves response result", async () => {
+    const { app, cleanup } = await newTestApp();
+
+    const migrationsDir = join(app.DataDir(), "_test_migrations");
+
+    MustRegister(app, null, {
+      TemplateLang: TemplateLangJS,
+      Automigrate: true,
+      Dir: migrationsDir,
+    });
+    app.bootstrap();
+
+    const collection = NewAuthCollection("response_passthrough");
+
+    const requestEvent = new RequestEvent({ app, request: new Request("http://127.0.0.1") });
+    const event = new CollectionRequestEvent(requestEvent, collection);
+    const result = await app.OnCollectionCreateRequest().Trigger(event, async (e) => {
+      const saveErr = await e.App.Save(e.Collection);
+      if (saveErr) {
+        return saveErr;
+      }
+      return e.RequestEvent.json(200, { ok: true });
+    });
+
+    if (!(result instanceof Response)) {
+      throw new Error(`Expected hook chain result to be Response, got ${String(result)}`);
+    }
+    if (result.status !== 200) {
+      throw new Error(`Expected response status 200, got ${result.status}`);
+    }
+    const body = await result.text();
+    if (!body.includes('"ok":true')) {
+      throw new Error(`Expected response body to include ok=true, got ${body}`);
+    }
+
+    const files = await readdir(migrationsDir, { withFileTypes: true });
+    if (files.length !== 1) {
+      throw new Error(`Expected 1 file to be generated, got ${files.length}`);
+    }
+
+    await cleanup();
+  });
+
   it("collection delete", async () => {
     const scenarios = [
       { lang: TemplateLangJS, expectedTemplate: deleteExpectedJS },

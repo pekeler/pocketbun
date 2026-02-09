@@ -1,0 +1,9 @@
+# Keep local examples and dev artifacts out of file/tar installs.
+examples/
+pb_data/
+.upstream/
+benchmarks/
+scripts/
+docs/
+node_modules/
+*.log

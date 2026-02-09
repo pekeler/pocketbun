@@ -10,6 +10,7 @@ import { JSONField } from "../core/field_json.ts";
 import { NewRecord } from "../core/record_model.ts";
 import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 import { MockMultipartData } from "../tests/request.ts";
+import { Event } from "../tools/router/event.ts";
 import { JSONPayloadKey } from "../tools/router/unmarshal_request_data.ts";
 import { Pointer } from "../tools/types/types.ts";
 import { DefaultMaxBodySize } from "./middlewares_body_limit.ts";
@@ -30,6 +31,9 @@ const createMultipart = await MockMultipartData(
   },
   "files",
 );
+const createMultipartNoFiles = await MockMultipartData({
+  title: "title_multipart_no_files",
+});
 const createMultipartRuleFail = await MockMultipartData(
   {
     [JSONPayloadKey]: `{"title": "title_test2", "testPayload": 123}`,
@@ -681,6 +685,54 @@ describe("record CRUD list", () => {
       await runApiScenario(scenario);
     });
   }
+});
+
+describe("record CRUD fallback regressions", () => {
+  it("create succeeds when multipart requestInfo parsing fails once", async () => {
+    let restoreBindBody: () => void = () => {};
+    try {
+      await runApiScenario({
+        name: "multipart requestInfo fallback remains usable for enrich",
+        method: "POST",
+        url: "/api/collections/demo2/records",
+        body: createMultipartNoFiles.body,
+        headers: {
+          "Content-Type": createMultipartNoFiles.contentType,
+        },
+        beforeTest: async () => {
+          // eslint-disable-next-line @typescript-eslint/unbound-method -- capture original prototype method for temporary patching.
+          const originalBindBody = Event.prototype.bindBody;
+          Event.prototype.bindBody = async function patchedBindBody(this: Event, target: object): Promise<void> {
+            const contentType = (this.request.headers.get("content-type") ?? "").toLowerCase();
+            if (contentType.startsWith("multipart/form-data")) {
+              throw new TypeError("undefined is not a function");
+            }
+            return originalBindBody.call(this, target);
+          };
+          restoreBindBody = () => {
+            Event.prototype.bindBody = originalBindBody;
+          };
+        },
+        expectedStatus: 200,
+        expectedContent: ['"id":"', '"title":"title_multipart_no_files"', '"active":false'],
+        expectedEvents: {
+          "*": 0,
+          OnRecordCreateRequest: 1,
+          OnModelCreate: 1,
+          OnModelCreateExecute: 1,
+          OnModelAfterCreateSuccess: 1,
+          OnRecordCreate: 1,
+          OnRecordCreateExecute: 1,
+          OnRecordAfterCreateSuccess: 1,
+          OnModelValidate: 1,
+          OnRecordValidate: 1,
+          OnRecordEnrich: 1,
+        },
+      });
+    } finally {
+      restoreBindBody();
+    }
+  });
 });
 
 describe("record CRUD view", () => {
@@ -1405,6 +1457,32 @@ describe("record CRUD create", () => {
       body: `{"title":"new"}`,
       expectedStatus: 200,
       expectedContent: ['"id":', '"title":"new"', '"active":false'],
+      expectedEvents: {
+        "*": 0,
+        OnRecordCreateRequest: 1,
+        OnModelCreate: 1,
+        OnModelCreateExecute: 1,
+        OnModelAfterCreateSuccess: 1,
+        OnRecordCreate: 1,
+        OnRecordCreateExecute: 1,
+        OnRecordAfterCreateSuccess: 1,
+        OnModelValidate: 1,
+        OnRecordValidate: 1,
+        OnRecordEnrich: 1,
+      },
+    },
+    {
+      // PocketBun-only regression test:
+      // avoid reparsing multipart request bodies for collections without file fields.
+      name: "submit multipart body in no-file collection",
+      method: "POST",
+      url: "/api/collections/demo2/records",
+      body: createMultipartNoFiles.body,
+      headers: {
+        "Content-Type": createMultipartNoFiles.contentType,
+      },
+      expectedStatus: 200,
+      expectedContent: ['"id":"', '"title":"title_multipart_no_files"', '"active":false'],
       expectedEvents: {
         "*": 0,
         OnRecordCreateRequest: 1,

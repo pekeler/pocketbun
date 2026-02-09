@@ -230,7 +230,7 @@ export class MigrateCmdPlugin {
     return await this.migrateCreateHandler(template, createArgs, interactive);
   }
 
-  automigrateOnCollectionChange(e: Parameters<typeof automigrateOnCollectionChange>[1]): Promise<Error | null> {
+  automigrateOnCollectionChange(e: Parameters<typeof automigrateOnCollectionChange>[1]): Promise<Error | Response | null> {
     return automigrateOnCollectionChange(this, e);
   }
 }

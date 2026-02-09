@@ -214,4 +214,47 @@ describe("RequestEvent", () => {
       await cleanup();
     }
   });
+
+  it("setRequestInfo preloads cached request info", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const userCol = app.findCollectionByNameOrId("users");
+      expect(userCol).toBeTruthy();
+      if (!userCol) {
+        return;
+      }
+
+      const user = NewRecord(userCol);
+      user.id = "user_set_request_info";
+      user.SetEmail("set-request-info@example.com");
+
+      const request = new Request("http://example.com/test?q=from-url", {
+        method: "POST",
+        headers: { "content-type": "multipart/form-data; boundary=test" },
+        body: "--test--",
+      });
+
+      const event = new RequestEvent({ app, request });
+      event.Set(RequestEventKeyInfoContext, "test-context");
+      event.auth = user;
+
+      event.setRequestInfo({
+        query: { q: "from-fallback" },
+        headers: { content_type: "multipart/form-data; boundary=test" },
+        body: { title: "fallback-title" },
+        auth: null,
+        method: "POST",
+        context: "fallback-context",
+      });
+
+      const info = await event.requestInfo();
+      expect(info.query).toEqual({ q: "from-fallback" });
+      expect(info.headers).toEqual({ content_type: "multipart/form-data; boundary=test" });
+      expect(info.body).toEqual({ title: "fallback-title" });
+      expect(info.auth?.Id).toBe("user_set_request_info");
+      expect(info.context).toBe("test-context");
+    } finally {
+      await cleanup();
+    }
+  });
 });

@@ -16,7 +16,10 @@ export type PluginContext = {
 
 // automigrateOnCollectionChange handles the automigration snapshot
 // generation on collection change request event (create/update/delete).
-export async function automigrateOnCollectionChange(p: PluginContext, e: CollectionRequestEvent): Promise<Error | null> {
+export async function automigrateOnCollectionChange(
+  p: PluginContext,
+  e: CollectionRequestEvent,
+): Promise<Error | Response | null> {
   let err: Error | null = null;
   let oldCollection: Collection | null = null;
 
@@ -86,7 +89,7 @@ export async function automigrateOnCollectionChange(p: PluginContext, e: Collect
   const fileName = `${Math.floor(Date.now() / 1000)}_${action}.${p.config.TemplateLang}`;
   const filePath = join(dir, fileName);
 
-  return await p.app.RunInTransaction(async (txApp) => {
+  const txErr = await p.app.RunInTransaction(async (txApp) => {
     try {
       txApp
         .db()
@@ -111,6 +114,15 @@ export async function automigrateOnCollectionChange(p: PluginContext, e: Collect
 
     return null;
   });
+
+  if (txErr) {
+    return txErr;
+  }
+
+  // Deviation: Request hooks in PocketBun may return Response values.
+  // Preserve the original successful result so API handlers don't fall back
+  // to generic error responses after automigrate completes.
+  return nextResult instanceof Response ? nextResult : null;
 }
 
 function normalizeCollectionName(name: string): string {

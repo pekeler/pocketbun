@@ -184,6 +184,17 @@ export class RequestEvent extends Event {
     this.#stopSignal = signal;
   }
 
+  // setRequestInfo pre-populates the cached request info.
+  // This is used by multipart fallback paths to avoid reparsing the request body.
+  setRequestInfo(info: RequestInfo): void {
+    this.#cachedRequestInfo = info;
+    this.#cachedBody = info.body;
+  }
+
+  SetRequestInfo(info: RequestInfo): void {
+    this.setRequestInfo(info);
+  }
+
   getStopSignal(): { stopped: boolean; error?: Error } | null {
     return this.#stopSignal;
   }

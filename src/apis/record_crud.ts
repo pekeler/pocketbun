@@ -6,13 +6,14 @@ import type { App } from "../core/app.ts";
 import type { RequestEvent, RequestInfo } from "../core/event_request.ts";
 import type { RouterGroup } from "../tools/router/group.ts";
 import { Collection } from "../core/collection_model.ts";
-import { RequestInfoContextOAuth2 } from "../core/event_request.ts";
+import { RequestEventKeyInfoContext, RequestInfoContextDefault, RequestInfoContextOAuth2 } from "../core/event_request.ts";
 import { RecordRequestEvent, RecordsListRequestEvent } from "../core/events.ts";
 import { FieldTypeFile } from "../core/field_file.ts";
 import { PasswordFieldValue } from "../core/field_password.ts";
 import { RecordFieldResolver } from "../core/record_field_resolver.ts";
 import { FieldNamePassword, NewRecord, Record as RecordModel, type RecordData } from "../core/record_model.ts";
 import { RecordUpsert } from "../forms/record_upsert.ts";
+import { parseMultipartFormData } from "../internal/compat/request_form_data.ts";
 import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";
 import { NewFileFromBytes, type File as LocalFile } from "../tools/filesystem/file.ts";
 import { columnify } from "../tools/inflector/inflector.ts";
@@ -49,7 +50,13 @@ type RequestLike = {
   headers: { get: (name: string) => string | null };
   body: unknown;
   text: () => Promise<string>;
-  formData: () => Promise<{ entries: () => IterableIterator<[string, unknown]> }>;
+  formData: () => Promise<FormDataLike>;
+};
+
+type FormDataLike = {
+  entries?: () => IterableIterator<[string, unknown]>;
+  forEach?: (cb: (value: unknown, key: string) => void) => void;
+  [Symbol.iterator]?: () => IterableIterator<[string, unknown]>;
 };
 
 type BenchFastListEntry = {
@@ -462,14 +469,65 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
   }
 
   let requestInfo: RequestInfo;
+  let forceMultipartParse = false;
   try {
     requestInfo = await event.requestInfo();
   } catch (error) {
-    return badRequest(event, "Failed to read the submitted data.", error as Error);
+    const fallbackInfo = fallbackRequestInfoForMultipart(event);
+    if (fallbackInfo) {
+      if (app.IsDev()) {
+        app
+          .Logger()
+          .Error(
+            "Record create requestInfo fallback for multipart body",
+            "collectionId",
+            collection.id,
+            "contentType",
+            event.request.headers.get("content-type") ?? "",
+            "error",
+            error instanceof Error ? error.message : String(error),
+          );
+      }
+      requestInfo = fallbackInfo;
+      event.setRequestInfo(fallbackInfo);
+      forceMultipartParse = true;
+    } else {
+      if (app.IsDev()) {
+        app
+          .Logger()
+          .Error(
+            "Record create request body parse error",
+            "collectionId",
+            collection.id,
+            "contentType",
+            event.request.headers.get("content-type") ?? "",
+            "error",
+            error instanceof Error ? error.message : String(error),
+            "stack",
+            error instanceof Error ? (error.stack ?? "") : "",
+          );
+      }
+      return badRequest(event, "Failed to read the submitted data.", error as Error);
+    }
   }
 
-  const parsed = await parseRequestData(event.request, requestInfo.body);
+  const parsed = await parseRequestData(event.request, requestInfo.body, hasFileUploadFields(collection), forceMultipartParse);
   if (parsed.error) {
+    if (app.IsDev()) {
+      app
+        .Logger()
+        .Error(
+          "Record create request data parse error",
+          "collectionId",
+          collection.id,
+          "contentType",
+          event.request.headers.get("content-type") ?? "",
+          "error",
+          parsed.error.message,
+          "stack",
+          parsed.error.stack ?? "",
+        );
+    }
     return badRequest(event, "Failed to read the submitted data.", parsed.error);
   }
 
@@ -623,14 +681,65 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
   }
 
   let requestInfo: RequestInfo;
+  let forceMultipartParse = false;
   try {
     requestInfo = await event.requestInfo();
   } catch (error) {
-    return badRequest(event, "Failed to read the submitted data.", error as Error);
+    const fallbackInfo = fallbackRequestInfoForMultipart(event);
+    if (fallbackInfo) {
+      if (app.IsDev()) {
+        app
+          .Logger()
+          .Error(
+            "Record update requestInfo fallback for multipart body",
+            "collectionId",
+            collection.id,
+            "contentType",
+            event.request.headers.get("content-type") ?? "",
+            "error",
+            error instanceof Error ? error.message : String(error),
+          );
+      }
+      requestInfo = fallbackInfo;
+      event.setRequestInfo(fallbackInfo);
+      forceMultipartParse = true;
+    } else {
+      if (app.IsDev()) {
+        app
+          .Logger()
+          .Error(
+            "Record update request body parse error",
+            "collectionId",
+            collection.id,
+            "contentType",
+            event.request.headers.get("content-type") ?? "",
+            "error",
+            error instanceof Error ? error.message : String(error),
+            "stack",
+            error instanceof Error ? (error.stack ?? "") : "",
+          );
+      }
+      return badRequest(event, "Failed to read the submitted data.", error as Error);
+    }
   }
 
-  const parsed = await parseRequestData(event.request, requestInfo.body);
+  const parsed = await parseRequestData(event.request, requestInfo.body, hasFileUploadFields(collection), forceMultipartParse);
   if (parsed.error) {
+    if (app.IsDev()) {
+      app
+        .Logger()
+        .Error(
+          "Record update request data parse error",
+          "collectionId",
+          collection.id,
+          "contentType",
+          event.request.headers.get("content-type") ?? "",
+          "error",
+          parsed.error.message,
+          "stack",
+          parsed.error.stack ?? "",
+        );
+    }
     return badRequest(event, "Failed to read the submitted data.", parsed.error);
   }
 
@@ -794,12 +903,14 @@ export async function recordDelete(app: App, event: RequestEvent): Promise<Respo
 async function parseRequestData(
   request: RequestLike,
   preboundBody: Record<string, unknown> | null = null,
+  parseMultipartFiles = true,
+  forceMultipartParse = false,
 ): Promise<ParsedRequestData> {
   const rawContentType = request.headers.get("content-type") ?? "";
-  if (preboundBody && !rawContentType.toLowerCase().includes("multipart/form-data")) {
+  const contentType = rawContentType.toLowerCase();
+  if (preboundBody && !contentType.includes("multipart/form-data")) {
     return { data: preboundBody as RecordData, files: emptyUploadedFiles, error: null };
   }
-  const contentType = rawContentType.toLowerCase();
 
   if (!request.body) {
     return { data: {}, files: emptyUploadedFiles, error: null };
@@ -822,33 +933,43 @@ async function parseRequestData(
   }
 
   if (contentType.includes("multipart/form-data")) {
-    const files = new Map<string, LocalFile[]>();
-    const form = await request.formData();
-    const raw: Record<string, string[]> = {};
+    const usePreboundMultipartBody = Boolean(preboundBody) && !forceMultipartParse;
+    if (usePreboundMultipartBody && !parseMultipartFiles) {
+      // Deviation: for non-file collections we already have the parsed multipart body from RequestInfo().
+      // Skipping the second multipart parse avoids unnecessary overhead and Bun stream edge cases.
+      return { data: preboundBody as RecordData, files: emptyUploadedFiles, error: null };
+    }
 
-    for (const [key, value] of form.entries()) {
+    const files = new Map<string, LocalFile[]>();
+    let form: FormDataLike;
+    try {
+      form = await parseMultipartFormData(request as unknown as Request);
+    } catch (error) {
+      return { data: {}, files, error: error as Error };
+    }
+    const raw: Record<string, string[]> = {};
+    const iterateErr = await forEachFormDataEntry(form, async (key, value) => {
       if (typeof value === "string") {
-        if (!preboundBody) {
+        if (!usePreboundMultipartBody) {
           (raw[key] ??= []).push(value);
         }
-        continue;
+        return;
       }
 
       const fileLike = value as { arrayBuffer?: () => Promise<ArrayBuffer>; name?: string };
       if (typeof fileLike.arrayBuffer === "function" && typeof fileLike.name === "string") {
-        try {
-          const buffer = new Uint8Array(await fileLike.arrayBuffer());
-          const local = NewFileFromBytes(buffer, fileLike.name);
-          const current = files.get(key) ?? [];
-          current.push(local);
-          files.set(key, current);
-        } catch (error) {
-          return { data: {}, files, error: error as Error };
-        }
+        const buffer = new Uint8Array(await fileLike.arrayBuffer());
+        const local = NewFileFromBytes(buffer, fileLike.name);
+        const current = files.get(key) ?? [];
+        current.push(local);
+        files.set(key, current);
       }
+    });
+    if (iterateErr) {
+      return { data: {}, files, error: iterateErr };
     }
 
-    if (preboundBody) {
+    if (usePreboundMultipartBody) {
       return { data: preboundBody as RecordData, files, error: null };
     }
 
@@ -884,6 +1005,110 @@ async function parseRequestData(
   }
 
   return { data: {}, files: emptyUploadedFiles, error: new Error("unsupported content type") };
+}
+
+async function forEachFormDataEntry(
+  form: FormDataLike,
+  fn: (key: string, value: unknown) => Promise<void>,
+): Promise<Error | null> {
+  let lastError: Error | null = null;
+
+  if (typeof form.forEach === "function") {
+    try {
+      const pending: Promise<void>[] = [];
+      form.forEach((value, key) => {
+        pending.push(fn(key, value));
+      });
+      await Promise.all(pending);
+      return null;
+    } catch (error) {
+      lastError = error as Error;
+    }
+  }
+
+  if (typeof form.entries === "function") {
+    try {
+      for (const [key, value] of form.entries()) {
+        await fn(key, value);
+      }
+      return null;
+    } catch (error) {
+      lastError = error as Error;
+    }
+  }
+
+  if (typeof form[Symbol.iterator] === "function") {
+    try {
+      for (const [key, value] of form as unknown as Iterable<[string, unknown]>) {
+        await fn(key, value);
+      }
+      return null;
+    } catch (error) {
+      lastError = error as Error;
+    }
+  }
+
+  if (lastError) {
+    return lastError;
+  }
+
+  return new TypeError("invalid multipart form data object");
+}
+
+function hasFileUploadFields(collection: Collection): boolean {
+  for (const field of collection.Fields) {
+    if (typeof field.Type === "function" && field.Type() === FieldTypeFile) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function fallbackRequestInfoForMultipart(event: RequestEvent): RequestInfo | null {
+  const contentType = (event.request.headers.get("content-type") ?? "").toLowerCase();
+  if (!contentType.startsWith("multipart/form-data")) {
+    return null;
+  }
+
+  const infoContextRaw = event.Get(RequestEventKeyInfoContext);
+  const context = typeof infoContextRaw === "string" && infoContextRaw !== "" ? infoContextRaw : RequestInfoContextDefault;
+
+  return {
+    query: fallbackRequestInfoQuery(event.requestUrl().searchParams),
+    headers: fallbackRequestInfoHeaders(event.request.headers),
+    body: {},
+    auth: event.auth,
+    method: event.request.method,
+    context,
+  };
+}
+
+function fallbackRequestInfoQuery(searchParams: URLSearchParams): Record<string, string> {
+  const query: Record<string, string> = {};
+  for (const [key, value] of searchParams.entries()) {
+    if (!(key in query)) {
+      query[key] = value;
+    }
+  }
+  return query;
+}
+
+function fallbackRequestInfoHeaders(headers: Headers): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, value] of headers.entries()) {
+    if (!value) {
+      continue;
+    }
+    const normalizedKey = key
+      .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+      .replace(/[-\s]+/g, "_")
+      .toLowerCase();
+    if (!normalizedKey) {
+      continue;
+    }
+    result[normalizedKey] = value;
+  }
+  return result;
 }
 
 export function resolveRecordData(

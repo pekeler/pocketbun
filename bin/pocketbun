@@ -1,7 +1,9 @@
 #!/usr/bin/env bun
 // PocketBun-only: Bun CLI entrypoint that mirrors the PocketBase binary interface.
+// In local development, prefer source to avoid stale dist artifacts between edits.
 
-import { main } from "../dist/src/cli.js";
+const cliModule = await import("../src/cli.ts").catch(async () => import("../dist/src/cli.js"));
+const main = (cliModule as { main: () => Promise<void> }).main;
 
 try {
   await main();
