@@ -7,16 +7,17 @@ cd "$ROOT_DIR"
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/release.sh check
-  bash scripts/release.sh dry-run
-  bash scripts/release.sh publish [--push-tags] [--no-tags]
+  bash scripts/release.sh check [--package <target>]
+  bash scripts/release.sh dry-run [--package <target>]
+  bash scripts/release.sh publish [--package <target>] [--push-tags] [--no-tags]
 
 Commands:
   check     Run release checks only.
-  dry-run   Run checks + npm publish dry-run for pocketbun and create-pocketbun.
-  publish   Run checks + publish both packages (+ create git tags by default).
+  dry-run   Run checks + npm publish dry-run for selected package(s).
+  publish   Run checks + publish selected package(s) (+ create git tags by default).
 
 Options:
+  --package    Release target: pocketbun, create-pocketbun, both (default: pocketbun).
   --push-tags  Push created release tags to origin (publish only).
   --no-tags    Skip git tag creation (publish only).
 EOF
@@ -32,9 +33,19 @@ shift
 
 PUSH_TAGS=0
 CREATE_TAGS=1
+RELEASE_TARGET="pocketbun"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --package)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --package" >&2
+        usage
+        exit 1
+      fi
+      RELEASE_TARGET="$2"
+      shift 2
+      ;;
     --push-tags)
       PUSH_TAGS=1
       shift
@@ -53,6 +64,12 @@ done
 
 if [[ "$MODE" != "check" && "$MODE" != "dry-run" && "$MODE" != "publish" ]]; then
   echo "Unknown command: $MODE" >&2
+  usage
+  exit 1
+fi
+
+if [[ "$RELEASE_TARGET" != "pocketbun" && "$RELEASE_TARGET" != "create-pocketbun" && "$RELEASE_TARGET" != "both" ]]; then
+  echo "Unknown --package target: $RELEASE_TARGET" >&2
   usage
   exit 1
 fi
@@ -90,25 +107,34 @@ publish_package() {
   popd >/dev/null
 }
 
-create_tags() {
-  local main_tag="$1"
-  local create_tag="$2"
+should_release_pocketbun() {
+  [[ "$RELEASE_TARGET" == "pocketbun" || "$RELEASE_TARGET" == "both" ]]
+}
 
-  if git rev-parse -q --verify "refs/tags/$main_tag" >/dev/null; then
-    echo "Tag already exists: $main_tag" >&2
-    exit 1
-  fi
-  if git rev-parse -q --verify "refs/tags/$create_tag" >/dev/null; then
-    echo "Tag already exists: $create_tag" >&2
-    exit 1
+should_release_create() {
+  [[ "$RELEASE_TARGET" == "create-pocketbun" || "$RELEASE_TARGET" == "both" ]]
+}
+
+create_tags_and_maybe_push() {
+  local tags=("$@")
+  if [[ ${#tags[@]} -eq 0 ]]; then
+    return 0
   fi
 
-  git tag "$main_tag"
-  git tag "$create_tag"
-  echo "Created tags: $main_tag, $create_tag"
+  for tag in "${tags[@]}"; do
+    if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+      echo "Tag already exists: $tag" >&2
+      exit 1
+    fi
+  done
+
+  for tag in "${tags[@]}"; do
+    git tag "$tag"
+  done
+  echo "Created tags: ${tags[*]}"
 
   if [[ "$PUSH_TAGS" -eq 1 ]]; then
-    git push origin "$main_tag" "$create_tag"
+    git push origin "${tags[@]}"
     echo "Pushed tags to origin."
   fi
 }
@@ -122,28 +148,58 @@ fi
 ensure_clean_tree
 run_checks
 
-MAIN_VERSION="$(package_version "package.json")"
-CREATE_VERSION="$(package_version "create-pocketbun/package.json")"
-MAIN_TAG="v${MAIN_VERSION}"
-CREATE_TAG="create-pocketbun-v${CREATE_VERSION}"
+MAIN_VERSION=""
+CREATE_VERSION=""
+MAIN_TAG=""
+CREATE_TAG=""
+
+if should_release_pocketbun; then
+  MAIN_VERSION="$(package_version "package.json")"
+  MAIN_TAG="v${MAIN_VERSION}"
+fi
+
+if should_release_create; then
+  CREATE_VERSION="$(package_version "create-pocketbun/package.json")"
+  CREATE_TAG="create-pocketbun-v${CREATE_VERSION}"
+fi
+
+declare -a TAGS_TO_CREATE=()
+if [[ "$CREATE_TAGS" -eq 1 ]]; then
+  if [[ -n "$MAIN_TAG" ]]; then
+    TAGS_TO_CREATE+=("$MAIN_TAG")
+  fi
+  if [[ -n "$CREATE_TAG" ]]; then
+    TAGS_TO_CREATE+=("$CREATE_TAG")
+  fi
+fi
 
 if [[ "$MODE" == "dry-run" ]]; then
-  echo "==> Dry-run publishing pocketbun@$MAIN_VERSION"
-  publish_package "$ROOT_DIR" 1
-  echo "==> Dry-run publishing create-pocketbun@$CREATE_VERSION"
-  publish_package "$ROOT_DIR/create-pocketbun" 1
+  if should_release_pocketbun; then
+    echo "==> Dry-run publishing pocketbun@$MAIN_VERSION"
+    publish_package "$ROOT_DIR" 1
+  fi
+  if should_release_create; then
+    echo "==> Dry-run publishing create-pocketbun@$CREATE_VERSION"
+    publish_package "$ROOT_DIR/create-pocketbun" 1
+  fi
   echo "Dry-run complete."
-  echo "Would tag release as: $MAIN_TAG and $CREATE_TAG"
+  if [[ ${#TAGS_TO_CREATE[@]} -gt 0 ]]; then
+    echo "Would tag release as: ${TAGS_TO_CREATE[*]}"
+  else
+    echo "Tag creation is disabled (--no-tags)."
+  fi
   exit 0
 fi
 
-echo "==> Publishing pocketbun@$MAIN_VERSION"
-publish_package "$ROOT_DIR" 0
-echo "==> Publishing create-pocketbun@$CREATE_VERSION"
-publish_package "$ROOT_DIR/create-pocketbun" 0
-
-if [[ "$CREATE_TAGS" -eq 1 ]]; then
-  create_tags "$MAIN_TAG" "$CREATE_TAG"
+if should_release_pocketbun; then
+  echo "==> Publishing pocketbun@$MAIN_VERSION"
+  publish_package "$ROOT_DIR" 0
 fi
+if should_release_create; then
+  echo "==> Publishing create-pocketbun@$CREATE_VERSION"
+  publish_package "$ROOT_DIR/create-pocketbun" 0
+fi
+
+create_tags_and_maybe_push "${TAGS_TO_CREATE[@]}"
 
 echo "Release complete."
