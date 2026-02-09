@@ -9,7 +9,7 @@ usage() {
 Usage:
   bash scripts/release.sh check [--package <target>]
   bash scripts/release.sh dry-run [--package <target>]
-  bash scripts/release.sh publish [--package <target>] [--push-tags] [--no-tags]
+  bash scripts/release.sh publish [--package <target>] [--tag <dist-tag>] [--push-tags] [--no-tags]
 
 Commands:
   check     Run release checks only.
@@ -18,6 +18,7 @@ Commands:
 
 Options:
   --package    Release target: pocketbun, create-pocketbun, both (default: pocketbun).
+  --tag        npm dist-tag to publish under (default: latest).
   --push-tags  Push created release tags to origin (publish only).
   --no-tags    Skip git tag creation (publish only).
 EOF
@@ -34,6 +35,7 @@ shift
 PUSH_TAGS=0
 CREATE_TAGS=1
 RELEASE_TARGET="pocketbun"
+NPM_DIST_TAG="latest"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -49,6 +51,15 @@ while [[ $# -gt 0 ]]; do
     --push-tags)
       PUSH_TAGS=1
       shift
+      ;;
+    --tag)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --tag" >&2
+        usage
+        exit 1
+      fi
+      NPM_DIST_TAG="$2"
+      shift 2
       ;;
     --no-tags)
       CREATE_TAGS=0
@@ -100,9 +111,9 @@ publish_package() {
   local dry_run="$2"
   pushd "$package_dir" >/dev/null
   if [[ "$dry_run" -eq 1 ]]; then
-    npm publish --access public --dry-run
+    npm publish --access public --tag "$NPM_DIST_TAG" --dry-run
   else
-    npm publish --access public
+    npm publish --access public --tag "$NPM_DIST_TAG"
   fi
   popd >/dev/null
 }
