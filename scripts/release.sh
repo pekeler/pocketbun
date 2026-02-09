@@ -5,309 +5,256 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 usage() {
-  cat <<'EOF'
+  cat <<'USAGE'
 Usage:
-  bash scripts/release.sh check [--package <target>]
-  bash scripts/release.sh dry-run [--package <target>] [--with-checks]
-  bash scripts/release.sh publish [--package <target>] [--tag <dist-tag>] [--with-checks] [--push-tags] [--no-tags]
-
-Commands:
-  check     Run release checks only.
-  dry-run   npm publish dry-run for selected package(s) (checks are optional).
-  publish   Publish selected package(s) (+ create git tags by default; checks are optional).
-
-Options:
-  --package    Release target: pocketbun, create-pocketbun, both (default: pocketbun).
-  --tag        npm dist-tag to publish under (default: latest).
-  --with-checks  Run full checks before dry-run/publish.
-  --push-tags  Push created release tags to origin (publish only).
-  --no-tags    Skip git tag creation (publish only).
-EOF
+  bash scripts/release.sh dry <pocketbun|create-pocketbun>
+  bash scripts/release.sh publish <pocketbun|create-pocketbun>
+USAGE
 }
 
-if [[ $# -lt 1 ]]; then
-  usage
-  exit 1
-fi
-
-MODE="$1"
-shift
-
-PUSH_TAGS=0
-CREATE_TAGS=1
-RELEASE_TARGET="pocketbun"
-NPM_DIST_TAG="latest"
-RUN_CHECKS=0
-
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --package)
-      if [[ $# -lt 2 ]]; then
-        echo "Missing value for --package" >&2
-        usage
-        exit 1
-      fi
-      RELEASE_TARGET="$2"
-      shift 2
-      ;;
-    --push-tags)
-      PUSH_TAGS=1
-      shift
-      ;;
-    --tag)
-      if [[ $# -lt 2 ]]; then
-        echo "Missing value for --tag" >&2
-        usage
-        exit 1
-      fi
-      NPM_DIST_TAG="$2"
-      shift 2
-      ;;
-    --with-checks)
-      RUN_CHECKS=1
-      shift
-      ;;
-    --no-tags)
-      CREATE_TAGS=0
-      shift
-      ;;
-    *)
-      echo "Unknown option: $1" >&2
-      usage
-      exit 1
-      ;;
-  esac
-done
-
-if [[ "$MODE" != "check" && "$MODE" != "dry-run" && "$MODE" != "publish" ]]; then
-  echo "Unknown command: $MODE" >&2
-  usage
-  exit 1
-fi
-
-if [[ "$RELEASE_TARGET" != "pocketbun" && "$RELEASE_TARGET" != "create-pocketbun" && "$RELEASE_TARGET" != "both" ]]; then
-  echo "Unknown --package target: $RELEASE_TARGET" >&2
-  usage
-  exit 1
-fi
+json_field() {
+  local file="$1"
+  local field="$2"
+  bun --eval "const data=JSON.parse(await Bun.file(\"$file\").text()); console.log(data[\"$field\"]);"
+}
 
 ensure_clean_tree() {
   if ! git diff --quiet || ! git diff --cached --quiet; then
-    echo "Working tree must be clean for release operations." >&2
+    echo "Release blocked: working tree must be clean." >&2
     git status --short
     exit 1
   fi
 }
 
-run_checks() {
-  echo "==> Running release checks"
-  bun run format:fix
-  bun test --concurrent
-  bun run typecheck
-  bun run lint
-}
-
-next_pocketbun_version() {
-  local version="$1"
-  if [[ "$version" =~ ^([0-9]+\.[0-9]+\.[0-9]+-pocketbun\.)([0-9]+)$ ]]; then
-    local prefix="${BASH_REMATCH[1]}"
-    local patch="${BASH_REMATCH[2]}"
-    echo "${prefix}$((patch + 1))"
-    return 0
+ensure_unpublished() {
+  local name="$1"
+  local version="$2"
+  if npm view "${name}@${version}" version >/dev/null 2>&1; then
+    echo "Release blocked: ${name}@${version} already exists on npm." >&2
+    echo "Bump package.json version first." >&2
+    exit 1
   fi
-
-  echo "Cannot derive next pocketbun version from: $version" >&2
-  return 1
 }
 
-update_changelog_for_release() {
-  local version="$1"
-  local changelog_file="CHANGELOG.md"
-  local release_date
-  release_date="$(date -u +%Y-%m-%d)"
-  local next_version
-  next_version="$(next_pocketbun_version "$version")"
+ensure_tag_missing() {
+  local tag="$1"
+  if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+    echo "Release blocked: tag already exists: $tag" >&2
+    exit 1
+  fi
+}
 
-  if [[ ! -f "$changelog_file" ]]; then
-    echo "Missing $changelog_file; cannot update changelog automatically." >&2
+ensure_changelog_ready() {
+  local version="$1"
+  local header="## ${version} (Unreleased)"
+
+  if [[ ! -f CHANGELOG.md ]]; then
+    echo "Release blocked: CHANGELOG.md is missing." >&2
     exit 1
   fi
 
-  bun --eval '
-const [file, version, date, next] = process.argv.slice(2);
-
-const escape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const releaseHeader = `## ${version} - ${date}`;
-const unreleasedHeader = `## ${version} (Unreleased)`;
-const nextHeader = `## ${next} (Unreleased)`;
-
-let text = (await Bun.file(file).text()).replace(/\r\n/g, "\n");
-
-if (text.includes(unreleasedHeader)) {
-  text = text.replace(unreleasedHeader, releaseHeader);
-} else if (new RegExp(`^## ${escape(version)} - `, "m").test(text)) {
-  // already marked as released
-} else if (new RegExp(`^## ${escape(version)}$`, "m").test(text)) {
-  text = text.replace(new RegExp(`^## ${escape(version)}$`, "m"), releaseHeader);
-} else {
-  const firstSection = text.match(/^## /m);
-  const releaseSection = `${releaseHeader}\n\n- Release.\n\n`;
-  if (firstSection && firstSection.index !== undefined) {
-    const idx = firstSection.index;
-    text = `${text.slice(0, idx)}${releaseSection}${text.slice(idx)}`;
-  } else {
-    text = `${text.trimEnd()}\n\n${releaseSection}`;
-  }
-}
-
-if (!new RegExp(`^${escape(nextHeader)}$`, "m").test(text)) {
-  const firstSection = text.match(/^## /m);
-  const nextSection = `${nextHeader}\n\n- TBD\n\n`;
-  if (firstSection && firstSection.index !== undefined) {
-    const idx = firstSection.index;
-    text = `${text.slice(0, idx)}${nextSection}${text.slice(idx)}`;
-  } else {
-    text = `${text.trimEnd()}\n\n${nextSection}`;
-  }
-}
-
-if (!text.endsWith("\n")) {
-  text += "\n";
-}
-
-await Bun.write(file, text);
-' -- "$changelog_file" "$version" "$release_date" "$next_version"
-}
-
-commit_changelog_for_release() {
-  local version="$1"
-  update_changelog_for_release "$version"
-
-  if ! git diff --quiet -- "CHANGELOG.md"; then
-    git add "CHANGELOG.md"
-    git commit -m "Update changelog for release $version"
+  if ! grep -Fqx "$header" CHANGELOG.md; then
+    echo "Release blocked: expected changelog header '$header'." >&2
+    exit 1
   fi
 }
 
-package_version() {
-  local package_json_path="$1"
-  bun --eval "console.log(JSON.parse(await Bun.file(\"$package_json_path\").text()).version)"
-}
-
 publish_package() {
-  local package_dir="$1"
-  local dry_run="$2"
-  pushd "$package_dir" >/dev/null
-  if [[ "$dry_run" -eq 1 ]]; then
-    npm publish --access public --tag "$NPM_DIST_TAG" --dry-run
+  local dir="$1"
+  local dry="$2"
+  pushd "$dir" >/dev/null
+  if [[ "$dry" -eq 1 ]]; then
+    npm publish --access public --tag latest --dry-run
   else
-    npm publish --access public --tag "$NPM_DIST_TAG"
+    npm publish --access public --tag latest
   fi
   popd >/dev/null
 }
 
-should_release_pocketbun() {
-  [[ "$RELEASE_TARGET" == "pocketbun" || "$RELEASE_TARGET" == "both" ]]
+today_utc() {
+  date -u +"%Y-%m-%d"
 }
 
-should_release_create() {
-  [[ "$RELEASE_TARGET" == "create-pocketbun" || "$RELEASE_TARGET" == "both" ]]
-}
-
-create_tags_and_maybe_push() {
-  local tags=("$@")
-  if [[ ${#tags[@]} -eq 0 ]]; then
+next_pocketbun_version() {
+  local current="$1"
+  if [[ "$current" =~ ^([0-9]+\.[0-9]+\.[0-9]+-pocketbun\.)([0-9]+)$ ]]; then
+    local prefix="${BASH_REMATCH[1]}"
+    local n="${BASH_REMATCH[2]}"
+    echo "${prefix}$((n + 1))"
     return 0
   fi
 
-  for tag in "${tags[@]}"; do
-    if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-      echo "Tag already exists: $tag" >&2
-      exit 1
-    fi
-  done
-
-  for tag in "${tags[@]}"; do
-    git tag "$tag"
-  done
-  echo "Created tags: ${tags[*]}"
-
-  if [[ "$PUSH_TAGS" -eq 1 ]]; then
-    git push origin "${tags[@]}"
-    echo "Pushed tags to origin."
-  fi
+  echo "Cannot derive next pocketbun version from '${current}'." >&2
+  exit 1
 }
 
-if [[ "$MODE" == "check" ]]; then
-  run_checks
-  echo "Checks passed."
-  exit 0
+set_package_version() {
+  local file="$1"
+  local version="$2"
+  bun --eval "
+const file = \"$file\";
+const nextVersion = \"$version\";
+const text = await Bun.file(file).text();
+const pkg = JSON.parse(text);
+pkg.version = nextVersion;
+await Bun.write(file, JSON.stringify(pkg, null, 2) + \"\\n\");
+"
+}
+
+finalize_changelog_release() {
+  local version="$1"
+  local release_date="$2"
+  bun --eval "
+const file = \"CHANGELOG.md\";
+const version = \"$version\";
+const releaseDate = \"$release_date\";
+const from = `## ${version} (Unreleased)`;
+const to = `## ${version} - ${releaseDate}`;
+let text = (await Bun.file(file).text()).replace(/\\r\\n/g, \"\\n\");
+if (!text.includes(from)) {
+  throw new Error(`Missing changelog header: ${from}`);
+}
+text = text.replace(from, to);
+await Bun.write(file, text.endsWith(\"\\n\") ? text : text + \"\\n\");
+"
+}
+
+prepend_next_unreleased_changelog_section() {
+  local next_version="$1"
+  bun --eval "
+const file = \"CHANGELOG.md\";
+const nextVersion = \"$next_version\";
+const section = `## ${nextVersion} (Unreleased)\\n\\n- TBD\\n\\n`;
+let text = (await Bun.file(file).text()).replace(/\\r\\n/g, \"\\n\");
+const marker = `## ${nextVersion} (Unreleased)`;
+if (text.includes(marker)) {
+  throw new Error(`Changelog already contains ${marker}`);
+}
+const title = \"# Changelog\\n\\n\";
+if (!text.startsWith(title)) {
+  throw new Error(\"Unexpected CHANGELOG.md format: missing '# Changelog' title block.\");
+}
+text = title + section + text.slice(title.length);
+await Bun.write(file, text.endsWith(\"\\n\") ? text : text + \"\\n\");
+"
+}
+
+release_pocketbun() {
+  local mode="$1"
+  local package_json="package.json"
+  local package_name
+  local package_version
+  local release_tag
+
+  package_name="$(json_field "$package_json" "name")"
+  package_version="$(json_field "$package_json" "version")"
+  release_tag="v${package_version}"
+
+  ensure_changelog_ready "$package_version"
+  ensure_unpublished "$package_name" "$package_version"
+  ensure_tag_missing "$release_tag"
+
+  if [[ "$mode" == "dry" ]]; then
+    echo "==> Dry-run ${package_name}@${package_version}"
+    publish_package "$ROOT_DIR" 1
+    echo "Dry-run complete."
+    return 0
+  fi
+
+  local release_date
+  release_date="$(today_utc)"
+  local next_version
+  next_version="$(next_pocketbun_version "$package_version")"
+
+  echo "==> Finalize release notes for ${package_version}"
+  finalize_changelog_release "$package_version" "$release_date"
+  git add CHANGELOG.md
+  git commit -m "chore(release): ${package_version}"
+  git push
+
+  echo "==> Publish ${package_name}@${package_version}"
+  publish_package "$ROOT_DIR" 0
+
+  git tag "$release_tag"
+  git push origin "$release_tag"
+
+  echo "==> Start next iteration ${next_version}"
+  set_package_version "$package_json" "$next_version"
+  prepend_next_unreleased_changelog_section "$next_version"
+  git add package.json CHANGELOG.md
+  git commit -m "chore: start ${next_version}"
+  git push
+}
+
+release_create_pocketbun() {
+  local mode="$1"
+  local package_json="create-pocketbun/package.json"
+  local package_dir="$ROOT_DIR/create-pocketbun"
+  local package_name
+  local package_version
+  local release_tag
+
+  package_name="$(json_field "$package_json" "name")"
+  package_version="$(json_field "$package_json" "version")"
+  release_tag="create-pocketbun-v${package_version}"
+
+  ensure_unpublished "$package_name" "$package_version"
+  ensure_tag_missing "$release_tag"
+
+  if [[ "$mode" == "dry" ]]; then
+    echo "==> Dry-run ${package_name}@${package_version}"
+    publish_package "$package_dir" 1
+    echo "Dry-run complete."
+    return 0
+  fi
+
+  echo "==> Publish ${package_name}@${package_version}"
+  publish_package "$package_dir" 0
+
+  git tag "$release_tag"
+  git push origin "$release_tag"
+}
+
+MODE="${1:-}"
+if [[ -z "$MODE" ]]; then
+  usage
+  exit 1
+fi
+shift || true
+
+TARGET="${1:-}"
+if [[ -z "$TARGET" ]]; then
+  usage
+  exit 1
+fi
+shift || true
+
+if [[ $# -gt 0 ]]; then
+  echo "Unknown option: $1" >&2
+  usage
+  exit 1
+fi
+
+if [[ "$MODE" != "dry" && "$MODE" != "publish" ]]; then
+  echo "Unknown command: $MODE" >&2
+  usage
+  exit 1
 fi
 
 ensure_clean_tree
 
-if [[ "$RUN_CHECKS" -eq 1 ]]; then
-  run_checks
-else
-  echo "==> Skipping release checks (use --with-checks or run 'bash scripts/release.sh check')"
-fi
+case "$TARGET" in
+  pocketbun)
+    release_pocketbun "$MODE"
+    ;;
+  create-pocketbun)
+    release_create_pocketbun "$MODE"
+    ;;
+  *)
+    echo "Unknown package target: $TARGET" >&2
+    usage
+    exit 1
+    ;;
+esac
 
-MAIN_VERSION=""
-CREATE_VERSION=""
-MAIN_TAG=""
-CREATE_TAG=""
-
-if should_release_pocketbun; then
-  MAIN_VERSION="$(package_version "package.json")"
-  MAIN_TAG="v${MAIN_VERSION}"
-fi
-
-if should_release_create; then
-  CREATE_VERSION="$(package_version "create-pocketbun/package.json")"
-  CREATE_TAG="create-pocketbun-v${CREATE_VERSION}"
-fi
-
-declare -a TAGS_TO_CREATE=()
-if [[ "$CREATE_TAGS" -eq 1 ]]; then
-  if [[ -n "$MAIN_TAG" ]]; then
-    TAGS_TO_CREATE+=("$MAIN_TAG")
-  fi
-  if [[ -n "$CREATE_TAG" ]]; then
-    TAGS_TO_CREATE+=("$CREATE_TAG")
-  fi
-fi
-
-if [[ "$MODE" == "dry-run" ]]; then
-  if should_release_pocketbun; then
-    echo "==> Dry-run publishing pocketbun@$MAIN_VERSION"
-    publish_package "$ROOT_DIR" 1
-  fi
-  if should_release_create; then
-    echo "==> Dry-run publishing create-pocketbun@$CREATE_VERSION"
-    publish_package "$ROOT_DIR/create-pocketbun" 1
-  fi
-  echo "Dry-run complete."
-  if [[ ${#TAGS_TO_CREATE[@]} -gt 0 ]]; then
-    echo "Would tag release as: ${TAGS_TO_CREATE[*]}"
-  else
-    echo "Tag creation is disabled (--no-tags)."
-  fi
-  exit 0
-fi
-
-if should_release_pocketbun; then
-  echo "==> Publishing pocketbun@$MAIN_VERSION"
-  publish_package "$ROOT_DIR" 0
-fi
-if should_release_create; then
-  echo "==> Publishing create-pocketbun@$CREATE_VERSION"
-  publish_package "$ROOT_DIR/create-pocketbun" 0
-fi
-
-if should_release_pocketbun; then
-  commit_changelog_for_release "$MAIN_VERSION"
-fi
-
-create_tags_and_maybe_push "${TAGS_TO_CREATE[@]}"
-
-echo "Release complete."
+echo "Release flow complete."

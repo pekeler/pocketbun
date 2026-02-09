@@ -1,6 +1,6 @@
 {
   "name": "pocketbun",
-  "version": "0.36.2-pocketbun.1",
+  "version": "0.36.2-pocketbun.2",
   "private": false,
   "license": "MIT",
   "repository": {
@@ -33,13 +33,11 @@
     "bench:upstream": "bun run scripts/bench_run_upstream.ts",
     "bench:upstream:pocketbun": "bun run scripts/bench_run_upstream_pocketbun.ts",
     "bench:upstream:factor-summary": "bun scripts/bench_upstream_factor_summary.js",
-    "release:check": "bash scripts/release.sh check",
-    "release:dry": "bash scripts/release.sh dry-run --package pocketbun",
-    "release": "bash scripts/release.sh publish --package pocketbun --push-tags",
-    "release:create:dry": "bash scripts/release.sh dry-run --package create-pocketbun",
-    "release:create": "bash scripts/release.sh publish --package create-pocketbun --push-tags",
-    "release:all:dry": "bash scripts/release.sh dry-run --package both",
-    "release:all": "bash scripts/release.sh publish --package both --push-tags",
+    "release:check": "bun run format:fix && bun test --concurrent && bun run typecheck && bun run lint",
+    "release:dry": "bash scripts/release.sh dry pocketbun",
+    "release": "bash scripts/release.sh publish pocketbun",
+    "release:create:dry": "bash scripts/release.sh dry create-pocketbun",
+    "release:create": "bash scripts/release.sh publish create-pocketbun",
     "e2e": "bun run scripts/e2e_run.ts",
     "e2e:install": "playwright install --with-deps"
   },
