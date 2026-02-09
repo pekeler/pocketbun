@@ -2,6 +2,16 @@
   "name": "create-pocketbun",
   "version": "0.1.0",
   "description": "Create a new PocketBun app",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pekeler/pocketbun.git",
+    "directory": "create-pocketbun"
+  },
+  "bugs": {
+    "url": "https://github.com/pekeler/pocketbun/issues"
+  },
+  "homepage": "https://github.com/pekeler/pocketbun/tree/master/create-pocketbun#readme",
   "type": "module",
   "bin": {
     "create-pocketbun": "./bin/create-pocketbun.js"
@@ -9,7 +19,8 @@
   "files": [
     "bin/",
     "template/",
-    "README.md"
+    "README.md",
+    "LICENSE.md"
   ],
   "scripts": {
     "start": "bun ./bin/create-pocketbun.js --help"
@@ -19,6 +30,5 @@
   },
   "publishConfig": {
     "access": "public"
-  },
-  "license": "MIT"
+  }
 }
