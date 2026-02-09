@@ -315,6 +315,7 @@ export class Command {
   #helpCommand: Command | null = null;
   #parent: Command | null = null;
   #errWriter: { write: (chunk: string) => void } | null = null;
+  #outWriter: { write: (chunk: string) => void } | null = null;
 
   constructor(values: Partial<Command> = {}) {
     Object.assign(this, values);
@@ -368,17 +369,58 @@ export class Command {
   }
 
   async Execute(args: string[] = process.argv.slice(2)): Promise<Error | null> {
-    const [cmd, cmdArgs, findErr] = this.Find(args);
+    let [cmd, cmdArgs, findErr] = this.Find(args);
     if (findErr) {
       this.writeError(findErr.message);
       return findErr;
     }
 
-    const allowUnknown = cmd.allowsUnknownFlags();
-    const { args: remaining, error } = cmd.Flags().Parse(cmdArgs, allowUnknown);
+    if (cmd.shouldShowHelp(cmdArgs)) {
+      cmd.printHelp();
+      return null;
+    }
+
+    if (cmd.shouldShowVersion(cmdArgs)) {
+      cmd.printVersion();
+      return null;
+    }
+
+    let allowUnknown = cmd.allowsUnknownFlags();
+    let { args: remaining, error } = cmd.Flags().Parse(cmdArgs, allowUnknown);
     if (error) {
       cmd.writeError(error.message);
       return error;
+    }
+
+    // Allow root persistent flags before subcommands, e.g. `pocketbun --dev serve`.
+    if (cmd === this && !cmd.RunE && !cmd.Run && remaining.length > 0) {
+      const [nestedCmd, nestedArgs, nestedErr] = this.Find(remaining);
+      if (nestedErr) {
+        this.writeError(nestedErr.message);
+        return nestedErr;
+      }
+
+      if (nestedCmd !== this) {
+        cmd = nestedCmd;
+        cmdArgs = nestedArgs;
+
+        if (cmd.shouldShowHelp(cmdArgs)) {
+          cmd.printHelp();
+          return null;
+        }
+
+        if (cmd.shouldShowVersion(cmdArgs)) {
+          cmd.printVersion();
+          return null;
+        }
+
+        allowUnknown = cmd.allowsUnknownFlags();
+        ({ args: remaining, error } = cmd.Flags().Parse(cmdArgs, allowUnknown));
+        if (error) {
+          cmd.writeError(error.message);
+          return error;
+        }
+      }
     }
 
     if (cmd.Args) {
@@ -398,11 +440,19 @@ export class Command {
       cmd.Run(cmd, remaining);
     }
 
+    if (!cmd.RunE && !cmd.Run && remaining.length === 0 && cmd.hasVisibleChildren()) {
+      cmd.printHelp();
+    }
+
     return null;
   }
 
   SetErr(writer: { write: (chunk: string) => void }): void {
     this.#errWriter = writer;
+  }
+
+  SetOut(writer: { write: (chunk: string) => void }): void {
+    this.#outWriter = writer;
   }
 
   SetHelpCommand(cmd: Command): void {
@@ -463,6 +513,91 @@ export class Command {
       return;
     }
     process.stderr.write(`${message}\n`);
+  }
+
+  private writeOutput(message: string): void {
+    if (!message) {
+      return;
+    }
+    if (this.#outWriter) {
+      this.#outWriter.write(message);
+      return;
+    }
+    process.stdout.write(message);
+  }
+
+  private hasVisibleChildren(): boolean {
+    return this.#children.some((child) => !child.Hidden);
+  }
+
+  private shouldShowHelp(args: string[]): boolean {
+    if (this.Flags().Lookup("help") || this.Flags().ShorthandLookup("h")) {
+      return false;
+    }
+    return args.includes("--help") || args.includes("-h");
+  }
+
+  private shouldShowVersion(args: string[]): boolean {
+    if (!this.Version) {
+      return false;
+    }
+    if (this.Flags().Lookup("version") || this.Flags().ShorthandLookup("v")) {
+      return false;
+    }
+    return args.includes("--version") || args.includes("-v");
+  }
+
+  private printVersion(): void {
+    if (!this.Version) {
+      return;
+    }
+    this.writeOutput(`${this.Version}\n`);
+  }
+
+  private printHelp(): void {
+    const lines: string[] = [];
+
+    if (this.Short) {
+      lines.push(this.Short, "");
+    }
+
+    lines.push("Usage:");
+    lines.push(`  ${this.Use}${this.hasVisibleChildren() ? " [command]" : ""}`);
+
+    const visibleChildren = this.#children.filter((child) => !child.Hidden);
+    if (visibleChildren.length > 0) {
+      lines.push("", "Available Commands:");
+      for (const child of visibleChildren) {
+        const name = child.name().padEnd(14, " ");
+        lines.push(`  ${name}${child.Short}`);
+      }
+    }
+
+    const flags = this.Flags().values();
+    const showBuiltinHelp = !this.Flags().Lookup("help") && !this.Flags().ShorthandLookup("h");
+    const showBuiltinVersion = Boolean(this.Version) && !this.Flags().Lookup("version") && !this.Flags().ShorthandLookup("v");
+    if (flags.length > 0 || showBuiltinHelp || showBuiltinVersion) {
+      const flagRows: Array<{ label: string; usage: string }> = [];
+      for (const flag of flags) {
+        const shorthand = flag.shorthand ? `-${flag.shorthand}, ` : "    ";
+        flagRows.push({ label: `${shorthand}--${flag.name}`, usage: flag.usage });
+      }
+      if (showBuiltinHelp) {
+        flagRows.push({ label: "-h, --help", usage: "help" });
+      }
+      if (showBuiltinVersion) {
+        flagRows.push({ label: "-v, --version", usage: "version" });
+      }
+      const labelWidth = Math.max(...flagRows.map((row) => row.label.length), 14) + 2;
+
+      lines.push("", "Flags:");
+      for (const row of flagRows) {
+        const usage = row.usage.replaceAll("\n", `\n${" ".repeat(labelWidth + 2)}`);
+        lines.push(`  ${row.label.padEnd(labelWidth, " ")}${usage}`);
+      }
+    }
+
+    this.writeOutput(`${lines.join("\n")}\n`);
   }
 }
 

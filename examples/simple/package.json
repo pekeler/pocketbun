@@ -3,10 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "bun run main.ts"
-  },
-  "dependencies": {
-    "pocketbun": "file:../.."
+    "start": "bun run main.ts",
+    "pocketbun": "bun ../../bin/pocketbun --dir ./pb_data"
   },
   "engines": {
     "bun": ">=1.3.0"

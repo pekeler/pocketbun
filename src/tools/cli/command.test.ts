@@ -40,4 +40,74 @@ describe("Command", () => {
     expect(err).toBeInstanceOf(Error);
     expect(err?.message).toContain("unknown command");
   });
+
+  it("Execute prints help with --help", async () => {
+    const root = new Command({ Use: "pocketbun", Short: "pocketbun CLI" });
+    root.AddCommand(new Command({ Use: "serve", Short: "Starts the web server" }));
+
+    let out = "";
+    root.SetOut({
+      write: (chunk: string) => {
+        out += chunk;
+      },
+    });
+
+    const err = await root.Execute(["--help"]);
+    expect(err).toBeNull();
+    expect(out).toContain("Usage:");
+    expect(out).toContain("pocketbun [command]");
+    expect(out).toContain("Available Commands:");
+    expect(out).toContain("serve");
+  });
+
+  it("Execute prints help for bare root command with subcommands", async () => {
+    const root = new Command({ Use: "pocketbun", Short: "pocketbun CLI" });
+    root.AddCommand(new Command({ Use: "serve", Short: "Starts the web server" }));
+
+    let out = "";
+    root.SetOut({
+      write: (chunk: string) => {
+        out += chunk;
+      },
+    });
+
+    const err = await root.Execute([]);
+    expect(err).toBeNull();
+    expect(out).toContain("Usage:");
+    expect(out).toContain("pocketbun [command]");
+  });
+
+  it("Execute prints version with --version", async () => {
+    const root = new Command({ Use: "pocketbun", Version: "0.36.2-pocketbun.0" });
+
+    let out = "";
+    root.SetOut({
+      write: (chunk: string) => {
+        out += chunk;
+      },
+    });
+
+    const err = await root.Execute(["--version"]);
+    expect(err).toBeNull();
+    expect(out.trim()).toBe("0.36.2-pocketbun.0");
+  });
+
+  it("Execute handles root flags before subcommands", async () => {
+    const root = new Command({ Use: "pocketbun" });
+    const state = { dev: false, ran: false };
+    root.PersistentFlags().BoolVar(state, "dev", "dev", false, "dev mode");
+    root.AddCommand(
+      new Command({
+        Use: "serve",
+        Run: () => {
+          state.ran = true;
+        },
+      }),
+    );
+
+    const err = await root.Execute(["--dev", "serve"]);
+    expect(err).toBeNull();
+    expect(state.dev).toBeTrue();
+    expect(state.ran).toBeTrue();
+  });
 });

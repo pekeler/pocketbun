@@ -37,6 +37,11 @@ export function NewServeCommand(app: App, showStartBanner: boolean): Command {
         allowedOrigins: state.allowedOrigins,
         certificateDomains: args,
       });
+      // Keep the CLI serve command alive until process termination, matching
+      // PocketBase's blocking serve command behavior.
+      await new Promise<never>(() => {
+        // intentionally never resolved
+      });
       return null;
     } catch (err) {
       return err as Error;

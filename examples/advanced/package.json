@@ -5,11 +5,11 @@
   "scripts": {
     "client": "bun run client.ts",
     "start": "bun run main.ts",
-    "superuser": "pocketbun superuser upsert admin@example.com change-me --dir pb_data"
+    "pocketbun": "bun ../../bin/pocketbun --dir ./pb_data",
+    "superuser": "bun run pocketbun superuser upsert admin@example.com change-me"
   },
   "dependencies": {
-    "pocketbase": "^0.26.2",
-    "pocketbun": "file:../.."
+    "pocketbase": "^0.26.2"
   },
   "engines": {
     "bun": ">=1.3.0"

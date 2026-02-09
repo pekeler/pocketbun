@@ -1,5 +1,12 @@
 // PocketBun-only: log writer helper that offloads log DB writes to a worker.
 
+import { Database, type SQLQueryBindings } from "bun:sqlite";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { applyDefaultDbPragmas } from "../dbx/connect_pragmas.ts";
+import { rewriteDbxIdentifiers } from "../dbx/identifiers.ts";
+
 type LogValue = string | number | boolean | bigint | null | undefined | Uint8Array;
 
 type WorkerResponse = {
@@ -18,42 +25,57 @@ type WorkerRequest =
     };
 
 export class LogWriter {
-  #worker: Worker;
+  #worker: Worker | null = null;
+  #syncDb: Database | null = null;
   #closed = false;
   #ready = false;
 
   constructor(dbPath: string) {
-    this.#worker = new Worker(new URL("./log_writer_worker.ts", import.meta.url), { type: "module" });
-    this.#worker.onmessage = (event) => {
-      const data = event.data as WorkerResponse;
-      if (data.id === -1 && this.#readyResolve) {
-        this.#ready = Boolean(data.ok);
-        this.#readyResolve();
-        this.#readyResolve = null;
-        return;
-      }
-      if (data.id === 0 && this.#closeResolve) {
-        this.#closeResolve();
-        this.#closeResolve = null;
-      }
-    };
-    this.#worker.onerror = (event) => {
-      const error = event instanceof ErrorEvent ? (event.error ?? new Error(event.message)) : new Error("worker error");
-      console.error("Log writer worker error", error);
-      if (this.#readyResolve) {
-        this.#readyResolve();
-        this.#readyResolve = null;
-      }
-      if (this.#closeResolve) {
-        this.#closeResolve();
-        this.#closeResolve = null;
-      }
-    };
+    const workerScriptPath = resolveLogWriterWorkerScriptPath(dirname(fileURLToPath(import.meta.url)));
+    if (workerScriptPath) {
+      this.#worker = new Worker(pathToFileURL(workerScriptPath), { type: "module" });
+      this.#worker.onmessage = (event) => {
+        const data = event.data as WorkerResponse;
+        if (data.id === -1 && this.#readyResolve) {
+          this.#ready = Boolean(data.ok);
+          this.#readyResolve();
+          this.#readyResolve = null;
+          return;
+        }
+        if (data.id === 0 && this.#closeResolve) {
+          this.#closeResolve();
+          this.#closeResolve = null;
+        }
+      };
+      this.#worker.onerror = (event) => {
+        const error = event instanceof ErrorEvent ? (event.error ?? new Error(event.message)) : new Error("worker error");
+        console.error("Log writer worker error", error);
+        if (this.#readyResolve) {
+          this.#readyResolve();
+          this.#readyResolve = null;
+        }
+        if (this.#closeResolve) {
+          this.#closeResolve();
+          this.#closeResolve = null;
+        }
+      };
 
-    this.#readyPromise = new Promise<void>((resolve) => {
-      this.#readyResolve = resolve;
-    });
-    this.#worker.postMessage({ type: "init", dbPath });
+      this.#readyPromise = new Promise<void>((resolveReady) => {
+        this.#readyResolve = resolveReady;
+      });
+      this.#worker.postMessage({ type: "init", dbPath });
+      return;
+    }
+
+    // Fallback for bundled CLI runs where the worker module isn't emitted as a standalone file.
+    try {
+      this.#syncDb = new Database(dbPath);
+      applyDefaultDbPragmas(this.#syncDb);
+      this.#ready = true;
+    } catch {
+      this.#syncDb = null;
+      this.#ready = false;
+    }
   }
 
   async run(sql: string, values: unknown[]): Promise<Error | null> {
@@ -63,7 +85,15 @@ export class LogWriter {
     if (!this.#ready && this.#readyPromise) {
       await this.#readyPromise;
     }
-    if (!this.#ready) {
+    if (this.#syncDb) {
+      try {
+        this.#syncDb.run(rewriteDbxIdentifiers(sql), values as SQLQueryBindings[]);
+      } catch (error) {
+        return error as Error;
+      }
+      return null;
+    }
+    if (!this.#ready || !this.#worker) {
       return null;
     }
     const payload: WorkerRequest = { type: "run", sql, valuesLength: values.length };
@@ -84,9 +114,17 @@ export class LogWriter {
       return;
     }
     this.#closed = true;
+    if (this.#syncDb) {
+      this.#syncDb.close();
+      this.#syncDb = null;
+      return;
+    }
+    if (!this.#worker) {
+      return;
+    }
     if (!this.#closePromise) {
-      this.#closePromise = new Promise<void>((resolve) => {
-        this.#closeResolve = resolve;
+      this.#closePromise = new Promise<void>((resolveClose) => {
+        this.#closeResolve = resolveClose;
       });
       try {
         this.#worker.postMessage({ type: "close" });
@@ -106,4 +144,27 @@ export class LogWriter {
   #closeResolve: (() => void) | null = null;
   #readyPromise: Promise<void> | null = null;
   #readyResolve: (() => void) | null = null;
+}
+
+export function resolveLogWriterWorkerScriptPath(
+  baseDir: string,
+  fileExists: (path: string) => boolean = existsSync,
+): string | null {
+  const candidates = [
+    resolve(baseDir, "./log_writer_worker.ts"),
+    resolve(baseDir, "./log_writer_worker.js"),
+    resolve(baseDir, "./tools/logger/log_writer_worker.ts"),
+    resolve(baseDir, "./tools/logger/log_writer_worker.js"),
+    resolve(baseDir, "../../src/tools/logger/log_writer_worker.ts"),
+    resolve(baseDir, "../../src/tools/logger/log_writer_worker.js"),
+  ];
+
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = candidates[i]!;
+    if (fileExists(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
 }

@@ -152,7 +152,9 @@ function startServerSync(app: App, config: ServeConfig): ReturnType<typeof Bun.s
   });
 
   serveEvent.Server = server;
+  bindGracefulShutdown(app, server);
   startInstallerAsync(app, config, server, serveEvent);
+  printStartBanner(server, config);
   return server;
 }
 
@@ -166,7 +168,9 @@ async function startServerAsync(app: App, config: ServeConfig): Promise<ReturnTy
     fetch: handler,
   });
   serveEvent.Server = server;
+  bindGracefulShutdown(app, server);
   startInstallerAsync(app, config, server, serveEvent);
+  printStartBanner(server, config);
   return server;
 }
 
@@ -189,6 +193,52 @@ function parseAddr(addr: string): { hostname: string; port: number } {
 function buildBaseURL(server: ReturnType<typeof Bun.serve>, config: ServeConfig): string {
   const scheme = config.httpsAddr ? "https" : "http";
   return `${scheme}://${server.hostname}:${server.port}`;
+}
+
+function bindGracefulShutdown(app: App, server: ReturnType<typeof Bun.serve>): void {
+  let stopPromise: Promise<void> | null = null;
+
+  app.OnTerminate().Bind({
+    // mirror PocketBase's graceful shutdown hook id so future upstream syncs remain predictable
+    Id: "pbGracefulShutdown",
+    Priority: -9999,
+    Func: async (event) => {
+      if (!stopPromise) {
+        stopPromise = Promise.resolve(server.stop()).catch(() => {
+          // ignore shutdown errors
+        });
+      }
+      await stopPromise;
+      return event.Next();
+    },
+  });
+}
+
+function printStartBanner(server: ReturnType<typeof Bun.serve>, config: ServeConfig): void {
+  if (!config.showStartBanner) {
+    return;
+  }
+
+  const baseURL = buildBaseURL(server, config);
+  const timestamp = formatStartBannerTimestamp(new Date());
+
+  // eslint-disable-next-line no-console
+  console.log(`${timestamp} Server started at ${baseURL}`);
+  // eslint-disable-next-line no-console
+  console.log(`├─ REST API:  ${baseURL}/api/`);
+  // eslint-disable-next-line no-console
+  console.log(`└─ Dashboard: ${baseURL}/_/`);
+}
+
+function formatStartBannerTimestamp(date: Date): string {
+  const year = date.getFullYear().toString().padStart(4, "0");
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, "0");
+  const hours = date.getHours().toString().padStart(2, "0");
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const seconds = date.getSeconds().toString().padStart(2, "0");
+
+  return `${year}/${month}/${day} ${hours}:${minutes}:${seconds}`;
 }
 
 function startInstallerAsync(

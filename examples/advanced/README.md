@@ -2,6 +2,16 @@
 
 This example wires `pb_hooks`, `pb_migrations`, and `pb_public` together and demonstrates auth, CRUD, files, realtime, and hooks.
 
+## Local repo usage note
+
+This example is for repo-local development, so it does not install `pocketbun` as a dependency.
+It uses the local source (`../../index.ts`) and a local CLI wrapper (`bun run pocketbun` -> `bun ../../bin/pocketbun`).
+
+For external projects, install from npm instead:
+
+    bun add pocketbun
+    bunx pocketbun --help
+
 ## Run the server
 
 From the repo root:

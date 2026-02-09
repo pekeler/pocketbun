@@ -118,4 +118,29 @@ describe("pocketbase", () => {
       await rm(tempDir, { recursive: true, force: true });
     }
   });
+
+  it.serial("Execute returns command errors", async () => {
+    const original = [...process.argv];
+    const tempDir = await mkdtemp(join(tmpdir(), "temp_pb_data-"));
+
+    try {
+      process.argv = original.slice(0, 2);
+      process.argv.push("custom");
+
+      const app = NewWithConfig({ DefaultDataDir: tempDir });
+      app.RootCmd.AddCommand(
+        new Command({
+          Use: "custom",
+          RunE: () => new Error("custom command failed"),
+        }),
+      );
+
+      const err = await app.Execute();
+      expect(err).toBeInstanceOf(Error);
+      expect(err?.message).toBe("custom command failed");
+    } finally {
+      process.argv = original;
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
 });

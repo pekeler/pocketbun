@@ -108,6 +108,7 @@ export class PocketBase extends BaseApp {
       await this.bootstrapAsync();
     }
 
+    let commandErr: Error | null = null;
     let resolveDone: (() => void) | null = null;
     const done = new Promise<void>((resolve) => {
       resolveDone = resolve;
@@ -123,7 +124,17 @@ export class PocketBase extends BaseApp {
     process.once("SIGINT", signalHandler);
     process.once("SIGTERM", signalHandler);
 
-    void Promise.resolve(this.RootCmd.Execute()).then(signalHandler).catch(signalHandler);
+    void Promise.resolve(this.RootCmd.Execute())
+      .then((err) => {
+        if (err) {
+          commandErr = err;
+        }
+        signalHandler();
+      })
+      .catch((err) => {
+        commandErr = err instanceof Error ? err : new Error(String(err));
+        signalHandler();
+      });
 
     await done;
 
@@ -138,10 +149,17 @@ export class PocketBase extends BaseApp {
 
     if (result instanceof Promise) {
       const resolved = await result;
-      return resolved instanceof Error ? resolved : null;
+      if (resolved instanceof Error) {
+        return resolved;
+      }
+      return commandErr;
     }
 
-    return result instanceof Error ? result : null;
+    if (result instanceof Error) {
+      return result;
+    }
+
+    return commandErr;
   }
 
   private skipBootstrap(): boolean {
