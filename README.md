@@ -277,3 +277,24 @@ PocketBase may still keep an unused placeholder param:
 ```
 [[title]] = {:p0} OR [[title]] IS NULL
 ```
+
+## Development Setup
+
+If you want to contribute after cloning from GitHub:
+
+```sh
+bun install
+bun run upstream:sync
+bun run format:fix
+bun test --concurrent
+bun run typecheck
+bun run lint
+```
+
+Optional quick smoke test:
+
+```sh
+cd examples/simple
+bun install
+bun run start
+```
