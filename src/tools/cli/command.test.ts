@@ -110,4 +110,22 @@ describe("Command", () => {
     expect(state.dev).toBeTrue();
     expect(state.ran).toBeTrue();
   });
+
+  it("Execute passes positional args to runnable leaf command", async () => {
+    const root = new Command({ Use: "pocketbun" });
+    const received: string[] = [];
+
+    root.AddCommand(
+      new Command({
+        Use: "upsert",
+        Run: (_cmd, args) => {
+          received.push(...args);
+        },
+      }),
+    );
+
+    const err = await root.Execute(["upsert", "admin@example.com", "change-me"]);
+    expect(err).toBeNull();
+    expect(received).toEqual(["admin@example.com", "change-me"]);
+  });
 });

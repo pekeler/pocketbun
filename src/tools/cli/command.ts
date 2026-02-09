@@ -362,6 +362,11 @@ export class Command {
 
     const child = this.#children.find((cmd) => cmd.name() === arg0);
     if (!child) {
+      // Treat non-flag tokens as positional args for runnable/leaf commands.
+      // Only surface unknown-command errors for pure parent commands.
+      if (this.RunE || this.Run) {
+        return [this, args, null];
+      }
       return [this, args, new Error(`unknown command: ${arg0}`)];
     }
 
