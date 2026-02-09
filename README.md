@@ -29,6 +29,11 @@ Key differences:
 - CLI binary is named `pocketbun` (not `pocketbase`)
 - No `update` command; update via package manager
 
+## Warning
+PocketBase is still under active development and NOT recommended for production.
+
+Naturally, the same applies to PocketBun.
+
 ## Installation
 
 `bun add pocketbun` to add to an existing project, or `bun create pocketbun my-app` to create a new project.
