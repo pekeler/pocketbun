@@ -9,11 +9,15 @@ import { parseMultipartFormData } from "./request_form_data.ts";
 
 describe("parseMultipartFormData", () => {
   it("falls back to reconstructed multipart parsing when formData() throws", async () => {
-    const form = new FormData();
-    form.set("title", "from-fallback");
-    const sourceRequest = new Request("http://localhost", { method: "POST", body: form });
-    const contentType = sourceRequest.headers.get("content-type") ?? "";
-    const body = await sourceRequest.arrayBuffer();
+    const boundary = "----pocketbun-test-boundary";
+    const contentType = `multipart/form-data; boundary=${boundary}`;
+    const body = new TextEncoder().encode(
+      `--${boundary}\r\n` +
+        'Content-Disposition: form-data; name="title"\r\n' +
+        "\r\n" +
+        "from-fallback\r\n" +
+        `--${boundary}--\r\n`,
+    ).buffer;
 
     const request = {
       headers: {
