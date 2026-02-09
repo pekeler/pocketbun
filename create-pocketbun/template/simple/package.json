@@ -5,8 +5,7 @@
   "scripts": {
     "start": "bun run main.ts",
     "dev": "bun run main.ts",
-    "pocketbun": "pocketbun --dir ./pb_data",
-    "superuser": "bun run pocketbun superuser upsert"
+    "pocketbun": "pocketbun --dir ./pb_data"
   },
   "dependencies": {
     "pocketbun": "latest"

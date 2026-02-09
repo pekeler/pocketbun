@@ -5,7 +5,7 @@ Created with `bun create pocketbun`.
 ## Run
 
 ```sh
-bun run superuser -- admin@example.com "replace-with-a-strong-password"
+bun run pocketbun superuser upsert admin@example.com "replace-with-a-strong-password"
 bun run start
 ```
 
