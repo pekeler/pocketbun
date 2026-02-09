@@ -1,0 +1,17 @@
+{
+  "name": "__PROJECT_NAME__",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun run main.ts",
+    "dev": "bun run main.ts",
+    "pocketbun": "pocketbun --dir ./pb_data",
+    "superuser": "bun run pocketbun superuser upsert admin@example.com change-me"
+  },
+  "dependencies": {
+    "pocketbun": "latest"
+  },
+  "engines": {
+    "bun": ">=1.3.0"
+  }
+}

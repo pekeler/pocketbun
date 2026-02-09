@@ -1,0 +1,21 @@
+{
+  "name": "create-pocketbun",
+  "version": "0.1.0",
+  "description": "Create a new PocketBun app",
+  "type": "module",
+  "bin": {
+    "create-pocketbun": "./bin/create-pocketbun.js"
+  },
+  "files": [
+    "bin/",
+    "template/",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "bun ./bin/create-pocketbun.js --help"
+  },
+  "engines": {
+    "bun": ">=1.3.0"
+  },
+  "license": "MIT"
+}

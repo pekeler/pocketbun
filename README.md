@@ -31,7 +31,7 @@ Key differences:
 
 ## Installation
 
-`bun add pocketbun`
+`bun add pocketbun` to add to an existing project, or `bun create pocketbun my-app` to create a new project.
 
 ## Quick Start
 
