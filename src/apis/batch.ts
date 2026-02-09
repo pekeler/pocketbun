@@ -6,6 +6,7 @@ import { RequestEvent } from "../core/event_request.ts";
 import { RequestEventKeyInfoContext, RequestInfoContextBatch, RequestInfoContextDefault } from "../core/event_request.ts";
 import { BatchRequestEvent, InternalRequest } from "../core/event_request_batch.ts";
 import { readRequestBytesAndRebind, readRequestTextAndRebind } from "../internal/compat/request_body.ts";
+import { parseMultipartFormData } from "../internal/compat/request_form_data.ts";
 import { ValidationError, ValidationErrors, newError, ErrRequired } from "../internal/compat/validation.ts";
 import { NewFileFromBytes, ReadFileReaderBytesAsync, File as LocalFile } from "../tools/filesystem/file.ts";
 import { JSONPayloadKey, unmarshalRequestData } from "../tools/router/unmarshal_request_data.ts";
@@ -493,8 +494,7 @@ async function readBatchRequests(
         },
         body: bound.body,
       });
-      // eslint-disable-next-line typescript-eslint/no-deprecated -- Bun's Request.formData keeps batch multipart parsing aligned with upstream.
-      const form = await parserRequest.formData();
+      const form = (await parseMultipartFormData(parserRequest)) as RequestFormData;
       const raw: Record<string, string[]> = {};
       for (const [key, value] of form.entries()) {
         if (typeof value === "string") {
