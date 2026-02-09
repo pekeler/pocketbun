@@ -73,7 +73,7 @@ Only 2 tests didn't get ported. They are for PocketBase’s self-update command/
 
 All tests are passing.
 
-## Known Differences
+## Differences
 
 ### Library Usage
 
@@ -97,51 +97,31 @@ pocketbun serve
 pocketbun superuser upsert admin@example.com change-me
 ```
 
+### Hooks Plugin Naming
+
+PocketBase names this plugin package `jsvm`, so PocketBun keeps compatibility aliases: `RegisterJSVM*` / `MustRegisterJSVM*`.
+In PocketBun app code, prefer the clearer names `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` for the same hooks/migrations integration APIs.
+
 ### Async API Extensions
 
 PocketBun keeps sync APIs where PocketBase exposes sync behavior, but adds async alternatives for I/O-heavy operations.
 
-Current extensions:
+| Area | PocketBase-compatible sync API | PocketBun async extension |
+| --- | --- | --- |
+| Archive helpers | `Create`, `Extract` | `CreateAsync`, `ExtractAsync` |
+| Template registry loading | `registry.LoadFiles(...)`, `registry.LoadFS(...)` | `registry.LoadFilesAsync(...)`, `registry.LoadFSAsync(...)` |
+| App bootstrap | `app.bootstrap()` | `app.bootstrapAsync()` |
+| App restart | `app.Restart()` | `app.RestartAsync()` |
+| Migration helper | `migrate(app, mode)` | `migrateAsync(app, mode)` |
+| Serve helper | `serve(app, config)` | `serveAsync(app, config)` |
+| Filesystem factories | `app.NewFilesystem()`, `app.NewBackupsFilesystem()` | `app.NewFilesystemAsync()`, `app.NewBackupsFilesystemAsync()` |
+| Filesystem readers | `fsys.GetReader(...)` (buffered `SystemReader`) | `fsys.GetReaderAsync(...)` (streaming `SystemAsyncReader`) |
+| Hooks/migrations plugin registration | `RegisterHooksPlugin(...)`, `MustRegisterHooksPlugin(...)` | `RegisterHooksPluginAsync(...)`, `MustRegisterHooksPluginAsync(...)` |
+| JSVM `$filesystem` and `$os` | `$filesystem.fileFromPath(...)`, `$filesystem.fileFromURL(...)`, `$os.readFile(...)`, `$os.writeFile(...)`, ... | `$filesystem.fileFromPathAsync(...)`, `$filesystem.fileFromURLAsync(...)`, `$os.readFileAsync(...)`, `$os.writeFileAsync(...)`, ... |
+| JSVM `$http` | `$http.send(...)` | `$http.sendAsync(...)` |
+| Field validation extension | `ValidateValue(...)` | `async ValidateValueAsync(...)` |
 
-- Archive helpers now expose both sync and async variants:
-  - sync: `Create`, `Extract`
-  - async: `CreateAsync`, `ExtractAsync`
-- Template registry now exposes async filesystem loading variants:
-  - sync: `registry.LoadFiles(...)`, `registry.LoadFS(...)`
-  - async: `await registry.LoadFilesAsync(...)`, `await registry.LoadFSAsync(...)`
-- Base app bootstrap now exposes an async startup variant:
-  - sync: `app.bootstrap()`
-  - async: `await app.bootstrapAsync()`
-- Base app restart now exposes an async variant:
-  - sync: `app.Restart()`
-  - async: `await app.RestartAsync()`
-- Migration helper now exposes an async startup variant:
-  - sync: `migrate(app, mode)`
-  - async: `await migrateAsync(app, mode)`
-- Serve helper now exposes an async startup variant:
-  - sync: `serve(app, config)`
-  - async: `await serveAsync(app, config)`
-- Base app filesystem factory now exposes async variants:
-  - sync: `app.NewFilesystem()`, `app.NewBackupsFilesystem()`
-  - async: `await app.NewFilesystemAsync()`, `await app.NewBackupsFilesystemAsync()`
-- Filesystem readers now expose a non-buffering async variant:
-  - sync: `await fsys.GetReader(...)` (buffered `SystemReader`)
-  - async: `await fsys.GetReaderAsync(...)` (streaming `SystemAsyncReader`)
-- JSVM plugin registration now exposes async startup variants:
-  - sync: `RegisterJSVM(...)`, `MustRegisterJSVM(...)`
-  - async: `await RegisterJSVMAsync(...)`, `await MustRegisterJSVMAsync(...)`
-- JSVM `$filesystem` and `$os` bindings expose async I/O helpers:
-  - sync: `$filesystem.fileFromPath(...)`, `$filesystem.fileFromURL(...)`, `$os.readFile(...)`, `$os.writeFile(...)`, ...
-  - async: `await $filesystem.fileFromPathAsync(...)`, `await $filesystem.fileFromURLAsync(...)`, `await $os.readFileAsync(...)`, `await $os.writeFileAsync(...)`, ...
-- JSVM `$http` binding exposes an async request helper:
-  - sync: `$http.send(...)`
-  - async: `await $http.sendAsync(...)`
-- Field value validation supports an async extension method for custom fields:
-  - PocketBase-compatible sync API: `ValidateValue(...)`
-  - PocketBun async extension: `async ValidateValueAsync(...)`
-  - Optional strict marker: `RequiresAsyncValidation = true` (or method form `RequiresAsyncValidation()`)
-  - Used by async model paths (`await app.Validate(...)`, `await app.Save(...)`)
-  - If `RequiresAsyncValidation` is `true`, sync model paths fail fast with a validation error
+For field validation, you can mark a field as async-only with `RequiresAsyncValidation = true` (or `RequiresAsyncValidation()`). Async model paths (`await app.Validate(...)`, `await app.Save(...)`) run `ValidateValueAsync(...)`; sync model paths fail fast with a validation error when async validation is required.
 
 Example: custom webhook URL field that does non-blocking reachability checks in async flows:
 
@@ -201,7 +181,7 @@ import {
   CreateAsync,
   ExtractAsync,
   NewRegistry,
-  RegisterJSVMAsync,
+  RegisterHooksPluginAsync,
   migrateAsync,
   serveAsync,
 } from "pocketbun";
@@ -216,7 +196,7 @@ const html = renderer.Render({ title: "Hello" });
 const app = new BaseApp({ dataDir: "pb_data" });
 await app.bootstrapAsync();
 await migrateAsync(app, "app");
-await RegisterJSVMAsync(app, {});
+await RegisterHooksPluginAsync(app, {});
 const fsys = await app.NewFilesystemAsync();
 await fsys.Close();
 

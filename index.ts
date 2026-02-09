@@ -14,6 +14,10 @@ export {
   MustRegister as MustRegisterJSVM,
   RegisterAsync as RegisterJSVMAsync,
   MustRegisterAsync as MustRegisterJSVMAsync,
+  Register as RegisterHooksPlugin,
+  MustRegister as MustRegisterHooksPlugin,
+  RegisterAsync as RegisterHooksPluginAsync,
+  MustRegisterAsync as MustRegisterHooksPluginAsync,
   type Config as JSVMConfig,
 } from "./src/plugins/jsvm/jsvm.ts";
 export {
