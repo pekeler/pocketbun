@@ -24,6 +24,10 @@
     "bench:upstream": "bun run scripts/bench_run_upstream.ts",
     "bench:upstream:pocketbun": "bun run scripts/bench_run_upstream_pocketbun.ts",
     "bench:upstream:factor-summary": "bun scripts/bench_upstream_factor_summary.js",
+    "release:check": "bash scripts/release.sh check",
+    "release:dry": "bash scripts/release.sh dry-run",
+    "release": "bash scripts/release.sh publish",
+    "release:push-tags": "bash scripts/release.sh publish --push-tags",
     "e2e": "bun run scripts/e2e_run.ts",
     "e2e:install": "playwright install --with-deps"
   },
