@@ -8,17 +8,18 @@ usage() {
   cat <<'EOF'
 Usage:
   bash scripts/release.sh check [--package <target>]
-  bash scripts/release.sh dry-run [--package <target>]
-  bash scripts/release.sh publish [--package <target>] [--tag <dist-tag>] [--push-tags] [--no-tags]
+  bash scripts/release.sh dry-run [--package <target>] [--with-checks]
+  bash scripts/release.sh publish [--package <target>] [--tag <dist-tag>] [--with-checks] [--push-tags] [--no-tags]
 
 Commands:
   check     Run release checks only.
-  dry-run   Run checks + npm publish dry-run for selected package(s).
-  publish   Run checks + publish selected package(s) (+ create git tags by default).
+  dry-run   npm publish dry-run for selected package(s) (checks are optional).
+  publish   Publish selected package(s) (+ create git tags by default; checks are optional).
 
 Options:
   --package    Release target: pocketbun, create-pocketbun, both (default: pocketbun).
   --tag        npm dist-tag to publish under (default: latest).
+  --with-checks  Run full checks before dry-run/publish.
   --push-tags  Push created release tags to origin (publish only).
   --no-tags    Skip git tag creation (publish only).
 EOF
@@ -36,6 +37,7 @@ PUSH_TAGS=0
 CREATE_TAGS=1
 RELEASE_TARGET="pocketbun"
 NPM_DIST_TAG="latest"
+RUN_CHECKS=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -60,6 +62,10 @@ while [[ $# -gt 0 ]]; do
       fi
       NPM_DIST_TAG="$2"
       shift 2
+      ;;
+    --with-checks)
+      RUN_CHECKS=1
+      shift
       ;;
     --no-tags)
       CREATE_TAGS=0
@@ -157,7 +163,12 @@ if [[ "$MODE" == "check" ]]; then
 fi
 
 ensure_clean_tree
-run_checks
+
+if [[ "$RUN_CHECKS" -eq 1 ]]; then
+  run_checks
+else
+  echo "==> Skipping release checks (use --with-checks or run 'bash scripts/release.sh check')"
+fi
 
 MAIN_VERSION=""
 CREATE_VERSION=""
