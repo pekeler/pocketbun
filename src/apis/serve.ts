@@ -1,6 +1,8 @@
 // Ported from pocketbase/apis/serve.go
 
-import { resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { ServeEvent } from "../core/events.ts";
@@ -8,6 +10,7 @@ import { Router } from "../tools/router/router.ts";
 import { FireAndForget } from "../tools/routine/routine.ts";
 import { NewRouter, Static, StaticWildcardParam } from "./base.ts";
 import { DefaultInstallerFunc, loadInstallerAsync } from "./installer.ts";
+import { RequestEventKeySkipSuccessActivityLog } from "./middlewares.ts";
 import { CORS } from "./middlewares_cors.ts";
 import { Gzip } from "./middlewares_gzip.ts";
 
@@ -25,6 +28,18 @@ type BuiltServeHandler = {
   handler: (req: Request, server?: unknown) => Promise<Response>;
   serveEvent: ServeEvent;
 };
+
+const serveModuleDir = dirname(fileURLToPath(import.meta.url));
+const adminDistPath = resolve(serveModuleDir, "../../vendor/pocketbase-admin-ui/dist");
+// PocketBun-only: brand the vendored Admin UI at runtime without modifying upstream assets.
+const adminBrandingScriptFileName = "pocketbun-branding.js";
+const adminBrandingScriptRoute = `/_/${adminBrandingScriptFileName}`;
+const adminBrandingScriptPath = resolve(serveModuleDir, "../../src/ui/admin_branding.js");
+const adminContentSecurityPolicy =
+  "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://127.0.0.1:* https://tile.openstreetmap.org data: blob:; connect-src 'self' http://127.0.0.1:* https://nominatim.openstreetmap.org; script-src 'self' 'sha256-GRUzBA7PzKYug7pqxv5rJaec5bwDCw1Vo6/IXwvD3Tc='";
+
+let brandedAdminIndexHtmlPromise: Promise<string> | null = null;
+let adminBrandingScriptPromise: Promise<string | null> | null = null;
 
 function hasAsyncBootstrap(app: App): app is AppWithAsyncBootstrap {
   return typeof (app as { bootstrapAsync?: unknown }).bootstrapAsync === "function";
@@ -196,25 +211,100 @@ function startInstallerAsync(
 }
 
 function bindAdminUI(router: Router<RequestEvent>): void {
-  const adminRoot = resolve("vendor/pocketbase-admin-ui/dist");
-  const adminFs = { root: adminRoot };
+  const adminFs = { root: adminDistPath };
 
   router
     .get("/_/{path...}", Static(adminFs, false))
-    .BindFunc((event) => {
-      const wildcard = event.params[StaticWildcardParam] ?? "";
-      if (wildcard !== "") {
-        event.responseHeaders.set("Cache-Control", "max-age=1209600, stale-while-revalidate=86400");
+    .BindFunc(async (event) => {
+      if (event.Get(RequestEventKeySkipSuccessActivityLog) == null) {
+        event.Set(RequestEventKeySkipSuccessActivityLog, true);
       }
 
-      if (!event.responseHeaders.get("Content-Security-Policy")) {
-        event.responseHeaders.set(
-          "Content-Security-Policy",
-          "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://127.0.0.1:* https://tile.openstreetmap.org data: blob:; connect-src 'self' http://127.0.0.1:* https://nominatim.openstreetmap.org; script-src 'self' 'sha256-GRUzBA7PzKYug7pqxv5rJaec5bwDCw1Vo6/IXwvD3Tc='",
-        );
+      const wildcard = event.params[StaticWildcardParam] ?? "";
+
+      setAdminContentSecurityPolicy(event);
+
+      if (wildcard === adminBrandingScriptFileName) {
+        const brandingScript = await getAdminBrandingScript();
+        if (brandingScript == null) {
+          event.app.Logger().Warn("Failed to load admin branding script", "path", adminBrandingScriptPath);
+          return event.Next();
+        }
+        event.responseHeaders.set("Content-Type", "application/javascript; charset=utf-8");
+        event.responseHeaders.set("Cache-Control", "max-age=300, stale-while-revalidate=86400");
+        return new Response(brandingScript, { status: 200, headers: event.responseHeaders });
+      }
+
+      if (wildcard === "" && event.requestUrl().pathname.endsWith("/")) {
+        try {
+          const brandedIndexHtml = await getBrandedAdminIndexHtml(adminDistPath);
+          event.responseHeaders.set("Content-Type", "text/html; charset=utf-8");
+          return new Response(brandedIndexHtml, { status: 200, headers: event.responseHeaders });
+        } catch (error) {
+          event.app.Logger().Warn("Failed to inject admin branding script", "error", error);
+          return event.Next();
+        }
+      }
+
+      if (wildcard !== "") {
+        event.responseHeaders.set("Cache-Control", "max-age=1209600, stale-while-revalidate=86400");
       }
 
       return event.Next();
     })
     .Bind(Gzip());
+}
+
+function setAdminContentSecurityPolicy(event: RequestEvent): void {
+  if (!event.responseHeaders.get("Content-Security-Policy")) {
+    event.responseHeaders.set("Content-Security-Policy", adminContentSecurityPolicy);
+  }
+}
+
+async function getAdminBrandingScript(): Promise<string | null> {
+  if (adminBrandingScriptPromise) {
+    return adminBrandingScriptPromise;
+  }
+
+  adminBrandingScriptPromise = readFile(adminBrandingScriptPath, "utf8").catch(() => {
+    adminBrandingScriptPromise = null;
+    return null;
+  });
+
+  return adminBrandingScriptPromise;
+}
+
+async function getBrandedAdminIndexHtml(adminRoot: string): Promise<string> {
+  if (brandedAdminIndexHtmlPromise) {
+    return brandedAdminIndexHtmlPromise;
+  }
+
+  const indexPath = join(adminRoot, "index.html");
+  brandedAdminIndexHtmlPromise = readFile(indexPath, "utf8")
+    .then((html) => injectAdminBrandingScriptTag(html))
+    .catch((error) => {
+      brandedAdminIndexHtmlPromise = null;
+      throw error;
+    });
+
+  return brandedAdminIndexHtmlPromise;
+}
+
+function injectAdminBrandingScriptTag(html: string): string {
+  if (html.includes(adminBrandingScriptRoute)) {
+    return html;
+  }
+
+  const scriptTag = `<script src="${adminBrandingScriptRoute}" defer></script>`;
+  const headCloseIndex = html.lastIndexOf("</head>");
+  if (headCloseIndex >= 0) {
+    return `${html.slice(0, headCloseIndex)}${scriptTag}${html.slice(headCloseIndex)}`;
+  }
+
+  const bodyCloseIndex = html.lastIndexOf("</body>");
+  if (bodyCloseIndex >= 0) {
+    return `${html.slice(0, bodyCloseIndex)}${scriptTag}${html.slice(bodyCloseIndex)}`;
+  }
+
+  return `${html}${scriptTag}`;
 }

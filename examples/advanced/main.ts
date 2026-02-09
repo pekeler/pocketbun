@@ -24,7 +24,7 @@ await Promise.all([
   mkdir(publicDir, { recursive: true }),
 ]);
 
-const app = new BaseApp({ dataDir });
+const app = new BaseApp({ dataDir, isDev: true });
 
 // PocketBun-only async variant to avoid sync fs startup work in JSVM setup.
 await RegisterJSVMAsync(app, {

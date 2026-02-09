@@ -5,6 +5,6 @@ import { BaseApp, serveAsync } from "../../index.ts";
 const rootDir = dirname(fileURLToPath(import.meta.url));
 const dataDir = join(rootDir, "pb_data");
 
-const app = new BaseApp({ dataDir });
+const app = new BaseApp({ dataDir, isDev: true });
 
 await serveAsync(app, { httpAddr: "127.0.0.1:8090" });

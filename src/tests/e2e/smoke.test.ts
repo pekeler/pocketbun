@@ -27,6 +27,7 @@ describe("e2e smoke", () => {
 
     expect(response.status).toBe(200);
     expect(body).toContain("<title>PocketBase</title>");
+    expect(body).toContain("/_/pocketbun-branding.js");
   });
 
   it("serves the health endpoint", async () => {

@@ -13,6 +13,7 @@ test("admin UI loads", async ({ page }) => {
   await expect(page).toHaveTitle(/PocketBase/);
   await expect(page.getByLabel(/email/i)).toBeVisible();
   await expect(page.getByLabel(/password/i)).toBeVisible();
+  await expect(page.getByText(/PocketBun backend/i)).toBeVisible();
 });
 
 test("can log in as superuser", async ({ page }) => {
@@ -22,6 +23,7 @@ test("can log in as superuser", async ({ page }) => {
   await page.click('form button[type="submit"]');
 
   await expect(page.getByRole("link", { name: /collections/i })).toBeVisible();
+  await expect(page.getByRole("link", { name: /^PocketBun$/ })).toBeVisible();
 });
 
 test("can navigate to collections after login", async ({ page }) => {
