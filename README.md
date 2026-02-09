@@ -261,9 +261,9 @@ const tpl = $template.load("templates/welcome.html");
 const html = tpl.render({ Name: "Ada" });
 ```
 
-### DBX Helpers
+### SQL Query Helpers and Placeholders
 
-PocketBun exposes dbx-style SQL placeholder helpers from the package entrypoint so external callers can keep using `[[column]]` and `{{table}}` syntax.
+PocketBun exposes SQL rewrite helpers so you can write queries with `[[column]]` and `{{table}}` markers and run them on `bun:sqlite`.
 
 ```ts
 import { DbxDatabase, attachDbxRewrite, rewriteDbxIdentifiers } from "pocketbun";
@@ -279,9 +279,10 @@ externalDb.query("select [[id]] from {{users}}").all();
 const sql = rewriteDbxIdentifiers("select [[name]] from {{users}}");
 ```
 
-### SQL Placeholder Indices
+PocketBase SQL logs often show dbx-style placeholders like `{:p0}`, `{:p1}`, ...
+`bun:sqlite` uses SQLite placeholders (`?`, `?1`, `:name`, `@name`, `$name`).
 
-When a filter expression collapses to a literal (for example, comparing to an empty string), PocketBun drops any now-unused params. This can make `{:p0}`, `{:p1}`, … numbering differ from PocketBase if you log SQL and params. The behavior is the same; only the placeholder indices change.
+PocketBun keeps query behavior compatible, but it may remove params that became unnecessary (for example when a filter collapses to a literal). So if you inspect logged SQL/params, placeholder numbering can differ while results stay the same.
 
 Example:
 
