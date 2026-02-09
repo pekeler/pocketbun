@@ -108,11 +108,11 @@ finalize_changelog_release() {
 const file = \"CHANGELOG.md\";
 const version = \"$version\";
 const releaseDate = \"$release_date\";
-const from = `## ${version} (Unreleased)`;
-const to = `## ${version} - ${releaseDate}`;
+const from = \"## \" + version + \" (Unreleased)\";
+const to = \"## \" + version + \" - \" + releaseDate;
 let text = (await Bun.file(file).text()).replace(/\\r\\n/g, \"\\n\");
 if (!text.includes(from)) {
-  throw new Error(`Missing changelog header: ${from}`);
+  throw new Error(\"Missing changelog header: \" + from);
 }
 text = text.replace(from, to);
 await Bun.write(file, text.endsWith(\"\\n\") ? text : text + \"\\n\");
@@ -124,11 +124,11 @@ prepend_next_unreleased_changelog_section() {
   bun --eval "
 const file = \"CHANGELOG.md\";
 const nextVersion = \"$next_version\";
-const section = `## ${nextVersion} (Unreleased)\\n\\n- TBD\\n\\n`;
+const section = \"## \" + nextVersion + \" (Unreleased)\\n\\n- TBD\\n\\n\";
 let text = (await Bun.file(file).text()).replace(/\\r\\n/g, \"\\n\");
-const marker = `## ${nextVersion} (Unreleased)`;
+const marker = \"## \" + nextVersion + \" (Unreleased)\";
 if (text.includes(marker)) {
-  throw new Error(`Changelog already contains ${marker}`);
+  throw new Error(\"Changelog already contains \" + marker);
 }
 const title = \"# Changelog\\n\\n\";
 if (!text.startsWith(title)) {
