@@ -3,10 +3,42 @@
 import { describe, expect, test } from "bun:test";
 import { green } from "./color.ts";
 
-const ansiPattern = /\u001b\[[0-9;]*m/g;
-
 function stripAnsi(value: string): string {
-  return value.replace(ansiPattern, "");
+  const esc = "\u001b";
+  let result = "";
+
+  for (let i = 0; i < value.length; i += 1) {
+    const char = value[i];
+    if (char !== esc || value[i + 1] !== "[") {
+      result += char;
+      continue;
+    }
+
+    let j = i + 2;
+    while (j < value.length) {
+      const code = value[j];
+      if (code === "m") {
+        i = j;
+        break;
+      }
+
+      if ((code ?? "") >= "0" && (code ?? "") <= "9") {
+        j += 1;
+        continue;
+      }
+
+      if (code === ";") {
+        j += 1;
+        continue;
+      }
+
+      // Not a CSI SGR sequence; keep the original char.
+      result += char;
+      break;
+    }
+  }
+
+  return result;
 }
 
 describe("cli color output", () => {
@@ -46,4 +78,3 @@ describe("cli color output", () => {
     expect(stripAnsi(output)).toBe('value: %q and "x"\n');
   });
 });
-
