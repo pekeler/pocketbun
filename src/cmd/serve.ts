@@ -37,10 +37,20 @@ export function NewServeCommand(app: App, showStartBanner: boolean): Command {
         allowedOrigins: state.allowedOrigins,
         certificateDomains: args,
       });
-      // Keep the CLI serve command alive until process termination, matching
-      // PocketBase's blocking serve command behavior.
-      await new Promise<never>(() => {
-        // intentionally never resolved
+
+      // Keep the command alive until app termination and resolve after the
+      // terminate hook chain finishes (including graceful server shutdown).
+      await new Promise<void>((resolve) => {
+        let hookId = "";
+        hookId = app.OnTerminate().Bind({
+          Id: "__pbServeCommandWaitTerminate__",
+          Priority: 9999,
+          Func: (event) => {
+            app.OnTerminate().Unbind(hookId);
+            resolve();
+            return event.Next();
+          },
+        });
       });
       return null;
     } catch (err) {

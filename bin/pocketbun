@@ -3,4 +3,12 @@
 
 import { main } from "../dist/src/cli.js";
 
-await main();
+try {
+  await main();
+  // Force process termination after graceful shutdown to avoid requiring a
+  // second SIGINT when background handles (watchers/timers) are still open.
+  process.exit(0);
+} catch (error) {
+  console.error(error);
+  process.exit(1);
+}

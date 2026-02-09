@@ -24,6 +24,8 @@ type WorkerRequest =
       [key: `values${number}`]: LogValue | undefined;
     };
 
+const WorkerCloseTimeoutMs = 1000;
+
 export class LogWriter {
   #worker: Worker | null = null;
   #syncDb: Database | null = null;
@@ -108,9 +110,7 @@ export class LogWriter {
 
   async close(): Promise<void> {
     if (this.#closed) {
-      if (this.#closePromise) {
-        await this.#closePromise;
-      }
+      await this.#awaitWorkerCloseWithTimeout();
       return;
     }
     this.#closed = true;
@@ -135,15 +135,41 @@ export class LogWriter {
         }
       }
     }
-    await this.#closePromise;
-    this.#worker.terminate();
-    this.#closePromise = null;
+    await this.#awaitWorkerCloseWithTimeout();
   }
 
   #closePromise: Promise<void> | null = null;
   #closeResolve: (() => void) | null = null;
   #readyPromise: Promise<void> | null = null;
   #readyResolve: (() => void) | null = null;
+
+  async #awaitWorkerCloseWithTimeout(): Promise<void> {
+    if (!this.#closePromise || !this.#worker) {
+      return;
+    }
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const closeResult = await Promise.race([
+      this.#closePromise.then(() => "closed" as const),
+      new Promise<"timeout">((resolveTimeout) => {
+        timeoutId = setTimeout(() => {
+          resolveTimeout("timeout");
+        }, WorkerCloseTimeoutMs);
+      }),
+    ]);
+
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+
+    if (closeResult === "timeout" && this.#closeResolve) {
+      this.#closeResolve();
+      this.#closeResolve = null;
+    }
+
+    this.#worker.terminate();
+    this.#closePromise = null;
+  }
 }
 
 export function resolveLogWriterWorkerScriptPath(
