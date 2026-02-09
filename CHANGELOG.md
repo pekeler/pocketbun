@@ -4,6 +4,7 @@
 
 - Fixed CLI command resolution for runnable leaf commands so positional args are handled correctly (for example, `superuser upsert <email> <password>`).
 - Added a regression test for positional-argument handling in the CLI compatibility shim.
+- Updated the `create-pocketbun` simple template to avoid embedding default superuser credentials in `package.json`; credentials are now provided at runtime.
 
 ## 0.36.2-pocketbun.1 - 2026-02-09
 

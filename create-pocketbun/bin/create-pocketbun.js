@@ -150,6 +150,6 @@ function printNextSteps(targetDir, installed) {
   if (!installed) {
     console.log("  bun install");
   }
-  console.log("  bun run superuser");
+  console.log('  bun run superuser -- admin@example.com "replace-with-a-strong-password"');
   console.log("  bun run start");
 }

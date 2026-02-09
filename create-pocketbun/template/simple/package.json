@@ -6,7 +6,7 @@
     "start": "bun run main.ts",
     "dev": "bun run main.ts",
     "pocketbun": "pocketbun --dir ./pb_data",
-    "superuser": "bun run pocketbun superuser upsert admin@example.com change-me"
+    "superuser": "bun run pocketbun superuser upsert"
   },
   "dependencies": {
     "pocketbun": "latest"
