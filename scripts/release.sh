@@ -107,6 +107,88 @@ run_checks() {
   bun run lint
 }
 
+next_pocketbun_version() {
+  local version="$1"
+  if [[ "$version" =~ ^([0-9]+\.[0-9]+\.[0-9]+-pocketbun\.)([0-9]+)$ ]]; then
+    local prefix="${BASH_REMATCH[1]}"
+    local patch="${BASH_REMATCH[2]}"
+    echo "${prefix}$((patch + 1))"
+    return 0
+  fi
+
+  echo "Cannot derive next pocketbun version from: $version" >&2
+  return 1
+}
+
+update_changelog_for_release() {
+  local version="$1"
+  local changelog_file="CHANGELOG.md"
+  local release_date
+  release_date="$(date -u +%Y-%m-%d)"
+  local next_version
+  next_version="$(next_pocketbun_version "$version")"
+
+  if [[ ! -f "$changelog_file" ]]; then
+    echo "Missing $changelog_file; cannot update changelog automatically." >&2
+    exit 1
+  fi
+
+  bun --eval '
+const [file, version, date, next] = process.argv.slice(2);
+
+const escape = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const releaseHeader = `## ${version} - ${date}`;
+const unreleasedHeader = `## ${version} (Unreleased)`;
+const nextHeader = `## ${next} (Unreleased)`;
+
+let text = (await Bun.file(file).text()).replace(/\r\n/g, "\n");
+
+if (text.includes(unreleasedHeader)) {
+  text = text.replace(unreleasedHeader, releaseHeader);
+} else if (new RegExp(`^## ${escape(version)} - `, "m").test(text)) {
+  // already marked as released
+} else if (new RegExp(`^## ${escape(version)}$`, "m").test(text)) {
+  text = text.replace(new RegExp(`^## ${escape(version)}$`, "m"), releaseHeader);
+} else {
+  const firstSection = text.match(/^## /m);
+  const releaseSection = `${releaseHeader}\n\n- Release.\n\n`;
+  if (firstSection && firstSection.index !== undefined) {
+    const idx = firstSection.index;
+    text = `${text.slice(0, idx)}${releaseSection}${text.slice(idx)}`;
+  } else {
+    text = `${text.trimEnd()}\n\n${releaseSection}`;
+  }
+}
+
+if (!new RegExp(`^${escape(nextHeader)}$`, "m").test(text)) {
+  const firstSection = text.match(/^## /m);
+  const nextSection = `${nextHeader}\n\n- TBD\n\n`;
+  if (firstSection && firstSection.index !== undefined) {
+    const idx = firstSection.index;
+    text = `${text.slice(0, idx)}${nextSection}${text.slice(idx)}`;
+  } else {
+    text = `${text.trimEnd()}\n\n${nextSection}`;
+  }
+}
+
+if (!text.endsWith("\n")) {
+  text += "\n";
+}
+
+await Bun.write(file, text);
+' -- "$changelog_file" "$version" "$release_date" "$next_version"
+}
+
+commit_changelog_for_release() {
+  local version="$1"
+  update_changelog_for_release "$version"
+
+  if ! git diff --quiet -- "CHANGELOG.md"; then
+    git add "CHANGELOG.md"
+    git commit -m "Update changelog for release $version"
+  fi
+}
+
 package_version() {
   local package_json_path="$1"
   bun --eval "console.log(JSON.parse(await Bun.file(\"$package_json_path\").text()).version)"
@@ -220,6 +302,10 @@ fi
 if should_release_create; then
   echo "==> Publishing create-pocketbun@$CREATE_VERSION"
   publish_package "$ROOT_DIR/create-pocketbun" 0
+fi
+
+if should_release_pocketbun; then
+  commit_changelog_for_release "$MAIN_VERSION"
 fi
 
 create_tags_and_maybe_push "${TAGS_TO_CREATE[@]}"
