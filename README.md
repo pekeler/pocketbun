@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/pekeler/pocketbun/actions/workflows/ci.yml/badge.svg)](https://github.com/pekeler/pocketbun/actions/workflows/ci.yml)
 
-An attempt to port **PocketBase** to JavaScript/TypeScript using Bun. **_Work in progress._**
+PocketBun is a port of [PocketBase](https://pocketbase.io) to Bun.
 
-> [PocketBase](https://pocketbase.io) is an open source Go backend that includes:
+> PocketBase is an open source Go backend that includes:
 > 
 > - embedded database (_SQLite_) with **realtime subscriptions**
 > - built-in **files and users management**
@@ -23,16 +23,15 @@ PocketBun is a semi-automated port to Bun that aims for maximum compatibility wi
 
 Key differences:
 
+- Built on Bun instead of Go
 - No Go extensions (only JavaScript/TypeScript)
-- Library-first API (CLI is optional and wraps the same APIs)
 - Full ES6+ compatibility + native npm package support
-- Built on Bun instead of Go + embedded JS VM
 - CLI binary is named `pocketbun` (not `pocketbase`)
-- No `update` command; update via your package manager (bun/npm/pnpm)
+- No `update` command; update via package manager
 
 ## Installation
 
-todo
+`bun add pocketbun`
 
 ## Quick Start
 
@@ -62,15 +61,23 @@ Then visit `http://127.0.0.1:8090/_/` for the Admin UI and `http://127.0.0.1:809
 
 PocketBase is fast for many use cases. PocketBun has been optimized to perform in the same ballpark, but Go (1.25.7) and Bun (1.3.9) are different runtimes, so differences exist.
 
-Depending on the benchmark scenario, **PocketBun is 6× faster to 3.4× slower** than PocketBase, with a geometric mean of **1.6× faster**.
+Depending on the benchmark scenario, **PocketBun is 5.5× faster to 3.1× slower** than PocketBase, with a geometric mean of **1.6× faster**.
 
-Precise comparisons are difficult due to [fluctuating results](https://github.com/pocketbase/benchmarks/issues/8) in the benchmarking suite. I ran PocketBase’s benchmark suite on a Hetzner CCX13 (2 dedicated vCPU, 8 GB RAM) three times for each system and calculated the numbers above from the mean times of those runs.
+Precise comparisons are difficult due to [fluctuating results](https://github.com/pocketbase/benchmarks/issues/8) in the benchmarking suite. PocketBase’s benchmark suite has been run on a Hetzner CCX13 (2 dedicated vCPU, 8 GB RAM) three times for each system and calculated the numbers above from the mean times of those runs.
+
+## Tests
+
+PocketBun keeps upstream test coverage close to PocketBase and adds a small set of PocketBun-specific tests.
+
+Only 2 tests didn't get ported. They are for PocketBase’s self-update command/plugin which doesn't exist in PocketBun.
+
+All tests are passing.
 
 ## Known Differences
 
-### Library Usage (API-first)
+### Library Usage
 
-PocketBun ships as a library and also provides a CLI wrapper. Use the library exports to run migrations, start the server, and manage superusers:
+PocketBun ships as a library and also provides a CLI wrapper.
 
 ```ts
 import { BaseApp, migrateAsync, serveAsync, superuser } from "pocketbun";
@@ -83,7 +90,7 @@ await serveAsync(app, { httpAddr: "127.0.0.1:8090" });
 await superuser.upsert(app, "admin@example.com", "change-me");
 ```
 
-CLI usage (PocketBase-style):
+CLI usage (pocketbase-style):
 
 ```sh
 pocketbun serve
@@ -136,7 +143,7 @@ Current extensions:
   - Used by async model paths (`await app.Validate(...)`, `await app.Save(...)`)
   - If `RequiresAsyncValidation` is `true`, sync model paths fail fast with a validation error
 
-Example (realistic): custom webhook URL field that does non-blocking reachability checks in async flows:
+Example: custom webhook URL field that does non-blocking reachability checks in async flows:
 
 ```ts
 import { toStringValue } from "../internal/compat/cast.ts";
@@ -219,7 +226,7 @@ server.stop(true);
 
 ### CLI Updates
 
-PocketBun does not ship the PocketBase `update` command. Because PocketBun is distributed as a package, update it via your package manager instead (for example `bun add -g pocketbun@latest`, `npm i -g pocketbun@latest`, or `pnpm add -g pocketbun@latest`).
+PocketBun does not ship the PocketBase `update` command. Because PocketBun is distributed as a package, update it via your package manager instead (`bun update pocketbun`).
 
 ### Activity Logs
 
@@ -227,7 +234,7 @@ PocketBun persists activity logs via a background worker to avoid blocking Bun�
 
 ### Thumbnails
 
-PocketBun uses Sharp for image resizing. Output bytes may differ from PocketBase’s Go imaging stack, and BMP thumbnails are emitted as PNG because Sharp doesn’t write BMP.
+PocketBun uses [Sharp](https://sharp.pixelplumbing.com) for image resizing. Output bytes may differ from PocketBase’s Go imaging stack, and BMP thumbnails are emitted as PNG because Sharp doesn’t write BMP.
 
 ### Templates ($template)
 
