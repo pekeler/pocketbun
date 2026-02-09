@@ -14,7 +14,7 @@
   "homepage": "https://github.com/pekeler/pocketbun/tree/master/create-pocketbun#readme",
   "type": "module",
   "bin": {
-    "create-pocketbun": "./bin/create-pocketbun.js"
+    "create-pocketbun": "bin/create-pocketbun.js"
   },
   "files": [
     "bin/",
