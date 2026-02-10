@@ -2,7 +2,8 @@
 
 ## 0.36.2-pocketbun.4 (Unreleased)
 
-- TBD
+- Fixed CLI `--version` output to resolve PocketBun version from package metadata in installed environments instead of showing `(untracked)`.
+- Added a regression test to ensure PocketBun version resolution stays stable.
 
 ## 0.36.2-pocketbun.3 - 2026-02-10
 

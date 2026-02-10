@@ -4,7 +4,7 @@ import { describe, expect, it } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { New, NewWithConfig, type PocketBaseConfig } from "./pocketbase.ts";
+import { New, NewWithConfig, type PocketBaseConfig, Version } from "./pocketbase.ts";
 import { Command } from "./tools/cli/command.ts";
 
 function withArgs(args: string[], fn: () => void): void {
@@ -142,5 +142,10 @@ describe("pocketbase", () => {
       process.argv = original;
       await rm(tempDir, { recursive: true, force: true });
     }
+  });
+
+  it("Version resolves to the PocketBun package version", () => {
+    expect(Version).not.toBe("(untracked)");
+    expect(Version).toContain("-pocketbun.");
   });
 });

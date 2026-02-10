@@ -1,5 +1,6 @@
 // Ported from pocketbase/pocketbase.go.
 
+import { readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { NewServeCommand } from "./cmd/serve.ts";
 import { NewSuperuserCommand } from "./cmd/superuser.ts";
@@ -12,7 +13,39 @@ import { IsProbablyGoRun } from "./tools/osutils/run.ts";
 import { FireAndForget } from "./tools/routine/routine.ts";
 
 // Version of PocketBun.
-export const Version = process.env.POCKETBUN_VERSION ?? process.env.npm_package_version ?? "(untracked)";
+export const Version = resolvePocketBunVersion();
+
+function resolvePocketBunVersion(): string {
+  if (process.env.POCKETBUN_VERSION) {
+    return process.env.POCKETBUN_VERSION;
+  }
+
+  // PocketBun-only: read package.json from known source/dist-relative paths so
+  // npm-installed binaries report the PocketBun version instead of "(untracked)".
+  const versionFromPackage = readPocketBunPackageVersion();
+  if (versionFromPackage) {
+    return versionFromPackage;
+  }
+
+  return process.env.npm_package_version ?? "(untracked)";
+}
+
+function readPocketBunPackageVersion(): string | null {
+  const candidates = ["../package.json", "../../package.json"];
+  for (const relativePath of candidates) {
+    try {
+      const raw = readFileSync(new URL(relativePath, import.meta.url), "utf8");
+      const parsed = JSON.parse(raw) as { name?: string; version?: string };
+      if (parsed.name === "pocketbun" && typeof parsed.version === "string" && parsed.version.length > 0) {
+        return parsed.version;
+      }
+    } catch {
+      // ignore read/parse errors while trying known candidate paths
+    }
+  }
+
+  return null;
+}
 
 export type PocketBaseConfig = {
   // hide the default console server info on app startup
