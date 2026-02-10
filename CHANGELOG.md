@@ -2,7 +2,9 @@
 
 ## 0.36.2-pocketbun.3 (Unreleased)
 
-- TBD
+- Fixed JSVM migration/runtime compatibility so JS migrations can use collection helper constructors (`newCollection`, `newBaseCollection`, `newViewCollection`, `newAuthCollection`) and mapped method access consistently.
+- Aligned migration execution transaction flow with PocketBase-style tx-app handling in the migrations runner.
+- Added/updated JSVM regression tests covering migration helper constructor loading and lower-camel mapped collection helper access.
 
 ## 0.36.2-pocketbun.2 - 2026-02-09
 

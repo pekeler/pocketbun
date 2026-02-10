@@ -142,6 +142,12 @@ function normalizeConfig(app: App, config: Config): Config {
   return normalized;
 }
 
+function toMigrationScriptApp(app: App): App {
+  const scope: Record<string, unknown> = {};
+  appBinds(scope, app);
+  return scope.$app as App;
+}
+
 function registerMigrations(app: App, config: Config): Error | null {
   const files = filesContent(config.MigrationsDir ?? "", config.MigrationsFilesPattern ?? "");
   if (!files) {
@@ -166,7 +172,11 @@ function registerMigrations(app: App, config: Config): Error | null {
     globals.$template = templateRegistry;
 
     globals.migrate = (up: (txApp: App) => void, down?: (txApp: App) => void) => {
-      AppMigrations.register(up, down, file);
+      AppMigrations.register(
+        (txApp) => up(toMigrationScriptApp(txApp)),
+        down ? (txApp) => down(toMigrationScriptApp(txApp)) : undefined,
+        file,
+      );
     };
 
     if (config.OnInit) {
@@ -207,7 +217,11 @@ async function registerMigrationsAsync(app: App, config: Config): Promise<Error 
     globals.$template = templateRegistry;
 
     globals.migrate = (up: (txApp: App) => void, down?: (txApp: App) => void) => {
-      AppMigrations.register(up, down, file);
+      AppMigrations.register(
+        (txApp) => up(toMigrationScriptApp(txApp)),
+        down ? (txApp) => down(toMigrationScriptApp(txApp)) : undefined,
+        file,
+      );
     };
 
     if (config.OnInit) {

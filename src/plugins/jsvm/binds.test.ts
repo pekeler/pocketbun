@@ -127,7 +127,7 @@ describe("jsvm binds", () => {
   it("base binds count", () => {
     const scope: BindScope = {};
     baseBinds(scope);
-    expect(countKeys(scope)).toBe(41);
+    expect(countKeys(scope)).toBe(45);
   });
 
   it("base binds sleep", () => {
@@ -294,6 +294,19 @@ describe("jsvm binds", () => {
     expect(collection.name).toBe("test");
     expect(collection.createRule).toBe("@request.auth.id != ''");
     expect(collection.Fields.GetByName("title")).not.toBeNull();
+  });
+
+  it("base binds collection helpers support jsvm-style lower-camel access", () => {
+    const scope: BindScope = {};
+    baseBinds(scope);
+
+    const users = scope.newAuthCollection("users");
+    users.Fields.add(new scope.TextField({ name: "name", required: true }));
+    users.listRule = "@request.auth.id != ''";
+
+    expect(users.type).toBe("auth");
+    expect(users.Fields.getByName("name")).not.toBeNull();
+    expect(users.listRule).toBe("@request.auth.id != ''");
   });
 
   it("base binds fields list", () => {

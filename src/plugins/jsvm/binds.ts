@@ -26,7 +26,13 @@ import { BodyLimit } from "../../apis/middlewares_body_limit.ts";
 import { DefaultMaxBodySize } from "../../apis/middlewares_body_limit.ts";
 import { Gzip } from "../../apis/middlewares_gzip.ts";
 import { RecordAuthResponse, EnrichRecord, EnrichRecords } from "../../apis/record_helpers.ts";
-import { Collection } from "../../core/collection_model.ts";
+import {
+  Collection,
+  NewAuthCollection,
+  NewBaseCollection,
+  NewCollection,
+  NewViewCollection,
+} from "../../core/collection_model.ts";
 import { RequestInfoContextDefault, type RequestInfo as RequestInfoShape } from "../../core/event_request.ts";
 import { AutodateField } from "../../core/field_autodate.ts";
 import { BoolField } from "../../core/field_bool.ts";
@@ -187,14 +193,17 @@ function wrapApp<T extends object>(app: T): T {
       const value = resolveAppProperty(target, prop, receiver);
       if (typeof value === "function") {
         return (...args: unknown[]) => {
-          const result = (value as (...args: unknown[]) => unknown).apply(target, args);
+          const result = (value as (...args: unknown[]) => unknown).apply(
+            target,
+            args.map((arg) => unwrapBoundValue(arg)),
+          );
           if (result instanceof Error) {
             throw result;
           }
-          return result;
+          return wrapBoundValue(result);
         };
       }
-      return value as unknown;
+      return wrapBoundValue(value as unknown);
     },
     set(target, prop, value, receiver) {
       return setMappedProperty(target, prop, value, receiver);
@@ -208,14 +217,17 @@ function wrapEvent<T extends object>(event: T): T {
       const value = resolveMappedProperty(target, prop, receiver);
       if (typeof value === "function") {
         return (...args: unknown[]) => {
-          const result = (value as (...args: unknown[]) => unknown).apply(target, args);
+          const result = (value as (...args: unknown[]) => unknown).apply(
+            target,
+            args.map((arg) => unwrapBoundValue(arg)),
+          );
           if (result instanceof Error) {
             throw result;
           }
-          return result;
+          return wrapBoundValue(result);
         };
       }
-      return value as unknown;
+      return wrapBoundValue(value as unknown);
     },
     set(target, prop, value, receiver) {
       return setMappedProperty(target, prop, value, receiver);
@@ -224,31 +236,95 @@ function wrapEvent<T extends object>(event: T): T {
 }
 
 function resolveMappedProperty(target: object, prop: string | symbol, receiver: unknown): unknown {
-  if (Reflect.has(target, prop)) {
-    return Reflect.get(target, prop, receiver);
-  }
   if (typeof prop === "string") {
     const candidate = prop.slice(0, 1).toUpperCase() + prop.slice(1);
     if (candidate in target) {
       return (target as Record<string, unknown>)[candidate];
     }
   }
+  if (Reflect.has(target, prop)) {
+    return Reflect.get(target, prop, receiver);
+  }
   return undefined;
 }
 
 function setMappedProperty(target: object, prop: string | symbol, value: unknown, receiver: unknown): boolean {
-  if (Reflect.has(target, prop)) {
-    return Reflect.set(target, prop, value, receiver);
-  }
+  const unwrappedValue = unwrapBoundValue(value);
   if (typeof prop === "string") {
     const candidate = prop.slice(0, 1).toUpperCase() + prop.slice(1);
     if (candidate in target) {
-      (target as Record<string, unknown>)[candidate] = value;
+      (target as Record<string, unknown>)[candidate] = unwrappedValue;
       return true;
     }
   }
-  (target as Record<string, unknown>)[String(prop)] = value;
+  if (Reflect.has(target, prop)) {
+    return Reflect.set(target, prop, unwrappedValue, receiver);
+  }
+  (target as Record<string, unknown>)[String(prop)] = unwrappedValue;
   return true;
+}
+
+// wrapBoundValue maps bound Go-style names to the JS style expected by jsvm scripts
+// (eg. `Fields.Add` <-> `fields.add`) and applies recursively to returned objects.
+const boundValueProxyCache = new WeakMap<object, object>();
+const boundValueTargetCache = new WeakMap<object, object>();
+
+function wrapBoundValue<T>(value: T): T {
+  if (!value || (typeof value !== "object" && typeof value !== "function")) {
+    return value;
+  }
+
+  if (value instanceof Error || value instanceof Promise || value instanceof Date || value instanceof RegExp) {
+    return value;
+  }
+
+  if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+    return value;
+  }
+
+  if (value instanceof Request || value instanceof Response || value instanceof Headers || value instanceof FormData) {
+    return value;
+  }
+
+  const objectValue = value as unknown as object;
+  const existing = boundValueProxyCache.get(objectValue);
+  if (existing) {
+    return existing as T;
+  }
+
+  const proxy = new Proxy(objectValue, {
+    get(target, prop, receiver) {
+      const mapped = resolveMappedProperty(target, prop, receiver);
+      if (typeof mapped === "function") {
+        return (...args: unknown[]) => {
+          const result = mapped.apply(
+            target,
+            args.map((arg) => unwrapBoundValue(arg)),
+          );
+          if (result instanceof Error) {
+            throw result;
+          }
+          return wrapBoundValue(result);
+        };
+      }
+      return wrapBoundValue(mapped);
+    },
+    set(target, prop, nextValue, receiver) {
+      return setMappedProperty(target, prop, nextValue, receiver);
+    },
+  });
+
+  boundValueProxyCache.set(objectValue, proxy);
+  boundValueTargetCache.set(proxy, objectValue);
+  return proxy as T;
+}
+
+function unwrapBoundValue<T>(value: T): T {
+  if (!value || (typeof value !== "object" && typeof value !== "function")) {
+    return value;
+  }
+  const target = boundValueTargetCache.get(value as unknown as object);
+  return (target ?? (value as unknown as object)) as T;
 }
 
 function toBytes(raw: unknown, _maxReaderBytes = DefaultMaxBodySize): number[] {
@@ -685,6 +761,7 @@ function wrapFieldCtor(Ctor: StructCtor): StructCtor {
       super(...args);
       const values = (args[0] ?? {}) as Record<string, unknown>;
       assignStructValues(this as Record<string, unknown>, values);
+      return wrapBoundValue(this as unknown as object) as object;
     }
   } as StructCtor;
 }
@@ -738,6 +815,7 @@ export function baseBinds(target: BindTarget): void {
       } else {
         super(new Collection(), {}, true);
       }
+      return wrapBoundValue(this as unknown as object) as RecordWrapper;
     }
   };
   target.Collection = class CollectionWrapper extends Collection {
@@ -747,6 +825,7 @@ export function baseBinds(target: BindTarget): void {
         this.Fields = NewFieldsList();
         this.Fields.AddMarshaledJSON(JSON.stringify(values.fields));
       }
+      return wrapBoundValue(this as unknown as object) as CollectionWrapper;
     }
   };
   target.FieldsList = class FieldsListWrapper extends FieldsList {
@@ -755,6 +834,7 @@ export function baseBinds(target: BindTarget): void {
       if (Array.isArray(values) && values.length > 0) {
         this.AddMarshaledJSON(JSON.stringify(values));
       }
+      return wrapBoundValue(this as unknown as object) as FieldsListWrapper;
     }
   };
   target.Field = class FieldWrapper {
@@ -765,9 +845,17 @@ export function baseBinds(target: BindTarget): void {
       if (list.length === 0) {
         throw new Error("invalid field data");
       }
-      return list[0] as unknown as FieldWrapper;
+      return wrapBoundValue(list[0]) as unknown as FieldWrapper;
     }
   };
+  target.newCollection = (typ: string, name: string, ...optId: string[]): Collection =>
+    wrapBoundValue(NewCollection(typ, name, optId[0] ?? ""));
+  target.newBaseCollection = (name: string, ...optId: string[]): Collection =>
+    wrapBoundValue(NewBaseCollection(name, optId[0] ?? ""));
+  target.newViewCollection = (name: string, ...optId: string[]): Collection =>
+    wrapBoundValue(NewViewCollection(name, optId[0] ?? ""));
+  target.newAuthCollection = (name: string, ...optId: string[]): Collection =>
+    wrapBoundValue(NewAuthCollection(name, optId[0] ?? ""));
   target.NumberField = wrapFieldCtor(NumberField);
   target.BoolField = wrapFieldCtor(BoolField);
   target.TextField = wrapFieldCtor(TextField);

@@ -112,33 +112,52 @@ export class MigrationsRunner {
   up(): string[] {
     this.initMigrationsTable();
     const applied: string[] = [];
+    const txErr = this.#app.AuxRunInTransactionSync((txApp) =>
+      txApp.RunInTransactionSync((txApp) => {
+        for (const migration of this.#migrationsList.items()) {
+          const alreadyApplied = this.isMigrationApplied(txApp, migration.file);
+          if (alreadyApplied) {
+            if (!migration.reapplyCondition) {
+              continue;
+            }
 
-    const tx = this.#app.db().transaction(() => {
-      for (const migration of this.#migrationsList.items()) {
-        const alreadyApplied = this.isMigrationApplied(migration.file);
-        if (alreadyApplied) {
-          if (!migration.reapplyCondition) {
-            continue;
+            let shouldReapply = false;
+            try {
+              shouldReapply = migration.reapplyCondition(txApp, this, migration.file);
+            } catch (err) {
+              return new Error(`failed to evaluate reapply condition for ${migration.file}: ${String(err)}`);
+            }
+            if (!shouldReapply) {
+              continue;
+            }
+
+            const revertedErr = this.saveRevertedMigration(txApp, migration.file);
+            if (revertedErr) {
+              return new Error(`failed to clear migration history for ${migration.file}: ${revertedErr.message}`);
+            }
           }
 
-          const shouldReapply = migration.reapplyCondition(this.#app, this, migration.file);
-          if (!shouldReapply) {
-            continue;
+          if (migration.up) {
+            try {
+              migration.up(txApp);
+            } catch (err) {
+              return new Error(`failed to apply migration ${migration.file}: ${String(err)}`);
+            }
           }
 
-          this.saveRevertedMigration(migration.file);
+          const appliedErr = this.saveAppliedMigration(txApp, migration.file);
+          if (appliedErr) {
+            return new Error(`failed to save applied migration info for ${migration.file}: ${appliedErr.message}`);
+          }
+          applied.push(migration.file);
         }
+        return null;
+      }),
+    );
+    if (txErr) {
+      throw txErr;
+    }
 
-        if (migration.up) {
-          migration.up(this.#app);
-        }
-
-        this.saveAppliedMigration(migration.file);
-        applied.push(migration.file);
-      }
-    });
-
-    tx();
     return applied;
   }
 
@@ -150,28 +169,40 @@ export class MigrationsRunner {
     this.initMigrationsTable();
     const names = this.lastAppliedMigrations(toRevertCount);
     const reverted: string[] = [];
+    const txErr = this.#app.AuxRunInTransactionSync((txApp) =>
+      txApp.RunInTransactionSync((txApp) => {
+        for (const name of names) {
+          if (toRevertCount - reverted.length <= 0) {
+            return null;
+          }
 
-    const tx = this.#app.db().transaction(() => {
-      for (const name of names) {
-        if (toRevertCount - reverted.length <= 0) {
-          return;
+          const migration = this.#migrationsList.items().find((item) => item.file === name);
+          if (!migration) {
+            continue;
+          }
+
+          if (migration.down) {
+            try {
+              migration.down(txApp);
+            } catch (err) {
+              return new Error(`failed to revert migration ${migration.file}: ${String(err)}`);
+            }
+          }
+
+          const revertedErr = this.saveRevertedMigration(txApp, migration.file);
+          if (revertedErr) {
+            return new Error(`failed to save reverted migration info for ${migration.file}: ${revertedErr.message}`);
+          }
+
+          reverted.push(migration.file);
         }
+        return null;
+      }),
+    );
+    if (txErr) {
+      throw txErr;
+    }
 
-        const migration = this.#migrationsList.items().find((item) => item.file === name);
-        if (!migration) {
-          continue;
-        }
-
-        if (migration.down) {
-          migration.down(this.#app);
-        }
-
-        this.saveRevertedMigration(migration.file);
-        reverted.push(migration.file);
-      }
-    });
-
-    tx();
     return reverted;
   }
 
@@ -217,27 +248,37 @@ export class MigrationsRunner {
     this.#inited = true;
   }
 
-  private isMigrationApplied(file: string): boolean {
-    const row = this.#app
+  private isMigrationApplied(app: App, file: string): boolean {
+    const row = app
       .db()
       .query(`select 1 as found from ${this.#tableName} where file = ? limit 1`)
       .get(file) as { found?: number } | undefined;
     return Boolean(row?.found);
   }
 
-  private saveAppliedMigration(file: string): void {
-    const applied = Math.floor(Date.now() * 1000);
-    this.#app
-      .db()
-      .query(`insert into ${this.#tableName} (file, applied) values (?, ?)`)
-      .run(file, applied);
+  private saveAppliedMigration(app: App, file: string): Error | null {
+    try {
+      const applied = Math.floor(Date.now() * 1000);
+      app
+        .db()
+        .query(`insert into ${this.#tableName} (file, applied) values (?, ?)`)
+        .run(file, applied);
+      return null;
+    } catch (err) {
+      return err as Error;
+    }
   }
 
-  private saveRevertedMigration(file: string): void {
-    this.#app
-      .db()
-      .query(`delete from ${this.#tableName} where file = ?`)
-      .run(file);
+  private saveRevertedMigration(app: App, file: string): Error | null {
+    try {
+      app
+        .db()
+        .query(`delete from ${this.#tableName} where file = ?`)
+        .run(file);
+      return null;
+    } catch (err) {
+      return err as Error;
+    }
   }
 
   private lastAppliedMigrations(limit: number): string[] {

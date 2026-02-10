@@ -10,6 +10,45 @@ import { newTestApp } from "../../tests/app.ts";
 import { Register, RegisterAsync } from "./jsvm.ts";
 
 describe("jsvm loader", () => {
+  it.serial("loads migration helper constructors and app.save() mapping", async () => {
+    const { app, cleanup } = await newTestApp();
+    const rootDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-"));
+    const hooksDir = join(rootDir, "pb_hooks");
+    const migrationsDir = join(rootDir, "pb_migrations");
+
+    await mkdir(hooksDir, { recursive: true });
+    await mkdir(migrationsDir, { recursive: true });
+
+    await writeFile(
+      join(migrationsDir, "9999999998_collection_helper_test.js"),
+      `migrate((app) => {
+  const tasks = newBaseCollection("jsvm_tasks");
+  tasks.Fields.add(new TextField({ name: "title", required: true }));
+  tasks.listRule = "@request.auth.id != ''";
+  app.save(tasks);
+});
+`,
+    );
+
+    try {
+      const err = Register(app, {
+        HooksDir: hooksDir,
+        MigrationsDir: migrationsDir,
+        TypesDir: rootDir,
+      });
+      expect(err).toBeNull();
+
+      app.runAppMigrations();
+      const tasks = app.FindCachedCollectionByNameOrId("jsvm_tasks");
+      expect(tasks).not.toBeNull();
+      expect(tasks?.Fields.GetByName("title")).not.toBeNull();
+      expect(tasks?.ListRule).toBe("@request.auth.id != ''");
+    } finally {
+      await cleanup();
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
   it.serial("loads hooks and migrations from pb_* directories", async () => {
     const { app, cleanup } = await newTestApp();
     const rootDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-"));
