@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.36.2-pocketbun.5 (Unreleased)
+
+- TBD
+
 ## 0.36.2-pocketbun.4 - 2026-02-10
 
 - Fixed CLI `--version` output to resolve PocketBun version from package metadata in installed environments instead of showing `(untracked)`.
