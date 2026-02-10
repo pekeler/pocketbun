@@ -733,6 +733,83 @@ describe("record CRUD fallback regressions", () => {
       restoreBindBody();
     }
   });
+
+  it("create succeeds when multipart file parsing needs request clone fallback", async () => {
+    let restorePatchedFormData: () => void = () => {};
+    let restoreBindBody: () => void = () => {};
+    try {
+      const failingRequests = new WeakSet<Request>();
+      const patchedRequests = new Map<Request, (this: Request) => Promise<unknown>>();
+      restorePatchedFormData = () => {
+        for (const [request, originalFormData] of patchedRequests.entries()) {
+          Object.defineProperty(request, "formData", {
+            configurable: true,
+            writable: true,
+            value: originalFormData,
+          });
+        }
+        patchedRequests.clear();
+      };
+
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- capture original prototype method for temporary patching.
+      const originalBindBody = Event.prototype.bindBody;
+      Event.prototype.bindBody = async function patchedBindBody(this: Event, target: object): Promise<void> {
+        const contentType = (this.request.headers.get("content-type") ?? "").toLowerCase();
+        if (contentType.startsWith("multipart/form-data")) {
+          const request = this.request as Request;
+          if (!patchedRequests.has(request)) {
+            // eslint-disable-next-line @typescript-eslint/no-deprecated -- test patching the native multipart parser path.
+            const originalFormData = request.formData.bind(request) as (this: Request) => Promise<unknown>;
+            patchedRequests.set(request, originalFormData);
+            Object.defineProperty(request, "formData", {
+              configurable: true,
+              writable: true,
+              value: async function patchedRequestFormData(this: Request): Promise<unknown> {
+                if (failingRequests.has(this)) {
+                  throw new TypeError("undefined is not a function");
+                }
+                return originalFormData.call(this);
+              },
+            });
+          }
+          failingRequests.add(request);
+        }
+        return originalBindBody.call(this, target);
+      };
+      restoreBindBody = () => {
+        Event.prototype.bindBody = originalBindBody;
+      };
+
+      await runApiScenario({
+        name: "multipart file parse clone fallback remains usable for create",
+        method: "POST",
+        url: "/api/collections/demo3/records",
+        body: createMultipart.body,
+        headers: {
+          "Content-Type": createMultipart.contentType,
+          Authorization: superuserToken,
+        },
+        expectedStatus: 200,
+        expectedContent: ['"id":"', '"title":"title_test"', '"files":["'],
+        expectedEvents: {
+          "*": 0,
+          OnRecordCreateRequest: 1,
+          OnModelCreate: 1,
+          OnModelCreateExecute: 1,
+          OnModelAfterCreateSuccess: 1,
+          OnRecordCreate: 1,
+          OnRecordCreateExecute: 1,
+          OnRecordAfterCreateSuccess: 1,
+          OnModelValidate: 1,
+          OnRecordValidate: 1,
+          OnRecordEnrich: 1,
+        },
+      });
+    } finally {
+      restoreBindBody();
+      restorePatchedFormData();
+    }
+  });
 });
 
 describe("record CRUD view", () => {

@@ -943,7 +943,9 @@ async function parseRequestData(
     const files = new Map<string, LocalFile[]>();
     let form: FormDataLike;
     try {
-      form = await parseMultipartFormData(request as unknown as Request);
+      // Use a cloned request body to avoid Bun multipart parser edge cases
+      // when the original request body has already been touched upstream.
+      form = await parseMultipartFormData(request as unknown as Request, { preserveBody: true });
     } catch (error) {
       return { data: {}, files, error: error as Error };
     }
