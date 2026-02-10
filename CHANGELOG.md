@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.36.2-pocketbun.4 (Unreleased)
+## 0.36.2-pocketbun.4 - 2026-02-10
 
 - Fixed CLI `--version` output to resolve PocketBun version from package metadata in installed environments instead of showing `(untracked)`.
 - Added a regression test to ensure PocketBun version resolution stays stable.
