@@ -44,6 +44,22 @@ ensure_tag_missing() {
   fi
 }
 
+ensure_npm_auth() {
+  local whoami_output
+  if ! whoami_output="$(npm whoami 2>&1)"; then
+    echo "Release blocked: npm authentication check failed." >&2
+    echo "$whoami_output" >&2
+    echo "Run 'npm login' (or set/refresh NPM_TOKEN) and retry." >&2
+    exit 1
+  fi
+
+  if [[ -z "$whoami_output" ]]; then
+    echo "Release blocked: npm authentication check returned an empty user." >&2
+    echo "Run 'npm login' (or set/refresh NPM_TOKEN) and retry." >&2
+    exit 1
+  fi
+}
+
 changelog_state() {
   local version="$1"
   local unreleased_header="## ${version} (Unreleased)"
@@ -161,6 +177,10 @@ release_pocketbun() {
   release_tag="v${package_version}"
   changelog_status="$(changelog_state "$package_version")"
 
+  if [[ "$mode" == "publish" ]]; then
+    ensure_npm_auth
+  fi
+
   ensure_unpublished "$package_name" "$package_version"
   ensure_tag_missing "$release_tag"
 
@@ -211,6 +231,10 @@ release_create_pocketbun() {
   package_name="$(json_field "$package_json" "name")"
   package_version="$(json_field "$package_json" "version")"
   release_tag="create-pocketbun-v${package_version}"
+
+  if [[ "$mode" == "publish" ]]; then
+    ensure_npm_auth
+  fi
 
   ensure_unpublished "$package_name" "$package_version"
   ensure_tag_missing "$release_tag"
