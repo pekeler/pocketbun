@@ -44,19 +44,28 @@ ensure_tag_missing() {
   fi
 }
 
-ensure_changelog_ready() {
+changelog_state() {
   local version="$1"
-  local header="## ${version} (Unreleased)"
+  local unreleased_header="## ${version} (Unreleased)"
+  local released_header_prefix="## ${version} - "
 
   if [[ ! -f CHANGELOG.md ]]; then
     echo "Release blocked: CHANGELOG.md is missing." >&2
     exit 1
   fi
 
-  if ! grep -Fqx "$header" CHANGELOG.md; then
-    echo "Release blocked: expected changelog header '$header'." >&2
-    exit 1
+  if grep -Fqx "$unreleased_header" CHANGELOG.md; then
+    echo "unreleased"
+    return 0
   fi
+
+  if grep -Fq "$released_header_prefix" CHANGELOG.md; then
+    echo "released"
+    return 0
+  fi
+
+  echo "Release blocked: expected changelog header '$unreleased_header' or released header '${released_header_prefix}YYYY-MM-DD'." >&2
+  exit 1
 }
 
 publish_package() {
@@ -145,12 +154,13 @@ release_pocketbun() {
   local package_name
   local package_version
   local release_tag
+  local changelog_status
 
   package_name="$(json_field "$package_json" "name")"
   package_version="$(json_field "$package_json" "version")"
   release_tag="v${package_version}"
+  changelog_status="$(changelog_state "$package_version")"
 
-  ensure_changelog_ready "$package_version"
   ensure_unpublished "$package_name" "$package_version"
   ensure_tag_missing "$release_tag"
 
@@ -166,11 +176,15 @@ release_pocketbun() {
   local next_version
   next_version="$(next_pocketbun_version "$package_version")"
 
-  echo "==> Finalize release notes for ${package_version}"
-  finalize_changelog_release "$package_version" "$release_date"
-  git add CHANGELOG.md
-  git commit -m "chore(release): ${package_version}"
-  git push
+  if [[ "$changelog_status" == "unreleased" ]]; then
+    echo "==> Finalize release notes for ${package_version}"
+    finalize_changelog_release "$package_version" "$release_date"
+    git add CHANGELOG.md
+    git commit -m "chore(release): ${package_version}"
+    git push
+  else
+    echo "==> Release notes for ${package_version} already finalized; continuing."
+  fi
 
   echo "==> Publish ${package_name}@${package_version}"
   publish_package "$ROOT_DIR" 0
