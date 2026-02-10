@@ -37,6 +37,8 @@ const adminBrandingScriptRoute = `/_/${adminBrandingScriptFileName}`;
 const adminBrandingScriptPath = resolve(serveModuleDir, "../../src/ui/admin_branding.js");
 const adminContentSecurityPolicy =
   "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://127.0.0.1:* https://tile.openstreetmap.org data: blob:; connect-src 'self' http://127.0.0.1:* https://nominatim.openstreetmap.org; script-src 'self' 'sha256-GRUzBA7PzKYug7pqxv5rJaec5bwDCw1Vo6/IXwvD3Tc='";
+// Bun currently limits `idleTimeout` to <= 255 seconds.
+const defaultServerIdleTimeoutSeconds = 255;
 
 let brandedAdminIndexHtmlPromise: Promise<string> | null = null;
 let adminBrandingScriptPromise: Promise<string | null> | null = null;
@@ -148,6 +150,9 @@ function startServerSync(app: App, config: ServeConfig): ReturnType<typeof Bun.s
   const server = Bun.serve({
     hostname,
     port,
+    // PocketBun deviation: Bun's default idleTimeout can close quiet SSE streams too early.
+    // Keep it aligned with realtime connect idle behavior (5 minutes).
+    idleTimeout: defaultServerIdleTimeoutSeconds,
     fetch: handler,
   });
 
@@ -165,6 +170,9 @@ async function startServerAsync(app: App, config: ServeConfig): Promise<ReturnTy
   const server = Bun.serve({
     hostname,
     port,
+    // PocketBun deviation: Bun's default idleTimeout can close quiet SSE streams too early.
+    // Keep it aligned with realtime connect idle behavior (5 minutes).
+    idleTimeout: defaultServerIdleTimeoutSeconds,
     fetch: handler,
   });
   serveEvent.Server = server;

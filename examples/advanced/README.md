@@ -76,17 +76,22 @@ Fetch the record and verify the `slug` field was set by the hook:
 
 ## Realtime (SSE)
 
-Open a realtime connection (keep this running):
+In terminal A, open a realtime connection and keep it running:
 
     curl -N http://127.0.0.1:8090/api/realtime
 
-Copy the `clientId` from the `PB_CONNECT` event, then subscribe:
+Copy the `clientId` from the `PB_CONNECT` event.
+
+In terminal B, subscribe with the same auth token from "Create a user and log in":
 
     curl -X POST http://127.0.0.1:8090/api/realtime \
+      -H "Authorization: <TOKEN>" \
       -H "Content-Type: application/json" \
-      -d '{"clientId":"<CLIENT_ID>","subscriptions":["projects"]}'
+      -d '{"clientId":"<CLIENT_ID>","subscriptions":["projects/*"]}'
 
-Create or update a project and watch the realtime event stream.
+The subscribe request returns `204 No Content` immediately. The SSE stream stays open in terminal A.
+
+Create or update a project and watch the realtime event stream in terminal A.
 
 ## Custom route (hooks)
 

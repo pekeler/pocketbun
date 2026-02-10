@@ -7,6 +7,8 @@
 - Added/updated JSVM regression tests covering migration helper constructor loading and lower-camel mapped collection helper access.
 - Fixed multipart record create parsing to use clone-based form-data parsing in the record CRUD path, avoiding Bun `undefined is not a function` failures on project/file creates.
 - Added a regression test for multipart create fallback behavior when multipart parsing fails on the primary request object.
+- Fixed realtime SSE stability on Bun by adding periodic SSE keepalive comments and setting Bun server `idleTimeout` to the supported max (`255s`) so idle realtime streams are not closed prematurely.
+- Clarified advanced example realtime instructions to use authenticated subscriptions (`Authorization` header), wildcard topic subscription (`projects/*`), and expected `204 No Content` on subscribe requests.
 
 ## 0.36.2-pocketbun.2 - 2026-02-09
 

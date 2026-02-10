@@ -33,6 +33,9 @@ import {
 
 // note: the chunk size is arbitrary chosen and may change in the future
 const clientsChunkSize = 150;
+// PocketBun deviation: Bun servers enforce a socket idle timeout (max 255s),
+// so we emit SSE comment keepalives to keep long-lived realtime streams open.
+const realtimeSSEKeepaliveIntervalMs = 25 * 1000;
 
 // RealtimeClientAuthKey is the name of the realtime client store key that holds its auth state.
 export const RealtimeClientAuthKey = "auth";
@@ -920,62 +923,89 @@ async function waitForRealtimeMessages(event: RealtimeConnectRequestEvent, write
     );
   });
 
-  while (true) {
-    let idleTimer: ReturnType<typeof setTimeout> | null = null;
-    const idlePromise = new Promise<{ type: "idle" }>((resolve) => {
-      idleTimer = setTimeout(() => resolve({ type: "idle" }), event.IdleTimeout);
-    });
-
-    const nextPromise = iterator.next().then((result) => ({ type: "message" as const, result }));
-
-    const winner = await Promise.race([abortPromise, idlePromise, nextPromise]);
-
-    if (idleTimer) {
-      clearTimeout(idleTimer);
-    }
-
-    if (winner.type === "idle") {
-      event.App.Logger().Debug("Realtime connection closed (idle timeout)", "clientId", client.Id());
-      return;
-    }
-
-    if (winner.type === "abort") {
-      event.App.Logger().Debug("Realtime connection closed (cancelled request)", "clientId", client.Id());
-      return;
-    }
-
-    if (winner.result.done) {
-      event.App.Logger().Debug("Realtime connection closed (closed channel)", "clientId", client.Id());
-      return;
-    }
-
-    const msgEvent = new RealtimeMessageEvent(event.RequestEvent);
-    msgEvent.Client = client;
-    msgEvent.Message = winner.result.value as Message;
-
-    const msgErr = await event.App.OnRealtimeMessageSend().Trigger(msgEvent, (me) => {
-      if (!me.Message || !me.Client) {
-        return null;
-      }
-      return writeMessage(writer, me.Message, me.Client.Id());
-    });
-
-    if (msgErr instanceof Error) {
+  const keepaliveTimer = setInterval(() => {
+    const keepaliveErr = writeKeepalive(writer);
+    if (keepaliveErr) {
       event.App.Logger().Debug(
-        "Realtime connection closed (failed to deliver message)",
+        "Realtime connection closed (failed to deliver keepalive)",
         "clientId",
         client.Id(),
         "error",
-        msgErr.message,
+        keepaliveErr.message,
       );
-      return;
+      client.Discard();
     }
+  }, realtimeSSEKeepaliveIntervalMs);
+
+  try {
+    while (true) {
+      let idleTimer: ReturnType<typeof setTimeout> | null = null;
+      const idlePromise = new Promise<{ type: "idle" }>((resolve) => {
+        idleTimer = setTimeout(() => resolve({ type: "idle" }), event.IdleTimeout);
+      });
+
+      const nextPromise = iterator.next().then((result) => ({ type: "message" as const, result }));
+
+      const winner = await Promise.race([abortPromise, idlePromise, nextPromise]);
+
+      if (idleTimer) {
+        clearTimeout(idleTimer);
+      }
+
+      if (winner.type === "idle") {
+        event.App.Logger().Debug("Realtime connection closed (idle timeout)", "clientId", client.Id());
+        return;
+      }
+
+      if (winner.type === "abort") {
+        event.App.Logger().Debug("Realtime connection closed (cancelled request)", "clientId", client.Id());
+        return;
+      }
+
+      if (winner.result.done) {
+        event.App.Logger().Debug("Realtime connection closed (closed channel)", "clientId", client.Id());
+        return;
+      }
+
+      const msgEvent = new RealtimeMessageEvent(event.RequestEvent);
+      msgEvent.Client = client;
+      msgEvent.Message = winner.result.value as Message;
+
+      const msgErr = await event.App.OnRealtimeMessageSend().Trigger(msgEvent, (me) => {
+        if (!me.Message || !me.Client) {
+          return null;
+        }
+        return writeMessage(writer, me.Message, me.Client.Id());
+      });
+
+      if (msgErr instanceof Error) {
+        event.App.Logger().Debug(
+          "Realtime connection closed (failed to deliver message)",
+          "clientId",
+          client.Id(),
+          "error",
+          msgErr.message,
+        );
+        return;
+      }
+    }
+  } finally {
+    clearInterval(keepaliveTimer);
   }
 }
 
 function writeMessage(writer: MessageWriter, message: Message, clientId: string): Error | null {
   try {
     message.WriteSSE(writer, clientId);
+    return null;
+  } catch (error) {
+    return error as Error;
+  }
+}
+
+function writeKeepalive(writer: MessageWriter): Error | null {
+  try {
+    writer.write(":\n\n");
     return null;
   } catch (error) {
     return error as Error;
