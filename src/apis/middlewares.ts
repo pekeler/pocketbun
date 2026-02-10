@@ -179,8 +179,10 @@ export function loadAuthToken(): Handler<RequestEvent> {
         if (record) {
           event.auth = record;
         }
-      } catch {
-        // ignore invalid or expired token by default
+      } catch (error) {
+        // Note: keep invalid/expired tokens non-fatal for route compatibility.
+        // Upstream logs this at debug level for troubleshooting.
+        event.app.Logger().Debug("loadAuthToken failure", "error", error);
       }
 
       return event.Next();
