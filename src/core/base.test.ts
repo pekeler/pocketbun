@@ -123,6 +123,58 @@ describe("BaseApp", () => {
     await rm(dataDir, { recursive: true, force: true });
   });
 
+  it.serial("BaseAppRestart", async () => {
+    if (process.platform === "win32") {
+      return;
+    }
+
+    const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
+    const app = new BaseApp({ dataDir });
+    app.bootstrap();
+
+    const terminateIsRestartValues: boolean[] = [];
+    app.OnTerminate().Bind({
+      Id: "__pbBaseAppRestartTestTerminate__",
+      Func: (event) => {
+        terminateIsRestartValues.push(event.IsRestart);
+        return event.Next();
+      },
+    });
+
+    const stubErr = new Error("execve stub failed");
+    const capturedExecve: Array<{ argv0: string; argv: string[]; envv: string[] }> = [];
+
+    setExecveForTests((argv0, argv, envv) => {
+      capturedExecve.push({
+        argv0,
+        argv: [...argv],
+        envv: [...envv],
+      });
+      return stubErr;
+    });
+
+    try {
+      const restartErr = app.Restart();
+      expect(restartErr).toBe(stubErr);
+      expect(app.isBootstrapped()).toBe(true);
+      expect(terminateIsRestartValues.includes(true)).toBe(true);
+
+      expect(capturedExecve.length).toBe(1);
+      const execveCall = capturedExecve[0];
+      if (!execveCall) {
+        throw new Error("execve call was not captured");
+      }
+      expect(execveCall.argv0.length).toBeGreaterThan(0);
+      expect(execveCall.argv.length).toBeGreaterThan(0);
+      expect(execveCall.argv[0]).toBe(execveCall.argv0);
+      expect(execveCall.envv.length).toBeGreaterThan(0);
+    } finally {
+      setExecveForTests(null);
+      app.resetBootstrapState();
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  });
+
   it.serial("BaseAppRestartAsync", async () => {
     if (process.platform === "win32") {
       return;

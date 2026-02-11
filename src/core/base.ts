@@ -1931,20 +1931,40 @@ export class BaseApp implements App {
     }
 
     const execPath = this.resolveRestartExecPath();
+    const event = new TerminateEvent(this, true);
+    const result = this.OnTerminate().Trigger(event, (e) => {
+      e.App.resetBootstrapState();
 
-    // Deviation: sync Restart keeps sync-only lifecycle semantics and does not
-    // await async terminate hooks. Use RestartAsync for full terminate hook support.
-    this.resetBootstrapState();
-    const restartErr = execve(execPath, this.buildRestartArgv(execPath), this.buildRestartEnvv());
+      const restartErr = execve(execPath, this.buildRestartArgv(execPath), this.buildRestartEnvv());
 
-    // Attempt to restart the bootstrap process in case execve returns an error.
-    try {
-      this.bootstrap();
-    } catch (error) {
-      this.Logger().Error("Failed to rebootstrap the application after failed app.Restart()", "error", error);
+      // Attempt to restart the bootstrap process in case execve returns an error.
+      try {
+        e.App.bootstrap();
+      } catch (error) {
+        this.Logger().Error("Failed to rebootstrap the application after failed app.Restart()", "error", error);
+      }
+
+      return restartErr;
+    });
+
+    // Deviation: sync Restart doesn't await async terminate hooks.
+    // Use RestartAsync for full terminate hook support.
+    if (result instanceof Promise) {
+      void result
+        .then((resolved) => {
+          if (resolved instanceof Error) {
+            this.Logger().Error("Failed to restart app", "error", resolved);
+          }
+        })
+        .catch((error) => this.Logger().Error("Failed to restart app", "error", error));
+      return null;
     }
 
-    return restartErr;
+    if (result instanceof Error) {
+      return result;
+    }
+
+    return null;
   }
 
   // RestartAsync is a PocketBun-only async alternative to Restart().
