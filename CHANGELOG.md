@@ -21,6 +21,8 @@
 - Added Microsoft OAuth2 provider regression tests for profile mapping and invalid payload/type handling.
 - Ported Discord OAuth2 `FetchAuthUser` mapping behavior, including composed username and avatar URL formatting plus verified-email-only assignment.
 - Added Discord OAuth2 provider regression tests for profile mapping, optional field defaults, and invalid payload/type handling.
+- Ported Facebook OAuth2 `FetchAuthUser` mapping behavior, including nested `picture.data.url` avatar extraction and provider-specific field mapping.
+- Added Facebook OAuth2 provider regression tests for profile mapping, optional field defaults, and invalid payload/type handling.
 
 ## 0.36.2-pocketbun.4 - 2026-02-10
 
