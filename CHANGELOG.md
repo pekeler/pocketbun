@@ -27,6 +27,8 @@
 - Added Bitbucket OAuth2 provider regression tests for profile mapping, inactive-account handling, email lookup fallback, and invalid payload/type handling.
 - Ported Box OAuth2 `FetchAuthUser` mapping behavior, including active-account status enforcement and login-email mapping.
 - Added Box OAuth2 provider regression tests for profile mapping, inactive-account handling, and invalid payload/type handling.
+- Ported Linear OAuth2 `FetchAuthUser` and GraphQL `FetchRawUserInfo` behavior, including active-account enforcement and provider-specific profile field mapping.
+- Added Linear OAuth2 provider regression tests for GraphQL request semantics, profile mapping, inactive-account handling, and invalid payload/type handling.
 
 ## 0.36.2-pocketbun.4 - 2026-02-10
 
