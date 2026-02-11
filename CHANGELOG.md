@@ -11,6 +11,8 @@
 - Added Google OAuth2 provider regression tests for verified-email mapping and invalid payload/type handling.
 - Ported GitHub OAuth2 `FetchAuthUser` mapping behavior, including provider-specific ID/login mapping and optional primary-email fallback via the `/user/emails` API with insufficient-scope status handling.
 - Added GitHub OAuth2 provider regression tests for profile mapping, private-email fallback, and invalid payload handling.
+- Ported GitLab OAuth2 `FetchAuthUser` mapping behavior with provider-specific field extraction and token/expiry wiring matching PocketBase semantics.
+- Added GitLab OAuth2 provider regression tests for profile mapping and invalid payload/type handling.
 
 ## 0.36.2-pocketbun.4 - 2026-02-10
 
