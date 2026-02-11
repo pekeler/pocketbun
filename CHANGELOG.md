@@ -17,6 +17,8 @@
 - Added OIDC OAuth2 provider regression tests for user mapping, id_token claim parsing, audience/issuer enforcement, UserInfo endpoint fallback, and JWKS signature validation.
 - Ported Apple OAuth2 `FetchAuthUser` and id_token claim handling behavior, including verified-email gating plus issuer/audience/signature validation aligned with Apple flow.
 - Added Apple OAuth2 provider regression tests for profile mapping and id_token validation edge cases (empty token, missing expiration, invalid issuer, invalid signature).
+- Ported Microsoft OAuth2 `FetchAuthUser` mapping behavior with provider-specific field extraction and token/expiry wiring matching PocketBase semantics.
+- Added Microsoft OAuth2 provider regression tests for profile mapping and invalid payload/type handling.
 
 ## 0.36.2-pocketbun.4 - 2026-02-10
 
