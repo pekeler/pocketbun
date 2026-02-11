@@ -461,14 +461,20 @@ export class Event implements Resolver {
       return;
     }
 
-    if (contentType.startsWith("multipart/form-data")) {
-      const form = await parseMultipartFormData(this.request, { preserveBody: true });
-      const data = collectFormData(form);
-      const err = unmarshalRequestData(data, target as Record<string, unknown>);
-      if (err) {
-        throw err;
+    if (contentType.startsWith("multipart/form-data") || contentType === "") {
+      try {
+        const form = await parseMultipartFormData(this.request, { preserveBody: true });
+        const data = collectFormData(form);
+        const err = unmarshalRequestData(data, target as Record<string, unknown>);
+        if (err) {
+          throw err;
+        }
+        return;
+      } catch (error) {
+        if (contentType.startsWith("multipart/form-data")) {
+          throw error;
+        }
       }
-      return;
     }
 
     if (contentType.startsWith("application/x-www-form-urlencoded")) {

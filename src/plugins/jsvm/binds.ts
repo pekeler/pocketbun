@@ -1185,8 +1185,12 @@ if (!rawUrl) {
         { method, headers },
         (res) => {
           const chunks = [];
-          res.on("data", (chunk) => chunks.push(chunk));
-          res.on("end", () => {
+          let settled = false;
+          const finishResolve = () => {
+            if (settled) {
+              return;
+            }
+            settled = true;
             const resBytes = Buffer.concat(chunks);
             const headerEntries = [];
             for (const [key, value] of Object.entries(res.headers)) {
@@ -1210,7 +1214,19 @@ if (!rawUrl) {
               setCookie,
               bodyBase64: Buffer.from(resBytes).toString("base64"),
             });
-          });
+          };
+          const finishReject = (err) => {
+            if (settled) {
+              return;
+            }
+            settled = true;
+            reject(err);
+          };
+          res.on("data", (chunk) => chunks.push(chunk));
+          res.on("end", finishResolve);
+          res.on("close", finishResolve);
+          res.on("error", finishReject);
+          res.on("aborted", () => finishReject(new Error("response aborted")));
         },
       );
 

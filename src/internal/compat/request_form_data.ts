@@ -51,9 +51,7 @@ async function parseMultipartFormDataFallback(
   originalError: Error,
 ): Promise<ParsedFormData | null> {
   const contentType = request.headers.get("content-type") ?? "";
-  if (!contentType.toLowerCase().includes("multipart/form-data")) {
-    return null;
-  }
+  const hasMultipartHeader = contentType.toLowerCase().includes("multipart/form-data");
 
   let body: ArrayBuffer;
   try {
@@ -76,10 +74,20 @@ async function parseMultipartFormDataFallback(
     }
   }
 
+  const bodyBytes = new Uint8Array(body);
+  const boundary = detectMultipartBoundary(bodyBytes);
+  if (!hasMultipartHeader && !boundary) {
+    return null;
+  }
+  const normalizedContentType = normalizeMultipartContentType(contentType, boundary);
+  if (!normalizedContentType) {
+    return null;
+  }
+
   const reconstructed = new Request(request.url ?? "http://localhost/", {
     method: request.method ?? "POST",
-    headers: { "content-type": contentType },
-    body,
+    headers: { "content-type": normalizedContentType },
+    body: bodyBytes,
   });
 
   try {
@@ -88,4 +96,42 @@ async function parseMultipartFormDataFallback(
   } catch (fallbackError) {
     throw new Error((fallbackError as Error).message, { cause: originalError });
   }
+}
+
+function detectMultipartBoundary(body: Uint8Array): string | null {
+  if (body.length < 3 || body[0] !== 45 || body[1] !== 45) {
+    return null;
+  }
+
+  const sample = new TextDecoder().decode(body.subarray(0, Math.min(body.length, 4096)));
+  const firstLineEnd = sample.indexOf("\n");
+  const firstLine = (firstLineEnd >= 0 ? sample.slice(0, firstLineEnd) : sample).trimEnd();
+  if (!firstLine.startsWith("--")) {
+    return null;
+  }
+
+  const boundary = firstLine.slice(2).trim();
+  return boundary === "" ? null : boundary;
+}
+
+function normalizeMultipartContentType(contentType: string, boundary: string | null): string | null {
+  const hasMultipartHeader = contentType.toLowerCase().includes("multipart/form-data");
+  if (!hasMultipartHeader) {
+    return boundary ? `multipart/form-data; boundary=${boundary}` : null;
+  }
+
+  if (!boundary) {
+    return contentType;
+  }
+
+  if (/\bboundary=/i.test(contentType)) {
+    return contentType.replace(/\bboundary=(?:"[^"]*"|[^;]*)/i, `boundary=${boundary}`);
+  }
+
+  const trimmed = contentType.trim();
+  if (trimmed === "") {
+    return `multipart/form-data; boundary=${boundary}`;
+  }
+
+  return trimmed.endsWith(";") ? `${trimmed} boundary=${boundary}` : `${trimmed}; boundary=${boundary}`;
 }

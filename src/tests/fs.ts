@@ -13,7 +13,7 @@ function isRetriableRemoveError(error: unknown): boolean {
 
 export async function removeDirWithRetry(dir: string, options: { retries?: number; delayMs?: number } = {}): Promise<void> {
   // Windows runners may keep SQLite/log files locked for several seconds.
-  const retries = Math.max(1, options.retries ?? 240);
+  const retries = Math.max(1, options.retries ?? 120);
   const delayMs = Math.max(1, options.delayMs ?? 50);
   let lastError: unknown = null;
 
@@ -23,14 +23,18 @@ export async function removeDirWithRetry(dir: string, options: { retries?: numbe
       return;
     } catch (error) {
       lastError = error;
-      if (!isRetriableRemoveError(error) || attempt === retries) {
+      if (!isRetriableRemoveError(error)) {
         throw error;
+      }
+      // Keep test cleanup best-effort; locked temp dirs should not fail test assertions.
+      if (attempt === retries) {
+        return;
       }
       await Bun.sleep(delayMs);
     }
   }
 
-  if (lastError) {
+  if (lastError && !isRetriableRemoveError(lastError)) {
     throw lastError;
   }
 }

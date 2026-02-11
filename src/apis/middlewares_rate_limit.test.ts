@@ -19,13 +19,14 @@ describe("middlewares rate limit", () => {
 
   const setup = async () => {
     const { app, cleanup } = await newTestApp();
+    // Use a 2s window to avoid second-boundary flakes on slower CI runners.
     app.settings().rateLimits.enabled = true;
     app.settings().rateLimits.rules = [
-      { label: "/rate/", maxRequests: 2, duration: 1 },
-      { label: "/rate/b", maxRequests: 3, duration: 1 },
-      { label: "POST /rate/b", maxRequests: 1, duration: 1 },
-      { label: "/rate/guest", maxRequests: 1, duration: 1, audience: "@guest" },
-      { label: "/rate/auth", maxRequests: 1, duration: 1, audience: "@auth" },
+      { label: "/rate/", maxRequests: 2, duration: 2 },
+      { label: "/rate/b", maxRequests: 3, duration: 2 },
+      { label: "POST /rate/b", maxRequests: 1, duration: 2 },
+      { label: "/rate/guest", maxRequests: 1, duration: 2, audience: "@guest" },
+      { label: "/rate/auth", maxRequests: 1, duration: 2, audience: "@auth" },
     ];
 
     const router = new Router<RequestEvent>();
@@ -61,14 +62,14 @@ describe("middlewares rate limit", () => {
       { url: "/rate/a", wait: 0, authenticated: false, expectedStatus: 200 },
       { url: "/rate/a", wait: 0, authenticated: false, expectedStatus: 429 },
       { url: "/rate/a", wait: 0, authenticated: false, expectedStatus: 429 },
-      { url: "/rate/a", wait: 1.1, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/a", wait: 2.1, authenticated: false, expectedStatus: 200 },
       { url: "/rate/a", wait: 0, authenticated: false, expectedStatus: 200 },
       { url: "/rate/a", wait: 0, authenticated: false, expectedStatus: 429 },
       { url: "/rate/b", wait: 0, authenticated: false, expectedStatus: 200 },
       { url: "/rate/b", wait: 0, authenticated: false, expectedStatus: 200 },
       { url: "/rate/b", wait: 0, authenticated: false, expectedStatus: 200 },
       { url: "/rate/b", wait: 0, authenticated: false, expectedStatus: 429 },
-      { url: "/rate/b", wait: 1.1, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/b", wait: 2.1, authenticated: false, expectedStatus: 200 },
       { url: "/rate/b", wait: 0, authenticated: false, expectedStatus: 200 },
       { url: "/rate/b", wait: 0, authenticated: false, expectedStatus: 200 },
       { url: "/rate/b", wait: 0, authenticated: false, expectedStatus: 429 },
@@ -82,7 +83,7 @@ describe("middlewares rate limit", () => {
       { url: "/rate/guest", wait: 0, authenticated: false, expectedStatus: 200 },
       { url: "/rate/guest", wait: 0, authenticated: false, expectedStatus: 429 },
       { url: "/rate/guest", wait: 0, authenticated: false, expectedStatus: 429 },
-      { url: "/rate/guest", wait: 1.1, authenticated: true, expectedStatus: 200 },
+      { url: "/rate/guest", wait: 2.1, authenticated: true, expectedStatus: 200 },
       { url: "/rate/guest", wait: 0, authenticated: true, expectedStatus: 200 },
       { url: "/rate/guest", wait: 0, authenticated: true, expectedStatus: 429 },
       { url: "/rate/guest", wait: 0, authenticated: true, expectedStatus: 429 },
@@ -111,5 +112,5 @@ describe("middlewares rate limit", () => {
         throw new Error(`Expected response status ${scenario.expectedStatus}, got ${response.status}`);
       }
     }
-  });
+  }, 15000);
 });

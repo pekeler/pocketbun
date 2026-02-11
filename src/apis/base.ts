@@ -232,7 +232,7 @@ function safeRedirectPath(path: string): string {
 }
 
 function cleanPath(raw: string): string {
-  let normalized = pathPosix.normalize(raw);
+  let normalized = pathPosix.normalize(raw.replace(/\\/g, "/"));
   if (normalized !== "/" && normalized.endsWith("/")) {
     normalized = normalized.slice(0, -1);
   }
