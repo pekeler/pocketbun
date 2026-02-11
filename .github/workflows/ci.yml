@@ -11,10 +11,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
+        include:
+          - os: ubuntu-latest
+            test-command: bun test --concurrent
+          - os: macos-latest
+            test-command: bun test --concurrent
+          - os: windows-latest
+            test-command: bun test --concurrent --max-concurrency 8 --timeout 20000
 
     steps:
       - name: Configure Git line endings (Windows)
@@ -43,7 +46,7 @@ jobs:
         run: bun run typecheck
 
       - name: Tests
-        run: bun test --concurrent
+        run: ${{ matrix.test-command }}
 
   e2e:
     name: E2E (ubuntu-latest)

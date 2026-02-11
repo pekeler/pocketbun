@@ -71,7 +71,7 @@ describe("pocketbase", () => {
     const originalArgv = [...process.argv];
 
     try {
-      process.argv = [originalArgv[0] ?? "bun", join("/tmp", "node_modules", ".bin", "pocketbun")];
+      process.argv = [originalArgv[0] ?? "bun", join(tmpdir(), "node_modules", ".bin", "pocketbun")];
       const expectedDataDir = join(process.cwd(), "pb_data");
 
       const app = New();
@@ -112,19 +112,20 @@ describe("pocketbase", () => {
         const app3 = NewWithConfig({ DefaultDataDir: tempDir });
         expect(skipBootstrap(app3)).toBe(true);
 
-        const customCmd = new Command({ Use: "custom" });
-        customCmd.PersistentFlags().BoolP(scenario.name, scenario.short, false, "");
-
         process.argv = original.slice(0, 2);
         process.argv.push("custom", `--${scenario.name}`);
         const app4 = NewWithConfig({ DefaultDataDir: tempDir });
-        app4.RootCmd.AddCommand(customCmd);
+        const customCmd4 = new Command({ Use: "custom" });
+        customCmd4.PersistentFlags().BoolP(scenario.name, scenario.short, false, "");
+        app4.RootCmd.AddCommand(customCmd4);
         expect(skipBootstrap(app4)).toBe(false);
 
         process.argv = original.slice(0, 2);
         process.argv.push("custom", `-${scenario.short}`);
         const app5 = NewWithConfig({ DefaultDataDir: tempDir });
-        app5.RootCmd.AddCommand(customCmd);
+        const customCmd5 = new Command({ Use: "custom" });
+        customCmd5.PersistentFlags().BoolP(scenario.name, scenario.short, false, "");
+        app5.RootCmd.AddCommand(customCmd5);
         expect(skipBootstrap(app5)).toBe(false);
       }
     } finally {
