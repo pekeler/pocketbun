@@ -1,11 +1,12 @@
 // Ported from pocketbase/tests/app.go (simplified for Bun).
 
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { MailerEvent } from "../core/events.ts";
 import { BaseApp } from "../core/base.ts";
+import { removeDirWithRetry } from "./fs.ts";
 import { TestMailer } from "./mailer.ts";
 
 export class TestApp extends BaseApp {
@@ -143,7 +144,7 @@ export async function newTestApp(dataDir?: string): Promise<{ app: TestApp; clea
       app.resetEventCalls();
       app.testMailer.reset();
       app.resetBootstrapState();
-      await rm(tempDir, { recursive: true, force: true });
+      await removeDirWithRetry(tempDir);
     },
   };
 }

@@ -1,11 +1,12 @@
 // PocketBun-only: test server/data helpers for Bun.
 
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { serve } from "../apis/serve.ts";
 import { BaseApp } from "../core/base.ts";
+import { removeDirWithRetry } from "./fs.ts";
 
 const defaultServerStartAttempts = 5;
 
@@ -26,7 +27,7 @@ export async function startTestServer(): Promise<{
     server = await retryServerStart(() => serve(app, { httpAddr: "127.0.0.1:0" }));
   } catch (error) {
     app.resetBootstrapState();
-    await rm(dataDir, { recursive: true, force: true });
+    await removeDirWithRetry(dataDir);
     throw error;
   }
 
@@ -38,7 +39,7 @@ export async function startTestServer(): Promise<{
     cleanup: async () => {
       await server.stop();
       app.resetBootstrapState();
-      await rm(dataDir, { recursive: true, force: true });
+      await removeDirWithRetry(dataDir);
     },
   };
 }

@@ -1,10 +1,11 @@
 // Ported from pocketbase/pocketbase_test.go
 
 import { describe, expect, it } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { New, NewWithConfig, type PocketBaseConfig, Version } from "./pocketbase.ts";
+import { removeDirWithRetry } from "./tests/fs.ts";
 import { Command } from "./tools/cli/command.ts";
 
 function withArgs(args: string[], fn: () => void): void {
@@ -84,9 +85,11 @@ describe("pocketbase", () => {
   it.serial("skipBootstrap", async () => {
     const original = [...process.argv];
     const tempDir = await mkdtemp(join(tmpdir(), "temp_pb_data-"));
+    let bootstrappedApp: ReturnType<typeof NewWithConfig> | null = null;
 
     try {
       const app0 = NewWithConfig({ DefaultDataDir: tempDir });
+      bootstrappedApp = app0;
       app0.bootstrap();
       expect(skipBootstrap(app0)).toBe(true);
 
@@ -130,7 +133,8 @@ describe("pocketbase", () => {
       }
     } finally {
       process.argv = original;
-      await rm(tempDir, { recursive: true, force: true });
+      bootstrappedApp?.resetBootstrapState();
+      await removeDirWithRetry(tempDir);
     }
   });
 
@@ -155,7 +159,7 @@ describe("pocketbase", () => {
       expect(err?.message).toBe("custom command failed");
     } finally {
       process.argv = original;
-      await rm(tempDir, { recursive: true, force: true });
+      await removeDirWithRetry(tempDir);
     }
   });
 
