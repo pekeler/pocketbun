@@ -7,6 +7,8 @@
 - Aligned `RestartAsync` behavior with PocketBase terminate-and-reexec flow: it now triggers terminate hooks with `IsRestart=true`, attempts process re-exec with the current argv/env, and re-bootstraps only when re-exec fails.
 - Aligned sync `Restart` behavior with PocketBase terminate-and-reexec flow by triggering `OnTerminate` with `IsRestart=true` before attempting process re-exec.
 - Added restart regression coverage for re-exec argument wiring and failed re-exec fallback bootstrap behavior.
+- Ported Google OAuth2 `FetchAuthUser` mapping behavior (including verified-email-only assignment and strict user payload parsing) to match PocketBase provider semantics.
+- Added Google OAuth2 provider regression tests for verified-email mapping and invalid payload/type handling.
 
 ## 0.36.2-pocketbun.4 - 2026-02-10
 
