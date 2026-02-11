@@ -53,25 +53,39 @@ async function parseMultipartFormDataFallback(
   const contentType = request.headers.get("content-type") ?? "";
   const hasMultipartHeader = contentType.toLowerCase().includes("multipart/form-data");
 
-  let body: ArrayBuffer;
-  try {
-    if (typeof parserRequest.arrayBuffer !== "function") {
-      throw new Error("request arrayBuffer() is unavailable");
-    }
-    body = await parserRequest.arrayBuffer();
-  } catch {
+  const bodyCandidates: MultipartRequestLike[] = [];
+  if (typeof request.clone === "function") {
     try {
-      if (typeof request.clone !== "function") {
-        return null;
-      }
-      const clone = request.clone();
-      if (typeof clone.arrayBuffer !== "function") {
-        return null;
-      }
-      body = await clone.arrayBuffer();
+      bodyCandidates.push(request.clone());
     } catch {
-      return null;
+      // Ignore clone failure and continue with other candidates.
     }
+  }
+  if (parserRequest !== request) {
+    bodyCandidates.push(parserRequest);
+  }
+  bodyCandidates.push(request);
+
+  let body: ArrayBuffer | null = null;
+  for (const candidate of bodyCandidates) {
+    if (typeof candidate.arrayBuffer !== "function") {
+      continue;
+    }
+    try {
+      const candidateBody = await candidate.arrayBuffer();
+      if (candidateBody.byteLength > 0) {
+        body = candidateBody;
+        break;
+      }
+      if (body === null) {
+        body = candidateBody;
+      }
+    } catch {
+      // Ignore consumed-body candidates and continue with the next fallback.
+    }
+  }
+  if (body === null) {
+    return null;
   }
 
   const bodyBytes = new Uint8Array(body);

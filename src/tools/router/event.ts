@@ -216,14 +216,15 @@ export class Event implements Resolver {
 
     const files: FilesystemFile[] = [];
     for (const entry of entries) {
-      if (!(entry instanceof globalThis.File)) {
+      const multipartFile = toMultipartFile(entry);
+      if (!multipartFile) {
         continue;
       }
-      const buffer = new Uint8Array(await entry.arrayBuffer());
+      const buffer = new Uint8Array(await multipartFile.arrayBuffer());
       files.push(
         NewFileFromMultipart({
-          filename: entry.name,
-          size: entry.size,
+          filename: multipartFile.name,
+          size: multipartFile.size,
           buffer,
         }),
       );
@@ -751,6 +752,38 @@ function collectFormData(form: FormDataLike): Record<string, string[]> {
   }
 
   throw new TypeError("invalid multipart form data object");
+}
+
+type MultipartFileLike = {
+  name: string;
+  size: number;
+  arrayBuffer: () => Promise<ArrayBuffer>;
+};
+
+function toMultipartFile(value: unknown): MultipartFileLike | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as {
+    name?: unknown;
+    size?: unknown;
+    arrayBuffer?: unknown;
+  };
+
+  if (typeof candidate.arrayBuffer !== "function") {
+    return null;
+  }
+
+  const name = typeof candidate.name === "string" && candidate.name !== "" ? candidate.name : "file";
+  const rawSize = Number(candidate.size);
+  const size = Number.isFinite(rawSize) && rawSize >= 0 ? rawSize : 0;
+
+  return {
+    name,
+    size,
+    arrayBuffer: () => (candidate.arrayBuffer as (this: unknown) => Promise<ArrayBuffer>).call(candidate),
+  };
 }
 
 function parseXmlBody(raw: string): Record<string, string[]> {

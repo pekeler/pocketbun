@@ -1283,38 +1283,43 @@ function runSyncFetch(
       stderr: "pipe",
     });
 
-  let result = spawnSyncFetch();
+  const maxAttempts = 3;
+  let lastParseError: unknown = null;
 
-  if (result.exitCode !== 0) {
-    const stderr = new TextDecoder().decode(result.stderr ?? new Uint8Array()).trim();
-    const stdout = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
-    const message = stderr || stdout || "sync fetch failed";
-    throw new Error(message);
-  }
-
-  let output = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
-  if (!output) {
-    result = spawnSyncFetch();
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const result = spawnSyncFetch();
     if (result.exitCode !== 0) {
       const stderr = new TextDecoder().decode(result.stderr ?? new Uint8Array()).trim();
       const stdout = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
       const message = stderr || stdout || "sync fetch failed";
       throw new Error(message);
     }
-    output = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
+
+    const output = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
+    if (!output) {
+      continue;
+    }
+
+    try {
+      const payload = JSON.parse(output) as SyncFetchPayload;
+      const body = Uint8Array.from(Buffer.from(payload.bodyBase64 ?? "", "base64"));
+      return {
+        status: payload.status,
+        headers: payload.headers ?? [],
+        setCookie: payload.setCookie ?? null,
+        body,
+      };
+    } catch (error) {
+      lastParseError = error;
+      continue;
+    }
   }
 
-  if (!output) {
-    throw new Error("sync fetch failed: empty response");
+  if (lastParseError) {
+    const message = lastParseError instanceof Error ? lastParseError.message : "unknown parse error";
+    throw new Error(`sync fetch failed: invalid response (${message})`);
   }
-  const payload = JSON.parse(output) as SyncFetchPayload;
-  const body = Uint8Array.from(Buffer.from(payload.bodyBase64 ?? "", "base64"));
-  return {
-    status: payload.status,
-    headers: payload.headers ?? [],
-    setCookie: payload.setCookie ?? null,
-    body,
-  };
+  throw new Error("sync fetch failed: empty response");
 }
 
 export function filesystemBinds(target: BindTarget): void {

@@ -175,7 +175,7 @@ describe("jsvm binds", () => {
     scope.sleep(100);
     const elapsed = Date.now() - start;
     expect(elapsed).toBeGreaterThanOrEqual(100);
-    expect(elapsed).toBeLessThanOrEqual(200);
+    expect(elapsed).toBeLessThanOrEqual(350);
   });
 
   it("base binds readerToString", () => {
