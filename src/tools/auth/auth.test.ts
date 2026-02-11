@@ -1,6 +1,9 @@
 // Ported from pocketbase/tools/auth/auth_test.go
 
 import { describe, it } from "bun:test";
+import { readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { BaseProvider } from "./base_provider.ts";
 import {
   Providers,
   newProviderByName,
@@ -125,5 +128,37 @@ describe("auth providers", () => {
     expectProvider(NameLinear, Linear);
     expectProvider(NameTrakt, Trakt);
     expectProvider(NameLark, Lark);
+  });
+
+  it("Provider coverage guard: custom FetchAuthUser + provider tests", () => {
+    const authDir = fileURLToPath(new URL(".", import.meta.url));
+    const testBases = new Set(
+      readdirSync(authDir, { withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith(".test.ts"))
+        .map((entry) => entry.name.slice(0, -".test.ts".length)),
+    );
+
+    const missingFetchAuthUserOverride: string[] = [];
+    const missingProviderTests: string[] = [];
+
+    for (const providerName of Object.keys(Providers)) {
+      const provider = newProviderByName(providerName);
+      if (provider.FetchAuthUser === BaseProvider.prototype.FetchAuthUser) {
+        missingFetchAuthUserOverride.push(providerName);
+      }
+
+      const testBase = provider.constructor.name.toLowerCase();
+      if (!testBases.has(testBase)) {
+        missingProviderTests.push(`${providerName} (expected ${testBase}.test.ts)`);
+      }
+    }
+
+    if (missingFetchAuthUserOverride.length > 0) {
+      throw new Error(`Providers missing FetchAuthUser override: ${missingFetchAuthUserOverride.sort().join(", ")}`);
+    }
+
+    if (missingProviderTests.length > 0) {
+      throw new Error(`Providers missing test files: ${missingProviderTests.sort().join(", ")}`);
+    }
   });
 });
