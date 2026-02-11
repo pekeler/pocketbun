@@ -31,6 +31,8 @@
 - Added Linear OAuth2 provider regression tests for GraphQL request semantics, profile mapping, inactive-account handling, and invalid payload/type handling.
 - Ported Lark OAuth2 `FetchAuthUser` mapping behavior, including nested `data` field extraction and provider-specific `union_id`/avatar mapping.
 - Added Lark OAuth2 provider regression tests for profile mapping, optional field defaults, and invalid payload/type handling.
+- Ported the remaining OAuth2 provider user mappings and provider-specific fetch flows for Gitea, Kakao, Instagram Login, Gitee, Notion, mailcow, monday.com, LiveChat, Patreon, Yandex, X/Twitter, WakaTime, VK, Trakt, Planning Center, Twitch, Spotify, and Strava.
+- Added regression tests for all newly ported OAuth2 providers, including provider-specific edge cases such as verified-email gating, active-account checks, custom header/query requirements, GraphQL user lookups, and fallback email resolution flows.
 
 ## 0.36.2-pocketbun.4 - 2026-02-10
 
