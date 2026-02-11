@@ -25,6 +25,8 @@
 - Added Facebook OAuth2 provider regression tests for profile mapping, optional field defaults, and invalid payload/type handling.
 - Ported Bitbucket OAuth2 `FetchAuthUser` mapping behavior, including active-account checks and optional primary-email lookup via the `/emails` API.
 - Added Bitbucket OAuth2 provider regression tests for profile mapping, inactive-account handling, email lookup fallback, and invalid payload/type handling.
+- Ported Box OAuth2 `FetchAuthUser` mapping behavior, including active-account status enforcement and login-email mapping.
+- Added Box OAuth2 provider regression tests for profile mapping, inactive-account handling, and invalid payload/type handling.
 
 ## 0.36.2-pocketbun.4 - 2026-02-10
 
