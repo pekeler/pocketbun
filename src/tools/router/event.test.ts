@@ -19,6 +19,17 @@ type ResponseScenario<T> = {
   url?: string;
 };
 
+async function newMultipartRequest(url: string, form: FormData): Promise<Request> {
+  const response = new Response(form);
+  const contentType = response.headers.get("content-type") ?? "";
+  const body = await response.arrayBuffer();
+  return new Request(url, {
+    method: "POST",
+    headers: { "content-type": contentType },
+    body,
+  });
+}
+
 async function testEventResponseWrite<T>(
   scenario: ResponseScenario<T>,
   writeFunc: (event: Event) => Promise<Response | ApiError> | Response | ApiError,
@@ -112,7 +123,7 @@ describe("Event", () => {
     for (const scenario of scenarios) {
       const form = new FormData();
       form.set("test", new File(["test"], scenario.filename));
-      const request = new Request("http://example.com/", { method: "POST", body: form });
+      const request = await newMultipartRequest("http://example.com/", form);
       const event = new Event({ request });
 
       const result = await event.FindUploadedFiles("test");
@@ -451,7 +462,7 @@ describe("Event", () => {
       expect(dest).toEqual(scenario.expect);
     }
 
-    const formRequest = new Request("http://example.com/", { method: "POST", body: form });
+    const formRequest = await newMultipartRequest("http://example.com/", form);
     const formEvent = new Event({ request: formRequest });
     const formDest = { a: 0, b: 0, c: "" };
     await formEvent.bindBody(formDest);
@@ -459,7 +470,7 @@ describe("Event", () => {
 
     const invalidPayloadForm = new FormData();
     invalidPayloadForm.set("@jsonPayload", "[]");
-    const invalidRequest = new Request("http://example.com/", { method: "POST", body: invalidPayloadForm });
+    const invalidRequest = await newMultipartRequest("http://example.com/", invalidPayloadForm);
     const invalidEvent = new Event({ request: invalidRequest });
     const invalidDest = { a: 0 };
     let invalidErr: unknown = null;

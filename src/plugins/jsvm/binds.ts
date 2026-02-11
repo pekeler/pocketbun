@@ -1241,7 +1241,15 @@ if (!rawUrl) {
       req.end();
     });
 
-    process.stdout.write(JSON.stringify(payload));
+    await new Promise((resolve, reject) => {
+      process.stdout.write(JSON.stringify(payload), (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(undefined);
+      });
+    });
   } catch (err) {
     console.error(String(err));
     process.exit(1);
@@ -1266,13 +1274,16 @@ function runSyncFetch(
     PB_SYNC_TIMEOUT: String(options.timeoutSeconds),
     PB_SYNC_HAS_BODY: bodyBytes ? "1" : "0",
   };
-  const result = Bun.spawnSync({
-    cmd: [process.execPath, "-e", syncFetchScript],
-    env,
-    stdin: bodyBytes,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  const spawnSyncFetch = () =>
+    Bun.spawnSync({
+      cmd: [process.execPath, "-e", syncFetchScript],
+      env,
+      stdin: bodyBytes,
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+
+  let result = spawnSyncFetch();
 
   if (result.exitCode !== 0) {
     const stderr = new TextDecoder().decode(result.stderr ?? new Uint8Array()).trim();
@@ -1281,7 +1292,18 @@ function runSyncFetch(
     throw new Error(message);
   }
 
-  const output = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
+  let output = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
+  if (!output) {
+    result = spawnSyncFetch();
+    if (result.exitCode !== 0) {
+      const stderr = new TextDecoder().decode(result.stderr ?? new Uint8Array()).trim();
+      const stdout = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
+      const message = stderr || stdout || "sync fetch failed";
+      throw new Error(message);
+    }
+    output = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
+  }
+
   if (!output) {
     throw new Error("sync fetch failed: empty response");
   }
