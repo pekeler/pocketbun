@@ -139,6 +139,39 @@ describe("BaseApp", () => {
     await rm(dataDir, { recursive: true, force: true });
   });
 
+  it.serial("BaseAppCronCleanupJobsIgnoreTeardownState", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
+    const app = new BaseApp({ dataDir });
+    app.bootstrap();
+
+    const cleanupJobs = app
+      .Cron()
+      .Jobs()
+      .filter((job) => job.Id() === "__pbOTPCleanup__" || job.Id() === "__pbMFACleanup__");
+
+    expect(cleanupJobs.length).toBe(2);
+
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      app.resetBootstrapState();
+
+      for (const job of cleanupJobs) {
+        job.Run();
+      }
+
+      await sleep(10);
+      expect(unhandled.length).toBe(0);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  });
+
   it("NewBaseAppTx", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
     const app = new BaseApp({ dataDir });

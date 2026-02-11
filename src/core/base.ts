@@ -4322,22 +4322,44 @@ export class BaseApp implements App {
   private registerOTPHooks(): void {
     recordRefHooks(this, CollectionNameOTPs, CollectionTypeAuth);
 
-    this.Cron().Add("__pbOTPCleanup__", "0 * * * *", async () => {
-      const err = await this.DeleteExpiredOTPs();
-      if (err) {
-        this.Logger().Warn("Failed to delete expired OTP sessions", "error", err);
+    this.Cron().Add("__pbOTPCleanup__", "0 * * * *", () => {
+      // PocketBun async deviation: queued cron callbacks can run during teardown.
+      // Skip cleanup when the app is not bootstrapped and catch async rejections.
+      if (!this.isBootstrapped()) {
+        return;
       }
+
+      void this.DeleteExpiredOTPs()
+        .then((err) => {
+          if (err) {
+            this.Logger().Warn("Failed to delete expired OTP sessions", "error", err);
+          }
+        })
+        .catch((error) => {
+          this.Logger().Warn("Failed to delete expired OTP sessions", "error", error);
+        });
     });
   }
 
   private registerMFAHooks(): void {
     recordRefHooks(this, CollectionNameMFAs, CollectionTypeAuth);
 
-    this.Cron().Add("__pbMFACleanup__", "0 * * * *", async () => {
-      const err = await this.DeleteExpiredMFAs();
-      if (err) {
-        this.Logger().Warn("Failed to delete expired MFA sessions", "error", err);
+    this.Cron().Add("__pbMFACleanup__", "0 * * * *", () => {
+      // PocketBun async deviation: queued cron callbacks can run during teardown.
+      // Skip cleanup when the app is not bootstrapped and catch async rejections.
+      if (!this.isBootstrapped()) {
+        return;
       }
+
+      void this.DeleteExpiredMFAs()
+        .then((err) => {
+          if (err) {
+            this.Logger().Warn("Failed to delete expired MFA sessions", "error", err);
+          }
+        })
+        .catch((error) => {
+          this.Logger().Warn("Failed to delete expired MFA sessions", "error", error);
+        });
     });
 
     this.OnRecordUpdate().Bind({
