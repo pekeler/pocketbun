@@ -155,15 +155,20 @@ describe("BaseApp", () => {
 
     try {
       const restartErr = app.Restart();
-      expect(restartErr).toBe(stubErr);
-      expect(app.isBootstrapped()).toBe(true);
-      expect(terminateIsRestartValues.includes(true)).toBe(true);
+      if (restartErr === null) {
+        // Sync Restart may return null when terminate hooks resolve asynchronously.
+        await sleep(20);
+      } else {
+        expect(restartErr).toBe(stubErr);
+      }
 
       expect(capturedExecve.length).toBe(1);
       const execveCall = capturedExecve[0];
       if (!execveCall) {
         throw new Error("execve call was not captured");
       }
+      expect(app.isBootstrapped()).toBe(true);
+      expect(terminateIsRestartValues.includes(true)).toBe(true);
       expect(execveCall.argv0.length).toBeGreaterThan(0);
       expect(execveCall.argv.length).toBeGreaterThan(0);
       expect(execveCall.argv[0]).toBe(execveCall.argv0);

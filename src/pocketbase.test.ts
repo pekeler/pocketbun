@@ -67,6 +67,20 @@ describe("pocketbase", () => {
     });
   });
 
+  it.serial("New defaults data dir to cwd for package-managed CLI paths", async () => {
+    const originalArgv = [...process.argv];
+
+    try {
+      process.argv = [originalArgv[0] ?? "bun", join("/tmp", "node_modules", ".bin", "pocketbun")];
+      const expectedDataDir = join(process.cwd(), "pb_data");
+
+      const app = New();
+      expect(app.DataDir()).toBe(expectedDataDir);
+    } finally {
+      process.argv = originalArgv;
+    }
+  });
+
   it.serial("skipBootstrap", async () => {
     const original = [...process.argv];
     const tempDir = await mkdtemp(join(tmpdir(), "temp_pb_data-"));

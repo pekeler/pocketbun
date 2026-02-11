@@ -5,7 +5,7 @@
   "scripts": {
     "client": "bun run client.ts",
     "start": "bun run main.ts",
-    "pocketbun": "bun ../../bin/pocketbun --dir ./pb_data",
+    "pocketbun": "bun ../../bin/pocketbun",
     "superuser": "bun run pocketbun superuser upsert admin@example.com change-me"
   },
   "dependencies": {

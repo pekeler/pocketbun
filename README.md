@@ -102,6 +102,16 @@ pocketbun serve
 pocketbun superuser upsert admin@example.com change-me
 ```
 
+### CLI Default Directories
+
+PocketBase resolves default directories relative to the executable location. PocketBun intentionally resolves CLI defaults from the current working directory to avoid writing project data into `node_modules` or wrapper-script directories.
+
+In practice, default paths are:
+
+- `./pb_data`
+- `./pb_hooks` and `./pb_migrations` (derived from `pb_data` unless `--hooksDir`/`--migrationsDir` are set)
+- `./pb_public` (unless `--publicDir` is set)
+
 ### Hooks Plugin Naming
 
 PocketBase names this plugin package `jsvm`, so PocketBun keeps compatibility aliases: `RegisterJSVM*` / `MustRegisterJSVM*`.

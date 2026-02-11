@@ -3,7 +3,7 @@
 import { afterEach, describe, expect, it } from "bun:test";
 import * as osutilsRun from "./run.ts";
 
-describe("IsProbablyGoRun", () => {
+describe("IsProbablyTransientRuntime", () => {
   const scenarios = [
     { arg0: "", runDirs: null, expected: false },
     { arg0: "/a/b", runDirs: null, expected: false },
@@ -14,23 +14,23 @@ describe("IsProbablyGoRun", () => {
   ];
 
   const originalArgs = process.argv.slice();
-  const originalRunDirs = osutilsRun.runDirs.slice();
+  const originalRunDirs = osutilsRun.transientRuntimeDirs.slice();
 
   afterEach(() => {
     process.argv = originalArgs.slice();
-    osutilsRun.setRunDirsForTest(originalRunDirs.slice());
+    osutilsRun.setTransientRuntimeDirsForTest(originalRunDirs.slice());
   });
 
   for (const [index, s] of scenarios.entries()) {
     it.serial(`${index}_${s.arg0}`, () => {
       process.argv = [s.arg0];
       if (s.runDirs) {
-        osutilsRun.setRunDirsForTest(s.runDirs);
+        osutilsRun.setTransientRuntimeDirsForTest(s.runDirs);
       } else {
-        osutilsRun.setRunDirsForTest([]);
+        osutilsRun.setTransientRuntimeDirsForTest([]);
       }
 
-      const result = osutilsRun.IsProbablyGoRun();
+      const result = osutilsRun.IsProbablyTransientRuntime();
 
       expect(result).toBe(s.expected);
     });

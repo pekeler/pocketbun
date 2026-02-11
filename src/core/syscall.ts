@@ -15,6 +15,10 @@ export function setExecveForTests(fn: ExecveFunc | null): void {
 }
 
 function defaultExecve(argv0: string, argv: string[], envv: string[]): Error {
+  if (isLikelyBunTestRunnerProcess()) {
+    return new Error("execve is disabled under bun test runner");
+  }
+
   const cmd = buildExecCmd(argv0, argv);
 
   try {
@@ -33,6 +37,15 @@ function defaultExecve(argv0: string, argv: string[], envv: string[]): Error {
   // Deviation: Bun doesn't expose in-process execve, so we re-exec by spawning
   // the replacement process with the same argv/env and then exiting.
   process.exit(0);
+}
+
+function isLikelyBunTestRunnerProcess(): boolean {
+  if (process.env.NODE_ENV !== "test") {
+    return false;
+  }
+
+  const argv1 = process.argv[1] ?? "";
+  return /\.test\.[cm]?[jt]s$/.test(argv1);
 }
 
 function buildExecCmd(argv0: string, argv: string[]): string[] {

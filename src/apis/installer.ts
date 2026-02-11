@@ -7,7 +7,7 @@ import { NewRecord } from "../core/record_model.ts";
 import { DefaultInstallerEmail } from "../core/record_model_superusers.ts";
 import { HashExp, Not } from "../tools/dbx/expr.ts";
 import { LaunchURL } from "../tools/osutils/cmd.ts";
-import { IsProbablyGoRun } from "../tools/osutils/run.ts";
+import { IsProbablyTransientRuntime } from "../tools/osutils/run.ts";
 
 export type InstallerFunc = (app: App, systemSuperuser: RecordModel, baseURL: string) => Error | null;
 export type InstallerFuncAsync = (
@@ -149,7 +149,7 @@ export async function findOrCreateInstallerSuperuserAsync(app: App): Promise<Rec
 }
 
 function executablePath(): string {
-  if (IsProbablyGoRun()) {
+  if (IsProbablyTransientRuntime()) {
     return "bun run .";
   }
   return process.argv[1] ?? process.argv[0] ?? "pocketbun";

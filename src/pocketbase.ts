@@ -1,7 +1,7 @@
 // Ported from pocketbase/pocketbase.go.
 
 import { readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, join } from "node:path";
 import { NewServeCommand } from "./cmd/serve.ts";
 import { NewSuperuserCommand } from "./cmd/superuser.ts";
 import { BaseApp, type BaseAppConfig } from "./core/base.ts";
@@ -9,7 +9,7 @@ import { TerminateEvent } from "./core/events.ts";
 import { ModerncDepsCheckHookId, checkModerncDeps } from "./modernc_versions_check.ts";
 import { Command } from "./tools/cli/command.ts";
 import { existInSlice } from "./tools/list/list.ts";
-import { IsProbablyGoRun } from "./tools/osutils/run.ts";
+import { IsProbablyTransientRuntime } from "./tools/osutils/run.ts";
 import { FireAndForget } from "./tools/routine/routine.ts";
 
 // Version of PocketBun.
@@ -227,8 +227,8 @@ export class PocketBase extends BaseApp {
 
 // New creates a new PocketBase instance with the default configuration.
 export function New(): PocketBase {
-  const { withGoRun } = inspectRuntime();
-  return NewWithConfig({ DefaultDev: withGoRun });
+  const { withTransientRuntime } = inspectRuntime();
+  return NewWithConfig({ DefaultDev: withTransientRuntime });
 }
 
 // NewWithConfig creates a new PocketBase instance with the provided config.
@@ -307,13 +307,11 @@ function eagerParseFlags(root: Command, state: FlagState): void {
   root.ParseFlags(process.argv.slice(2));
 }
 
-function inspectRuntime(): { baseDir: string; withGoRun: boolean } {
-  if (IsProbablyGoRun()) {
-    return { baseDir: process.cwd(), withGoRun: true };
-  }
-
-  const execPath = process.argv[1] ?? process.argv[0] ?? "";
-  return { baseDir: dirname(execPath), withGoRun: false };
+function inspectRuntime(): { baseDir: string; withTransientRuntime: boolean } {
+  const withTransientRuntime = IsProbablyTransientRuntime();
+  // PocketBun deviation: use the current working directory as runtime base dir
+  // so package-managed and script entrypoints don't default to node_modules/bin-adjacent paths.
+  return { baseDir: process.cwd(), withTransientRuntime };
 }
 
 function newErrWriter(): { write: (chunk: string) => void } {

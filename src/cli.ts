@@ -1,13 +1,11 @@
 // Ported from pocketbase/examples/base/main.go.
 // Deviation: moved into src so the published CLI doesn't depend on examples/.
 
-import { join } from "node:path";
 import type { ServeEvent } from "./core/events.ts";
 import { Static } from "./apis/base.ts";
 import { MustRegisterAsync as RegisterJSVM } from "./plugins/jsvm/jsvm.ts";
 import { MustRegister as RegisterMigrateCmd, TemplateLangJS } from "./plugins/migratecmd/migratecmd.ts";
 import { New } from "./pocketbase.ts";
-import { IsProbablyGoRun } from "./tools/osutils/run.ts";
 
 export async function main(): Promise<void> {
   const app = New();
@@ -111,14 +109,9 @@ export async function main(): Promise<void> {
   }
 }
 
-// the default pb_public dir location is relative to the executable
+// PocketBun deviation: resolve pb_public from the current working directory.
 function defaultPublicDir(): string {
-  if (IsProbablyGoRun()) {
-    return "./pb_public";
-  }
-
-  const execPath = process.argv[1] ?? process.argv[0] ?? "";
-  return join(execPath, "../pb_public");
+  return "./pb_public";
 }
 
 if (import.meta.main) {

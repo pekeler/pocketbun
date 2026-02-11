@@ -3,13 +3,15 @@
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
-export let runDirs = [tmpdir(), cacheDir()];
+export let transientRuntimeDirs = [tmpdir(), cacheDir()];
 
-// IsProbablyGoRun loosely checks if the current program was started with "go run".
-export function IsProbablyGoRun(): boolean {
+// IsProbablyTransientRuntime loosely checks whether the current program was
+// launched from a temporary/cache runtime directory (eg. bundled/transient runs).
+// Upstream PocketBase names this helper IsProbablyGoRun.
+export function IsProbablyTransientRuntime(): boolean {
   const arg0 = process.argv[0] ?? "";
 
-  for (const dir of runDirs) {
+  for (const dir of transientRuntimeDirs) {
     if (dir && arg0.startsWith(dir)) {
       return true;
     }
@@ -18,9 +20,9 @@ export function IsProbablyGoRun(): boolean {
   return false;
 }
 
-// Test helper: updates the runDirs cache for deterministic scenarios.
-export function setRunDirsForTest(next: string[]): void {
-  runDirs = next;
+// Test helper: updates the transient runtime dirs cache for deterministic scenarios.
+export function setTransientRuntimeDirsForTest(next: string[]): void {
+  transientRuntimeDirs = next;
 }
 
 function cacheDir(): string {

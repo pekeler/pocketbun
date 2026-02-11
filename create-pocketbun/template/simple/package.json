@@ -5,7 +5,7 @@
   "scripts": {
     "start": "bun run main.ts",
     "dev": "bun run main.ts",
-    "pocketbun": "pocketbun --dir ./pb_data"
+    "pocketbun": "pocketbun"
   },
   "dependencies": {
     "pocketbun": "latest"
