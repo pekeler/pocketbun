@@ -9,6 +9,8 @@
 - Added restart regression coverage for re-exec argument wiring and failed re-exec fallback bootstrap behavior.
 - Ported Google OAuth2 `FetchAuthUser` mapping behavior (including verified-email-only assignment and strict user payload parsing) to match PocketBase provider semantics.
 - Added Google OAuth2 provider regression tests for verified-email mapping and invalid payload/type handling.
+- Ported GitHub OAuth2 `FetchAuthUser` mapping behavior, including provider-specific ID/login mapping and optional primary-email fallback via the `/user/emails` API with insufficient-scope status handling.
+- Added GitHub OAuth2 provider regression tests for profile mapping, private-email fallback, and invalid payload handling.
 
 ## 0.36.2-pocketbun.4 - 2026-02-10
 
