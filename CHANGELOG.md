@@ -15,6 +15,8 @@
 - Added GitLab OAuth2 provider regression tests for profile mapping and invalid payload/type handling.
 - Ported OIDC OAuth2 `FetchAuthUser` and id_token claim handling behavior, including `email_verified` gating, audience checks, optional issuer allow-list validation, and optional JWKS signature validation.
 - Added OIDC OAuth2 provider regression tests for user mapping, id_token claim parsing, audience/issuer enforcement, UserInfo endpoint fallback, and JWKS signature validation.
+- Ported Apple OAuth2 `FetchAuthUser` and id_token claim handling behavior, including verified-email gating plus issuer/audience/signature validation aligned with Apple flow.
+- Added Apple OAuth2 provider regression tests for profile mapping and id_token validation edge cases (empty token, missing expiration, invalid issuer, invalid signature).
 
 ## 0.36.2-pocketbun.4 - 2026-02-10
 
