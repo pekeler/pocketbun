@@ -7,32 +7,7 @@
 - Aligned `RestartAsync` behavior with PocketBase terminate-and-reexec flow: it now triggers terminate hooks with `IsRestart=true`, attempts process re-exec with the current argv/env, and re-bootstraps only when re-exec fails.
 - Aligned sync `Restart` behavior with PocketBase terminate-and-reexec flow by triggering `OnTerminate` with `IsRestart=true` before attempting process re-exec.
 - Added restart regression coverage for re-exec argument wiring and failed re-exec fallback bootstrap behavior.
-- Ported Google OAuth2 `FetchAuthUser` mapping behavior (including verified-email-only assignment and strict user payload parsing) to match PocketBase provider semantics.
-- Added Google OAuth2 provider regression tests for verified-email mapping and invalid payload/type handling.
-- Ported GitHub OAuth2 `FetchAuthUser` mapping behavior, including provider-specific ID/login mapping and optional primary-email fallback via the `/user/emails` API with insufficient-scope status handling.
-- Added GitHub OAuth2 provider regression tests for profile mapping, private-email fallback, and invalid payload handling.
-- Ported GitLab OAuth2 `FetchAuthUser` mapping behavior with provider-specific field extraction and token/expiry wiring matching PocketBase semantics.
-- Added GitLab OAuth2 provider regression tests for profile mapping and invalid payload/type handling.
-- Ported OIDC OAuth2 `FetchAuthUser` and id_token claim handling behavior, including `email_verified` gating, audience checks, optional issuer allow-list validation, and optional JWKS signature validation.
-- Added OIDC OAuth2 provider regression tests for user mapping, id_token claim parsing, audience/issuer enforcement, UserInfo endpoint fallback, and JWKS signature validation.
-- Ported Apple OAuth2 `FetchAuthUser` and id_token claim handling behavior, including verified-email gating plus issuer/audience/signature validation aligned with Apple flow.
-- Added Apple OAuth2 provider regression tests for profile mapping and id_token validation edge cases (empty token, missing expiration, invalid issuer, invalid signature).
-- Ported Microsoft OAuth2 `FetchAuthUser` mapping behavior with provider-specific field extraction and token/expiry wiring matching PocketBase semantics.
-- Added Microsoft OAuth2 provider regression tests for profile mapping and invalid payload/type handling.
-- Ported Discord OAuth2 `FetchAuthUser` mapping behavior, including composed username and avatar URL formatting plus verified-email-only assignment.
-- Added Discord OAuth2 provider regression tests for profile mapping, optional field defaults, and invalid payload/type handling.
-- Ported Facebook OAuth2 `FetchAuthUser` mapping behavior, including nested `picture.data.url` avatar extraction and provider-specific field mapping.
-- Added Facebook OAuth2 provider regression tests for profile mapping, optional field defaults, and invalid payload/type handling.
-- Ported Bitbucket OAuth2 `FetchAuthUser` mapping behavior, including active-account checks and optional primary-email lookup via the `/emails` API.
-- Added Bitbucket OAuth2 provider regression tests for profile mapping, inactive-account handling, email lookup fallback, and invalid payload/type handling.
-- Ported Box OAuth2 `FetchAuthUser` mapping behavior, including active-account status enforcement and login-email mapping.
-- Added Box OAuth2 provider regression tests for profile mapping, inactive-account handling, and invalid payload/type handling.
-- Ported Linear OAuth2 `FetchAuthUser` and GraphQL `FetchRawUserInfo` behavior, including active-account enforcement and provider-specific profile field mapping.
-- Added Linear OAuth2 provider regression tests for GraphQL request semantics, profile mapping, inactive-account handling, and invalid payload/type handling.
-- Ported Lark OAuth2 `FetchAuthUser` mapping behavior, including nested `data` field extraction and provider-specific `union_id`/avatar mapping.
-- Added Lark OAuth2 provider regression tests for profile mapping, optional field defaults, and invalid payload/type handling.
-- Ported the remaining OAuth2 provider user mappings and provider-specific fetch flows for Gitea, Kakao, Instagram Login, Gitee, Notion, mailcow, monday.com, LiveChat, Patreon, Yandex, X/Twitter, WakaTime, VK, Trakt, Planning Center, Twitch, Spotify, and Strava.
-- Added regression tests for all newly ported OAuth2 providers, including provider-specific edge cases such as verified-email gating, active-account checks, custom header/query requirements, GraphQL user lookups, and fallback email resolution flows.
+- Completed OAuth2 provider compatibility parity across all implemented providers by porting provider-specific `FetchAuthUser` mappings and raw-user fetch flows (including verified-email gating, active-account checks, id_token validation, GraphQL/userinfo/header-specific requests, and fallback email resolution), and added regression coverage for each provider (Google, GitHub, GitLab, OIDC, Apple, Microsoft, Discord, Facebook, Bitbucket, Box, Linear, Lark, Gitea, Kakao, Instagram Login, Gitee, Notion, mailcow, monday.com, LiveChat, Patreon, Yandex, X/Twitter, WakaTime, VK, Trakt, Planning Center, Twitch, Spotify, and Strava).
 
 ## 0.36.2-pocketbun.4 - 2026-02-10
 
