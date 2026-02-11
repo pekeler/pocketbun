@@ -3,6 +3,7 @@
 import { describe, expect, it } from "bun:test";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
+import { startBunServerWithRetry } from "../../tests/helpers.ts";
 import {
   BytesReader,
   MultipartReader,
@@ -94,8 +95,7 @@ describe("filesystem file", () => {
   });
 
   it("NewFileFromURL", async () => {
-    const server = Bun.serve({
-      port: 0,
+    const server = startBunServerWithRetry({
       fetch(req) {
         const url = new URL(req.url);
         if (url.pathname === "/error") {

@@ -1,12 +1,16 @@
 // PocketBun-only: test server/data helpers for Bun.
 
 import { cp, mkdtemp, rm } from "node:fs/promises";
-import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { serve } from "../apis/serve.ts";
 import { BaseApp } from "../core/base.ts";
+
+const defaultServerStartAttempts = 5;
+
+type BunServer = ReturnType<typeof Bun.serve>;
+type BunServeOptions = Parameters<typeof Bun.serve>[0];
 
 export async function startTestServer(): Promise<{
   server: ReturnType<typeof serve>;
@@ -17,9 +21,16 @@ export async function startTestServer(): Promise<{
   const app = new BaseApp({ dataDir });
   app.bootstrap();
 
-  const port = await getFreePort();
-  const server = serve(app, { httpAddr: `127.0.0.1:${port}` });
-  const baseUrl = `http://${server.hostname}:${server.port}`;
+  let server: ReturnType<typeof serve>;
+  try {
+    server = await retryServerStart(() => serve(app, { httpAddr: "127.0.0.1:0" }));
+  } catch (error) {
+    app.resetBootstrapState();
+    await rm(dataDir, { recursive: true, force: true });
+    throw error;
+  }
+
+  const baseUrl = `http://127.0.0.1:${server.port}`;
 
   return {
     server,
@@ -39,24 +50,107 @@ async function cloneTestData(): Promise<string> {
   return tempDir;
 }
 
-function getFreePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
-    server.unref();
+export function startBunServerWithRetry(options: BunServeOptions, attempts: number = defaultServerStartAttempts): BunServer {
+  let lastError: unknown = null;
+  const maxAttempts = Math.max(1, attempts);
 
-    server.on("error", (error) => {
-      reject(error);
-    });
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const normalizedOptions = { ...options } as BunServeOptions & {
+        hostname?: string;
+        port?: number;
+        unix?: string;
+      };
 
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      if (address && typeof address === "object") {
-        const port = address.port;
-        server.close(() => resolve(port));
-        return;
+      if (normalizedOptions.unix) {
+        return Bun.serve(normalizedOptions as BunServeOptions);
       }
 
-      server.close(() => reject(new Error("Failed to resolve a free port")));
-    });
-  });
+      const { unix: _unix, ...rest } = normalizedOptions;
+      return Bun.serve({
+        ...rest,
+        hostname: rest.hostname ?? "127.0.0.1",
+        port: rest.port ?? 0,
+      } as BunServeOptions);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientServerStartError(error) || attempt === maxAttempts) {
+        throw error;
+      }
+    }
+  }
+
+  throw normalizeError(lastError, "Failed to start test HTTP server.");
+}
+
+export async function retryServerStart<T>(
+  start: () => T | Promise<T>,
+  attempts: number = defaultServerStartAttempts,
+): Promise<T> {
+  let lastError: unknown = null;
+  const maxAttempts = Math.max(1, attempts);
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await start();
+    } catch (error) {
+      lastError = error;
+      if (!isTransientServerStartError(error) || attempt === maxAttempts) {
+        throw error;
+      }
+    }
+  }
+
+  throw normalizeError(lastError, "Failed to start server.");
+}
+
+function isTransientServerStartError(error: unknown): boolean {
+  const code = extractErrorCode(error);
+  if (code === "EADDRINUSE" || code === "EPERM" || code === "EACCES") {
+    return true;
+  }
+
+  const message = error instanceof Error ? error.message : toErrorMessage(error, "");
+  return (
+    message.includes("Failed to start server") ||
+    message.includes("Failed to listen at") ||
+    message.includes("EADDRINUSE") ||
+    message.includes("EPERM") ||
+    message.includes("EACCES")
+  );
+}
+
+function extractErrorCode(error: unknown): string {
+  if (!error || typeof error !== "object") {
+    return "";
+  }
+
+  const record = error as { code?: unknown; cause?: { code?: unknown } };
+  if (typeof record.code === "string") {
+    return record.code;
+  }
+  if (record.cause && typeof record.cause.code === "string") {
+    return record.cause.code;
+  }
+  return "";
+}
+
+function normalizeError(error: unknown, fallbackMessage: string): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+  return new Error(toErrorMessage(error, fallbackMessage));
+}
+
+function toErrorMessage(error: unknown, fallback: string): string {
+  if (typeof error === "string" && error.length > 0) {
+    return error;
+  }
+  if (typeof error === "number" || typeof error === "boolean" || typeof error === "bigint") {
+    return `${error}`;
+  }
+  if (typeof error === "symbol") {
+    return error.description ?? fallback;
+  }
+  return fallback;
 }

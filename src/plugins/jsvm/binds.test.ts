@@ -45,13 +45,29 @@ import {
 type BindScope = Record<string, any>;
 
 async function startExternalServer(script: string): Promise<{ port: number; stop: () => Promise<void> }> {
+  const maxAttempts = 5;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await startExternalServerOnce(script);
+    } catch (error) {
+      if (attempt === maxAttempts || !isTransientServerStartError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  throw new Error("Failed to start external test server.");
+}
+
+async function startExternalServerOnce(script: string): Promise<{ port: number; stop: () => Promise<void> }> {
   const process = Bun.spawn({
     cmd: ["bun", "-e", script],
     stdout: "pipe",
     stderr: "pipe",
   });
 
-  if (!process.stdout) {
+  if (!process.stdout || typeof process.stdout === "number") {
     throw new Error("Failed to start test server: missing stdout.");
   }
 
@@ -72,14 +88,9 @@ async function startExternalServer(script: string): Promise<{ port: number; stop
 
   const port = Number(buffer.trim());
   if (!Number.isFinite(port)) {
-    let stderr = "";
-    if (process.stderr) {
-      const errReader = process.stderr.getReader();
-      const { value } = await errReader.read();
-      if (value) {
-        stderr = new TextDecoder().decode(value);
-      }
-    }
+    const stderr = await readExternalServerStderr(process);
+    process.kill();
+    await process.exited;
     throw new Error(`Failed to read server port. Output: ${buffer}\n${stderr}`);
   }
 
@@ -90,6 +101,33 @@ async function startExternalServer(script: string): Promise<{ port: number; stop
       await process.exited;
     },
   };
+}
+
+async function readExternalServerStderr(process: ReturnType<typeof Bun.spawn>): Promise<string> {
+  if (!process.stderr || typeof process.stderr === "number") {
+    return "";
+  }
+
+  const errReader = process.stderr.getReader();
+  const { value } = await errReader.read();
+  if (!value) {
+    return "";
+  }
+  return new TextDecoder().decode(value);
+}
+
+function isTransientServerStartError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return (
+    error.message.includes("Failed to start server") ||
+    error.message.includes("Failed to listen at") ||
+    error.message.includes("EADDRINUSE") ||
+    error.message.includes("EPERM") ||
+    error.message.includes("EACCES")
+  );
 }
 
 function countKeys(target: unknown): number {

@@ -1,6 +1,7 @@
 // PocketBun-only: provider-specific Github OAuth2 user mapping parity tests.
 
 import { describe, expect, it } from "bun:test";
+import { startBunServerWithRetry } from "../../tests/helpers.ts";
 import { ParseDateTime } from "../types/index.ts";
 import { Github } from "./github.ts";
 
@@ -20,8 +21,7 @@ function startGithubServer(config: GithubServerConfig): {
     authHeaders: [] as string[],
   };
 
-  const server = Bun.serve({
-    port: 0,
+  const server = startBunServerWithRetry({
     fetch(req) {
       const url = new URL(req.url);
       const authHeader = req.headers.get("Authorization") ?? "";

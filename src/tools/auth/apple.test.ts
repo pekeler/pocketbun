@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { generateKeyPairSync, sign, type KeyObject } from "node:crypto";
+import { startBunServerWithRetry } from "../../tests/helpers.ts";
 import { ParseDateTime } from "../types/index.ts";
 import { Apple } from "./apple.ts";
 
@@ -32,8 +33,7 @@ function startJWKSserver(
 } {
   const publicJwk = publicKey.export({ format: "jwk" }) as { n?: string; e?: string };
 
-  const server = Bun.serve({
-    port: 0,
+  const server = startBunServerWithRetry({
     fetch() {
       return Response.json({
         keys: [

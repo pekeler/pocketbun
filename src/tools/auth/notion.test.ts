@@ -1,6 +1,7 @@
 // PocketBun-only: provider-specific Notion OAuth2 user mapping and request parity tests.
 
 import { describe, expect, it } from "bun:test";
+import { startBunServerWithRetry } from "../../tests/helpers.ts";
 import { ParseDateTime } from "../types/index.ts";
 import { Notion } from "./notion.ts";
 
@@ -25,8 +26,7 @@ function startNotionServer(config: NotionServerConfig): {
     notionVersions: [] as string[],
   };
 
-  const server = Bun.serve({
-    port: 0,
+  const server = startBunServerWithRetry({
     async fetch(req) {
       const url = new URL(req.url);
       if (url.pathname !== "/users/me") {

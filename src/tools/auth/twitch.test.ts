@@ -1,6 +1,7 @@
 // PocketBun-only: provider-specific Twitch OAuth2 user mapping and request parity tests.
 
 import { describe, expect, it } from "bun:test";
+import { startBunServerWithRetry } from "../../tests/helpers.ts";
 import { ParseDateTime } from "../types/index.ts";
 import { Twitch } from "./twitch.ts";
 
@@ -25,8 +26,7 @@ function startTwitchServer(config: TwitchServerConfig): {
     clientIds: [] as string[],
   };
 
-  const server = Bun.serve({
-    port: 0,
+  const server = startBunServerWithRetry({
     async fetch(req) {
       const url = new URL(req.url);
       if (url.pathname !== "/helix/users") {

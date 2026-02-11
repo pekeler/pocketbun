@@ -2,6 +2,7 @@
 
 import { describe, it } from "bun:test";
 import { createPublicKey, generateKeyPairSync, sign, type KeyObject } from "node:crypto";
+import { startBunServerWithRetry } from "../../../../tests/helpers.ts";
 import { Fetch, JWK, ValidateTokenSignature } from "./jwk.ts";
 
 type ExportedJwk = {
@@ -139,8 +140,7 @@ describe("jwk", () => {
   });
 
   it("Fetch", async () => {
-    const server = Bun.serve({
-      port: 0,
+    const server = startBunServerWithRetry({
       fetch(req) {
         const url = new URL(req.url);
         const status = url.searchParams.has("error") ? 400 : 200;
@@ -216,8 +216,7 @@ describe("jwk", () => {
     const rsaJwk = exportJwk(rsaPublic);
     const edJwk = exportJwk(edPublic);
 
-    const server = Bun.serve({
-      port: 0,
+    const server = startBunServerWithRetry({
       fetch() {
         const body = JSON.stringify({
           keys: [

@@ -1,6 +1,7 @@
 // PocketBun-only: provider-specific monday.com OAuth2 user mapping and GraphQL request parity tests.
 
 import { describe, expect, it } from "bun:test";
+import { startBunServerWithRetry } from "../../tests/helpers.ts";
 import { ParseDateTime } from "../types/index.ts";
 import { Monday } from "./monday.ts";
 
@@ -27,8 +28,7 @@ function startMondayServer(config: MondayServerConfig): {
     bodies: [] as string[],
   };
 
-  const server = Bun.serve({
-    port: 0,
+  const server = startBunServerWithRetry({
     async fetch(req) {
       const url = new URL(req.url);
       if (url.pathname !== "/v2") {

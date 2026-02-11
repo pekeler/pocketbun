@@ -5,6 +5,7 @@ import { OAuth2ProviderConfig } from "../core/collection_model_auth_options.ts";
 import { RequestInfoContextOAuth2 } from "../core/event_request.ts";
 import { NewExternalAuth } from "../core/external_auth_model.ts";
 import { runApiScenario, type ApiScenario } from "../tests/api.ts";
+import { startBunServerWithRetry } from "../tests/helpers.ts";
 import { AuthUser, Providers, type OAuth2Token } from "../tools/auth/auth.ts";
 import { BaseProvider } from "../tools/auth/base_provider.ts";
 import { NameApple } from "../tools/auth/index.ts";
@@ -81,8 +82,7 @@ beforeAll(() => {
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAOeZzWQAAAAASUVORK5CYII=",
     "base64",
   );
-  avatarServer = Bun.serve({
-    port: 0,
+  avatarServer = startBunServerWithRetry({
     fetch() {
       return new Response(pngBytes, {
         headers: { "content-type": "image/png" },

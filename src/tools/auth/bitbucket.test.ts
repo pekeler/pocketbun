@@ -1,6 +1,7 @@
 // PocketBun-only: provider-specific Bitbucket OAuth2 user mapping parity tests.
 
 import { describe, expect, it } from "bun:test";
+import { startBunServerWithRetry } from "../../tests/helpers.ts";
 import { ParseDateTime } from "../types/index.ts";
 import { Bitbucket } from "./bitbucket.ts";
 
@@ -20,8 +21,7 @@ function startBitbucketServer(config: BitbucketServerConfig): {
     authHeaders: [] as string[],
   };
 
-  const server = Bun.serve({
-    port: 0,
+  const server = startBunServerWithRetry({
     fetch(req) {
       const url = new URL(req.url);
       const authHeader = req.headers.get("Authorization") ?? "";

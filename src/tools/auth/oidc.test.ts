@@ -3,6 +3,7 @@
 import { describe, expect, it } from "bun:test";
 import { generateKeyPairSync, sign, type KeyObject } from "node:crypto";
 import type { OAuth2Token } from "./auth.ts";
+import { startBunServerWithRetry } from "../../tests/helpers.ts";
 import { ParseDateTime } from "../types/index.ts";
 import { OIDC } from "./oidc.ts";
 
@@ -184,8 +185,7 @@ describe("oidc provider", () => {
       authHeaders: [] as string[],
     };
 
-    const server = Bun.serve({
-      port: 0,
+    const server = startBunServerWithRetry({
       fetch(req) {
         const url = new URL(req.url);
         if (url.pathname !== "/userinfo") {
@@ -223,8 +223,7 @@ describe("oidc provider", () => {
     const { privateKey: invalidPrivateKey } = generateKeyPairSync("rsa", { modulusLength: 1024 });
     const publicJwk = publicKey.export({ format: "jwk" }) as { n?: string; e?: string };
 
-    const server = Bun.serve({
-      port: 0,
+    const server = startBunServerWithRetry({
       fetch() {
         return Response.json({
           keys: [

@@ -3,6 +3,7 @@
 import { describe, expect, it } from "bun:test";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { newTestApp } from "../tests/app.ts";
+import { retryServerStart } from "../tests/helpers.ts";
 import { findOrCreateInstallerSuperuserAsync } from "./installer.ts";
 import { buildServeHandler, serveAsync } from "./serve.ts";
 
@@ -19,7 +20,7 @@ describe("serve installer", () => {
         },
       });
 
-      const server = await serveAsync(app, { httpAddr: "127.0.0.1:0" });
+      const server = await retryServerStart(() => serveAsync(app, { httpAddr: "127.0.0.1:0" }));
       try {
         const res = await fetch(`http://${server.hostname}:${server.port}/__pb_async_on_serve`);
         expect(res.status).toBe(200);
@@ -79,7 +80,7 @@ describe("serve installer", () => {
         },
       });
 
-      const server = await serveAsync(app, { httpAddr: "127.0.0.1:0" });
+      const server = await retryServerStart(() => serveAsync(app, { httpAddr: "127.0.0.1:0" }));
       try {
         await waitFor(() => installerCalls > 0, 3000);
         expect(installerCalls).toBe(1);
