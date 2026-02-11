@@ -11,6 +11,7 @@
 - Expanded GitHub Actions CI coverage to run format/lint/typecheck/tests on a Linux/macOS/Windows matrix and split Playwright E2E into a dedicated Ubuntu job.
 - Stabilized Windows CI test runs by reducing Bun test parallelism and increasing the per-test timeout in the Windows matrix leg, and made worker-path/runtime tests path-separator-safe across platforms.
 - Fixed Windows test cleanup flakiness by adding retry-based temporary directory deletion for transient file-lock errors (`EBUSY`/`EPERM`/`ENOTEMPTY`) and by ensuring bootstrapped temp apps are explicitly reset before teardown.
+- Fixed Windows JSVM regressions by using OS-native temp directories for generated `pb_hooks_tmp` modules and by making sync HTTP helper subprocesses explicitly await request completion before exiting.
 - Completed OAuth2 provider compatibility parity across all implemented providers by porting provider-specific `FetchAuthUser` mappings and raw-user fetch flows (including verified-email gating, active-account checks, id_token validation, GraphQL/userinfo/header-specific requests, and fallback email resolution), and added regression coverage for each provider (Google, GitHub, GitLab, OIDC, Apple, Microsoft, Discord, Facebook, Bitbucket, Box, Linear, Lark, Gitea, Kakao, Instagram Login, Gitee, Notion, mailcow, monday.com, LiveChat, Patreon, Yandex, X/Twitter, WakaTime, VK, Trakt, Planning Center, Twitch, Spotify, and Strava).
 
 ## 0.36.2-pocketbun.4 - 2026-02-10

@@ -12,6 +12,7 @@ import {
   truncate as truncateAsync,
   writeFile as writeFileAsync,
 } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, sep, normalize } from "node:path";
 import type { App } from "../../core/app.ts";
 import type { ServeEvent } from "../../core/events.ts";
@@ -1178,54 +1179,53 @@ if (!rawUrl) {
     const url = new URL(rawUrl);
     const requestFn = url.protocol === "https:" ? httpsRequest : httpRequest;
 
-    const req = requestFn(
-      url,
-      { method, headers },
-      (res) => {
-        const chunks = [];
-        res.on("data", (chunk) => chunks.push(chunk));
-        res.on("end", () => {
-          const resBytes = Buffer.concat(chunks);
-          const headerEntries = [];
-          for (const [key, value] of Object.entries(res.headers)) {
-            if (Array.isArray(value)) {
-              for (const item of value) {
-                headerEntries.push([key, String(item)]);
+    const payload = await new Promise((resolve, reject) => {
+      const req = requestFn(
+        url,
+        { method, headers },
+        (res) => {
+          const chunks = [];
+          res.on("data", (chunk) => chunks.push(chunk));
+          res.on("end", () => {
+            const resBytes = Buffer.concat(chunks);
+            const headerEntries = [];
+            for (const [key, value] of Object.entries(res.headers)) {
+              if (Array.isArray(value)) {
+                for (const item of value) {
+                  headerEntries.push([key, String(item)]);
+                }
+                continue;
               }
-              continue;
+              if (value != null) {
+                headerEntries.push([key, String(value)]);
+              }
             }
-            if (value != null) {
-              headerEntries.push([key, String(value)]);
-            }
-          }
-          const setCookieHeader = res.headers["set-cookie"];
-          const setCookie = Array.isArray(setCookieHeader)
-            ? setCookieHeader.join("\n")
-            : setCookieHeader ?? null;
-          const payload = {
-            status: res.statusCode ?? 0,
-            headers: headerEntries,
-            setCookie,
-            bodyBase64: Buffer.from(resBytes).toString("base64"),
-          };
-          process.stdout.write(JSON.stringify(payload));
-        });
-      },
-    );
+            const setCookieHeader = res.headers["set-cookie"];
+            const setCookie = Array.isArray(setCookieHeader)
+              ? setCookieHeader.join("\n")
+              : setCookieHeader ?? null;
+            resolve({
+              status: res.statusCode ?? 0,
+              headers: headerEntries,
+              setCookie,
+              bodyBase64: Buffer.from(resBytes).toString("base64"),
+            });
+          });
+        },
+      );
 
-    req.setTimeout(timeout * 1000, () => {
-      req.destroy(new Error("timeout"));
+      req.setTimeout(timeout * 1000, () => {
+        req.destroy(new Error("timeout"));
+      });
+      req.on("error", reject);
+
+      if (body) {
+        req.write(body);
+      }
+      req.end();
     });
 
-    req.on("error", (err) => {
-      console.error(String(err));
-      process.exit(1);
-    });
-
-    if (body) {
-      req.write(body);
-    }
-    req.end();
+    process.stdout.write(JSON.stringify(payload));
   } catch (err) {
     console.error(String(err));
     process.exit(1);
@@ -1401,7 +1401,7 @@ export function osBinds(target: BindTarget): void {
     writeFileAsync: (path: string, data: string | Uint8Array) => writeFileAsync(path, data),
     readDir: (path: string) => readdirSync(path),
     readDirAsync: (path: string) => readdirAsync(path),
-    tempDir: () => process.env.TMPDIR ?? "/tmp",
+    tempDir: () => tmpdir(),
     truncate: (path: string, size: number) => truncateSync(path, size),
     truncateAsync: (path: string, size: number) => truncateAsync(path, size),
     getwd: () => process.cwd(),

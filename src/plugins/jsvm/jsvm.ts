@@ -6,6 +6,7 @@ import type { Dirent } from "node:fs";
 import { readdirSync, readFileSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { dirname, extname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { App } from "../../core/app.ts";
@@ -365,8 +366,7 @@ async function executeModuleAsync(fileName: string, content: string, globals: Re
 }
 
 function writeTempModule(fileName: string, content: string): string {
-  const baseTmp = process.env.TMPDIR ?? "/tmp";
-  const tmpDir = join(baseTmp, "pb_hooks_tmp");
+  const tmpDir = join(tmpdir(), "pb_hooks_tmp");
   mkdirSync(tmpDir, { recursive: true });
   const tmpPath = join(tmpDir, fileName);
   writeFileSync(tmpPath, content);
@@ -374,8 +374,7 @@ function writeTempModule(fileName: string, content: string): string {
 }
 
 async function writeTempModuleAsync(fileName: string, content: string): Promise<string> {
-  const baseTmp = process.env.TMPDIR ?? "/tmp";
-  const tmpDir = join(baseTmp, "pb_hooks_tmp");
+  const tmpDir = join(tmpdir(), "pb_hooks_tmp");
   await mkdir(tmpDir, { recursive: true });
   const tmpPath = join(tmpDir, fileName);
   await writeFile(tmpPath, content);

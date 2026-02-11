@@ -12,7 +12,8 @@ function isRetriableRemoveError(error: unknown): boolean {
 }
 
 export async function removeDirWithRetry(dir: string, options: { retries?: number; delayMs?: number } = {}): Promise<void> {
-  const retries = Math.max(1, options.retries ?? 40);
+  // Windows runners may keep SQLite/log files locked for several seconds.
+  const retries = Math.max(1, options.retries ?? 240);
   const delayMs = Math.max(1, options.delayMs ?? 50);
   let lastError: unknown = null;
 
