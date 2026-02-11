@@ -19,6 +19,8 @@
 - Added Apple OAuth2 provider regression tests for profile mapping and id_token validation edge cases (empty token, missing expiration, invalid issuer, invalid signature).
 - Ported Microsoft OAuth2 `FetchAuthUser` mapping behavior with provider-specific field extraction and token/expiry wiring matching PocketBase semantics.
 - Added Microsoft OAuth2 provider regression tests for profile mapping and invalid payload/type handling.
+- Ported Discord OAuth2 `FetchAuthUser` mapping behavior, including composed username and avatar URL formatting plus verified-email-only assignment.
+- Added Discord OAuth2 provider regression tests for profile mapping, optional field defaults, and invalid payload/type handling.
 
 ## 0.36.2-pocketbun.4 - 2026-02-10
 
