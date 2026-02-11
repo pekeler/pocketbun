@@ -4,6 +4,8 @@
 
 - Fixed OTP/MFA cron cleanup hooks to skip teardown-time execution when the app is not bootstrapped and to handle async cleanup rejections without leaking unhandled errors.
 - Added a regression test to ensure OTP/MFA cleanup cron jobs don’t emit unhandled promise rejections after bootstrap reset.
+- Aligned `RestartAsync` behavior with PocketBase terminate-and-reexec flow: it now triggers terminate hooks with `IsRestart=true`, attempts process re-exec with the current argv/env, and re-bootstraps only when re-exec fails.
+- Added restart regression coverage for re-exec argument wiring and failed re-exec fallback bootstrap behavior.
 
 ## 0.36.2-pocketbun.4 - 2026-02-10
 

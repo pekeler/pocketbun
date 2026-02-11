@@ -3,7 +3,7 @@
 import "../migrations/index.ts";
 import "./fields_register.ts";
 import type { Database, SQLQueryBindings } from "bun:sqlite";
-import { mkdirSync, rmSync } from "node:fs";
+import { mkdirSync, realpathSync, rmSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { SqlExpr } from "../tools/search/types.ts";
@@ -220,6 +220,7 @@ import {
 import { ParamsKeySettings, ParamsTableName, Settings } from "./settings_model.ts";
 import { ReloadSettings as ReloadSettingsHelper, ReloadSettingsAsync as ReloadSettingsAsyncHelper } from "./settings_query.ts";
 import { Store } from "./store.ts";
+import { execve } from "./syscall.ts";
 import { NormalizeUniqueIndexError } from "./validators/db.ts";
 import {
   CreateViewFields,
@@ -1929,15 +1930,21 @@ export class BaseApp implements App {
       return new Error("restart is not supported on windows");
     }
 
-    // Deviation: Bun can't execve the current process, so we rebootstrap in-process.
+    const execPath = this.resolveRestartExecPath();
+
+    // Deviation: sync Restart keeps sync-only lifecycle semantics and does not
+    // await async terminate hooks. Use RestartAsync for full terminate hook support.
+    this.resetBootstrapState();
+    const restartErr = execve(execPath, this.buildRestartArgv(execPath), this.buildRestartEnvv());
+
+    // Attempt to restart the bootstrap process in case execve returns an error.
     try {
-      this.resetBootstrapState();
       this.bootstrap();
     } catch (error) {
-      return error as Error;
+      this.Logger().Error("Failed to rebootstrap the application after failed app.Restart()", "error", error);
     }
 
-    return null;
+    return restartErr;
   }
 
   // RestartAsync is a PocketBun-only async alternative to Restart().
@@ -1946,15 +1953,74 @@ export class BaseApp implements App {
       return new Error("restart is not supported on windows");
     }
 
-    // Deviation: Bun can't execve the current process, so we rebootstrap in-process.
-    try {
-      this.resetBootstrapState();
-      await this.bootstrapAsync();
-    } catch (error) {
-      return error as Error;
+    const execPath = this.resolveRestartExecPath();
+    const event = new TerminateEvent(this, true);
+
+    const result = this.OnTerminate().Trigger(event, async (e) => {
+      e.App.resetBootstrapState();
+
+      const restartErr = execve(execPath, this.buildRestartArgv(execPath), this.buildRestartEnvv());
+
+      // Attempt to restart the bootstrap process in case execve returns an error.
+      try {
+        if (typeof e.App.bootstrapAsync === "function") {
+          await e.App.bootstrapAsync();
+        } else {
+          e.App.bootstrap();
+        }
+      } catch (error) {
+        this.Logger().Error("Failed to rebootstrap the application after failed app.RestartAsync()", "error", error);
+      }
+
+      return restartErr;
+    });
+
+    if (result instanceof Promise) {
+      const resolved = await result;
+      if (resolved instanceof Error) {
+        return resolved;
+      }
+      return null;
+    }
+
+    if (result instanceof Error) {
+      return result;
     }
 
     return null;
+  }
+
+  private resolveRestartExecPath(): string {
+    const execPath = process.execPath;
+
+    try {
+      return realpathSync(execPath);
+    } catch {
+      return execPath;
+    }
+  }
+
+  private buildRestartArgv(execPath: string): string[] {
+    if (process.argv.length === 0) {
+      return [execPath];
+    }
+
+    const argv = [...process.argv];
+    argv[0] = execPath;
+    return argv;
+  }
+
+  private buildRestartEnvv(): string[] {
+    const envv: string[] = [];
+
+    for (const [key, value] of Object.entries(process.env)) {
+      if (value === undefined) {
+        continue;
+      }
+      envv.push(`${key}=${value}`);
+    }
+
+    return envv;
   }
 
   async Save(model: Model): Promise<Error | null> {
