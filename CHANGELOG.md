@@ -29,6 +29,8 @@
 - Added Box OAuth2 provider regression tests for profile mapping, inactive-account handling, and invalid payload/type handling.
 - Ported Linear OAuth2 `FetchAuthUser` and GraphQL `FetchRawUserInfo` behavior, including active-account enforcement and provider-specific profile field mapping.
 - Added Linear OAuth2 provider regression tests for GraphQL request semantics, profile mapping, inactive-account handling, and invalid payload/type handling.
+- Ported Lark OAuth2 `FetchAuthUser` mapping behavior, including nested `data` field extraction and provider-specific `union_id`/avatar mapping.
+- Added Lark OAuth2 provider regression tests for profile mapping, optional field defaults, and invalid payload/type handling.
 
 ## 0.36.2-pocketbun.4 - 2026-02-10
 
