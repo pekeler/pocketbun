@@ -18,7 +18,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 5: complete
   - Milestone 6: complete (CI + e2e + docs/examples + upgrade + full audit)
   - Milestone 7: complete (performance sprint paused intentionally)
-  - Milestone 8: in progress (post-release compatibility gaps)
+  - Milestone 8: complete (post-release compatibility gaps closed)
 
 ### Milestone 8 - Post-release compatibility gaps
 
@@ -26,10 +26,10 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-12 13:14Z) Stabilized flaky Windows timeout in `src/core/collection_validate.test.ts` by raising the per-test timeout budget for the long multi-scenario validation sweep from the default 30s to 120s.
 - [x] Reconfirmed `plugins/ghupdate` remains intentionally unported because PocketBun is distributed via package managers, not as a self-updating standalone binary.
 - [x] (2026-02-12 15:08Z) Replaced no-op mail senders with functional behavior-compatible implementations in `src/tools/mailer/sendmail.ts` and `src/tools/mailer/smtp.ts`, added send-path coverage in `src/tools/mailer/mailer.test.ts`/`src/tools/mailer/smtp.test.ts`, and aligned OTP mail flow to await async mailer sends.
-- [ ] Reduce documented partials in `src/core/record_field_resolver.ts` by porting the remaining upstream rule-modifier and multi-match behavior that is still missing.
-- [ ] Tighten template compatibility in `src/tools/template/renderer.ts` for Go-style template edge cases that are still behind the minimal fallback parser.
-- [ ] Close the remaining subset gap in `src/tools/security/random_by_regex.ts` by porting unsupported upstream regex constructs used by PocketBase patterns.
-- [ ] Update README Differences/Known Differences after Milestone 8 work so each remaining intentional deviation is explicitly documented once.
+- [x] (2026-02-12 14:00Z) Closed the remaining `record_field_resolver` parity gap by removing the stale partial-port marker, aligning `extractNestedVal` with upstream `JSONRaw`/map-extractor semantics and strict array-index parsing, and adding regression tests that pin those behaviors.
+- [x] (2026-02-12 14:07Z) Tightened template compatibility in `src/tools/template/renderer.ts` by extending the internal parser with Go-style function-call syntax, pipeline args, literal tokens, and optional-context `template` includes, plus forced-internal regression coverage in `src/tools/template/renderer.test.ts`.
+- [x] (2026-02-12 14:07Z) Closed the remaining `random_by_regex` subset gap for PocketBase pattern usage by adding support for `(?:...)` groups, inverse escape classes (`\\D`, `\\W`, `\\S`), and escaped shorthand classes inside character classes (e.g. `[a-z\\d]`), with regression scenarios in `src/tools/security/random_by_regex.test.ts`.
+- [x] (2026-02-12 14:07Z) Updated README Differences so the post-Milestone 8 intentional deviations are documented once (`$template` fallback behavior and regex autogeneration scope).
 
 ### Performance TODOs (paused; optimization sprint closed 2026-02-08)
 
@@ -211,8 +211,10 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
   Evidence: `bun run upstream:audit` reports missing `plugins/ghupdate/release.go`, `plugins/ghupdate/ghupdate.go`, `plugins/ghupdate/release_test.go`, and `plugins/ghupdate/ghupdate_test.go`, and README documents `update` command removal for package-manager upgrades.
 - Observation: Mail sender parity gap is now closed with real send implementations (sendmail exec path and SMTP protocol path), including hooks and send-path regression coverage.
   Evidence: `src/tools/mailer/sendmail.ts` now resolves/invokes a sendmail executable and serializes RFC-style headers/body, `src/tools/mailer/smtp.ts` now performs SMTP connect/auth/send/quit with MIME message assembly, and tests `src/tools/mailer/mailer.test.ts` + `src/tools/mailer/smtp.test.ts` cover observable payload/auth behavior.
-- Observation: Several core modules still declare partial/subset behavior explicitly, indicating known parity debt independent of test pass rates.
-  Evidence: `src/core/record_field_resolver.ts`, `src/tools/template/renderer.ts`, and `src/tools/security/random_by_regex.ts` each include top-level comments describing partial or subset implementations.
+- Observation: Template and regex helper parity debt from Milestone 8 is now reduced to documented intentional scope limits rather than untracked implementation gaps.
+  Evidence: `src/tools/template/renderer.ts` now supports function calls/literals/pipeline args/template includes in internal mode, `src/tools/security/random_by_regex.ts` now supports non-capturing groups and inverse/common escape classes, and README documents remaining intentional scope constraints once.
+- Observation: `extractNestedVal` had drifted from upstream behavior by missing `JSONRaw`/map-extractor traversal and by accepting non-integer array indexes (`"1a"`), which could silently return incorrect `@request.*` rule values.
+  Evidence: `src/core/record_field_resolver_runner.ts` now adds explicit `JSONRaw` parsing, `AsMap`/`asMap` extraction, own-key lookups, and strict `^\d+$` array index validation, with regression tests in `src/core/record_field_resolver.test.ts`.
 - Observation: `collection validate > scenarios` can exceed Bun’s default 30s per-test timeout on Windows CI because it runs a large scenario matrix in one `it` and creates/tears down a fresh app for each scenario.
   Evidence: GitHub Actions run `21947420598` (job `63388614447`) failed with `(fail) collection validate > scenarios [30078.00ms]` and no assertion mismatch, only timeout.
 - Observation: Cross-scenario factor spread stayed wide (`~0.17x..4.36x` PocketBun/PocketBase), but a 3x/3x run set with per-scenario means showed PocketBun faster on most scenarios in the current Hetzner setup.
@@ -305,6 +307,9 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
   Date/Author: 2026-02-12 / Codex
 - Decision: Keep `SMTPClient.Send` async and update OTP send flow to await `Mailer.Send(...)` results explicitly.
   Rationale: Bun/JS networking uses async socket I/O for SMTP, so parity requires real async send behavior while preserving upstream-visible outcomes (successful sends and propagated errors).
+  Date/Author: 2026-02-12 / Codex
+- Decision: Mirror upstream `extractNestedVal` traversal rules by adding `JSONRaw` + map-extractor handling and strict array index validation, and pin these cases in resolver tests.
+  Rationale: This removes subtle rule-evaluation drift in `@request.*` filters while keeping the broader resolver port mechanically aligned with upstream behavior.
   Date/Author: 2026-02-12 / Codex
 - Decision: For the `collection validate` matrix test, increase the per-test timeout budget to 120s instead of splitting the scenario table into many smaller tests right now.
   Rationale: This is a minimal, behavior-preserving stabilization for an existing Windows-only timeout flake and avoids a large mechanical test rewrite during the parity debt milestone.
@@ -675,3 +680,5 @@ Plan change note: 2026-02-06, continued Milestone 7 by adding provider parsed-pa
 Plan change note: 2026-02-12, added Milestone 8 post-release compatibility debt tracking (mailer senders and partial subsystem parity), and stabilized flaky Windows `collection validate > scenarios` timeout failures by setting that test’s timeout to 120s.
 Plan change note: 2026-02-12, reverted a mistaken `plugins/ghupdate` reintroduction and reaffirmed the intentional package-manager update model (no self-update command/plugin in PocketBun).
 Plan change note: 2026-02-12, completed mailer sender parity by replacing `sendmail`/`smtp` no-op implementations with real send paths, adding SMTP/sendmail behavior tests, and awaiting async mail send result in OTP flow.
+Plan change note: 2026-02-12, closed the record field resolver parity gap by aligning nested value extraction with upstream (`JSONRaw`/map extractors/strict array indexes), removing the stale partial marker, and adding regression coverage.
+Plan change note: 2026-02-12, closed the remaining template and random-by-regex Milestone 8 gaps, then updated README differences for the remaining intentional fallback scope.

@@ -233,7 +233,7 @@ PocketBun uses [Sharp](https://sharp.pixelplumbing.com) for image resizing. Outp
 
 ### Templates ($template)
 
-PocketBun exposes the same `$template` helper for JS/TS hooks/migrations. By default it handles a small, common subset of Go-style templates. If you want closer Go `text/template` compatibility, install the optional `go-text-template` package and `$template` will use it automatically. HTML escaping is basic; use the `raw` helper when you need unescaped output. If you want full control or a different syntax, use any JS templating library.
+PocketBun exposes the same `$template` helper for JS/TS hooks/migrations. The built-in parser handles the common Go-style patterns used by PocketBase templates (includes, pipelines, function calls, and literal values). For closer end-to-end Go `text/template` behavior, install the optional `go-text-template` package and `$template` will use it automatically. HTML escaping is basic; use the `raw` helper when you need unescaped output. If you want full control or a different syntax, use any JS templating library.
 
 Example using a JS/TS-native templating engine in hooks:
 
@@ -255,6 +255,10 @@ bun add go-text-template
 const tpl = $template.load("templates/welcome.html");
 const html = tpl.render({ Name: "Ada" });
 ```
+
+### Regex Autogeneration
+
+PocketBun's `randomStringByRegex` is tuned for PocketBase autogenerate patterns and common regex constructs (`[]`, groups/alternation, quantifiers, `\d/\w/\s` and their inverse forms). Extremely advanced regex syntax may still differ from Go's full regexp parser.
 
 ### SQL Query Helpers and Placeholders
 
