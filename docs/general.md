@@ -1,3 +1,8 @@
+---
+layout: default
+title: PocketBun General Guide
+---
+
 # PocketBun General Guide
 
 This page is the primary guide for both:

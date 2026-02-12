@@ -1,3 +1,8 @@
+---
+layout: default
+title: PocketBun Docs
+---
+
 # PocketBun Docs
 
 PocketBun documentation is organized into two pages so everything is easy to scan with your browser search (`Cmd/Ctrl+F`):

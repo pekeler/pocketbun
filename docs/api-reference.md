@@ -1,3 +1,8 @@
+---
+layout: default
+title: PocketBun API Reference
+---
+
 # PocketBun API Reference
 
 This page collects API-facing reference notes in one place.

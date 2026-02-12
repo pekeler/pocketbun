@@ -1,3 +1,8 @@
+---
+layout: default
+title: Upstream Docs Map
+---
+
 # Upstream Docs Map (Maintainers)
 
 This document maps PocketBun docs topics to upstream PocketBase docs sources.

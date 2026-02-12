@@ -24,12 +24,14 @@ The docs should live in this repository, require no custom domain, and be easy t
 - [x] (2026-02-12 17:05Z) Confirmed docs generation model: handwritten docs are in Svelte source files; only JSVM API reference assets are generated (Typedoc via `npm run jstypes` -> `static/jsvm`).
 - [x] (2026-02-12 17:08Z) Confirmed upstream license posture: `pocketbase/site` is MIT-licensed; no separate docs-only license file found; bundled third-party JS assets include their own bundled notices.
 - [x] (2026-02-12 16:48Z) Created this dedicated documentation ExecPlan.
-- [ ] Align this docs plan with maintainer direction and freeze two-page information architecture.
+- [x] (2026-02-12 18:53Z) Aligned this docs plan with maintainer direction and froze two-page information architecture.
 - [ ] Implement the long general docs page (new users + PocketBase migration/differences in one page).
 - [ ] Implement the long API reference page (PocketBun-focused, using upstream references where needed).
-- [ ] Add a lightweight upstream docs sync/reference process so future PocketBase docs changes are easy to review.
-- [ ] Update README/docs links so PocketBun users start from PocketBun docs, not from an external docs-first workflow.
-- [ ] Keep Dart SDK coverage intentionally out of scope for this milestone unless explicitly requested by users.
+- [x] (2026-02-12 18:53Z) Added lightweight upstream docs sync/reference process scaffold (`docs/maintainers/upstream-docs-map.md` + checklist).
+- [x] (2026-02-12 18:53Z) Updated README/docs links so PocketBun users start from PocketBun docs (`docs/index.md`) first.
+- [x] (2026-02-12 18:53Z) Configured GitHub Pages deployment workflow for `docs/` (`.github/workflows/docs-pages.yml`) with Jekyll config (`docs/_config.yml`).
+- [x] (2026-02-12 18:55Z) Enabled repository GitHub Pages in workflow mode (site URL: `https://pekeler.github.io/pocketbun/`).
+- [x] (2026-02-12 18:53Z) Explicitly deferred Dart SDK docs until user demand.
 
 ## Surprises & Discoveries
 
@@ -244,3 +246,5 @@ Tooling expectations:
 
 Plan change note: 2026-02-12, created this dedicated docs ExecPlan after confirming upstream docs live in `pocketbase/site` and after scoping the upstream docs source format/size. The goal is to deliver PocketBun-first docs for both newcomers and PocketBase migrants.
 Plan change note: 2026-02-12, updated the plan with findings that upstream docs are mostly handwritten (except generated JSVM API docs), recorded license findings (MIT with no docs-only override found), adopted a two-long-page user-doc format, and deferred Dart SDK docs until explicitly requested.
+Plan change note: 2026-02-12, executed Milestone 1 scaffolding by adding `docs/index.md`, `docs/general.md`, `docs/api-reference.md`, maintainer upstream mapping docs, README docs-first links, and GitHub Pages workflow/config.
+Plan change note: 2026-02-12, enabled GitHub Pages for this repository in workflow mode and set the hosted docs URL to `https://pekeler.github.io/pocketbun/`.

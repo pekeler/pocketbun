@@ -1,0 +1,13 @@
+title: PocketBun Docs
+description: PocketBun documentation (GitHub-hosted)
+theme: jekyll-theme-cayman
+
+plugins:
+  - jekyll-relative-links
+
+relative_links:
+  enabled: true
+  collections: true
+
+exclude:
+  - EXECPLAN_docs_program.md
