@@ -10,13 +10,26 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 
 ## Progress
 
-- Milestone status (2026-02-04):
+- Milestone status (2026-02-12):
   - Milestone 1: complete
   - Milestone 2: complete
   - Milestone 3: complete
   - Milestone 4: complete
-  - Milestone 5: complete (all remaining gaps are intentional and documented)
-  - Milestone 6: planned (CI + e2e tests, docs/examples, upgrade to v0.36.2, and a full port audit)
+  - Milestone 5: complete
+  - Milestone 6: complete (CI + e2e + docs/examples + upgrade + full audit)
+  - Milestone 7: complete (performance sprint paused intentionally)
+  - Milestone 8: in progress (post-release compatibility gaps)
+
+### Milestone 8 - Post-release compatibility gaps
+
+- [x] (2026-02-12 13:09Z) Confirmed current high-priority parity gaps from code + upstream audit (`plugins/ghupdate` missing; mailer senders simplified; additional partial areas noted in search/template/random subsystems).
+- [x] (2026-02-12 13:14Z) Stabilized flaky Windows timeout in `src/core/collection_validate.test.ts` by raising the per-test timeout budget for the long multi-scenario validation sweep from the default 30s to 120s.
+- [ ] Implement and test full `plugins/ghupdate` port (`src/plugins/ghupdate/release.ts`, `src/plugins/ghupdate/ghupdate.ts`, and matching tests) so `bun run upstream:audit` reports no missing source/test files.
+- [ ] Replace no-op mail senders with functional behavior-compatible implementations for `src/tools/mailer/sendmail.ts` and `src/tools/mailer/smtp.ts`, then add/extend tests for observable send-path behavior.
+- [ ] Reduce documented partials in `src/core/record_field_resolver.ts` by porting the remaining upstream rule-modifier and multi-match behavior that is still missing.
+- [ ] Tighten template compatibility in `src/tools/template/renderer.ts` for Go-style template edge cases that are still behind the minimal fallback parser.
+- [ ] Close the remaining subset gap in `src/tools/security/random_by_regex.ts` by porting unsupported upstream regex constructs used by PocketBase patterns.
+- [ ] Update README Differences/Known Differences after Milestone 8 work so each remaining intentional deviation is explicitly documented once.
 
 ### Performance TODOs (paused; optimization sprint closed 2026-02-08)
 
@@ -194,6 +207,14 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 ## Surprises & Discoveries
 
+- Observation: The upstream mapping audit still reports missing `plugins/ghupdate` source and test files in PocketBun.
+  Evidence: `bun run upstream:audit` currently reports missing `plugins/ghupdate/release.go`, `plugins/ghupdate/ghupdate.go`, `plugins/ghupdate/release_test.go`, and `plugins/ghupdate/ghupdate_test.go`.
+- Observation: Mail sender implementations are still non-functional placeholders, despite upstream having fully functional send paths.
+  Evidence: `src/tools/mailer/smtp.ts` and `src/tools/mailer/sendmail.ts` are marked `simplified: no-op sender`, while `.upstream/pocketbase/tools/mailer/smtp.go` and `.upstream/pocketbase/tools/mailer/sendmail.go` implement actual send behavior.
+- Observation: Several core modules still declare partial/subset behavior explicitly, indicating known parity debt independent of test pass rates.
+  Evidence: `src/core/record_field_resolver.ts`, `src/tools/template/renderer.ts`, and `src/tools/security/random_by_regex.ts` each include top-level comments describing partial or subset implementations.
+- Observation: `collection validate > scenarios` can exceed Bun’s default 30s per-test timeout on Windows CI because it runs a large scenario matrix in one `it` and creates/tears down a fresh app for each scenario.
+  Evidence: GitHub Actions run `21947420598` (job `63388614447`) failed with `(fail) collection validate > scenarios [30078.00ms]` and no assertion mismatch, only timeout.
 - Observation: Cross-scenario factor spread stayed wide (`~0.17x..4.36x` PocketBun/PocketBase), but a 3x/3x run set with per-scenario means showed PocketBun faster on most scenarios in the current Hetzner setup.
   Evidence: paired upstream benchmark summaries on 2026-02-08 show 132/150 scenarios with PocketBun lower `Completed` time, despite a few strong PocketBase-favoring create outliers.
 - Observation: `net/http` in upstream PocketBase parses URL once and reuses `req.URL`, while our Bun path was reparsing with `new URL(req.url)` in both router and event-level helpers.
@@ -279,6 +300,15 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 ## Decision Log
 
+- Decision: Treat `ghupdate` and mail sender no-op implementations as active compatibility debt to resolve now, not as intentional long-term differences.
+  Rationale: Both areas are upstream-shipped functionality and currently undercut the parity goal even though existing tests largely pass.
+  Date/Author: 2026-02-12 / Codex
+- Decision: Execute Milestone 8 in this order: `ghupdate` port first (small, fully missing), then mail sender parity, then deeper partials (`record_field_resolver`, `template`, `random_by_regex`).
+  Rationale: This closes objective upstream-audit gaps first, then removes user-visible runtime no-ops, then tackles higher-complexity partial behavior.
+  Date/Author: 2026-02-12 / Codex
+- Decision: For the `collection validate` matrix test, increase the per-test timeout budget to 120s instead of splitting the scenario table into many smaller tests right now.
+  Rationale: This is a minimal, behavior-preserving stabilization for an existing Windows-only timeout flake and avoids a large mechanical test rewrite during the parity debt milestone.
+  Date/Author: 2026-02-12 / Codex
 - Decision: Pause active performance optimization work and move remaining items to deferred follow-ups unless new regressions or release-blocking gaps appear.
   Rationale: after a long measured optimization pass and a fresh 3x/3x upstream benchmark comparison on Hetzner CCX13, current results are acceptable for now and effort is better spent on broader project priorities.
   Date/Author: 2026-02-08 / Codex
@@ -642,3 +672,4 @@ Plan change note: 2026-02-04, added Milestone 6 for CI, e2e tests, docs/examples
 Plan change note: 2026-02-04, split the S3 client merge into per-file modules while keeping s3.ts as the s3.go entrypoint with delegated methods.
 Plan change note: 2026-02-06, continued Milestone 7 by threading router-parsed URLs into Event/RequestEvent, re-running full validation and both benchmark runners, and updating the performance TODOs with the remaining skip-total gap focus.
 Plan change note: 2026-02-06, continued Milestone 7 by adding provider parsed-params APIs and a `skipTotal` count-query fast path, updating list/log/collection call sites, validating with full checks, and re-running both benchmark runners.
+Plan change note: 2026-02-12, added Milestone 8 post-release compatibility debt tracking (`ghupdate`, mailer senders, and partial subsystem parity), and stabilized flaky Windows `collection validate > scenarios` timeout failures by setting that test’s timeout to 120s.

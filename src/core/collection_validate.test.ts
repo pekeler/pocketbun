@@ -949,5 +949,5 @@ describe("collection validate", () => {
         await cleanup();
       }
     }
-  });
+  }, 120000);
 });
