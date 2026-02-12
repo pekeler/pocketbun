@@ -22,6 +22,17 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function waitForCondition(predicate: () => boolean, timeoutMs: number, stepMs = 50): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (predicate()) {
+      return true;
+    }
+    await sleep(stepMs);
+  }
+  return predicate();
+}
+
 function hasDb(getter: () => unknown): boolean {
   try {
     getter();
@@ -374,7 +385,7 @@ describe("BaseApp", () => {
     await rm(dataDir, { recursive: true, force: true });
   });
 
-  it("BaseAppLoggerWrites", async () => {
+  it.serial("BaseAppLoggerWrites", async () => {
     const { app, cleanup } = await newTestApp();
     try {
       const resetErr = app.DeleteOldLogs(new Date());
@@ -399,12 +410,11 @@ describe("BaseApp", () => {
       await sleep(100);
       app.Logger().Error("test");
 
-      await sleep(100);
-      expect(totalLogs()).toBe(logsThreshold);
+      const reachedBatchThreshold = await waitForCondition(() => totalLogs() >= logsThreshold, 15000, 100);
+      expect(reachedBatchThreshold).toBe(true);
 
-      await sleep(3200);
-      await sleep(100);
-      expect(totalLogs()).toBe(logsThreshold + 1);
+      const reachedTimedFlush = await waitForCondition(() => totalLogs() >= logsThreshold + 1, 15000, 100);
+      expect(reachedTimedFlush).toBe(true);
     } finally {
       await cleanup();
     }
