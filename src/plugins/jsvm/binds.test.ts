@@ -1,6 +1,8 @@
 // Ported from pocketbase/plugins/jsvm/binds_test.go
 
 import { describe, expect, it, setDefaultTimeout } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildServeHandler } from "../../apis/serve.ts";
 import { Collection } from "../../core/collection_model.ts";
@@ -21,7 +23,7 @@ import { URLField } from "../../core/field_url.ts";
 import { FieldsList } from "../../core/fields_list.ts";
 import { Record as RecordModel } from "../../core/record_model.ts";
 import { ValidationError } from "../../internal/compat/validation.ts";
-import { newTestApp } from "../../tests/app.ts";
+import { TestApp, newTestApp } from "../../tests/app.ts";
 import { File } from "../../tools/filesystem/file.ts";
 import { ApiError } from "../../tools/router/api_error.ts";
 import { JSONRaw } from "../../tools/types/index.ts";
@@ -193,6 +195,12 @@ function getNestedVal(data: unknown, path: string): unknown {
     result = result[part];
   }
   return result ?? null;
+}
+
+function newUnbootstrappedTestApp(): TestApp {
+  // Upstream bind tests usually bootstrap a full app, but count-only assertions here
+  // don't depend on fixtures and are much less flaky on Windows without full bootstrap.
+  return new TestApp({ dataDir: ".pb_test_unbootstrapped", encryptionEnv: "pb_test_env" });
 }
 
 describe("jsvm binds", () => {
@@ -966,52 +974,47 @@ console.log(new URL(server.url).port);`);
     }
   });
 
-  it("dynamic model map field caching", async () => {
-    const { cleanup } = await newTestApp();
-    try {
-      const scope: BindScope = {};
-      baseBinds(scope);
+  it("dynamic model map field caching", () => {
+    const scope: BindScope = {};
+    baseBinds(scope);
 
-      const m1 = new scope.DynamicModel({
-        int: 0,
-        float: -0,
-        text: "",
-        bool: false,
-        obj: {},
-        arr: [],
-      });
+    const m1 = new scope.DynamicModel({
+      int: 0,
+      float: -0,
+      text: "",
+      bool: false,
+      obj: {},
+      arr: [],
+    });
 
-      const m2 = new scope.DynamicModel({
-        int: 0,
-        float: -0,
-        text: "",
-        bool: false,
-        obj: {},
-        arr: [],
-      });
+    const m2 = new scope.DynamicModel({
+      int: 0,
+      float: -0,
+      text: "",
+      bool: false,
+      obj: {},
+      arr: [],
+    });
 
-      m1.int = 1;
-      m1.float = 1.5;
-      m1.text = "a";
-      m1.bool = true;
-      m1.obj.set("a", 1);
-      m1.arr.push(1);
+    m1.int = 1;
+    m1.float = 1.5;
+    m1.text = "a";
+    m1.bool = true;
+    m1.obj.set("a", 1);
+    m1.arr.push(1);
 
-      m2.int = 2;
-      m2.float = 2.5;
-      m2.text = "b";
-      m2.bool = false;
-      m2.obj.set("b", 1);
-      m2.arr.push(2);
+    m2.int = 2;
+    m2.float = 2.5;
+    m2.text = "b";
+    m2.bool = false;
+    m2.obj.set("b", 1);
+    m2.arr.push(2);
 
-      const m1Expected = '{"arr":[1],"bool":true,"float":1.5,"int":1,"obj":{"a":1},"text":"a"}';
-      expect(JSON.stringify(m1)).toBe(m1Expected);
+    const m1Expected = '{"arr":[1],"bool":true,"float":1.5,"int":1,"obj":{"a":1},"text":"a"}';
+    expect(JSON.stringify(m1)).toBe(m1Expected);
 
-      const m2Expected = '{"arr":[2],"bool":false,"float":2.5,"int":2,"obj":{"b":1},"text":"b"}';
-      expect(JSON.stringify(m2)).toBe(m2Expected);
-    } finally {
-      await cleanup();
-    }
+    const m2Expected = '{"arr":[2],"bool":false,"float":2.5,"int":2,"obj":{"b":1},"text":"b"}';
+    expect(JSON.stringify(m2)).toBe(m2Expected);
   });
 
   it("loading arrayOf", async () => {
@@ -1314,26 +1317,18 @@ server.listen(0, "127.0.0.1", () => {
     30000,
   );
 
-  it("cron binds count", async () => {
-    const { app, cleanup } = await newTestApp();
-    try {
-      const scope: BindScope = {};
-      cronBinds(app, scope);
-      expect(countKeys(scope)).toBe(2);
-    } finally {
-      await cleanup();
-    }
+  it("cron binds count", () => {
+    const scope: BindScope = {};
+    // bind-count assertion only; avoid full test app bootstrap in this hot test file.
+    cronBinds({} as any, scope);
+    expect(countKeys(scope)).toBe(2);
   });
 
-  it("hooks binds count", async () => {
-    const { app, cleanup } = await newTestApp();
-    try {
-      const scope: BindScope = {};
-      hooksBinds(app, scope);
-      expect(countKeys(scope)).toBe(82);
-    } finally {
-      await cleanup();
-    }
+  it("hooks binds count", () => {
+    const app = newUnbootstrappedTestApp();
+    const scope: BindScope = {};
+    hooksBinds(app, scope);
+    expect(countKeys(scope)).toBe(82);
   });
 
   it("hooks binds", async () => {
@@ -1427,15 +1422,11 @@ server.listen(0, "127.0.0.1", () => {
     }
   });
 
-  it("router binds count", async () => {
-    const { app, cleanup } = await newTestApp();
-    try {
-      const scope: BindScope = {};
-      routerBinds(app, scope);
-      expect(countKeys(scope)).toBe(2);
-    } finally {
-      await cleanup();
-    }
+  it("router binds count", () => {
+    const app = newUnbootstrappedTestApp();
+    const scope: BindScope = {};
+    routerBinds(app, scope);
+    expect(countKeys(scope)).toBe(2);
   });
 
   it("router binds", async () => {
@@ -1508,12 +1499,12 @@ server.listen(0, "127.0.0.1", () => {
   it.serial(
     "os async binds",
     async () => {
-      const { app, cleanup } = await newTestApp();
+      const testDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-os-"));
       try {
         const scope: BindScope = {};
         osBinds(scope);
 
-        const asyncDir = join(app.DataDir(), "os_async_dir");
+        const asyncDir = join(testDir, "os_async_dir");
         const asyncFile = join(asyncDir, "tmp.txt");
         const asyncFileRenamed = join(asyncDir, "tmp2.txt");
 
@@ -1538,7 +1529,7 @@ server.listen(0, "127.0.0.1", () => {
         await scope.$os.removeAsync(asyncFileRenamed);
         await scope.$os.removeAllAsync(asyncDir);
       } finally {
-        await cleanup();
+        await rm(testDir, { recursive: true, force: true });
       }
     },
     15000,
