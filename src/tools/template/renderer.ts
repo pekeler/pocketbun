@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 export type TemplateFunc = (...args: any[]) => unknown;
 export type TemplateFuncs = Record<string, TemplateFunc>;
 export type TemplateSource = { name: string; content: string };
+export type BuildRendererOptions = { useExternalParser?: boolean };
 
 type TemplateExecutor = {
   render: (data: unknown) => string;
@@ -73,13 +74,16 @@ export class Renderer {
   }
 }
 
-export function buildRenderer(sources: TemplateSource[], funcs: TemplateFuncs): Renderer {
-  const external = tryBuildExternalTemplate(sources, funcs);
-  if (external) {
-    if ("parseError" in external) {
-      return new Renderer(null, external.parseError);
+export function buildRenderer(sources: TemplateSource[], funcs: TemplateFuncs, options: BuildRendererOptions = {}): Renderer {
+  const useExternalParser = options.useExternalParser ?? true;
+  if (useExternalParser) {
+    const external = tryBuildExternalTemplate(sources, funcs);
+    if (external) {
+      if ("parseError" in external) {
+        return new Renderer(null, external.parseError);
+      }
+      return new Renderer(external.executor, null);
     }
-    return new Renderer(external.executor, null);
   }
 
   try {
@@ -138,23 +142,27 @@ class InternalTemplate {
 
   private evaluateExpression(expr: string, data: unknown): string {
     if (expr.startsWith("template")) {
-      const match = expr.match(/^template\s+"([^"]+)"\s+(.+)$/);
-      if (!match) {
+      const tokens = tokenizeTemplateCommand(expr);
+      if (tokens[0] !== "template" || tokens.length < 2 || tokens.length > 3) {
         throw new Error(`invalid template expression: ${expr}`);
       }
-      const name = match[1] ?? "";
-      const ctxExpr = match[2];
-      if (!name || !ctxExpr) {
+
+      const nameToken = tokens[1];
+      if (!nameToken) {
         throw new Error(`invalid template expression: ${expr}`);
       }
-      const ctxValue = this.resolveValue(ctxExpr.trim(), data);
+
+      const name = parseTemplateStringToken(nameToken);
+      if (name === null || name === "") {
+        throw new Error(`invalid template expression: ${expr}`);
+      }
+
+      const ctxToken = tokens[2];
+      const ctxValue = ctxToken ? this.resolveToken(ctxToken, data) : data;
       return this.renderTemplate(name, ctxValue);
     }
 
-    const pipeline = expr
-      .split("|")
-      .map((part) => part.trim())
-      .filter(Boolean);
+    const pipeline = splitTemplatePipeline(expr);
     if (pipeline.length === 0) {
       return "";
     }
@@ -164,22 +172,9 @@ class InternalTemplate {
       return "";
     }
 
-    let value = this.resolveValue(first, data);
-    for (const fnName of rest) {
-      const fn = this.#funcs[fnName];
-      if (!fn) {
-        throw new Error(`missing template func ${fnName}`);
-      }
-
-      const result = fn(value);
-      if (Array.isArray(result) && result.length === 2 && result[1] instanceof Error) {
-        throw result[1];
-      }
-      if (result instanceof Error) {
-        throw result;
-      }
-
-      value = Array.isArray(result) ? result[0] : result;
+    let value = this.runCommand(first, data);
+    for (const command of rest) {
+      value = this.runCommand(command, data, true, value);
     }
 
     if (value instanceof SafeString) {
@@ -190,16 +185,70 @@ class InternalTemplate {
     return escapeHTML(raw);
   }
 
-  private resolveValue(expr: string, data: unknown): unknown {
-    if (expr === "." || expr === "") {
+  private runCommand(command: string, data: unknown, hasPipelineInput = false, pipelineInput?: unknown): unknown {
+    const tokens = tokenizeTemplateCommand(command);
+    if (tokens.length === 0) {
+      return "";
+    }
+
+    const [head = "", ...tail] = tokens;
+    const fn = this.#funcs[head];
+    if (fn) {
+      const args = tail.map((token) => this.resolveToken(token, data));
+      if (hasPipelineInput) {
+        args.push(pipelineInput);
+      }
+      const result = fn(...args);
+      if (Array.isArray(result) && result.length === 2 && result[1] instanceof Error) {
+        throw result[1];
+      }
+      if (result instanceof Error) {
+        throw result;
+      }
+      return Array.isArray(result) ? result[0] : result;
+    }
+
+    if (tail.length > 0 || hasPipelineInput) {
+      throw new Error(`missing template func ${head}`);
+    }
+
+    return this.resolveToken(head, data);
+  }
+
+  private resolveToken(token: string, data: unknown): unknown {
+    const maybeString = parseTemplateStringToken(token);
+    if (maybeString !== null) {
+      return maybeString;
+    }
+
+    if (token === "." || token === "") {
       return data;
     }
 
-    if (!expr.startsWith(".")) {
-      return expr;
+    if (token === "true") {
+      return true;
     }
 
-    const path = expr.slice(1).split(".").filter(Boolean);
+    if (token === "false") {
+      return false;
+    }
+
+    if (token === "nil" || token === "null") {
+      return null;
+    }
+
+    if (/^-?(?:\d+\.?\d*|\d*\.\d+)$/.test(token)) {
+      const parsed = Number.parseFloat(token);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+
+    if (!token.startsWith(".")) {
+      return token;
+    }
+
+    const path = token.slice(1).split(".").filter(Boolean);
     let current: unknown = data;
 
     for (const key of path) {
@@ -422,6 +471,141 @@ function extractDefines(text: string, templates: Record<string, string>): { rema
   }
 
   return { remaining };
+}
+
+function splitTemplatePipeline(expr: string): string[] {
+  const result: string[] = [];
+  let current = "";
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+
+  for (let i = 0; i < expr.length; i += 1) {
+    const ch = expr[i] ?? "";
+
+    if (escaped) {
+      current += ch;
+      escaped = false;
+      continue;
+    }
+
+    if (ch === "\\") {
+      current += ch;
+      escaped = true;
+      continue;
+    }
+
+    if (quote) {
+      current += ch;
+      if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (ch === '"' || ch === "'") {
+      current += ch;
+      quote = ch;
+      continue;
+    }
+
+    if (ch === "|") {
+      const trimmed = current.trim();
+      if (trimmed.length > 0) {
+        result.push(trimmed);
+      }
+      current = "";
+      continue;
+    }
+
+    current += ch;
+  }
+
+  const trimmed = current.trim();
+  if (trimmed.length > 0) {
+    result.push(trimmed);
+  }
+
+  return result;
+}
+
+function tokenizeTemplateCommand(command: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+
+  for (let i = 0; i < command.length; i += 1) {
+    const ch = command[i] ?? "";
+
+    if (escaped) {
+      current += ch;
+      escaped = false;
+      continue;
+    }
+
+    if (ch === "\\") {
+      current += ch;
+      escaped = true;
+      continue;
+    }
+
+    if (quote) {
+      current += ch;
+      if (ch === quote) {
+        quote = null;
+      }
+      continue;
+    }
+
+    if (ch === '"' || ch === "'") {
+      current += ch;
+      quote = ch;
+      continue;
+    }
+
+    if (/\s/.test(ch)) {
+      if (current.length > 0) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+
+    current += ch;
+  }
+
+  if (current.length > 0) {
+    tokens.push(current);
+  }
+
+  return tokens;
+}
+
+function parseTemplateStringToken(token: string): string | null {
+  if (token.length < 2) {
+    return null;
+  }
+
+  if (token.startsWith('"') && token.endsWith('"')) {
+    try {
+      return JSON.parse(token) as string;
+    } catch {
+      return token.slice(1, -1);
+    }
+  }
+
+  if (token.startsWith("'") && token.endsWith("'")) {
+    const inner = token
+      .slice(1, -1)
+      .replace(/\\\\/g, "\\")
+      .replace(/\\'/g, "'")
+      .replace(/\\n/g, "\n")
+      .replace(/\\r/g, "\r")
+      .replace(/\\t/g, "\t");
+    return inner;
+  }
+
+  return null;
 }
 
 function escapeHTML(value: string): string {
