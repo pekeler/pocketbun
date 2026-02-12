@@ -1,5 +1,5 @@
 // Ported from pocketbase/tools/security/random_by_regex.go
-// Note: implements a minimal regex parser for the subset used by PocketBase patterns.
+// Note: implements a lightweight regex parser tailored to PocketBase pattern usage.
 
 import { randomFillSync } from "node:crypto";
 
@@ -8,13 +8,24 @@ const maxPatternCacheEntries = 128;
 const randomPoolSize = 2048;
 const randomUInt32Base = 0x1_0000_0000;
 
+const digitPairs: Array<[number, number]> = [[48, 57]];
+const wordPairs: Array<[number, number]> = [
+  [48, 57],
+  [65, 90],
+  [95, 95],
+  [97, 122],
+];
+const whitespacePairs: Array<[number, number]> = [
+  [9, 13],
+  [32, 32],
+];
 const anyCharNotNLPairs: Array<[number, number]> = [
   ["A".charCodeAt(0), "Z".charCodeAt(0)],
   ["a".charCodeAt(0), "z".charCodeAt(0)],
   ["0".charCodeAt(0), "9".charCodeAt(0)],
 ];
 const anyCharNotNLSelector = buildRuneSelector(anyCharNotNLPairs);
-const printableAsciiPairs: Array<[number, number]> = [[32, 126]];
+const printableAsciiAndWhitespacePairs: Array<[number, number]> = [[9, 126]];
 const parsedPatternCache = new Map<string, AstNode>();
 const randomPool = new Uint32Array(randomPoolSize);
 let randomPoolIndex = randomPool.length;
@@ -241,6 +252,11 @@ class Parser {
     }
     if (ch === "(") {
       this.consume();
+      // Support non-capturing groups (?:...)
+      if (this.peek() === "?" && this.peek(1) === ":") {
+        this.consume();
+        this.consume();
+      }
       const expr = this.parseExpression();
       if (this.peek() === ")") {
         this.consume();
@@ -280,18 +296,21 @@ class Parser {
         this.consume();
         break;
       }
-      const start = this.readClassChar();
+      const start = this.readClassElement();
       if (this.peek() === "-" && this.peek(1) !== "]") {
         this.consume();
-        const end = this.readClassChar();
-        ranges.push([start.charCodeAt(0), end.charCodeAt(0)]);
+        const end = this.readClassElement();
+        if (start.type === "single" && end.type === "single") {
+          ranges.push([start.code, end.code]);
+        } else {
+          ranges.push(...this.classElementToRanges(start), [45, 45], ...this.classElementToRanges(end));
+        }
       } else {
-        const code = start.charCodeAt(0);
-        ranges.push([code, code]);
+        ranges.push(...this.classElementToRanges(start));
       }
     }
     if (negate) {
-      const inverted = invertRanges(ranges, printableAsciiPairs);
+      const inverted = invertRanges(ranges, printableAsciiAndWhitespacePairs);
       if (inverted.length === 0) {
         throw new Error("negated character class has no valid ranges");
       }
@@ -300,41 +319,32 @@ class Parser {
     return createCharClassNode(ranges);
   }
 
-  readClassChar(): string {
+  readClassElement(): ClassElement {
     const ch = this.consume() ?? "";
     if (ch === "\\") {
       const next = this.consume() ?? "";
-      const node = this.parseEscape(next);
-      if (node.type === "charClass") {
-        const first = node.selector.ranges[0] ?? [0, 0];
-        return String.fromCharCode(first[0]);
+      const ranges = escapeClassRanges(next);
+      if (ranges) {
+        return { type: "ranges", ranges };
       }
-      if (node.type === "literal") {
-        return node.value;
-      }
+      return { type: "single", code: escapeLiteralCode(next) };
     }
-    return ch;
+    return { type: "single", code: ch.charCodeAt(0) };
+  }
+
+  classElementToRanges(element: ClassElement): Array<[number, number]> {
+    if (element.type === "single") {
+      return [[element.code, element.code]];
+    }
+    return element.ranges.map((range) => [...range] as [number, number]);
   }
 
   parseEscape(ch: string): AstNode {
-    switch (ch) {
-      case "d":
-        return createCharClassNode([[48, 57]]);
-      case "w":
-        return createCharClassNode([
-          [48, 57],
-          [65, 90],
-          [95, 95],
-          [97, 122],
-        ]);
-      case "s":
-        return createCharClassNode([
-          [9, 13],
-          [32, 32],
-        ]);
-      default:
-        return { type: "literal", value: ch };
+    const ranges = escapeClassRanges(ch);
+    if (ranges) {
+      return createCharClassNode(ranges);
     }
+    return { type: "literal", value: String.fromCharCode(escapeLiteralCode(ch)) };
   }
 
   parseQuantifier(): { min: number; max: number } {
@@ -402,8 +412,42 @@ class Parser {
   }
 }
 
+type ClassElement = { type: "single"; code: number } | { type: "ranges"; ranges: Array<[number, number]> };
+
 function createCharClassNode(ranges: Array<[number, number]>): AstNode {
   return { type: "charClass", selector: buildRuneSelector(ranges) };
+}
+
+function escapeClassRanges(ch: string): Array<[number, number]> | null {
+  switch (ch) {
+    case "d":
+      return digitPairs;
+    case "D":
+      return invertRanges(digitPairs, printableAsciiAndWhitespacePairs);
+    case "w":
+      return wordPairs;
+    case "W":
+      return invertRanges(wordPairs, printableAsciiAndWhitespacePairs);
+    case "s":
+      return whitespacePairs;
+    case "S":
+      return invertRanges(whitespacePairs, printableAsciiAndWhitespacePairs);
+    default:
+      return null;
+  }
+}
+
+function escapeLiteralCode(ch: string): number {
+  switch (ch) {
+    case "n":
+      return 10;
+    case "r":
+      return 13;
+    case "t":
+      return 9;
+    default:
+      return ch.charCodeAt(0);
+  }
 }
 
 function invertRanges(ranges: Array<[number, number]>, base: Array<[number, number]>): Array<[number, number]> {

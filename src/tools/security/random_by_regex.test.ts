@@ -24,6 +24,12 @@ describe("security random by regex", () => {
       { pattern: "[a-zA-Z_]*", expectError: false },
       { pattern: "[^a-zA-Z]{5,30}", expectError: false },
       { pattern: "\\w+_abc", expectError: false },
+      { pattern: "\\W{6}", expectError: false },
+      { pattern: "\\D{6}", expectError: false },
+      { pattern: "\\S{6}", expectError: false },
+      { pattern: "(?:ab|cd){3}", expectError: false },
+      { pattern: "\\d+\\.\\d+", expectError: false },
+      { pattern: "[a-z\\d]{12}", expectError: false },
       { pattern: "[2-9]{10}-\\w+", expectError: false },
       { pattern: "(a|b|c)", expectError: false },
     ];
