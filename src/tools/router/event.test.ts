@@ -20,12 +20,42 @@ type ResponseScenario<T> = {
 };
 
 async function newMultipartRequest(url: string, form: FormData): Promise<Request> {
-  const source = new Request(url, { method: "POST", body: form });
-  const contentType = source.headers.get("content-type") ?? "";
-  const body = await source.arrayBuffer();
+  const boundary = `----PocketBunBoundary${Math.random().toString(16).slice(2)}`;
+  const encoder = new TextEncoder();
+  const chunks: Uint8Array[] = [];
+
+  const appendText = (text: string): void => {
+    chunks.push(encoder.encode(text));
+  };
+
+  for (const [name, value] of form.entries()) {
+    const entryValue: unknown = value;
+    appendText(`--${boundary}\r\n`);
+    if (entryValue instanceof File) {
+      const contentType = entryValue.type || "application/octet-stream";
+      appendText(`Content-Disposition: form-data; name="${name}"; filename="${entryValue.name}"\r\n`);
+      appendText(`Content-Type: ${contentType}\r\n\r\n`);
+      chunks.push(new Uint8Array(await entryValue.arrayBuffer()));
+      appendText("\r\n");
+      continue;
+    }
+
+    appendText(`Content-Disposition: form-data; name="${name}"\r\n\r\n${String(entryValue)}\r\n`);
+  }
+
+  appendText(`--${boundary}--\r\n`);
+
+  const totalSize = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+  const body = new Uint8Array(totalSize);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
   return new Request(url, {
     method: "POST",
-    headers: { "content-type": contentType },
+    headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
     body,
   });
 }

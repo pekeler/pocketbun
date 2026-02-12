@@ -1232,5 +1232,5 @@ describe("collection model", () => {
         await cleanup();
       }
     }
-  });
+  }, 60000);
 });

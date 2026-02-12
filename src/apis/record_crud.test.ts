@@ -688,7 +688,7 @@ describe("record CRUD list", () => {
 });
 
 describe("record CRUD fallback regressions", () => {
-  it("create succeeds when multipart requestInfo parsing fails once", async () => {
+  it.serial("create succeeds when multipart requestInfo parsing fails once", async () => {
     let restoreBindBody: () => void = () => {};
     try {
       await runApiScenario({
@@ -734,7 +734,7 @@ describe("record CRUD fallback regressions", () => {
     }
   });
 
-  it("create succeeds when multipart file parsing needs request clone fallback", async () => {
+  it.serial("create succeeds when multipart file parsing needs request clone fallback", async () => {
     let restorePatchedFormData: () => void = () => {};
     let restoreBindBody: () => void = () => {};
     try {
