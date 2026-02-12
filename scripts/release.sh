@@ -46,18 +46,31 @@ ensure_tag_missing() {
 
 ensure_npm_auth() {
   local whoami_output
+  local whoami_failed=0
   if ! whoami_output="$(npm whoami 2>&1)"; then
-    echo "Release blocked: npm authentication check failed." >&2
-    echo "$whoami_output" >&2
-    echo "Run 'npm login' (or set/refresh NPM_TOKEN) and retry." >&2
-    exit 1
+    whoami_failed=1
   fi
 
-  if [[ -z "$whoami_output" ]]; then
-    echo "Release blocked: npm authentication check returned an empty user." >&2
-    echo "Run 'npm login' (or set/refresh NPM_TOKEN) and retry." >&2
-    exit 1
+  if [[ "$whoami_failed" -eq 0 && -n "$whoami_output" ]]; then
+    return 0
   fi
+
+  if [[ -t 0 && -t 1 ]]; then
+    echo "npm authentication is missing or expired; running 'npm login'..." >&2
+    if npm login; then
+      if whoami_output="$(npm whoami 2>/dev/null)" && [[ -n "$whoami_output" ]]; then
+        echo "npm authenticated as '$whoami_output'." >&2
+        return 0
+      fi
+    fi
+  fi
+
+  echo "Release blocked: npm authentication check failed." >&2
+  if [[ -n "$whoami_output" ]]; then
+    echo "$whoami_output" >&2
+  fi
+  echo "Run 'npm login' (or set/refresh NPM_TOKEN) and retry." >&2
+  exit 1
 }
 
 changelog_state() {
