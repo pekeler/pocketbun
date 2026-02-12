@@ -2,7 +2,8 @@
 
 ## 0.36.2-pocketbun.6 (Unreleased)
 
-- TBD
+- Implemented functional SMTP and sendmail delivery paths so mailer sends now execute real transport flows (including SMTP AUTH and sendmail command execution) instead of placeholder behavior.
+- Improved PocketBase parity for record field resolution, template rendering, and random-by-regex generation by aligning additional edge cases and upstream-compatible parsing behavior.
 
 ## 0.36.2-pocketbun.5 - 2026-02-12
 

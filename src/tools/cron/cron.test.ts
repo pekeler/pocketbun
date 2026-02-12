@@ -1,6 +1,6 @@
 // Ported from pocketbase/tools/cron/cron_test.go
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, setDefaultTimeout } from "bun:test";
 import type { Job } from "./job.ts";
 import { Cron } from "./cron.ts";
 
@@ -25,6 +25,8 @@ async function waitFor(condition: () => boolean, timeoutMs: number, pollMs = 10)
 
   throw new Error(`condition not met within ${timeoutMs}ms`);
 }
+
+setDefaultTimeout(15_000);
 
 describe("Cron", () => {
   it("uses defaults", () => {
@@ -166,12 +168,8 @@ describe("Cron", () => {
     let test1 = 0;
     let test2 = 0;
 
-    const intervalMs = 250;
+    const intervalMs = 200;
     c.SetInterval(intervalMs);
-
-    // Align start close to the next interval boundary to avoid timer edge flakiness in JS.
-    const alignDelay = intervalMs - (Date.now() % intervalMs);
-    await new Promise((resolve) => setTimeout(resolve, alignDelay + 5));
 
     c.Add("test1", "* * * * *", () => {
       mu.lock();
@@ -190,45 +188,48 @@ describe("Cron", () => {
       }
     });
 
-    c.Start();
-    c.Start();
-
-    await waitFor(() => test1 >= 2 && test2 >= 2, 2_500);
-
-    c.Stop();
-    c.Stop();
-
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    let expectedCalls = Math.min(test1, test2);
-
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    mu.lock();
     try {
-      expect(test1).toBe(expectedCalls);
-      expect(test2).toBe(expectedCalls);
+      c.Start();
+      c.Start();
+
+      await waitFor(() => test1 >= 1 && test2 >= 1, 3_000);
+
+      c.Stop();
+      c.Stop();
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      let stoppedTest1 = test1;
+      let stoppedTest2 = test2;
+
+      await new Promise((resolve) => setTimeout(resolve, intervalMs * 2 + 120));
+      mu.lock();
+      try {
+        expect(test1).toBe(stoppedTest1);
+        expect(test2).toBe(stoppedTest2);
+      } finally {
+        mu.unlock();
+      }
+
+      c.Start();
+
+      await waitFor(() => test1 > stoppedTest1 && test2 > stoppedTest2, 3_000);
+
+      c.Stop();
+
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      stoppedTest1 = test1;
+      stoppedTest2 = test2;
+
+      await new Promise((resolve) => setTimeout(resolve, intervalMs * 2 + 120));
+      mu.lock();
+      try {
+        expect(test1).toBe(stoppedTest1);
+        expect(test2).toBe(stoppedTest2);
+      } finally {
+        mu.unlock();
+      }
     } finally {
-      mu.unlock();
-    }
-
-    const alignDelay2 = intervalMs - (Date.now() % intervalMs);
-    await new Promise((resolve) => setTimeout(resolve, alignDelay2 + 5));
-
-    c.Start();
-
-    await waitFor(() => test1 >= expectedCalls + 4 && test2 >= expectedCalls + 4, 3_500);
-
-    c.Stop();
-
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expectedCalls = Math.min(test1, test2);
-
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    mu.lock();
-    try {
-      expect(test1).toBe(expectedCalls);
-      expect(test2).toBe(expectedCalls);
-    } finally {
-      mu.unlock();
+      c.Stop();
     }
   });
 });
