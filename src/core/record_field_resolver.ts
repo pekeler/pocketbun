@@ -1,8 +1,5 @@
 // Ported from pocketbase/core/record_field_resolver.go
 
-// Note: this is a partial port; advanced rule modifiers and multi-match join optimizations
-// are implemented incrementally as related APIs are brought online.
-
 import type { FieldResolver, QueryUpdate, ResolverResult } from "../tools/search/field_resolver.ts";
 import type { Join } from "../tools/search/multi_match_subquery.ts";
 import type { App } from "./app.ts";

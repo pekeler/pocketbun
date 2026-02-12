@@ -11,6 +11,7 @@ import { buildFilterExpr } from "../tools/search/filter.ts";
 import { MultiMatchSubquery } from "../tools/search/multi_match_subquery.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
 import { pseudorandomString } from "../tools/security/random.ts";
+import { JSONRaw } from "../tools/types/json_raw.ts";
 import { replaceWithExpression } from "./record_field_resolver_replace_expr.ts";
 import {
   FieldNameCollectionId,
@@ -737,11 +738,27 @@ export function extractNestedVal(rawData: unknown, ...keys: string[]): unknown {
     throw new Error("at least one key should be provided");
   }
 
+  if (rawData instanceof JSONRaw) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(rawData.MarshalJSON());
+    } catch (error) {
+      throw new Error(`failed to unmarshal raw JSON in order extract nested value from: ${(error as Error).message}`);
+    }
+    return extractNestedVal(parsed, ...keys);
+  }
+
   if (Array.isArray(rawData)) {
     return arrVal(rawData, keys);
   }
 
   if (rawData && typeof rawData === "object") {
+    if (isMapExtractor(rawData)) {
+      return mapVal(rawData.AsMap(), keys);
+    }
+    if (isMapExtractorLower(rawData)) {
+      return mapVal(rawData.asMap(), keys);
+    }
     return mapVal(rawData as Record<string, unknown>, keys);
   }
 
@@ -750,7 +767,7 @@ export function extractNestedVal(rawData: unknown, ...keys: string[]): unknown {
 
 function mapVal(raw: Record<string, unknown>, keys: string[]): unknown {
   const key = keys[0];
-  if (!key || !(key in raw)) {
+  if (!key || !Object.prototype.hasOwnProperty.call(raw, key)) {
     throw new Error(`invalid key path - missing key "${key ?? ""}"`);
   }
 
@@ -767,8 +784,11 @@ function arrVal(raw: unknown[], keys: string[]): unknown {
   if (!key) {
     throw new Error('invalid key path - invalid or missing array index ""');
   }
+  if (!/^\d+$/.test(key)) {
+    throw new Error(`invalid key path - invalid or missing array index "${key}"`);
+  }
   const idx = Number.parseInt(key, 10);
-  if (!Number.isFinite(idx) || idx < 0 || idx >= raw.length) {
+  if (idx < 0 || idx >= raw.length) {
     throw new Error(`invalid key path - invalid or missing array index "${key}"`);
   }
 
@@ -788,10 +808,17 @@ function toSlice(value: unknown): unknown[] {
   if (Array.isArray(value)) {
     return value;
   }
+  if (ArrayBuffer.isView(value) && !(value instanceof DataView) && "length" in value) {
+    const view = value as unknown as ArrayLike<unknown>;
+    return Array.from(view);
+  }
   return [value];
 }
 
 function toStringValue(value: unknown): string {
+  if (value == null) {
+    return "";
+  }
   if (typeof value === "string") {
     return value;
   }
@@ -804,5 +831,38 @@ function toStringValue(value: unknown): string {
   if (typeof value === "boolean") {
     return value ? "true" : "false";
   }
+  if (typeof value === "object") {
+    const raw = value as { toString?: () => string };
+    if (typeof raw.toString === "function") {
+      const text = raw.toString();
+      if (text !== "[object Object]") {
+        return text;
+      }
+    }
+    try {
+      return JSON.stringify(value) ?? "";
+    } catch {
+      return "";
+    }
+  }
+  if (typeof value === "symbol") {
+    return value.description ?? "";
+  }
   return "";
+}
+
+interface mapExtractor {
+  AsMap(): Record<string, unknown>;
+}
+
+interface mapExtractorLower {
+  asMap(): Record<string, unknown>;
+}
+
+function isMapExtractor(value: unknown): value is mapExtractor {
+  return typeof (value as { AsMap?: unknown }).AsMap === "function";
+}
+
+function isMapExtractorLower(value: unknown): value is mapExtractorLower {
+  return typeof (value as { asMap?: unknown }).asMap === "function";
 }

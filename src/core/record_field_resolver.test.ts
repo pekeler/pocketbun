@@ -7,7 +7,7 @@ import { existInSliceWithRegex } from "../tools/list/list.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
 import { JSONRaw } from "../tools/types/index.ts";
-import { RecordFieldResolver } from "./record_field_resolver.ts";
+import { RecordFieldResolver, extractNestedVal } from "./record_field_resolver.ts";
 
 function appendWhere(baseSql: string, clause: string): string {
   if (!clause) {
@@ -1034,11 +1034,14 @@ describe("record field resolver", () => {
           continue;
         }
 
+        const expectNull = scenario.expectParamValue === "" || scenario.expectParamValue === "NULL";
         if (result.params.length === 0) {
           expect(result.identifier).toBe("NULL");
+          expect(expectNull).toBe(true);
           continue;
         }
 
+        expect(expectNull).toBe(false);
         expect(result.params.length).toBe(1);
         expect(result.identifier.startsWith("{:")).toBe(true);
         expect(result.identifier.endsWith("}")).toBe(true);
@@ -1055,5 +1058,19 @@ describe("record field resolver", () => {
     } finally {
       await cleanup();
     }
+  });
+
+  it("extractNestedVal supports JSONRaw and map extractors", () => {
+    expect(extractNestedVal(new JSONRaw(`{"a":[{"b":1}]}`), "a", "0", "b")).toBe(1);
+    expect(extractNestedVal({ value: { AsMap: () => ({ nested: 123 }) } }, "value", "nested")).toBe(123);
+    expect(extractNestedVal({ value: { asMap: () => ({ nested: 456 }) } }, "value", "nested")).toBe(456);
+  });
+
+  it("extractNestedVal rejects prototype keys and non-integer array indexes", () => {
+    const withPrototype = Object.create({ inherited: 1 }) as Record<string, unknown>;
+    withPrototype.own = 2;
+
+    expect(() => extractNestedVal(withPrototype, "inherited")).toThrow("invalid key path - missing key");
+    expect(() => extractNestedVal([1, 2, 3], "1a")).toThrow("invalid key path - invalid or missing array index");
   });
 });
