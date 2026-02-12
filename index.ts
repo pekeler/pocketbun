@@ -27,6 +27,11 @@ export {
   TemplateLangJS,
   type Config as MigrateCmdConfig,
 } from "./src/plugins/migratecmd/migratecmd.ts";
+export {
+  Register as RegisterGHUpdate,
+  MustRegister as MustRegisterGHUpdate,
+  type Config as GHUpdateConfig,
+} from "./src/plugins/ghupdate/ghupdate.ts";
 export { Create, CreateAsync, Extract, ExtractAsync } from "./src/tools/archive/index.ts";
 export { DbxDatabase, attachDbxRewrite, rewriteDbxIdentifiers } from "./src/tools/dbx/index.ts";
 export { NewRegistry } from "./src/tools/template/registry.ts";
