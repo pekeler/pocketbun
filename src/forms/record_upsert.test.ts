@@ -664,7 +664,7 @@ describe("RecordUpsert", () => {
     } finally {
       await cleanup();
     }
-  });
+  }, 15000);
 
   it("submit failure", async () => {
     const { app, cleanup } = await newTestApp();

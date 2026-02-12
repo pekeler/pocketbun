@@ -1242,7 +1242,8 @@ if (!rawUrl) {
     });
 
     await new Promise((resolve, reject) => {
-      process.stdout.write(JSON.stringify(payload), (err) => {
+      process.stdout.on("error", reject);
+      process.stdout.end(JSON.stringify(payload), (err) => {
         if (err) {
           reject(err);
           return;
@@ -1283,7 +1284,7 @@ function runSyncFetch(
       stderr: "pipe",
     });
 
-  const maxAttempts = 3;
+  const maxAttempts = 6;
   let lastParseError: unknown = null;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {

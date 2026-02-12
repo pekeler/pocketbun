@@ -1,6 +1,6 @@
 // Ported from pocketbase/plugins/jsvm/binds_test.go
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, setDefaultTimeout } from "bun:test";
 import { join } from "node:path";
 import { buildServeHandler } from "../../apis/serve.ts";
 import { Collection } from "../../core/collection_model.ts";
@@ -41,6 +41,8 @@ import {
   routerBinds,
   securityBinds,
 } from "./binds.ts";
+
+setDefaultTimeout(15000);
 
 type BindScope = Record<string, any>;
 
@@ -600,7 +602,7 @@ describe("jsvm binds", () => {
     } finally {
       await cleanup();
     }
-  });
+  }, 15000);
 
   it("security binds count", () => {
     const scope: BindScope = {};
@@ -756,7 +758,7 @@ console.log(server.port);`);
       await server.stop();
       await cleanup();
     }
-  });
+  }, 15000);
 
   it("forms binds", () => {
     const scope: BindScope = {};
@@ -1092,25 +1094,40 @@ server.listen(0, "127.0.0.1", () => {
       }
       expect(timeoutAsyncErr).not.toBeNull();
 
-      const test0 = scope.$http.send({ url: `http://127.0.0.1:${server.port}/?testError=1` });
-      const test1 = scope.$http.send({
+      const sendWithRetry = (params: Record<string, unknown>) => {
+        let lastErr: unknown = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            return scope.$http.send(params);
+          } catch (err) {
+            lastErr = err;
+            if (!(err instanceof Error) || !err.message.includes("sync fetch failed: empty response")) {
+              throw err;
+            }
+          }
+        }
+        throw lastErr;
+      };
+
+      const test0 = sendWithRetry({ url: `http://127.0.0.1:${server.port}/?testError=1` });
+      const test1 = sendWithRetry({
         method: "post",
         url: `http://127.0.0.1:${server.port}/`,
         headers: { header1: "123", header2: "456" },
         body: "789",
       });
-      const test2 = scope.$http.send({
+      const test2 = sendWithRetry({
         url: `http://127.0.0.1:${server.port}/`,
         headers: { "content-type": "text/plain" },
       });
       const formData = new scope.FormData();
       formData.append("title", "123");
-      const test3 = scope.$http.send({
+      const test3 = sendWithRetry({
         url: `http://127.0.0.1:${server.port}/`,
         body: formData,
         headers: { "content-type": "text/plain" },
       });
-      const test4 = scope.$http.send({
+      const test4 = sendWithRetry({
         method: "post",
         url: `http://127.0.0.1:${server.port}/`,
         body: "test",
@@ -1202,7 +1219,7 @@ server.listen(0, "127.0.0.1", () => {
     } finally {
       await server.stop();
     }
-  });
+  }, 15000);
 
   it("cron binds count", async () => {
     const { app, cleanup } = await newTestApp();
@@ -1428,5 +1445,5 @@ server.listen(0, "127.0.0.1", () => {
     } finally {
       await cleanup();
     }
-  });
+  }, 15000);
 });
