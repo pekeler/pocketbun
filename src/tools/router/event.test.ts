@@ -20,9 +20,9 @@ type ResponseScenario<T> = {
 };
 
 async function newMultipartRequest(url: string, form: FormData): Promise<Request> {
-  const response = new Response(form);
-  const contentType = response.headers.get("content-type") ?? "";
-  const body = await response.arrayBuffer();
+  const source = new Request(url, { method: "POST", body: form });
+  const contentType = source.headers.get("content-type") ?? "";
+  const body = await source.arrayBuffer();
   return new Request(url, {
     method: "POST",
     headers: { "content-type": contentType },
