@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.36.2-pocketbun.5 (Unreleased)
+## 0.36.2-pocketbun.5 - 2026-02-12
 
 - Fixed OTP/MFA cron cleanup hooks to skip teardown-time execution when the app is not bootstrapped and to handle async cleanup rejections without leaking unhandled errors.
 - Added a regression test to ensure OTP/MFA cleanup cron jobs don’t emit unhandled promise rejections after bootstrap reset.
