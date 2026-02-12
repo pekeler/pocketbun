@@ -25,7 +25,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-12 13:09Z) Confirmed current high-priority parity gaps from code + upstream audit (mailer senders simplified; additional partial areas noted in search/template/random subsystems), while keeping `plugins/ghupdate` as an intentional package-distribution divergence.
 - [x] (2026-02-12 13:14Z) Stabilized flaky Windows timeout in `src/core/collection_validate.test.ts` by raising the per-test timeout budget for the long multi-scenario validation sweep from the default 30s to 120s.
 - [x] Reconfirmed `plugins/ghupdate` remains intentionally unported because PocketBun is distributed via package managers, not as a self-updating standalone binary.
-- [ ] Replace no-op mail senders with functional behavior-compatible implementations for `src/tools/mailer/sendmail.ts` and `src/tools/mailer/smtp.ts`, then add/extend tests for observable send-path behavior.
+- [x] (2026-02-12 15:08Z) Replaced no-op mail senders with functional behavior-compatible implementations in `src/tools/mailer/sendmail.ts` and `src/tools/mailer/smtp.ts`, added send-path coverage in `src/tools/mailer/mailer.test.ts`/`src/tools/mailer/smtp.test.ts`, and aligned OTP mail flow to await async mailer sends.
 - [ ] Reduce documented partials in `src/core/record_field_resolver.ts` by porting the remaining upstream rule-modifier and multi-match behavior that is still missing.
 - [ ] Tighten template compatibility in `src/tools/template/renderer.ts` for Go-style template edge cases that are still behind the minimal fallback parser.
 - [ ] Close the remaining subset gap in `src/tools/security/random_by_regex.ts` by porting unsupported upstream regex constructs used by PocketBase patterns.
@@ -209,8 +209,8 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 - Observation: The upstream mapping audit still reports missing `plugins/ghupdate` source and test files in PocketBun by design.
   Evidence: `bun run upstream:audit` reports missing `plugins/ghupdate/release.go`, `plugins/ghupdate/ghupdate.go`, `plugins/ghupdate/release_test.go`, and `plugins/ghupdate/ghupdate_test.go`, and README documents `update` command removal for package-manager upgrades.
-- Observation: Mail sender implementations are still non-functional placeholders, despite upstream having fully functional send paths.
-  Evidence: `src/tools/mailer/smtp.ts` and `src/tools/mailer/sendmail.ts` are marked `simplified: no-op sender`, while `.upstream/pocketbase/tools/mailer/smtp.go` and `.upstream/pocketbase/tools/mailer/sendmail.go` implement actual send behavior.
+- Observation: Mail sender parity gap is now closed with real send implementations (sendmail exec path and SMTP protocol path), including hooks and send-path regression coverage.
+  Evidence: `src/tools/mailer/sendmail.ts` now resolves/invokes a sendmail executable and serializes RFC-style headers/body, `src/tools/mailer/smtp.ts` now performs SMTP connect/auth/send/quit with MIME message assembly, and tests `src/tools/mailer/mailer.test.ts` + `src/tools/mailer/smtp.test.ts` cover observable payload/auth behavior.
 - Observation: Several core modules still declare partial/subset behavior explicitly, indicating known parity debt independent of test pass rates.
   Evidence: `src/core/record_field_resolver.ts`, `src/tools/template/renderer.ts`, and `src/tools/security/random_by_regex.ts` each include top-level comments describing partial or subset implementations.
 - Observation: `collection validate > scenarios` can exceed Bun’s default 30s per-test timeout on Windows CI because it runs a large scenario matrix in one `it` and creates/tears down a fresh app for each scenario.
@@ -302,6 +302,9 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 - Decision: Keep `plugins/ghupdate` intentionally out of scope for PocketBun while focusing Milestone 8 on runtime parity gaps that affect package users (mailer send paths and documented partial subsystems).
   Rationale: PocketBun is distributed and upgraded through package managers; shipping a self-updating binary command is not part of the product model and is already documented as a known difference.
+  Date/Author: 2026-02-12 / Codex
+- Decision: Keep `SMTPClient.Send` async and update OTP send flow to await `Mailer.Send(...)` results explicitly.
+  Rationale: Bun/JS networking uses async socket I/O for SMTP, so parity requires real async send behavior while preserving upstream-visible outcomes (successful sends and propagated errors).
   Date/Author: 2026-02-12 / Codex
 - Decision: For the `collection validate` matrix test, increase the per-test timeout budget to 120s instead of splitting the scenario table into many smaller tests right now.
   Rationale: This is a minimal, behavior-preserving stabilization for an existing Windows-only timeout flake and avoids a large mechanical test rewrite during the parity debt milestone.
@@ -671,3 +674,4 @@ Plan change note: 2026-02-06, continued Milestone 7 by threading router-parsed U
 Plan change note: 2026-02-06, continued Milestone 7 by adding provider parsed-params APIs and a `skipTotal` count-query fast path, updating list/log/collection call sites, validating with full checks, and re-running both benchmark runners.
 Plan change note: 2026-02-12, added Milestone 8 post-release compatibility debt tracking (mailer senders and partial subsystem parity), and stabilized flaky Windows `collection validate > scenarios` timeout failures by setting that test’s timeout to 120s.
 Plan change note: 2026-02-12, reverted a mistaken `plugins/ghupdate` reintroduction and reaffirmed the intentional package-manager update model (no self-update command/plugin in PocketBun).
+Plan change note: 2026-02-12, completed mailer sender parity by replacing `sendmail`/`smtp` no-op implementations with real send paths, adding SMTP/sendmail behavior tests, and awaiting async mail send result in OTP flow.

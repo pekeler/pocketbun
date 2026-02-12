@@ -91,7 +91,7 @@ export async function SendRecordOTP(app: App, authRecord: RecordModel, otpId: st
   });
 
   const result = await app.OnMailerRecordOTPSend().Trigger(event, async (e) => {
-    const sendErr = e.Mailer.Send(e.Message);
+    const sendErr = await e.Mailer.Send(e.Message);
     if (sendErr instanceof Error) {
       return sendErr;
     }
