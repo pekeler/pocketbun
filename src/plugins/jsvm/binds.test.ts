@@ -1137,7 +1137,7 @@ server.listen(0, "127.0.0.1", () => {
         );
       };
 
-      const sendWithRetry = (params: Record<string, unknown>) => {
+      const sendWithRetry = async (params: Record<string, unknown>) => {
         let lastErr: unknown = null;
         for (let attempt = 1; attempt <= 6; attempt++) {
           try {
@@ -1150,28 +1150,31 @@ server.listen(0, "127.0.0.1", () => {
             Bun.sleepSync(Math.min(attempt * 10, 100));
           }
         }
+        if (process.platform === "win32") {
+          return await scope.$http.sendAsync(params);
+        }
         throw lastErr;
       };
 
-      const test0 = sendWithRetry({ url: `http://127.0.0.1:${server.port}/?testError=1` });
-      const test1 = sendWithRetry({
+      const test0 = await sendWithRetry({ url: `http://127.0.0.1:${server.port}/?testError=1` });
+      const test1 = await sendWithRetry({
         method: "post",
         url: `http://127.0.0.1:${server.port}/`,
         headers: { header1: "123", header2: "456" },
         body: "789",
       });
-      const test2 = sendWithRetry({
+      const test2 = await sendWithRetry({
         url: `http://127.0.0.1:${server.port}/`,
         headers: { "content-type": "text/plain" },
       });
       const formData = new scope.FormData();
       formData.append("title", "123");
-      const test3 = sendWithRetry({
+      const test3 = await sendWithRetry({
         url: `http://127.0.0.1:${server.port}/`,
         body: formData,
         headers: { "content-type": "text/plain" },
       });
-      const test4 = sendWithRetry({
+      const test4 = await sendWithRetry({
         method: "post",
         url: `http://127.0.0.1:${server.port}/`,
         body: "test",

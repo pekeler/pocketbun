@@ -31,6 +31,13 @@ export async function parseMultipartFormData(
   request: MultipartRequestLike,
   options: MultipartParseOptions = {},
 ): Promise<ParsedFormData> {
+  if (options.preserveBody) {
+    const preserved = await parseMultipartFormDataFromClonedBody(request);
+    if (preserved) {
+      return preserved;
+    }
+  }
+
   const parserRequest = options.preserveBody && typeof request.clone === "function" ? request.clone() : request;
 
   try {
@@ -42,6 +49,51 @@ export async function parseMultipartFormData(
       return recovered;
     }
     throw error;
+  }
+}
+
+async function parseMultipartFormDataFromClonedBody(request: MultipartRequestLike): Promise<ParsedFormData | null> {
+  if (typeof request.clone !== "function") {
+    return null;
+  }
+
+  let cloned: MultipartRequestLike;
+  try {
+    cloned = request.clone();
+  } catch {
+    return null;
+  }
+
+  if (typeof cloned.arrayBuffer !== "function") {
+    return null;
+  }
+
+  let body: ArrayBuffer;
+  try {
+    body = await cloned.arrayBuffer();
+  } catch {
+    return null;
+  }
+
+  const bodyBytes = new Uint8Array(body);
+  const contentType = request.headers.get("content-type") ?? "";
+  const boundary = detectMultipartBoundary(bodyBytes);
+  const normalizedContentType = normalizeMultipartContentType(contentType, boundary);
+  if (!normalizedContentType) {
+    return null;
+  }
+
+  const reconstructed = new Request(request.url ?? "http://localhost/", {
+    method: request.method ?? "POST",
+    headers: { "content-type": normalizedContentType },
+    body: bodyBytes,
+  });
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Bun supports Request.formData() for multipart parsing.
+    return (await reconstructed.formData()) as ParsedFormData;
+  } catch {
+    return null;
   }
 }
 
