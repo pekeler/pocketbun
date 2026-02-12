@@ -24,7 +24,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 
 - [x] (2026-02-12 13:09Z) Confirmed current high-priority parity gaps from code + upstream audit (`plugins/ghupdate` missing; mailer senders simplified; additional partial areas noted in search/template/random subsystems).
 - [x] (2026-02-12 13:14Z) Stabilized flaky Windows timeout in `src/core/collection_validate.test.ts` by raising the per-test timeout budget for the long multi-scenario validation sweep from the default 30s to 120s.
-- [x] (2026-02-12 13:30Z) Implemented and tested full `plugins/ghupdate` port (`src/plugins/ghupdate/release.ts`, `src/plugins/ghupdate/ghupdate.ts`, and matching tests), wired package exports, and confirmed `bun run upstream:audit` now reports zero missing source/test files.
+- [ ] Implement and test full `plugins/ghupdate` port (`src/plugins/ghupdate/release.ts`, `src/plugins/ghupdate/ghupdate.ts`, and matching tests) so `bun run upstream:audit` reports no missing source/test files.
 - [ ] Replace no-op mail senders with functional behavior-compatible implementations for `src/tools/mailer/sendmail.ts` and `src/tools/mailer/smtp.ts`, then add/extend tests for observable send-path behavior.
 - [ ] Reduce documented partials in `src/core/record_field_resolver.ts` by porting the remaining upstream rule-modifier and multi-match behavior that is still missing.
 - [ ] Tighten template compatibility in `src/tools/template/renderer.ts` for Go-style template edge cases that are still behind the minimal fallback parser.
@@ -207,8 +207,8 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 ## Surprises & Discoveries
 
-- Observation: The upstream mapping audit gap for `plugins/ghupdate` was resolved in Milestone 8.
-  Evidence: after adding `src/plugins/ghupdate/{release,ghupdate}.{ts,test.ts}`, `bun run upstream:audit` reports `Missing source files: 0` and `Missing test files: 0`.
+- Observation: The upstream mapping audit still reports missing `plugins/ghupdate` source and test files in PocketBun.
+  Evidence: `bun run upstream:audit` currently reports missing `plugins/ghupdate/release.go`, `plugins/ghupdate/ghupdate.go`, `plugins/ghupdate/release_test.go`, and `plugins/ghupdate/ghupdate_test.go`.
 - Observation: Mail sender implementations are still non-functional placeholders, despite upstream having fully functional send paths.
   Evidence: `src/tools/mailer/smtp.ts` and `src/tools/mailer/sendmail.ts` are marked `simplified: no-op sender`, while `.upstream/pocketbase/tools/mailer/smtp.go` and `.upstream/pocketbase/tools/mailer/sendmail.go` implement actual send behavior.
 - Observation: Several core modules still declare partial/subset behavior explicitly, indicating known parity debt independent of test pass rates.
@@ -305,9 +305,6 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
   Date/Author: 2026-02-12 / Codex
 - Decision: Execute Milestone 8 in this order: `ghupdate` port first (small, fully missing), then mail sender parity, then deeper partials (`record_field_resolver`, `template`, `random_by_regex`).
   Rationale: This closes objective upstream-audit gaps first, then removes user-visible runtime no-ops, then tackles higher-complexity partial behavior.
-  Date/Author: 2026-02-12 / Codex
-- Decision: Reintroduce the `ghupdate` plugin in PocketBun to restore upstream mapping completeness, while keeping it optional (library export + explicit registration) rather than enabled by default.
-  Rationale: This closes audit/test parity gaps without changing default CLI behavior for package-managed installs.
   Date/Author: 2026-02-12 / Codex
 - Decision: For the `collection validate` matrix test, increase the per-test timeout budget to 120s instead of splitting the scenario table into many smaller tests right now.
   Rationale: This is a minimal, behavior-preserving stabilization for an existing Windows-only timeout flake and avoids a large mechanical test rewrite during the parity debt milestone.
@@ -676,4 +673,3 @@ Plan change note: 2026-02-04, split the S3 client merge into per-file modules wh
 Plan change note: 2026-02-06, continued Milestone 7 by threading router-parsed URLs into Event/RequestEvent, re-running full validation and both benchmark runners, and updating the performance TODOs with the remaining skip-total gap focus.
 Plan change note: 2026-02-06, continued Milestone 7 by adding provider parsed-params APIs and a `skipTotal` count-query fast path, updating list/log/collection call sites, validating with full checks, and re-running both benchmark runners.
 Plan change note: 2026-02-12, added Milestone 8 post-release compatibility debt tracking (`ghupdate`, mailer senders, and partial subsystem parity), and stabilized flaky Windows `collection validate > scenarios` timeout failures by setting that test’s timeout to 120s.
-Plan change note: 2026-02-12, completed the `plugins/ghupdate` source/test port, re-exported the plugin from `index.ts`, updated README test-coverage wording, and verified upstream audit now reports zero missing files.
