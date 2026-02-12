@@ -1284,8 +1284,9 @@ function runSyncFetch(
       stderr: "pipe",
     });
 
-  const maxAttempts = 6;
+  const maxAttempts = 10;
   let lastParseError: unknown = null;
+  let lastEmptyStderr = "";
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const result = spawnSyncFetch();
@@ -1293,11 +1294,22 @@ function runSyncFetch(
       const stderr = new TextDecoder().decode(result.stderr ?? new Uint8Array()).trim();
       const stdout = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
       const message = stderr || stdout || "sync fetch failed";
+      if (attempt < maxAttempts && isRetryableSyncFetchMessage(message)) {
+        Bun.sleepSync(Math.min(attempt * 10, 100));
+        continue;
+      }
       throw new Error(message);
     }
 
+    const stderr = new TextDecoder().decode(result.stderr ?? new Uint8Array()).trim();
     const output = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
     if (!output) {
+      if (stderr) {
+        lastEmptyStderr = stderr;
+      }
+      if (attempt < maxAttempts) {
+        Bun.sleepSync(Math.min(attempt * 10, 100));
+      }
       continue;
     }
 
@@ -1312,6 +1324,9 @@ function runSyncFetch(
       };
     } catch (error) {
       lastParseError = error;
+      if (attempt < maxAttempts) {
+        Bun.sleepSync(Math.min(attempt * 10, 100));
+      }
       continue;
     }
   }
@@ -1320,7 +1335,20 @@ function runSyncFetch(
     const message = lastParseError instanceof Error ? lastParseError.message : "unknown parse error";
     throw new Error(`sync fetch failed: invalid response (${message})`);
   }
+  if (lastEmptyStderr) {
+    throw new Error(`sync fetch failed: empty response (${lastEmptyStderr})`);
+  }
   throw new Error("sync fetch failed: empty response");
+}
+
+function isRetryableSyncFetchMessage(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("was there a typo in the url or port?") ||
+    normalized.includes("econnrefused") ||
+    normalized.includes("connection refused") ||
+    normalized.includes("fetch failed")
+  );
 }
 
 export function filesystemBinds(target: BindTarget): void {

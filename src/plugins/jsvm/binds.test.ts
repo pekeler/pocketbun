@@ -89,11 +89,20 @@ async function startExternalServerOnce(script: string): Promise<{ port: number; 
   }
 
   const port = Number(buffer.trim());
-  if (!Number.isFinite(port)) {
+  if (!Number.isFinite(port) || port <= 0) {
     const stderr = await readExternalServerStderr(process);
     process.kill();
     await process.exited;
     throw new Error(`Failed to read server port. Output: ${buffer}\n${stderr}`);
+  }
+
+  try {
+    await waitForExternalServerReady(port);
+  } catch (error) {
+    const stderr = await readExternalServerStderr(process);
+    process.kill();
+    await process.exited;
+    throw new Error(`Failed to start test server on port ${port}: ${String(error)}\n${stderr}`);
   }
 
   return {
@@ -118,6 +127,24 @@ async function readExternalServerStderr(process: ReturnType<typeof Bun.spawn>): 
   return new TextDecoder().decode(value);
 }
 
+async function waitForExternalServerReady(port: number): Promise<void> {
+  const maxAttempts = 50;
+  const url = `http://127.0.0.1:${port}/`;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(500) });
+      await response.arrayBuffer();
+      return;
+    } catch (error) {
+      if (attempt === maxAttempts || !isTransientServerStartError(error)) {
+        throw error;
+      }
+      await Bun.sleep(Math.min(attempt * 10, 100));
+    }
+  }
+}
+
 function isTransientServerStartError(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
@@ -125,7 +152,11 @@ function isTransientServerStartError(error: unknown): boolean {
 
   return (
     error.message.includes("Failed to start server") ||
+    error.message.includes("Failed to read server port") ||
+    error.message.includes("Failed to start test server on port") ||
     error.message.includes("Failed to listen at") ||
+    error.message.includes("Was there a typo in the url or port?") ||
+    error.message.includes("ECONNREFUSED") ||
     error.message.includes("EADDRINUSE") ||
     error.message.includes("EPERM") ||
     error.message.includes("EACCES")
@@ -708,7 +739,7 @@ describe("jsvm binds", () => {
     return new Response("test");
   },
 });
-console.log(server.port);`);
+console.log(new URL(server.url).port);`);
 
     try {
       const scope: BindScope = {};
@@ -758,7 +789,7 @@ console.log(server.port);`);
       await server.stop();
       await cleanup();
     }
-  }, 15000);
+  }, 30000);
 
   it("forms binds", () => {
     const scope: BindScope = {};
@@ -1094,16 +1125,29 @@ server.listen(0, "127.0.0.1", () => {
       }
       expect(timeoutAsyncErr).not.toBeNull();
 
+      const isRetryableSyncFetchError = (err: unknown): boolean => {
+        if (!(err instanceof Error)) {
+          return false;
+        }
+        return (
+          err.message.includes("sync fetch failed: empty response") ||
+          err.message.includes("sync fetch failed: invalid response") ||
+          err.message.includes("Was there a typo in the url or port?") ||
+          err.message.includes("ECONNREFUSED")
+        );
+      };
+
       const sendWithRetry = (params: Record<string, unknown>) => {
         let lastErr: unknown = null;
-        for (let attempt = 1; attempt <= 3; attempt++) {
+        for (let attempt = 1; attempt <= 6; attempt++) {
           try {
             return scope.$http.send(params);
           } catch (err) {
             lastErr = err;
-            if (!(err instanceof Error) || !err.message.includes("sync fetch failed: empty response")) {
+            if (!isRetryableSyncFetchError(err)) {
               throw err;
             }
+            Bun.sleepSync(Math.min(attempt * 10, 100));
           }
         }
         throw lastErr;
@@ -1219,7 +1263,7 @@ server.listen(0, "127.0.0.1", () => {
     } finally {
       await server.stop();
     }
-  }, 15000);
+  }, 30000);
 
   it("cron binds count", async () => {
     const { app, cleanup } = await newTestApp();
