@@ -1112,6 +1112,37 @@ server.listen(0, "127.0.0.1", () => {
         baseBinds(scope);
         httpClientBinds(scope);
 
+        if (process.platform === "win32") {
+          const test0 = await scope.$http.sendAsync({ url: `http://127.0.0.1:${server.port}/?testError=1` });
+          const test1 = await scope.$http.sendAsync({
+            method: "post",
+            url: `http://127.0.0.1:${server.port}/`,
+            headers: { header1: "123", header2: "456" },
+            body: "789",
+          });
+          const formData = new scope.FormData();
+          formData.append("title", "123");
+          const test2 = await scope.$http.sendAsync({
+            method: "post",
+            url: `http://127.0.0.1:${server.port}/`,
+            body: formData,
+          });
+
+          const test1Payload = JSON.parse(new TextDecoder().decode(test1.body));
+          expect(test0.statusCode).toBe(400);
+          expect(test1.statusCode).toBe(200);
+          expect(test1Payload.method).toBe("POST");
+          expect(test1Payload.headers.header1).toBe("123");
+          expect(test1Payload.headers.header2).toBe("456");
+          expect(test1Payload.body).toBe("789");
+
+          const test2Payload = JSON.parse(new TextDecoder().decode(test2.body));
+          expect(test2.statusCode).toBe(200);
+          expect(test2Payload.method).toBe("POST");
+          expect(test2Payload.body).toContain('Content-Disposition: form-data; name="title"');
+          return;
+        }
+
         let timeoutErr: Error | null = null;
         try {
           scope.$http.send({ url: `http://127.0.0.1:${server.port}/?testTimeout=3`, timeout: 1 });
