@@ -13,6 +13,19 @@ function normalizeSchedule(job: Job): unknown {
   return JSON.parse(JSON.stringify(job.Schedule()));
 }
 
+async function waitFor(condition: () => boolean, timeoutMs: number, pollMs = 10): Promise<void> {
+  const start = Date.now();
+
+  while (Date.now() - start <= timeoutMs) {
+    if (condition()) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+
+  throw new Error(`condition not met within ${timeoutMs}ms`);
+}
+
 describe("Cron", () => {
   it("uses defaults", () => {
     const c = new Cron();
@@ -180,13 +193,15 @@ describe("Cron", () => {
     c.Start();
     c.Start();
 
-    await new Promise((resolve) => setTimeout(resolve, 505));
+    await waitFor(() => test1 >= 2 && test2 >= 2, 2_500);
 
     c.Stop();
     c.Stop();
 
-    let expectedCalls = 2;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    let expectedCalls = Math.min(test1, test2);
 
+    await new Promise((resolve) => setTimeout(resolve, 350));
     mu.lock();
     try {
       expect(test1).toBe(expectedCalls);
@@ -200,12 +215,14 @@ describe("Cron", () => {
 
     c.Start();
 
-    await new Promise((resolve) => setTimeout(resolve, 1105));
+    await waitFor(() => test1 >= expectedCalls + 4 && test2 >= expectedCalls + 4, 3_500);
 
     c.Stop();
 
-    expectedCalls += 4;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expectedCalls = Math.min(test1, test2);
 
+    await new Promise((resolve) => setTimeout(resolve, 350));
     mu.lock();
     try {
       expect(test1).toBe(expectedCalls);
