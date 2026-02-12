@@ -19,6 +19,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 6: complete (CI + e2e + docs/examples + upgrade + full audit)
   - Milestone 7: complete (performance sprint paused intentionally)
   - Milestone 8: complete (post-release compatibility gaps closed)
+  - Milestone 9: planned (PocketBun docs program in two long pages: general + API reference, with newcomer + migrator content and Dart docs deferred unless requested; see `docs/EXECPLAN_docs_program.md`)
 
 ### Milestone 8 - Post-release compatibility gaps
 
@@ -682,3 +683,4 @@ Plan change note: 2026-02-12, reverted a mistaken `plugins/ghupdate` reintroduct
 Plan change note: 2026-02-12, completed mailer sender parity by replacing `sendmail`/`smtp` no-op implementations with real send paths, adding SMTP/sendmail behavior tests, and awaiting async mail send result in OTP flow.
 Plan change note: 2026-02-12, closed the record field resolver parity gap by aligning nested value extraction with upstream (`JSONRaw`/map extractors/strict array indexes), removing the stale partial marker, and adding regression coverage.
 Plan change note: 2026-02-12, closed the remaining template and random-by-regex Milestone 8 gaps, then updated README differences for the remaining intentional fallback scope.
+Plan change note: 2026-02-12, added Milestone 9 planning pointer for a dedicated PocketBun docs program and linked to `docs/EXECPLAN_docs_program.md`.
