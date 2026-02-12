@@ -2,73 +2,68 @@
 
 import { describe, it } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
-import { newTestApp } from "../tests/app.ts";
+import { TestApp } from "../tests/app.ts";
 import { NewAppleClientSecretCreate } from "./apple_client_secret_create.ts";
 
 describe("AppleClientSecretCreate", () => {
   it("Validate and Submit", async () => {
-    const { app, cleanup } = await newTestApp();
-    try {
-      const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
-      const privatePem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+    // This form test doesn't touch fixture data; keep it unbootstrapped.
+    const app = new TestApp({ dataDir: ".pb_test_unbootstrapped", encryptionEnv: "pb_test_env" });
+    const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
+    const privatePem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
 
-      const scenarios = [
-        { name: "empty data", formData: {}, expectError: true },
-        {
-          name: "invalid data",
-          formData: {
-            clientId: "",
-            teamId: "123456789",
-            keyId: "123456789",
-            privateKey: "-----BEGIN PRIVATE KEY----- invalid -----END PRIVATE KEY-----",
-            duration: -1,
-          },
-          expectError: true,
+    const scenarios = [
+      { name: "empty data", formData: {}, expectError: true },
+      {
+        name: "invalid data",
+        formData: {
+          clientId: "",
+          teamId: "123456789",
+          keyId: "123456789",
+          privateKey: "-----BEGIN PRIVATE KEY----- invalid -----END PRIVATE KEY-----",
+          duration: -1,
         },
-        {
-          name: "valid data",
-          formData: {
-            clientId: "123",
-            teamId: "1234567890",
-            keyId: "1234567891",
-            privateKey: privatePem,
-            duration: 1,
-          },
-          expectError: false,
+        expectError: true,
+      },
+      {
+        name: "valid data",
+        formData: {
+          clientId: "123",
+          teamId: "1234567890",
+          keyId: "1234567891",
+          privateKey: privatePem,
+          duration: 1,
         },
-      ];
+        expectError: false,
+      },
+    ];
 
-      for (const scenario of scenarios) {
-        const form = NewAppleClientSecretCreate(app);
-        applyFormData(form, scenario.formData);
+    for (const scenario of scenarios) {
+      const form = NewAppleClientSecretCreate(app);
+      applyFormData(form, scenario.formData);
 
-        const { secret, error } = form.Submit();
-        const hasErr = error !== null;
-        if (hasErr !== scenario.expectError) {
-          throw new Error(
-            `[${scenario.name}] Expected hasErr ${scenario.expectError}, got ${hasErr} (${error?.message ?? ""})`,
-          );
-        }
-
-        if (hasErr) {
-          continue;
-        }
-
-        if (!secret) {
-          throw new Error(`[${scenario.name}] Expected non-empty secret`);
-        }
-
-        const header = decodeJwtHeader(secret);
-        if (header.alg !== "ES256") {
-          throw new Error(`[${scenario.name}] Expected "ES256" alg header, got ${String(header.alg)}`);
-        }
-
-        if (header.kid !== form.KeyId) {
-          throw new Error(`[${scenario.name}] Expected ${form.KeyId} kid header, got ${String(header.kid)}`);
-        }
+      const { secret, error } = form.Submit();
+      const hasErr = error !== null;
+      if (hasErr !== scenario.expectError) {
+        throw new Error(`[${scenario.name}] Expected hasErr ${scenario.expectError}, got ${hasErr} (${error?.message ?? ""})`);
       }
-    } finally {
-      await cleanup();
+
+      if (hasErr) {
+        continue;
+      }
+
+      if (!secret) {
+        throw new Error(`[${scenario.name}] Expected non-empty secret`);
+      }
+
+      const header = decodeJwtHeader(secret);
+      if (header.alg !== "ES256") {
+        throw new Error(`[${scenario.name}] Expected "ES256" alg header, got ${String(header.alg)}`);
+      }
+
+      if (header.kid !== form.KeyId) {
+        throw new Error(`[${scenario.name}] Expected ${form.KeyId} kid header, got ${String(header.kid)}`);
+      }
     }
   });
 });

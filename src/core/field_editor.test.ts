@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_editor_test.go
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../tests/app.ts";
+import { newUnbootstrappedTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { NewBaseCollection } from "./collection_model.ts";
 import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
@@ -14,7 +14,7 @@ describe("editor field", () => {
   });
 
   it("column type", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new EditorField();
       expect(field.ColumnType(app)).toBe("TEXT DEFAULT '' NOT NULL");
@@ -24,7 +24,7 @@ describe("editor field", () => {
   });
 
   it("prepare value", async () => {
-    const { cleanup } = await newTestApp();
+    const { cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new EditorField();
       const record = NewRecord(NewBaseCollection("test"));
@@ -47,7 +47,7 @@ describe("editor field", () => {
   });
 
   it("validate value", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const collection = NewBaseCollection("test_collection");
       const scenarios = [
@@ -136,7 +136,7 @@ describe("editor field", () => {
     await testDefaultFieldIdValidation(FieldTypeEditor);
     await testDefaultFieldNameValidation(FieldTypeEditor);
 
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const collection = NewBaseCollection("test_collection");
       const scenarios = [

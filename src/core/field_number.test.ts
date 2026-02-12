@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_number_test.go
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../tests/app.ts";
+import { newUnbootstrappedTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { Pointer } from "../tools/types/index.ts";
 import { NewBaseCollection } from "./collection_model.ts";
@@ -15,7 +15,7 @@ describe("number field", () => {
   });
 
   it("column type", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new NumberField();
       expect(field.ColumnType(app)).toBe("NUMERIC DEFAULT 0 NOT NULL");
@@ -25,7 +25,7 @@ describe("number field", () => {
   });
 
   it("prepare value", async () => {
-    const { cleanup } = await newTestApp();
+    const { cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new NumberField();
       const record = NewRecord(NewBaseCollection("test"));
@@ -49,7 +49,7 @@ describe("number field", () => {
   });
 
   it("validate value", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const collection = NewBaseCollection("test_collection");
 
@@ -189,7 +189,7 @@ describe("number field", () => {
     await testDefaultFieldIdValidation(FieldTypeNumber);
     await testDefaultFieldNameValidation(FieldTypeNumber);
 
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const collection = NewBaseCollection("test_collection");
       const scenarios = [

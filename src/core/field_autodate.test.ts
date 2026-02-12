@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_autodate_test.go
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../tests/app.ts";
+import { newTestApp, newUnbootstrappedTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { NowDateTime, ParseDateTime } from "../tools/types/index.ts";
 import { NewBaseCollection } from "./collection_model.ts";
@@ -16,7 +16,7 @@ describe("autodate field", () => {
   });
 
   it("column type", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new AutodateField();
       expect(field.ColumnType(app)).toBe("TEXT DEFAULT '' NOT NULL");
@@ -26,7 +26,7 @@ describe("autodate field", () => {
   });
 
   it("prepare value", async () => {
-    const { cleanup } = await newTestApp();
+    const { cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new AutodateField();
       const record = NewRecord(NewBaseCollection("test"));
@@ -50,7 +50,7 @@ describe("autodate field", () => {
   });
 
   it("validate value", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const collection = NewBaseCollection("test_collection");
       const scenarios = [
@@ -99,6 +99,7 @@ describe("autodate field", () => {
     await testDefaultFieldIdValidation(FieldTypeAutodate);
     await testDefaultFieldNameValidation(FieldTypeAutodate);
 
+    // Keep full bootstrap here because this reads the seeded _superusers collection.
     const { app, cleanup } = await newTestApp();
     try {
       const superusers = app.findCollectionByNameOrId("_superusers");
@@ -147,7 +148,7 @@ describe("autodate field", () => {
   });
 
   it("find setter", async () => {
-    const { cleanup } = await newTestApp();
+    const { cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = Object.assign(new AutodateField(), { Name: "test" });
       const collection = NewBaseCollection("test_collection");
@@ -172,7 +173,7 @@ describe("autodate field", () => {
   });
 
   it("intercept", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const initialDate = ParseDateTime("2024-01-02 03:04:05.789Z");
       const collection = NewBaseCollection("test_collection");
@@ -287,6 +288,7 @@ describe("autodate field", () => {
   });
 
   it("record resave", async () => {
+    // Keep full bootstrap here because this scenario updates a seeded demo2 fixture record.
     const { app, cleanup } = await newTestApp();
     try {
       const collection = app.findCollectionByNameOrId("demo2");

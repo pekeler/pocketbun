@@ -2,7 +2,7 @@
 
 import { describe, it } from "bun:test";
 import { ValidationErrors } from "../internal/compat/validation.ts";
-import { newTestApp } from "../tests/app.ts";
+import { TestApp } from "../tests/app.ts";
 import { NewTestS3Filesystem } from "./test_s3_filesystem.ts";
 
 function assertValidationErrors(result: Error | null, expected: string[]): void {
@@ -28,6 +28,8 @@ function assertValidationErrors(result: Error | null, expected: string[]): void 
 
 describe("TestS3Filesystem", () => {
   it("Validate", async () => {
+    // This form test doesn't touch fixture data; keep it unbootstrapped.
+    const app = new TestApp({ dataDir: ".pb_test_unbootstrapped", encryptionEnv: "pb_test_env" });
     const scenarios = [
       { name: "empty filesystem", filesystem: "", expectedErrors: ["filesystem"] },
       { name: "invalid filesystem", filesystem: "something", expectedErrors: ["filesystem"] },
@@ -36,49 +38,41 @@ describe("TestS3Filesystem", () => {
     ];
 
     for (const scenario of scenarios) {
-      const { app, cleanup } = await newTestApp();
-      try {
-        const form = NewTestS3Filesystem(app);
-        form.Filesystem = scenario.filesystem;
+      const form = NewTestS3Filesystem(app);
+      form.Filesystem = scenario.filesystem;
 
-        const result = form.Validate();
-        assertValidationErrors(result, scenario.expectedErrors);
-      } finally {
-        await cleanup();
-      }
+      const result = form.Validate();
+      assertValidationErrors(result, scenario.expectedErrors);
     }
   });
 
   it("Submit failure", async () => {
-    const { app, cleanup } = await newTestApp();
-    try {
-      {
-        const form = NewTestS3Filesystem(app);
-        form.Filesystem = "";
+    // This form test doesn't touch fixture data; keep it unbootstrapped.
+    const app = new TestApp({ dataDir: ".pb_test_unbootstrapped", encryptionEnv: "pb_test_env" });
+    {
+      const form = NewTestS3Filesystem(app);
+      form.Filesystem = "";
 
-        const result = await form.Submit();
-        if (!result) {
-          throw new Error("Expected error, got nil");
-        }
-        if (!(result instanceof ValidationErrors)) {
-          throw new Error(`Expected ValidationErrors, got ${result}`);
-        }
+      const result = await form.Submit();
+      if (!result) {
+        throw new Error("Expected error, got nil");
       }
-
-      {
-        const form = NewTestS3Filesystem(app);
-        form.Filesystem = "storage";
-
-        const result = await form.Submit();
-        if (!result) {
-          throw new Error("Expected error, got nil");
-        }
-        if (result instanceof ValidationErrors) {
-          throw new Error(`Didn't expect ValidationErrors, got ${result.message}`);
-        }
+      if (!(result instanceof ValidationErrors)) {
+        throw new Error(`Expected ValidationErrors, got ${result}`);
       }
-    } finally {
-      await cleanup();
+    }
+
+    {
+      const form = NewTestS3Filesystem(app);
+      form.Filesystem = "storage";
+
+      const result = await form.Submit();
+      if (!result) {
+        throw new Error("Expected error, got nil");
+      }
+      if (result instanceof ValidationErrors) {
+        throw new Error(`Didn't expect ValidationErrors, got ${result.message}`);
+      }
     }
   });
 });

@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_date_test.go
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../tests/app.ts";
+import { newUnbootstrappedTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { DateTime, NowDateTime } from "../tools/types/index.ts";
 import { NewBaseCollection } from "./collection_model.ts";
@@ -15,7 +15,7 @@ describe("date field", () => {
   });
 
   it("column type", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new DateField();
       expect(field.ColumnType(app)).toBe("TEXT DEFAULT '' NOT NULL");
@@ -25,7 +25,7 @@ describe("date field", () => {
   });
 
   it("prepare value", async () => {
-    const { cleanup } = await newTestApp();
+    const { cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new DateField();
       const record = NewRecord(NewBaseCollection("test"));
@@ -51,7 +51,7 @@ describe("date field", () => {
   });
 
   it("validate value", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const collection = NewBaseCollection("test_collection");
 
@@ -111,7 +111,7 @@ describe("date field", () => {
     await testDefaultFieldIdValidation(FieldTypeDate);
     await testDefaultFieldNameValidation(FieldTypeDate);
 
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const collection = NewBaseCollection("test_collection");
 

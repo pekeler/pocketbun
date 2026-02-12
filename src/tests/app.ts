@@ -148,3 +148,19 @@ export async function newTestApp(dataDir?: string): Promise<{ app: TestApp; clea
     },
   };
 }
+
+// PocketBun-only: upstream Go tests typically start from a fully bootstrapped app.
+// For unit-level ports that don't rely on seeded fixtures/system tables, use this
+// lightweight factory to avoid bootstrap overhead and reduce Windows CI variance.
+export async function newUnbootstrappedTestApp(): Promise<{ app: TestApp; cleanup: () => Promise<void> }> {
+  const app = new TestApp({ dataDir: ".pb_test_unbootstrapped", encryptionEnv: "pb_test_env" });
+
+  return {
+    app,
+    cleanup: async () => {
+      app.resetEventCalls();
+      app.testMailer.reset();
+      app.resetBootstrapState();
+    },
+  };
+}

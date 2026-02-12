@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_bool_test.go
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../tests/app.ts";
+import { newUnbootstrappedTestApp } from "../tests/app.ts";
 import { NewBaseCollection } from "./collection_model.ts";
 import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
 import { BoolField, FieldTypeBool } from "./field_bool.ts";
@@ -13,7 +13,7 @@ describe("bool field", () => {
   });
 
   it("column type", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new BoolField();
       expect(field.ColumnType(app)).toBe("BOOLEAN DEFAULT FALSE NOT NULL");
@@ -23,7 +23,7 @@ describe("bool field", () => {
   });
 
   it("prepare value", async () => {
-    const { cleanup } = await newTestApp();
+    const { cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new BoolField();
       const record = NewRecord(NewBaseCollection("test"));
@@ -46,7 +46,7 @@ describe("bool field", () => {
   });
 
   it("validate value", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const collection = NewBaseCollection("test_collection");
 

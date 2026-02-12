@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_text_test.go
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../tests/app.ts";
+import { newTestApp, newUnbootstrappedTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { NewBaseCollection } from "./collection_model.ts";
 import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
@@ -14,7 +14,7 @@ describe("text field", () => {
   });
 
   it("column type", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new TextField();
       expect(field.ColumnType(app)).toBe("TEXT DEFAULT '' NOT NULL");
@@ -24,7 +24,7 @@ describe("text field", () => {
   });
 
   it("prepare value", async () => {
-    const { cleanup } = await newTestApp();
+    const { cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new TextField();
       const record = NewRecord(NewBaseCollection("test"));
@@ -47,6 +47,7 @@ describe("text field", () => {
   });
 
   it("validate value", async () => {
+    // Keep full bootstrap here because this scenario reads seeded demo1 fixtures.
     const { app, cleanup } = await newTestApp();
     try {
       const collection = app.findCollectionByNameOrId("demo1");
@@ -360,7 +361,7 @@ describe("text field", () => {
     await testDefaultFieldIdValidation(FieldTypeText);
     await testDefaultFieldNameValidation(FieldTypeText);
 
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const scenarios = [
         {
@@ -508,7 +509,7 @@ describe("text field", () => {
   });
 
   it("autogenerate", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const collection = NewBaseCollection("test_collection");
 

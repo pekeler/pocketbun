@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_relation_test.go
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../tests/app.ts";
+import { newTestApp, newUnbootstrappedTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { JSONArray } from "../tools/types/index.ts";
 import { NewBaseCollection, CollectionTypeView } from "./collection_model.ts";
@@ -15,7 +15,7 @@ describe("relation field", () => {
   });
 
   it("column type", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const scenarios = [
         { name: "single (zero)", field: new RelationField(), expected: "TEXT DEFAULT '' NOT NULL" },
@@ -60,7 +60,7 @@ describe("relation field", () => {
   });
 
   it("prepare value", async () => {
-    const { cleanup } = await newTestApp();
+    const { cleanup } = await newUnbootstrappedTestApp();
     try {
       const record = NewRecord(NewBaseCollection("test"));
 
@@ -128,7 +128,7 @@ describe("relation field", () => {
   });
 
   it("driver value", async () => {
-    const { cleanup } = await newTestApp();
+    const { cleanup } = await newUnbootstrappedTestApp();
     try {
       const scenarios: Array<{ raw: unknown; field: RelationField; expected: string }> = [
         { raw: null, field: Object.assign(new RelationField(), { MaxSelect: 1 }), expected: '""' },
@@ -203,6 +203,7 @@ describe("relation field", () => {
   });
 
   it("validate value", async () => {
+    // Keep full bootstrap here because relation validation needs seeded demo1 fixtures.
     const { app, cleanup } = await newTestApp();
     try {
       const demo1 = app.findCollectionByNameOrId("demo1");
@@ -398,6 +399,7 @@ describe("relation field", () => {
     await testDefaultFieldIdValidation(FieldTypeRelation);
     await testDefaultFieldNameValidation(FieldTypeRelation);
 
+    // Keep full bootstrap here because these scenarios resolve existing fixture collections.
     const { app, cleanup } = await newTestApp();
     try {
       const demo1 = app.findCollectionByNameOrId("demo1");

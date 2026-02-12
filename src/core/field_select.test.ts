@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_select_test.go
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../tests/app.ts";
+import { newUnbootstrappedTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { JSONArray } from "../tools/types/index.ts";
 import { NewBaseCollection } from "./collection_model.ts";
@@ -15,7 +15,7 @@ describe("select field", () => {
   });
 
   it("column type", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const scenarios = [
         { name: "single (zero)", field: new SelectField(), expected: "TEXT DEFAULT '' NOT NULL" },
@@ -60,7 +60,7 @@ describe("select field", () => {
   });
 
   it("prepare value", async () => {
-    const { cleanup } = await newTestApp();
+    const { cleanup } = await newUnbootstrappedTestApp();
     try {
       const record = NewRecord(NewBaseCollection("test"));
       const scenarios = [
@@ -102,7 +102,7 @@ describe("select field", () => {
   });
 
   it("driver value", async () => {
-    const { cleanup } = await newTestApp();
+    const { cleanup } = await newUnbootstrappedTestApp();
     try {
       const scenarios = [
         { raw: null, field: new SelectField(), expected: `""` },
@@ -153,7 +153,7 @@ describe("select field", () => {
   });
 
   it("validate value", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const collection = NewBaseCollection("test_collection");
       const values = ["a", "b", "c"];
@@ -294,7 +294,7 @@ describe("select field", () => {
     await testDefaultFieldIdValidation(FieldTypeSelect);
     await testDefaultFieldNameValidation(FieldTypeSelect);
 
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const scenarios = [
         {

@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_geo_point_test.go
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../tests/app.ts";
+import { newUnbootstrappedTestApp } from "../tests/app.ts";
 import { GeoPoint } from "../tools/types/index.ts";
 import { NewBaseCollection } from "./collection_model.ts";
 import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
@@ -14,7 +14,7 @@ describe("geoPoint field", () => {
   });
 
   it("column type", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new GeoPointField();
       expect(field.ColumnType(app)).toBe(`JSON DEFAULT '{"lon":0,"lat":0}' NOT NULL`);
@@ -24,7 +24,7 @@ describe("geoPoint field", () => {
   });
 
   it("prepare value", async () => {
-    const { cleanup } = await newTestApp();
+    const { cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new GeoPointField();
       const record = NewRecord(NewBaseCollection("test"));
@@ -50,7 +50,7 @@ describe("geoPoint field", () => {
   });
 
   it("validate value", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const collection = NewBaseCollection("test_collection");
       const scenarios = [

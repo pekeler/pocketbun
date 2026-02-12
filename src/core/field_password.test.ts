@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/field_password_test.go
 
 import { describe, expect, it } from "bun:test";
-import { newTestApp } from "../tests/app.ts";
+import { newUnbootstrappedTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { NewBaseCollection } from "./collection_model.ts";
 import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
@@ -14,7 +14,7 @@ describe("password field", () => {
   });
 
   it("column type", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new PasswordField();
       expect(field.ColumnType(app)).toBe("TEXT DEFAULT '' NOT NULL");
@@ -24,7 +24,7 @@ describe("password field", () => {
   });
 
   it("prepare value", async () => {
-    const { cleanup } = await newTestApp();
+    const { cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = new PasswordField();
       const record = NewRecord(NewBaseCollection("test"));
@@ -48,7 +48,7 @@ describe("password field", () => {
   });
 
   it("driver value", async () => {
-    const { cleanup } = await newTestApp();
+    const { cleanup } = await newUnbootstrappedTestApp();
     try {
       const field = Object.assign(new PasswordField(), { Name: "test" });
       const err = new Error("example_err");
@@ -82,7 +82,7 @@ describe("password field", () => {
   });
 
   it("validate value", async () => {
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const collection = NewBaseCollection("test_collection");
 
@@ -254,7 +254,7 @@ describe("password field", () => {
     await testDefaultFieldIdValidation(FieldTypePassword);
     await testDefaultFieldNameValidation(FieldTypePassword);
 
-    const { app, cleanup } = await newTestApp();
+    const { app, cleanup } = await newUnbootstrappedTestApp();
     try {
       const scenarios = [
         {
