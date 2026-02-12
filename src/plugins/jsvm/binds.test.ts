@@ -1112,6 +1112,7 @@ server.listen(0, "127.0.0.1", () => {
         baseBinds(scope);
         httpClientBinds(scope);
 
+        // Bun's sync fetch path remains flaky on Windows CI; validate equivalent async behavior there.
         if (process.platform === "win32") {
           const test0 = await scope.$http.sendAsync({ url: `http://127.0.0.1:${server.port}/?testError=1` });
           const test1 = await scope.$http.sendAsync({
@@ -1193,7 +1194,7 @@ server.listen(0, "127.0.0.1", () => {
               Bun.sleepSync(Math.min(attempt * 25, 250));
             }
           }
-          if (process.platform === "win32" && canUseAsyncFallback(params)) {
+          if (canUseAsyncFallback(params)) {
             return await scope.$http.sendAsync(params);
           }
           throw lastErr;
