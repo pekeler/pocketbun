@@ -11,7 +11,8 @@ PocketBun is a port of [PocketBase](https://pocketbase.io) to Bun.
 > - convenient **Admin dashboard UI**
 > - and simple **REST-ish API**
 > 
-> **For documentation and examples, please visit https://pocketbase.io/docs.**
+> **Start with PocketBun docs:** [`docs/index.md`](./docs/index.md)  
+> **Supplemental upstream reference:** <https://pocketbase.io/docs/>
 
 PocketBase © 2022–present Gani Georgiev. [Project on GitHub](https://github.com/pocketbase/pocketbase).
 
