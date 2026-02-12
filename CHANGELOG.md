@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.36.2-pocketbun.7 (Unreleased)
+
+- TBD
+
 ## 0.36.2-pocketbun.6 - 2026-02-12
 
 - Implemented functional SMTP and sendmail delivery paths so mailer sends now execute real transport flows (including SMTP AUTH and sendmail command execution) instead of placeholder behavior.
