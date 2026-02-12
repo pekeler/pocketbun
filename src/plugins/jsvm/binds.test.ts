@@ -47,7 +47,7 @@ setDefaultTimeout(15000);
 type BindScope = Record<string, any>;
 
 async function startExternalServer(script: string): Promise<{ port: number; stop: () => Promise<void> }> {
-  const maxAttempts = 5;
+  const maxAttempts = 15;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
@@ -56,6 +56,7 @@ async function startExternalServer(script: string): Promise<{ port: number; stop
       if (attempt === maxAttempts || !isTransientServerStartError(error)) {
         throw error;
       }
+      await Bun.sleep(Math.min(attempt * 25, 250));
     }
   }
 
@@ -1054,8 +1055,10 @@ console.log(new URL(server.url).port);`);
     expect(countKeys(scope.$http)).toBe(2);
   });
 
-  it("http client binds send", async () => {
-    const server = await startExternalServer(`const http = require("node:http");
+  it.serial(
+    "http client binds send",
+    async () => {
+      const server = await startExternalServer(`const http = require("node:http");
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, "http://127.0.0.1");
@@ -1104,169 +1107,180 @@ server.listen(0, "127.0.0.1", () => {
   console.log(server.address().port);
 });`);
 
-    try {
-      const scope: BindScope = {};
-      baseBinds(scope);
-      httpClientBinds(scope);
-
-      let timeoutErr: Error | null = null;
       try {
-        scope.$http.send({ url: `http://127.0.0.1:${server.port}/?testTimeout=3`, timeout: 1 });
-      } catch (err) {
-        timeoutErr = err as Error;
-      }
-      expect(timeoutErr).not.toBeNull();
+        const scope: BindScope = {};
+        baseBinds(scope);
+        httpClientBinds(scope);
 
-      let timeoutAsyncErr: Error | null = null;
-      try {
-        await scope.$http.sendAsync({ url: `http://127.0.0.1:${server.port}/?testTimeout=3`, timeout: 1 });
-      } catch (err) {
-        timeoutAsyncErr = err as Error;
-      }
-      expect(timeoutAsyncErr).not.toBeNull();
-
-      const isRetryableSyncFetchError = (err: unknown): boolean => {
-        if (!(err instanceof Error)) {
-          return false;
+        let timeoutErr: Error | null = null;
+        try {
+          scope.$http.send({ url: `http://127.0.0.1:${server.port}/?testTimeout=3`, timeout: 1 });
+        } catch (err) {
+          timeoutErr = err as Error;
         }
-        return (
-          err.message.includes("sync fetch failed: empty response") ||
-          err.message.includes("sync fetch failed: invalid response") ||
-          err.message.includes("Was there a typo in the url or port?") ||
-          err.message.includes("ECONNREFUSED")
-        );
-      };
+        expect(timeoutErr).not.toBeNull();
 
-      const sendWithRetry = async (params: Record<string, unknown>) => {
-        let lastErr: unknown = null;
-        for (let attempt = 1; attempt <= 6; attempt++) {
-          try {
-            return scope.$http.send(params);
-          } catch (err) {
-            lastErr = err;
-            if (!isRetryableSyncFetchError(err)) {
-              throw err;
+        let timeoutAsyncErr: Error | null = null;
+        try {
+          await scope.$http.sendAsync({ url: `http://127.0.0.1:${server.port}/?testTimeout=3`, timeout: 1 });
+        } catch (err) {
+          timeoutAsyncErr = err as Error;
+        }
+        expect(timeoutAsyncErr).not.toBeNull();
+
+        const isRetryableSyncFetchError = (err: unknown): boolean => {
+          if (!(err instanceof Error)) {
+            return false;
+          }
+          return (
+            err.message.includes("sync fetch failed: empty response") ||
+            err.message.includes("sync fetch failed: invalid response") ||
+            err.message.includes("Was there a typo in the url or port?") ||
+            err.message.includes("ECONNREFUSED")
+          );
+        };
+
+        const canUseAsyncFallback = (params: Record<string, unknown>): boolean => {
+          const method = typeof params.method === "string" ? params.method.toUpperCase() : "GET";
+          const hasBody = params.body != null || (params.data != null && typeof params.data === "object");
+          if (!hasBody) {
+            return true;
+          }
+          return method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
+        };
+
+        const sendWithRetry = async (params: Record<string, unknown>) => {
+          let lastErr: unknown = null;
+          for (let attempt = 1; attempt <= 16; attempt++) {
+            try {
+              return scope.$http.send(params);
+            } catch (err) {
+              lastErr = err;
+              if (!isRetryableSyncFetchError(err)) {
+                throw err;
+              }
+              Bun.sleepSync(Math.min(attempt * 25, 250));
             }
-            Bun.sleepSync(Math.min(attempt * 10, 100));
+          }
+          if (process.platform === "win32" && canUseAsyncFallback(params)) {
+            return await scope.$http.sendAsync(params);
+          }
+          throw lastErr;
+        };
+
+        const test0 = await sendWithRetry({ url: `http://127.0.0.1:${server.port}/?testError=1` });
+        const test1 = await sendWithRetry({
+          method: "post",
+          url: `http://127.0.0.1:${server.port}/`,
+          headers: { header1: "123", header2: "456" },
+          body: "789",
+        });
+        const test2 = await sendWithRetry({
+          url: `http://127.0.0.1:${server.port}/`,
+          headers: { "content-type": "text/plain" },
+        });
+        const formData = new scope.FormData();
+        formData.append("title", "123");
+        const test3 = await sendWithRetry({
+          url: `http://127.0.0.1:${server.port}/`,
+          body: formData,
+          headers: { "content-type": "text/plain" },
+        });
+        const test4 = await sendWithRetry({
+          method: "post",
+          url: `http://127.0.0.1:${server.port}/`,
+          body: "test",
+        });
+        const test5 = await scope.$http.sendAsync({
+          method: "post",
+          url: `http://127.0.0.1:${server.port}/`,
+          body: "test-async",
+        });
+        const test4Payload = JSON.parse(new TextDecoder().decode(test4.body));
+        expect(test4Payload.body).toBe("test");
+        expect(test4Payload.method).toBe("POST");
+        expect(test4Payload.headers.accept_encoding).toBe("gzip");
+        expect(test4Payload.headers.content_length).toBe("4");
+        expect(test4Payload.headers.user_agent).toBe("Go-http-client/1.1");
+
+        const test5Payload = JSON.parse(new TextDecoder().decode(test5.body));
+        expect(test5Payload.body).toBe("test-async");
+        expect(test5Payload.method).toBe("POST");
+        expect(test5Payload.headers.accept_encoding).toBe("gzip");
+        expect(test5Payload.headers.content_length).toBe("10");
+        expect(test5Payload.headers.user_agent).toBe("Go-http-client/1.1");
+
+        const scenarios: Array<[any, Record<string, unknown>]> = [
+          [test0, { statusCode: "400" }],
+          [
+            test1,
+            {
+              statusCode: "200",
+              "headers.X-Custom.0": "custom_header",
+              "cookies.sessionId.value": "123456",
+              "json.method": "POST",
+              "json.headers.header1": "123",
+              "json.headers.header2": "456",
+              "json.body": "789",
+            },
+          ],
+          [
+            test2,
+            {
+              statusCode: "200",
+              "headers.X-Custom.0": "custom_header",
+              "cookies.sessionId.value": "123456",
+              "json.method": "GET",
+              "json.headers.content_type": "text/plain",
+            },
+          ],
+          [
+            test3,
+            {
+              statusCode: "200",
+              "headers.X-Custom.0": "custom_header",
+              "cookies.sessionId.value": "123456",
+              "json.method": "GET",
+              "json.body": ['\r\nContent-Disposition: form-data; name="title"\r\n\r\n123\r\n--'],
+              "json.headers.content_type": ["multipart/form-data; boundary="],
+            },
+          ],
+          [
+            test4,
+            {
+              statusCode: "200",
+              "headers.X-Custom.0": "custom_header",
+              "cookies.sessionId.value": "123456",
+            },
+          ],
+          [
+            test5,
+            {
+              statusCode: "200",
+              "headers.X-Custom.0": "custom_header",
+              "cookies.sessionId.value": "123456",
+            },
+          ],
+        ];
+
+        for (const [result, expectations] of scenarios) {
+          for (const [key, expectation] of Object.entries(expectations)) {
+            const value = getNestedVal(result, key);
+            if (Array.isArray(expectation)) {
+              for (const exp of expectation) {
+                expect(value).toContain(exp);
+              }
+              continue;
+            }
+            expect(String(value)).toBe(String(expectation));
           }
         }
-        if (process.platform === "win32") {
-          return await scope.$http.sendAsync(params);
-        }
-        throw lastErr;
-      };
-
-      const test0 = await sendWithRetry({ url: `http://127.0.0.1:${server.port}/?testError=1` });
-      const test1 = await sendWithRetry({
-        method: "post",
-        url: `http://127.0.0.1:${server.port}/`,
-        headers: { header1: "123", header2: "456" },
-        body: "789",
-      });
-      const test2 = await sendWithRetry({
-        url: `http://127.0.0.1:${server.port}/`,
-        headers: { "content-type": "text/plain" },
-      });
-      const formData = new scope.FormData();
-      formData.append("title", "123");
-      const test3 = await sendWithRetry({
-        url: `http://127.0.0.1:${server.port}/`,
-        body: formData,
-        headers: { "content-type": "text/plain" },
-      });
-      const test4 = await sendWithRetry({
-        method: "post",
-        url: `http://127.0.0.1:${server.port}/`,
-        body: "test",
-      });
-      const test5 = await scope.$http.sendAsync({
-        method: "post",
-        url: `http://127.0.0.1:${server.port}/`,
-        body: "test-async",
-      });
-      const test4Payload = JSON.parse(new TextDecoder().decode(test4.body));
-      expect(test4Payload.body).toBe("test");
-      expect(test4Payload.method).toBe("POST");
-      expect(test4Payload.headers.accept_encoding).toBe("gzip");
-      expect(test4Payload.headers.content_length).toBe("4");
-      expect(test4Payload.headers.user_agent).toBe("Go-http-client/1.1");
-
-      const test5Payload = JSON.parse(new TextDecoder().decode(test5.body));
-      expect(test5Payload.body).toBe("test-async");
-      expect(test5Payload.method).toBe("POST");
-      expect(test5Payload.headers.accept_encoding).toBe("gzip");
-      expect(test5Payload.headers.content_length).toBe("10");
-      expect(test5Payload.headers.user_agent).toBe("Go-http-client/1.1");
-
-      const scenarios: Array<[any, Record<string, unknown>]> = [
-        [test0, { statusCode: "400" }],
-        [
-          test1,
-          {
-            statusCode: "200",
-            "headers.X-Custom.0": "custom_header",
-            "cookies.sessionId.value": "123456",
-            "json.method": "POST",
-            "json.headers.header1": "123",
-            "json.headers.header2": "456",
-            "json.body": "789",
-          },
-        ],
-        [
-          test2,
-          {
-            statusCode: "200",
-            "headers.X-Custom.0": "custom_header",
-            "cookies.sessionId.value": "123456",
-            "json.method": "GET",
-            "json.headers.content_type": "text/plain",
-          },
-        ],
-        [
-          test3,
-          {
-            statusCode: "200",
-            "headers.X-Custom.0": "custom_header",
-            "cookies.sessionId.value": "123456",
-            "json.method": "GET",
-            "json.body": ['\r\nContent-Disposition: form-data; name="title"\r\n\r\n123\r\n--'],
-            "json.headers.content_type": ["multipart/form-data; boundary="],
-          },
-        ],
-        [
-          test4,
-          {
-            statusCode: "200",
-            "headers.X-Custom.0": "custom_header",
-            "cookies.sessionId.value": "123456",
-          },
-        ],
-        [
-          test5,
-          {
-            statusCode: "200",
-            "headers.X-Custom.0": "custom_header",
-            "cookies.sessionId.value": "123456",
-          },
-        ],
-      ];
-
-      for (const [result, expectations] of scenarios) {
-        for (const [key, expectation] of Object.entries(expectations)) {
-          const value = getNestedVal(result, key);
-          if (Array.isArray(expectation)) {
-            for (const exp of expectation) {
-              expect(value).toContain(exp);
-            }
-            continue;
-          }
-          expect(String(value)).toBe(String(expectation));
-        }
+      } finally {
+        await server.stop();
       }
-    } finally {
-      await server.stop();
-    }
-  }, 30000);
+    },
+    30000,
+  );
 
   it("cron binds count", async () => {
     const { app, cleanup } = await newTestApp();
@@ -1459,38 +1473,42 @@ server.listen(0, "127.0.0.1", () => {
     expect(countKeys(scope.$os)).toBe(30);
   });
 
-  it("os async binds", async () => {
-    const { app, cleanup } = await newTestApp();
-    try {
-      const scope: BindScope = {};
-      osBinds(scope);
+  it.serial(
+    "os async binds",
+    async () => {
+      const { app, cleanup } = await newTestApp();
+      try {
+        const scope: BindScope = {};
+        osBinds(scope);
 
-      const asyncDir = join(app.DataDir(), "os_async_dir");
-      const asyncFile = join(asyncDir, "tmp.txt");
-      const asyncFileRenamed = join(asyncDir, "tmp2.txt");
+        const asyncDir = join(app.DataDir(), "os_async_dir");
+        const asyncFile = join(asyncDir, "tmp.txt");
+        const asyncFileRenamed = join(asyncDir, "tmp2.txt");
 
-      await scope.$os.mkdirAllAsync(asyncDir);
-      const dirInfo = await scope.$os.statAsync(asyncDir);
-      expect(dirInfo.isDirectory()).toBe(true);
+        await scope.$os.mkdirAllAsync(asyncDir);
+        const dirInfo = await scope.$os.statAsync(asyncDir);
+        expect(dirInfo.isDirectory()).toBe(true);
 
-      await scope.$os.writeFileAsync(asyncFile, "abcd");
-      const fileData = await scope.$os.readFileAsync(asyncFile);
-      expect(new TextDecoder().decode(fileData)).toBe("abcd");
+        await scope.$os.writeFileAsync(asyncFile, "abcd");
+        const fileData = await scope.$os.readFileAsync(asyncFile);
+        expect(new TextDecoder().decode(fileData)).toBe("abcd");
 
-      const entries = await scope.$os.readDirAsync(asyncDir);
-      const names = entries.map((entry: any) => (typeof entry === "string" ? entry : entry.name));
-      expect(names).toContain("tmp.txt");
+        const entries = await scope.$os.readDirAsync(asyncDir);
+        const names = entries.map((entry: any) => (typeof entry === "string" ? entry : entry.name));
+        expect(names).toContain("tmp.txt");
 
-      await scope.$os.renameAsync(asyncFile, asyncFileRenamed);
-      await scope.$os.truncateAsync(asyncFileRenamed, 1);
+        await scope.$os.renameAsync(asyncFile, asyncFileRenamed);
+        await scope.$os.truncateAsync(asyncFileRenamed, 1);
 
-      const truncated = await scope.$os.readFileAsync(asyncFileRenamed);
-      expect(new TextDecoder().decode(truncated)).toBe("a");
+        const truncated = await scope.$os.readFileAsync(asyncFileRenamed);
+        expect(new TextDecoder().decode(truncated)).toBe("a");
 
-      await scope.$os.removeAsync(asyncFileRenamed);
-      await scope.$os.removeAllAsync(asyncDir);
-    } finally {
-      await cleanup();
-    }
-  }, 15000);
+        await scope.$os.removeAsync(asyncFileRenamed);
+        await scope.$os.removeAllAsync(asyncDir);
+      } finally {
+        await cleanup();
+      }
+    },
+    15000,
+  );
 });

@@ -66,4 +66,37 @@ describe("parseMultipartFormData", () => {
     expect(cloneCalls).toBe(1);
     expect(sourceCalls).toBe(0);
   });
+
+  it("falls back to the original request when preserveBody clone parsing fails", async () => {
+    let sourceCalls = 0;
+    let cloneCalls = 0;
+
+    const sourceForm = new FormData();
+    sourceForm.set("source", "source");
+
+    const cloneRequest = {
+      headers: { get: (_name: string) => "multipart/form-data; boundary=test" },
+      formData: async () => {
+        cloneCalls += 1;
+        throw new TypeError("Can't decode form data from body because of incorrect MIME type/boundary");
+      },
+      arrayBuffer: async () => {
+        throw new TypeError("body stream already consumed");
+      },
+    };
+
+    const request = {
+      headers: { get: (_name: string) => "multipart/form-data; boundary=test" },
+      formData: async () => {
+        sourceCalls += 1;
+        return sourceForm;
+      },
+      clone: () => cloneRequest,
+    };
+
+    const parsed = await parseMultipartFormData(request, { preserveBody: true });
+    expect(parsed.get("source")).toBe("source");
+    expect(cloneCalls).toBe(1);
+    expect(sourceCalls).toBe(1);
+  });
 });

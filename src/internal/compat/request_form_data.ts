@@ -31,14 +31,7 @@ export async function parseMultipartFormData(
   request: MultipartRequestLike,
   options: MultipartParseOptions = {},
 ): Promise<ParsedFormData> {
-  if (options.preserveBody) {
-    const preserved = await parseMultipartFormDataFromClonedBody(request);
-    if (preserved) {
-      return preserved;
-    }
-  }
-
-  const parserRequest = options.preserveBody && typeof request.clone === "function" ? request.clone() : request;
+  const parserRequest = options.preserveBody ? (cloneRequestIfPossible(request) ?? request) : request;
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- Bun supports Request.formData() for multipart parsing.
@@ -48,50 +41,28 @@ export async function parseMultipartFormData(
     if (recovered) {
       return recovered;
     }
+
+    if (options.preserveBody && parserRequest !== request) {
+      try {
+        // Last-resort fallback: if clone-based preserve parsing fails, consume the original request body.
+        // This keeps multipart handling working on runtimes where cloned multipart streams are unreliable.
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Bun supports Request.formData() for multipart parsing.
+        return (await request.formData()) as ParsedFormData;
+      } catch {
+        // Ignore and rethrow the original error below.
+      }
+    }
     throw error;
   }
 }
 
-async function parseMultipartFormDataFromClonedBody(request: MultipartRequestLike): Promise<ParsedFormData | null> {
+function cloneRequestIfPossible(request: MultipartRequestLike): MultipartRequestLike | null {
   if (typeof request.clone !== "function") {
     return null;
   }
 
-  let cloned: MultipartRequestLike;
   try {
-    cloned = request.clone();
-  } catch {
-    return null;
-  }
-
-  if (typeof cloned.arrayBuffer !== "function") {
-    return null;
-  }
-
-  let body: ArrayBuffer;
-  try {
-    body = await cloned.arrayBuffer();
-  } catch {
-    return null;
-  }
-
-  const bodyBytes = new Uint8Array(body);
-  const contentType = request.headers.get("content-type") ?? "";
-  const boundary = detectMultipartBoundary(bodyBytes);
-  const normalizedContentType = normalizeMultipartContentType(contentType, boundary);
-  if (!normalizedContentType) {
-    return null;
-  }
-
-  const reconstructed = new Request(request.url ?? "http://localhost/", {
-    method: request.method ?? "POST",
-    headers: { "content-type": normalizedContentType },
-    body: bodyBytes,
-  });
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Bun supports Request.formData() for multipart parsing.
-    return (await reconstructed.formData()) as ParsedFormData;
+    return request.clone();
   } catch {
     return null;
   }
