@@ -338,9 +338,10 @@ const scenarios: ApiScenario[] = [
 ];
 
 describe("record auth with oauth2 redirect", () => {
-  it("scenarios", async () => {
-    for (const scenario of scenarios) {
+  for (const scenario of scenarios) {
+    const name = scenario.name ?? `${scenario.method}:${scenario.url}`;
+    it.serial(name, async () => {
       await runApiScenario(scenario);
-    }
-  });
+    });
+  }
 });
