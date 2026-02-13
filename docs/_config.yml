@@ -1,6 +1,6 @@
 title: PocketBun Docs
 description: PocketBun documentation (GitHub-hosted)
-theme: jekyll-theme-cayman
+theme: minima
 
 plugins:
   - jekyll-relative-links
