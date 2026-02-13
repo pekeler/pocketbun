@@ -336,30 +336,6 @@ minimal PocketBase SDKs initialization for React Native (JavaScript) and Flutter
                 console.log(pb.authStore.record)
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-                import 'package:shared_preferences/shared_preferences.dart';
-
-                // for simplicity we are using a simple SharedPreferences instance
-                // but you can also replace it with its safer EncryptedSharedPreferences alternative
-                final prefs = await SharedPreferences.getInstance();
-
-                // initialize the async store
-                final store = AsyncAuthStore(
-                 save:    (String data) async => prefs.setString('pb_auth', data),
-                 initial: prefs.getString('pb_auth'),
-                );
-
-                // initialize the PocketBase client
-                // (it is OK to have a single/global instance for the duration of your application)
-                final pb = PocketBase('http://127.0.0.1:8090', authStore: store);
-
-                ...
-
-                await pb.collection('users').authWithPassword('test@example.com', '1234567890');
-
-                print(pb.authStore.record);
-```
 
 ### React Native file upload on Android and iOS
 
@@ -1156,23 +1132,6 @@ import PocketBase from 'pocketbase';
         pb.authStore.clear();
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-        final pb = PocketBase('http://127.0.0.1:8090');
-
-        ...
-
-        final authData = await pb.collection("users").authWithPassword('test@example.com', '1234567890');
-
-        // after the above you can also access the auth data from the authStore
-        print(pb.authStore.isValid);
-        print(pb.authStore.token);
-        print(pb.authStore.record.id);
-
-        // "logout" the last authenticated record
-        pb.authStore.clear();
-```
 
 ### Authenticate with OTP
 
@@ -1232,29 +1191,6 @@ import PocketBase from 'pocketbase';
         pb.authStore.clear();
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-        final pb = PocketBase('http://127.0.0.1:8090');
-
-        ...
-
-        // send OTP email to the provided auth record
-        final result = await pb.collection('users').requestOTP('test@example.com');
-
-        // ... show a screen/popup to enter the password from the email ...
-
-        // authenticate with the requested OTP id and the email password
-        final authData = await pb.collection('users').authWithOTP(result.otpId, "YOUR_OTP");
-
-        // after the above you can also access the auth data from the authStore
-        print(pb.authStore.isValid);
-        print(pb.authStore.token);
-        print(pb.authStore.record.id);
-
-        // "logout"
-        pb.authStore.clear();
-```
 
 ### Authenticate with OAuth2
 
@@ -1307,27 +1243,6 @@ import PocketBase from 'pocketbase';
         }
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-        final pb = PocketBase('http://127.0.0.1:8090');
-
-        ...
-
-        try {
-          await pb.collection('users').authWithPassword('test@example.com', '1234567890');
-        } on ClientException catch (e) {
-          final mfaId = e.response['mfaId'];
-          if (mfaId == null) {
-            throw e; // not mfa -> rethrow
-          }
-
-          // the user needs to authenticate again with another auth method, for example OTP
-          final result = await pb.collection('users').requestOTP('test@example.com');
-          // ... show a modal for users to check their email and to enter the received code ...
-          await pb.collection('users').authWithOTP(result.otpId, 'EMAIL_CODE', query: { 'mfaId': mfaId });
-        }
-```
 
 ### Users impersonation
 
@@ -1366,27 +1281,6 @@ import PocketBase from 'pocketbase';
         const items = await impersonateClient.collection("example").getFullList();
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-        final pb = PocketBase('http://127.0.0.1:8090');
-
-        ...
-
-        // authenticate as superuser
-        await pb.collection("_superusers").authWithPassword("test@example.com", "1234567890");
-
-        // impersonate
-        // (the custom token duration is in seconds and it is optional)
-        final impersonateClient = await pb.collection("users").impersonate("USER_RECORD_ID", 3600)
-
-        // log the impersonate token and user data
-        print(impersonateClient.authStore.token);
-        print(impersonateClient.authStore.record);
-
-        // send requests as the impersonated user
-        final items = await impersonateClient.collection("example").getFullList();
-```
 
 ### API keys
 
@@ -1497,36 +1391,6 @@ import PocketBase from 'pocketbase';
                     });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-                    import 'package:url_launcher/url_launcher.dart';
-
-                    final pb = PocketBase('https://pocketbase.io');
-
-                    ...
-
-                    // This method initializes a one-off realtime subscription and will
-                    // call the provided urlCallback with the OAuth2 vendor url to authenticate.
-                    //
-                    // Once the external OAuth2 sign-in/sign-up flow is completed, the browser
-                    // window will be automatically closed and the OAuth2 data sent back
-                    // to the user through the previously established realtime connection.
-                    //
-                    // Note that it requires the app and realtime connection to remain active in the background!
-                    // For Android 15+ check the note in https://github.com/pocketbase/dart-sdk#oauth2-and-android-15.
-                    final authData = await pb.collection('users').authWithOAuth2('google', (url) async {
-                      // or use flutter_custom_tabs to make the transitions between native and web content more seamless
-                      await launchUrl(url);
-                    });
-
-                    // after the above you can also access the auth data from the authStore
-                    print(pb.authStore.isValid);
-                    print(pb.authStore.token);
-                    print(pb.authStore.record.id);
-
-                    // "logout" the last authenticated record
-                    pb.authStore.clear();
-```
 
 When authenticating manually with OAuth2 code you'll need 2 endpoints:
 
@@ -1636,25 +1500,6 @@ import PocketBase from 'pocketbase';
         });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-        import 'package:http/http.dart' as http;
-
-        final pb = PocketBase('http://127.0.0.1:8090');
-
-        ...
-
-        final record = await pb.collection('example').update(
-            'RECORD_ID',
-            files: [
-                http.MultipartFile.fromString(
-                    'documents+',
-                    'example content 3...',
-                    filename: 'file3.txt',
-                ),
-            ],
-        );
-```
 
 ### Deleting files
 
@@ -1684,23 +1529,6 @@ import PocketBase from 'pocketbase';
         });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-        final pb = PocketBase('http://127.0.0.1:8090');
-
-        ...
-
-        // delete all "documents" files
-        await pb.collection('example').update('RECORD_ID', body: {
-            'documents': [],
-        });
-
-        // delete individual files
-        await pb.collection('example').update('RECORD_ID', body: {
-            'documents-': ["file1.pdf", "file2.txt"],
-        });
-```
 
 The above examples use the JSON object data format, but you could also use `FormData` instance
 for *multipart/form-data* requests. If using
@@ -1765,27 +1593,6 @@ import PocketBase from 'pocketbase';
         const url = pb.files.getURL(record, firstFilename, {'thumb': '100x250'});
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-        final pb = PocketBase('http://127.0.0.1:8090');
-
-        ...
-
-        final record = await pb.collection('example').getOne('RECORD_ID');
-
-        // get only the first filename from "documents"
-        //
-        // note:
-        // "documents" is an array of filenames because
-        // the "documents" field was created with "Max Files" option > 1;
-        // if "Max Files" was 1, then the result property would be just a string
-        final firstFilename = record.getListValue<String>('documents')[0];
-
-        // returns something like:
-        // http://127.0.0.1:8090/api/files/example/kfzjt5oy8r34hvn/test_52iWbGinWd.png?thumb=100x250
-        final url = pb.files.getURL(record, firstFilename, thumb: '100x250');
-```
 
 Additionally, to instruct the browser to always download the file instead of showing a preview when
 accessed directly, you can append the `?download=1` query parameter to the file url.
@@ -1822,23 +1629,6 @@ import PocketBase from 'pocketbase';
         const url = pb.files.getURL(record, record.myPrivateFile, {'token': fileToken});
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-        final pb = PocketBase('http://127.0.0.1:8090');
-
-        ...
-
-        // authenticate
-        await pb.collection('users').authWithPassword('test@example.com', '1234567890');
-
-        // generate a file token
-        final fileToken = await pb.files.getToken();
-
-        // retrieve an example protected file url (will be valid ~2min)
-        final record = await pb.collection('example').getOne('RECORD_ID');
-        final url = pb.files.getURL(record, record.getStringValue('myPrivateFile'), token: fileToken);
-```
 
 ### Storage options
 
@@ -1875,18 +1665,6 @@ import PocketBase from 'pocketbase';
         });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-        final pb = PocketBase('http://127.0.0.1:8090');
-
-        ...
-
-        final post = await pb.collection('posts').create(body: {
-            'title': 'Lorem ipsum...',
-            'tags':  ['TAG_ID1', 'TAG_ID2'],
-        });
-```
 
 ### Prepend/Append to multiple relation
 
@@ -1909,21 +1687,6 @@ import PocketBase from 'pocketbase';
         })
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-        final pb = PocketBase('http://127.0.0.1:8090');
-
-        ...
-
-        final post = await pb.collection('posts').update('POST_ID', body: {
-            // prepend single tag
-            '+tags': 'TAG_ID1',
-
-            // append multiple tags at once
-            'tags+': ['TAG_ID1', 'TAG_ID2'],
-        })
-```
 
 ### Remove from multiple relation
 
@@ -1946,21 +1709,6 @@ import PocketBase from 'pocketbase';
         })
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-        final pb = PocketBase('http://127.0.0.1:8090');
-
-        ...
-
-        final post = await pb.collection('posts').update('POST_ID', body: {
-            // remove single tag
-            'tags-': 'TAG_ID1',
-
-            // remove multiple tags at once
-            'tags-': ['TAG_ID1', 'TAG_ID2'],
-        })
-```
 
 ### Expanding relations
 
@@ -1980,9 +1728,6 @@ do the following:
 await pb.collection("comments").getList(1, 30, { expand: "user" })
 ```
 
-```dart
-await pb.collection("comments").getList(perPage: 30, expand: "user")
-```
 
 ```text
 {
@@ -2038,13 +1783,6 @@ await pb.collection("posts").getList(1, 30, {
         })
 ```
 
-```dart
-await pb.collection("posts").getList(
-            perPage: 30,
-            filter: "comments_via_post.message ?~ 'hello'"
-            expand: "comments_via_post.user",
-        )
-```
 
 ```text
 {

@@ -548,11 +548,6 @@ function convertSvelte(content: string): string {
       chunks.push(`\`\`\`js\n${jsMatch[1].trim()}\n\`\`\``);
     }
 
-    const dartMatch = attrs.match(/\bdart=\{`([\s\S]*?)`\}/);
-    if (dartMatch) {
-      chunks.push(`\`\`\`dart\n${dartMatch[1].trim()}\n\`\`\``);
-    }
-
     if (chunks.length === 0) {
       return "";
     }
@@ -666,6 +661,10 @@ function convertSvelte(content: string): string {
   if (responseText) {
     text = `${text}\n\n${responseText}`;
   }
+
+  // PocketBun docs intentionally omit Dart SDK examples.
+  text = text.replace(/\n```dart[\s\S]*?```\n?/gi, "\n");
+  text = normalizeSpacing(text);
 
   return text.trim();
 }
@@ -791,7 +790,7 @@ function main(): void {
     parseRouteItemsFromBlock(extractArrayBlock(docLinks, "jsLinks")).filter((item) => item.href.startsWith("/docs/")),
   );
 
-  const targets = new Set(["introduction", "going-to-production", "web-apis", "extend-with-javascript"]);
+  const targets = new Set(["introduction", "going-to-production", "web-apis", "extend", "extend-with-javascript"]);
   const only = parseOnlyArg();
   if (only && !targets.has(only)) {
     throw new Error(`Unsupported --only value '${only}'. Expected one of: ${[...targets].join(", ")}`);
@@ -832,13 +831,13 @@ function main(): void {
     });
   }
 
-  if (!only || only === "extend-with-javascript") {
+  if (!only || only === "extend" || only === "extend-with-javascript") {
     jsBundles = buildCategoryRoutes(jsItems);
     buildPage({
-      title: "PocketBun Extend With JavaScript",
+      title: "Extend PocketBun",
       intro: "This page merges upstream PocketBase JavaScript extension pages.",
       routes: jsBundles,
-      outputPath: "docs/extend-with-javascript.md",
+      outputPath: "docs/extend.md",
     });
   }
 

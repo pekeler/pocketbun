@@ -60,29 +60,6 @@ import PocketBase from 'pocketbase';
             });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            // fetch a paginated records list
-            final resultList = await pb.collection('posts').getList(
-              page: 1,
-              perPage: 50,
-              filter: 'created >= "2022-01-01 00:00:00" && someField1 != someField2',
-            );
-
-            // you can also fetch all records at once via getFullList
-            final records = await pb.collection('posts').getFullList(sort: '-created');
-
-            // or fetch only the first record that matches the specified filter
-            final record = await pb.collection('posts').getFirstListItem(
-              'someField="test"',
-              expand: 'relField1,relField2.subRelField',
-            );
-```
 
 API details
 
@@ -183,17 +160,6 @@ import PocketBase from 'pocketbase';
             });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            final record1 = await pb.collection('posts').getOne('RECORD_ID',
-              expand: 'relField1,relField2.subRelField',
-            );
-```
 
 API details
 
@@ -271,17 +237,6 @@ import PocketBase from 'pocketbase';
             });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            final record = await pb.collection('demo').create(body: {
-                'title': 'Lorem ipsum',
-            });
-```
 
 API details
 
@@ -389,17 +344,6 @@ import PocketBase from 'pocketbase';
             });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            final record = await pb.collection('demo').update('YOUR_RECORD_ID', body: {
-                'title': 'Lorem ipsum',
-            });
-```
 
 API details
 
@@ -506,15 +450,6 @@ import PocketBase from 'pocketbase';
             await pb.collection('demo').delete('YOUR_RECORD_ID');
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection('demo').delete('YOUR_RECORD_ID');
-```
 
 API details
 
@@ -600,22 +535,6 @@ import PocketBase from 'pocketbase';
             const result = await batch.send();
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            final batch = pb.createBatch();
-
-            batch.collection('example1').create(body: { ... });
-            batch.collection('example2').update('RECORD_ID', body: { ... });
-            batch.collection('example3').delete('RECORD_ID');
-            batch.collection('example4').upsert(body: { ... });
-
-            final result = await batch.send();
-```
 
 API details
 
@@ -718,15 +637,6 @@ import PocketBase from 'pocketbase';
             const result = await pb.collection('users').listAuthMethods();
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            final result = await pb.collection('users').listAuthMethods();
-```
 
 API details
 
@@ -807,26 +717,6 @@ import PocketBase from 'pocketbase';
             pb.authStore.clear();
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            final authData = await pb.collection('users').authWithPassword(
-              'YOUR_USERNAME_OR_EMAIL',
-              'YOUR_PASSWORD',
-            );
-
-            // after the above you can also access the auth data from the authStore
-            print(pb.authStore.isValid);
-            print(pb.authStore.token);
-            print(pb.authStore.record.id);
-
-            // "logout" the last authenticated record
-            pb.authStore.clear();
-```
 
 API details
 
@@ -933,32 +823,6 @@ import PocketBase from 'pocketbase';
             pb.authStore.clear();
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            final authData = await pb.collection('users').authWithOAuth2Code(
-              'google',
-              'CODE',
-              'VERIFIER',
-              'REDIRECT_URL',
-              // optional data that will be used for the new account on OAuth2 sign-up
-              createData: {
-                'name': 'test',
-              },
-            );
-
-            // after the above you can also access the auth data from the authStore
-            print(pb.authStore.isValid);
-            print(pb.authStore.token);
-            print(pb.authStore.record.id);
-
-            // "logout" the last authenticated record
-            pb.authStore.clear();
-```
 
 API details
 
@@ -1072,29 +936,6 @@ import PocketBase from 'pocketbase';
             pb.authStore.clear();
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            // send OTP email to the provided auth record
-            final req = await pb.collection('users').requestOTP('test@example.com');
-
-            // ... show a screen/popup to enter the password from the email ...
-
-            // authenticate with the requested OTP id and the email password
-            final authData = await pb.collection('users').authWithOTP(req.otpId, "YOUR_OTP");
-
-            // after the above you can also access the auth data from the authStore
-            print(pb.authStore.isValid);
-            print(pb.authStore.token);
-            print(pb.authStore.record.id);
-
-            // "logout"
-            pb.authStore.clear();
-```
 
 API details
 
@@ -1226,20 +1067,6 @@ import PocketBase from 'pocketbase';
             console.log(pb.authStore.record.id);
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            final authData = await pb.collection('users').authRefresh();
-
-            // after the above you can also access the refreshed auth data from the authStore
-            print(pb.authStore.isValid);
-            print(pb.authStore.token);
-            print(pb.authStore.record.id);
-```
 
 API details
 
@@ -1317,21 +1144,6 @@ import PocketBase from 'pocketbase';
             await pb.collection('users').confirmVerification('VERIFICATION_TOKEN');
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection('users').requestVerification('test@example.com');
-
-            // ---
-            // (optional) in your custom confirmation page:
-            // ---
-
-            await pb.collection('users').confirmVerification('VERIFICATION_TOKEN');
-```
 
 API details
 
@@ -1429,26 +1241,6 @@ import PocketBase from 'pocketbase';
             );
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection('users').requestPasswordReset('test@example.com');
-
-            // ---
-            // (optional) in your custom confirmation page:
-            // ---
-
-            // note: after this call all previously issued auth tokens are invalidated
-            await pb.collection('users').confirmPasswordReset(
-              'RESET_TOKEN',
-              'NEW_PASSWORD',
-              'NEW_PASSWORD_CONFIRM',
-            );
-```
 
 API details
 
@@ -1546,26 +1338,6 @@ import PocketBase from 'pocketbase';
             await pb.collection('users').confirmEmailChange('EMAIL_CHANGE_TOKEN', 'YOUR_PASSWORD');
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection('users').authWithPassword('test@example.com', '1234567890');
-
-            await pb.collection('users').requestEmailChange('new@example.com');
-
-            ...
-
-            // ---
-            // (optional) in your custom confirmation page:
-            // ---
-
-            // note: after this call all previously issued auth tokens are invalidated
-            await pb.collection('users').confirmEmailChange('EMAIL_CHANGE_TOKEN', 'YOUR_PASSWORD');
-```
 
 API details
 
@@ -1677,27 +1449,6 @@ import PocketBase from 'pocketbase';
             impersonateClient.collection("example").getFullList();
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            // authenticate as superuser
-            await pb.collection("_superusers").authWithPassword("test@example.com", "1234567890");
-
-            // impersonate
-            // (the custom token duration is optional and must be in seconds)
-            final impersonateClient = pb.collection("users").impersonate("USER_RECORD_ID", 3600)
-
-            // log the impersonate token and user data
-            print(impersonateClient.authStore.token);
-            print(impersonateClient.authStore.record);
-
-            // send requests as the impersonated user
-            impersonateClient.collection("example").getFullList();
-```
 
 API details
 
@@ -1859,33 +1610,6 @@ import PocketBase from 'pocketbase';
         pb.collection('example').unsubscribe(); // remove all subscriptions in the collection
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-        final pb = PocketBase('http://127.0.0.1:8090');
-
-        ...
-
-        // (Optionally) authenticate
-        await pb.collection('users').authWithPassword('test@example.com', '1234567890');
-
-        // Subscribe to changes in any record in the collection
-        pb.collection('example').subscribe('*', (e) {
-            print(e.action);
-            print(e.record);
-        }, /* other options like expand, custom headers, etc. */);
-
-        // Subscribe to changes only in the specified record
-        pb.collection('example').subscribe('RECORD_ID', (e) {
-            print(e.action);
-            print(e.record);
-        }, /* other options like expand, custom headers, etc. */);
-
-        // Unsubscribe
-        pb.collection('example').unsubscribe('RECORD_ID'); // remove all 'RECORD_ID' subscriptions
-        pb.collection('example').unsubscribe('*'); // remove all '*' topic subscriptions
-        pb.collection('example').unsubscribe(); // remove all subscriptions in the collection
-```
 
 ### Response examples
 
@@ -2058,28 +1782,6 @@ import PocketBase from 'pocketbase';
             const collection = await pb.collections.getFirstListItem('type="auth"');
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            // fetch a paginated collections list
-            final pageResult = await pb.collections.getList(
-                page: 1,
-                perPage: 100,
-                filter: 'created >= "2022-01-01 00:00:00"',
-            );
-
-            // you can also fetch all collections at once via getFullList
-            final collections = await pb.collections.getFullList(sort: '-created');
-
-            // or fetch only the first collection that matches the specified filter
-            final collection = await pb.collections.getFirstListItem('type="auth"');
-```
 
 API details
 
@@ -2283,17 +1985,6 @@ import PocketBase from 'pocketbase';
             const collection = await pb.collections.getOne('demo');
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            final collection = await pb.collections.getOne('demo');
-```
 
 API details
 
@@ -2461,62 +2152,6 @@ import PocketBase from 'pocketbase';
             });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            // create base collection
-            final base = await pb.collections.create(body: {
-                'name': 'exampleBase',
-                'type': 'base',
-                'fields': [
-                    {
-                        'name': 'title',
-                        'type': 'text',
-                        'required': true,
-                        'min': 10,
-                    },
-                    {
-                        'name': 'status',
-                        'type': 'bool',
-                    },
-                ],
-            });
-
-            // create auth collection
-            final auth = await pb.collections.create(body: {
-                'name': 'exampleAuth',
-                'type': 'auth',
-                'createRule': 'id = @request.auth.id',
-                'updateRule': 'id = @request.auth.id',
-                'deleteRule': 'id = @request.auth.id',
-                'fields': [
-                    {
-                        'name': 'name',
-                        'type': 'text',
-                    }
-                ],
-                'passwordAuth': {
-                    'enabled': true,
-                    'identityFields': ['email']
-                },
-            });
-
-            // create view collection
-            final view = await pb.collections.create(body: {
-                'name': 'exampleView',
-                'type': 'view',
-                'listRule': '@request.auth.id != ""',
-                'viewRule': null,
-                // the schema will be autogenerated from the below query
-                'viewQuery': 'SELECT id, name from posts',
-            });
-```
 
 API details
 
@@ -2647,20 +2282,6 @@ import PocketBase from 'pocketbase';
             });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '123456');
-
-            final collection = await pb.collections.update('demo', body: {
-                'name': 'new_demo',
-                'listRule': 'created > "2022-01-01 00:00:00"',
-            });
-```
 
 API details
 
@@ -2788,17 +2409,6 @@ import PocketBase from 'pocketbase';
             await pb.collections.delete('demo');
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            await pb.collections.delete('demo');
-```
 
 API details
 
@@ -2871,17 +2481,6 @@ import PocketBase from 'pocketbase';
             await pb.collections.truncate('demo');
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            await pb.collections.truncate('demo');
-```
 
 API details
 
@@ -2974,32 +2573,6 @@ import PocketBase from 'pocketbase';
             await pb.collections.import(importData, false);
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            final importData = [
-                CollectionModel(
-                    name: "collection1",
-                    schema: [
-                        SchemaField(name: "status", type: "bool"),
-                    ],
-                ),
-                CollectionModel(
-                    name: "collection2",
-                    schema: [
-                        SchemaField(name: "title", type: "text"),
-                    ],
-                ),
-            ];
-
-            await pb.collections.import(importData, deleteMissing: false);
-```
 
 API details
 
@@ -3067,17 +2640,6 @@ import PocketBase from 'pocketbase';
             const scaffolds = await pb.collections.getScaffolds();
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            final scaffolds = await pb.collections.getScaffolds();
-```
 
 API details
 
@@ -3225,17 +2787,6 @@ import PocketBase from 'pocketbase';
             const settings = await pb.settings.getAll();
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            final settings = await pb.settings.getAll();
-```
 
 API details
 
@@ -3374,22 +2925,6 @@ import PocketBase from 'pocketbase';
             });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '123456');
-
-            final settings = await pb.settings.update(body: {
-                'meta': {
-                  'appName': 'YOUR_APP',
-                  'appUrl': 'http://127.0.0.1:8090',
-                },
-            });
-```
 
 API details
 
@@ -3540,17 +3075,6 @@ import PocketBase from 'pocketbase';
             await pb.settings.testS3("backups");
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            await pb.settings.testS3("backups");
-```
 
 API details
 
@@ -3602,17 +3126,6 @@ import PocketBase from 'pocketbase';
             await pb.settings.testEmail("test@example.com", "verification");
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            await pb.settings.testEmail("test@example.com", "verification");
-```
 
 API details
 
@@ -3669,17 +3182,6 @@ import PocketBase from 'pocketbase';
             await pb.settings.generateAppleClientSecret(clientId, teamId, keyId, privateKey, duration)
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            await pb.settings.generateAppleClientSecret(clientId, teamId, keyId, privateKey, duration)
-```
 
 API details
 
@@ -3736,21 +3238,6 @@ import PocketBase from 'pocketbase';
             });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            final pageResult = await pb.logs.getList(
-                page: 1,
-                perPage: 20,
-                filter: 'data.status >= 400',
-            );
-```
 
 API details
 
@@ -3854,17 +3341,6 @@ import PocketBase from 'pocketbase';
             const log = await pb.logs.getOne('LOG_ID');
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithEmail('test@example.com', '123456');
-
-            final log = await pb.logs.getOne('LOG_ID');
-```
 
 API details
 
@@ -3945,19 +3421,6 @@ import PocketBase from 'pocketbase';
             });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '123456');
-
-            final stats = await pb.logs.getStats(
-                filter: 'data.status >= 400'
-            );
-```
 
 API details
 
@@ -4033,17 +3496,6 @@ import PocketBase from 'pocketbase';
             const jobs = await pb.crons.getFullList();
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            final jobs = await pb.crons.getFullList();
-```
 
 API details
 
@@ -4130,17 +3582,6 @@ import PocketBase from 'pocketbase';
             await pb.crons.run('__pbLogsCleanup__');
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            await pb.crons.run('__pbLogsCleanup__');
-```
 
 API details
 
@@ -4203,17 +3644,6 @@ import PocketBase from 'pocketbase';
             const backups = await pb.backups.getFullList();
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            final backups = await pb.backups.getFullList();
-```
 
 API details
 
@@ -4296,17 +3726,6 @@ import PocketBase from 'pocketbase';
             await pb.backups.create('new_backup.zip');
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            await pb.backups.create('new_backup.zip');
-```
 
 API details
 
@@ -4368,17 +3787,6 @@ import PocketBase from 'pocketbase';
             await pb.backups.upload({ file: new Blob([...]) });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            await pb.backups.upload(http.MultipartFile.fromBytes('file', ...));
-```
 
 API details
 
@@ -4449,17 +3857,6 @@ import PocketBase from 'pocketbase';
             await pb.backups.delete('pb_data_backup.zip');
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            await pb.backups.delete('pb_data_backup.zip');
-```
 
 API details
 
@@ -4523,17 +3920,6 @@ import PocketBase from 'pocketbase';
             await pb.backups.restore('pb_data_backup.zip');
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            await pb.backups.restore('pb_data_backup.zip');
-```
 
 API details
 
@@ -4597,19 +3983,6 @@ import PocketBase from 'pocketbase';
             const url = pb.backups.getDownloadUrl(token, 'pb_data_backup.zip');
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-            final pb = PocketBase('http://127.0.0.1:8090');
-
-            ...
-
-            await pb.collection("_superusers").authWithPassword('test@example.com', '1234567890');
-
-            final token = await pb.files.getToken();
-
-            final url = pb.backups.getDownloadUrl(token, 'pb_data_backup.zip');
-```
 
 API details
 

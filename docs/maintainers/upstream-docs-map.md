@@ -24,7 +24,7 @@ Use it during release/upgrade review to detect drift and decide what to port or 
 | Introduction (merged) | `docs/introduction.md` | intro links in `src/routes/(app)/docs/doc_links.js` (`/docs`, `/docs/how-to-use`, `/docs/collections`, `/docs/api-rules-and-filters`, `/docs/authentication`, `/docs/files-handling`, `/docs/working-with-relations`, `/docs/use-as-framework`) |
 | Going to production | `docs/going-to-production.md` | `/docs/going-to-production` |
 | Web APIs reference (merged) | `docs/web-apis.md` | `webApiLinks` in `src/routes/(app)/docs/doc_links.js` and `src/routes/(app)/docs/api-*` |
-| Extend with JavaScript (merged) | `docs/extend-with-javascript.md` | `jsLinks` in `src/routes/(app)/docs/doc_links.js` and `src/routes/(app)/docs/js-*` |
+| Extend PocketBun (merged) | `docs/extend.md` | `jsLinks` in `src/routes/(app)/docs/doc_links.js` and `src/routes/(app)/docs/js-*` |
 | PocketBun differences | `docs/differences.md` | PocketBun-specific behavior + README differences + selective upstream contrast |
 
 ## Release-Time Checklist

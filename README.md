@@ -14,7 +14,7 @@ PocketBun is a port of [PocketBase](https://pocketbase.io) to Bun.
 > **Start with PocketBun docs:** [`docs/index.md`](./docs/index.md)  
 > **Hosted docs (GitHub Pages):** <https://pekeler.github.io/pocketbun/>  
 > **Supplemental upstream reference:** <https://pocketbase.io/docs/>
-> Docs structure: Introduction, Going to production, Web APIs, Extend with JavaScript, Differences.
+> Docs structure: Introduction, Going to production, Web APIs, Extend PocketBun, Differences.
 
 PocketBase © 2022–present Gani Georgiev. [Project on GitHub](https://github.com/pocketbase/pocketbase).
 

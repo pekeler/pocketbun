@@ -43,7 +43,7 @@ Out of scope:
 - [x] Built deterministic upstream ingestion tool that discovers all required docs routes from `doc_links.js`.
 - [x] Built deterministic source resolver that recursively includes route-level local imports (`./` and `../`) from `src/routes/(app)/docs`.
 - [x] Built deterministic transformer that emits the 4 merged long pages from upstream source and section ordering.
-- [x] Regenerated `docs/introduction.md`, `docs/going-to-production.md`, `docs/web-apis.md`, and `docs/extend-with-javascript.md` from tool output.
+- [x] Regenerated `docs/introduction.md`, `docs/going-to-production.md`, `docs/web-apis.md`, and `docs/extend.md` from tool output.
 - [x] Verified docs index/differences wiring and README link paths remain correct with regenerated pages.
 - [x] Ran automated parity checks against upstream key anchors and keywords for every merged section.
 - [x] Performed manual QA spot checks (including `ulimit` and `app.rootCmd`) before declaring done.
@@ -97,7 +97,7 @@ Planned docs pages:
 - `docs/introduction.md` (merged Introduction section)
 - `docs/going-to-production.md` (merged production section)
 - `docs/web-apis.md` (merged Web APIs section)
-- `docs/extend-with-javascript.md` (merged JavaScript section)
+- `docs/extend.md` (merged JavaScript section)
 - `docs/differences.md` (PocketBase vs PocketBun differences)
 
 Each long page must include:
@@ -155,7 +155,7 @@ This plan is done when:
 Validation checks:
 
     cd /Users/pekeler/Projects/pocketbun
-    rg -n "docs/index.md|docs/introduction.md|docs/going-to-production.md|docs/web-apis.md|docs/extend-with-javascript.md|docs/differences.md" README.md docs
+    rg -n "docs/index.md|docs/introduction.md|docs/going-to-production.md|docs/web-apis.md|docs/extend.md|docs/differences.md" README.md docs
     bun run format
 
 (Only docs/README changes are expected for this plan.)

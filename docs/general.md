@@ -9,7 +9,7 @@ This page has been split into section-specific pages:
 
 - [Introduction](./introduction.md)
 - [Going To Production](./going-to-production.md)
-- [Extend With JavaScript](./extend-with-javascript.md)
+- [Extend PocketBun](./extend.md)
 - [PocketBun Differences](./differences.md)
 
 Use [Docs Index](./index.md) as the primary entrypoint.

@@ -100,7 +100,7 @@ function main(): void {
   const introDoc = readFileSync("docs/introduction.md", "utf8");
   const prodDoc = readFileSync("docs/going-to-production.md", "utf8");
   const apiDoc = readFileSync("docs/web-apis.md", "utf8");
-  const jsDoc = readFileSync("docs/extend-with-javascript.md", "utf8");
+  const jsDoc = readFileSync("docs/extend.md", "utf8");
 
   for (const route of introItems) {
     assertIncludes(introDoc, route.title, "docs/introduction.md");
@@ -118,13 +118,13 @@ function main(): void {
   }
 
   for (const route of jsItems) {
-    assertIncludes(jsDoc, route.title, "docs/extend-with-javascript.md");
-    assertIncludes(jsDoc, route.href, "docs/extend-with-javascript.md");
+    assertIncludes(jsDoc, route.title, "docs/extend.md");
+    assertIncludes(jsDoc, route.href, "docs/extend.md");
   }
 
   // Critical explicit checks from recent misses.
   assertIncludes(prodDoc, "ulimit", "docs/going-to-production.md");
-  assertIncludes(jsDoc, "rootCmd", "docs/extend-with-javascript.md");
+  assertIncludes(jsDoc, "rootCmd", "docs/extend.md");
   assertIncludes(apiDoc, "Health", "docs/web-apis.md");
 
   console.log("Generated docs parity checks passed.");

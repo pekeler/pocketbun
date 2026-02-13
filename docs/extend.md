@@ -1,9 +1,9 @@
 ---
 layout: default
-title: PocketBun Extend With JavaScript
+title: Extend PocketBun
 ---
 
-# PocketBun Extend With JavaScript
+# Extend PocketBun
 
 Quick links:
 
@@ -940,13 +940,6 @@ import PocketBase from 'pocketbase';
         });
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-        final pb = PocketBase('http://127.0.0.1:8090');
-
-        await pb.send("/hello", query: { "abc": 123 })
-```
 ## Database
 
 Upstream source: [/docs/js-database](https://pocketbase.io/docs/js-database/)
@@ -2737,17 +2730,6 @@ import PocketBase from 'pocketbase';
         })
 ```
 
-```dart
-import 'package:pocketbase/pocketbase.dart';
-
-        final pb = PocketBase('http://127.0.0.1:8090');
-
-        ...
-
-        await pb.realtime.subscribe('example', (e) {
-            print(e)
-        })
-```
 ## Filesystem
 
 Upstream source: [/docs/js-filesystem](https://pocketbase.io/docs/js-filesystem/)
