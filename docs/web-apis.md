@@ -5,6 +5,8 @@ title: PocketBun Web APIs Reference
 
 # PocketBun Web APIs Reference
 
+This page merges upstream PocketBase Web APIs reference pages.
+
 Quick links:
 
 - [API Records](#api-records)
@@ -19,13 +21,9 @@ Quick links:
 
 ## API Records
 
-### Source Fragment: `api-records/+page.svelte`
-
 ### CRUD actions
 
 ### Auth record actions
-
-### Source Fragment: `api-records/List.svelte`
 
 ### List/Search records
 
@@ -88,88 +86,78 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**GET**
-
-/api/collections/`collectionIdOrName`/records
+`GET /api/collections/`collectionIdOrName`/records`
 
 Path parameters
 
-Param
-
-Type
-
-Description
-
-collectionIdOrName
-
-String
-
-ID or name of the records' collection.
+| Param | Type | Description |
+| --- | --- | --- |
+| collectionIdOrName | String | ID or name of the records' collection. |
 
 Query parameters
 
-Param
-
-Type
-
-Description
-
-page
-
-Number
-
-The page (aka. offset) of the paginated list (*default to 1*).
-
-perPage
-
-Number
-
-The max returned records per page (*default to 30*).
-
-sort
-
-String
-
-Specify the *ORDER BY* fields.
-
-Add `-` / `+` (default) in front of the attribute for DESC /
-ASC order, eg.:
-
-```text
-// DESC by created and ASC by id
-                                ?sort=-created,id
-```
-
-**Supported record sort fields:**
-
-`@random`, `@rowid`, `id`,
-**and any other collection field**.
-
-filter
-
-String
-
-Filter expression to filter/search the returned records list (in addition to the
-collection's `listRule`), e.g.:
-
-```text
-?filter=(title~'abc' && created>'2022-01-01')
-```
-
-**Supported record filter fields:**
-
-`id`, **+ any field from the collection schema**.
-
-- `expand` query parameter
-
-- `fields` query parameter
+| Param | Type | Description |
+| --- | --- | --- |
+| page | Number | The page (aka. offset) of the paginated list (*default to 1*). |
+| perPage | Number | The max returned records per page (*default to 30*). |
+| sort | String | Specify the *ORDER BY* fields. Add `-` / `+` (default) in front of the attribute for DESC / ASC order, eg.:  `// DESC by created and ASC by id ?sort=-created,id`  **Supported record sort fields:** `@random`, `@rowid`, `id`, **and any other collection field**. |
+| filter | String | Filter expression to filter/search the returned records list (in addition to the collection's `listRule`), e.g.:  `?filter=(title~'abc' && created>'2022-01-01')`  **Supported record filter fields:** `id`, **+ any field from the collection schema**.   Filter syntax reference:  - Format: `OPERAND OPERATOR OPERAND`. - `OPERAND` can be a field literal, string (single or double quoted), number, `null`, `true`, or `false`. - Operators: - `=` equal - `!=` not equal - `>` greater than - `>=` greater than or equal - `<` less than - `<=` less than or equal - `~` like/contains - `!~` not like/contains - `?=`, `?!=`, `?>`, `?>=`, `?<`, `?<=`, `?~`, `?!~` are any/at-least-one variants - Use `(...)`, `&&`, and `\|\|` to group/combine expressions. - Single line comments are supported: `// comment`. - For multi-record fields, operators are match-all by default; prefix the operator with `?` for any/at-least-one. |
+| expand | String | Auto expand record relations. Ex.: `?expand=relField1,relField2.subRelField` Supports up to 6-levels depth nested relations expansion. The expanded relations will be appended to the record under the `expand` property (e.g. `"expand": object with relation payload`). Only the relations to which the request user has permissions to **view** will be expanded. |
+| fields | String | Comma separated string of the fields to return in the JSON response *(by default returns all fields)*. Ex.: `?fields=*,expand.relField.name` `*` targets all keys from the specific depth level. In addition, the following field modifiers are also supported:  - `:excerpt(maxLength, withEllipsis?)` Returns a short plain text version of the field string value. Ex.: `?fields=*,description:excerpt(200,true)` |
+| skipTotal | Boolean | If it is set the total counts query will be skipped and the response fields `totalItems` and `totalPages` will have `-1` value. This could drastically speed up the search queries when the total counters are not needed or cursor based pagination is used. For optimization purposes, it is set by default for the `getFirstListItem()` and `getFullList()` SDK methods. |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/View.svelte`
+#### 200
+
+```json
+{
+                  "page": 1,
+                  "perPage": 100,
+                  "totalItems": 2,
+                  "totalPages": 1,
+                  "items": [
+                    {
+                      "id": "ae40239d2bc4477",
+                      "collectionId": "a98f514eb05f454",
+                      "collectionName": "posts",
+                      "updated": "2022-06-25 11:03:50.052",
+                      "created": "2022-06-25 11:03:35.163",
+                      "title": "test1"
+                    },
+                    {
+                      "id": "d08dfc4f4d84419",
+                      "collectionId": "a98f514eb05f454",
+                      "collectionName": "posts",
+                      "updated": "2022-06-25 11:03:45.876",
+                      "created": "2022-06-25 11:03:45.876",
+                      "title": "test2"
+                    }
+                  ]
+                }
+```
+
+#### 400
+
+```json
+{
+                  "status": 400,
+                  "message": "Something went wrong while processing your request. Invalid filter.",
+                  "data": {}
+                }
+```
+
+#### 403
+
+```json
+{
+                  "status": 403,
+                  "message": "Only superusers can filter by '@collection.*'",
+                  "data": {}
+                }
+```
 
 ### View record
 
@@ -209,48 +197,58 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**GET**
-
-/api/collections/`collectionIdOrName`/records/`recordId`
+`GET /api/collections/`collectionIdOrName`/records/`recordId``
 
 Path parameters
 
-Param
-
-Type
-
-Description
-
-collectionIdOrName
-
-String
-
-ID or name of the record's collection.
-
-recordId
-
-String
-
-ID of the record to view.
+| Param | Type | Description |
+| --- | --- | --- |
+| collectionIdOrName | String | ID or name of the record's collection. |
+| recordId | String | ID of the record to view. |
 
 Query parameters
 
-Param
-
-Type
-
-Description
-
-- `expand` query parameter
-
-- `fields` query parameter
+| Param | Type | Description |
+| --- | --- | --- |
+| expand | String | Auto expand record relations. Ex.: `?expand=relField1,relField2.subRelField` Supports up to 6-levels depth nested relations expansion. The expanded relations will be appended to the record under the `expand` property (e.g. `"expand": object with relation payload`). Only the relations to which the request user has permissions to **view** will be expanded. |
+| fields | String | Comma separated string of the fields to return in the JSON response *(by default returns all fields)*. Ex.: `?fields=*,expand.relField.name` `*` targets all keys from the specific depth level. In addition, the following field modifiers are also supported:  - `:excerpt(maxLength, withEllipsis?)` Returns a short plain text version of the field string value. Ex.: `?fields=*,description:excerpt(200,true)` |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/Create.svelte`
+#### 200
+
+```json
+{
+                  "id": "ae40239d2bc4477",
+                  "collectionId": "a98f514eb05f454",
+                  "collectionName": "posts",
+                  "updated": "2022-06-25 11:03:50.052",
+                  "created": "2022-06-25 11:03:35.163",
+                  "title": "test1"
+                }
+```
+
+#### 403
+
+```json
+{
+                  "status": 403,
+                  "message": "Only superusers can perform this action.",
+                  "data": {}
+                }
+```
+
+#### 404
+
+```json
+{
+                  "status": 404,
+                  "message": "The requested resource wasn't found.",
+                  "data": {}
+                }
+```
 
 ### Create record
 
@@ -287,63 +285,24 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**POST**
-
-/api/collections/`collectionIdOrName`/records
+`POST /api/collections/`collectionIdOrName`/records`
 
 Path parameters
 
-Param
-
-Type
-
-Description
-
-collectionIdOrName
-
-String
-
-ID or name of the record's collection.
+| Param | Type | Description |
+| --- | --- | --- |
+| collectionIdOrName | String | ID or name of the record's collection. |
 
 Body Parameters
 
-Param
-
-Type
-
-Description
-
-Optional
-
-id
-
-String
-
-**15 characters string** to store as record ID.
-
-If not set, it will be auto generated.
-
-Schema fields
-
-**Any field from the collection's schema.**
-
-Additional auth record fields
-
-Required
-
-password
-
-String
-
-Auth record password.
-
-Required
-
-passwordConfirm
-
-String
-
-Auth record password confirmation.
+| Param | Type | Description |
+| --- | --- | --- |
+| Optional id | String | **15 characters string** to store as record ID.  If not set, it will be auto generated. |
+| Schema fields | - | - |
+| **Any field from the collection's schema.** | - | - |
+| Additional auth record fields | - | - |
+| Required password | String | Auth record password. |
+| Required passwordConfirm | String | Auth record password confirmation. |
 
 Body parameters could be sent as *JSON* or
 *multipart/form-data*.
@@ -352,22 +311,62 @@ File upload is supported only through *multipart/form-data*.
 
 Query parameters
 
-Param
-
-Type
-
-Description
-
-- `expand` query parameter
-
-- `fields` query parameter
+| Param | Type | Description |
+| --- | --- | --- |
+| expand | String | Auto expand record relations. Ex.: `?expand=relField1,relField2.subRelField` Supports up to 6-levels depth nested relations expansion. The expanded relations will be appended to the record under the `expand` property (e.g. `"expand": object with relation payload`). Only the relations to which the request user has permissions to **view** will be expanded. |
+| fields | String | Comma separated string of the fields to return in the JSON response *(by default returns all fields)*. Ex.: `?fields=*,expand.relField.name` `*` targets all keys from the specific depth level. In addition, the following field modifiers are also supported:  - `:excerpt(maxLength, withEllipsis?)` Returns a short plain text version of the field string value. Ex.: `?fields=*,description:excerpt(200,true)` |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/Update.svelte`
+#### 200
+
+```json
+{
+                  "collectionId": "a98f514eb05f454",
+                  "collectionName": "demo",
+                  "id": "ae40239d2bc4477",
+                  "updated": "2022-06-25 11:03:50.052",
+                  "created": "2022-06-25 11:03:35.163",
+                  "title": "Lorem ipsum"
+                }
+```
+
+#### 400
+
+```json
+{
+                  "status": 400,
+                  "message": "Failed to create record.",
+                  "data": {
+                    "title": {
+                      "code": "validation_required",
+                      "message": "Missing required value."
+                    }
+                  }
+                }
+```
+
+#### 403
+
+```json
+{
+                  "status": 403,
+                  "message": "Only superusers can perform this action.",
+                  "data": {}
+                }
+```
+
+#### 404
+
+```json
+{
+                  "status": 404,
+                  "message": "The requested resource wasn't found. Missing collection context.",
+                  "data": {}
+                }
+```
 
 ### Update record
 
@@ -404,70 +403,25 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**PATCH**
-
-/api/collections/`collectionIdOrName`/records/`recordId`
+`PATCH /api/collections/`collectionIdOrName`/records/`recordId``
 
 Path parameters
 
-Param
-
-Type
-
-Description
-
-collectionIdOrName
-
-String
-
-ID or name of the record's collection.
-
-recordId
-
-String
-
-ID of the record to update.
+| Param | Type | Description |
+| --- | --- | --- |
+| collectionIdOrName | String | ID or name of the record's collection. |
+| recordId | String | ID of the record to update. |
 
 Body Parameters
 
-Param
-
-Type
-
-Description
-
-Schema fields
-
-**Any field from the collection's schema.**
-
-Additional auth record fields
-
-Optional
-
-oldPassword
-
-String
-
-Old auth record password.
-
-This field is required only when changing the record password. Superusers and auth records
-with "Manage" access can skip this field.
-
-Optional
-
-password
-
-String
-
-New auth record password.
-
-Optional
-
-passwordConfirm
-
-String
-
-New auth record password confirmation.
+| Param | Type | Description |
+| --- | --- | --- |
+| Schema fields | - | - |
+| **Any field from the collection's schema.** | - | - |
+| Additional auth record fields | - | - |
+| Optional oldPassword | String | Old auth record password.  This field is required only when changing the record password. Superusers and auth records with "Manage" access can skip this field. |
+| Optional password | String | New auth record password. |
+| Optional passwordConfirm | String | New auth record password confirmation. |
 
 Body parameters could be sent as *JSON* or
 *multipart/form-data*.
@@ -476,22 +430,62 @@ File upload is supported only through *multipart/form-data*.
 
 Query parameters
 
-Param
-
-Type
-
-Description
-
-- `expand` query parameter
-
-- `fields` query parameter
+| Param | Type | Description |
+| --- | --- | --- |
+| expand | String | Auto expand record relations. Ex.: `?expand=relField1,relField2.subRelField` Supports up to 6-levels depth nested relations expansion. The expanded relations will be appended to the record under the `expand` property (e.g. `"expand": object with relation payload`). Only the relations to which the request user has permissions to **view** will be expanded. |
+| fields | String | Comma separated string of the fields to return in the JSON response *(by default returns all fields)*. Ex.: `?fields=*,expand.relField.name` `*` targets all keys from the specific depth level. In addition, the following field modifiers are also supported:  - `:excerpt(maxLength, withEllipsis?)` Returns a short plain text version of the field string value. Ex.: `?fields=*,description:excerpt(200,true)` |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/Delete.svelte`
+#### 200
+
+```json
+{
+                  "collectionId": "a98f514eb05f454",
+                  "collectionName": "demo",
+                  "id": "ae40239d2bc4477",
+                  "updated": "2022-06-25 11:03:50.052",
+                  "created": "2022-06-25 11:03:35.163",
+                  "title": "Lorem ipsum"
+                }
+```
+
+#### 400
+
+```json
+{
+                  "status": 400,
+                  "message": "Failed to create record.",
+                  "data": {
+                    "title": {
+                      "code": "validation_required",
+                      "message": "Missing required value."
+                    }
+                  }
+                }
+```
+
+#### 403
+
+```json
+{
+                  "status": 403,
+                  "message": "Only superusers can perform this action.",
+                  "data": {}
+                }
+```
+
+#### 404
+
+```json
+{
+                  "status": 404,
+                  "message": "The requested resource wasn't found. Missing collection context.",
+                  "data": {}
+                }
+```
 
 ### Delete record
 
@@ -524,36 +518,54 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**DELETE**
-
-/api/collections/`collectionIdOrName`/records/`recordId`
+`DELETE /api/collections/`collectionIdOrName`/records/`recordId``
 
 Path parameters
 
-Param
-
-Type
-
-Description
-
-collectionIdOrName
-
-String
-
-ID or name of the record's collection.
-
-recordId
-
-String
-
-ID of the record to delete.
+| Param | Type | Description |
+| --- | --- | --- |
+| collectionIdOrName | String | ID or name of the record's collection. |
+| recordId | String | ID of the record to delete. |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/Batch.svelte`
+#### 204
+
+```text
+null
+```
+
+#### 400
+
+```json
+{
+                  "status": 400,
+                  "message": "Failed to delete record. Make sure that the record is not part of a required relation reference.",
+                  "data": {}
+                }
+```
+
+#### 403
+
+```json
+{
+                  "status": 403,
+                  "message": "Only superusers can perform this action.",
+                  "data": {}
+                }
+```
+
+#### 404
+
+```json
+{
+                  "status": 404,
+                  "message": "The requested resource wasn't found.",
+                  "data": {}
+                }
+```
 
 ### Batch create/update/upsert/delete records
 
@@ -607,9 +619,7 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**POST**
-
-/api/batch
+`POST /api/batch`
 
 Body Parameters
 
@@ -617,99 +627,82 @@ Body parameters could be sent as *application/json* or *multipart/form-data*.
 
 File upload is supported only via *multipart/form-data* (see below for more details).
 
-Param
-
-Description
-
-Required
-
-requests
-
-Array
-
-- List of the requests to process.
-
-The supported batch request actions are:
-
-- record create - `POST /api/collections//records`
-
--
-record update -
-`PATCH /api/collections//records/`
-
--
-record upsert - `PUT /api/collections//records`
-
-(the body must have `id` field)
-
--
-record delete -
-`DELETE /api/collections//records/`
-
-Each batch Request element have the following properties:
-
-- `url path` *(could include query parameters)*
-
-- `method` *(GET, POST, PUT, PATCH, DELETE)*
-
--
-`headers`
-
-*
-(custom per-request `Authorization` header is not supported at the moment,
-aka. all batch requests have the same auth state)
-*
-
-- `body`
-
-**NB!** When the batch request is send as
-`multipart/form-data`, the regular batch action fields are expected to be
-submitted as serialized json under the `@jsonPayload` field and file keys
-need to follow the pattern `requests.N.fileField` or
-`requests[N].fileField`
-*
-(this is usually handled transparently by the SDKs when their specific object
-notation is used)
-*.
-
-If you don't use the SDKs or prefer manually to construct the `FormData`
-body, then it could look something like:
-
-```javascript
-const formData = new FormData();
-
-                                formData.append("@jsonPayload", JSON.stringify({
-                                    requests: [
-                                        {
-                                            method: "POST",
-                                            url: "/api/collections/example/records?expand=user",
-                                            body: { title: "test1" },
-                                        },
-                                        {
-                                            method: "PATCH",
-                                            url: "/api/collections/example/records/RECORD_ID",
-                                            body: { title: "test2" },
-                                        },
-                                        {
-                                            method: "DELETE",
-                                            url: "/api/collections/example/records/RECORD_ID",
-                                        },
-                                    ]
-                                }))
-
-                                // file for the first request
-                                formData.append("requests.0.document", new File(...))
-
-                                // file for the second request
-                                formData.append("requests.1.document", new File(...))
-```
+| Param | Description |
+| --- | --- |
+| Required requests | Array - List of the requests to process.  The supported batch request actions are:  - record create - `POST /api/collections//records` - record update - `PATCH /api/collections//records/`  - record upsert - `PUT /api/collections//records`   (the body must have `id` field)   - record delete - `DELETE /api/collections//records/`   Each batch Request element have the following properties:  - `url path` *(could include query parameters)* - `method` *(GET, POST, PUT, PATCH, DELETE)* - `headers`  * (custom per-request `Authorization` header is not supported at the moment, aka. all batch requests have the same auth state) *  - `body`   **NB!** When the batch request is send as `multipart/form-data`, the regular batch action fields are expected to be submitted as serialized json under the `@jsonPayload` field and file keys need to follow the pattern `requests.N.fileField` or `requests[N].fileField` * (this is usually handled transparently by the SDKs when their specific object notation is used) *.  If you don't use the SDKs or prefer manually to construct the `FormData` body, then it could look something like: `const formData = new FormData();  formData.append("@jsonPayload", JSON.stringify(, }, , }, , ] }))  // file for the first request formData.append("requests.0.document", new File(...))  // file for the second request formData.append("requests.1.document", new File(...))` |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/AuthMethods.svelte`
+#### 200
+
+```json
+[
+                {
+                  "status": 200,
+                  "body": {
+                    "collectionId": "a98f514eb05f454",
+                    "collectionName": "demo",
+                    "id": "ae40239d2bc4477",
+                    "updated": "2022-06-25 11:03:50.052",
+                    "created": "2022-06-25 11:03:35.163",
+                    "title": "test1",
+                    "document": "file_a98f51.txt"
+                  }
+                },
+                {
+                  "status": 200,
+                  "body": {
+                    "collectionId": "a98f514eb05f454",
+                    "collectionName": "demo",
+                    "id": "31y1gc447bc9602",
+                    "updated": "2022-06-25 11:03:50.052",
+                    "created": "2022-06-25 11:03:35.163",
+                    "title": "test2",
+                    "document": "file_f514eb0.txt"
+                  }
+                },
+              ]
+```
+
+#### 400
+
+```json
+{
+                  "status": 400,
+                  "message": "Batch transaction failed.",
+                  "data": {
+                    "requests": {
+                      "1": {
+                        "code": "batch_request_failed",
+                        "message": "Batch request failed.",
+                        "response": {
+                          "status": 400,
+                          "message": "Failed to create record.",
+                          "data": {
+                            "title": {
+                              "code": "validation_min_text_constraint",
+                              "message": "Must be at least 3 character(s).",
+                              "params": { "min": 3 }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+```
+
+#### 403
+
+```json
+{
+                  "status": 403,
+                  "message": "Batch requests are not allowed.",
+                  "data": {}
+                }
+```
 
 ### List auth methods
 
@@ -737,40 +730,56 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**GET**
-
-/api/collections/`collectionIdOrName`/auth-methods
+`GET /api/collections/`collectionIdOrName`/auth-methods`
 
 Path parameters
 
-Param
-
-Type
-
-Description
-
-collectionIdOrName
-
-String
-
-ID or name of the auth collection.
+| Param | Type | Description |
+| --- | --- | --- |
+| collectionIdOrName | String | ID or name of the auth collection. |
 
 Query parameters
 
-Param
-
-Type
-
-Description
-
-- `fields` query parameter
+| Param | Type | Description |
+| --- | --- | --- |
+| fields | String | Comma separated string of the fields to return in the JSON response *(by default returns all fields)*. Ex.: `?fields=*,expand.relField.name` `*` targets all keys from the specific depth level. In addition, the following field modifiers are also supported:  - `:excerpt(maxLength, withEllipsis?)` Returns a short plain text version of the field string value. Ex.: `?fields=*,description:excerpt(200,true)` |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/AuthWithPassword.svelte`
+#### 200
+
+```json
+{
+                  "password": {
+                    "enabled": true,
+                    "identityFields": ["email"]
+                  },
+                  "oauth2": {
+                    "enabled": true,
+                    "providers": [
+                      {
+                        "name": "github",
+                        "displayName": "GitHub",
+                        "state": "nT7SLxzXKAVMeRQJtxSYj9kvnJAvGk",
+                        "authURL": "https://github.com/login/oauth/authorize?client_id=test&code_challenge=fcf8WAhNI6uCLJYgJubLyWXHvfs8xghoLe3zksBvxjE&code_challenge_method=S256&response_type=code&scope=read%3Auser+user%3Aemail&state=nT7SLxzXKAVMeRQJtxSYj9kvnJAvGk&redirect_uri=",
+                        "codeVerifier": "PwBG5OKR2IyQ7siLrrcgWHFwLLLAeUrz7PS1nY4AneG",
+                        "codeChallenge": "fcf8WAhNI6uCLJYgJubLyWXHvfs8xghoLe3zksBvxjE",
+                        "codeChallengeMethod": "S256"
+                      }
+                    ]
+                  },
+                  "mfa": {
+                    "enabled": false,
+                    "duration": 0
+                  },
+                  "otp": {
+                    "enabled": false,
+                    "duration": 0
+                  }
+                }
+```
 
 ### Auth with password
 
@@ -821,77 +830,70 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**POST**
-
-/api/collections/`collectionIdOrName`/auth-with-password
+`POST /api/collections/`collectionIdOrName`/auth-with-password`
 
 Path parameters
 
-Param
-
-Type
-
-Description
-
-collectionIdOrName
-
-String
-
-ID or name of the auth collection.
+| Param | Type | Description |
+| --- | --- | --- |
+| collectionIdOrName | String | ID or name of the auth collection. |
 
 Body Parameters
 
-Param
-
-Type
-
-Description
-
-Required
-
-identity
-
-String
-
-Auth record username or email address.
-
-Required
-
-password
-
-String
-
-Auth record password.
-
-Optional
-
-identityField
-
-String
-
-A specific identity field to use (by default fallbacks to the first matching one).
+| Param | Type | Description |
+| --- | --- | --- |
+| Required identity | String | Auth record username or email address. |
+| Required password | String | Auth record password. |
+| Optional identityField | String | A specific identity field to use (by default fallbacks to the first matching one). |
 
 Body parameters could be sent as *JSON* or
 *multipart/form-data*.
 
 Query parameters
 
-Param
-
-Type
-
-Description
-
-- `expand` query parameter
-
-- `fields` query parameter
+| Param | Type | Description |
+| --- | --- | --- |
+| expand | String | Auto expand record relations. Ex.: `?expand=relField1,relField2.subRelField` Supports up to 6-levels depth nested relations expansion. The expanded relations will be appended to the record under the `expand` property (e.g. `"expand": object with relation payload`). Only the relations to which the request user has permissions to **view** will be expanded. |
+| fields | String | Comma separated string of the fields to return in the JSON response *(by default returns all fields)*. Ex.: `?fields=*,record.expand.relField.name` `*` targets all keys from the specific depth level. In addition, the following field modifiers are also supported:  - `:excerpt(maxLength, withEllipsis?)` Returns a short plain text version of the field string value. Ex.: `?fields=*,record.description:excerpt(200,true)` |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/AuthWithOAuth2.svelte`
+#### 200
+
+```json
+{
+                  "token": "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsInR5cGUiOiJhdXRoUmVjb3JkIiwiY29sbGVjdGlvbklkIjoiX3BiX3VzZXJzX2F1dGhfIiwiZXhwIjoyMjA4OTg1MjYxfQ.UwD8JvkbQtXpymT09d7J6fdA0aP9g4FJ1GPh_ggEkzc",
+                  "record": {
+                    "id": "8171022dc95a4ed",
+                    "collectionId": "d2972397d45614e",
+                    "collectionName": "users",
+                    "created": "2022-06-24 06:24:18.434Z",
+                    "updated": "2022-06-24 06:24:18.889Z",
+                    "username": "test@example.com",
+                    "email": "test@example.com",
+                    "verified": false,
+                    "emailVisibility": true,
+                    "someCustomField": "example 123"
+                  }
+                }
+```
+
+#### 400
+
+```json
+{
+                  "status": 400,
+                  "message": "An error occurred while submitting the form.",
+                  "data": {
+                    "password": {
+                      "code": "validation_required",
+                      "message": "Missing required value."
+                    }
+                  }
+                }
+```
 
 ### Auth with OAuth2
 
@@ -960,101 +962,84 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**POST**
-
-/api/collections/`collectionIdOrName`/auth-with-oauth2
+`POST /api/collections/`collectionIdOrName`/auth-with-oauth2`
 
 Path parameters
 
-Param
-
-Type
-
-Description
-
-collectionIdOrName
-
-String
-
-ID or name of the auth collection.
+| Param | Type | Description |
+| --- | --- | --- |
+| collectionIdOrName | String | ID or name of the auth collection. |
 
 Body Parameters
 
-Param
-
-Type
-
-Description
-
-Required
-
-provider
-
-String
-
-The name of the OAuth2 client provider (e.g. "google").
-
-Required
-
-code
-
-String
-
-The authorization code returned from the initial request.
-
-Required
-
-codeVerifier
-
-String
-
-The code verifier sent with the initial request as part of the code_challenge.
-
-Required
-
-redirectUrl
-
-String
-
-The redirect url sent with the initial request.
-
-Optional
-
-createData
-
-Object
-
-Optional data that will be used when creating the auth record on OAuth2 sign-up.
-
-The created auth record must comply with the same requirements and validations in the
-regular **create** action.
-
-*
-The data can only be in `json`, aka. `multipart/form-data` and
-files upload currently are not supported during OAuth2 sign-ups.
-*
+| Param | Type | Description |
+| --- | --- | --- |
+| Required provider | String | The name of the OAuth2 client provider (e.g. "google"). |
+| Required code | String | The authorization code returned from the initial request. |
+| Required codeVerifier | String | The code verifier sent with the initial request as part of the code_challenge. |
+| Required redirectUrl | String | The redirect url sent with the initial request. |
+| Optional createData | Object | Optional data that will be used when creating the auth record on OAuth2 sign-up. The created auth record must comply with the same requirements and validations in the regular **create** action.  * The data can only be in `json`, aka. `multipart/form-data` and files upload currently are not supported during OAuth2 sign-ups. * |
 
 Body parameters could be sent as *JSON* or
 *multipart/form-data*.
 
 Query parameters
 
-Param
-
-Type
-
-Description
-
-- `expand` query parameter
-
-- `fields` query parameter
+| Param | Type | Description |
+| --- | --- | --- |
+| expand | String | Auto expand record relations. Ex.: `?expand=relField1,relField2.subRelField` Supports up to 6-levels depth nested relations expansion. The expanded relations will be appended to the record under the `expand` property (e.g. `"expand": object with relation payload`). Only the relations to which the request user has permissions to **view** will be expanded. |
+| fields | String | Comma separated string of the fields to return in the JSON response *(by default returns all fields)*. Ex.: `?fields=*,record.expand.relField.name` `*` targets all keys from the specific depth level. In addition, the following field modifiers are also supported:  - `:excerpt(maxLength, withEllipsis?)` Returns a short plain text version of the field string value. Ex.: `?fields=*,record.description:excerpt(200,true)` |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/AuthWithOTP.svelte`
+#### 200
+
+```json
+{
+                  "token": "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsInR5cGUiOiJhdXRoUmVjb3JkIiwiY29sbGVjdGlvbklkIjoiX3BiX3VzZXJzX2F1dGhfIiwiZXhwIjoyMjA4OTg1MjYxfQ.UwD8JvkbQtXpymT09d7J6fdA0aP9g4FJ1GPh_ggEkzc",
+                  "record": {
+                    "id": "8171022dc95a4ed",
+                    "collectionId": "d2972397d45614e",
+                    "collectionName": "users",
+                    "created": "2022-06-24 06:24:18.434Z",
+                    "updated": "2022-06-24 06:24:18.889Z",
+                    "username": "test@example.com",
+                    "email": "test@example.com",
+                    "verified": true,
+                    "emailVisibility": false,
+                    "someCustomField": "example 123"
+                  },
+                  "meta": {
+                    "id": "abc123",
+                    "name": "John Doe",
+                    "username": "john.doe",
+                    "email": "test@example.com",
+                    "isNew": false,
+                    "avatarURL": "https://example.com/avatar.png",
+                    "rawUser": {...},
+                    "accessToken": "...",
+                    "refreshToken": "...",
+                    "expiry": "..."
+                  }
+                }
+```
+
+#### 400
+
+```json
+{
+                  "status": 400,
+                  "message": "An error occurred while submitting the form.",
+                  "data": {
+                    "provider": {
+                      "code": "validation_required",
+                      "message": "Missing required value."
+                    }
+                  }
+                }
+```
 
 ### Auth with OTP
 
@@ -1113,111 +1098,109 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-(activeApiTab = i)}>
-
-### Source Fragment: `api-records/AuthWithOTPRequestApi.svelte`
-
-**POST**
-
-/api/collections/`collectionIdOrName`/request-otp
+`POST /api/collections/`collectionIdOrName`/request-otp`
 
 Path parameters
 
-Param
-
-Type
-
-Description
-
-collectionIdOrName
-
-String
-
-ID or name of the auth collection.
+| Param | Type | Description |
+| --- | --- | --- |
+| collectionIdOrName | String | ID or name of the auth collection. |
 
 Body Parameters
 
-Param
-
-Type
-
-Description
-
-Required
-
-email
-
-String
-
-The auth record email address to send the OTP request (if exists).
+| Param | Type | Description |
+| --- | --- | --- |
+| Required email | String | The auth record email address to send the OTP request (if exists). |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/AuthWithOTPAuthApi.svelte`
+#### 200
 
-**POST**
+```json
+{
+                  "status": 400,
+                  "message": "An error occurred while validating the submitted data.",
+                  "data": {
+                    "email": {
+                      "code": "validation_is_email",
+                      "message": "Must be a valid email address."
+                    }
+                  }
+                }
+```
 
-/api/collections/`collectionIdOrName`/auth-with-otp
+#### 429
+
+```json
+{
+                  "status": 429,
+                  "message": "You've send too many OTP requests, please try again later.",
+                  "data": {}
+                }
+```
+
+`POST /api/collections/`collectionIdOrName`/auth-with-otp`
 
 Path parameters
 
-Param
-
-Type
-
-Description
-
-collectionIdOrName
-
-String
-
-ID or name of the auth collection.
+| Param | Type | Description |
+| --- | --- | --- |
+| collectionIdOrName | String | ID or name of the auth collection. |
 
 Body Parameters
 
-Param
-
-Type
-
-Description
-
-Required
-
-otpId
-
-String
-
-The id of the OTP request.
-
-Required
-
-password
-
-String
-
-The one-time password.
+| Param | Type | Description |
+| --- | --- | --- |
+| Required otpId | String | The id of the OTP request. |
+| Required password | String | The one-time password. |
 
 Query parameters
 
-Param
-
-Type
-
-Description
-
-- `expand` query parameter
-
-- `fields` query parameter
+| Param | Type | Description |
+| --- | --- | --- |
+| expand | String | Auto expand record relations. Ex.: `?expand=relField1,relField2.subRelField` Supports up to 6-levels depth nested relations expansion. The expanded relations will be appended to the record under the `expand` property (e.g. `"expand": object with relation payload`). Only the relations to which the request user has permissions to **view** will be expanded. |
+| fields | String | Comma separated string of the fields to return in the JSON response *(by default returns all fields)*. Ex.: `?fields=*,record.expand.relField.name` `*` targets all keys from the specific depth level. In addition, the following field modifiers are also supported:  - `:excerpt(maxLength, withEllipsis?)` Returns a short plain text version of the field string value. Ex.: `?fields=*,record.description:excerpt(200,true)` |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/AuthRefresh.svelte`
+#### 200
+
+```json
+{
+                  "token": "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsInR5cGUiOiJhdXRoUmVjb3JkIiwiY29sbGVjdGlvbklkIjoiX3BiX3VzZXJzX2F1dGhfIiwiZXhwIjoyMjA4OTg1MjYxfQ.UwD8JvkbQtXpymT09d7J6fdA0aP9g4FJ1GPh_ggEkzc",
+                  "record": {
+                    "id": "8171022dc95a4ed",
+                    "collectionId": "d2972397d45614e",
+                    "collectionName": "users",
+                    "created": "2022-06-24 06:24:18.434Z",
+                    "updated": "2022-06-24 06:24:18.889Z",
+                    "username": "test@example.com",
+                    "email": "test@example.com",
+                    "verified": false,
+                    "emailVisibility": true,
+                    "someCustomField": "example 123"
+                  }
+                }
+```
+
+#### 400
+
+```json
+{
+                  "status": 400,
+                  "message": "Failed to authenticate.",
+                  "data": {
+                    "otpId": {
+                      "code": "validation_required",
+                      "message": "Missing required value."
+                    }
+                  }
+                }
+```
 
 ### Auth refresh
 
@@ -1260,44 +1243,59 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**POST**
+`POST /api/collections/`collectionIdOrName`/auth-refresh Requires `Authorization:TOKEN` Path parameters Param Type Description collectionIdOrName String ID or name of the auth collection. Query parameters Param Type Description Responses`
 
-/api/collections/`collectionIdOrName`/auth-refresh
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 200
 
-Path parameters
+```json
+{
+                  "token": "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsInR5cGUiOiJhdXRoUmVjb3JkIiwiY29sbGVjdGlvbklkIjoiX3BiX3VzZXJzX2F1dGhfIiwiZXhwIjoyMjA4OTg1MjYxfQ.UwD8JvkbQtXpymT09d7J6fdA0aP9g4FJ1GPh_ggEkzc",
+                  "record": {
+                    "id": "8171022dc95a4ed",
+                    "collectionId": "d2972397d45614e",
+                    "collectionName": "users",
+                    "created": "2022-06-24 06:24:18.434Z",
+                    "updated": "2022-06-24 06:24:18.889Z",
+                    "username": "test@example.com",
+                    "email": "test@example.com",
+                    "verified": false,
+                    "emailVisibility": true,
+                    "someCustomField": "example 123"
+                  }
+                }
+```
 
-Param
+#### 401
 
-Type
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token to be set.",
+                  "data": {}
+                }
+```
 
-Description
+#### 403
 
-collectionIdOrName
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record model is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
-String
+#### 404
 
-ID or name of the auth collection.
-
-Query parameters
-
-Param
-
-Type
-
-Description
-
-- `expand` query parameter
-
-- `fields` query parameter
-
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-records/Verification.svelte`
+```json
+{
+                  "status": 404,
+                  "message": "Missing auth record context.",
+                  "data": {}
+                }
+```
 
 ### Verification
 
@@ -1337,63 +1335,71 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-(activeApiTab = i)}>
-
-### Source Fragment: `api-records/VerificationRequestApi.svelte`
-
-**POST**
-
-/api/collections/`collectionIdOrName`/request-verification
+`POST /api/collections/`collectionIdOrName`/request-verification`
 
 Body Parameters
 
-Param
-
-Type
-
-Description
-
-Required
-
-email
-
-String
-
-The auth record email address to send the verification request (if exists).
+| Param | Type | Description |
+| --- | --- | --- |
+| Required email | String | The auth record email address to send the verification request (if exists). |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/VerificationConfirmApi.svelte`
+#### 204
 
-**POST**
+```json
+{
+                  "status": 400,
+                  "message": "An error occurred while validating the submitted data.",
+                  "data": {
+                    "email": {
+                      "code": "validation_required",
+                      "message": "Missing required value."
+                    }
+                  }
+                }
+```
 
-/api/collections/`collectionIdOrName`/confirm-verification
+#### 204
+
+```text
+null
+```
+
+`POST /api/collections/`collectionIdOrName`/confirm-verification`
 
 Body Parameters
 
-Param
-
-Type
-
-Description
-
-Required
-
-token
-
-String
-
-The token from the verification request email.
+| Param | Type | Description |
+| --- | --- | --- |
+| Required token | String | The token from the verification request email. |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/PasswordReset.svelte`
+#### 204
+
+```json
+{
+                  "status": 400,
+                  "message": "An error occurred while validating the submitted data.",
+                  "data": {
+                    "token": {
+                      "code": "validation_required",
+                      "message": "Missing required value."
+                    }
+                  }
+                }
+```
+
+#### 204
+
+```text
+null
+```
 
 ### Password reset
 
@@ -1446,79 +1452,73 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-(activeApiTab = i)}>
-
-### Source Fragment: `api-records/PasswordResetRequestApi.svelte`
-
-**POST**
-
-/api/collections/`collectionIdOrName`/request-password-reset
+`POST /api/collections/`collectionIdOrName`/request-password-reset`
 
 Body Parameters
 
-Param
-
-Type
-
-Description
-
-Required
-
-email
-
-String
-
-The auth record email address to send the password reset request (if exists).
+| Param | Type | Description |
+| --- | --- | --- |
+| Required email | String | The auth record email address to send the password reset request (if exists). |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/PasswordResetConfirmApi.svelte`
+#### 204
 
-**POST**
+```json
+{
+                  "status": 400,
+                  "message": "An error occurred while validating the submitted data.",
+                  "data": {
+                    "email": {
+                      "code": "validation_required",
+                      "message": "Missing required value."
+                    }
+                  }
+                }
+```
 
-/api/collections/`collectionIdOrName`/confirm-password-reset
+#### 204
+
+```text
+null
+```
+
+`POST /api/collections/`collectionIdOrName`/confirm-password-reset`
 
 Body Parameters
 
-Param
-
-Type
-
-Description
-
-Required
-
-token
-
-String
-
-The token from the password reset request email.
-
-Required
-
-password
-
-String
-
-The new password to set.
-
-Required
-
-passwordConfirm
-
-String
-
-The new password confirmation.
+| Param | Type | Description |
+| --- | --- | --- |
+| Required token | String | The token from the password reset request email. |
+| Required password | String | The new password to set. |
+| Required passwordConfirm | String | The new password confirmation. |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/EmailChange.svelte`
+#### 204
+
+```json
+{
+                  "status": 400,
+                  "message": "An error occurred while validating the submitted data.",
+                  "data": {
+                    "token": {
+                      "code": "validation_required",
+                      "message": "Missing required value."
+                    }
+                  }
+                }
+```
+
+#### 204
+
+```text
+null
+```
 
 ### Email change
 
@@ -1569,73 +1569,84 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-(activeApiTab = i)}>
+`POST /api/collections/`collectionIdOrName`/request-email-change Requires `Authorization:TOKEN` Body Parameters Param Type Description Required newEmail String The new email address to send the change email request. Responses`
 
-### Source Fragment: `api-records/EmailChangeRequestApi.svelte`
+### Response examples
 
-**POST**
+#### 204
 
-/api/collections/`collectionIdOrName`/request-email-change
+```json
+{
+                  "status": 400,
+                  "message": "An error occurred while validating the submitted data.",
+                  "data": {
+                    "newEmail": {
+                      "code": "validation_required",
+                      "message": "Missing required value."
+                    }
+                  }
+                }
+```
 
-Requires `Authorization:TOKEN`
+#### 401
+
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token to be set.",
+                  "data": {}
+                }
+```
+
+#### 403
+
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record model is not allowed to perform this action.",
+                  "data": {}
+                }
+```
+
+#### 204
+
+```text
+null
+```
+
+`POST /api/collections/`collectionIdOrName`/confirm-email-change`
 
 Body Parameters
 
-Param
-
-Type
-
-Description
-
-Required
-
-newEmail
-
-String
-
-The new email address to send the change email request.
+| Param | Type | Description |
+| --- | --- | --- |
+| Required token | String | The token from the change email request email. |
+| Required password | String | The account password to confirm the email change. |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-records/EmailChangeConfirmApi.svelte`
+#### 204
 
-**POST**
+```json
+{
+                  "status": 400,
+                  "message": "An error occurred while validating the submitted data.",
+                  "data": {
+                    "token": {
+                      "code": "validation_required",
+                      "message": "Missing required value."
+                    }
+                  }
+                }
+```
 
-/api/collections/`collectionIdOrName`/confirm-email-change
+#### 204
 
-Body Parameters
-
-Param
-
-Type
-
-Description
-
-Required
-
-token
-
-String
-
-The token from the change email request email.
-
-Required
-
-password
-
-String
-
-The account password to confirm the email change.
-
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-records/Impersonate.svelte`
+```text
+null
+```
 
 ### Impersonate
 
@@ -1690,72 +1701,75 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**POST**
+`POST /api/collections/`collectionIdOrName`/impersonate/`id` Requires `Authorization:TOKEN` Path parameters Param Type Description collectionIdOrName String ID or name of the auth collection. id String ID of the auth record to impersonate. Body Parameters Param Type Description Optional duration Number Optional custom JWT duration for the `exp` claim (in seconds). If not set or 0, it fallbacks to the default collection auth token duration option. Body parameters could be sent as *JSON* or *multipart/form-data*. Query parameters Param Type Description Responses`
 
-/api/collections/`collectionIdOrName`/impersonate/`id`
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 200
 
-Path parameters
+```json
+{
+                  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb2xsZWN0aW9uSWQiOiJfcGJjX2MwcHdrZXNjcXMiLCJleHAiOjE3MzAzNjgxMTUsImlkIjoicXkwMmMxdDBueDBvanFuIiwicmVmcmVzaGFibGUiOmZhbHNlLCJ0eXBlIjoiYXV0aCJ9.1JOaE54TyPdDLf0mb0T6roIYeh8Y1HfJvDlYZADMN4U",
+                  "record": {
+                    "id": "8171022dc95a4ed",
+                    "collectionId": "d2972397d45614e",
+                    "collectionName": "users",
+                    "created": "2022-06-24 06:24:18.434Z",
+                    "updated": "2022-06-24 06:24:18.889Z",
+                    "username": "test@example.com",
+                    "email": "test@example.com",
+                    "verified": false,
+                    "emailVisibility": true,
+                    "someCustomField": "example 123"
+                  }
+                }
+```
 
-Param
+#### 400
 
-Type
+```json
+{
+                  "status": 400,
+                  "message": "The request requires valid record authorization token to be set.",
+                  "data": {
+                    "duration": {
+                      "code": "validation_min_greater_equal_than_required",
+                      "message": "Must be no less than 0."
+                    }
+                  }
+                }
+```
 
-Description
+#### 401
 
-collectionIdOrName
+```json
+{
+                  "status": 401,
+                  "message": "An error occurred while validating the submitted data.",
+                  "data": {}
+                }
+```
 
-String
+#### 403
 
-ID or name of the auth collection.
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record model is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
-id
+#### 404
 
-String
-
-ID of the auth record to impersonate.
-
-Body Parameters
-
-Param
-
-Type
-
-Description
-
-Optional
-
-duration
-
-Number
-
-Optional custom JWT duration for the `exp` claim (in seconds).
-
-If not set or 0, it fallbacks to the default collection auth token duration option.
-
-Body parameters could be sent as *JSON* or
-*multipart/form-data*.
-
-Query parameters
-
-Param
-
-Type
-
-Description
-
-- `expand` query parameter
-
-- `fields` query parameter
-
-Responses
-
-(responseTab = response.code)}
->
+```json
+{
+                  "status": 404,
+                  "message": "The requested resource wasn't found.",
+                  "data": {}
+                }
+```
 ## API Realtime
-
-Upstream source: [/docs/api-realtime](https://pocketbase.io/docs/api-realtime/)
 
 The Realtime API is implemented via Server-Sent Events (SSE). Generally, it consists of 2 operations:
 
@@ -1778,9 +1792,7 @@ event message.
 
 ### Connect
 
-**GET**
-
-/api/realtime
+`GET /api/realtime`
 
 Establishes a new SSE connection and immediately sends a `PB_CONNECT` SSE event with the
 created client ID.
@@ -1797,9 +1809,7 @@ automatically reestablished if the client is still active (e.g. the browser tab 
 
 ### Set subscriptions
 
-**POST**
-
-/api/realtime
+`POST /api/realtime`
 
 Sets new active client's subscriptions (and auto unsubscribes from the previous ones).
 
@@ -1808,48 +1818,15 @@ associated user or superuser.
 
 Body Parameters
 
-Param
-
-Type
-
-Description
-
-Required
-
-clientId
-
-String
-
-ID of the SSE client connection.
-
-Optional
-
-subscriptions
-
-Array
-
-The new client subscriptions to set in the format:
-
-`COLLECTION_ID_OR_NAME/*` or
-`COLLECTION_ID_OR_NAME/RECORD_ID`.
-
-You can also attach optional query and header parameters as serialized json to a
-single topic using the `options`
-query parameter, e.g.:
-
-```text
-COLLECTION_ID_OR_NAME/RECORD_ID?options={"query": {"abc": "123"}, "headers": {"x-token": "..."}}
-```
-
-Leave empty to unsubscribe from everything.
+| Param | Type | Description |
+| --- | --- | --- |
+| Required clientId | String | ID of the SSE client connection. |
+| Optional subscriptions | Array | The new client subscriptions to set in the format:  `COLLECTION_ID_OR_NAME/*` or `COLLECTION_ID_OR_NAME/RECORD_ID`.  You can also attach optional query and header parameters as serialized json to a single topic using the `options` query parameter, e.g.: `COLLECTION_ID_OR_NAME/RECORD_ID?options=, "headers": }` Leave empty to unsubscribe from everything. |
 
 Body parameters could be sent as *JSON* or
 *multipart/form-data*.
 
 Responses
-
-(responseTab = response.code)}
->
 
 All of this is seamlessly handled by the SDKs using just the `subscribe` and
 `unsubscribe` methods:
@@ -1909,11 +1886,50 @@ import 'package:pocketbase/pocketbase.dart';
         pb.collection('example').unsubscribe('*'); // remove all '*' topic subscriptions
         pb.collection('example').unsubscribe(); // remove all subscriptions in the collection
 ```
+
+### Response examples
+
+#### 204
+
+```json
+{
+                  "status": 400,
+                  "message": "Something went wrong while processing your request.",
+                  "data": {
+                    "clientId": {
+                      "code": "validation_required",
+                      "message": "Missing required value."
+                    }
+                  }
+                }
+```
+
+#### 403
+
+```json
+{
+                  "status": 403,
+                  "message": "The current and the previous request authorization don't match.",
+                  "data": {}
+                }
+```
+
+#### 404
+
+```json
+{
+                  "status": 404,
+                  "message": "Missing or invalid client id.",
+                  "data": {}
+                }
+```
+
+#### 204
+
+```text
+null
+```
 ## API Files
-
-Upstream source: [/docs/api-files](https://pocketbase.io/docs/api-files/)
-
-### Source Fragment: `api-files/+page.svelte`
 
 Files are uploaded, updated or deleted via the
 
@@ -1922,8 +1938,6 @@ Records API
 
 The File API is usually used to fetch/download a file resource (with support for basic image
 manipulations, like generating thumbs).
-
-### Source Fragment: `api-files/Download.svelte`
 
 ### Download / Fetch file
 
@@ -1940,75 +1954,49 @@ API details
 
 Path parameters
 
-Param
-
-Type
-
-Description
-
-collectionIdOrName
-
-String
-
-ID or name of the collection whose record model contains the file resource.
-
-recordId
-
-String
-
-ID of the record model that contains the file resource.
-
-filename
-
-String
-
-Name of the file resource.
+| Param | Type | Description |
+| --- | --- | --- |
+| collectionIdOrName | String | ID or name of the collection whose record model contains the file resource. |
+| recordId | String | ID of the record model that contains the file resource. |
+| filename | String | Name of the file resource. |
 
 Query parameters
 
-Param
-
-Type
-
-Description
-
-thumb
-
-String
-
-Get the thumb of the requested file.
-
-Supported thumb formats are based on file field options.
-
-If the thumb size is not defined in the file schema field options or the file resource is not
-an image (jpg, png, gif, webp), then the original file resource is returned unmodified.
-
-token
-
-String
-
-Optional **file token** for granting access to
-**protected file(s)**.
-
-For an example, you can check
-
-"Files upload and handling"
-.
-
-download
-
-Boolean
-
-If it is set to a truthy value (*1*, *t*, *true*) the file will be
-served with `Content-Disposition: attachment` header instructing the browser to
-ignore the file preview for pdf, images, videos, etc. and to directly download the file.
+| Param | Type | Description |
+| --- | --- | --- |
+| thumb | String | Get the thumb of the requested file.  Supported thumb formats:  - `WxH` (e.g. `100x300`) crop to `WxH` from center - `WxHt` (e.g. `100x300t`) crop to `WxH` from top - `WxHb` (e.g. `100x300b`) crop to `WxH` from bottom - `WxHf` (e.g. `100x300f`) fit inside `WxH` without cropping - `0xH` (e.g. `0x300`) resize to height while preserving aspect ratio - `Wx0` (e.g. `100x0`) resize to width while preserving aspect ratio   If the thumb size is not defined in the file schema field options or the file resource is not an image (jpg, png, gif, webp), then the original file resource is returned unmodified. |
+| token | String | Optional **file token** for granting access to **protected file(s)**.  For an example, you can check "Files upload and handling" . |
+| download | Boolean | If it is set to a truthy value (*1*, *t*, *true*) the file will be served with `Content-Disposition: attachment` header instructing the browser to ignore the file preview for pdf, images, videos, etc. and to directly download the file. |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-files/Token.svelte`
+#### 200
+
+```json
+[file resource]
+```
+
+#### 400
+
+```json
+{
+                  "status": 400,
+                  "message": "Filesystem initialization failure.",
+                  "data": {}
+                }
+```
+
+#### 404
+
+```json
+{
+                  "status": 404,
+                  "message": "The requested resource wasn't found.",
+                  "data": {}
+                }
+```
 
 ### Generate protected file token
 
@@ -2020,21 +2008,28 @@ sent with the request).
 
 API details
 
-**POST**
+`POST /api/files/token Requires `Authorization:TOKEN` Responses`
 
-/api/files/token
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 200
 
-Responses
+```json
+{
+                    "token": "..."
+                }
+```
 
-(responseTab = response.code)}
->
+#### 400
+
+```json
+{
+                  "status": 400,
+                  "message": "Failed to generate file token.",
+                  "data": {}
+                }
+```
 ## API Collections
-
-Upstream source: [/docs/api-collections](https://pocketbase.io/docs/api-collections/)
-
-### Source Fragment: `api-collections/List.svelte`
 
 ### List collections
 
@@ -2088,75 +2083,187 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**GET**
+`GET /api/collections Requires `Authorization:TOKEN` Query parameters Param Type Description page Number The page (aka. offset) of the paginated list (*default to 1*). perPage Number The max returned collections per page (*default to 30*). sort String Specify the *ORDER BY* fields. Add `-` / `+` (default) in front of the attribute for DESC / ASC order, e.g.: `// DESC by created and ASC by id ?sort=-created,id` **Supported collection sort fields:** `@random`, `id`, `created`, `updated`, `name`, `type`, `system` filter String Filter expression to filter/search the returned collections list, e.g.: `?filter=(name~'abc' && created>'2022-01-01')` **Supported collection filter fields:** `id`, `created`, `updated`, `name`, `type`, `system` Responses`
 
-/api/collections
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 200
 
-Query parameters
-
-Param
-
-Type
-
-Description
-
-page
-
-Number
-
-The page (aka. offset) of the paginated list (*default to 1*).
-
-perPage
-
-Number
-
-The max returned collections per page (*default to 30*).
-
-sort
-
-String
-
-Specify the *ORDER BY* fields.
-
-Add `-` / `+` (default) in front of the attribute for DESC /
-ASC order, e.g.:
-
-```text
-// DESC by created and ASC by id
-                                ?sort=-created,id
+```json
+{
+                  "page": 1,
+                  "perPage": 2,
+                  "totalItems": 10,
+                  "totalPages": 5,
+                  "items": [
+                    {
+                      "id": "_pbc_344172009",
+                      "listRule": null,
+                      "viewRule": null,
+                      "createRule": null,
+                      "updateRule": null,
+                      "deleteRule": null,
+                      "name": "users",
+                      "type": "auth",
+                      "fields": [
+                        {
+                          "autogeneratePattern": "[a-z0-9]{15}",
+                          "hidden": false,
+                          "id": "text3208210256",
+                          "max": 15,
+                          "min": 15,
+                          "name": "id",
+                          "pattern": "^[a-z0-9]+$",
+                          "presentable": false,
+                          "primaryKey": true,
+                          "required": true,
+                          "system": true,
+                          "type": "text"
+                        },
+                        {
+                          "cost": 0,
+                          "hidden": true,
+                          "id": "password901924565",
+                          "max": 0,
+                          "min": 8,
+                          "name": "password",
+                          "pattern": "",
+                          "presentable": false,
+                          "required": true,
+                          "system": true,
+                          "type": "password"
+                        },
+                        {
+                          "autogeneratePattern": "[a-zA-Z0-9]{50}",
+                          "hidden": true,
+                          "id": "text2504183744",
+                          "max": 60,
+                          "min": 30,
+                          "name": "tokenKey",
+                          "pattern": "",
+                          "presentable": false,
+                          "primaryKey": false,
+                          "required": true,
+                          "system": true,
+                          "type": "text"
+                        },
+                        {
+                          "exceptDomains": null,
+                          "hidden": false,
+                          "id": "email3885137012",
+                          "name": "email",
+                          "onlyDomains": null,
+                          "presentable": false,
+                          "required": true,
+                          "system": true,
+                          "type": "email"
+                        },
+                        {
+                          "hidden": false,
+                          "id": "bool1547992806",
+                          "name": "emailVisibility",
+                          "presentable": false,
+                          "required": false,
+                          "system": true,
+                          "type": "bool"
+                        },
+                        {
+                          "hidden": false,
+                          "id": "bool256245529",
+                          "name": "verified",
+                          "presentable": false,
+                          "required": false,
+                          "system": true,
+                          "type": "bool"
+                        },
+                        {
+                          "autogeneratePattern": "",
+                          "hidden": false,
+                          "id": "text1579384326",
+                          "max": 255,
+                          "min": 0,
+                          "name": "name",
+                          "pattern": "",
+                          "presentable": false,
+                          "primaryKey": false,
+                          "required": false,
+                          "system": false,
+                          "type": "text"
+                        },
+                        {
+                          "hidden": false,
+                          "id": "file376926767",
+                          "maxSelect": 1,
+                          "maxSize": 0,
+                          "mimeTypes": [
+                            "image/jpeg",
+                            "image/png",
+                            "image/svg+xml",
+                            "image/gif",
+                            "image/webp"
+                          ],
+                          "name": "avatar",
+                          "presentable": false,
+                          "protected": false,
+                          "required": false,
+                          "system": false,
+                          "thumbs": null,
+                          "type": "file"
+                        },
+                        {
+                          "hidden": false,
+                          "id": "autodate2990389176",
+                          "name": "created",
+                          "onCreate": true,
+                          "onUpdate": false,
+                          "presentable": false,
+                          "system": false,
+                          "type": "autodate"
+                        },
+                        {
+                          "hidden": false,
+                          "id": "autodate3332085495",
+                          "name": "updated",
+                          "onCreate": true,
+                          "onUpdate": true,
+                          "presentable": false,
+                          "system": false,
+                          "type": "autodate"
+                        }
+                      ],
+                      "indexes": [
+                        "CREATE UNIQUE INDEX \
 ```
 
-**Supported collection sort fields:**
+#### 400
 
-`@random`, `id`, `created`,
-`updated`, `name`, `type`,
-`system`
-
-filter
-
-String
-
-Filter expression to filter/search the returned collections list, e.g.:
-
-```text
-?filter=(name~'abc' && created>'2022-01-01')
+```json
+{
+                  "status": 400,
+                  "message": "Something went wrong while processing your request. Invalid filter.",
+                  "data": {}
+                }
 ```
 
-**Supported collection filter fields:**
+#### 401
 
-`id`, `created`, `updated`,
-`name`, `type`, `system`
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-- `fields` query parameter
+#### 403
 
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-collections/View.svelte`
+```json
+{
+                  "status": 403,
+                  "message": "Only superusers can perform this action.",
+                  "data": {}
+                }
+```
 
 ### View collection
 
@@ -2190,42 +2297,106 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**GET**
+`GET /api/collections/`collectionIdOrName` Requires `Authorization:TOKEN` Path parameters Param Type Description collectionIdOrName String ID or name of the collection to view. Query parameters Param Type Description Responses`
 
-/api/collections/`collectionIdOrName`
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 200
 
-Path parameters
+```json
+{
+                  "id": "_pbc_2287844090",
+                  "listRule": null,
+                  "viewRule": null,
+                  "createRule": null,
+                  "updateRule": null,
+                  "deleteRule": null,
+                  "name": "posts",
+                  "type": "base",
+                  "fields": [
+                    {
+                      "autogeneratePattern": "[a-z0-9]{15}",
+                      "hidden": false,
+                      "id": "text3208210256",
+                      "max": 15,
+                      "min": 15,
+                      "name": "id",
+                      "pattern": "^[a-z0-9]+$",
+                      "presentable": false,
+                      "primaryKey": true,
+                      "required": true,
+                      "system": true,
+                      "type": "text"
+                    },
+                    {
+                      "autogeneratePattern": "",
+                      "hidden": false,
+                      "id": "text724990059",
+                      "max": 0,
+                      "min": 0,
+                      "name": "title",
+                      "pattern": "",
+                      "presentable": false,
+                      "primaryKey": false,
+                      "required": false,
+                      "system": false,
+                      "type": "text"
+                    },
+                    {
+                      "hidden": false,
+                      "id": "autodate2990389176",
+                      "name": "created",
+                      "onCreate": true,
+                      "onUpdate": false,
+                      "presentable": false,
+                      "system": false,
+                      "type": "autodate"
+                    },
+                    {
+                      "hidden": false,
+                      "id": "autodate3332085495",
+                      "name": "updated",
+                      "onCreate": true,
+                      "onUpdate": true,
+                      "presentable": false,
+                      "system": false,
+                      "type": "autodate"
+                    }
+                  ],
+                  "indexes": [],
+                  "system": false
+                }
+```
 
-Param
+#### 401
 
-Type
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-Description
+#### 403
 
-collectionIdOrName
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
-String
+#### 404
 
-ID or name of the collection to view.
-
-Query parameters
-
-Param
-
-Type
-
-Description
-
-- `fields` query parameter
-
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-collections/Create.svelte`
+```json
+{
+                  "status": 404,
+                  "message": "The requested resource wasn't found.",
+                  "data": {}
+                }
+```
 
 ### Create collection
 
@@ -2349,184 +2520,111 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**POST**
+`POST /api/collections Requires `Authorization:TOKEN` Body Parameters Body parameters could be sent as *JSON* or *multipart/form-data*. ` } // OAuth2 specifies whether OAuth2 auth is enabled for the collection // and which OAuth2 providers are allowed. oauth2 (optional): providers (optional): [ ] } // PasswordAuth defines options related to the collection password authentication. passwordAuth (optional): // MFA defines options related to the Multi-factor authentication (MFA). mfa (optional): // OTP defines options related to the One-time password authentication (OTP). otp (optional): } // Token configurations. authToken (optional): passwordResetToken (optional): emailChangeToken (optional): verificationToken (optional): fileToken (optional): // Default email templates. verificationTemplate (optional): resetPasswordTemplate (optional): confirmEmailChangeTemplate (optional): }` Query parameters Param Type Description Responses`
 
-/api/collections
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 200
 
-Body Parameters
-
-Body parameters could be sent as *JSON* or *multipart/form-data*.
-
-```text
+```json
 {
-            // 15 characters string to store as collection ID.
-            // If not set, it will be auto generated.
-            id (optional): string
-
-            // Unique collection name (used as a table name for the records table).
-            name (required):  string
-
-            // Type of the collection.
-            // If not set, the collection type will be "base" by default.
-            type (optional): "base" | "view" | "auth"
-
-            // List with the collection fields.
-            // This field is optional and autopopulated for "view" collections based on the viewQuery.
-            fields (required|optional): Array<Field>
-
-            // The collection indexes and unique constraints.
-            // Note that "view" collections don't support indexes.
-            indexes (optional): Array<string>
-
-            // Marks the collection as "system" to prevent being renamed, deleted or modify its API rules.
-            system (optional): boolean
-
-            // CRUD API rules
-            listRule (optional):   null|string
-            viewRule (optional):   null|string
-            createRule (optional): null|string
-            updateRule (optional): null|string
-            deleteRule (optional): null|string
-
-            // -------------------------------------------------------
-            // view options
-            // -------------------------------------------------------
-
-            viewQuery (required):  string
-
-            // -------------------------------------------------------
-            // auth options
-            // -------------------------------------------------------
-
-            // API rule that gives admin-like permissions to allow fully managing the auth record(s),
-            // e.g. changing the password without requiring to enter the old one, directly updating the
-            // verified state or email, etc. This rule is executed in addition to the createRule and updateRule.
-            manageRule (optional): null|string
-
-            // API rule that could be used to specify additional record constraints applied after record
-            // authentication and right before returning the auth token response to the client.
-            //
-            // For example, to allow only verified users you could set it to "verified = true".
-            //
-            // Set it to empty string to allow any Auth collection record to authenticate.
-            //
-            // Set it to null to disallow authentication altogether for the collection.
-            authRule (optional): null|string
-
-            // AuthAlert defines options related to the auth alerts on new device login.
-            authAlert (optional): {
-                enabled (optional): boolean
-                emailTemplate (optional): {
-                    subject (required): string
-                    body (required):    string
-                }
-            }
-
-            // OAuth2 specifies whether OAuth2 auth is enabled for the collection
-            // and which OAuth2 providers are allowed.
-            oauth2 (optional): {
-                enabled (optional): boolean
-                mappedFields (optional): {
-                    id (optional):        string
-                    name (optional):      string
-                    username (optional):  string
-                    avatarURL (optional): string
-                }
-                providers (optional): [
+                  "id": "_pbc_2287844090",
+                  "listRule": null,
+                  "viewRule": null,
+                  "createRule": null,
+                  "updateRule": null,
+                  "deleteRule": null,
+                  "name": "posts",
+                  "type": "base",
+                  "fields": [
                     {
-                        name (required):         string
-                        clientId (required):     string
-                        clientSecret (required): string
-                        authURL (optional):      string
-                        tokenURL (optional):     string
-                        userInfoURL (optional):  string
-                        displayName (optional):  string
-                        pkce (optional):         null|boolean
-                        extra (optional):        null|Object<string,any>
+                      "autogeneratePattern": "[a-z0-9]{15}",
+                      "hidden": false,
+                      "id": "text3208210256",
+                      "max": 15,
+                      "min": 15,
+                      "name": "id",
+                      "pattern": "^[a-z0-9]+$",
+                      "presentable": false,
+                      "primaryKey": true,
+                      "required": true,
+                      "system": true,
+                      "type": "text"
+                    },
+                    {
+                      "autogeneratePattern": "",
+                      "hidden": false,
+                      "id": "text724990059",
+                      "max": 0,
+                      "min": 0,
+                      "name": "title",
+                      "pattern": "",
+                      "presentable": false,
+                      "primaryKey": false,
+                      "required": false,
+                      "system": false,
+                      "type": "text"
+                    },
+                    {
+                      "hidden": false,
+                      "id": "autodate2990389176",
+                      "name": "created",
+                      "onCreate": true,
+                      "onUpdate": false,
+                      "presentable": false,
+                      "system": false,
+                      "type": "autodate"
+                    },
+                    {
+                      "hidden": false,
+                      "id": "autodate3332085495",
+                      "name": "updated",
+                      "onCreate": true,
+                      "onUpdate": true,
+                      "presentable": false,
+                      "system": false,
+                      "type": "autodate"
                     }
-                ]
-            }
-
-            // PasswordAuth defines options related to the collection password authentication.
-            passwordAuth (optional): {
-                enabled (optional):        boolean
-                identityFields (required): Array<string>
-            }
-
-            // MFA defines options related to the Multi-factor authentication (MFA).
-            mfa (optional):{
-                enabled (optional):  boolean
-                duration (required): number
-                rule (optional):     string
-            }
-
-            // OTP defines options related to the One-time password authentication (OTP).
-            otp (optional): {
-                enabled (optional):  boolean
-                duration (required): number
-                length (required):   number
-                emailTemplate (optional): {
-                    subject (required): string
-                    body (required):    string
+                  ],
+                  "indexes": [],
+                  "system": false
                 }
-            }
-
-            // Token configurations.
-            authToken (optional): {
-                duration (required): number
-                secret (required):   string
-            }
-            passwordResetToken (optional): {
-                duration (required): number
-                secret (required):   string
-            }
-            emailChangeToken (optional): {
-                duration (required): number
-                secret (required):   string
-            }
-            verificationToken (optional): {
-                duration (required): number
-                secret (required):   string
-            }
-            fileToken (optional): {
-                duration (required): number
-                secret (required):   string
-            }
-
-            // Default email templates.
-            verificationTemplate (optional): {
-                subject (required): string
-                body (required):    string
-            }
-            resetPasswordTemplate (optional): {
-                subject (required): string
-                body (required):    string
-            }
-            confirmEmailChangeTemplate (optional): {
-                subject (required): string
-                body (required):    string
-            }
-        }
 ```
 
-Query parameters
+#### 400
 
-Param
+```json
+{
+                  "status": 400,
+                  "message": "An error occurred while submitting the form.",
+                  "data": {
+                    "title": {
+                      "code": "validation_required",
+                      "message": "Missing required value."
+                    }
+                  }
+                }
+```
 
-Type
+#### 401
 
-Description
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-- `fields` query parameter
+#### 403
 
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-collections/Update.svelte`
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
 ### Update collection
 
@@ -2566,190 +2664,111 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**PATCH**
+`PATCH /api/collections/`collectionIdOrName` Requires `Authorization:TOKEN` Path parameters Param Type Description collectionIdOrName String ID or name of the collection to view. Body Parameters Body parameters could be sent as *JSON* or *multipart/form-data*. ` } // OAuth2 specifies whether OAuth2 auth is enabled for the collection // and which OAuth2 providers are allowed. oauth2 (optional): providers (optional): [ ] } // PasswordAuth defines options related to the collection password authentication. passwordAuth (optional): // MFA defines options related to the Multi-factor authentication (MFA). mfa (optional): // OTP defines options related to the One-time password authentication (OTP). otp (optional): } // Token configurations. authToken (optional): passwordResetToken (optional): emailChangeToken (optional): verificationToken (optional): fileToken (optional): // Default email templates. verificationTemplate (optional): resetPasswordTemplate (optional): confirmEmailChangeTemplate (optional): }` Query parameters Param Type Description Responses`
 
-/api/collections/`collectionIdOrName`
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 200
 
-Path parameters
-
-Param
-
-Type
-
-Description
-
-collectionIdOrName
-
-String
-
-ID or name of the collection to view.
-
-Body Parameters
-
-Body parameters could be sent as *JSON* or *multipart/form-data*.
-
-```text
+```json
 {
-            // Unique collection name (used as a table name for the records table).
-            name (required):  string
-
-            // List with the collection fields.
-            // This field is optional and autopopulated for "view" collections based on the viewQuery.
-            fields (required|optional): Array<Field>
-
-            // The collection indexes and unique constriants.
-            // Note that "view" collections don't support indexes.
-            indexes (optional): Array<string>
-
-            // Marks the collection as "system" to prevent being renamed, deleted or modify its API rules.
-            system (optional): boolean
-
-            // CRUD API rules
-            listRule (optional):   null|string
-            viewRule (optional):   null|string
-            createRule (optional): null|string
-            updateRule (optional): null|string
-            deleteRule (optional): null|string
-
-            // -------------------------------------------------------
-            // view options
-            // -------------------------------------------------------
-
-            viewQuery (required):  string
-
-            // -------------------------------------------------------
-            // auth options
-            // -------------------------------------------------------
-
-            // API rule that gives admin-like permissions to allow fully managing the auth record(s),
-            // e.g. changing the password without requiring to enter the old one, directly updating the
-            // verified state or email, etc. This rule is executed in addition to the createRule and updateRule.
-            manageRule (optional): null|string
-
-            // API rule that could be used to specify additional record constraints applied after record
-            // authentication and right before returning the auth token response to the client.
-            //
-            // For example, to allow only verified users you could set it to "verified = true".
-            //
-            // Set it to empty string to allow any Auth collection record to authenticate.
-            //
-            // Set it to null to disallow authentication altogether for the collection.
-            authRule (optional): null|string
-
-            // AuthAlert defines options related to the auth alerts on new device login.
-            authAlert (optional): {
-                enabled (optional): boolean
-                emailTemplate (optional): {
-                    subject (required): string
-                    body (required):    string
-                }
-            }
-
-            // OAuth2 specifies whether OAuth2 auth is enabled for the collection
-            // and which OAuth2 providers are allowed.
-            oauth2 (optional): {
-                enabled (optional): boolean
-                mappedFields (optional): {
-                    id (optional):        string
-                    name (optional):      string
-                    username (optional):  string
-                    avatarURL (optional): string
-                }
-                providers (optional): [
+                  "id": "_pbc_2287844090",
+                  "listRule": null,
+                  "viewRule": null,
+                  "createRule": null,
+                  "updateRule": null,
+                  "deleteRule": null,
+                  "name": "posts",
+                  "type": "base",
+                  "fields": [
                     {
-                        name (required):         string
-                        clientId (required):     string
-                        clientSecret (required): string
-                        authURL (optional):      string
-                        tokenURL (optional):     string
-                        userInfoURL (optional):  string
-                        displayName (optional):  string
-                        pkce (optional):         null|boolean
-                        extra (optional):        null|Object<string,any>
+                      "autogeneratePattern": "[a-z0-9]{15}",
+                      "hidden": false,
+                      "id": "text3208210256",
+                      "max": 15,
+                      "min": 15,
+                      "name": "id",
+                      "pattern": "^[a-z0-9]+$",
+                      "presentable": false,
+                      "primaryKey": true,
+                      "required": true,
+                      "system": true,
+                      "type": "text"
+                    },
+                    {
+                      "autogeneratePattern": "",
+                      "hidden": false,
+                      "id": "text724990059",
+                      "max": 0,
+                      "min": 0,
+                      "name": "title",
+                      "pattern": "",
+                      "presentable": false,
+                      "primaryKey": false,
+                      "required": false,
+                      "system": false,
+                      "type": "text"
+                    },
+                    {
+                      "hidden": false,
+                      "id": "autodate2990389176",
+                      "name": "created",
+                      "onCreate": true,
+                      "onUpdate": false,
+                      "presentable": false,
+                      "system": false,
+                      "type": "autodate"
+                    },
+                    {
+                      "hidden": false,
+                      "id": "autodate3332085495",
+                      "name": "updated",
+                      "onCreate": true,
+                      "onUpdate": true,
+                      "presentable": false,
+                      "system": false,
+                      "type": "autodate"
                     }
-                ]
-            }
-
-            // PasswordAuth defines options related to the collection password authentication.
-            passwordAuth (optional): {
-                enabled (optional):        boolean
-                identityFields (required): Array<string>
-            }
-
-            // MFA defines options related to the Multi-factor authentication (MFA).
-            mfa (optional):{
-                enabled (optional):  boolean
-                duration (required): number
-                rule (optional):     string
-            }
-
-            // OTP defines options related to the One-time password authentication (OTP).
-            otp (optional): {
-                enabled (optional):  boolean
-                duration (required): number
-                length (required):   number
-                emailTemplate (optional): {
-                    subject (required): string
-                    body (required):    string
+                  ],
+                  "indexes": [],
+                  "system": false
                 }
-            }
-
-            // Token configurations.
-            authToken (optional): {
-                duration (required): number
-                secret (required):   string
-            }
-            passwordResetToken (optional): {
-                duration (required): number
-                secret (required):   string
-            }
-            emailChangeToken (optional): {
-                duration (required): number
-                secret (required):   string
-            }
-            verificationToken (optional): {
-                duration (required): number
-                secret (required):   string
-            }
-            fileToken (optional): {
-                duration (required): number
-                secret (required):   string
-            }
-
-            // Default email templates.
-            verificationTemplate (optional): {
-                subject (required): string
-                body (required):    string
-            }
-            resetPasswordTemplate (optional): {
-                subject (required): string
-                body (required):    string
-            }
-            confirmEmailChangeTemplate (optional): {
-                subject (required): string
-                body (required):    string
-            }
-        }
 ```
 
-Query parameters
+#### 400
 
-Param
+```json
+{
+                  "status": 400,
+                  "message": "An error occurred while submitting the form.",
+                  "data": {
+                    "email": {
+                      "code": "validation_required",
+                      "message": "Missing required value."
+                    }
+                  }
+                }
+```
 
-Type
+#### 401
 
-Description
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-- `fields` query parameter
+#### 403
 
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-collections/Delete.svelte`
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
 ### Delete collection
 
@@ -2783,32 +2802,55 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**DELETE**
+`DELETE /api/collections/`collectionIdOrName` Requires `Authorization:TOKEN` Path parameters Param Type Description collectionIdOrName String ID or name of the collection to view. Responses`
 
-/api/collections/`collectionIdOrName`
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 204
 
-Path parameters
+```text
+null
+```
 
-Param
+#### 400
 
-Type
+```json
+{
+                  "status": 400,
+                  "message": "Failed to delete collection. Make sure that the collection is not referenced by other collections.",
+                  "data": {}
+                }
+```
 
-Description
+#### 401
 
-collectionIdOrName
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-String
+#### 403
 
-ID or name of the collection to view.
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
-Responses
+#### 404
 
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-collections/Truncate.svelte`
+```json
+{
+                  "status": 404,
+                  "message": "The requested resource wasn't found.",
+                  "data": {}
+                }
+```
 
 ### Truncate collection
 
@@ -2843,32 +2885,55 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**DELETE**
+`DELETE /api/collections/`collectionIdOrName`/truncate Requires `Authorization:TOKEN` Path parameters Param Type Description collectionIdOrName String ID or name of the collection to truncate. Responses`
 
-/api/collections/`collectionIdOrName`/truncate
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 204
 
-Path parameters
+```text
+null
+```
 
-Param
+#### 400
 
-Type
+```json
+{
+                  "status": 400,
+                  "message": "Failed to truncate collection (most likely due to required cascade delete record references).",
+                  "data": {}
+                }
+```
 
-Description
+#### 401
 
-collectionIdOrName
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-String
+#### 403
 
-ID or name of the collection to truncate.
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
-Responses
+#### 404
 
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-collections/Import.svelte`
+```json
+{
+                  "status": 404,
+                  "message": "The requested resource wasn't found.",
+                  "data": {}
+                }
+```
 
 ### Import collections
 
@@ -2938,48 +3003,50 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**PUT**
+`PUT /api/collections/import Requires `Authorization:TOKEN` Body Parameters Param Type Description Required collections Array List of collections to import (replace and create). Optional deleteMissing Boolean If *true* all existing collections and schema fields that are not present in the imported configuration **will be deleted**, including their related records data (default to *false*). Body parameters could be sent as *JSON* or *multipart/form-data*. Responses`
 
-/api/collections/import
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 204
 
-Body Parameters
+```text
+null
+```
 
-Param
+#### 400
 
-Type
+```json
+{
+                  "status": 400,
+                  "message": "An error occurred while submitting the form.",
+                  "data": {
+                    "collections": {
+                      "code": "collections_import_failure",
+                      "message": "Failed to import the collections configuration."
+                    }
+                  }
+                }
+```
 
-Description
+#### 401
 
-Required
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-collections
+#### 403
 
-Array
-
-List of collections to import (replace and create).
-
-Optional
-
-deleteMissing
-
-Boolean
-
-If *true* all existing collections and schema fields that are not present in the
-imported configuration **will be deleted**, including their related records
-data (default to
-*false*).
-
-Body parameters could be sent as *JSON* or
-*multipart/form-data*.
-
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-collections/Scaffolds.svelte`
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
 ### Scaffolds
 
@@ -3014,21 +3081,129 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**GET**
+`GET /api/collections/meta/scaffolds Requires `Authorization:TOKEN` Responses`
 
-/api/collections/meta/scaffolds
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 200
 
-Responses
+```json
+{
+                    "auth": {
+                        "id": "",
+                        "listRule": null,
+                        "viewRule": null,
+                        "createRule": null,
+                        "updateRule": null,
+                        "deleteRule": null,
+                        "name": "",
+                        "type": "auth",
+                        "fields": [
+                            {
+                                "autogeneratePattern": "[a-z0-9]{15}",
+                                "hidden": false,
+                                "id": "text3208210256",
+                                "max": 15,
+                                "min": 15,
+                                "name": "id",
+                                "pattern": "^[a-z0-9]+$",
+                                "presentable": false,
+                                "primaryKey": true,
+                                "required": true,
+                                "system": true,
+                                "type": "text"
+                            },
+                            {
+                                "cost": 0,
+                                "hidden": true,
+                                "id": "password901924565",
+                                "max": 0,
+                                "min": 8,
+                                "name": "password",
+                                "pattern": "",
+                                "presentable": false,
+                                "required": true,
+                                "system": true,
+                                "type": "password"
+                            },
+                            {
+                                "autogeneratePattern": "[a-zA-Z0-9]{50}",
+                                "hidden": true,
+                                "id": "text2504183744",
+                                "max": 60,
+                                "min": 30,
+                                "name": "tokenKey",
+                                "pattern": "",
+                                "presentable": false,
+                                "primaryKey": false,
+                                "required": true,
+                                "system": true,
+                                "type": "text"
+                            },
+                            {
+                                "exceptDomains": null,
+                                "hidden": false,
+                                "id": "email3885137012",
+                                "name": "email",
+                                "onlyDomains": null,
+                                "presentable": false,
+                                "required": true,
+                                "system": true,
+                                "type": "email"
+                            },
+                            {
+                                "hidden": false,
+                                "id": "bool1547992806",
+                                "name": "emailVisibility",
+                                "presentable": false,
+                                "required": false,
+                                "system": true,
+                                "type": "bool"
+                            },
+                            {
+                                "hidden": false,
+                                "id": "bool256245529",
+                                "name": "verified",
+                                "presentable": false,
+                                "required": false,
+                                "system": true,
+                                "type": "bool"
+                            }
+                        ],
+                        "indexes": [
+                            "CREATE UNIQUE INDEX \
+```
 
-(responseTab = response.code)}
->
+#### 401
+
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
+
+#### 403
+
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
+
+#### 404
+
+```json
+{
+                  "status": 404,
+                  "message": "The requested resource wasn't found.",
+                  "data": {}
+                }
+```
 ## API Settings
-
-Upstream source: [/docs/api-settings](https://pocketbase.io/docs/api-settings/)
-
-### Source Fragment: `api-settings/List.svelte`
 
 ### List settings
 
@@ -3064,28 +3239,117 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**GET**
+`GET /api/settings Requires `Authorization:TOKEN` Query parameters Param Type Description Responses`
 
-/api/settings
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 200
 
-Query parameters
+```json
+{
+                  "smtp": {
+                    "enabled": false,
+                    "port": 587,
+                    "host": "smtp.example.com",
+                    "username": "",
+                    "authMethod": "",
+                    "tls": true,
+                    "localName": ""
+                  },
+                  "backups": {
+                    "cron": "0 0 * * *",
+                    "cronMaxKeep": 3,
+                    "s3": {
+                      "enabled": false,
+                      "bucket": "",
+                      "region": "",
+                      "endpoint": "",
+                      "accessKey": "",
+                      "forcePathStyle": false
+                    }
+                  },
+                  "s3": {
+                    "enabled": false,
+                    "bucket": "",
+                    "region": "",
+                    "endpoint": "",
+                    "accessKey": "",
+                    "forcePathStyle": false
+                  },
+                  "meta": {
+                    "appName": "Acme",
+                    "appURL": "https://example.com",
+                    "senderName": "Support",
+                    "senderAddress": "support@example.com",
+                    "hideControls": false
+                  },
+                  "rateLimits": {
+                    "rules": [
+                      {
+                        "label": "*:auth",
+                        "audience": "",
+                        "duration": 3,
+                        "maxRequests": 2
+                      },
+                      {
+                        "label": "*:create",
+                        "audience": "",
+                        "duration": 5,
+                        "maxRequests": 20
+                      },
+                      {
+                        "label": "/api/batch",
+                        "audience": "",
+                        "duration": 1,
+                        "maxRequests": 3
+                      },
+                      {
+                        "label": "/api/",
+                        "audience": "",
+                        "duration": 10,
+                        "maxRequests": 300
+                      }
+                    ],
+                    "enabled": false
+                  },
+                  "trustedProxy": {
+                    "headers": [],
+                    "useLeftmostIP": false
+                  },
+                  "batch": {
+                    "enabled": true,
+                    "maxRequests": 50,
+                    "timeout": 3,
+                    "maxBodySize": 0
+                  },
+                  "logs": {
+                    "maxDays": 7,
+                    "minLevel": 0,
+                    "logIP": true,
+                    "logAuthId": false
+                  }
+                }
+```
 
-Param
+#### 401
 
-Type
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-Description
+#### 403
 
-- `fields` query parameter
-
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-settings/Update.svelte`
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
 ### Update settings
 
@@ -3129,458 +3393,134 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**PATCH**
-
-/api/settings
-
-Requires `Authorization:TOKEN`
-
-Body Parameters
-
-Param
-
-Type
-
-Description
-
-**meta**
-
-Application meta data (name, url, support email, etc.).
-
-├─
-
-Required
-
-*appName*
-
-String
-
-The app name.
-
-├─
-
-Required
-
-*appUrl*
-
-String
-
-The app public absolute url.
-
-├─
-
-Optional
-
-*hideControls*
-
-Boolean
-
-Hides the collection create and update controls from the Dashboard.
-
-Useful to prevent making accidental schema changes when in production environment.
-
-├─
-
-Required
-
-*senderName*
-
-String
-
-Transactional mails sender name.
-
-├─
-
-Required
-
-*senderAddress*
-
-String
-
-Transactional mails sender address.
-
-**logs**
-
-App logger settings.
-
-└─
-
-Optional
-
-*maxDays*
-
-Number
-
-Max retention period. Set to *0* for no logs.
-
-└─
-
-Optional
-
-*minLevel*
-
-Number
-
-Specifies the minimum log persistent level.
-
-The default log levels are:
-
-- -4: DEBUG
-
-- 0: INFO
-
-- 4: WARN
-
-- 8: ERROR
-
-└─
-
-Optional
-
-*logIP*
-
-Boolean
-
-If enabled includes the client IP in the activity request logs.
-
-└─
-
-Optional
-
-*logAuthId*
-
-Boolean
-
-If enabled includes the authenticated record id in the activity request logs.
-
-**backups**
-
-App data backups settings.
-
-├─
-
-Optional
-
-*cron*
-
-String
-
-Cron expression to schedule auto backups, e.g. `0 0 * * *`.
-
-├─
-
-Optional
-
-*cronMaxKeep*
-
-Number
-
-The max number of cron generated backups to keep before removing older entries.
-
-└─
-
-Optional
-
-*s3*
-
-Object
-
-S3 configuration (the same fields as for the S3 file storage settings).
-
-**smtp**
-
-SMTP mail server settings.
-
-├─
-
-Optional
-
-*enabled*
-
-Boolean
-
-Enable the use of the SMTP mail server for sending emails.
-
-├─
-
-Required
-
-*host*
-
-String
-
-Mail server host (required if SMTP is enabled).
-
-├─
-
-Required
-
-*port*
-
-Number
-
-Mail server port (required if SMTP is enabled).
-
-├─
-
-Optional
-
-*username*
-
-String
-
-Mail server username.
-
-├─
-
-Optional
-
-*password*
-
-String
-
-Mail server password.
-
-├─
-
-Optional
-
-*tls*
-
-Boolean
-
-Whether to enforce TLS connection encryption.
-
-When *false* *StartTLS* command is send, leaving the server to decide whether
-to upgrade the connection or not).
-
-├─
-
-Optional
-
-*authMethod*
-
-String
-
-The SMTP AUTH method to use - *PLAIN* or *LOGIN* (used mainly by Microsoft).
-
-Default to *PLAIN* if empty.
-
-└─
-
-Optional
-
-*localName*
-
-String
-
-Optional domain name or (IP address) to use for the initial EHLO/HELO exchange.
-
-If not explicitly set, `localhost` will be used.
-
-Note that some SMTP providers, such as Gmail SMTP-relay, requires a proper domain name and
-and will reject attempts to use localhost.
-
-**s3**
-
-S3 compatible file storage settings.
-
-├─
-
-Optional
-
-*enabled*
-
-Boolean
-
-Enable the use of a S3 compatible storage.
-
-├─
-
-Required
-
-*bucket*
-
-String
-
-S3 storage bucket (required if enabled).
-
-├─
-
-Required
-
-*region*
-
-String
-
-S3 storage region (required if enabled).
-
-├─
-
-Required
-
-*endpoint*
-
-String
-
-S3 storage public endpoint (required if enabled).
-
-├─
-
-Required
-
-*accessKey*
-
-String
-
-S3 storage access key (required if enabled).
-
-├─
-
-Required
-
-*secret*
-
-String
-
-S3 storage secret (required if enabled).
-
-└─
-
-Optional
-
-*forcePathStyle*
-
-Boolean
-
-Forces the S3 request to use path-style addressing, e.g.
-"https://s3.amazonaws.com/BUCKET/KEY" instead of the default
-"https://BUCKET.s3.amazonaws.com/KEY".
-
-**batch**
-
-Batch logs settings.
-
-├─
-
-Optional
-
-*enabled*
-
-Boolean
-
-Enable the batch Web APIs.
-
-├─
-
-Required
-
-*maxRequests*
-
-Number
-
-The maximum allowed batch request to execute.
-
-├─
-
-Required
-
-*timeout*
-
-Number
-
-The max duration in seconds to wait before cancelling the batch transaction.
-
-└─
-
-Optional
-
-*maxBodySize*
-
-Number
-
-The maximum allowed batch request body size in bytes.
-
-If not set, fallbacks to max ~128MB.
-
-**rateLimits**
-
-Rate limiter settings.
-
-├─
-
-Optional
-
-*enabled*
-
-Boolean
-
-Enable the builtin rate limiter.
-
-└─
-
-Optional
-
-*rules*
-
-Array
-
-List of rate limit rules. Each rule have:
-
--
-`label` - the identifier of the rule.
-
-It could be a tag, complete path or path prerefix (when ends with `/`).
-
-- `maxRequests` - the max allowed number of requests per duration.
-
--
-`duration` - specifies the interval (in seconds) per which to reset the
-counted/accumulated rate limiter tokens..
-
-**trustedProxy**
-
-Trusted proxy headers settings.
-
-├─
-
-Optional
-
-*headers*
-
-Array
-
-List of explicit trusted header(s) to check.
-
-└─
-
-Optional
-
-*useLeftmostIP*
-
-Boolean
-
-Specifies to use the left-mostish IP from the trusted headers.
-
-Body parameters could be sent as *JSON* or
-*multipart/form-data*.
-
-Query parameters
-
-Param
-
-Type
-
-Description
-
-- `fields` query parameter
-
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-settings/TestS3.svelte`
+`PATCH /api/settings Requires `Authorization:TOKEN` Body Parameters Param Type Description **meta** Application meta data (name, url, support email, etc.). ├─ Required *appName* String The app name. ├─ Required *appUrl* String The app public absolute url. ├─ Optional *hideControls* Boolean Hides the collection create and update controls from the Dashboard. Useful to prevent making accidental schema changes when in production environment. ├─ Required *senderName* String Transactional mails sender name. ├─ Required *senderAddress* String Transactional mails sender address. **logs** App logger settings. └─ Optional *maxDays* Number Max retention period. Set to *0* for no logs. └─ Optional *minLevel* Number Specifies the minimum log persistent level. The default log levels are: - -4: DEBUG - 0: INFO - 4: WARN - 8: ERROR └─ Optional *logIP* Boolean If enabled includes the client IP in the activity request logs. └─ Optional *logAuthId* Boolean If enabled includes the authenticated record id in the activity request logs. **backups** App data backups settings. ├─ Optional *cron* String Cron expression to schedule auto backups, e.g. `0 0 * * *`. ├─ Optional *cronMaxKeep* Number The max number of cron generated backups to keep before removing older entries. └─ Optional *s3* Object S3 configuration (the same fields as for the S3 file storage settings). **smtp** SMTP mail server settings. ├─ Optional *enabled* Boolean Enable the use of the SMTP mail server for sending emails. ├─ Required *host* String Mail server host (required if SMTP is enabled). ├─ Required *port* Number Mail server port (required if SMTP is enabled). ├─ Optional *username* String Mail server username. ├─ Optional *password* String Mail server password. ├─ Optional *tls* Boolean Whether to enforce TLS connection encryption. When *false* *StartTLS* command is send, leaving the server to decide whether to upgrade the connection or not). ├─ Optional *authMethod* String The SMTP AUTH method to use - *PLAIN* or *LOGIN* (used mainly by Microsoft). Default to *PLAIN* if empty. └─ Optional *localName* String Optional domain name or (IP address) to use for the initial EHLO/HELO exchange. If not explicitly set, `localhost` will be used. Note that some SMTP providers, such as Gmail SMTP-relay, requires a proper domain name and and will reject attempts to use localhost. **s3** S3 compatible file storage settings. ├─ Optional *enabled* Boolean Enable the use of a S3 compatible storage. ├─ Required *bucket* String S3 storage bucket (required if enabled). ├─ Required *region* String S3 storage region (required if enabled). ├─ Required *endpoint* String S3 storage public endpoint (required if enabled). ├─ Required *accessKey* String S3 storage access key (required if enabled). ├─ Required *secret* String S3 storage secret (required if enabled). └─ Optional *forcePathStyle* Boolean Forces the S3 request to use path-style addressing, e.g. "https://s3.amazonaws.com/BUCKET/KEY" instead of the default "https://BUCKET.s3.amazonaws.com/KEY". **batch** Batch logs settings. ├─ Optional *enabled* Boolean Enable the batch Web APIs. ├─ Required *maxRequests* Number The maximum allowed batch request to execute. ├─ Required *timeout* Number The max duration in seconds to wait before cancelling the batch transaction. └─ Optional *maxBodySize* Number The maximum allowed batch request body size in bytes. If not set, fallbacks to max ~128MB. **rateLimits** Rate limiter settings. ├─ Optional *enabled* Boolean Enable the builtin rate limiter. └─ Optional *rules* Array List of rate limit rules. Each rule have: - `label` - the identifier of the rule. It could be a tag, complete path or path prerefix (when ends with `/`). - `maxRequests` - the max allowed number of requests per duration. - `duration` - specifies the interval (in seconds) per which to reset the counted/accumulated rate limiter tokens.. **trustedProxy** Trusted proxy headers settings. ├─ Optional *headers* Array List of explicit trusted header(s) to check. └─ Optional *useLeftmostIP* Boolean Specifies to use the left-mostish IP from the trusted headers. Body parameters could be sent as *JSON* or *multipart/form-data*. Query parameters Param Type Description Responses`
+
+### Response examples
+
+#### 200
+
+```json
+{
+                  "smtp": {
+                    "enabled": false,
+                    "port": 587,
+                    "host": "smtp.example.com",
+                    "username": "",
+                    "authMethod": "",
+                    "tls": true,
+                    "localName": ""
+                  },
+                  "backups": {
+                    "cron": "0 0 * * *",
+                    "cronMaxKeep": 3,
+                    "s3": {
+                      "enabled": false,
+                      "bucket": "",
+                      "region": "",
+                      "endpoint": "",
+                      "accessKey": "",
+                      "forcePathStyle": false
+                    }
+                  },
+                  "s3": {
+                    "enabled": false,
+                    "bucket": "",
+                    "region": "",
+                    "endpoint": "",
+                    "accessKey": "",
+                    "forcePathStyle": false
+                  },
+                  "meta": {
+                    "appName": "Acme",
+                    "appURL": "https://example.com",
+                    "senderName": "Support",
+                    "senderAddress": "support@example.com",
+                    "hideControls": false
+                  },
+                  "rateLimits": {
+                    "rules": [
+                      {
+                        "label": "*:auth",
+                        "audience": "",
+                        "duration": 3,
+                        "maxRequests": 2
+                      },
+                      {
+                        "label": "*:create",
+                        "audience": "",
+                        "duration": 5,
+                        "maxRequests": 20
+                      },
+                      {
+                        "label": "/api/batch",
+                        "audience": "",
+                        "duration": 1,
+                        "maxRequests": 3
+                      },
+                      {
+                        "label": "/api/",
+                        "audience": "",
+                        "duration": 10,
+                        "maxRequests": 300
+                      }
+                    ],
+                    "enabled": false
+                  },
+                  "trustedProxy": {
+                    "headers": [],
+                    "useLeftmostIP": false
+                  },
+                  "batch": {
+                    "enabled": true,
+                    "maxRequests": 50,
+                    "timeout": 3,
+                    "maxBodySize": 0
+                  },
+                  "logs": {
+                    "maxDays": 7,
+                    "minLevel": 0,
+                    "logIP": true,
+                    "logAuthId": false
+                  }
+                }
+```
+
+#### 400
+
+```json
+{
+                  "status": 400,
+                  "message": "An error occurred while submitting the form.",
+                  "data": {
+                    "meta": {
+                      "appName": {
+                        "code": "validation_required",
+                        "message": "Missing required value."
+                      }
+                    }
+                  }
+                }
+```
+
+#### 401
+
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
+
+#### 403
+
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
 ### Test S3 storage connection
 
@@ -3614,37 +3554,35 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**POST**
+`POST /api/settings/test/s3 Requires `Authorization:TOKEN` Body Parameters Param Type Description Required filesystem String The storage filesystem to test (`storage` or `backups`). Body parameters could be sent as *JSON* or *multipart/form-data*. Responses`
 
-/api/settings/test/s3
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 204
 
-Body Parameters
+```text
+null
+```
 
-Param
+#### 400
 
-Type
+```json
+{
+              "status": 400,
+              "message": "Failed to initialize the S3 storage. Raw error:...",
+              "data": {}
+            }
+```
 
-Description
+#### 401
 
-Required
-
-filesystem
-
-String
-
-The storage filesystem to test (`storage` or `backups`).
-
-Body parameters could be sent as *JSON* or
-*multipart/form-data*.
-
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-settings/TestEmail.svelte`
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
 ### Send test email
 
@@ -3678,57 +3616,40 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**POST**
+`POST /api/settings/test/email Requires `Authorization:TOKEN` Body Parameters Param Type Description Optional collection String The name or id of the auth collection. Fallbacks to *_superusers* if not set. Required email String The receiver of the test email. Required template String The test email template to send: `verification`, `password-reset` or `email-change`. Body parameters could be sent as *JSON* or *multipart/form-data*. Responses`
 
-/api/settings/test/email
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 204
 
-Body Parameters
+```text
+null
+```
 
-Param
+#### 400
 
-Type
+```json
+{
+              "status": 400,
+              "message": "Failed to send the test email.",
+              "data": {
+                "email": {
+                  "code": "validation_required",
+                  "message": "Missing required value."
+                }
+              }
+            }
+```
 
-Description
+#### 401
 
-Optional
-
-collection
-
-String
-
-The name or id of the auth collection. Fallbacks to *_superusers* if not set.
-
-Required
-
-email
-
-String
-
-The receiver of the test email.
-
-Required
-
-template
-
-String
-
-The test email template to send:
-
-`verification`,
-`password-reset` or
-`email-change`.
-
-Body parameters could be sent as *JSON* or
-*multipart/form-data*.
-
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-settings/AppleGenerateClientSecret.svelte`
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
 ### Generate Apple client secret
 
@@ -3762,76 +3683,38 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**POST**
+`POST /api/settings/apple/generate-client-secret Requires `Authorization:TOKEN` Body Parameters Param Type Description Required clientId String The identifier of your app (aka. Service ID). Required teamId String 10-character string associated with your developer account (usually could be found next to your name in the Apple Developer site). Required keyId String 10-character key identifier generated for the "Sign in with Apple" private key associated with your developer account. Required privateKey String PrivateKey is the private key associated to your app. Required duration Number Duration specifies how long the generated JWT token should be considered valid. The specified value must be in seconds and max 15777000 (~6months). Body parameters could be sent as *JSON* or *multipart/form-data*. Responses`
 
-/api/settings/apple/generate-client-secret
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 200
 
-Body Parameters
+```json
+{
+                    "secret": "..."
+                }
+```
 
-Param
+#### 400
 
-Type
+```json
+{
+                  "status": 400,
+                  "message": "Failed to generate client secret. Raw error:...",
+                  "data": {}
+                }
+```
 
-Description
+#### 401
 
-Required
-
-clientId
-
-String
-
-The identifier of your app (aka. Service ID).
-
-Required
-
-teamId
-
-String
-
-10-character string associated with your developer account (usually could be found next to
-your name in the Apple Developer site).
-
-Required
-
-keyId
-
-String
-
-10-character key identifier generated for the "Sign in with Apple" private key associated
-with your developer account.
-
-Required
-
-privateKey
-
-String
-
-PrivateKey is the private key associated to your app.
-
-Required
-
-duration
-
-Number
-
-Duration specifies how long the generated JWT token should be considered valid.
-
-The specified value must be in seconds and max 15777000 (~6months).
-
-Body parameters could be sent as *JSON* or
-*multipart/form-data*.
-
-Responses
-
-(responseTab = response.code)}
->
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 ## API Logs
-
-Upstream source: [/docs/api-logs](https://pocketbase.io/docs/api-logs/)
-
-### Source Fragment: `api-logs/List.svelte`
 
 ### List logs
 
@@ -3871,75 +3754,87 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**GET**
+`GET /api/logs Requires `Authorization:TOKEN` Query parameters Param Type Description page Number The page (aka. offset) of the paginated list (*default to 1*). perPage Number The max returned logs per page (*default to 30*). sort String Specify the *ORDER BY* fields. Add `-` / `+` (default) in front of the attribute for DESC / ASC order, e.g.: `// DESC by the insertion rowid and ASC by level ?sort=-rowid,level` **Supported log sort fields:** `@random`, `rowid`, `id`, `created`, `updated`, `level`, `message` and any `data.*` attribute. filter String Filter expression to filter/search the returned logs list, e.g.: `?filter=(data.url~'test.com' && level>0)` **Supported log filter fields:** `id`, `created`, `updated`, `level`, `message` and any `data.*` attribute. Responses`
 
-/api/logs
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 200
 
-Query parameters
-
-Param
-
-Type
-
-Description
-
-page
-
-Number
-
-The page (aka. offset) of the paginated list (*default to 1*).
-
-perPage
-
-Number
-
-The max returned logs per page (*default to 30*).
-
-sort
-
-String
-
-Specify the *ORDER BY* fields.
-
-Add `-` / `+` (default) in front of the attribute for DESC /
-ASC order, e.g.:
-
-```text
-// DESC by the insertion rowid and ASC by level
-                                ?sort=-rowid,level
+```json
+{
+                  "page": 1,
+                  "perPage": 20,
+                  "totalItems": 2,
+                  "items": [
+                    {
+                      "id": "ai5z3aoed6809au",
+                      "created": "2024-10-27 09:28:19.524Z",
+                      "data": {
+                        "auth": "_superusers",
+                        "execTime": 2.392327,
+                        "method": "GET",
+                        "referer": "http://localhost:8090/_/",
+                        "remoteIP": "127.0.0.1",
+                        "status": 200,
+                        "type": "request",
+                        "url": "/api/collections/_pbc_2287844090/records?page=1&perPage=1&filter=&fields=id",
+                        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+                        "userIP": "127.0.0.1"
+                      },
+                      "message": "GET /api/collections/_pbc_2287844090/records?page=1&perPage=1&filter=&fields=id",
+                      "level": 0
+                    },
+                    {
+                      "id": "26apis4s3sm9yqm",
+                      "created": "2024-10-27 09:28:19.524Z",
+                      "data": {
+                        "auth": "_superusers",
+                        "execTime": 2.392327,
+                        "method": "GET",
+                        "referer": "http://localhost:8090/_/",
+                        "remoteIP": "127.0.0.1",
+                        "status": 200,
+                        "type": "request",
+                        "url": "/api/collections/_pbc_2287844090/records?page=1&perPage=1&filter=&fields=id",
+                        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+                        "userIP": "127.0.0.1"
+                      },
+                      "message": "GET /api/collections/_pbc_2287844090/records?page=1&perPage=1&filter=&fields=id",
+                      "level": 0
+                    }
+                  ]
+                }
 ```
 
-**Supported log sort fields:**
+#### 400
 
-`@random`, `rowid`, `id`, `created`,
-`updated`, `level`, `message` and any
-`data.*` attribute.
-
-filter
-
-String
-
-Filter expression to filter/search the returned logs list, e.g.:
-
-```text
-?filter=(data.url~'test.com' && level>0)
+```json
+{
+                  "status": 400,
+                  "message": "Something went wrong while processing your request. Invalid filter.",
+                  "data": {}
+                }
 ```
 
-**Supported log filter fields:**
+#### 401
 
-`id`, `created`, `updated`,
-`level`, `message` and any `data.*` attribute.
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-- `fields` query parameter
+#### 403
 
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-logs/View.svelte`
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
 ### View log
 
@@ -3973,42 +3868,62 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**GET**
+`GET /api/logs/`id` Requires `Authorization:TOKEN` Path parameters Param Type Description id String ID of the log to view. Query parameters Param Type Description Responses`
 
-/api/logs/`id`
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 200
 
-Path parameters
+```json
+{
+                  "id": "ai5z3aoed6809au",
+                  "created": "2024-10-27 09:28:19.524Z",
+                  "data": {
+                    "auth": "_superusers",
+                    "execTime": 2.392327,
+                    "method": "GET",
+                    "referer": "http://localhost:8090/_/",
+                    "remoteIP": "127.0.0.1",
+                    "status": 200,
+                    "type": "request",
+                    "url": "/api/collections/_pbc_2287844090/records?page=1&perPage=1&filter=&fields=id",
+                    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+                    "userIP": "127.0.0.1"
+                  },
+                  "message": "GET /api/collections/_pbc_2287844090/records?page=1&perPage=1&filter=&fields=id",
+                  "level": 0
+                }
+```
 
-Param
+#### 401
 
-Type
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-Description
+#### 403
 
-id
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
-String
+#### 404
 
-ID of the log to view.
-
-Query parameters
-
-Param
-
-Type
-
-Description
-
-- `fields` query parameter
-
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-logs/Stats.svelte`
+```json
+{
+                  "status": 404,
+                  "message": "The requested resource wasn't found.",
+                  "data": {}
+                }
+```
 
 ### Logs statistics
 
@@ -4046,47 +3961,59 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**GET**
+`GET /api/logs/stats Requires `Authorization:TOKEN` Query parameters Param Type Description filter String Filter expression to filter/search the logs, e.g.: `?filter=(data.url~'test.com' && level>0)` **Supported log filter fields:** `rowid`, `id`, `created`, `updated`, `level`, `message` and any `data.*` attribute. Responses`
 
-/api/logs/stats
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 200
 
-Query parameters
-
-Param
-
-Type
-
-Description
-
-filter
-
-String
-
-Filter expression to filter/search the logs, e.g.:
-
-```text
-?filter=(data.url~'test.com' && level>0)
+```json
+[
+                  {
+                    "total": 4,
+                    "date": "2022-06-01 19:00:00.000"
+                  },
+                  {
+                    "total": 1,
+                    "date": "2022-06-02 12:00:00.000"
+                  },
+                  {
+                    "total": 8,
+                    "date": "2022-06-02 13:00:00.000"
+                  }
+                ]
 ```
 
-**Supported log filter fields:**
+#### 400
 
-`rowid`, `id`, `created`,
-`updated`, `level`, `message` and any
-`data.*` attribute.
+```json
+{
+                  "status": 400,
+                  "message": "Something went wrong while processing your request. Invalid filter.",
+                  "data": {}
+                }
+```
 
-- `fields` query parameter
+#### 401
 
-Responses
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-(responseTab = response.code)}
->
+#### 403
+
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 ## API Crons
-
-Upstream source: [/docs/api-crons](https://pocketbase.io/docs/api-crons/)
-
-### Source Fragment: `api-crons/List.svelte`
 
 ### List cron jobs
 
@@ -4120,26 +4047,70 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**GET**
-
-/api/crons
+`GET /api/crons`
 
 Query parameters
 
-Param
-
-Type
-
-Description
-
-- `fields` query parameter
+| Param | Type | Description |
+| --- | --- | --- |
+| fields | String | Comma separated string of the fields to return in the JSON response *(by default returns all fields)*. Ex.: `?fields=*,expand.relField.name` `*` targets all keys from the specific depth level. In addition, the following field modifiers are also supported:  - `:excerpt(maxLength, withEllipsis?)` Returns a short plain text version of the field string value. Ex.: `?fields=*,description:excerpt(200,true)` |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-crons/Run.svelte`
+#### 200
+
+```json
+[
+                {
+                  "id": "__pbDBOptimize__",
+                  "expression": "0 0 * * *"
+                },
+                {
+                  "id": "__pbMFACleanup__",
+                  "expression": "0 * * * *"
+                },
+                {
+                  "id": "__pbOTPCleanup__",
+                  "expression": "0 * * * *"
+                },
+                {
+                  "id": "__pbLogsCleanup__",
+                  "expression": "0 */6 * * *"
+                }
+              ]
+```
+
+#### 400
+
+```json
+{
+                  "status": 400,
+                  "message": "Failed to load backups filesystem.",
+                  "data": {}
+                }
+```
+
+#### 401
+
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
+
+#### 403
+
+```json
+{
+                  "status": 403,
+                  "message": "Only superusers can perform this action.",
+                  "data": {}
+                }
+```
 
 ### Run cron job
 
@@ -4173,35 +4144,46 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**POST**
+`POST /api/crons/`jobId` Requires `Authorization:TOKEN` Path parameters Param Type Description jobId String The identifier of the cron job to run. Responses`
 
-/api/crons/`jobId`
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 204
 
-Path parameters
+```text
+null
+```
 
-Param
+#### 401
 
-Type
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-Description
+#### 403
 
-jobId
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
-String
+#### 404
 
-The identifier of the cron job to run.
-
-Responses
-
-(responseTab = response.code)}
->
+```json
+{
+                  "status": 404,
+                  "message": "Missing or invalid cron job.",
+                  "data": {}
+                }
+```
 ## API Backups
-
-Upstream source: [/docs/api-backups](https://pocketbase.io/docs/api-backups/)
-
-### Source Fragment: `api-backups/List.svelte`
 
 ### List backups
 
@@ -4235,26 +4217,64 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**GET**
-
-/api/backups
+`GET /api/backups`
 
 Query parameters
 
-Param
-
-Type
-
-Description
-
-- `fields` query parameter
+| Param | Type | Description |
+| --- | --- | --- |
+| fields | String | Comma separated string of the fields to return in the JSON response *(by default returns all fields)*. Ex.: `?fields=*,expand.relField.name` `*` targets all keys from the specific depth level. In addition, the following field modifiers are also supported:  - `:excerpt(maxLength, withEllipsis?)` Returns a short plain text version of the field string value. Ex.: `?fields=*,description:excerpt(200,true)` |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
 
-### Source Fragment: `api-backups/Create.svelte`
+#### 200
+
+```json
+[
+                {
+                  "key": "pb_backup_20230519162514.zip",
+                  "modified": "2023-05-19 16:25:57.542Z",
+                  "size": 251316185
+                },
+                {
+                  "key": "pb_backup_20230518162514.zip",
+                  "modified": "2023-05-18 16:25:57.542Z",
+                  "size": 251314010
+                }
+              ]
+```
+
+#### 400
+
+```json
+{
+                  "status": 400,
+                  "message": "Failed to load backups filesystem.",
+                  "data": {}
+                }
+```
+
+#### 401
+
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
+
+#### 403
+
+```json
+{
+                  "status": 403,
+                  "message": "Only superusers can perform this action.",
+                  "data": {}
+                }
+```
 
 ### Create backup
 
@@ -4290,41 +4310,45 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**POST**
+`POST /api/backups Requires `Authorization:TOKEN` Body Parameters Param Type Description Optional name String The base name of the backup file to create. Must be in the format `[a-z0-9_-].zip` If not set, it will be auto generated. Body parameters could be sent as *JSON* or *multipart/form-data*. Responses`
 
-/api/backups
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 204
 
-Body Parameters
+```text
+null
+```
 
-Param
+#### 400
 
-Type
+```json
+{
+                  "status": 400,
+                  "message": "Try again later - another backup/restore process has already been started.",
+                  "data": {}
+                }
+```
 
-Description
+#### 401
 
-Optional
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-name
+#### 403
 
-String
-
-The base name of the backup file to create.
-
-Must be in the format `[a-z0-9_-].zip`
-
-If not set, it will be auto generated.
-
-Body parameters could be sent as *JSON* or
-*multipart/form-data*.
-
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-backups/Upload.svelte`
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
 ### Upload backup
 
@@ -4358,36 +4382,51 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**POST**
+`POST /api/backups/upload Requires `Authorization:TOKEN` Body Parameters Param Type Description Required file File The zip archive to upload. Uploading files is supported only via *multipart/form-data*. Responses`
 
-/api/backups/upload
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 204
 
-Body Parameters
+```text
+null
+```
 
-Param
+#### 400
 
-Type
+```json
+{
+                  "status": 400,
+                  "message": "Something went wrong while processing your request.",
+                  "data": {
+                    "file": {
+                        "code": "validation_invalid_mime_type",
+                        "message": "\\\"test_backup.txt\\\" mime type must be one of: application/zip."
+                      }
+                    }
+                  }
+                }
+```
 
-Description
+#### 401
 
-Required
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-file
+#### 403
 
-File
-
-The zip archive to upload.
-
-Uploading files is supported only via *multipart/form-data*.
-
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-backups/Delete.svelte`
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
 ### Delete backup
 
@@ -4424,32 +4463,45 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**DELETE**
+`DELETE /api/backups/`key` Requires `Authorization:TOKEN` Path parameters Param Type Description key String The key of the backup file to delete. Responses`
 
-/api/backups/`key`
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 204
 
-Path parameters
+```text
+null
+```
 
-Param
+#### 400
 
-Type
+```json
+{
+                  "status": 400,
+                  "message": "Try again later - another backup/restore process has already been started.",
+                  "data": {}
+                }
+```
 
-Description
+#### 401
 
-key
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-String
+#### 403
 
-The key of the backup file to delete.
-
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-backups/Restore.svelte`
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
 ### Restore backup
 
@@ -4485,32 +4537,45 @@ import 'package:pocketbase/pocketbase.dart';
 
 API details
 
-**POST**
+`POST /api/backups/`key`/restore Requires `Authorization:TOKEN` Path parameters Param Type Description key String The key of the backup file to restore. Responses`
 
-/api/backups/`key`/restore
+### Response examples
 
-Requires `Authorization:TOKEN`
+#### 204
 
-Path parameters
+```text
+null
+```
 
-Param
+#### 400
 
-Type
+```json
+{
+                  "status": 400,
+                  "message": "Try again later - another backup/restore process has already been started.",
+                  "data": {}
+                }
+```
 
-Description
+#### 401
 
-key
+```json
+{
+                  "status": 401,
+                  "message": "The request requires valid record authorization token.",
+                  "data": {}
+                }
+```
 
-String
+#### 403
 
-The key of the backup file to restore.
-
-Responses
-
-(responseTab = response.code)}
->
-
-### Source Fragment: `api-backups/Download.svelte`
+```json
+{
+                  "status": 403,
+                  "message": "The authorized record is not allowed to perform this action.",
+                  "data": {}
+                }
+```
 
 ### Download backup
 
@@ -4554,42 +4619,46 @@ API details
 
 Path parameters
 
-Param
-
-Type
-
-Description
-
-key
-
-String
-
-The key of the backup file to download.
+| Param | Type | Description |
+| --- | --- | --- |
+| key | String | The key of the backup file to download. |
 
 Query parameters
 
-Param
-
-Type
-
-Description
-
-token
-
-String
-
-Superuser **file token** for granting access to the
-**backup file**.
+| Param | Type | Description |
+| --- | --- | --- |
+| token | String | Superuser **file token** for granting access to the **backup file**. |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
+
+#### 200
+
+```json
+[file resource]
+```
+
+#### 400
+
+```json
+{
+                  "status": 400,
+                  "message": "Filesystem initialization failure.",
+                  "data": {}
+                }
+```
+
+#### 404
+
+```json
+{
+                  "status": 404,
+                  "message": "The requested resource wasn't found.",
+                  "data": {}
+                }
+```
 ## API Health
-
-Upstream source: [/docs/api-health](https://pocketbase.io/docs/api-health/)
-
-### Source Fragment: `api-health/Health.svelte`
 
 ### Health check
 
@@ -4597,24 +4666,29 @@ Returns the health status of the server.
 
 API details
 
-**GET/HEAD**
-
-/api/health
+`GET/HEAD /api/health`
 
 Query parameters
 
-Param
-
-Type
-
-Description
-
-- `fields` query parameter
+| Param | Type | Description |
+| --- | --- | --- |
+| fields | String | Comma separated string of the fields to return in the JSON response *(by default returns all fields)*. Ex.: `?fields=*,expand.relField.name` `*` targets all keys from the specific depth level. In addition, the following field modifiers are also supported:  - `:excerpt(maxLength, withEllipsis?)` Returns a short plain text version of the field string value. Ex.: `?fields=*,description:excerpt(200,true)` |
 
 Responses
 
-(responseTab = response.code)}
->
+### Response examples
+
+#### 200
+
+```json
+{
+                  "status": 200,
+                  "message": "API is healthy.",
+                  "data": {
+                    "canBackup": false
+                  }
+                }
+```
 
 ## Attribution
 

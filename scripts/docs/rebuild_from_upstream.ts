@@ -16,8 +16,6 @@ type RouteBundle = {
 };
 
 const CACHE_ROOT = ".cache/upstream-site-docs";
-const UPSTREAM_DOCS_BASE = "https://pocketbase.io/docs";
-
 const fileCache = new Map<string, string>();
 
 function dedupe<T>(items: T[]): T[] {
@@ -29,13 +27,6 @@ function slugFromHref(href: string): string {
     return "";
   }
   return href.replace(/^\/docs\//, "").replace(/\/+$/, "");
-}
-
-function urlForHref(href: string): string {
-  if (href === "/docs") {
-    return `${UPSTREAM_DOCS_BASE}/`;
-  }
-  return `${UPSTREAM_DOCS_BASE}/${slugFromHref(href)}/`;
 }
 
 function readCachedFile(relPath: string): string {
@@ -248,6 +239,272 @@ function toAnchor(text: string): string {
     .replace(/\s+/g, "-");
 }
 
+function extractResponseExamples(scriptContent: string): Array<{ code: string; body: string }> {
+  const out: Array<{ code: string; body: string }> = [];
+  const seen = new Set<string>();
+
+  for (const match of scriptContent.matchAll(/code:\s*([0-9]+)[\s\S]*?body:\s*`([\s\S]*?)`/g)) {
+    const code = match[1].trim();
+    const body = match[2].trim();
+    const key = `${code}:${body}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push({ code, body });
+    }
+  }
+
+  for (const match of scriptContent.matchAll(/code:\s*([0-9]+)[\s\S]*?body:\s*"([^"]*)"/g)) {
+    const code = match[1].trim();
+    const body = match[2].trim();
+    const key = `${code}:${body}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push({ code, body });
+    }
+  }
+
+  return out;
+}
+
+function responseExamplesMarkdown(examples: Array<{ code: string; body: string }>): string {
+  if (examples.length === 0) {
+    return "";
+  }
+
+  const lines: string[] = ["### Response examples", ""];
+
+  for (const example of examples) {
+    lines.push(`#### ${example.code}`);
+    lines.push("");
+    const asJson = example.body.startsWith("{") || example.body.startsWith("[");
+    const lang = asJson ? "json" : "text";
+    lines.push(`\`\`\`${lang}`);
+    lines.push(example.body);
+    lines.push("```");
+    lines.push("");
+  }
+
+  return lines.join("\n").trim();
+}
+
+function fieldsQueryParamRow(prefix = ""): string {
+  const normalizedPrefix = prefix.trim();
+  const expandExample = normalizedPrefix ? `${normalizedPrefix}expand.relField.name` : "expand.relField.name";
+  const excerptExample = normalizedPrefix ? `${normalizedPrefix}description:excerpt(200,true)` : "description:excerpt(200,true)";
+
+  return [
+    "<tr>",
+    '  <td id="query-page">fields</td>',
+    "  <td><span class=\"label\">String</span></td>",
+    "  <td>",
+    "    <p>Comma separated string of the fields to return in the JSON response <em>(by default returns all fields)</em>. Ex.: <code>?fields=*," +
+      expandExample +
+      "</code></p>",
+    "    <p><code>*</code> targets all keys from the specific depth level.</p>",
+    "    <p>In addition, the following field modifiers are also supported:</p>",
+    "    <ul>",
+    "      <li><code>:excerpt(maxLength, withEllipsis?)</code><br />Returns a short plain text version of the field string value.<br />Ex.: <code>?fields=*," +
+      excerptExample +
+      "</code></li>",
+    "    </ul>",
+    "  </td>",
+    "</tr>",
+  ].join("\n");
+}
+
+function expandQueryParamRow(): string {
+  return [
+    "<tr>",
+    "  <td>expand</td>",
+    "  <td><span class=\"label\">String</span></td>",
+    "  <td>",
+    "    Auto expand record relations. Ex.: <code>?expand=relField1,relField2.subRelField</code><br />",
+    "    Supports up to 6-levels depth nested relations expansion.<br />",
+    "    The expanded relations will be appended to the record under the <code>expand</code> property ",
+    '    (e.g. <code>"expand": object with relation payload</code>).<br />',
+    "    Only the relations to which the request user has permissions to <strong>view</strong> will be expanded.",
+    "  </td>",
+    "</tr>",
+  ].join("\n");
+}
+
+function skipTotalQueryParamRow(): string {
+  return [
+    "<tr>",
+    '  <td id="query-page">skipTotal</td>',
+    "  <td><span class=\"label\">Boolean</span></td>",
+    "  <td>",
+    "    If it is set the total counts query will be skipped and the response fields <code>totalItems</code> and",
+    "    <code>totalPages</code> will have <code>-1</code> value.<br />",
+    "    This could drastically speed up the search queries when the total counters are not needed or cursor based",
+    "    pagination is used.<br />",
+    "    For optimization purposes, it is set by default for the <code>getFirstListItem()</code> and",
+    "    <code>getFullList()</code> SDK methods.",
+    "  </td>",
+    "</tr>",
+  ].join("\n");
+}
+
+function filterSyntaxMarkdown(): string {
+  return [
+    "Filter syntax reference:",
+    "",
+    "- Format: `OPERAND OPERATOR OPERAND`.",
+    "- `OPERAND` can be a field literal, string (single or double quoted), number, `null`, `true`, or `false`.",
+    "- Operators:",
+    "  - `=` equal",
+    "  - `!=` not equal",
+    "  - `>` greater than",
+    "  - `>=` greater than or equal",
+    "  - `&lt;` less than",
+    "  - `&lt;=` less than or equal",
+    "  - `~` like/contains",
+    "  - `!~` not like/contains",
+    "  - `?=`, `?!=`, `?>`, `?>=`, `?&lt;`, `?&lt;=`, `?~`, `?!~` are any/at-least-one variants",
+    "- Use `(...)`, `&&`, and `||` to group/combine expressions.",
+    "- Single line comments are supported: `// comment`.",
+    "- For multi-record fields, operators are match-all by default; prefix the operator with `?` for any/at-least-one.",
+    "",
+  ].join("\n");
+}
+
+function thumbFormatsMarkdown(): string {
+  return [
+    "Supported thumb formats:",
+    "",
+    "- `WxH` (e.g. `100x300`) crop to `WxH` from center",
+    "- `WxHt` (e.g. `100x300t`) crop to `WxH` from top",
+    "- `WxHb` (e.g. `100x300b`) crop to `WxH` from bottom",
+    "- `WxHf` (e.g. `100x300f`) fit inside `WxH` without cropping",
+    "- `0xH` (e.g. `0x300`) resize to height while preserving aspect ratio",
+    "- `Wx0` (e.g. `100x0`) resize to width while preserving aspect ratio",
+    "",
+  ].join("\n");
+}
+
+function stripSvelteArtifacts(text: string): string {
+  return text
+    .replace(/^.*responseTab.*$/gm, "")
+    .replace(/^.*activeApiTab.*$/gm, "")
+    .replace(/^\s*\([^)]*Tab\s*=\s*[^)]*\)\s*\}\s*>?\s*$/gm, "")
+    .replace(/^\s*\)\}\s*>?\s*$/gm, "")
+    .replace(/^\s*>\s*$/gm, "")
+    .replace(/\nResponses\s*\n(?:>\s*\n)+/g, "\nResponses\n");
+}
+
+function parseCodeBlockContent(attrs: string): string {
+  const inline = attrs.match(/content=\{`([\s\S]*?)`\}/);
+  if (inline) {
+    return inline[1].trim();
+  }
+
+  const simple = attrs.match(/content="([^"]*)"/);
+  if (simple) {
+    return simple[1].trim();
+  }
+
+  const chunks = [...attrs.matchAll(/`([\s\S]*?)`/g)].map((m) => m[1].trim());
+  return chunks.join("\n").trim();
+}
+
+function htmlToInlineMarkdown(raw: string): string {
+  let text = raw;
+
+  text = text.replace(/<CodeBlock([\s\S]*?)\/>/g, (_full, attrs) => {
+    const code = parseCodeBlockContent(attrs);
+    if (!code) {
+      return "";
+    }
+    return `<code>${code}</code>`;
+  });
+
+  text = text.replace(/<br\s*\/?>/gi, "<br>");
+  text = text.replace(/<\/p>\s*<p[^>]*>/gi, "<br><br>");
+  text = text.replace(/<p[^>]*>/gi, "");
+  text = text.replace(/<\/p>/gi, "");
+  text = text.replace(/<ul[^>]*>/gi, "");
+  text = text.replace(/<\/ul>/gi, "");
+  text = text.replace(/<li[^>]*>/gi, "- ");
+  text = text.replace(/<\/li>/gi, "<br>");
+  text = text.replace(/<span[^>]*>/gi, "");
+  text = text.replace(/<\/span>/gi, "");
+  text = text.replace(/<div[^>]*>/gi, "");
+  text = text.replace(/<\/div>/gi, "");
+  text = text.replace(/<code[^>]*>/gi, "`");
+  text = text.replace(/<\/code>/gi, "`");
+  text = text.replace(/<strong[^>]*>/gi, "**");
+  text = text.replace(/<\/strong>/gi, "**");
+  text = text.replace(/<em[^>]*>/gi, "*");
+  text = text.replace(/<\/em>/gi, "*");
+  text = text.replace(/\{`([^`]*)`\}/g, "$1");
+  text = text.replace(/\{["']([^"']+)["']\}/g, "$1");
+  text = text.replace(/\{[^}]+\}/g, "");
+  text = text.replace(/<[^>]+>/g, " ");
+
+  text = decodeHtmlEntities(text);
+  text = text.replace(/\s*<br>\s*/g, "<br>");
+  text = text.replace(/(<br>){2,}/g, "<br>");
+  text = text.replace(/[\t ]+/g, " ");
+  text = text.replace(/ ?\n ?/g, " ");
+  text = text.trim();
+  text = text.replace(/\|/g, "\\|");
+
+  return text;
+}
+
+function tableToMarkdown(tableHtml: string): string {
+  const parsedRows: Array<{ cells: string[]; header: boolean }> = [];
+
+  for (const rowMatch of tableHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    const rowBody = rowMatch[1];
+    const cells: string[] = [];
+    let header = true;
+
+    for (const cellMatch of rowBody.matchAll(/<(th|td)[^>]*>([\s\S]*?)<\/\1>/gi)) {
+      const kind = cellMatch[1].toLowerCase();
+      if (kind !== "th") {
+        header = false;
+      }
+      const cell = htmlToInlineMarkdown(cellMatch[2]) || "-";
+      cells.push(cell);
+    }
+
+    if (cells.length > 0) {
+      parsedRows.push({ cells, header });
+    }
+  }
+
+  if (parsedRows.length === 0) {
+    return "";
+  }
+
+  const headerIndex = parsedRows.findIndex((row) => row.header);
+  const headerCells =
+    headerIndex >= 0 ? parsedRows[headerIndex].cells : parsedRows[0].cells.map((_v, i) => `Column ${i + 1}`);
+  const colCount = Math.max(headerCells.length, ...parsedRows.map((row) => row.cells.length));
+
+  const normalizeRow = (cells: string[]): string[] => {
+    const out = [...cells];
+    while (out.length < colCount) {
+      out.push("-");
+    }
+    return out.map((cell) => (cell.trim() ? cell : "-"));
+  };
+
+  const lines: string[] = [];
+  lines.push(`| ${normalizeRow(headerCells).join(" | ")} |`);
+  lines.push(`| ${Array(colCount).fill("---").join(" | ")} |`);
+
+  parsedRows.forEach((row, idx) => {
+    if (idx === headerIndex) {
+      return;
+    }
+    lines.push(`| ${normalizeRow(row.cells).join(" | ")} |`);
+  });
+
+  return lines.join("\n");
+}
+
 function convertJsHelper(content: string): string {
   const titles = dedupe([...content.matchAll(/title:\s*"([^"]+)"/g)].map((m) => m[1]));
   const hooks = dedupe([...content.matchAll(/On[A-Z][A-Za-z0-9]+/g)].map((m) => m[0]));
@@ -276,6 +533,11 @@ function convertSvelte(content: string): string {
     return `\n${token}\n`;
   };
 
+  const scriptContent = [...content.matchAll(/<script[\s\S]*?<\/script>/g)]
+    .map((match) => match[0])
+    .join("\n");
+  const responses = extractResponseExamples(scriptContent);
+
   let text = content;
 
   text = text.replace(/<CodeTabs([\s\S]*?)\/>/g, (_full, attrs) => {
@@ -298,17 +560,40 @@ function convertSvelte(content: string): string {
     return stash(chunks.join("\n\n"));
   });
 
+  text = text.replace(/<div class="api-route[^"]*"[^>]*>\s*<strong[^>]*>([\s\S]*?)<\/strong>\s*<div[^>]*>([\s\S]*?)<\/div>\s*<\/div>/g, (_full, method, path) => {
+    const normalizedMethod = htmlToInlineMarkdown(method).replace(/\s+/g, " ").trim();
+    const normalizedPath = htmlToInlineMarkdown(path).replace(/\s+/g, " ").trim();
+    if (!normalizedMethod && !normalizedPath) {
+      return "";
+    }
+    return stash(`\`${[normalizedMethod, normalizedPath].filter(Boolean).join(" ")}\``);
+  });
+
+  text = text.replace(/<FieldsQueryParam([^>]*)\/>/g, (_full, attrs) => {
+    const prefix = extractAttr(attrs, "prefix") ?? "";
+    return `\n${fieldsQueryParamRow(prefix)}\n`;
+  });
+  text = text.replace(/<ExpandQueryParam[^>]*\/>/g, `\n${expandQueryParamRow()}\n`);
+  text = text.replace(/<SkipTotalQueryParam[^>]*\/>/g, `\n${skipTotalQueryParamRow()}\n`);
+  text = text.replace(/<FilterSyntax[^>]*\/>/g, `\n${filterSyntaxMarkdown()}\n`);
+  text = text.replace(/<ThumbFormats[^>]*\/>/g, `\n${thumbFormatsMarkdown()}\n`);
+
+  text = text.replace(/<table[^>]*>[\s\S]*?<\/table>/g, (tableHtml) => {
+    const convertedTable = tableToMarkdown(tableHtml);
+    if (!convertedTable) {
+      return "";
+    }
+    return stash(convertedTable);
+  });
+
   text = text.replace(/<CodeBlock([\s\S]*?)\/>/g, (_full, attrs) => {
     const lang = extractAttr(attrs, "language") ?? "text";
-    const inline = attrs.match(/content=\{`([\s\S]*?)`\}/);
+    let code = parseCodeBlockContent(attrs);
 
-    let code = "";
-    if (inline) {
-      code = inline[1].trim();
-    } else {
-      const chunks = [...attrs.matchAll(/`([\s\S]*?)`/g)].map((m) => m[1].trim());
-      code = chunks.join("\n").trim();
-    }
+    code = code
+      .replace(/^\s*\+\s*$/gm, "")
+      .replace(/^\s*\(import\.meta\.env[\s\S]*?\)\s*$/gm, "")
+      .trim();
 
     if (!code) {
       return "";
@@ -340,9 +625,6 @@ function convertSvelte(content: string): string {
   text = text.replace(/<\/Accordion>/g, "\n");
 
   text = text.replace(/<Toc[^>]*\/>/g, "\n");
-  text = text.replace(/<FieldsQueryParam[^>]*\/>/g, "\n- `fields` query parameter\n");
-  text = text.replace(/<ExpandQueryParam[^>]*\/>/g, "\n- `expand` query parameter\n");
-  text = text.replace(/<ThumbFormats[^>]*\/>/g, "\nSupported thumb formats are based on file field options.\n");
 
   text = text.replace(/\{#each[^}]*\}/g, "\n");
   text = text.replace(/\{\/each\}/g, "\n");
@@ -371,12 +653,18 @@ function convertSvelte(content: string): string {
 
   text = text.replace(/<[^>]+>/g, "\n");
   text = text.replace(/\{[^}]+\}/g, "");
-
+  text = stripSvelteArtifacts(text);
   text = decodeHtmlEntities(text);
+  text = stripSvelteArtifacts(text);
   text = normalizeSpacing(text);
 
-  for (let i = 0; i < stashed.length; i++) {
+  for (let i = stashed.length - 1; i >= 0; i--) {
     text = text.replaceAll(`@@DOC_STASH_${i}@@`, stashed[i]);
+  }
+
+  const responseText = responseExamplesMarkdown(responses);
+  if (responseText) {
+    text = `${text}\n\n${responseText}`;
   }
 
   return text.trim();
@@ -429,20 +717,12 @@ function buildPage(args: {
         continue;
       }
 
-      if (files.length > 1) {
-        fileSections.push(`### Source Fragment: \`${relPath}\`\n\n${cleaned}`);
-      } else {
-        fileSections.push(cleaned);
-      }
+      fileSections.push(cleaned);
     }
 
     const sectionBody = fileSections.join("\n\n").trim();
 
-    return [
-      `## ${bundle.route.title}`,
-      `Upstream source: [${bundle.route.href}](${urlForHref(bundle.route.href)})`,
-      sectionBody,
-    ]
+    return [`## ${bundle.route.title}`, sectionBody]
       .filter(Boolean)
       .join("\n\n");
   });
@@ -465,11 +745,7 @@ function buildPage(args: {
     "",
     "## Attribution",
     "",
-    "This page is adapted from PocketBase docs and regenerated from upstream source files in `pocketbase/site`.",
-    "",
-    "- PocketBase docs: <https://pocketbase.io/docs/>",
-    "- PocketBase project by Gani Georgiev: <https://github.com/pocketbase/pocketbase>",
-    "- Upstream docs source map: [Upstream Docs Map](./maintainers/upstream-docs-map.md)",
+    "This page is adapted from [PocketBase docs](https://pocketbase.io/docs/).",
     "",
   ].join("\n");
 
@@ -486,6 +762,14 @@ function buildCategoryRoutes(items: RouteItem[]): RouteBundle[] {
   }
 
   return bundles;
+}
+
+function parseOnlyArg(): string | null {
+  const idx = Bun.argv.indexOf("--only");
+  if (idx === -1) {
+    return null;
+  }
+  return Bun.argv[idx + 1] ?? null;
 }
 
 function main(): void {
@@ -507,59 +791,94 @@ function main(): void {
     parseRouteItemsFromBlock(extractArrayBlock(docLinks, "jsLinks")).filter((item) => item.href.startsWith("/docs/")),
   );
 
-  const introBundles = buildCategoryRoutes(introItems);
-  const prodBundles = buildCategoryRoutes(prodItems);
-  const apiBundles = buildCategoryRoutes(apiItems);
-  const jsBundles = buildCategoryRoutes(jsItems);
+  const targets = new Set(["introduction", "going-to-production", "web-apis", "extend-with-javascript"]);
+  const only = parseOnlyArg();
+  if (only && !targets.has(only)) {
+    throw new Error(`Unsupported --only value '${only}'. Expected one of: ${[...targets].join(", ")}`);
+  }
 
-  buildPage({
-    title: "PocketBun Introduction",
-    intro: "This page merges the upstream PocketBase Introduction section and its child pages.",
-    routes: introBundles,
-    outputPath: "docs/introduction.md",
-  });
+  let introBundles: RouteBundle[] = [];
+  let prodBundles: RouteBundle[] = [];
+  let apiBundles: RouteBundle[] = [];
+  let jsBundles: RouteBundle[] = [];
 
-  buildPage({
-    title: "PocketBun Going To Production",
-    intro: "This page merges the upstream PocketBase Going to production section.",
-    routes: prodBundles,
-    outputPath: "docs/going-to-production.md",
-  });
+  if (!only || only === "introduction") {
+    introBundles = buildCategoryRoutes(introItems);
+    buildPage({
+      title: "PocketBun Introduction",
+      intro: "This page merges the upstream PocketBase Introduction section and its child pages.",
+      routes: introBundles,
+      outputPath: "docs/introduction.md",
+    });
+  }
 
-  buildPage({
-    title: "PocketBun Web APIs Reference",
-    intro: "This page merges upstream PocketBase Web APIs reference pages.",
-    routes: apiBundles,
-    outputPath: "docs/web-apis.md",
-  });
+  if (!only || only === "going-to-production") {
+    prodBundles = buildCategoryRoutes(prodItems);
+    buildPage({
+      title: "PocketBun Going To Production",
+      intro: "This page merges the upstream PocketBase Going to production section.",
+      routes: prodBundles,
+      outputPath: "docs/going-to-production.md",
+    });
+  }
 
-  buildPage({
-    title: "PocketBun Extend With JavaScript",
-    intro: "This page merges upstream PocketBase JavaScript extension pages.",
-    routes: jsBundles,
-    outputPath: "docs/extend-with-javascript.md",
-  });
+  if (!only || only === "web-apis") {
+    apiBundles = buildCategoryRoutes(apiItems);
+    buildPage({
+      title: "PocketBun Web APIs Reference",
+      intro: "This page merges upstream PocketBase Web APIs reference pages.",
+      routes: apiBundles,
+      outputPath: "docs/web-apis.md",
+    });
+  }
 
-  const manifest = {
+  if (!only || only === "extend-with-javascript") {
+    jsBundles = buildCategoryRoutes(jsItems);
+    buildPage({
+      title: "PocketBun Extend With JavaScript",
+      intro: "This page merges upstream PocketBase JavaScript extension pages.",
+      routes: jsBundles,
+      outputPath: "docs/extend-with-javascript.md",
+    });
+  }
+
+  const manifest: Record<string, unknown> = {
     generatedAt: new Date().toISOString(),
     upstreamRepo: "pocketbase/site",
     upstreamRef: "master",
     cacheRoot: CACHE_ROOT,
-    categories: {
-      introduction: introBundles,
-      goingToProduction: prodBundles,
-      webApis: apiBundles,
-      javascript: jsBundles,
-    },
+    only: only ?? null,
+    categories: {},
   };
+
+  if (introBundles.length > 0) {
+    (manifest.categories as Record<string, unknown>).introduction = introBundles;
+  }
+  if (prodBundles.length > 0) {
+    (manifest.categories as Record<string, unknown>).goingToProduction = prodBundles;
+  }
+  if (apiBundles.length > 0) {
+    (manifest.categories as Record<string, unknown>).webApis = apiBundles;
+  }
+  if (jsBundles.length > 0) {
+    (manifest.categories as Record<string, unknown>).javascript = jsBundles;
+  }
 
   writeFileSync("docs/maintainers/upstream-docs-manifest.json", JSON.stringify(manifest, null, 2) + "\n");
 
   console.log("Rebuilt docs pages from cached upstream sources.");
-  console.log(`Introduction routes: ${introBundles.length}`);
-  console.log(`Production routes: ${prodBundles.length}`);
-  console.log(`Web API routes: ${apiBundles.length}`);
-  console.log(`JS routes: ${jsBundles.length}`);
+  if (introBundles.length > 0) {
+    console.log(`Introduction routes: ${introBundles.length}`);
+  }
+  if (prodBundles.length > 0) {
+    console.log(`Production routes: ${prodBundles.length}`);
+  }
+  if (apiBundles.length > 0) {
+    console.log(`Web API routes: ${apiBundles.length}`);
+  }
+  if (jsBundles.length > 0) {
+    console.log(`JS routes: ${jsBundles.length}`);
+  }
 }
 
 main();
