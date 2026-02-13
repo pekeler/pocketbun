@@ -162,6 +162,8 @@ To backup/restore your application it is enough to manually copy/replace your `p
 
 To make things slightly easier, PocketBun v0.16+ comes with builtin backups and restore APIs that could be accessed from the Dashboard ( *Settings* > *Backups* ):
 
+![Backups settings screenshot](./assets/upstream/screenshots/backups.png)
+
 Backups can be stored locally (default) or in a S3 compatible storage (*it is recommended to use a separate bucket only for the backups). The generated backup represents a full snapshot as ZIP archive of your `pb_data` directory (including the locally stored uploaded files but excluding any local backups or files uploaded to S3).
 
 During the backup's ZIP generation the application will be temporary set in read-only mode.
@@ -180,6 +182,8 @@ To avoid deliverability issues, consider using a local SMTP server or an externa
 
 Once you've decided on a mail service, you could configure the PocketBun SMTP settings from the * Dashboard > Settings > Mail settings *:
 
+![SMTP settings screenshot](./assets/upstream/screenshots/smtp-settings.png)
+
 highly recommended
 
 #### Enable MFA for superusers
@@ -187,6 +191,8 @@ highly recommended
 As an additional layer of security you can enable the MFA and OTP options for the `_superusers` collection, which will enforce an additional one-time password (email code) requirement when authenticating as superuser.
 
 In case of email deliverability issues, you can also generate an OTP manually using the `pocketbun superuser otp yoursuperuser@example.com` command.
+
+![Superusers MFA settings screenshot](./assets/upstream/screenshots/superusers_mfa.png)
 
 highly recommended
 
@@ -197,6 +203,8 @@ To minimize the risk of API abuse (e.g. excessive auth or record create requests
 PocketBun v0.23.0+ comes with a simple builtin rate limiter that should cover most of the cases but you are also free to use any external one via reverse proxy if you need more advanced options.
 
 You can configure the builtin rate limiter from the * Dashboard > Settings > Application: *
+
+![Rate limit settings screenshot](./assets/upstream/screenshots/rate-limit-settings.png)
 
 optional
 

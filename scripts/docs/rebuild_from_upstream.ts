@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // This script exists to deterministically rebuild PocketBun docs from cached upstream PocketBase docs sources.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { posix as pathPosix } from "node:path";
 
 type RouteItem = {
@@ -30,6 +30,8 @@ type ReferenceEntry = {
 };
 
 const CACHE_ROOT = ".cache/upstream-site-docs";
+const UPSTREAM_SCREENSHOTS_DIR = pathPosix.join(CACHE_ROOT, "static/images/screenshots");
+const LOCAL_SCREENSHOTS_DIR = "docs/assets/upstream/screenshots";
 const fileCache = new Map<string, string>();
 const JSVM_TYPES_PATH = "src/plugins/jsvm/internal/types/generated/types.d.ts";
 
@@ -268,6 +270,20 @@ function normalizeUpstreamHref(href: string): string {
   return trimmed;
 }
 
+function normalizeDocsImageHref(href: string): string {
+  const trimmed = href.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (trimmed.startsWith("/images/screenshots/")) {
+    const filename = pathPosix.basename(trimmed);
+    return `./assets/upstream/screenshots/${filename}`;
+  }
+
+  return normalizeUpstreamHref(trimmed);
+}
+
 function normalizeSpacing(text: string): string {
   const out: string[] = [];
   let blankRun = 0;
@@ -476,6 +492,13 @@ function rewriteUpstreamDocsLinksInMarkdown(
   });
 
   return out;
+}
+
+function rewriteAttributionLink(markdown: string, upstreamUrl: string): string {
+  return markdown.replace(
+    /This page is adapted from \[PocketBase docs\]\([^)]+\)\./g,
+    `This page is adapted from [PocketBase docs](${upstreamUrl}).`,
+  );
 }
 
 function extractResponseExamples(scriptContent: string): Array<{ code: string; body: string }> {
@@ -883,6 +906,15 @@ function convertSvelte(content: string): string {
   });
 
   text = text.replace(/<script[\s\S]*?<\/script>/g, "\n");
+  text = text.replace(/<img([\s\S]*?)\/?>/gi, (_full, attrs) => {
+    const src = normalizeDocsImageHref(extractAttr(attrs, "src") ?? "");
+    if (!src) {
+      return "";
+    }
+
+    const alt = decodeHtmlEntities(extractAttr(attrs, "alt") ?? "Screenshot").trim() || "Screenshot";
+    return stash(`![${alt}](${src})`);
+  });
 
   text = text.replace(/<p[^>]*>([\s\S]*?)<\/p>/g, (_full, inner) => {
     const paragraph = convertInlineHtml(inner);
@@ -1277,8 +1309,9 @@ function buildPage(args: {
   routes: RouteBundle[];
   outputPath: string;
   linkTargets: Map<string, DocsLinkTarget>;
+  attributionUrl: string;
 }): void {
-  const { title, intro, routes, outputPath, linkTargets } = args;
+  const { title, intro, routes, outputPath, linkTargets, attributionUrl } = args;
 
   const sectionsData = routes.map((bundle) => {
     const files = bundle.files;
@@ -1345,6 +1378,7 @@ function buildPage(args: {
   ].join("\n");
 
   body = rewriteUpstreamDocsLinksInMarkdown(body, outputPath, linkTargets);
+  body = rewriteAttributionLink(body, attributionUrl);
 
   writeFileSync(outputPath, body);
 }
@@ -1404,6 +1438,36 @@ function createDocsLinkTargets(args: {
   return targets;
 }
 
+function syncScreenshotAssetsFromCache(): number {
+  if (!existsSync(UPSTREAM_SCREENSHOTS_DIR)) {
+    throw new Error(
+      `Missing upstream screenshots cache at ${UPSTREAM_SCREENSHOTS_DIR}. Run: bash scripts/docs/sync_upstream_site_docs.sh`,
+    );
+  }
+
+  rmSync(LOCAL_SCREENSHOTS_DIR, { recursive: true, force: true });
+  mkdirSync(LOCAL_SCREENSHOTS_DIR, { recursive: true });
+
+  let copied = 0;
+  const entries = readdirSync(UPSTREAM_SCREENSHOTS_DIR, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    if (!/\.(png|jpg|jpeg|webp|gif|svg)$/i.test(entry.name)) {
+      continue;
+    }
+
+    const srcPath = pathPosix.join(UPSTREAM_SCREENSHOTS_DIR, entry.name);
+    const destPath = pathPosix.join(LOCAL_SCREENSHOTS_DIR, entry.name);
+    copyFileSync(srcPath, destPath);
+    copied += 1;
+  }
+
+  return copied;
+}
+
 function main(): void {
   if (!existsSync(CACHE_ROOT)) {
     throw new Error(
@@ -1455,6 +1519,7 @@ function main(): void {
       routes: introBundles,
       outputPath: "docs/introduction.md",
       linkTargets: docsLinkTargets,
+      attributionUrl: "https://pocketbase.io/docs/",
     });
   }
 
@@ -1466,6 +1531,7 @@ function main(): void {
       routes: prodBundles,
       outputPath: "docs/going-to-production.md",
       linkTargets: docsLinkTargets,
+      attributionUrl: "https://pocketbase.io/docs/going-to-production/",
     });
   }
 
@@ -1477,6 +1543,7 @@ function main(): void {
       routes: apiBundles,
       outputPath: "docs/web-apis.md",
       linkTargets: docsLinkTargets,
+      attributionUrl: "https://pocketbase.io/docs/api-records/",
     });
   }
 
@@ -1489,6 +1556,7 @@ function main(): void {
       routes: jsBundles,
       outputPath: "docs/extend.md",
       linkTargets: docsLinkTargets,
+      attributionUrl: "https://pocketbase.io/docs/js-overview/",
     });
   }
 
@@ -1529,6 +1597,8 @@ function main(): void {
 
   writeFileSync("docs/maintainers/upstream-docs-manifest.json", JSON.stringify(manifest, null, 2) + "\n");
 
+  const copiedScreenshots = syncScreenshotAssetsFromCache();
+
   console.log("Rebuilt docs pages from cached upstream sources.");
   if (introBundles.length > 0) {
     console.log(`Introduction routes: ${introBundles.length}`);
@@ -1545,6 +1615,7 @@ function main(): void {
   if (!only || only === "reference") {
     console.log(`Reference source: ${JSVM_TYPES_PATH}`);
   }
+  console.log(`Screenshots copied: ${copiedScreenshots}`);
 }
 
 main();
