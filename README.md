@@ -15,7 +15,7 @@ PocketBase © 2022–present Gani Georgiev. [Project on GitHub](https://github.c
 
 ## Docs
 
-[PocketBun docs]([./docs/index.md](https://pekeler.github.io/pocketbun/))
+[PocketBun docs](https://pekeler.github.io/pocketbun/)
 
 ## Why?
 
