@@ -1,5 +1,6 @@
 title: PocketBun Docs
 description: PocketBun documentation (GitHub-hosted)
+pocketbun_version: 0.36.2-pocketbun.7
 theme: minima
 
 plugins:

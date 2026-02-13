@@ -82,6 +82,39 @@ function assertIncludes(haystack: string, needle: string, label: string): void {
   }
 }
 
+function readPackageVersion(): string {
+  const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as { version?: unknown };
+  const version = packageJson.version;
+
+  if (typeof version !== "string" || version.length === 0) {
+    throw new Error("Missing or invalid package.json version");
+  }
+
+  return version;
+}
+
+function readDocsConfigVersion(): string {
+  const config = readFileSync("docs/_config.yml", "utf8");
+  const match = config.match(/^pocketbun_version:\s*(.+)$/m);
+
+  if (!match) {
+    throw new Error("Missing `pocketbun_version` in docs/_config.yml");
+  }
+
+  return match[1].trim().replace(/^['"]|['"]$/g, "");
+}
+
+function assertDocsVersionMatchesPackageVersion(): void {
+  const packageVersion = readPackageVersion();
+  const docsVersion = readDocsConfigVersion();
+
+  if (docsVersion !== packageVersion) {
+    throw new Error(
+      `Docs version mismatch: docs/_config.yml has '${docsVersion}' but package.json has '${packageVersion}'`,
+    );
+  }
+}
+
 function assertIncludesAny(haystack: string, needles: string[], label: string): void {
   for (const needle of needles) {
     if (haystack.includes(needle)) {
@@ -119,6 +152,8 @@ function assertLocalScreenshotLinksExist(docPath: string, content: string): void
 }
 
 function main(): void {
+  assertDocsVersionMatchesPackageVersion();
+
   if (!existsSync(CACHE_DOC_LINKS)) {
     throw new Error(
       `Missing cached upstream doc_links.js at ${CACHE_DOC_LINKS}. Run: bash scripts/docs/sync_upstream_site_docs.sh`,
