@@ -3,3 +3,41 @@ hr {
   border: 0;
   border-top: 2px solid #d0d7de;
 }
+
+.page-content h1,
+.page-content h2,
+.page-content h3,
+.page-content h4,
+.page-content h5,
+.page-content h6 {
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+.page-content h1 {
+  font-size: 2.25rem;
+  margin-top: 2rem;
+  margin-bottom: 1.25rem;
+}
+
+.page-content h2 {
+  font-size: 1.8rem;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.page-content h3 {
+  font-size: 1.45rem;
+  margin-top: 1.6rem;
+  margin-bottom: 0.85rem;
+}
+
+.page-content h4 {
+  font-size: 1.2rem;
+  margin-top: 1.35rem;
+  margin-bottom: 0.7rem;
+}
+
+.page-content h5 {
+  font-size: 1.05rem;
+}
