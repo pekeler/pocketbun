@@ -1104,8 +1104,12 @@ function buildReferencePage(args: {
 
   const sections: string[] = [];
 
-  for (const kind of presentKinds) {
+  for (const [kindIndex, kind] of presentKinds.entries()) {
     const entriesForKind = grouped.get(kind) ?? [];
+    if (kindIndex > 0) {
+      sections.push("---");
+      sections.push("");
+    }
     sections.push(`## ${referenceKindTitle(kind)}`);
     sections.push("");
     sections.push(...entriesForKind.map((entry) => `- [\`${entry.name}\`](#${toAnchor(entry.name)})`));
@@ -1181,11 +1185,7 @@ function buildPage(args: {
     }
 
     // Add a visible separator between fragments that originate from different upstream files.
-    const sectionBody = fileSections
-      .join(
-        '\n\n<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>\n\n',
-      )
-      .trim();
+    const sectionBody = fileSections.join("\n\n---\n\n").trim();
 
     return [`## ${bundle.route.title}`, sectionBody]
       .filter(Boolean)

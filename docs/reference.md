@@ -113,6 +113,8 @@ declare const RequestInfo: {
 };
 ```
 
+---
+
 ## Functions
 
 - [`cronAdd`](#cronadd)
@@ -374,6 +376,8 @@ _Note that this method is available only in pb_migrations context._
 ```ts
 declare function migrate(up: (txApp: CoreApp) => void, down?: (txApp: CoreApp) => void): void;
 ```
+
+---
 
 ## Classes
 
@@ -949,6 +953,8 @@ declare class InternalServerError implements router.ApiError {
   constructor(message?: string, data?: any);
 }
 ```
+
+---
 
 ## Namespaces
 
