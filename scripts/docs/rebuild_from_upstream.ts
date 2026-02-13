@@ -20,8 +20,18 @@ type DocsLinkTarget = {
   anchor: string | null;
 };
 
+type ReferenceKind = "variables" | "functions" | "classes" | "namespaces";
+
+type ReferenceEntry = {
+  declaration: string;
+  doc: string;
+  kind: ReferenceKind;
+  name: string;
+};
+
 const CACHE_ROOT = ".cache/upstream-site-docs";
 const fileCache = new Map<string, string>();
+const JSVM_TYPES_PATH = "src/plugins/jsvm/internal/types/generated/types.d.ts";
 
 function dedupe<T>(items: T[]): T[] {
   return [...new Set(items)];
@@ -875,6 +885,271 @@ function cleanSection(text: string): string {
   return text.replace(/\n{3,}/g, "\n\n").trim();
 }
 
+function parseJsDocCommentToMarkdown(raw: string): string {
+  const normalized: string[] = [];
+  const lines = raw
+    .replace(/^\/\*\*\s*/, "")
+    .replace(/\s*\*\/$/, "")
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*\*\s?/, ""));
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("@group ") || trimmed.startsWith("@namespace")) {
+      continue;
+    }
+    if (trimmed.startsWith("@deprecated")) {
+      normalized.push("Deprecated.");
+      continue;
+    }
+    if (trimmed.startsWith("@")) {
+      continue;
+    }
+    normalized.push(line);
+  }
+
+  return normalizeSpacing(normalized.join("\n"));
+}
+
+function parseReferenceDeclarationName(line: string): string | null {
+  const patterns = [
+    /^declare function\s+([A-Za-z0-9_$]+)/,
+    /^declare class\s+([A-Za-z0-9_$]+)/,
+    /^declare namespace\s+([A-Za-z0-9_$]+)/,
+    /^declare (?:var|const)\s+([A-Za-z0-9_$]+)/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = line.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+
+  return null;
+}
+
+function parseReferenceDeclarationKind(line: string): ReferenceKind | null {
+  if (line.startsWith("declare function ")) {
+    return "functions";
+  }
+  if (line.startsWith("declare class ")) {
+    return "classes";
+  }
+  if (line.startsWith("declare namespace ")) {
+    return "namespaces";
+  }
+  if (line.startsWith("declare var ") || line.startsWith("declare const ")) {
+    return "variables";
+  }
+  return null;
+}
+
+function readReferenceDeclaration(
+  lines: string[],
+  startIndex: number,
+  kind: ReferenceKind,
+): { declaration: string; endIndex: number } {
+  let braceBalance = 0;
+  let parenBalance = 0;
+  let sawOpenBrace = false;
+  let endIndex = startIndex;
+
+  for (let i = startIndex; i < lines.length; i++) {
+    const line = lines[i];
+    const open = (line.match(/\{/g) ?? []).length;
+    const close = (line.match(/\}/g) ?? []).length;
+    const openParen = (line.match(/\(/g) ?? []).length;
+    const closeParen = (line.match(/\)/g) ?? []).length;
+    braceBalance += open - close;
+    parenBalance += openParen - closeParen;
+    if (open > 0) {
+      sawOpenBrace = true;
+    }
+
+    endIndex = i;
+
+    const trimmed = line.trim();
+
+    if (kind === "functions") {
+      if (trimmed.endsWith(";") && parenBalance <= 0 && braceBalance <= 0) {
+        break;
+      }
+      continue;
+    }
+
+    if (kind === "classes" || kind === "namespaces") {
+      if (sawOpenBrace && braceBalance <= 0) {
+        break;
+      }
+      continue;
+    }
+
+    if (kind === "variables") {
+      if (sawOpenBrace) {
+        if (braceBalance <= 0) {
+          break;
+        }
+      } else if (trimmed.endsWith(";")) {
+        break;
+      }
+    }
+  }
+
+  const declaration = lines.slice(startIndex, endIndex + 1).join("\n").trim();
+  return { declaration, endIndex };
+}
+
+function parseReferenceEntries(typesContent: string): ReferenceEntry[] {
+  const lines = typesContent.split(/\r?\n/);
+  const entries: ReferenceEntry[] = [];
+
+  let lastJsDoc: string | null = null;
+  let lastJsDocEnd = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    if (line.startsWith("/**")) {
+      const start = i;
+      let end = i;
+      while (end < lines.length && !lines[end].includes("*/")) {
+        end += 1;
+      }
+      if (end < lines.length) {
+        lastJsDoc = lines.slice(start, end + 1).join("\n");
+        lastJsDocEnd = end;
+        i = end;
+      }
+      continue;
+    }
+
+    if (!line.startsWith("declare ")) {
+      continue;
+    }
+
+    const kind = parseReferenceDeclarationKind(line);
+    const name = parseReferenceDeclarationName(line);
+    if (!kind || !name) {
+      continue;
+    }
+
+    const declarationStart = i;
+    const { declaration, endIndex } = readReferenceDeclaration(lines, declarationStart, kind);
+
+    let doc = "";
+    if (lastJsDoc && lastJsDocEnd >= 0) {
+      let onlyBlankLines = true;
+      for (let j = lastJsDocEnd + 1; j < declarationStart; j++) {
+        if (lines[j].trim() !== "") {
+          onlyBlankLines = false;
+          break;
+        }
+      }
+      if (onlyBlankLines) {
+        doc = parseJsDocCommentToMarkdown(lastJsDoc);
+      }
+    }
+
+    entries.push({
+      declaration,
+      doc,
+      kind,
+      name,
+    });
+
+    i = endIndex;
+  }
+
+  return entries;
+}
+
+function referenceKindTitle(kind: ReferenceKind): string {
+  switch (kind) {
+    case "variables":
+      return "Variables";
+    case "functions":
+      return "Functions";
+    case "classes":
+      return "Classes";
+    case "namespaces":
+      return "Namespaces";
+  }
+}
+
+function buildReferencePage(args: {
+  outputPath: string;
+  linkTargets: Map<string, DocsLinkTarget>;
+}): void {
+  const { outputPath, linkTargets } = args;
+
+  if (!existsSync(JSVM_TYPES_PATH)) {
+    throw new Error(`Missing JSVM types source: ${JSVM_TYPES_PATH}`);
+  }
+
+  const typesContent = readFileSync(JSVM_TYPES_PATH, "utf8");
+  const entries = parseReferenceEntries(typesContent);
+
+  const grouped = new Map<ReferenceKind, ReferenceEntry[]>();
+  for (const entry of entries) {
+    const list = grouped.get(entry.kind) ?? [];
+    list.push(entry);
+    grouped.set(entry.kind, list);
+  }
+
+  const orderedKinds: ReferenceKind[] = ["variables", "functions", "classes", "namespaces"];
+  const presentKinds = orderedKinds.filter((kind) => (grouped.get(kind)?.length ?? 0) > 0);
+
+  const quickLinks = presentKinds.map((kind) => `- [${referenceKindTitle(kind)}](#${toAnchor(referenceKindTitle(kind))})`);
+
+  const sections: string[] = [];
+
+  for (const kind of presentKinds) {
+    const entriesForKind = grouped.get(kind) ?? [];
+    sections.push(`## ${referenceKindTitle(kind)}`);
+    sections.push("");
+    sections.push(...entriesForKind.map((entry) => `- [\`${entry.name}\`](#${toAnchor(entry.name)})`));
+    sections.push("");
+
+    for (const entry of entriesForKind) {
+      sections.push(`### \`${entry.name}\``);
+      sections.push("");
+      if (entry.doc) {
+        sections.push(entry.doc);
+        sections.push("");
+      }
+      sections.push("```ts");
+      sections.push(entry.declaration);
+      sections.push("```");
+      sections.push("");
+    }
+  }
+
+  let body = [
+    "---",
+    "layout: default",
+    "title: Extend PocketBun Reference",
+    "---",
+    "",
+    "# Extend PocketBun Reference",
+    "",
+    "This page is generated from PocketBun JSVM TypeScript declarations and serves as the API reference for the Extend PocketBun docs.",
+    "",
+    "Quick links:",
+    "",
+    ...quickLinks,
+    "",
+    ...sections,
+    "## Attribution",
+    "",
+    "This page is generated from `src/plugins/jsvm/internal/types/generated/types.d.ts`.",
+    "",
+  ].join("\n");
+
+  body = rewriteUpstreamDocsLinksInMarkdown(body, outputPath, linkTargets);
+  writeFileSync(outputPath, body);
+}
+
 function buildPage(args: {
   title: string;
   intro: string;
@@ -1019,7 +1294,14 @@ function main(): void {
     jsItems,
   });
 
-  const targets = new Set(["introduction", "going-to-production", "web-apis", "extend", "extend-with-javascript"]);
+  const targets = new Set([
+    "introduction",
+    "going-to-production",
+    "web-apis",
+    "extend",
+    "extend-with-javascript",
+    "reference",
+  ]);
   const only = parseOnlyArg();
   if (only && !targets.has(only)) {
     throw new Error(`Unsupported --only value '${only}'. Expected one of: ${[...targets].join(", ")}`);
@@ -1067,9 +1349,17 @@ function main(): void {
     jsBundles = buildCategoryRoutes(jsItems);
     buildPage({
       title: "Extend PocketBun",
-      intro: "This page merges upstream PocketBase JavaScript extension pages.",
+      intro:
+        "This page merges upstream PocketBase JavaScript extension pages. For complete API bindings reference, see [Extend PocketBun Reference](./reference.md).",
       routes: jsBundles,
       outputPath: "docs/extend.md",
+      linkTargets: docsLinkTargets,
+    });
+  }
+
+  if (!only || only === "reference") {
+    buildReferencePage({
+      outputPath: "docs/reference.md",
       linkTargets: docsLinkTargets,
     });
   }
@@ -1095,6 +1385,12 @@ function main(): void {
   if (jsBundles.length > 0) {
     (manifest.categories as Record<string, unknown>).javascript = jsBundles;
   }
+  if (!only || only === "reference") {
+    (manifest.categories as Record<string, unknown>).reference = {
+      source: JSVM_TYPES_PATH,
+      outputPath: "docs/reference.md",
+    };
+  }
 
   writeFileSync("docs/maintainers/upstream-docs-manifest.json", JSON.stringify(manifest, null, 2) + "\n");
 
@@ -1110,6 +1406,9 @@ function main(): void {
   }
   if (jsBundles.length > 0) {
     console.log(`JS routes: ${jsBundles.length}`);
+  }
+  if (!only || only === "reference") {
+    console.log(`Reference source: ${JSVM_TYPES_PATH}`);
   }
 }
 

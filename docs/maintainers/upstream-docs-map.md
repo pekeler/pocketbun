@@ -25,6 +25,7 @@ Use it during release/upgrade review to detect drift and decide what to port or 
 | Going to production | `docs/going-to-production.md` | `/docs/going-to-production` |
 | Web APIs reference (merged) | `docs/web-apis.md` | `webApiLinks` in `src/routes/(app)/docs/doc_links.js` and `src/routes/(app)/docs/api-*` |
 | Extend PocketBun (merged) | `docs/extend.md` | `jsLinks` in `src/routes/(app)/docs/doc_links.js` and `src/routes/(app)/docs/js-*` |
+| Extend PocketBun reference | `docs/reference.md` | `src/plugins/jsvm/internal/types/generated/types.d.ts` (PocketBun) and upstream JSVM/TypeDoc model (`jsvm/types.d.ts` -> `static/jsvm`) |
 | PocketBun differences | `docs/differences.md` | PocketBun-specific behavior + README differences + selective upstream contrast |
 
 ## Release-Time Checklist

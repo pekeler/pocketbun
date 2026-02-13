@@ -101,6 +101,7 @@ function main(): void {
   const prodDoc = readFileSync("docs/going-to-production.md", "utf8");
   const apiDoc = readFileSync("docs/web-apis.md", "utf8");
   const jsDoc = readFileSync("docs/extend.md", "utf8");
+  const referenceDoc = readFileSync("docs/reference.md", "utf8");
 
   for (const route of introItems) {
     assertIncludes(introDoc, route.title, "docs/introduction.md");
@@ -122,6 +123,13 @@ function main(): void {
   assertIncludes(prodDoc, "ulimit", "docs/going-to-production.md");
   assertIncludes(jsDoc, "rootCmd", "docs/extend.md");
   assertIncludes(apiDoc, "Health", "docs/web-apis.md");
+  assertIncludes(referenceDoc, "## Variables", "docs/reference.md");
+  assertIncludes(referenceDoc, "## Functions", "docs/reference.md");
+  assertIncludes(referenceDoc, "## Classes", "docs/reference.md");
+  assertIncludes(referenceDoc, "## Namespaces", "docs/reference.md");
+  assertIncludes(referenceDoc, "`$app`", "docs/reference.md");
+  assertIncludes(referenceDoc, "`routerAdd`", "docs/reference.md");
+  assertIncludes(referenceDoc, "`Collection`", "docs/reference.md");
 
   console.log("Generated docs parity checks passed.");
 }

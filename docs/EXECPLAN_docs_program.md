@@ -1,4 +1,4 @@
-# Rebuild PocketBun Documentation Program (5 long pages, upstream-merged)
+# Rebuild PocketBun Documentation Program (merged guides + reference)
 
 This ExecPlan is a living document. The sections Progress, Surprises & Discoveries, Decision Log, and Outcomes & Retrospective must be kept up to date as work proceeds.
 
@@ -6,7 +6,7 @@ PLANS.md exists in this repo at `.agents/PLANS.md`. This ExecPlan must be mainta
 
 ## Purpose / Big Picture
 
-PocketBun docs are being reset from the previous 2-page shape to a 5-page structure that mirrors how users navigate upstream PocketBase docs, while still being PocketBun-first.
+PocketBun docs are being reset from the previous 2-page shape to a merged multi-page structure that mirrors how users navigate upstream PocketBase docs, while still being PocketBun-first.
 
 Target outcomes:
 
@@ -16,7 +16,7 @@ Target outcomes:
 - Web APIs reference (`api-*` pages)
 - Extend with JavaScript (`js-*` pages)
 - one long PocketBun differences page
-- one docs index page linking the five pages
+- one docs index page linking the primary docs pages
 - README updated to point to the docs index
 - explicit audit outputs:
 - missing PocketBun features that should be documented
@@ -98,6 +98,7 @@ Planned docs pages:
 - `docs/going-to-production.md` (merged production section)
 - `docs/web-apis.md` (merged Web APIs section)
 - `docs/extend.md` (merged JavaScript section)
+- `docs/reference.md` (generated JSVM API reference)
 - `docs/differences.md` (PocketBase vs PocketBun differences)
 
 Each long page must include:
@@ -135,7 +136,12 @@ Each long page must include:
 - list docs claims that are not true in PocketBun
 - keep explicit list in final report
 
-5) Newcomer-read pass
+5) Reference page generation
+
+- Generate a long-form API reference page from PocketBun JSVM declarations (`types.d.ts`).
+- Link it from the docs index and Extend page.
+
+6) Newcomer-read pass
 
 - Read all five docs pages as a new PocketBun user.
 - Improve sequence, terminology consistency, and first-run clarity.
@@ -144,7 +150,7 @@ Each long page must include:
 
 This plan is done when:
 
-- the five target docs pages exist and are linked from `docs/index.md`
+- the target docs pages exist and are linked from `docs/index.md`
 - each of the four upstream-derived pages has a top anchor quick-links block and bottom attribution
 - README points users to docs index first
 - differences are centralized in `docs/differences.md`
@@ -155,7 +161,7 @@ This plan is done when:
 Validation checks:
 
     cd /Users/pekeler/Projects/pocketbun
-    rg -n "docs/index.md|docs/introduction.md|docs/going-to-production.md|docs/web-apis.md|docs/extend.md|docs/differences.md" README.md docs
+    rg -n "docs/index.md|docs/introduction.md|docs/going-to-production.md|docs/web-apis.md|docs/extend.md|docs/reference.md|docs/differences.md" README.md docs
     bun run format
 
 (Only docs/README changes are expected for this plan.)
