@@ -278,7 +278,7 @@ function normalizeDocsImageHref(href: string): string {
 
   if (trimmed.startsWith("/images/screenshots/")) {
     const filename = pathPosix.basename(trimmed);
-    return `./assets/upstream/screenshots/${filename}`;
+    return `../assets/upstream/screenshots/${filename}`;
   }
 
   return normalizeUpstreamHref(trimmed);
@@ -1424,14 +1424,14 @@ function createDocsLinkTargets(args: {
     }
   };
 
-  register(args.introItems, "docs/introduction.md");
-  register(args.prodItems, "docs/going-to-production.md");
-  register(args.apiItems, "docs/web-apis.md");
-  register(args.jsItems, "docs/extend.md");
+  register(args.introItems, "docs/users/introduction.md");
+  register(args.prodItems, "docs/users/going-to-production.md");
+  register(args.apiItems, "docs/users/web-apis.md");
+  register(args.jsItems, "docs/users/extend.md");
 
   // Prefer linking to the top of the merged introduction page for /docs root.
   targets.set("/docs", {
-    outputPath: "docs/introduction.md",
+    outputPath: "docs/users/introduction.md",
     anchor: null,
   });
 
@@ -1476,6 +1476,7 @@ function main(): void {
   }
 
   mkdirSync("docs", { recursive: true });
+  mkdirSync("docs/users", { recursive: true });
   mkdirSync("docs/maintainers", { recursive: true });
 
   const docLinks = readCachedFile("doc_links.js");
@@ -1517,7 +1518,7 @@ function main(): void {
       title: "PocketBun Introduction",
       intro: "This page merges the upstream PocketBase Introduction section and its child pages.",
       routes: introBundles,
-      outputPath: "docs/introduction.md",
+      outputPath: "docs/users/introduction.md",
       linkTargets: docsLinkTargets,
       attributionUrl: "https://pocketbase.io/docs/",
     });
@@ -1529,7 +1530,7 @@ function main(): void {
       title: "PocketBun Going To Production",
       intro: "This page merges the upstream PocketBase Going to production section.",
       routes: prodBundles,
-      outputPath: "docs/going-to-production.md",
+      outputPath: "docs/users/going-to-production.md",
       linkTargets: docsLinkTargets,
       attributionUrl: "https://pocketbase.io/docs/going-to-production/",
     });
@@ -1541,7 +1542,7 @@ function main(): void {
       title: "PocketBun Web APIs Reference",
       intro: "This page merges upstream PocketBase Web APIs reference pages.",
       routes: apiBundles,
-      outputPath: "docs/web-apis.md",
+      outputPath: "docs/users/web-apis.md",
       linkTargets: docsLinkTargets,
       attributionUrl: "https://pocketbase.io/docs/api-records/",
     });
@@ -1554,7 +1555,7 @@ function main(): void {
       intro:
         "This page merges upstream PocketBase JavaScript extension pages. For complete API bindings reference, see [Extend PocketBun Reference](./reference.md).",
       routes: jsBundles,
-      outputPath: "docs/extend.md",
+      outputPath: "docs/users/extend.md",
       linkTargets: docsLinkTargets,
       attributionUrl: "https://pocketbase.io/docs/js-overview/",
     });
@@ -1562,7 +1563,7 @@ function main(): void {
 
   if (!only || only === "reference") {
     buildReferencePage({
-      outputPath: "docs/reference.md",
+      outputPath: "docs/users/reference.md",
       linkTargets: docsLinkTargets,
     });
   }
@@ -1591,7 +1592,7 @@ function main(): void {
   if (!only || only === "reference") {
     (manifest.categories as Record<string, unknown>).reference = {
       source: JSVM_TYPES_PATH,
-      outputPath: "docs/reference.md",
+      outputPath: "docs/users/reference.md",
     };
   }
 

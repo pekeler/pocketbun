@@ -98,7 +98,7 @@ function routeTitleVariants(title: string): string[] {
 }
 
 function assertLocalScreenshotLinksExist(docPath: string, content: string): void {
-  const localLinkRegex = /!\[[^\]]*?\]\((\.\/assets\/upstream\/screenshots\/[^)\s]+)\)/g;
+  const localLinkRegex = /!\[[^\]]*?\]\((\.\.\/assets\/upstream\/screenshots\/[^)\s]+)\)/g;
   const linked = new Set<string>();
 
   for (const match of content.matchAll(localLinkRegex)) {
@@ -107,15 +107,14 @@ function assertLocalScreenshotLinksExist(docPath: string, content: string): void
   }
 
   for (const rel of linked) {
-    const normalized = rel.replace(/^\.\//, "");
-    const filePath = join("docs", normalized);
+    const filePath = join("docs/users", rel);
     if (!existsSync(filePath)) {
       throw new Error(`Missing screenshot asset '${filePath}' referenced in ${docPath}`);
     }
   }
 
   if (content.includes("https://pocketbase.io/images/screenshots/")) {
-    throw new Error(`Found upstream screenshot hotlink in ${docPath}; expected local ./assets/upstream/screenshots/* links`);
+    throw new Error(`Found upstream screenshot hotlink in ${docPath}; expected local ../assets/upstream/screenshots/* links`);
   }
 }
 
@@ -135,44 +134,44 @@ function main(): void {
     parseRouteItemsFromBlock(extractArrayBlock(docLinks, "jsLinks")).filter((item) => item.href.startsWith("/docs/")),
   );
 
-  const introDoc = readFileSync("docs/introduction.md", "utf8");
-  const prodDoc = readFileSync("docs/going-to-production.md", "utf8");
-  const apiDoc = readFileSync("docs/web-apis.md", "utf8");
-  const jsDoc = readFileSync("docs/extend.md", "utf8");
-  const referenceDoc = readFileSync("docs/reference.md", "utf8");
+  const introDoc = readFileSync("docs/users/introduction.md", "utf8");
+  const prodDoc = readFileSync("docs/users/going-to-production.md", "utf8");
+  const apiDoc = readFileSync("docs/users/web-apis.md", "utf8");
+  const jsDoc = readFileSync("docs/users/extend.md", "utf8");
+  const referenceDoc = readFileSync("docs/users/reference.md", "utf8");
 
   for (const route of introItems) {
-    assertIncludesAny(introDoc, routeTitleVariants(route.title), "docs/introduction.md");
+    assertIncludesAny(introDoc, routeTitleVariants(route.title), "docs/users/introduction.md");
   }
 
   for (const route of prodItems) {
-    assertIncludesAny(prodDoc, routeTitleVariants(route.title), "docs/going-to-production.md");
+    assertIncludesAny(prodDoc, routeTitleVariants(route.title), "docs/users/going-to-production.md");
   }
 
   for (const route of apiItems) {
-    assertIncludesAny(apiDoc, routeTitleVariants(route.title), "docs/web-apis.md");
+    assertIncludesAny(apiDoc, routeTitleVariants(route.title), "docs/users/web-apis.md");
   }
 
   for (const route of jsItems) {
-    assertIncludesAny(jsDoc, routeTitleVariants(route.title), "docs/extend.md");
+    assertIncludesAny(jsDoc, routeTitleVariants(route.title), "docs/users/extend.md");
   }
 
-  assertLocalScreenshotLinksExist("docs/introduction.md", introDoc);
-  assertLocalScreenshotLinksExist("docs/going-to-production.md", prodDoc);
-  assertLocalScreenshotLinksExist("docs/web-apis.md", apiDoc);
-  assertLocalScreenshotLinksExist("docs/extend.md", jsDoc);
+  assertLocalScreenshotLinksExist("docs/users/introduction.md", introDoc);
+  assertLocalScreenshotLinksExist("docs/users/going-to-production.md", prodDoc);
+  assertLocalScreenshotLinksExist("docs/users/web-apis.md", apiDoc);
+  assertLocalScreenshotLinksExist("docs/users/extend.md", jsDoc);
 
   // Critical explicit checks from recent misses.
-  assertIncludes(prodDoc, "ulimit", "docs/going-to-production.md");
-  assertIncludes(jsDoc, "rootCmd", "docs/extend.md");
-  assertIncludes(apiDoc, "Health", "docs/web-apis.md");
-  assertIncludes(referenceDoc, "## Variables", "docs/reference.md");
-  assertIncludes(referenceDoc, "## Functions", "docs/reference.md");
-  assertIncludes(referenceDoc, "## Classes", "docs/reference.md");
-  assertIncludes(referenceDoc, "## Namespaces", "docs/reference.md");
-  assertIncludes(referenceDoc, "`$app`", "docs/reference.md");
-  assertIncludes(referenceDoc, "`routerAdd`", "docs/reference.md");
-  assertIncludes(referenceDoc, "`Collection`", "docs/reference.md");
+  assertIncludes(prodDoc, "ulimit", "docs/users/going-to-production.md");
+  assertIncludes(jsDoc, "rootCmd", "docs/users/extend.md");
+  assertIncludes(apiDoc, "Health", "docs/users/web-apis.md");
+  assertIncludes(referenceDoc, "## Variables", "docs/users/reference.md");
+  assertIncludes(referenceDoc, "## Functions", "docs/users/reference.md");
+  assertIncludes(referenceDoc, "## Classes", "docs/users/reference.md");
+  assertIncludes(referenceDoc, "## Namespaces", "docs/users/reference.md");
+  assertIncludes(referenceDoc, "`$app`", "docs/users/reference.md");
+  assertIncludes(referenceDoc, "`routerAdd`", "docs/users/reference.md");
+  assertIncludes(referenceDoc, "`Collection`", "docs/users/reference.md");
 
   console.log("Generated docs parity checks passed.");
 }

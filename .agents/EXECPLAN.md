@@ -19,7 +19,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 6: complete (CI + e2e + docs/examples + upgrade + full audit)
   - Milestone 7: complete (performance sprint paused intentionally)
   - Milestone 8: complete (post-release compatibility gaps closed)
-  - Milestone 9: complete (PocketBun docs program shipped: `docs/index.md`, `docs/introduction.md`, `docs/going-to-production.md`, `docs/web-apis.md`, `docs/extend.md`, `docs/reference.md`, `docs/differences.md`, with deterministic sync/rebuild/patch/check tooling and vendored screenshot assets)
+  - Milestone 9: complete (PocketBun docs program shipped: `docs/users/index.md`, `docs/users/introduction.md`, `docs/users/going-to-production.md`, `docs/users/web-apis.md`, `docs/users/extend.md`, `docs/users/reference.md`, `docs/users/differences.md`, with deterministic sync/rebuild/patch/check tooling and vendored screenshot assets)
 
 ### Milestone 8 - Post-release compatibility gaps
 

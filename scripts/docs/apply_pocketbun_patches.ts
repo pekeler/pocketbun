@@ -4,11 +4,11 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const TARGET_DOCS = [
-  "docs/introduction.md",
-  "docs/going-to-production.md",
-  "docs/web-apis.md",
-  "docs/extend.md",
-  "docs/reference.md",
+  "docs/users/introduction.md",
+  "docs/users/going-to-production.md",
+  "docs/users/web-apis.md",
+  "docs/users/extend.md",
+  "docs/users/reference.md",
 ];
 
 const PRESERVE_POCKETBASE_LINE_PATTERNS: RegExp[] = [

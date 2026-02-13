@@ -2501,7 +2501,7 @@ For better performance and to minimize blocking on hot paths, logs are written w
 
 You can control various log settings like logs retention period, minimal log level, request IP logging, etc. from the logs settings panel:
 
-![Logs settings screenshot](./assets/upstream/screenshots/logs.png)
+![Logs settings screenshot](../assets/upstream/screenshots/logs.png)
 
 ## Attribution
 

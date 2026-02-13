@@ -162,7 +162,7 @@ To backup/restore your application it is enough to manually copy/replace your `p
 
 To make things slightly easier, PocketBun v0.16+ comes with builtin backups and restore APIs that could be accessed from the Dashboard ( *Settings* > *Backups* ):
 
-![Backups settings screenshot](./assets/upstream/screenshots/backups.png)
+![Backups settings screenshot](../assets/upstream/screenshots/backups.png)
 
 Backups can be stored locally (default) or in a S3 compatible storage (*it is recommended to use a separate bucket only for the backups). The generated backup represents a full snapshot as ZIP archive of your `pb_data` directory (including the locally stored uploaded files but excluding any local backups or files uploaded to S3).
 
@@ -182,7 +182,7 @@ To avoid deliverability issues, consider using a local SMTP server or an externa
 
 Once you've decided on a mail service, you could configure the PocketBun SMTP settings from the * Dashboard > Settings > Mail settings *:
 
-![SMTP settings screenshot](./assets/upstream/screenshots/smtp-settings.png)
+![SMTP settings screenshot](../assets/upstream/screenshots/smtp-settings.png)
 
 highly recommended
 
@@ -192,7 +192,7 @@ As an additional layer of security you can enable the MFA and OTP options for th
 
 In case of email deliverability issues, you can also generate an OTP manually using the `pocketbun superuser otp yoursuperuser@example.com` command.
 
-![Superusers MFA settings screenshot](./assets/upstream/screenshots/superusers_mfa.png)
+![Superusers MFA settings screenshot](../assets/upstream/screenshots/superusers_mfa.png)
 
 highly recommended
 
@@ -204,7 +204,7 @@ PocketBun v0.23.0+ comes with a simple builtin rate limiter that should cover mo
 
 You can configure the builtin rate limiter from the * Dashboard > Settings > Application: *
 
-![Rate limit settings screenshot](./assets/upstream/screenshots/rate-limit-settings.png)
+![Rate limit settings screenshot](../assets/upstream/screenshots/rate-limit-settings.png)
 
 optional
 
