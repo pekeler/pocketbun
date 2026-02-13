@@ -1,6 +1,7 @@
 ---
 layout: default
 title: PocketBun Docs
+permalink: /
 ---
 
 # PocketBun Docs[^1]

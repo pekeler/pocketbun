@@ -1,6 +1,7 @@
 ---
 layout: default
 title: PocketBun Differences From PocketBase
+permalink: /differences.html
 ---
 
 # PocketBun Differences From PocketBase

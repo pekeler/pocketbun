@@ -1,6 +1,7 @@
 ---
 layout: default
 title: Extend PocketBun Reference
+permalink: /reference.html
 ---
 
 # Extend PocketBun Reference

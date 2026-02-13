@@ -1,6 +1,7 @@
 ---
 layout: default
 title: PocketBun API Reference (Moved)
+permalink: /api-reference.html
 ---
 
 # PocketBun API Reference (Moved)

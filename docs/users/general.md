@@ -1,6 +1,7 @@
 ---
 layout: default
 title: PocketBun General Guide (Moved)
+permalink: /general.html
 ---
 
 # PocketBun General Guide (Moved)

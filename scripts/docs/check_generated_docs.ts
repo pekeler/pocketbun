@@ -131,7 +131,7 @@ function routeTitleVariants(title: string): string[] {
 }
 
 function assertLocalScreenshotLinksExist(docPath: string, content: string): void {
-  const localLinkRegex = /!\[[^\]]*?\]\((\.\.\/assets\/upstream\/screenshots\/[^)\s]+)\)/g;
+  const localLinkRegex = /!\[[^\]]*?\]\((\.\/assets\/upstream\/screenshots\/[^)\s]+)\)/g;
   const linked = new Set<string>();
 
   for (const match of content.matchAll(localLinkRegex)) {
@@ -140,14 +140,15 @@ function assertLocalScreenshotLinksExist(docPath: string, content: string): void
   }
 
   for (const rel of linked) {
-    const filePath = join("docs/users", rel);
+    const normalized = rel.replace(/^\.\//, "");
+    const filePath = join("docs", normalized);
     if (!existsSync(filePath)) {
       throw new Error(`Missing screenshot asset '${filePath}' referenced in ${docPath}`);
     }
   }
 
   if (content.includes("https://pocketbase.io/images/screenshots/")) {
-    throw new Error(`Found upstream screenshot hotlink in ${docPath}; expected local ../assets/upstream/screenshots/* links`);
+    throw new Error(`Found upstream screenshot hotlink in ${docPath}; expected local ./assets/upstream/screenshots/* links`);
   }
 }
 

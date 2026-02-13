@@ -33,7 +33,7 @@ Notes:
 - `rebuild_from_upstream.ts` copies screenshot assets into:
   - `docs/assets/upstream/screenshots/*`
 - Generated docs image links are rewritten to local paths:
-  - `../assets/upstream/screenshots/<file>` (from `docs/users/*.md`)
+  - `./assets/upstream/screenshots/<file>` (published from root via per-page permalinks)
 - `scripts/docs/check_generated_docs.ts` verifies local screenshot links resolve to existing files and fails on upstream screenshot hotlinks.
 
 ## Mapping Table

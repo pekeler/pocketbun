@@ -82,7 +82,7 @@ All tests are passing.
 
 ## Differences
 
-The full differences list is documented [here](https://pekeler.github.io/pocketbun/users/differences.html), including:
+The full differences list is documented [here](https://pekeler.github.io/pocketbun/differences.html), including:
 
 - runtime/distribution differences
 - CLI defaults/path resolution differences

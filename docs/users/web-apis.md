@@ -1,6 +1,7 @@
 ---
 layout: default
 title: PocketBun Web APIs Reference
+permalink: /web-apis.html
 ---
 
 # PocketBun Web APIs Reference
