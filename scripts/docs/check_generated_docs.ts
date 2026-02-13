@@ -2,6 +2,7 @@
 // This script exists to verify generated docs coverage against cached upstream route inventories and critical keywords.
 
 import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 type RouteItem = { href: string; title: string };
 
@@ -96,6 +97,28 @@ function routeTitleVariants(title: string): string[] {
   return [...variants];
 }
 
+function assertLocalScreenshotLinksExist(docPath: string, content: string): void {
+  const localLinkRegex = /!\[[^\]]*?\]\((\.\/assets\/upstream\/screenshots\/[^)\s]+)\)/g;
+  const linked = new Set<string>();
+
+  for (const match of content.matchAll(localLinkRegex)) {
+    const rel = match[1];
+    linked.add(rel);
+  }
+
+  for (const rel of linked) {
+    const normalized = rel.replace(/^\.\//, "");
+    const filePath = join("docs", normalized);
+    if (!existsSync(filePath)) {
+      throw new Error(`Missing screenshot asset '${filePath}' referenced in ${docPath}`);
+    }
+  }
+
+  if (content.includes("https://pocketbase.io/images/screenshots/")) {
+    throw new Error(`Found upstream screenshot hotlink in ${docPath}; expected local ./assets/upstream/screenshots/* links`);
+  }
+}
+
 function main(): void {
   if (!existsSync(CACHE_DOC_LINKS)) {
     throw new Error(
@@ -133,6 +156,11 @@ function main(): void {
   for (const route of jsItems) {
     assertIncludesAny(jsDoc, routeTitleVariants(route.title), "docs/extend.md");
   }
+
+  assertLocalScreenshotLinksExist("docs/introduction.md", introDoc);
+  assertLocalScreenshotLinksExist("docs/going-to-production.md", prodDoc);
+  assertLocalScreenshotLinksExist("docs/web-apis.md", apiDoc);
+  assertLocalScreenshotLinksExist("docs/extend.md", jsDoc);
 
   // Critical explicit checks from recent misses.
   assertIncludes(prodDoc, "ulimit", "docs/going-to-production.md");

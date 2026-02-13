@@ -16,6 +16,26 @@ Use it during release/upgrade review to detect drift and decide what to port or 
 - Generated exception: JSVM reference docs generated via `typedoc` (`npm run jstypes` -> `static/jsvm`)
 - License: upstream site repo includes MIT `LICENSE.md`; no separate docs-only license override found
 
+## Generated Docs Workflow
+
+Use the deterministic docs pipeline:
+
+1. `bash scripts/docs/sync_upstream_site_docs.sh`
+2. `bun run docs:rebuild`
+3. `bun run docs:patch`
+4. `bun run docs:check`
+
+Notes:
+
+- `sync_upstream_site_docs.sh` caches both docs source files and upstream screenshots under:
+  - `.cache/upstream-site-docs/*`
+  - `.cache/upstream-site-docs/static/images/screenshots/*`
+- `rebuild_from_upstream.ts` copies screenshot assets into:
+  - `docs/assets/upstream/screenshots/*`
+- Generated docs image links are rewritten to local paths:
+  - `./assets/upstream/screenshots/<file>`
+- `scripts/docs/check_generated_docs.ts` verifies local screenshot links resolve to existing files and fails on upstream screenshot hotlinks.
+
 ## Mapping Table
 
 | PocketBun doc area | PocketBun file | Upstream source starting point |
