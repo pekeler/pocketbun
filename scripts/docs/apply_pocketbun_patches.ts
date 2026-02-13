@@ -84,6 +84,10 @@ function removeQuickLinkByAnchor(text: string, anchor: string): string {
   return text.replace(new RegExp(`^\\s*-\\s+\\[[^\\]]+\\]\\(#${escaped}\\)\\s*$\\n?`, "gm"), "");
 }
 
+function removeUpstreamMergeLead(text: string): string {
+  return text.replace(/^This page merges(?: the)? upstream PocketBase[^\n]*\n\n/gm, "");
+}
+
 function replaceBrandMentionsOutsideCode(text: string): string {
   return mapOutsideCodeFences(text, (segment) => {
     const lines = segment.split("\n");
@@ -268,6 +272,11 @@ function patchExtend(text: string): string {
     "PocketBun rewrites dbx-style named markers for SQLite execution. The logged placeholder syntax can look different from your input query while behavior stays compatible.";
 
   out = out.replace(
+    /For complete API bindings reference, see \[Extend PocketBun Reference\]\(\.\/reference\.md\)\.\n\n/g,
+    "",
+  );
+
+  out = out.replace(
     /The prebuilt PocketBun v0\.17\+ executable comes with embedded ES5 JavaScript engine \(goja\) which enables you to write custom server-side code using plain JavaScript\./g,
     "PocketBun executes your hooks and custom server code with Bun, allowing you to write server-side logic in JavaScript.",
   );
@@ -349,6 +358,10 @@ function patchExtend(text: string): string {
   );
   out = out.replace(/`\.\/pocketbun/g, "`pocketbun");
   out = out.replace(/\.\/pocketbun\b/g, "pocketbun");
+  out = out.replace(
+    /# Extend PocketBun\n\n/g,
+    "# Extend PocketBun\n\nFor complete API bindings reference, see [Extend PocketBun Reference](./reference.md).\n\n",
+  );
 
   return out;
 }
@@ -385,6 +398,7 @@ function patchReference(text: string): string {
 
 function patchFile(path: string, source: string): string {
   let out = replaceBrandMentionsOutsideCode(source);
+  out = removeUpstreamMergeLead(out);
 
   if (path.endsWith("introduction.md")) {
     out = patchIntroduction(out);

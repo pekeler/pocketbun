@@ -5,8 +5,6 @@ title: PocketBun Introduction
 
 # PocketBun Introduction
 
-This page merges the upstream PocketBase Introduction section and its child pages.
-
 Quick links:
 
 - [Introduction](#introduction)

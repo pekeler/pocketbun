@@ -5,8 +5,6 @@ title: PocketBun Going To Production
 
 # PocketBun Going To Production
 
-This page merges the upstream PocketBase Going to production section.
-
 Quick links:
 
 - [Deployment strategies](#deployment-strategies)

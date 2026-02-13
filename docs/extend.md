@@ -5,7 +5,7 @@ title: Extend PocketBun
 
 # Extend PocketBun
 
-This page merges upstream PocketBase JavaScript extension pages. For complete API bindings reference, see [Extend PocketBun Reference](./reference.md).
+For complete API bindings reference, see [Extend PocketBun Reference](./reference.md).
 
 Quick links:
 

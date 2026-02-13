@@ -5,8 +5,6 @@ title: PocketBun Web APIs Reference
 
 # PocketBun Web APIs Reference
 
-This page merges upstream PocketBase Web APIs reference pages.
-
 Quick links:
 
 - [API Records](#api-records)
