@@ -276,6 +276,55 @@ function toAnchor(text: string): string {
     .replace(/\s+/g, "-");
 }
 
+function stripInlineMarkdown(text: string): string {
+  return text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/[*_]/g, "")
+    .trim();
+}
+
+function buildTieredQuickLinksFromMarkdown(markdown: string): string[] {
+  const links: string[] = [];
+  let inCodeBlock = false;
+  let hasParent = false;
+
+  for (const rawLine of markdown.split(/\r?\n/)) {
+    const line = rawLine.trim();
+
+    if (line.startsWith("```")) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+    if (inCodeBlock) {
+      continue;
+    }
+
+    const match = line.match(/^(#{3,4})\s+(.+)$/);
+    if (!match) {
+      continue;
+    }
+
+    const level = match[1].length;
+    const label = stripInlineMarkdown(match[2]).replace(/\s+#+$/, "").trim();
+    if (!label) {
+      continue;
+    }
+
+    if (level === 3) {
+      links.push(`- [${label}](#${toAnchor(label)})`);
+      hasParent = true;
+      continue;
+    }
+
+    if (level === 4 && hasParent) {
+      links.push(`  - [${label}](#${toAnchor(label)})`);
+    }
+  }
+
+  return links;
+}
+
 function canonicalizeUpstreamDocsPath(href: string): string | null {
   const trimmed = href.trim();
   if (!trimmed) {
@@ -1165,9 +1214,7 @@ function buildPage(args: {
 }): void {
   const { title, intro, routes, outputPath, linkTargets } = args;
 
-  const quickLinks = routes.map((bundle) => `- [${bundle.route.title}](#${toAnchor(bundle.route.title)})`);
-
-  const sections = routes.map((bundle) => {
+  const sectionsData = routes.map((bundle) => {
     const files = bundle.files;
     const fileSections: string[] = [];
 
@@ -1189,10 +1236,25 @@ function buildPage(args: {
     // Add a visible separator between fragments that originate from different upstream files.
     const sectionBody = fileSections.join("\n\n---\n\n").trim();
 
-    return [`## ${bundle.route.title}`, sectionBody]
+    return {
+      routeTitle: bundle.route.title,
+      sectionBody,
+    };
+  });
+
+  const sections = sectionsData.map((section) => {
+    return [`## ${section.routeTitle}`, section.sectionBody]
       .filter(Boolean)
       .join("\n\n");
   });
+
+  let quickLinks = routes.map((bundle) => `- [${bundle.route.title}](#${toAnchor(bundle.route.title)})`);
+  if (routes.length === 1) {
+    const tiered = buildTieredQuickLinksFromMarkdown(sectionsData[0]?.sectionBody ?? "");
+    if (tiered.length > 0) {
+      quickLinks = tiered;
+    }
+  }
 
   let body = [
     "---",

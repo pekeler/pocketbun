@@ -9,7 +9,18 @@ This page merges the upstream PocketBase Going to production section.
 
 Quick links:
 
-- [Going to production](#going-to-production)
+- [Deployment strategies](#deployment-strategies)
+  - [Minimal setup](#minimal-setup)
+  - [Using reverse proxy](#using-reverse-proxy)
+  - [Using Docker](#using-docker)
+- [Backup and Restore](#backup-and-restore)
+- [Recommendations](#recommendations)
+  - [Use SMTP mail server](#use-smtp-mail-server)
+  - [Enable MFA for superusers](#enable-mfa-for-superusers)
+  - [Enable rate limiter](#enable-rate-limiter)
+  - [Increase the open file descriptors limit](#increase-the-open-file-descriptors-limit)
+  - [Set GOMEMLIMIT](#set-gomemlimit)
+  - [Enable settings encryption](#enable-settings-encryption)
 
 ## Going to production
 
