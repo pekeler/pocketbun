@@ -29,9 +29,9 @@ Quick links:
 
 ### JavaScript engine
 
-The prebuilt PocketBase v0.17+ executable comes with embedded ES5 JavaScript engine (goja) which enables you to write custom server-side code using plain JavaScript.
+PocketBun executes your hooks and custom server code with Bun, allowing you to write server-side logic in JavaScript.
 
-You can start by creating `*.pb.js` file(s) inside a `pb_hooks` directory next to your executable.
+You can start by creating `*.pb.js` file(s) inside a `pb_hooks` directory in your project.
 
 ```js
 // pb_hooks/main.pb.js
@@ -49,9 +49,11 @@ onRecordAfterUpdateSuccess((e) => {
 }, "users")
 ```
 
-* For convenience, when making changes to the files inside `pb_hooks`, the process will automatically restart/reload itself (currently supported only on UNIX based platforms). The `*.pb.js` files are loaded per their filename sort order. *
+* For convenience, when making changes to the files inside `pb_hooks`, the process will automatically restart/reload itself (currently supported only on UNIX based platforms). The `*.pb.js` files are loaded per their filename sort order.
 
-For most parts, the JavaScript APIs are derived from [Go](https://pocketbase.io/docs/go-overview) with 2 main differences:
+On Windows, HooksWatch restart behavior has no effect.
+
+For most parts, the JavaScript APIs mirror the upstream server APIs with 2 main differences:
 
 -
 Go exported method and field names are converted to camelCase, for example:
@@ -59,7 +61,11 @@ Go exported method and field names are converted to camelCase, for example:
 `app.FindRecordById("example", "RECORD_ID")` becomes
 `$app.findRecordById("example", "RECORD_ID")`.
 
-- Errors are thrown as regular JavaScript exceptions and not returned as Go values.
+- Errors are thrown as regular JavaScript exceptions and not returned as explicit error values.
+
+In the PocketBun package API, use `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` as preferred names. `RegisterJSVM*` / `MustRegisterJSVM*` remain available as compatibility aliases.
+
+Many I/O-heavy APIs also expose Async variants (for example `serveAsync(...)`, `migrateAsync(...)`, and `RegisterHooksPluginAsync(...)`).
 
 #### Global objects
 
@@ -70,7 +76,7 @@ Below is a list with some of the commonly used global objects that are accessibl
 - The absolute path to the app `pb_hooks` directory.
 
 -
-[`$app`](https://pocketbase.io/jsvm/modules/_app.html) - The current running PocketBase application instance.
+[`$app`](https://pocketbase.io/jsvm/modules/_app.html) - The current running PocketBun application instance.
 
 -
 [`$apis.*`](https://pocketbase.io/jsvm/modules/_apis.html) - API routing helpers and middlewares.
@@ -87,7 +93,7 @@ And many more - for all exposed APIs, please refer to the
 
 ### TypeScript declarations and code completion
 
-While you can't use directly TypeScript (*without transpiling it to JS on your own*), PocketBase comes with builtin **ambient TypeScript declarations** that can help providing information and documentation about the available global variables, methods and arguments, code completion, etc. as long as your editor has TypeScript LSP support *(most editors either have it builtin or available as plugin)*.
+While you can't use directly TypeScript (*without transpiling it to JS on your own*), PocketBun comes with builtin **ambient TypeScript declarations** that can help providing information and documentation about the available global variables, methods and arguments, code completion, etc. as long as your editor has TypeScript LSP support *(most editors either have it builtin or available as plugin)*.
 
 The types declarations are stored in `pb_data/types.d.ts` file. You can point to those declarations using the reference triple-slash directive at the top of your JS file:
 
@@ -132,7 +138,7 @@ Relative file paths are relative to the current working directory (CWD) and not 
 
 #### Loading modules
 
-Please note that the embedded JavaScript engine is not a Node.js or browser environment, meaning that modules that rely on APIs like *window*, *fs*, *fetch*, *buffer* or any other runtime specific API not part of the ES5 spec may not work!
+Please note that the hooks runtime is not a browser environment. Use APIs that are supported by Bun and PocketBun hooks runtime.
 
 You can load modules either by specifying their local filesystem path or by using their name, which will automatically search in:
 
@@ -169,33 +175,15 @@ Loaded modules use a shared registry and mutations should be avoided when possib
 
 #### Performance
 
-The prebuilt executable comes with a **prewarmed pool of 15 JS runtimes**, which helps maintaining the handlers execution times on par with the Go equivalent code (see benchmarks). You can adjust the pool size manually with the `--hooksPool=50` flag (*increasing the pool size may improve the performance in high concurrent scenarios but also will increase the memory usage).
+Performance characteristics in PocketBun depend on your hook workload, I/O patterns and runtime configuration. For CPU-heavy operations, prefer built-in helpers where possible.
 
-Note that the handlers performance may degrade if you have heavy computational tasks in pure JavaScript (encryption, random generators, etc.). For such cases prefer using the exposed Go bindings (e.g. `$security.randomString(10)`).
+#### Runtime limitations
 
-#### Engine limitations
+Hooks run in isolated handler contexts, and you should avoid shared mutable state between handlers.
 
-We inherit some of the limitations and caveats of the embedded JavaScript engine ([goja](https://github.com/dop251/goja)):
-
-- Has most of ES6 functionality already implemented but it is not fully spec compliant yet.
-
--
-No concurrent execution inside a single handler (aka. no `setTimeout`/`setInterval
-).
-
--
-Wrapped Go structural types (such as maps, slices) comes with some peculiarities and do not behave the
-exact same way as native ECMAScript values (for more details see
-
-goja ToValue
-).
-
--
-In relation to the above, DB `json` field values require the use of `get()` and
-`set()` helpers (*this may change in the future*).
 ## Event hooks
 
-You can extend the default PocketBase behavior with custom server-side code using the exposed JavaScript app event hooks.
+You can extend the default PocketBun behavior with custom server-side code using the exposed JavaScript app event hooks.
 
 Throwing an error or not calling `e.next()` inside a handler function stops the hook execution chain.
 
@@ -342,7 +330,7 @@ routerAdd("POST", "/api/myapp/settings", (e) => {
 
 #### Path parameters and matching rules
 
-Because PocketBase routing is based on top of the Go standard router mux, we follow the same pattern matching rules. Below you could find a short overview but for more details please refer to [`net/http.ServeMux`](https://pkg.go.dev/net/http#ServeMux).
+Because PocketBun routing is based on top of the Go standard router mux, we follow the same pattern matching rules. Below you could find a short overview but for more details please refer to [`net/http.ServeMux`](https://pkg.go.dev/net/http#ServeMux).
 
 In general, a route pattern looks like `[METHOD ][HOST]/[PATH]`.
 
@@ -584,6 +572,8 @@ routerAdd("GET", "/hello", (e) => {
 
 The global [`$apis.*`](https://pocketbase.io/jsvm/modules/_apis.html) object exposes several middlewares that you can use as part of your application.
 
+PocketBun also provides async alternatives for several I/O-heavy helpers (for example `$http.sendAsync(...)` and `$os.readFileAsync(...)`).
+
 ```js
 // Require the request client to be unauthenticated (aka. guest).
 $apis.requireGuestOnly()
@@ -617,7 +607,7 @@ The below list is mostly useful for users that may want to plug their own custom
 the priority of the default global ones, for example: registering a custom auth loader before the rate
 limiter with `-1001` so that the rate limit can be applied properly based on the loaded auth state.
 
-All PocketBase applications have the below internal middlewares registered out of the box (*sorted by their priority):
+All PocketBun applications have the below internal middlewares registered out of the box (*sorted by their priority):
 
 -
 **WWW redirect**
@@ -635,7 +625,7 @@ certificate host policy.
 (id: pbCors, priority: -1041)
 
 *
-By default all origins are allowed (PocketBase is stateless and doesn't rely on cookies) but this
+By default all origins are allowed (PocketBun is stateless and doesn't rely on cookies) but this
 can be configured with the `--origins` flag.
 *
 
@@ -696,9 +686,9 @@ level by simply rebinding the `$apis.bodyLimit(limitBytes)` middleware.
 
 ### Error response
 
-PocketBase has a global error handler and every returned or thrown `Error` from a route or middleware will be safely converted by default to a generic API error to avoid accidentally leaking sensitive information (the original error will be visible only in the *Dashboard > Logs* or when in `--dev` mode).
+PocketBun has a global error handler and every returned or thrown `Error` from a route or middleware will be safely converted by default to a generic API error to avoid accidentally leaking sensitive information (the original error will be visible only in the *Dashboard > Logs* or when in `--dev` mode).
 
-To make it easier returning formatted json error responses, PocketBase provides `ApiError` constructor that can be instantiated directly or using the builtin factories. `ApiError.data` will be returned in the response only if it is a map of `ValidationError` items.
+To make it easier returning formatted json error responses, PocketBun provides `ApiError` constructor that can be instantiated directly or using the builtin factories. `ApiError.data` will be returned in the response only if it is a map of `ValidationError` items.
 
 ```js
 // construct ApiError with custom status code and validation data error
@@ -776,7 +766,7 @@ routerAdd("GET", "/custom-article", (e) => {
 
 ### Sending request to custom routes using the SDKs
 
-The official PocketBase SDKs expose the internal `send()` method that could be used to send requests to your custom route(s).
+The official PocketBun SDKs expose the internal `send()` method that could be used to send requests to your custom route(s).
 
 ```js
 import PocketBase from 'pocketbase';
@@ -861,7 +851,11 @@ if (result.length > 0) {
 
 ### Binding parameters
 
-To prevent SQL injection attacks, you should use named parameters for any expression value that comes from user input. This could be done using the named `` placeholders in your SQL statement and then define the parameter values for the query with `bind(params)`. For example:
+To prevent SQL injection attacks, you should use named parameters for any expression value that comes from user input. This could be done using the named `` placeholders in your SQL statement and then define the parameter values for the query with `bind(params)`.
+
+PocketBun rewrites dbx-style named markers for SQLite execution. The logged placeholder syntax can look different from your input query while behavior stays compatible.
+
+For example:
 
 ```js
 const result = arrayOf(new DynamicModel({
@@ -1260,7 +1254,7 @@ Inside the transaction function always use its `txApp` argument and not the orig
 To avoid performance issues, try to minimize slow/long running tasks such as sending emails, connecting to external services, etc. as part of the transaction.
 ## Record operations
 
-The most common task when extending PocketBase probably would be querying and working with your collection records.
+The most common task when extending PocketBun probably would be querying and working with your collection records.
 
 You could find detailed documentation about all the supported Record model methods in [`core.Record`](https://pocketbase.io/jsvm/interfaces/core.Record.html) type interface but below are some examples with the most common ones.
 
@@ -1649,7 +1643,7 @@ routerAdd("GET", "/articles/{slug}", (e) => {
 
 ### Generating and validating tokens
 
-PocketBase Web APIs are fully stateless (aka. there are no sessions in the traditional sense) and an auth record is considered authenticated if the submitted request contains a valid `Authorization: TOKEN` header * (see also [Builtin auth middlewares](#builtin-middlewares) and [Retrieving the current auth state from a route](#retrieving-the-current-auth-state) ) * .
+PocketBun Web APIs are fully stateless (aka. there are no sessions in the traditional sense) and an auth record is considered authenticated if the submitted request contains a valid `Authorization: TOKEN` header * (see also [Builtin auth middlewares](#builtin-middlewares) and [Retrieving the current auth state from a route](#retrieving-the-current-auth-state) ) * .
 
 If you want to issue and verify manually a record JWT (auth, verification, password reset, etc.), you could do that using the record token type specific methods:
 
@@ -1808,7 +1802,7 @@ $app.delete(collection)
 ```
 ## Migrations
 
-PocketBase comes with a builtin DB and data migration utility, allowing you to version your DB structure, create collections programmatically, initialize default settings and/or run anything that needs to be executed only once.
+PocketBun comes with a builtin DB and data migration utility, allowing you to version your DB structure, create collections programmatically, initialize default settings and/or run anything that needs to be executed only once.
 
 The user defined migrations are located in `pb_migrations` directory (it can be changed using the `--migrationsDir` flag) and each unapplied migration inside it will be executed automatically in a transaction on `serve` (or on `migrate up`).
 
@@ -1816,14 +1810,14 @@ The generated migrations are safe to be committed to version control and can be 
 
 ### Automigrate
 
-The prebuilt executable has the `--automigrate` flag enabled by default, meaning that every collection configuration change from the Dashboard (or Web API) will generate the related migration file automatically for you.
+The PocketBun CLI has the `--automigrate` flag enabled by default, meaning that every collection configuration change from the Dashboard (or Web API) will generate the related migration file automatically for you.
 
 ### Creating migrations
 
 To create a new blank migration you can run `migrate create`.
 
 ```js
-[root@dev app]$ ./pocketbase migrate create "your_new_migration"
+[root@dev app]$ pocketbun migrate create "your_new_migration"
 ```
 
 ```js
@@ -1852,7 +1846,7 @@ Both callbacks accept a transactional `app` instance.
 The `migrate collections` command generates a full snapshot of your current collections configuration without having to type it manually. Similar to the `migrate create` command, this will generate a new migration file in the `pb_migrations` directory.
 
 ```js
-[root@dev app]$ ./pocketbase migrate collections
+[root@dev app]$ pocketbun migrate collections
 ```
 
 By default the collections snapshot is imported in *extend* mode, meaning that collections and fields that don't exist in the snapshot are preserved. If you want the snapshot to *delete* missing collections and fields, you can edit the generated file and change the last argument of `importCollections` to `true`.
@@ -1864,7 +1858,7 @@ All applied migration filenames are stored in the internal `_migrations` table. 
 To avoid the clutter and to prevent applying the intermediate steps in production, you can remove (or squash) the unnecessary migration files manually and then update the local migrations history by running:
 
 ```js
-[root@dev app]$ ./pocketbase migrate history-sync
+[root@dev app]$ pocketbun migrate history-sync
 ```
 
 The above command will remove any entry from the `_migrations` table that doesn't have a related migration file associated with it.
@@ -1978,7 +1972,7 @@ migrate((app) => {
 
 If you have tasks that need to be performed periodically, you could set up crontab-like jobs with `cronAdd(id, expr, handler)`.
 
-Each scheduled job runs in its own goroutine as part of the `serve` command process and must have:
+Each scheduled job runs in the `serve` command process and must have:
 
 -
 **id** - identifier for the scheduled job; could be used to replace or remove an existing
@@ -2010,7 +2004,7 @@ To remove a single registered cron job you can call `cronRemove(id)`.
 All registered app level cron jobs can be also previewed and triggered from the *Dashboard > Settings > Crons* section.
 ## Sending emails
 
-PocketBase provides a simple abstraction for sending emails via the `$app.newMailClient()` helper.
+PocketBun provides a simple abstraction for sending emails via the `$app.newMailClient()` helper.
 
 Depending on your configured mail settings (*Dashboard > Settings > Mail settings*) it will use the `sendmail` command or a SMTP client.
 
@@ -2018,7 +2012,7 @@ Depending on your configured mail settings (*Dashboard > Settings > Mail setting
 
 You can send your own custom emails from everywhere within the app (hooks, middlewares, routes, etc.) by using `$app.newMailClient().send(message)`. Here is an example of sending a custom email after user registration:
 
-```go
+```js
 onRecordCreateRequest((e) => {
     e.next()
 
@@ -2055,7 +2049,7 @@ onMailerRecordPasswordResetSend((e) => {
 
 ### Overview
 
-A common task when creating custom routes or emails is the need of generating HTML output. To assist with this, PocketBase provides the global `$template` helper for parsing and rendering HTML templates.
+A common task when creating custom routes or emails is the need of generating HTML output. To assist with this, PocketBun provides the global `$template` helper for parsing and rendering HTML templates.
 
 ```js
 const html = $template.loadFiles(
@@ -2073,7 +2067,9 @@ The dot object (`.`) in the above represents the data passed to the templates vi
 
 By default the templates apply contextual (HTML, JS, CSS, URI) auto escaping so the generated template content should be injection-safe. To render raw/verbatim trusted content in the templates you can use the builtin `raw` function (e.g. `}`).
 
-For more information about the template syntax please refer to the [*html/template*](https://pkg.go.dev/html/template#hdr-A_fuller_picture) and [*text/template*](https://pkg.go.dev/text/template) package godocs. ** Another great resource is also the Hashicorp's [Learn Go Template Syntax](https://developer.hashicorp.com/nomad/tutorials/templates/go-template-syntax) tutorial. **
+For more information about the template syntax please refer to the [*html/template*](https://pkg.go.dev/html/template#hdr-A_fuller_picture) and [*text/template*](https://pkg.go.dev/text/template) package godocs.
+
+For closer Go `text/template` parity in PocketBun, install optional `go-text-template`.
 
 ### Example HTML page with layout
 
@@ -2086,7 +2082,7 @@ myapp/
             layout.html
             hello.html
         main.pb.js
-    pocketbase
+    pocketbun
 ```
 
 We define the content for `layout.html` as:
@@ -2143,7 +2139,7 @@ You can register custom console commands using `app.rootCmd.addCommand(cmd)`, wh
 
 Here is an example:
 
-```go
+```js
 $app.rootCmd.addCommand(new Command({
     use: "hello",
     run: (cmd, args) => {
@@ -2155,7 +2151,7 @@ $app.rootCmd.addCommand(new Command({
 To run the command you can execute:
 
 ```html
-./pocketbase hello
+pocketbun hello
 ```
 
 Keep in mind that the console commands execute in their own separate app process and run independently from the main `serve` command (aka. hook and realtime events between different processes are not shared with one another).
@@ -2212,7 +2208,7 @@ onRecordCreateRequest((e) => {
 
 In order to send `multipart/form-data` requests (ex. uploading files) the request `body` must be a `FormData` instance.
 
-PocketBase JSVM's `FormData` has the same APIs as its browser equivalent with the main difference that for file values instead of `Blob` it accepts `$filesystem.File`.
+PocketBun JSVM's `FormData` has the same APIs as its browser equivalent with the main difference that for file values instead of `Blob` it accepts `$filesystem.File`.
 
 ```js
 const formData = new FormData();
@@ -2234,10 +2230,10 @@ console.log(res.statusCode)
 
 As of now there is no support for streamed responses or server-sent events (SSE). The `$http.send` call blocks and returns the entire response body at once.
 
-For this and other more advanced use cases you'll have to [extend PocketBase with Go](https://pocketbase.io/docs/go-overview/).
+For this and other more advanced use cases you'll need custom server code outside the JS hooks runtime.
 ## Realtime messaging
 
-By default PocketBase sends realtime events only for Record create/update/delete operations (*and for the OAuth2 auth redirect), but you are free to send custom realtime messages to the connected clients via the [`$app.subscriptionsBroker()`](https://pocketbase.io/jsvm/functions/_app.subscriptionsBroker.html) instance.
+By default PocketBun sends realtime events only for Record create/update/delete operations (*and for the OAuth2 auth redirect), but you are free to send custom realtime messages to the connected clients via the [`$app.subscriptionsBroker()`](https://pocketbase.io/jsvm/functions/_app.subscriptionsBroker.html) instance.
 
 [`$app.subscriptionsBroker().clients()`](https://pocketbase.io/jsvm/interfaces/subscriptions.Broker.html#clients) returns all connected [`subscriptions.Client`](https://pocketbase.io/jsvm/interfaces/subscriptions.Client.html) indexed by their unique connection id.
 
@@ -2278,7 +2274,7 @@ import PocketBase from 'pocketbase';
 ```
 ## Filesystem
 
-PocketBase comes with a thin abstraction between the local filesystem and S3.
+PocketBun comes with a thin abstraction between the local filesystem and S3.
 
 To configure which one will be used you can adjust the storage settings from *Dashboard > Settings > Files storage* section.
 
@@ -2369,7 +2365,7 @@ $app.save(record)
 ```
 ## Logging
 
-`$app.logger()` could be used to write any logs into the database so that they can be later explored from the PocketBase *Dashboard > Logs* section.
+`$app.logger()` could be used to write any logs into the database so that they can be later explored from the PocketBun *Dashboard > Logs* section.
 
 ### Logger methods
 

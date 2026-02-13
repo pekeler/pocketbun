@@ -1670,7 +1670,7 @@ Query parameters
 
 | Param | Type | Description |
 | --- | --- | --- |
-| thumb | String | Get the thumb of the requested file. Supported thumb formats: - `WxH` (e.g. `100x300`) crop to `WxH` from center - `WxHt` (e.g. `100x300t`) crop to `WxH` from top - `WxHb` (e.g. `100x300b`) crop to `WxH` from bottom - `WxHf` (e.g. `100x300f`) fit inside `WxH` without cropping - `0xH` (e.g. `0x300`) resize to height while preserving aspect ratio - `Wx0` (e.g. `100x0`) resize to width while preserving aspect ratio If the thumb size is not defined in the file schema field options or the file resource is not an image (jpg, png, gif, webp), then the original file resource is returned unmodified. |
+| thumb | String | Get the thumb of the requested file. Supported thumb formats: - `WxH` (e.g. `100x300`) crop to `WxH` from center - `WxHt` (e.g. `100x300t`) crop to `WxH` from top - `WxHb` (e.g. `100x300b`) crop to `WxH` from bottom - `WxHf` (e.g. `100x300f`) fit inside `WxH` without cropping - `0xH` (e.g. `0x300`) resize to height while preserving aspect ratio - `Wx0` (e.g. `100x0`) resize to width while preserving aspect ratio If the thumb size is not defined in the file schema field options or the file resource is not an image (jpg, png, gif, webp), then the original file resource is returned unmodified. PocketBun uses Sharp for thumbnail generation, so binary output may differ from upstream. BMP thumbnails are emitted as PNG. |
 | token | String | Optional **file token** for granting access to **protected file(s)**. For an example, you can check ["Files upload and handling"](./introduction.md#protected-files). |
 | download | Boolean | If it is set to a truthy value (*1*, *t*, *true*) the file will be served with `Content-Disposition: attachment` header instructing the browser to ignore the file preview for pdf, images, videos, etc. and to directly download the file. |
 
@@ -3895,7 +3895,7 @@ null
 
 ### Restore backup
 
-Restore a single backup by its name and restarts the current running PocketBase process.
+Restore a single backup by its name and restarts the current running PocketBun process.
 
 This action will return an error if there is another backup/restore operation already in progress.
 
@@ -4048,7 +4048,7 @@ Responses
 
 ```json
 {
-                  "status": 200,
+                  "code": 200,
                   "message": "API is healthy.",
                   "data": {
                     "canBackup": false

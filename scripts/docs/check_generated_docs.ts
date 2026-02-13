@@ -81,6 +81,21 @@ function assertIncludes(haystack: string, needle: string, label: string): void {
   }
 }
 
+function assertIncludesAny(haystack: string, needles: string[], label: string): void {
+  for (const needle of needles) {
+    if (haystack.includes(needle)) {
+      return;
+    }
+  }
+  throw new Error(`Missing any of [${needles.map((needle) => `'${needle}'`).join(", ")}] in ${label}`);
+}
+
+function routeTitleVariants(title: string): string[] {
+  const variants = new Set<string>([title]);
+  variants.add(title.replace(/\bPocketBase\b/g, "PocketBun"));
+  return [...variants];
+}
+
 function main(): void {
   if (!existsSync(CACHE_DOC_LINKS)) {
     throw new Error(
@@ -104,19 +119,19 @@ function main(): void {
   const referenceDoc = readFileSync("docs/reference.md", "utf8");
 
   for (const route of introItems) {
-    assertIncludes(introDoc, route.title, "docs/introduction.md");
+    assertIncludesAny(introDoc, routeTitleVariants(route.title), "docs/introduction.md");
   }
 
   for (const route of prodItems) {
-    assertIncludes(prodDoc, route.title, "docs/going-to-production.md");
+    assertIncludesAny(prodDoc, routeTitleVariants(route.title), "docs/going-to-production.md");
   }
 
   for (const route of apiItems) {
-    assertIncludes(apiDoc, route.title, "docs/web-apis.md");
+    assertIncludesAny(apiDoc, routeTitleVariants(route.title), "docs/web-apis.md");
   }
 
   for (const route of jsItems) {
-    assertIncludes(jsDoc, route.title, "docs/extend.md");
+    assertIncludesAny(jsDoc, routeTitleVariants(route.title), "docs/extend.md");
   }
 
   // Critical explicit checks from recent misses.

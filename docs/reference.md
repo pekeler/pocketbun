@@ -36,7 +36,7 @@ declare var __hooks: string;
 
 ### $app
 
-`$app` is the current running PocketBase instance that is globally
+`$app` is the current running PocketBun instance that is globally
 available in each .pb.js file.
 
 _Note that this variable is available only in pb_hooks context._
@@ -1166,12 +1166,12 @@ declare namespace $security {
   /**
    * {@inheritDoc security.parseUnverifiedJWT}
    */
-  export function parseUnverifiedJWT(token: string): _TygojaDict;
+  export function parseUnverifiedJWT(token: string): { [key: string]: any };
 
   /**
    * {@inheritDoc security.parseJWT}
    */
-  export function parseJWT(token: string, verificationKey: string): _TygojaDict;
+  export function parseJWT(token: string, verificationKey: string): { [key: string]: any };
 }
 ```
 
@@ -1180,7 +1180,7 @@ declare namespace $security {
 ### $filesystem
 
 `$filesystem` defines common helpers for working
-with the PocketBase filesystem abstraction.
+with the PocketBun filesystem abstraction.
 
 ```ts
 declare namespace $filesystem {
@@ -1309,7 +1309,7 @@ declare namespace $os {
 
 ### $apis
 
-`$apis` defines commonly used PocketBase api helpers and middlewares.
+`$apis` defines commonly used PocketBun api helpers and middlewares.
 
 ```ts
 declare namespace $apis {

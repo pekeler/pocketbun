@@ -10,71 +10,28 @@ This page merges the upstream PocketBase Introduction section and its child page
 Quick links:
 
 - [Introduction](#introduction)
-- [How to use PocketBase](#how-to-use-pocketbase)
+- [How to use PocketBun](#how-to-use-pocketbun)
 - [Collections](#collections)
 - [API rules and filters](#api-rules-and-filters)
 - [Authentication](#authentication)
 - [Files upload and handling](#files-upload-and-handling)
 - [Working with relations](#working-with-relations)
-- [Extending PocketBase](#extending-pocketbase)
+- [Extending PocketBun](#extending-pocketbun)
 
 ## Introduction
 
-Please keep in mind that PocketBase is still under active development and full backward compatibility is not guaranteed before reaching v1.0.0. PocketBase is NOT recommended for production critical applications yet, unless you are fine with reading the [changelog](/blob/master/CHANGELOG.md) and applying some manual migration steps from time to time.
+Please keep in mind that PocketBun is still under active development and full backward compatibility is not guaranteed before reaching v1.0.0. PocketBun is NOT recommended for production critical applications yet, unless you are fine with reading the [changelog](/blob/master/CHANGELOG.md) and applying some manual migration steps from time to time.
 
-PocketBase is an open source backend consisting of embedded database (SQLite) with realtime subscriptions, builtin auth management, convenient dashboard UI and simple REST-ish API. It can be used both as Go framework and as standalone application.
+PocketBun is an open source backend consisting of embedded database (SQLite) with realtime subscriptions, builtin auth management, convenient dashboard UI and simple REST-ish API. It can be used as a standalone application and can be extended with JavaScript.
 
-The easiest way to get started is to download the prebuilt minimal PocketBase executable:
+The easiest way to get started is to install PocketBun with Bun package manager:
 
-changePlatform(AMD)}
+- `bun add pocketbun` to add it to an existing project.
+- `bun create pocketbun my-app` to start a new project template.
 
-x64
+After installation, you can start the application by running `pocketbun serve`.
 
-changePlatform(ARM)}
-
-ARM64
-
--
-
-Download for Linux x64
-
-(~MB zip)
-
--
-
-Download for Windows x64
-
-(~MB zip)
-
--
-
-Download for macOS x64
-
-(~MB zip)
-
--
-
-Download for Linux ARM64
-
-(~MB zip)
-
--
-
-Download for Windows ARM64
-
-(~MB zip)
-
--
-
-Download for macOS ARM64
-
-(~MB zip)
-
-See the GitHub Releases page for other platforms and more details.
-
-Once you've extracted the archive, you could start the application by running `**./pocketbase serve**` in the extracted directory.
-
-**And that's it!** The first time it will generate an installer link that should be automatically opened in the browser to set up your first superuser account (you can also create the first superuser manually via `./pocketbase superuser create EMAIL PASS`) .
+**And that's it!** The first time it will generate an installer link that should be automatically opened in the browser to set up your first superuser account (you can also create the first superuser manually via `pocketbun superuser create EMAIL PASS`) .
 
 The started web server has the following default routes:
 
@@ -94,7 +51,7 @@ etc.)
 [`http://127.0.0.1:8090/api/`](http://127.0.0.1:8090/api/)
 - REST-ish API
 
-The prebuilt PocketBase executable will create and manage 2 new directories alongside the executable:
+By default, PocketBun will create and manage 2 new directories in the current working directory:
 
 -
 `pb_data` - stores your application data, uploaded files, etc. (usually should be added in
@@ -107,18 +64,17 @@ committed in your repository).
 You can even write custom migration scripts. For more info check the
 [JS migrations docs](./extend.md#migrations).
 
-You could find all available commands and their options by running `./pocketbase --help` or `./pocketbase [command] --help`
+You could find all available commands and their options by running `pocketbun --help` or `pocketbun [command] --help`
 
-.tabs-architecture .tabs-header .tab-item
-## How to use PocketBase
+## How to use PocketBun
 
-The easiest way to use PocketBase is by interacting with its Web APIs directly from the client-side (e.g. mobile app or browser SPA).
+The easiest way to use PocketBun is by interacting with its Web APIs directly from the client-side (e.g. mobile app or browser SPA).
 
 It was designed with this exact use case in mind and it is also the reason why there are general purpose JSON APIs for listing, pagination, sorting, filtering, etc.
 
 The access and filter controls for your data are usually done through the [collection API rules](#api-rules-and-filters) .
 
-For the cases when you need more specialized handling (sending emails, intercepting the default actions, creating new routes, etc.) you can [extend PocketBase with Go or JavaScript](#extending-pocketbase) .
+For the cases when you need more specialized handling (sending emails, intercepting the default actions, creating new routes, etc.) you can [extend PocketBun with JavaScript](#extending-pocketbun) .
 
 For interacting with the [Web APIs](./web-apis.md#api-records) you can make use of the official SDK clients:
 
@@ -127,24 +83,19 @@ JavaScript SDK
 
 (Browser, Node.js, React Native)
 
--
-Dart SDK
-
-(Web, Mobile, Desktop, CLI)
-
 When used on the client-side, it is safe to have a single/global SDK instance for the entire lifecycle of your application.
 
 ### Web apps recommendation
 
-Not everyone will agree with this, but if you are building a web app with PocketBase I recommend developing the frontend as a **traditional client-side SPA** and for the cases where additional server-side handling is needed (e.g. for payment webhooks, extra data server validations, etc.) you could try to:
+Not everyone will agree with this, but if you are building a web app with PocketBun I recommend developing the frontend as a **traditional client-side SPA** and for the cases where additional server-side handling is needed (e.g. for payment webhooks, extra data server validations, etc.) you could try to:
 
 -
-[Use PocketBase as Go/JS framework](#extending-pocketbase) to create new routes or
+[Use PocketBun as JavaScript framework](#extending-pocketbun) to create new routes or
 intercept existing.
 
 -
 
-Create one-off Node.js/Bun/Deno/etc. server-side actions that will interact with PocketBase only as superuser and as pure data store (similar to traditional database interactions but over HTTP). In this case it is safe to have a global superuser client such as:
+Create one-off Node.js/Bun/Deno/etc. server-side actions that will interact with PocketBun only as superuser and as pure data store (similar to traditional database interactions but over HTTP). In this case it is safe to have a global superuser client such as:
 
 ```js
 // src/superuser.js
@@ -184,7 +135,7 @@ async function serverAction(req, resp) {
 
 ### Why not JS SSR
 
-Using PocketBase with meta framework such as SvelteKit, Nuxt, Next.js, etc. **in a JS SSR mode** is possible but it comes with many complications and you need to carefully evaluate whether the cost of having another backend (PocketBase) alongside your existing one (the Node.js server) is worth it.
+Using PocketBun with meta framework such as SvelteKit, Nuxt, Next.js, etc. **in a JS SSR mode** is possible but it comes with many complications and you need to carefully evaluate whether the cost of having another backend (PocketBun) alongside your existing one (the Node.js server) is worth it.
 
 You can read more about the potential problems in [JS SSR - issues and recommendations #5313](https://github.com/pocketbase/pocketbase/discussions/5313) but some of the common pitfalls are:
 
@@ -197,7 +148,7 @@ OAuth2 integration difficulties related to the server-side only OAuth2 flow (or 
 "all-in-one" client-side handling and sharing a cookie with the server-side).
 
 -
-Proxying realtime connections and essentially duplicating the same thing PocketBase already
+Proxying realtime connections and essentially duplicating the same thing PocketBun already
 does.
 
 -
@@ -205,23 +156,23 @@ Performance bottlenecks caused by the default single-threaded Node.js process an
 excessive resources utilization due to the server-side rendering and heavy back-and-forth
 requests communication between the different layers (client
 Node.js
-PocketBase).
+PocketBun).
 
-This doesn't mean that using PocketBase with JS SSR is always a "bad thing" but based on the dozens reported issues so far I would recommend it only after careful evaluation and only to more experienced developers that have in-depth understanding of the used tools and their trade-offs. If you still want to use PocketBase to handle regular users authentication with a JS SSR meta framework, then you can find some JS SDK examples in the repo's [JS SSR integration section](https://github.com/pocketbase/js-sdk#ssr-integration).
+This doesn't mean that using PocketBun with JS SSR is always a "bad thing" but based on the dozens reported issues so far I would recommend it only after careful evaluation and only to more experienced developers that have in-depth understanding of the used tools and their trade-offs. If you still want to use PocketBun to handle regular users authentication with a JS SSR meta framework, then you can find some JS SDK examples in the repo's [JS SSR integration section](https://github.com/pocketbase/js-sdk#ssr-integration).
 
 ### Why not htmx, Hotwire/Turbo, Unpoly, etc.
 
-htmx, Hotwire/Turbo, Unpoly and other similar tools are commonly used for building server rendered applications but unfortunately they don't play well with the JSON APIs and fully stateless nature of PocketBase.
+htmx, Hotwire/Turbo, Unpoly and other similar tools are commonly used for building server rendered applications but unfortunately they don't play well with the JSON APIs and fully stateless nature of PocketBun.
 
-It is possible to use them with PocketBase but at the moment I don't recommend it because we lack the necessary helpers and utilities for building SSR-first applications, which means that you might have to create from scratch a lot of things on your own such as middlewares for handling cookies (*and eventually also taking care of CORS and CSRF*) or custom authentication endpoints and access controls (*the collection API rules apply only for the builtin JSON routes).
+It is possible to use them with PocketBun but at the moment I don't recommend it because we lack the necessary helpers and utilities for building SSR-first applications, which means that you might have to create from scratch a lot of things on your own such as middlewares for handling cookies (*and eventually also taking care of CORS and CSRF*) or custom authentication endpoints and access controls (*the collection API rules apply only for the builtin JSON routes).
 
-In the future we could eventually provide official SSR support in terms of guides and middlewares for this use case but again - PocketBase wasn't designed with this in mind and you may want to reevaluate the tech stack of your application and switch to a traditional client-side SPA as mentioned earlier or use a different backend solution that might fit better with your use case.
+In the future we could eventually provide official SSR support in terms of guides and middlewares for this use case but again - PocketBun wasn't designed with this in mind and you may want to reevaluate the tech stack of your application and switch to a traditional client-side SPA as mentioned earlier or use a different backend solution that might fit better with your use case.
 
 ### Mobile apps auth persistence
 
-When building mobile apps with the JavaScript SDK or Dart SDK you'll have to specify a custom persistence store if you want to preserve the authentication between the various app activities and open/close state.
+When building mobile apps with the JavaScript SDK you'll have to specify a custom persistence store if you want to preserve the authentication between the various app activities and open/close state.
 
-The SDKs come with a helper async storage implementation that allows you to hook any custom persistent layer (local file, SharedPreferences, key-value based database, etc.). Here is a minimal PocketBase SDKs initialization for React Native (JavaScript) and Flutter (Dart):
+The SDK comes with a helper async storage implementation that allows you to hook any custom persistent layer (local file, SharedPreferences, key-value based database, etc.). Here is a minimal PocketBun JS SDK initialization for React Native:
 
 ```js
 // Node.js and React Native doesn't have native EventSource implementation
@@ -292,7 +243,7 @@ if (Platform.OS === 'web') {
 await pb.collection('example').create(data)
 ```
 
-The next couple pages have a little bit more information about the basic PocketBase components like collections, records, authentication, relations, files handling, etc.
+The next couple pages have a little bit more information about the basic PocketBun components like collections, records, authentication, relations, files handling, etc.
 ## Collections
 
 ### Overview
@@ -301,9 +252,9 @@ The next couple pages have a little bit more information about the basic PocketB
 
 Single entry of a collection is called **record** (a single row in the SQL table).
 
-You can manage your **collections** from the Dashboard, with the Web APIs using the [client-side SDKs](#how-to-use-pocketbase) (*superusers only*) or programmatically via the [Go](https://pocketbase.io/docs/go-migrations/)/[JavaScript](./extend.md#migrations) migrations.
+You can manage your **collections** from the Dashboard, with the Web APIs using the [client-side SDKs](#how-to-use-pocketbun) (*superusers only*) or programmatically via [JavaScript](./extend.md#migrations) migrations.
 
-Similarly, you can manage your **records** from the Dashboard, with the Web APIs using the [client-side SDKs](#how-to-use-pocketbase) or programmatically via the [Go](https://pocketbase.io/docs/go-records/)/[JavaScript](./extend.md#record-operations) Record operations.
+Similarly, you can manage your **records** from the Dashboard, with the Web APIs using the [client-side SDKs](#how-to-use-pocketbun) or programmatically via [JavaScript](./extend.md#record-operations) Record operations.
 
 Here is what a collection edit panel looks like in the Dashboard:
 
@@ -443,7 +394,7 @@ EditorField defines `editor` type field to store HTML formatted text: `""` (defa
 
 DateField defines `date` type field to store a single datetime string value: `""` (default), `"2022-01-01 00:00:00.000Z"`.
 
-All PocketBase dates at the moment follows the RFC3399 format `Y-m-d H:i:s.uZ` (e.g. `2024-11-10 18:45:27.123Z`).
+All PocketBun dates at the moment follows the RFC3399 format `Y-m-d H:i:s.uZ` (e.g. `2024-11-10 18:45:27.123Z`).
 
 Dates are compared as strings, meaning that when using the filters with a date field you'll have to specify the full datetime string format. For example to target a single day (e.g. November 19, 2024) you can use something like: ` created >= '2024-11-19 00:00:00.000Z' && created
 
@@ -482,7 +433,7 @@ For example: ``
 
 FileField defines `file` type field for managing record file(s).
 
-PocketBase stores in the database only the file name. The file itself is stored either on the local disk or in S3, depending on your application storage settings.
+PocketBun stores in the database only the file name. The file itself is stored either on the local disk or in S3, depending on your application storage settings.
 
 For **single** `file` *(the `MaxSelect` option is
 = 2)* the stored value is an array: `[]`, `["file1_Ab24ZjL.png", "file2_Frq24ZjL.txt"]`.
@@ -538,7 +489,7 @@ GeoPoint defines `geoPoint` type field for storing geographic coordinates (longi
 
 The default/zero value of a `geoPoint` is the "Null Island", aka. ``.
 
-When extending PocketBase with Go/JSVM, the `geoPoint` field value could be set as `types.GeoPoint` instance or a regular map with `lon` and `lat` keys:
+When extending PocketBun with JavaScript hooks, the `geoPoint` field value could be set as `types.GeoPoint` instance or a regular map with `lon` and `lat` keys:
 
 ```js
 record.set("address", {"lon":12.34, "lat":45.67})
@@ -586,7 +537,7 @@ and guests)
 **Non-empty string** - only users (authorized or not) that satisfy the rule filter expression
 will be able to perform this action
 
-**PocketBase API Rules act also as records filter!** Or in other words, you could for example allow listing only the "active" records of your collection, by using a simple filter expression such as: `status = "active"` (where "status" is a field defined in your Collection).
+**PocketBun API Rules act also as records filter!** Or in other words, you could for example allow listing only the "active" records of your collection, by using a simple filter expression such as: `status = "active"` (where "status" is a field defined in your Collection).
 
 Because of the above, the API will return 200 empty items response in case a request doesn't satisfy a `listRule`, 400 for unsatisfied `createRule` and 404 for unsatisfied `viewRule`, `updateRule` and `deleteRule`. All rules will return 403 in case they were "locked" (aka. superuser only) and the request client is not a superuser.
 
@@ -798,7 +749,7 @@ geoDistance(address.lon, address.lat, 23.32, 42.69) < 25
 
 The `strftime(format, [time-value, modifiers...])` returns a date string formatted according to the specified format argument.
 
-The function is similar to the builtin SQLite [`strftime`](https://sqlite.org/lang_datefunc.html) with the main difference that NULL results will be normalized for consistency with the non-nullable PocketBase `text` and `date` fields.
+The function is similar to the builtin SQLite [`strftime`](https://sqlite.org/lang_datefunc.html) with the main difference that NULL results will be normalized for consistency with the non-nullable PocketBun `text` and `date` fields.
 
 The function accepts 1, 2 or 3+ arguments.
 
@@ -867,15 +818,15 @@ title ~ "Lorem%"
 
 A single client is considered authenticated as long as it sends valid `Authorization:YOUR_AUTH_TOKEN` header with the request.
 
-The PocketBase Web APIs are fully stateless and there are no sessions in the traditional sense (even the tokens are not stored in the database).
+The PocketBun Web APIs are fully stateless and there are no sessions in the traditional sense (even the tokens are not stored in the database).
 
 Because there are no sessions and we don't store the tokens on the server there is also no logout endpoint. To "logout" a user you can simply disregard the token from your local state (aka. `pb.authStore.clear()` if you use the SDKs).
 
-The auth token could be generated either through the specific auth collection Web APIs or programmatically via Go/JS.
+The auth token could be generated either through the specific auth collection Web APIs or programmatically via JavaScript hooks.
 
 All allowed auth collection methods can be configured individually from the specific auth collection options.
 
-Note that PocketBase admins (aka. `_superusers`) are similar to the regular auth collection records with 2 caveats:
+Note that PocketBun admins (aka. `_superusers`) are similar to the regular auth collection records with 2 caveats:
 
 - OAuth2 is not supported as auth method for the `_superusers` collection
 
@@ -949,7 +900,7 @@ You can also authenticate your users with an OAuth2 provider (Google, GitHub, Mi
 
 ### Multi-factor authentication
 
-PocketBase v0.23+ introduced optional Multi-factor authentication (MFA).
+PocketBun v0.23+ introduced optional Multi-factor authentication (MFA).
 
 If enabled, it requires the user to authenticate with any 2 different auth methods from above (the order doesn't matter). The expected flow is:
 
@@ -1022,7 +973,7 @@ import PocketBase from 'pocketbase';
 
 ### API keys
 
-While PocketBase doesn't have "API keys" in the traditional sense, as a side effect of the support for users impersonation, for such cases you can use instead the generated nonrenewable `_superusers` impersonate auth token. You can generate such token via the above impersonate API or from the *Dashboard > Collections > _superusers > > "Impersonate" dropdown option:
+While PocketBun doesn't have "API keys" in the traditional sense, as a side effect of the support for users impersonation, for such cases you can use instead the generated nonrenewable `_superusers` impersonate auth token. You can generate such token via the above impersonate API or from the *Dashboard > Collections > _superusers > > "Impersonate" dropdown option:
 
 Because of the security implications (superusers can execute, access and modify anything), use the generated `_superusers` tokens with extreme care and only for internal **server-to-server** communication.
 
@@ -1030,13 +981,13 @@ To invalidate already issued tokens, you need to change the individual superuser
 
 ### Auth token verification
 
-PocketBase doesn't have a dedicated token verification endpoint, but if you want to verify an existing auth token from a 3rd party app you can send an [Auth refresh](./web-apis.md#auth-refresh) call, aka. `pb.collection("users").authRefresh()`.
+PocketBun doesn't have a dedicated token verification endpoint, but if you want to verify an existing auth token from a 3rd party app you can send an [Auth refresh](./web-apis.md#auth-refresh) call, aka. `pb.collection("users").authRefresh()`.
 
 On valid token - it returns a new token with refreshed `exp` claim and the latest user data.
 
 Otherwise - returns an error response.
 
-Note that calling `authRefresh` doesn't invalidate previously issued tokens and you can safely disregard the new one if you don't need it (as mentioned in the beginning - PocketBase doesn't store the tokens on the server).
+Note that calling `authRefresh` doesn't invalidate previously issued tokens and you can safely disregard the new one if you don't need it (as mentioned in the beginning - PocketBun doesn't store the tokens on the server).
 
 Performance wise, the used `HS256` algorithm for generating the JWT has very little to no impact and it is essentially the same in terms of response time as calling `getOne("USER_ID")` * (see [benchmarks](https://github.com/pocketbase/benchmarks/blob/master/results/hetzner_cax11.md#user-auth-refresh)) *.
 
@@ -1044,7 +995,7 @@ Performance wise, the used `HS256` algorithm for generating the JWT has very lit
 
 Before starting, you'll need to create an OAuth2 app in the provider's dashboard in order to get a **Client Id** and **Client Secret**, and register a redirect URL .
 
-Once you have obtained the **Client Id** and **Client Secret**, you can enable and configure the provider from your PocketBase auth collection options (*PocketBase > Collections > > Edit collection (settings cogwheel) > Options > OAuth2).
+Once you have obtained the **Client Id** and **Client Secret**, you can enable and configure the provider from your PocketBun auth collection options (*PocketBun > Collections > > Edit collection (settings cogwheel) > Options > OAuth2).
 
 All in one (*recommended*)
 
@@ -1134,33 +1085,6 @@ fileInput.addEventListener('change', function ()
 // upload and create new record
 const createdRecord = await pb.collection('example').create(formData);
 `}
-dart=
-import 'package:pocketbase/pocketbase.dart';
-import 'package:http/http.dart' as http;
-
-final pb = PocketBase('http://127.0.0.1:8090');
-
-...
-
-// create a new record and upload multiple files
-final record = await pb.collection('example').create(
-body: ,
-files: [
-http.MultipartFile.fromString(
-'documents',
-'example content 1...',
-filename: 'file1.txt',
-),
-http.MultipartFile.fromString(
-'documents',
-'example content 2...',
-filename: 'file2.txt',
-),
-],
-);
-
-/>
-
 If your `file` field supports uploading multiple files (aka. **Max Files option is >= 2**) you can use the `+` prefix/suffix field name modifier to respectively prepend/append new files alongside the already uploaded ones. For example:
 
 ```js
@@ -1218,6 +1142,8 @@ Supported thumb formats:
 
 The original file would be returned, if the requested thumb size is not found or the file is not an image!
 
+PocketBun uses Sharp for thumbnail generation, so binary output may differ from upstream. BMP thumbnails are emitted as PNG.
+
 If you already have a Record model instance, the SDKs provide a convenient method to generate a file url by its name.
 
 ```js
@@ -1274,7 +1200,7 @@ import PocketBase from 'pocketbase';
 
 ### Storage options
 
-By default PocketBase stores uploaded files in the `pb_data/storage` directory on the local file system. For the majority of cases this is usually the recommended storage option because it is very fast, easy to work with and backup.
+By default PocketBun stores uploaded files in the `pb_data/storage` directory on the local file system. For the majority of cases this is usually the recommended storage option because it is very fast, easy to work with and backup.
 
 But if you have limited disk space you could switch to an external S3 compatible storage (AWS S3, MinIO, Wasabi, DigitalOcean Spaces, Vultr Object Storage, etc.). The easiest way to set up the connection settings is from the *Dashboard* > *Settings* > *Files storage*:
 ## Working with relations
@@ -1391,7 +1317,7 @@ await pb.collection("comments").getList(1, 30, { expand: "user" })
 
 ### Back-relations
 
-PocketBase supports also `filter`, `sort` and `expand` for **back-relations** - relations where the associated `relation` field is not in the main collection.
+PocketBun supports also `filter`, `sort` and `expand` for **back-relations** - relations where the associated `relation` field is not in the main collection.
 
 The following notation is used: `referenceCollection**_via_**relField` (ex. `comments_via_post`).
 
@@ -1496,15 +1422,13 @@ Back-relation `expand` is limited to max 1000 records per relation field. If you
 need to fetch larger number of back-related records a better approach could be to send a
 separate paginated `getList()` request to the back-related collection to avoid transferring
 large JSON payloads and to reduce the memory usage.
-## Extending PocketBase
+## Extending PocketBun
 
-One of the main features of PocketBase is that **it can be used as a framework** which enables you to write your own custom app business logic in [Go](https://pocketbase.io/docs/go-overview) or [JavaScript](./extend.md#overview) and still have a portable backend at the end.
+One of the main features of PocketBun is that **it can be used as a framework** which enables you to write your own custom app business logic in [JavaScript](./extend.md#overview).
 
-** Choose [Extend with Go](https://pocketbase.io/docs/go-overview) if you are already familiar with the language or have the time to learn it. ** As the primary PocketBase language, the Go APIs are better documented and you'll be able to integrate with any 3rd party Go library since you'll have more control over the application flow. The only drawback is that the Go APIs are slightly more verbose and it may require some time to get used to, especially if this is your first time working with Go.
+** Choose [Extend with JavaScript](./extend.md#overview) if you want to build custom server logic directly in your PocketBun project. **
 
-** Choose [Extend with JavaScript](./extend.md#overview) if you don't intend to write too much custom code and want a quick way to explore the PocketBase capabilities. ** The embedded JavaScript engine is a pluggable wrapper around the existing Go APIs, so most of the time the slight performance penalty will be negligible because it'll invoke the Go functions under the hood. As a bonus, because the JS VM mirrors the Go APIs, you would be able migrate gradually without much code changes from JS -> Go at later stage in case you hit a bottleneck or want more control over the execution flow.
-
-With both Go and JavaScript, you can:
+With JavaScript, you can:
 
 -
 **Register custom routes:**
@@ -1543,7 +1467,7 @@ $app.rootCmd.addCommand(new Command({
 
 - and many more...
 
-For further info, please check the related [Extend with Go](https://pocketbase.io/docs/go-overview) or [Extend with JavaScript](./extend.md#overview) guides.
+For further info, please check the [Extend PocketBun](./extend.md#overview) guide.
 
 ## Attribution
 
