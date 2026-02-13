@@ -5,8 +5,6 @@ title: PocketBun Extend With JavaScript
 
 # PocketBun Extend With JavaScript
 
-This page merges upstream PocketBase JavaScript extension pages.
-
 Quick links:
 
 - [Overview](#overview)
@@ -26,8 +24,6 @@ Quick links:
 - [Logging](#logging)
 
 ## Overview
-
-Upstream source: [/docs/js-overview](https://pocketbase.io/docs/js-overview/)
 
 ### JavaScript engine
 
@@ -3044,8 +3040,4 @@ etc. from the logs settings panel:
 
 ## Attribution
 
-This page is adapted from PocketBase docs and regenerated from upstream source files in `pocketbase/site`.
-
-- PocketBase docs: <https://pocketbase.io/docs/>
-- PocketBase project by Gani Georgiev: <https://github.com/pocketbase/pocketbase>
-- Upstream docs source map: [Upstream Docs Map](./maintainers/upstream-docs-map.md)
+This page is adapted from [PocketBase docs](https://pocketbase.io/docs/).

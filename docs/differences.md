@@ -115,10 +115,3 @@ Intentionally not provided in PocketBun:
 Deferred until demand:
 
 - Dart SDK-specific docs
-
-## Attribution
-
-This page consolidates PocketBun-specific differences against PocketBase behavior and docs.
-
-- PocketBase docs: <https://pocketbase.io/docs/>
-- PocketBase project by Gani Georgiev: <https://github.com/pocketbase/pocketbase>

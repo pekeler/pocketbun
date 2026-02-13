@@ -5,8 +5,6 @@ title: PocketBun Web APIs Reference
 
 # PocketBun Web APIs Reference
 
-This page merges upstream PocketBase Web APIs reference pages.
-
 Quick links:
 
 - [API Records](#api-records)
@@ -20,8 +18,6 @@ Quick links:
 - [API Health](#api-health)
 
 ## API Records
-
-Upstream source: [/docs/api-records](https://pocketbase.io/docs/api-records/)
 
 ### Source Fragment: `api-records/+page.svelte`
 
@@ -4622,8 +4618,4 @@ Responses
 
 ## Attribution
 
-This page is adapted from PocketBase docs and regenerated from upstream source files in `pocketbase/site`.
-
-- PocketBase docs: <https://pocketbase.io/docs/>
-- PocketBase project by Gani Georgiev: <https://github.com/pocketbase/pocketbase>
-- Upstream docs source map: [Upstream Docs Map](./maintainers/upstream-docs-map.md)
+This page is adapted from [PocketBase docs](https://pocketbase.io/docs/).

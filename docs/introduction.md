@@ -5,8 +5,6 @@ title: PocketBun Introduction
 
 # PocketBun Introduction
 
-This page merges the upstream PocketBase Introduction section and its child pages.
-
 Quick links:
 
 - [Introduction](#introduction)
@@ -19,8 +17,6 @@ Quick links:
 - [Extending PocketBase](#extending-pocketbase)
 
 ## Introduction
-
-Upstream source: [/docs](https://pocketbase.io/docs/)
 
 Please keep in mind that PocketBase is still under active development and full backward
 compatibility is not guaranteed before reaching v1.0.0. PocketBase is NOT recommended for
@@ -2227,8 +2223,4 @@ guides.
 
 ## Attribution
 
-This page is adapted from PocketBase docs and regenerated from upstream source files in `pocketbase/site`.
-
-- PocketBase docs: <https://pocketbase.io/docs/>
-- PocketBase project by Gani Georgiev: <https://github.com/pocketbase/pocketbase>
-- Upstream docs source map: [Upstream Docs Map](./maintainers/upstream-docs-map.md)
+This page is adapted from [PocketBase docs](https://pocketbase.io/docs/).
