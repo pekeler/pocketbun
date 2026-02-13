@@ -207,7 +207,13 @@ export interface App {
   HasTable(name: string): boolean;
   TableColumns(tableName: string): string[];
   TableIndexes(tableName: string): Record<string, string>;
-  DeleteTable(tableName: string): Error | null;
+  // DeleteTable drops the specified table.
+  //
+  // This method is a no-op if a table with the provided name doesn't exist.
+  //
+  // NB! Be aware that this method is vulnerable to SQL injection and the
+  // "dangerousTableName" argument must come only from trusted input!
+  DeleteTable(dangerousTableName: string): Error | null;
   Vacuum(): Error | null;
   AuxVacuum(): Error | null;
   IsCollectionNameUnique(name: string, excludeId?: string): boolean;
@@ -368,10 +374,24 @@ export interface App {
   OnCollectionAfterDeleteSuccess(tags?: string[]): TaggedHook<CollectionEvent>;
   OnCollectionAfterDeleteError(tags?: string[]): TaggedHook<CollectionErrorEvent>;
 
-  SaveView(name: string, selectQuery: string): Promise<Error | null>;
-  SaveViewSync(name: string, selectQuery: string): Error | null;
-  DeleteView(name: string): Error | null;
-  CreateViewFields(selectQuery: string): Promise<FieldsList>;
-  CreateViewFieldsSync(selectQuery: string): FieldsList;
+  // DeleteView drops the specified view name.
+  //
+  // This method is a no-op if a view with the provided name doesn't exist.
+  //
+  // NB! Be aware that this method is vulnerable to SQL injection and the
+  // "dangerousViewName" argument must come only from trusted input!
+  DeleteView(dangerousViewName: string): Error | null;
+  SaveView(dangerousViewName: string, dangerousSelectQuery: string): Promise<Error | null>;
+  SaveViewSync(dangerousViewName: string, dangerousSelectQuery: string): Error | null;
+  // CreateViewFields creates a new FieldsList from the provided select query.
+  //
+  // There are some caveats:
+  // - The select query must have an "id" column.
+  // - Wildcard ("*") columns are not supported to avoid accidentally leaking sensitive data.
+  //
+  // NB! Be aware that this method is vulnerable to SQL injection and the
+  // "dangerousSelectQuery" argument must come only from trusted input!
+  CreateViewFields(dangerousSelectQuery: string): Promise<FieldsList>;
+  CreateViewFieldsSync(dangerousSelectQuery: string): FieldsList;
   TableInfo(tableName: string): TableInfoRow[];
 }

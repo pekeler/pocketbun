@@ -17,8 +17,14 @@ import { TextField } from "./field_text.ts";
 import { FieldsList, NewFieldsList } from "./fields_list.ts";
 import { Record as RecordModel, type RecordData } from "./record_model.ts";
 
-export function DeleteView(app: App, name: string): Error | null {
-  const trimmedName = name.trim();
+// DeleteView drops the specified view name.
+//
+// This method is a no-op if a view with the provided name doesn't exist.
+//
+// NB! Be aware that this method is vulnerable to SQL injection and the
+// "dangerousViewName" argument must come only from trusted input!
+export function DeleteView(app: App, dangerousViewName: string): Error | null {
+  const trimmedName = dangerousViewName.trim();
   if (!trimmedName) {
     return new Error("missing view name");
   }
@@ -39,8 +45,12 @@ export function DeleteView(app: App, name: string): Error | null {
   }
 }
 
-export async function SaveView(app: App, name: string, selectQuery: string): Promise<Error | null> {
-  const trimmedName = name.trim();
+// SaveView creates (or updates already existing) persistent SQL view.
+//
+// NB! Be aware that this method is vulnerable to SQL injection and
+// its arguments must come only from trusted input!
+export async function SaveView(app: App, dangerousViewName: string, dangerousSelectQuery: string): Promise<Error | null> {
+  const trimmedName = dangerousViewName.trim();
   if (!trimmedName) {
     return new Error("missing view name");
   }
@@ -51,7 +61,7 @@ export async function SaveView(app: App, name: string, selectQuery: string): Pro
       return deleteErr;
     }
 
-    let query = selectQuery.trim();
+    let query = dangerousSelectQuery.trim();
     query = query.replace(/^;+|;+$/g, "");
     if (!query) {
       return new Error("missing view query");
@@ -82,8 +92,8 @@ export async function SaveView(app: App, name: string, selectQuery: string): Pro
   });
 }
 
-export function SaveViewSync(app: App, name: string, selectQuery: string): Error | null {
-  const trimmedName = name.trim();
+export function SaveViewSync(app: App, dangerousViewName: string, dangerousSelectQuery: string): Error | null {
+  const trimmedName = dangerousViewName.trim();
   if (!trimmedName) {
     return new Error("missing view name");
   }
@@ -94,7 +104,7 @@ export function SaveViewSync(app: App, name: string, selectQuery: string): Error
       return deleteErr;
     }
 
-    let query = selectQuery.trim();
+    let query = dangerousSelectQuery.trim();
     query = query.replace(/^;+|;+$/g, "");
     if (!query) {
       return new Error("missing view query");
@@ -125,12 +135,22 @@ export function SaveViewSync(app: App, name: string, selectQuery: string): Error
   });
 }
 
-export async function CreateViewFields(app: App, selectQuery: string): Promise<FieldsList> {
+// CreateViewFields creates a new FieldsList from the provided select query.
+//
+// There are some caveats:
+// - The select query must have an "id" column.
+// - Wildcard ("*") columns are not supported to avoid accidentally leaking sensitive data.
+//
+// NB! Be aware that this method is vulnerable to SQL injection and the
+// "dangerousSelectQuery" argument must come only from trusted input!
+export async function CreateViewFields(app: App, dangerousSelectQuery: string): Promise<FieldsList> {
   const result = NewFieldsList();
-  const suggested = parseQueryToFields(app, selectQuery);
+  const suggested = parseQueryToFields(app, dangerousSelectQuery);
 
+  // note wrap in a transaction in case the dangerousSelectQuery contains
+  // multiple statements allowing us to rollback on any error
   const txErr = await app.RunInTransaction(async (txApp) => {
-    const info = await getQueryTableInfo(txApp, selectQuery);
+    const info = await getQueryTableInfo(txApp, dangerousSelectQuery);
     let hasId = false;
 
     for (const row of info) {
@@ -157,12 +177,14 @@ export async function CreateViewFields(app: App, selectQuery: string): Promise<F
   return result;
 }
 
-export function CreateViewFieldsSync(app: App, selectQuery: string): FieldsList {
+export function CreateViewFieldsSync(app: App, dangerousSelectQuery: string): FieldsList {
   const result = NewFieldsList();
-  const suggested = parseQueryToFields(app, selectQuery);
+  const suggested = parseQueryToFields(app, dangerousSelectQuery);
 
+  // note wrap in a transaction in case the dangerousSelectQuery contains
+  // multiple statements allowing us to rollback on any error
   const txErr = app.RunInTransactionSync((txApp) => {
-    const info = getQueryTableInfoSync(txApp, selectQuery);
+    const info = getQueryTableInfoSync(txApp, dangerousSelectQuery);
     let hasId = false;
 
     for (const row of info) {

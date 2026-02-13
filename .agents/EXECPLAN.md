@@ -20,6 +20,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 7: complete (performance sprint paused intentionally)
   - Milestone 8: complete (post-release compatibility gaps closed)
   - Milestone 9: complete (PocketBun docs program shipped: `docs/users/index.md`, `docs/users/introduction.md`, `docs/users/going-to-production.md`, `docs/users/web-apis.md`, `docs/users/extend.md`, `docs/users/reference.md`, `docs/users/differences.md`, with deterministic sync/rebuild/patch/check tooling and vendored screenshot assets)
+  - Milestone 10: complete (PocketBase v0.36.3 upgrade: upstream sync, admin UI refresh, v0.36.3 compatibility deltas ported, docs pipeline rerun)
 
 ### Milestone 8 - Post-release compatibility gaps
 
@@ -207,6 +208,7 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 - [x] (2026-02-04 23:59Z) Add a short README quick-start example and a minimal runnable example under examples/simple.
 - [x] (2026-02-04 23:59Z) Define the upgrade workflow doc with release notes + git diff instructions.
 - [x] (2026-02-04 23:59Z) Upgrade to PocketBase v0.36.2 (sync upstream, bump versions, reconcile diffs, and update docs/tests).
+- [x] (2026-02-13 23:55Z) Upgrade to PocketBase v0.36.3 (sync upstream, bump versions, port S3/event/types deltas, rerun docs pipeline, and validate).
 - [x] (2026-02-04 23:59Z) Snapshot .upstream/pocketbase as v0.36.1, sync upstream to v0.36.2, and bump package.json to 0.36.2-pocketbun.0.
 - [x] (2026-02-04 23:59Z) Ran a full port audit against upstream v0.36.2; only missing files are ghupdate plugin sources/tests (intentional and documented).
 - [x] (2026-02-04 23:59Z) Add an advanced example under examples/ that demonstrates core features (auth, CRUD, files, realtime, hooks, and CLI usage).

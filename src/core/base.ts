@@ -4592,24 +4592,24 @@ export class BaseApp implements App {
     });
   }
 
-  async SaveView(name: string, selectQuery: string): Promise<Error | null> {
-    return SaveView(this, name, selectQuery);
+  async SaveView(dangerousViewName: string, dangerousSelectQuery: string): Promise<Error | null> {
+    return SaveView(this, dangerousViewName, dangerousSelectQuery);
   }
 
-  SaveViewSync(name: string, selectQuery: string): Error | null {
-    return SaveViewSync(this, name, selectQuery);
+  SaveViewSync(dangerousViewName: string, dangerousSelectQuery: string): Error | null {
+    return SaveViewSync(this, dangerousViewName, dangerousSelectQuery);
   }
 
-  DeleteView(name: string): Error | null {
-    return DeleteView(this, name);
+  DeleteView(dangerousViewName: string): Error | null {
+    return DeleteView(this, dangerousViewName);
   }
 
-  async CreateViewFields(selectQuery: string): Promise<FieldsList> {
-    return CreateViewFields(this, selectQuery);
+  async CreateViewFields(dangerousSelectQuery: string): Promise<FieldsList> {
+    return CreateViewFields(this, dangerousSelectQuery);
   }
 
-  CreateViewFieldsSync(selectQuery: string): FieldsList {
-    return CreateViewFieldsSync(this, selectQuery);
+  CreateViewFieldsSync(dangerousSelectQuery: string): FieldsList {
+    return CreateViewFieldsSync(this, dangerousSelectQuery);
   }
 
   TableInfo(tableName: string) {
@@ -4629,14 +4629,14 @@ export class BaseApp implements App {
   // This method is a no-op if a table with the provided name doesn't exist.
   //
   // NB! Be aware that this method is vulnerable to SQL injection and the
-  // "tableName" argument must come only from trusted input!
-  DeleteTable(tableName: string): Error | null {
-    if (!tableName) {
+  // "dangerousTableName" argument must come only from trusted input!
+  DeleteTable(dangerousTableName: string): Error | null {
+    if (!dangerousTableName) {
       return new Error("Missing table name");
     }
 
     try {
-      this.db().run(`drop table if exists {{${tableName}}}`);
+      this.db().run(`drop table if exists {{${dangerousTableName}}}`);
       return null;
     } catch (error) {
       return error as Error;

@@ -1,8 +1,10 @@
 # Changelog
 
-## 0.36.2-pocketbun.7 (Unreleased)
+## 0.36.3-pocketbun.0 (Unreleased)
 
-- TBD
+- Upgraded PocketBun compatibility target to PocketBase `v0.36.3` and synced vendored Admin UI assets.
+- Added `Accept-Encoding: identity` to S3 signed requests (unless explicitly set) to avoid transparent decompression/zeroed content-length edge cases.
+- Synced JSVM generated TypeScript declarations to upstream `v0.36.3` while preserving PocketBun async helper typings (for example `$http.sendAsync(...)` and `$os.readFileAsync(...)`).
 
 ## 0.36.2-pocketbun.6 - 2026-02-12
 

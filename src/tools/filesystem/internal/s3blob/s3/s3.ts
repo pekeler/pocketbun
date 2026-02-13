@@ -203,6 +203,12 @@ export class S3 {
   }
 
   private sign(req: HttpRequest): void {
+    // Explicitly set Accept-Encoding to avoid transparent decompression
+    // and Content-Length zeroing (https://github.com/pocketbase/pocketbase/issues/7523).
+    if (!req.headers.get("Accept-Encoding")) {
+      req.headers.set("Accept-Encoding", "identity");
+    }
+
     if (!req.headers.get("x-amz-content-sha256")) {
       req.headers.set("x-amz-content-sha256", "UNSIGNED-PAYLOAD");
     }
