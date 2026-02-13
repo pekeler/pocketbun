@@ -10,13 +10,12 @@ PocketBun is a port of [PocketBase](https://pocketbase.io) to Bun.
 > - built-in **files and users management**
 > - convenient **Admin dashboard UI**
 > - and simple **REST-ish API**
-> 
-> **Start with PocketBun docs:** [`docs/index.md`](./docs/index.md)  
-> **Hosted docs (GitHub Pages):** <https://pekeler.github.io/pocketbun/>  
-> **Supplemental upstream reference:** <https://pocketbase.io/docs/>
-> Docs structure: Introduction, Going to production, Web APIs, Extend PocketBun, Extend PocketBun Reference, Differences.
 
 PocketBase © 2022–present Gani Georgiev. [Project on GitHub](https://github.com/pocketbase/pocketbase).
+
+## Docs
+
+[PocketBun docs]([./docs/index.md](https://pekeler.github.io/pocketbun/))
 
 ## Why?
 
@@ -83,7 +82,7 @@ All tests are passing.
 
 ## Differences
 
-The full differences list lives in [`docs/differences.md`](./docs/differences.md), including:
+The full differences list is documented [here](https://pekeler.github.io/pocketbun/differences.html), including:
 
 - runtime/distribution differences
 - CLI defaults/path resolution differences
