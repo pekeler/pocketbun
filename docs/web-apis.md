@@ -25,7 +25,7 @@ Quick links:
 
 ### Auth record actions
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### List/Search records
 
@@ -133,7 +133,7 @@ Responses
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### View record
 
@@ -210,7 +210,7 @@ Responses
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Create record
 
@@ -317,7 +317,7 @@ Responses
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Update record
 
@@ -425,7 +425,7 @@ Responses
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Delete record
 
@@ -496,7 +496,7 @@ null
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Batch create/update/upsert/delete records
 
@@ -608,7 +608,7 @@ Responses
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### List auth methods
 
@@ -677,7 +677,7 @@ Responses
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Auth with password
 
@@ -771,7 +771,7 @@ Responses
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Auth with OAuth2
 
@@ -889,7 +889,7 @@ Responses
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Auth with OTP
 
@@ -923,7 +923,7 @@ pb.authStore.clear();
 
 API details
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 `POST /api/collections/`collectionIdOrName`/request-otp`
 
@@ -968,7 +968,7 @@ Responses
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 `POST /api/collections/`collectionIdOrName`/auth-with-otp`
 
@@ -1031,7 +1031,7 @@ Responses
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Auth refresh
 
@@ -1110,7 +1110,7 @@ API details
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Verification
 
@@ -1134,7 +1134,7 @@ await pb.collection('users').confirmVerification('VERIFICATION_TOKEN');
 
 API details
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 `POST /api/collections/`collectionIdOrName`/request-verification`
 
@@ -1169,7 +1169,7 @@ Responses
 null
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 `POST /api/collections/`collectionIdOrName`/confirm-verification`
 
@@ -1204,7 +1204,7 @@ Responses
 null
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Password reset
 
@@ -1235,7 +1235,7 @@ await pb.collection('users').confirmPasswordReset(
 
 API details
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 `POST /api/collections/`collectionIdOrName`/request-password-reset`
 
@@ -1270,7 +1270,7 @@ Responses
 null
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 `POST /api/collections/`collectionIdOrName`/confirm-password-reset`
 
@@ -1307,7 +1307,7 @@ Responses
 null
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Email change
 
@@ -1336,7 +1336,7 @@ await pb.collection('users').confirmEmailChange('EMAIL_CHANGE_TOKEN', 'YOUR_PASS
 
 API details
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 `POST /api/collections/`collectionIdOrName`/request-email-change Requires `Authorization:TOKEN` Body Parameters Param Type Description Required newEmail String The new email address to send the change email request. Responses`
 
@@ -1383,7 +1383,7 @@ API details
 null
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 `POST /api/collections/`collectionIdOrName`/confirm-email-change`
 
@@ -1419,7 +1419,7 @@ Responses
 null
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Impersonate
 
@@ -1643,7 +1643,7 @@ Files are uploaded, updated or deleted via the [Records API](#api-records).
 
 The File API is usually used to fetch/download a file resource (with support for basic image manipulations, like generating thumbs).
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Download / Fetch file
 
@@ -1704,7 +1704,7 @@ Responses
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Generate protected file token
 
@@ -1948,7 +1948,7 @@ API details
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### View collection
 
@@ -2071,7 +2071,7 @@ API details
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Create collection
 
@@ -2244,7 +2244,7 @@ API details
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Update collection
 
@@ -2375,7 +2375,7 @@ API details
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Delete collection
 
@@ -2447,7 +2447,7 @@ null
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Truncate collection
 
@@ -2519,7 +2519,7 @@ null
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Import collections
 
@@ -2607,7 +2607,7 @@ null
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Scaffolds
 
@@ -2887,7 +2887,7 @@ API details
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Update settings
 
@@ -3043,7 +3043,7 @@ API details
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Test S3 storage connection
 
@@ -3095,7 +3095,7 @@ null
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Send test email
 
@@ -3152,7 +3152,7 @@ null
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Generate Apple client secret
 
@@ -3311,7 +3311,7 @@ API details
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### View log
 
@@ -3390,7 +3390,7 @@ API details
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Logs statistics
 
@@ -3553,7 +3553,7 @@ Responses
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Run cron job
 
@@ -3695,7 +3695,7 @@ Responses
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Create backup
 
@@ -3759,7 +3759,7 @@ null
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Upload backup
 
@@ -3827,7 +3827,7 @@ null
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Delete backup
 
@@ -3891,7 +3891,7 @@ null
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Restore backup
 
@@ -3955,7 +3955,7 @@ null
 }
 ```
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 ### Download backup
 

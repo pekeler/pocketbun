@@ -1181,7 +1181,11 @@ function buildPage(args: {
     }
 
     // Add a visible separator between fragments that originate from different upstream files.
-    const sectionBody = fileSections.join("\n\n---\n\n").trim();
+    const sectionBody = fileSections
+      .join(
+        '\n\n<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>\n\n',
+      )
+      .trim();
 
     return [`## ${bundle.route.title}`, sectionBody]
       .filter(Boolean)

@@ -1040,7 +1040,7 @@ Note that calling `authRefresh` doesn't invalidate previously issued tokens and 
 
 Performance wise, the used `HS256` algorithm for generating the JWT has very little to no impact and it is essentially the same in terms of response time as calling `getOne("USER_ID")` * (see [benchmarks](https://github.com/pocketbase/benchmarks/blob/master/results/hetzner_cax11.md#user-auth-refresh)) *.
 
----
+<div class="doc-fragment-separator" role="separator" aria-hidden="true"></div>
 
 Before starting, you'll need to create an OAuth2 app in the provider's dashboard in order to get a **Client Id** and **Client Secret**, and register a redirect URL .
 
