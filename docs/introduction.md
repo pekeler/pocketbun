@@ -1040,6 +1040,8 @@ Note that calling `authRefresh` doesn't invalidate previously issued tokens and 
 
 Performance wise, the used `HS256` algorithm for generating the JWT has very little to no impact and it is essentially the same in terms of response time as calling `getOne("USER_ID")` * (see [benchmarks](https://github.com/pocketbase/benchmarks/blob/master/results/hetzner_cax11.md#user-auth-refresh)) *.
 
+---
+
 Before starting, you'll need to create an OAuth2 app in the provider's dashboard in order to get a **Client Id** and **Client Secret**, and register a redirect URL .
 
 Once you have obtained the **Client Id** and **Client Secret**, you can enable and configure the provider from your PocketBase auth collection options (*PocketBase > Collections > > Edit collection (settings cogwheel) > Options > OAuth2).

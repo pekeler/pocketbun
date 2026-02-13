@@ -1,8 +1,9 @@
 {
-  "generatedAt": "2026-02-13T10:22:09.380Z",
+  "generatedAt": "2026-02-13T12:54:28.967Z",
   "upstreamRepo": "pocketbase/site",
   "upstreamRef": "master",
   "cacheRoot": ".cache/upstream-site-docs",
+  "only": null,
   "categories": {
     "introduction": [
       {
@@ -399,6 +400,10 @@
           "go-logging/LogsSettingsSection.svelte"
         ]
       }
-    ]
+    ],
+    "reference": {
+      "source": "src/plugins/jsvm/internal/types/generated/types.d.ts",
+      "outputPath": "docs/reference.md"
+    }
   }
 }

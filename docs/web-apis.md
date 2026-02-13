@@ -25,6 +25,8 @@ Quick links:
 
 ### Auth record actions
 
+---
+
 ### List/Search records
 
 Returns a paginated records list, supporting sorting and filtering.
@@ -131,6 +133,8 @@ Responses
 }
 ```
 
+---
+
 ### View record
 
 Returns a single collection record by its ID.
@@ -205,6 +209,8 @@ Responses
 "data": {}
 }
 ```
+
+---
 
 ### Create record
 
@@ -310,6 +316,8 @@ Responses
 "data": {}
 }
 ```
+
+---
 
 ### Update record
 
@@ -417,6 +425,8 @@ Responses
 }
 ```
 
+---
+
 ### Delete record
 
 Deletes a single collection *Record* by its ID.
@@ -485,6 +495,8 @@ null
 "data": {}
 }
 ```
+
+---
 
 ### Batch create/update/upsert/delete records
 
@@ -596,6 +608,8 @@ Responses
 }
 ```
 
+---
+
 ### List auth methods
 
 Returns a public list with the allowed collection authentication methods.
@@ -662,6 +676,8 @@ Responses
 }
 }
 ```
+
+---
 
 ### Auth with password
 
@@ -754,6 +770,8 @@ Responses
 }
 }
 ```
+
+---
 
 ### Auth with OAuth2
 
@@ -871,6 +889,8 @@ Responses
 }
 ```
 
+---
+
 ### Auth with OTP
 
 Authenticate a single auth record with an one-time password (OTP).
@@ -902,6 +922,8 @@ pb.authStore.clear();
 ```
 
 API details
+
+---
 
 `POST /api/collections/`collectionIdOrName`/request-otp`
 
@@ -945,6 +967,8 @@ Responses
 "data": {}
 }
 ```
+
+---
 
 `POST /api/collections/`collectionIdOrName`/auth-with-otp`
 
@@ -1006,6 +1030,8 @@ Responses
 }
 }
 ```
+
+---
 
 ### Auth refresh
 
@@ -1084,6 +1110,8 @@ API details
 }
 ```
 
+---
+
 ### Verification
 
 Sends auth record email verification request.
@@ -1105,6 +1133,8 @@ await pb.collection('users').confirmVerification('VERIFICATION_TOKEN');
 ```
 
 API details
+
+---
 
 `POST /api/collections/`collectionIdOrName`/request-verification`
 
@@ -1139,6 +1169,8 @@ Responses
 null
 ```
 
+---
+
 `POST /api/collections/`collectionIdOrName`/confirm-verification`
 
 Body Parameters
@@ -1172,6 +1204,8 @@ Responses
 null
 ```
 
+---
+
 ### Password reset
 
 Sends auth record password reset email request.
@@ -1200,6 +1234,8 @@ await pb.collection('users').confirmPasswordReset(
 ```
 
 API details
+
+---
 
 `POST /api/collections/`collectionIdOrName`/request-password-reset`
 
@@ -1233,6 +1269,8 @@ Responses
 ```text
 null
 ```
+
+---
 
 `POST /api/collections/`collectionIdOrName`/confirm-password-reset`
 
@@ -1269,6 +1307,8 @@ Responses
 null
 ```
 
+---
+
 ### Email change
 
 Sends auth record email change request.
@@ -1295,6 +1335,8 @@ await pb.collection('users').confirmEmailChange('EMAIL_CHANGE_TOKEN', 'YOUR_PASS
 ```
 
 API details
+
+---
 
 `POST /api/collections/`collectionIdOrName`/request-email-change Requires `Authorization:TOKEN` Body Parameters Param Type Description Required newEmail String The new email address to send the change email request. Responses`
 
@@ -1341,6 +1383,8 @@ API details
 null
 ```
 
+---
+
 `POST /api/collections/`collectionIdOrName`/confirm-email-change`
 
 Body Parameters
@@ -1374,6 +1418,8 @@ Responses
 ```text
 null
 ```
+
+---
 
 ### Impersonate
 
@@ -1597,6 +1643,8 @@ Files are uploaded, updated or deleted via the [Records API](#api-records).
 
 The File API is usually used to fetch/download a file resource (with support for basic image manipulations, like generating thumbs).
 
+---
+
 ### Download / Fetch file
 
 Downloads a single file resource (aka. the URL address to the file). Example:
@@ -1655,6 +1703,8 @@ Responses
 "data": {}
 }
 ```
+
+---
 
 ### Generate protected file token
 
@@ -1898,6 +1948,8 @@ API details
 }
 ```
 
+---
+
 ### View collection
 
 Returns a single Collection by its ID or name.
@@ -2018,6 +2070,8 @@ API details
 "data": {}
 }
 ```
+
+---
 
 ### Create collection
 
@@ -2190,6 +2244,8 @@ API details
 }
 ```
 
+---
+
 ### Update collection
 
 Updates a single Collection by its ID or name.
@@ -2319,6 +2375,8 @@ API details
 }
 ```
 
+---
+
 ### Delete collection
 
 Deletes a single Collection by its ID or name.
@@ -2389,6 +2447,8 @@ null
 }
 ```
 
+---
+
 ### Truncate collection
 
 Deletes all the records of a single collection (including their related files and cascade delete enabled relations).
@@ -2458,6 +2518,8 @@ null
 "data": {}
 }
 ```
+
+---
 
 ### Import collections
 
@@ -2544,6 +2606,8 @@ null
 "data": {}
 }
 ```
+
+---
 
 ### Scaffolds
 
@@ -2823,6 +2887,8 @@ API details
 }
 ```
 
+---
+
 ### Update settings
 
 Bulk updates application settings and returns the updated settings list.
@@ -2977,6 +3043,8 @@ API details
 }
 ```
 
+---
+
 ### Test S3 storage connection
 
 Performs S3 storage connection test.
@@ -3026,6 +3094,8 @@ null
 "data": {}
 }
 ```
+
+---
 
 ### Send test email
 
@@ -3081,6 +3151,8 @@ null
 "data": {}
 }
 ```
+
+---
 
 ### Generate Apple client secret
 
@@ -3239,6 +3311,8 @@ API details
 }
 ```
 
+---
+
 ### View log
 
 Returns a single log by its ID.
@@ -3315,6 +3389,8 @@ API details
 "data": {}
 }
 ```
+
+---
 
 ### Logs statistics
 
@@ -3477,6 +3553,8 @@ Responses
 }
 ```
 
+---
+
 ### Run cron job
 
 Triggers a single cron job by its id.
@@ -3617,6 +3695,8 @@ Responses
 }
 ```
 
+---
+
 ### Create backup
 
 Creates a new app data backup.
@@ -3678,6 +3758,8 @@ null
 "data": {}
 }
 ```
+
+---
 
 ### Upload backup
 
@@ -3745,6 +3827,8 @@ null
 }
 ```
 
+---
+
 ### Delete backup
 
 Deletes a single backup by its name.
@@ -3807,6 +3891,8 @@ null
 }
 ```
 
+---
+
 ### Restore backup
 
 Restore a single backup by its name and restarts the current running PocketBase process.
@@ -3868,6 +3954,8 @@ null
 "data": {}
 }
 ```
+
+---
 
 ### Download backup
 

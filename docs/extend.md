@@ -203,6 +203,8 @@ All hook handler functions share the same `function(e){}` signature and expect t
 
 ### Details
 
+---
+
 Detected hook groups from helper source:
 - App hooks
 - Mailer hooks
@@ -1245,6 +1247,8 @@ txApp.db().newQuery("DELETE FROM articles WHERE status = 'pending'").execute()
 })
 ```
 
+---
+
 To execute multiple queries in a transaction you can use [`$app.runInTransaction(fn)`](https://pocketbase.io/jsvm/functions/_app.runInTransaction.html) .
 
 The DB operations are persisted only if the transaction completes without throwing an error.
@@ -1672,6 +1676,8 @@ Here is an example how to validate an auth token:
 ```javascript
 let record = $app.findAuthRecordByToken("YOUR_TOKEN", "auth")
 ```
+
+---
 
 To execute multiple queries in a transaction you can use [`$app.runInTransaction(fn)`](https://pocketbase.io/jsvm/functions/_app.runInTransaction.html) .
 
@@ -2483,6 +2489,8 @@ e.next()
 }, "_logs")
 ```
 
+---
+
 For better performance and to minimize blocking on hot paths, logs are written with debounce and on batches:
 
 - 3 seconds after the last debounced log write
@@ -2490,6 +2498,8 @@ For better performance and to minimize blocking on hot paths, logs are written w
 - when the batch threshold is reached (currently 200)
 
 - right before app termination to attempt saving everything from the existing logs queue
+
+---
 
 ### Logs settings
 

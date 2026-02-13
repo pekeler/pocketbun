@@ -1180,7 +1180,8 @@ function buildPage(args: {
       fileSections.push(cleaned);
     }
 
-    const sectionBody = fileSections.join("\n\n").trim();
+    // Add a visible separator between fragments that originate from different upstream files.
+    const sectionBody = fileSections.join("\n\n---\n\n").trim();
 
     return [`## ${bundle.route.title}`, sectionBody]
       .filter(Boolean)
