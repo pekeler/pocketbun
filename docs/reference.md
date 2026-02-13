@@ -58,8 +58,8 @@ Example:
 
 ```js
 const html = $template.loadFiles(
-"views/layout.html",
-"views/content.html",
+    "views/layout.html",
+    "views/content.html",
 ).render({"name": "John"})
 ```
 
@@ -77,7 +77,7 @@ Record model class.
 const collection = $app.findCollectionByNameOrId("article")
 
 const record = new Record(collection, {
-title: "Lorem ipsum"
+    title: "Lorem ipsum"
 })
 
 // or set field values after the initialization
@@ -105,9 +105,9 @@ Example:
 const authRecord = $app.findAuthRecordByEmail("users", "test@example.com")
 
 const info = new RequestInfo({
-auth:    authRecord,
-body:    {"name": 123},
-headers: {"x-token": "..."},
+    auth:    authRecord,
+    body:    {"name": 123},
+    headers: {"x-token": "..."},
 })
 
 const record = $app.findFirstRecordByData("articles", "slug", "hello")
@@ -158,7 +158,7 @@ Example:
 ```js
 // prints "Hello world!" on every 30 minutes
 cronAdd("hello", "*\/30 * * * *", () => {
-console.log("Hello world!")
+    console.log("Hello world!")
 })
 ```
 
@@ -196,7 +196,7 @@ Example:
 
 ```js
 routerAdd("GET", "/hello", (e) => {
-return e.json(200, {"message": "Hello!"})
+    return e.json(200, {"message": "Hello!"})
 }, $apis.requireAuth())
 ```
 
@@ -222,8 +222,8 @@ Example:
 
 ```js
 routerUse((e) => {
-console.log(e.request.url.path)
-return e.next()
+  console.log(e.request.url.path)
+  return e.next()
 })
 ```
 
@@ -478,12 +478,12 @@ Example:
 
 ```js
 const model = new DynamicModel({
-name:       ""     // or nullString() if nullable
-age:        0,     // or nullInt() if nullable
-totalSpent: -0,    // or nullFloat() if nullable
-active:     false, // or nullBool() if nullable
-Roles:      [],    // or nullArray() if nullable; maps to "Roles" in the DB/JSON but the prop would be accessible via "model.roles"
-meta:       {},    // or nullObject() if nullable
+    name:       ""     // or nullString() if nullable
+    age:        0,     // or nullInt() if nullable
+    totalSpent: -0,    // or nullFloat() if nullable
+    active:     false, // or nullBool() if nullable
+    Roles:      [],    // or nullArray() if nullable; maps to "Roles" in the DB/JSON but the prop would be accessible via "model.roles"
+    meta:       {},    // or nullObject() if nullable
 })
 ```
 
@@ -531,24 +531,24 @@ Collection model class.
 
 ```js
 const collection = new Collection({
-type:       "base",
-name:       "article",
-listRule:   "@request.auth.id != '' || status = 'public'",
-viewRule:   "@request.auth.id != '' || status = 'public'",
-deleteRule: "@request.auth.id != ''",
-fields: [
-{
-name: "title",
-type: "text",
-required: true,
-min: 6,
-max: 100,
-},
-{
-name: "description",
-type: "text",
-},
-]
+    type:       "base",
+    name:       "article",
+    listRule:   "@request.auth.id != '' || status = 'public'",
+    viewRule:   "@request.auth.id != '' || status = 'public'",
+    deleteRule: "@request.auth.id != ''",
+    fields: [
+        {
+            name: "title",
+            type: "text",
+            required: true,
+            min: 6,
+            max: 100,
+        },
+        {
+            name: "description",
+            type: "text",
+        },
+    ]
 })
 ```
 
@@ -758,13 +758,13 @@ MailerMessage defines a single email message.
 
 ```js
 const message = new MailerMessage({
-from: {
-address: $app.settings().meta.senderAddress,
-name:    $app.settings().meta.senderName,
-},
-to:      [{address: "test@example.com"}],
-subject: "YOUR_SUBJECT...",
-html:    "YOUR_HTML_BODY...",
+    from: {
+        address: $app.settings().meta.senderAddress,
+        name:    $app.settings().meta.senderName,
+    },
+    to:      [{address: "test@example.com"}],
+    subject: "YOUR_SUBJECT...",
+    html:    "YOUR_HTML_BODY...",
 })
 
 $app.newMailClient().send(message)
@@ -786,8 +786,8 @@ Example:
 
 ```js
 const command = new Command({
-use: "hello",
-run: (cmd, args) => { console.log("Hello world!") },
+    use: "hello",
+    run: (cmd, args) => { console.log("Hello world!") },
 })
 
 $app.rootCmd.addCommand(command);
@@ -811,8 +811,8 @@ Example:
 
 ```js
 routerUse(new Middleware((e) => {
-console.log(e.request.url.path)
-return e.next()
+  console.log(e.request.url.path)
+  return e.next()
 }, -10))
 ```
 
@@ -906,18 +906,18 @@ Example:
 
 ```js
 routerAdd("POST", "/example", (c) => {
-c.setCookie(new Cookie({
-name:     "example_name",
-value:    "example_value",
-path:     "/",
-domain:   "example.com",
-maxAge:   10,
-secure:   true,
-httpOnly: true,
-sameSite: 3,
-}))
+    c.setCookie(new Cookie({
+        name:     "example_name",
+        value:    "example_value",
+        path:     "/",
+        domain:   "example.com",
+        maxAge:   10,
+        secure:   true,
+        httpOnly: true,
+        sameSite: 3,
+    }))
 
-return c.redirect(200, "/");
+    return c.redirect(200, "/");
 })
 ```
 
@@ -937,10 +937,10 @@ Example:
 
 ```js
 onRealtimeConnectRequest((e) => {
-e.client.send(new SubscriptionMessage({
-name: "example",
-data: '{"greeting": "Hello world"}'
-}))
+    e.client.send(new SubscriptionMessage({
+        name: "example",
+        data: '{"greeting": "Hello world"}'
+    }))
 })
 ```
 

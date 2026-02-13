@@ -38,9 +38,9 @@ Consider the following app directory structure:
 
 ```html
 myapp/
-pb_migrations/
-pb_hooks/
-pocketbase
+    pb_migrations/
+    pb_hooks/
+    pocketbase
 ```
 
 -
@@ -120,29 +120,29 @@ Here is a minimal *NGINX* example configuration:
 
 ```html
 server {
-listen 80;
-server_name example.com;
-client_max_body_size 10M;
+    listen 80;
+    server_name example.com;
+    client_max_body_size 10M;
 
-location / {
-# check http://nginx.org/en/docs/http/ngx_http_upstream_module.html#keepalive
-proxy_set_header Connection '';
-proxy_http_version 1.1;
-proxy_read_timeout 360s;
+    location / {
+        # check http://nginx.org/en/docs/http/ngx_http_upstream_module.html#keepalive
+        proxy_set_header Connection '';
+        proxy_http_version 1.1;
+        proxy_read_timeout 360s;
 
-proxy_set_header Host $host;
-proxy_set_header X-Real-IP $remote_addr;
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
 
-# enable if you are serving under a subpath location
-#
-# note that it is better to use a subdomain when possible because of
-# the same-origin isolation for localStorage and other resources
-# rewrite /yourSubpath/(.*) /$1  break;
+        # enable if you are serving under a subpath location
+        #
+        # note that it is better to use a subdomain when possible because of
+        # the same-origin isolation for localStorage and other resources
+        # rewrite /yourSubpath/(.*) /$1  break;
 
-proxy_pass http://127.0.0.1:8090;
-}
+        proxy_pass http://127.0.0.1:8090;
+    }
 }
 ```
 
@@ -150,14 +150,14 @@ Corresponding *Caddy* configuration is:
 
 ```html
 example.com {
-request_body {
-max_size 10MB
-}
-reverse_proxy 127.0.0.1:8090 {
-transport http {
-read_timeout 360s
-}
-}
+    request_body {
+        max_size 10MB
+    }
+    reverse_proxy 127.0.0.1:8090 {
+        transport http {
+            read_timeout 360s
+        }
+    }
 }
 ```
 
@@ -170,13 +170,13 @@ FROM alpine:latest
 
 ARG PB_VERSION=` +
 
-? import.meta.env.PB_VERSION.substring(1)
-: import.meta.env.PB_VERSION) +
+    ? import.meta.env.PB_VERSION.substring(1)
+    : import.meta.env.PB_VERSION) +
 `
 
 RUN apk add --no-cache \\
-unzip \\
-ca-certificates
+    unzip \\
+    ca-certificates
 
 # download and unzip PocketBase
 ADD https://github.com/pocketbase/pocketbase/releases/download/v\${PB_VERSION}/pocketbase_\${PB_VERSION}_linux_amd64.zip /tmp/pb.zip

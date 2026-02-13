@@ -157,9 +157,9 @@ superuserClient.autoCancellation(false);
 
 // option 1: authenticate as superuser using email/password (could be filled with ENV params)
 await superuserClient.collection('_superusers').authWithPassword(SUPERUSER_EMAIL, SUPERUSER_PASS, {
-// This will trigger auto refresh or auto reauthentication in case
-// the token has expired or is going to expire in the next 30 minutes.
-autoRefreshThreshold: 30 * 60
+  // This will trigger auto refresh or auto reauthentication in case
+  // the token has expired or is going to expire in the next 30 minutes.
+  autoRefreshThreshold: 30 * 60
 })
 
 // option 2: OR authenticate as superuser via long-lived "API key"
@@ -175,10 +175,10 @@ Then you can directly import the file in your server-side actions and use the cl
 import superuserClient from './src/superuser.js'
 
 async function serverAction(req, resp) {
-... do some extra data validations or handling ...
+  ... do some extra data validations or handling ...
 
-// send a create request as superuser
-await superuserClient.collection('example').create({ ... })
+  // send a create request as superuser
+  await superuserClient.collection('example').create({ ... })
 }
 ```
 
@@ -225,32 +225,32 @@ The SDKs come with a helper async storage implementation that allows you to hook
 
 ```js
 // Node.js and React Native doesn't have native EventSource implementation
-// so in order to use the realtime subscriptions you'll need to load EventSource polyfill,
-// for example: npm install react-native-sse --save
-import eventsource from 'react-native-sse';
+                // so in order to use the realtime subscriptions you'll need to load EventSource polyfill,
+                // for example: npm install react-native-sse --save
+                import eventsource from 'react-native-sse';
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+                import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import PocketBase, { AsyncAuthStore } from 'pocketbase';
+                import PocketBase, { AsyncAuthStore } from 'pocketbase';
 
-// load the polyfill
-global.EventSource = eventsource;
+                // load the polyfill
+                global.EventSource = eventsource;
 
-// initialize the async store
-const store = new AsyncAuthStore({
-save:    async (serialized) => AsyncStorage.setItem('pb_auth', serialized),
-initial: AsyncStorage.getItem('pb_auth'),
-});
+                // initialize the async store
+                const store = new AsyncAuthStore({
+                    save:    async (serialized) => AsyncStorage.setItem('pb_auth', serialized),
+                    initial: AsyncStorage.getItem('pb_auth'),
+                });
 
-// initialize the PocketBase client
-// (it is OK to have a single/global instance for the duration of your application)
-const pb = new PocketBase('http://127.0.0.1:8090', store);
+                // initialize the PocketBase client
+                // (it is OK to have a single/global instance for the duration of your application)
+                const pb = new PocketBase('http://127.0.0.1:8090', store);
 
-...
+                ...
 
-await pb.collection('users').authWithPassword('test@example.com', '1234567890');
+                await pb.collection('users').authWithPassword('test@example.com', '1234567890');
 
-console.log(pb.authStore.record)
+                console.log(pb.authStore.record)
 ```
 
 ### React Native file upload on Android and iOS
@@ -259,9 +259,9 @@ At the time of writing, React Native on Android and iOS seems to have a non-stan
 
 ```javascript
 {
-uri: "...",
-type: "...",
-name: "..."
+  uri: "...",
+  type: "...",
+  name: "..."
 }
 ```
 
@@ -274,17 +274,17 @@ const data = new FormData();
 let imageUri = result.assets[0].uri;
 
 if (Platform.OS === 'web') {
-const req = await fetch(imageUri);
-const blob = await req.blob();
-data.append('avatar', blob); // regular File/Blob value
+  const req = await fetch(imageUri);
+  const blob = await req.blob();
+  data.append('avatar', blob); // regular File/Blob value
 } else {
-// the below object format works only on Android and iOS
-// (FormData.set() also doesn't seem to be supported so we use FormData.append())
-data.append('avatar', {
-uri:  imageUri,
-type: 'image/*',
-name: imageUri.split('/').pop(),
-});
+  // the below object format works only on Android and iOS
+  // (FormData.set() also doesn't seem to be supported so we use FormData.append())
+  data.append('avatar', {
+    uri:  imageUri,
+    type: 'image/*',
+    name: imageUri.split('/').pop(),
+  });
 }
 
 ...
@@ -319,9 +319,9 @@ Currently there are 3 collection types: **Base**, **View** and **Auth**.
 
 ```sql
 SELECT
-posts.id,
-posts.name,
-count(comments.id) as totalComments
+    posts.id,
+    posts.name,
+    count(comments.id) as totalComments
 FROM posts
 LEFT JOIN comments on comments.postId = posts.id
 GROUP BY posts.id
@@ -543,7 +543,7 @@ When extending PocketBase with Go/JSVM, the `geoPoint` field value could be set 
 ```js
 record.set("address", {"lon":12.34, "lat":45.67})
 
-const address = record.get("address")
+                    const address = record.get("address")
 ```
 ## API rules and filters
 
@@ -890,19 +890,19 @@ The default identity field is the `email` but you can configure any other unique
 ```js
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+        const pb = new PocketBase('http://127.0.0.1:8090');
 
-...
+        ...
 
-const authData = await pb.collection("users").authWithPassword('test@example.com', '1234567890');
+        const authData = await pb.collection("users").authWithPassword('test@example.com', '1234567890');
 
-// after the above you can also access the auth data from the authStore
-console.log(pb.authStore.isValid);
-console.log(pb.authStore.token);
-console.log(pb.authStore.record.id);
+        // after the above you can also access the auth data from the authStore
+        console.log(pb.authStore.isValid);
+        console.log(pb.authStore.token);
+        console.log(pb.authStore.record.id);
 
-// "logout" the last authenticated record
-pb.authStore.clear();
+        // "logout" the last authenticated record
+        pb.authStore.clear();
 ```
 
 ### Authenticate with OTP
@@ -922,25 +922,25 @@ For security critical applications OTP is recommended to be used in combination 
 ```js
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+        const pb = new PocketBase('http://127.0.0.1:8090');
 
-...
+        ...
 
-// send OTP email to the provided auth record
-const result = await pb.collection('users').requestOTP('test@example.com');
+        // send OTP email to the provided auth record
+        const result = await pb.collection('users').requestOTP('test@example.com');
 
-// ... show a screen/popup to enter the password from the email ...
+        // ... show a screen/popup to enter the password from the email ...
 
-// authenticate with the requested OTP id and the email password
-const authData = await pb.collection('users').authWithOTP(result.otpId, "YOUR_OTP");
+        // authenticate with the requested OTP id and the email password
+        const authData = await pb.collection('users').authWithOTP(result.otpId, "YOUR_OTP");
 
-// after the above you can also access the auth data from the authStore
-console.log(pb.authStore.isValid);
-console.log(pb.authStore.token);
-console.log(pb.authStore.record.id);
+        // after the above you can also access the auth data from the authStore
+        console.log(pb.authStore.isValid);
+        console.log(pb.authStore.token);
+        console.log(pb.authStore.record.id);
 
-// "logout"
-pb.authStore.clear();
+        // "logout"
+        pb.authStore.clear();
 ```
 
 ### Authenticate with OAuth2
@@ -971,23 +971,23 @@ Below is an example for email/password + OTP authentication:
 ```js
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+        const pb = new PocketBase('http://127.0.0.1:8090');
 
-...
+        ...
 
-try {
-await pb.collection('users').authWithPassword('test@example.com', '1234567890');
-} catch (err) {
-const mfaId = err.response?.mfaId;
-if (!mfaId) {
-throw err; // not mfa -> rethrow
-}
+        try {
+          await pb.collection('users').authWithPassword('test@example.com', '1234567890');
+        } catch (err) {
+          const mfaId = err.response?.mfaId;
+          if (!mfaId) {
+            throw err; // not mfa -> rethrow
+          }
 
-// the user needs to authenticate again with another auth method, for example OTP
-const result = await pb.collection('users').requestOTP('test@example.com');
-// ... show a modal for users to check their email and to enter the received code ...
-await pb.collection('users').authWithOTP(result.otpId, 'EMAIL_CODE', { 'mfaId': mfaId });
-}
+          // the user needs to authenticate again with another auth method, for example OTP
+          const result = await pb.collection('users').requestOTP('test@example.com');
+          // ... show a modal for users to check their email and to enter the received code ...
+          await pb.collection('users').authWithOTP(result.otpId, 'EMAIL_CODE', { 'mfaId': mfaId });
+        }
 ```
 
 ### Users impersonation
@@ -1001,23 +1001,23 @@ For convenience the official SDKs creates and returns a standalone client that k
 ```js
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+        const pb = new PocketBase('http://127.0.0.1:8090');
 
-...
+        ...
 
-// authenticate as superuser
-await pb.collection("_superusers").authWithPassword("test@example.com", "1234567890");
+        // authenticate as superuser
+        await pb.collection("_superusers").authWithPassword("test@example.com", "1234567890");
 
-// impersonate
-// (the custom token duration is in seconds and it is optional)
-const impersonateClient = await pb.collection("users").impersonate("USER_RECORD_ID", 3600)
+        // impersonate
+        // (the custom token duration is in seconds and it is optional)
+        const impersonateClient = await pb.collection("users").impersonate("USER_RECORD_ID", 3600)
 
-// log the impersonate token and user data
-console.log(impersonateClient.authStore.token);
-console.log(impersonateClient.authStore.record);
+        // log the impersonate token and user data
+        console.log(impersonateClient.authStore.token);
+        console.log(impersonateClient.authStore.record);
 
-// send requests as the impersonated user
-const items = await impersonateClient.collection("example").getFullList();
+        // send requests as the impersonated user
+        const items = await impersonateClient.collection("example").getFullList();
 ```
 
 ### API keys
@@ -1057,31 +1057,31 @@ This method handles everything within a single call without having to define cus
 ```js
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase('https://pocketbase.io');
+                    const pb = new PocketBase('https://pocketbase.io');
 
-...
+                    ...
 
-// This method initializes a one-off realtime subscription and will
-// open a popup window with the OAuth2 vendor page to authenticate.
-//
-// Once the external OAuth2 sign-in/sign-up flow is completed, the popup
-// window will be automatically closed and the OAuth2 data sent back
-// to the user through the previously established realtime connection.
-//
-// If the popup is being blocked on Safari, make sure that your click handler is not using async/await.
-pb.collection('users').authWithOAuth2({
-provider: 'google'
-}).then((authData) => {
-console.log(authData)
+                    // This method initializes a one-off realtime subscription and will
+                    // open a popup window with the OAuth2 vendor page to authenticate.
+                    //
+                    // Once the external OAuth2 sign-in/sign-up flow is completed, the popup
+                    // window will be automatically closed and the OAuth2 data sent back
+                    // to the user through the previously established realtime connection.
+                    //
+                    // If the popup is being blocked on Safari, make sure that your click handler is not using async/await.
+                    pb.collection('users').authWithOAuth2({
+                        provider: 'google'
+                    }).then((authData) => {
+                        console.log(authData)
 
-// after the above you can also access the auth data from the authStore
-console.log(pb.authStore.isValid);
-console.log(pb.authStore.token);
-console.log(pb.authStore.record.id);
+                        // after the above you can also access the auth data from the authStore
+                        console.log(pb.authStore.isValid);
+                        console.log(pb.authStore.token);
+                        console.log(pb.authStore.record.id);
 
-// "logout" the last authenticated record
-pb.authStore.clear();
-});
+                        // "logout" the last authenticated record
+                        pb.authStore.clear();
+                    });
 ```
 
 When authenticating manually with OAuth2 code you'll need 2 endpoints:
@@ -1166,13 +1166,13 @@ If your `file` field supports uploading multiple files (aka. **Max Files option 
 ```js
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+        const pb = new PocketBase('http://127.0.0.1:8090');
 
-...
+        ...
 
-const createdRecord = await pb.collection('example').update('RECORD_ID', {
-"documents+": new File(["content 3..."], "file3.txt")
-});
+        const createdRecord = await pb.collection('example').update('RECORD_ID', {
+            "documents+": new File(["content 3..."], "file3.txt")
+        });
 ```
 
 ### Deleting files
@@ -1184,19 +1184,19 @@ If you want to **delete individual file(s) from a multiple file upload field**, 
 ```js
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+        const pb = new PocketBase('http://127.0.0.1:8090');
 
-...
+        ...
 
-// delete all "documents" files
-await pb.collection('example').update('RECORD_ID', {
-'documents': [],
-});
+        // delete all "documents" files
+        await pb.collection('example').update('RECORD_ID', {
+            'documents': [],
+        });
 
-// delete individual files
-await pb.collection('example').update('RECORD_ID', {
-'documents-': ["file1.pdf", "file2.txt"],
-});
+        // delete individual files
+        await pb.collection('example').update('RECORD_ID', {
+            'documents-': ["file1.pdf", "file2.txt"],
+        });
 ```
 
 The above examples use the JSON object data format, but you could also use `FormData` instance for *multipart/form-data* requests. If using `FormData` set the file field to an empty string.
@@ -1223,23 +1223,23 @@ If you already have a Record model instance, the SDKs provide a convenient metho
 ```js
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+        const pb = new PocketBase('http://127.0.0.1:8090');
 
-...
+        ...
 
-const record = await pb.collection('example').getOne('RECORD_ID');
+        const record = await pb.collection('example').getOne('RECORD_ID');
 
-// get only the first filename from "documents"
-//
-// note:
-// "documents" is an array of filenames because
-// the "documents" field was created with "Max Files" option > 1;
-// if "Max Files" was 1, then the result property would be just a string
-const firstFilename = record.documents[0];
+        // get only the first filename from "documents"
+        //
+        // note:
+        // "documents" is an array of filenames because
+        // the "documents" field was created with "Max Files" option > 1;
+        // if "Max Files" was 1, then the result property would be just a string
+        const firstFilename = record.documents[0];
 
-// returns something like:
-// http://127.0.0.1:8090/api/files/example/kfzjt5oy8r34hvn/test_52iWbGinWd.png?thumb=100x250
-const url = pb.files.getURL(record, firstFilename, {'thumb': '100x250'});
+        // returns something like:
+        // http://127.0.0.1:8090/api/files/example/kfzjt5oy8r34hvn/test_52iWbGinWd.png?thumb=100x250
+        const url = pb.files.getURL(record, firstFilename, {'thumb': '100x250'});
 ```
 
 Additionally, to instruct the browser to always download the file instead of showing a preview when accessed directly, you can append the `?download=1` query parameter to the file url.
@@ -1257,19 +1257,19 @@ Only requests that satisfy the **View API rule** of the record collection will b
 ```js
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+        const pb = new PocketBase('http://127.0.0.1:8090');
 
-...
+        ...
 
-// authenticate
-await pb.collection('users').authWithPassword('test@example.com', '1234567890');
+        // authenticate
+        await pb.collection('users').authWithPassword('test@example.com', '1234567890');
 
-// generate a file token
-const fileToken = await pb.files.getToken();
+        // generate a file token
+        const fileToken = await pb.files.getToken();
 
-// retrieve an example protected file url (will be valid ~2min)
-const record = await pb.collection('example').getOne('RECORD_ID');
-const url = pb.files.getURL(record, record.myPrivateFile, {'token': fileToken});
+        // retrieve an example protected file url (will be valid ~2min)
+        const record = await pb.collection('example').getOne('RECORD_ID');
+        const url = pb.files.getURL(record, record.myPrivateFile, {'token': fileToken});
 ```
 
 ### Storage options
@@ -1290,14 +1290,14 @@ Below is an example that shows creating a new **posts** record with 2 assigned t
 ```js
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+        const pb = new PocketBase('http://127.0.0.1:8090');
 
-...
+        ...
 
-const post = await pb.collection('posts').create({
-'title': 'Lorem ipsum...',
-'tags':  ['TAG_ID1', 'TAG_ID2'],
-});
+        const post = await pb.collection('posts').create({
+            'title': 'Lorem ipsum...',
+            'tags':  ['TAG_ID1', 'TAG_ID2'],
+        });
 ```
 
 ### Prepend/Append to multiple relation
@@ -1307,17 +1307,17 @@ To prepend/append a single or multiple relation id(s) to an existing value you c
 ```js
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+        const pb = new PocketBase('http://127.0.0.1:8090');
 
-...
+        ...
 
-const post = await pb.collection('posts').update('POST_ID', {
-// prepend single tag
-'+tags': 'TAG_ID1',
+        const post = await pb.collection('posts').update('POST_ID', {
+            // prepend single tag
+            '+tags': 'TAG_ID1',
 
-// append multiple tags at once
-'tags+': ['TAG_ID1', 'TAG_ID2'],
-})
+            // append multiple tags at once
+            'tags+': ['TAG_ID1', 'TAG_ID2'],
+        })
 ```
 
 ### Remove from multiple relation
@@ -1327,17 +1327,17 @@ To remove a single or multiple relation id(s) from an existing value you can use
 ```js
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+        const pb = new PocketBase('http://127.0.0.1:8090');
 
-...
+        ...
 
-const post = await pb.collection('posts').update('POST_ID', {
-// remove single tag
-'tags-': 'TAG_ID1',
+        const post = await pb.collection('posts').update('POST_ID', {
+            // remove single tag
+            'tags-': 'TAG_ID1',
 
-// remove multiple tags at once
-'tags-': ['TAG_ID1', 'TAG_ID2'],
-})
+            // remove multiple tags at once
+            'tags-': ['TAG_ID1', 'TAG_ID2'],
+        })
 ```
 
 ### Expanding relations
@@ -1356,36 +1356,36 @@ await pb.collection("comments").getList(1, 30, { expand: "user" })
 
 ```text
 {
-"page": 1,
-"perPage": 30,
-"totalPages": 1,
-"totalItems": 20,
-"items": [
-{
-"id": "lmPJt4Z9CkLW36z",
-"collectionId": "BHKW36mJl3ZPt6z",
-"collectionName": "comments",
-"created": "2022-01-01 01:00:00.456Z",
-"updated": "2022-01-01 02:15:00.456Z",
-"post": "WyAw4bDrvws6gGl",
-"user": "FtHAW9feB5rze7D",
-"message": "Example message...",
-"expand": {
-"user": {
-"id": "FtHAW9feB5rze7D",
-"collectionId": "srmAo0hLxEqYF7F",
-"collectionName": "users",
-"created": "2022-01-01 00:00:00.000Z",
-"updated": "2022-01-01 00:00:00.000Z",
-"username": "users54126",
-"verified": false,
-"emailVisibility": false,
-"name": "John Doe"
-}
-}
-},
-...
-]
+    "page": 1,
+    "perPage": 30,
+    "totalPages": 1,
+    "totalItems": 20,
+    "items": [
+        {
+            "id": "lmPJt4Z9CkLW36z",
+            "collectionId": "BHKW36mJl3ZPt6z",
+            "collectionName": "comments",
+            "created": "2022-01-01 01:00:00.456Z",
+            "updated": "2022-01-01 02:15:00.456Z",
+            "post": "WyAw4bDrvws6gGl",
+            "user": "FtHAW9feB5rze7D",
+            "message": "Example message...",
+            "expand": {
+                "user": {
+                    "id": "FtHAW9feB5rze7D",
+                    "collectionId": "srmAo0hLxEqYF7F",
+                    "collectionName": "users",
+                    "created": "2022-01-01 00:00:00.000Z",
+                    "updated": "2022-01-01 00:00:00.000Z",
+                    "username": "users54126",
+                    "verified": false,
+                    "emailVisibility": false,
+                    "name": "John Doe"
+                }
+            }
+        },
+        ...
+    ]
 }
 ```
 
@@ -1399,79 +1399,79 @@ For example, let's list the **posts** that have at least one **comments** record
 
 ```js
 await pb.collection("posts").getList(1, 30, {
-filter: "comments_via_post.message ?~ 'hello'"
-expand: "comments_via_post.user",
-})
+            filter: "comments_via_post.message ?~ 'hello'"
+            expand: "comments_via_post.user",
+        })
 ```
 
 ```text
 {
-"page": 1,
-"perPage": 30,
-"totalPages": 2,
-"totalItems": 45,
-"items": [
-{
-"id": "WyAw4bDrvws6gGl",
-"collectionId": "1rAwHJatkTNCUIN",
-"collectionName": "posts",
-"created": "2022-01-01 01:00:00.456Z",
-"updated": "2022-01-01 02:15:00.456Z",
-"title": "Lorem ipsum dolor sit...",
-"expand": {
-"comments_via_post": [
-{
-"id": "lmPJt4Z9CkLW36z",
-"collectionId": "BHKW36mJl3ZPt6z",
-"collectionName": "comments",
-"created": "2022-01-01 01:00:00.456Z",
-"updated": "2022-01-01 02:15:00.456Z",
-"post": "WyAw4bDrvws6gGl",
-"user": "FtHAW9feB5rze7D",
-"message": "lorem ipsum...",
-"expand": {
-"user": {
-"id": "FtHAW9feB5rze7D",
-"collectionId": "srmAo0hLxEqYF7F",
-"collectionName": "users",
-"created": "2022-01-01 00:00:00.000Z",
-"updated": "2022-01-01 00:00:00.000Z",
-"username": "users54126",
-"verified": false,
-"emailVisibility": false,
-"name": "John Doe"
-}
-}
-},
-{
-"id": "tu4Z9CkLW36mPJz",
-"collectionId": "BHKW36mJl3ZPt6z",
-"collectionName": "comments",
-"created": "2022-01-01 01:10:00.123Z",
-"updated": "2022-01-01 02:39:00.456Z",
-"post": "WyAw4bDrvws6gGl",
-"user": "FtHAW9feB5rze7D",
-"message": "hello...",
-"expand": {
-"user": {
-"id": "FtHAW9feB5rze7D",
-"collectionId": "srmAo0hLxEqYF7F",
-"collectionName": "users",
-"created": "2022-01-01 00:00:00.000Z",
-"updated": "2022-01-01 00:00:00.000Z",
-"username": "users54126",
-"verified": false,
-"emailVisibility": false,
-"name": "John Doe"
-}
-}
-},
-...
-]
-}
-},
-...
-]
+    "page": 1,
+    "perPage": 30,
+    "totalPages": 2,
+    "totalItems": 45,
+    "items": [
+        {
+            "id": "WyAw4bDrvws6gGl",
+            "collectionId": "1rAwHJatkTNCUIN",
+            "collectionName": "posts",
+            "created": "2022-01-01 01:00:00.456Z",
+            "updated": "2022-01-01 02:15:00.456Z",
+            "title": "Lorem ipsum dolor sit...",
+            "expand": {
+                "comments_via_post": [
+                    {
+                        "id": "lmPJt4Z9CkLW36z",
+                        "collectionId": "BHKW36mJl3ZPt6z",
+                        "collectionName": "comments",
+                        "created": "2022-01-01 01:00:00.456Z",
+                        "updated": "2022-01-01 02:15:00.456Z",
+                        "post": "WyAw4bDrvws6gGl",
+                        "user": "FtHAW9feB5rze7D",
+                        "message": "lorem ipsum...",
+                        "expand": {
+                            "user": {
+                                "id": "FtHAW9feB5rze7D",
+                                "collectionId": "srmAo0hLxEqYF7F",
+                                "collectionName": "users",
+                                "created": "2022-01-01 00:00:00.000Z",
+                                "updated": "2022-01-01 00:00:00.000Z",
+                                "username": "users54126",
+                                "verified": false,
+                                "emailVisibility": false,
+                                "name": "John Doe"
+                            }
+                        }
+                    },
+                    {
+                        "id": "tu4Z9CkLW36mPJz",
+                        "collectionId": "BHKW36mJl3ZPt6z",
+                        "collectionName": "comments",
+                        "created": "2022-01-01 01:10:00.123Z",
+                        "updated": "2022-01-01 02:39:00.456Z",
+                        "post": "WyAw4bDrvws6gGl",
+                        "user": "FtHAW9feB5rze7D",
+                        "message": "hello...",
+                        "expand": {
+                            "user": {
+                                "id": "FtHAW9feB5rze7D",
+                                "collectionId": "srmAo0hLxEqYF7F",
+                                "collectionName": "users",
+                                "created": "2022-01-01 00:00:00.000Z",
+                                "updated": "2022-01-01 00:00:00.000Z",
+                                "username": "users54126",
+                                "verified": false,
+                                "emailVisibility": false,
+                                "name": "John Doe"
+                            }
+                        }
+                    },
+                    ...
+                ]
+            }
+        },
+        ...
+    ]
 }
 ```
 
@@ -1511,8 +1511,8 @@ With both Go and JavaScript, you can:
 
 ```js
 routerAdd("GET", "/hello", (e) => {
-return e.string(200, "Hello world!")
-})
+                    return e.string(200, "Hello world!")
+                })
 ```
 
 -
@@ -1520,13 +1520,13 @@ return e.string(200, "Hello world!")
 
 ```js
 onRecordCreateRequest((e) => {
-// if not superuser, overwrite the newly submitted "posts" record status to pending
-if (!e.hasSuperuserAuth()) {
-e.record.set("status", "pending")
-}
+                    // if not superuser, overwrite the newly submitted "posts" record status to pending
+                    if (!e.hasSuperuserAuth()) {
+                        e.record.set("status", "pending")
+                    }
 
-e.next()
-}, "posts")
+                    e.next()
+                }, "posts")
 ```
 
 -
@@ -1534,11 +1534,11 @@ e.next()
 
 ```js
 $app.rootCmd.addCommand(new Command({
-use: "hello",
-run: (cmd, args) => {
-console.log("Hello world!")
-},
-}))
+                    use: "hello",
+                    run: (cmd, args) => {
+                        console.log("Hello world!")
+                    },
+                }))
 ```
 
 - and many more...

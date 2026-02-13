@@ -249,11 +249,25 @@ function normalizeUpstreamHref(href: string): string {
 function normalizeSpacing(text: string): string {
   const out: string[] = [];
   let blankRun = 0;
+  let inCodeBlock = false;
 
   for (const rawLine of text.split(/\r?\n/)) {
     const line = rawLine.replace(/[\t ]+$/g, "");
+    const trimmedLine = line.trim();
 
-    if (!line.trim()) {
+    if (trimmedLine.startsWith("```")) {
+      blankRun = 0;
+      out.push(trimmedLine);
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+
+    if (inCodeBlock) {
+      out.push(line);
+      continue;
+    }
+
+    if (!trimmedLine) {
       blankRun += 1;
       if (blankRun <= 1) {
         out.push("");
@@ -262,7 +276,7 @@ function normalizeSpacing(text: string): string {
     }
 
     blankRun = 0;
-    out.push(line.trim());
+    out.push(trimmedLine);
   }
 
   return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -595,18 +609,48 @@ function stripSvelteArtifacts(text: string): string {
     .replace(/\nResponses\s*\n(?:>\s*\n)+/g, "\nResponses\n");
 }
 
+function dedentCodeBlock(raw: string): string {
+  let lines = raw.replace(/\r\n?/g, "\n").split("\n");
+
+  while (lines.length > 0 && !lines[0].trim()) {
+    lines.shift();
+  }
+  while (lines.length > 0 && !lines[lines.length - 1]?.trim()) {
+    lines.pop();
+  }
+  if (lines.length === 0) {
+    return "";
+  }
+
+  let minIndent = Number.POSITIVE_INFINITY;
+  for (const line of lines) {
+    if (!line.trim()) {
+      continue;
+    }
+    const indent = line.match(/^[\t ]*/)?.[0].length ?? 0;
+    minIndent = Math.min(minIndent, indent);
+  }
+
+  if (Number.isFinite(minIndent) && minIndent > 0) {
+    const dedentPattern = new RegExp(`^[\\t ]{0,${minIndent}}`);
+    lines = lines.map((line) => line.replace(dedentPattern, ""));
+  }
+
+  return lines.join("\n").replace(/[ \t]+$/gm, "").trim();
+}
+
 function parseCodeBlockContent(attrs: string): string {
   const inline = attrs.match(/content=\{`([\s\S]*?)`\}/);
   if (inline) {
-    return inline[1].trim();
+    return dedentCodeBlock(inline[1]);
   }
 
   const simple = attrs.match(/content="([^"]*)"/);
   if (simple) {
-    return simple[1].trim();
+    return dedentCodeBlock(simple[1]);
   }
 
-  const chunks = [...attrs.matchAll(/`([\s\S]*?)`/g)].map((m) => m[1].trim());
+  const chunks = [...attrs.matchAll(/`([\s\S]*?)`/g)].map((m) => dedentCodeBlock(m[1]));
   return chunks.join("\n").trim();
 }
 

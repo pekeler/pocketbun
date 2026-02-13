@@ -37,15 +37,15 @@ You can start by creating `*.pb.js` file(s) inside a `pb_hooks` directory next t
 // pb_hooks/main.pb.js
 
 routerAdd("GET", "/hello/{name}", (e) => {
-let name = e.request.pathValue("name")
+    let name = e.request.pathValue("name")
 
-return e.json(200, { "message": "Hello " + name })
+    return e.json(200, { "message": "Hello " + name })
 })
 
 onRecordAfterUpdateSuccess((e) => {
-console.log("user updated...", e.record.get("email"))
+    console.log("user updated...", e.record.get("email"))
 
-e.next()
+    e.next()
 }, "users")
 ```
 
@@ -107,9 +107,9 @@ Each handler function (hook, route, middleware, etc.) is **serialized and execut
 const name = "test"
 
 onBootstrap((e) => {
-e.next()
+    e.next()
 
-console.log(name) // <-- name will be undefined inside the handler
+    console.log(name) // <-- name will be undefined inside the handler
 })
 ```
 
@@ -119,10 +119,10 @@ One possible workaround for sharing/reusing code across different handlers could
 
 ```text
 onBootstrap((e) => {
-e.next()
+    e.next()
 
-const config = require(` + "`${__hooks}/config.js`" + `)
-console.log(config.name)
+    const config = require(` + "`${__hooks}/config.js`" + `)
+    console.log(config.name)
 })
 ```
 
@@ -149,19 +149,19 @@ A common usage of local modules is for loading shared helpers or configuration p
 ```text
 // pb_hooks/utils.js
 module.exports = {
-hello: (name) => {
-console.log("Hello " + name)
-}
+    hello: (name) => {
+        console.log("Hello " + name)
+    }
 }
 ```
 
 ```text
 // pb_hooks/main.pb.js
 onBootstrap((e) => {
-e.next()
+    e.next()
 
-const utils = require(` + "`${__hooks}/utils.js`" + `)
-utils.hello("world")
+    const utils = require(` + "`${__hooks}/utils.js`" + `)
+    utils.hello("world")
 })
 ```
 
@@ -328,15 +328,15 @@ Every route has a path, handler function and eventually middlewares attached to 
 ```javascript
 // register "GET /hello/{name}" route (allowed for everyone)
 routerAdd("GET", "/hello/{name}", (e) => {
-let name = e.request.pathValue("name")
+    let name = e.request.pathValue("name")
 
-return e.json(200, { "message": "Hello " + name })
+    return e.json(200, { "message": "Hello " + name })
 })
 
 // register "POST /api/myapp/settings" route (allowed only for authenticated users)
 routerAdd("POST", "/api/myapp/settings", (e) => {
-// do something ...
-return e.json(200, {"success": true})
+    // do something ...
+    return e.json(200, {"success": true})
 }, $apis.requireAuth())
 ```
 
@@ -358,20 +358,20 @@ Here are some examples:
 // match "GET example.com/index.html"
 routerAdd("GET", "example.com/index.html", ...)
 
-// match "GET /index.html" (for any host)
+ // match "GET /index.html" (for any host)
 routerAdd("GET", "/index.html", ...)
 
-// match "GET /static/", "GET /static/a/b/c", etc.
+ // match "GET /static/", "GET /static/a/b/c", etc.
 routerAdd("GET", "/static/", ...)
 
-// match "GET /static/", "GET /static/a/b/c", etc.
-// (similar to the above but with a named wildcard parameter)
+ // match "GET /static/", "GET /static/a/b/c", etc.
+ // (similar to the above but with a named wildcard parameter)
 routerAdd("GET", "/static/{path...}", ...)
 
-// match only "GET /static/" (if no "/static" is registered, it is 301 redirected)
+ // match only "GET /static/" (if no "/static" is registered, it is 301 redirected)
 routerAdd("GET", "/static/{$}", ...)
 
-// match "GET /customers/john", "GET /customers/jane", etc.
+ // match "GET /customers/john", "GET /customers/jane", etc.
 routerAdd("GET", "/customers/{name}", ...)
 ```
 
@@ -463,13 +463,13 @@ console.log(body.title)
 
 // OR read/scan the request body fields into a typed object
 const data = new DynamicModel({
-// describe the fields to read (used also as initial values)
-someTextField:   "",
-someIntValue:    0,
-someFloatValue:  -0,
-someBoolField:   false,
-someArrayField:  [],
-someObjectField: {}, // object props are accessible via .get(key)
+    // describe the fields to read (used also as initial values)
+    someTextField:   "",
+    someIntValue:    0,
+    someFloatValue:  -0,
+    someBoolField:   false,
+    someArrayField:  [],
+    someObjectField: {}, // object props are accessible via .get(key)
 })
 e.bindBody(data)
 console.log(data.sometextField)
@@ -543,11 +543,11 @@ Here is a minimal example of what a global middleware looks like:
 ```javascript
 // register a global middleware
 routerUse((e) => {
-if (e.request.header.get("Something") == "") {
-throw new BadRequestError("Something header value is missing!")
-}
+    if (e.request.header.get("Something") == "") {
+        throw new BadRequestError("Something header value is missing!")
+    }
 
-return e.next()
+    return e.next()
 })
 ```
 
@@ -558,25 +558,25 @@ Below is a slightly more advanced example showing all options and the execution 
 ```javascript
 // attach global middleware
 routerUse((e) => {
-console.log(1)
-return e.next()
+    console.log(1)
+    return e.next()
 })
 
 // attach global middleware with a custom priority
 routerUse(new Middleware((e) => {
-console.log(2)
-return e.next()
+  console.log(2)
+  return e.next()
 }, -1))
 
 // attach middleware to a single route
 //
 // "GET /hello" should print the sequence: 2,1,3,4
 routerAdd("GET", "/hello", (e) => {
-console.log(4)
-return e.string(200, "Hello!")
+    console.log(4)
+    return e.string(200, "Hello!")
 }, (e) => {
-console.log(3)
-return e.next()
+    console.log(3)
+    return e.next()
 })
 ```
 
@@ -703,7 +703,7 @@ To make it easier returning formatted json error responses, PocketBase provides 
 ```javascript
 // construct ApiError with custom status code and validation data error
 throw new ApiError(500, "something went wrong", {
-"title": new ValidationError("invalid_title", "Invalid or missing title"),
+    "title": new ValidationError("invalid_title", "Invalid or missing title"),
 })
 
 // if message is empty string, a default one will be set
@@ -734,19 +734,19 @@ routerAdd("GET", "/{path...}", $apis.static($os.dirFS("/path/to/public"), false)
 
 ```javascript
 routerAdd("POST", "/phone-login", (e) => {
-const data = new DynamicModel({
-phone:    "",
-password: "",
-})
-e.bindBody(data)
+    const data = new DynamicModel({
+        phone:    "",
+        password: "",
+    })
+    e.bindBody(data)
 
-let record = e.app.findFirstRecordByData("users", "phone", data.phone)
-if !record.validatePassword(data.password) {
-// return generic 400 error as a basic enumeration protection
-throw new BadRequestError("Invalid credentials")
-}
+    let record = e.app.findFirstRecordByData("users", "phone", data.phone)
+    if !record.validatePassword(data.password) {
+        // return generic 400 error as a basic enumeration protection
+        throw new BadRequestError("Invalid credentials")
+    }
 
-return $apis.recordAuthResponse(e, record, "phone")
+    return $apis.recordAuthResponse(e, record, "phone")
 })
 ```
 
@@ -765,12 +765,12 @@ These helpers are also responsible for triggering the `onRecordEnrich` hook even
 
 ```javascript
 routerAdd("GET", "/custom-article", (e) => {
-let records = e.app.findRecordsByFilter("article", "status = 'active'", "-created", 40, 0)
+    let records = e.app.findRecordsByFilter("article", "status = 'active'", "-created", 40, 0)
 
-// enrich the records with the "categories" relation as default expand
-$apis.enrichRecords(e, records, "categories")
+    // enrich the records with the "categories" relation as default expand
+    $apis.enrichRecords(e, records, "categories")
 
-return e.json(200, records)
+    return e.json(200, records)
 })
 ```
 
@@ -781,13 +781,13 @@ The official PocketBase SDKs expose the internal `send()` method that could be u
 ```js
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+        const pb = new PocketBase('http://127.0.0.1:8090');
 
-await pb.send("/hello", {
-// for other options check
-// https://developer.mozilla.org/en-US/docs/Web/API/fetch#options
-query: { "abc": 123 },
-});
+        await pb.send("/hello", {
+            // for other options check
+            // https://developer.mozilla.org/en-US/docs/Web/API/fetch#options
+            query: { "abc": 123 },
+        });
 ```
 ## Database
 
@@ -807,8 +807,8 @@ To execute DB queries you can start with the `newQuery("...")` statement and the
 
 ```javascript
 $app.db()
-.newQuery("DELETE FROM articles WHERE status = 'archived'")
-.execute() // throw an error on db failure
+    .newQuery("DELETE FROM articles WHERE status = 'archived'")
+    .execute() // throw an error on db failure
 ```
 
 -
@@ -817,19 +817,19 @@ $app.db()
 
 ```javascript
 const result = new DynamicModel({
-// describe the shape of the data (used also as initial values)
-// the keys cannot start with underscore and must be a valid Go struct field name
-"id":         ""     // or nullString() if nullable
-"status":     false, // or nullBool() if nullable
-"age":        0,     // or nullInt() if nullable
-"totalSpent": -0,    // or nullFloat() if nullable
-"roles":      [],    // or nullArray() if nullable;
-"meta":       {},    // or nullObject() if nullable
+    // describe the shape of the data (used also as initial values)
+    // the keys cannot start with underscore and must be a valid Go struct field name
+    "id":         ""     // or nullString() if nullable
+    "status":     false, // or nullBool() if nullable
+    "age":        0,     // or nullInt() if nullable
+    "totalSpent": -0,    // or nullFloat() if nullable
+    "roles":      [],    // or nullArray() if nullable;
+    "meta":       {},    // or nullObject() if nullable
 })
 
 $app.db()
-.newQuery("SELECT id, status, age, totalSpent, roles, meta FROM users WHERE id=1")
-.one(result) // throw an error on db failure or missing row
+    .newQuery("SELECT id, status, age, totalSpent, roles, meta FROM users WHERE id=1")
+    .one(result) // throw an error on db failure or missing row
 
 console.log(result.id)
 ```
@@ -840,22 +840,22 @@ console.log(result.id)
 
 ```javascript
 const result = arrayOf(new DynamicModel({
-// describe the shape of the data (used also as initial values)
-// the keys cannot start with underscore and must be a valid Go struct field name
-"id":         ""     // or nullString() if nullable
-"status":     false, // or nullBool() if nullable
-"age":        0,     // or nullInt() if nullable
-"totalSpent": -0,    // or nullFloat() if nullable
-"roles":      [],    // or nullArray() if nullable
-"meta":       {},    // or nullObject() if nullable
+    // describe the shape of the data (used also as initial values)
+    // the keys cannot start with underscore and must be a valid Go struct field name
+    "id":         ""     // or nullString() if nullable
+    "status":     false, // or nullBool() if nullable
+    "age":        0,     // or nullInt() if nullable
+    "totalSpent": -0,    // or nullFloat() if nullable
+    "roles":      [],    // or nullArray() if nullable
+    "meta":       {},    // or nullObject() if nullable
 }))
 
 $app.db()
-.newQuery("SELECT id, status, age, totalSpent, Roles, meta FROM users LIMIT 100")
-.all(result) // throw an error on db failure
+    .newQuery("SELECT id, status, age, totalSpent, Roles, meta FROM users LIMIT 100")
+    .all(result) // throw an error on db failure
 
 if (result.length > 0) {
-console.log(result[0].id)
+    console.log(result[0].id)
 }
 ```
 
@@ -865,17 +865,17 @@ To prevent SQL injection attacks, you should use named parameters for any expres
 
 ```javascript
 const result = arrayOf(new DynamicModel({
-"name":    "",
-"created": "",
+    "name":    "",
+    "created": "",
 }))
 
 $app.db()
-.newQuery("SELECT name, created FROM posts WHERE created >= {:from} and created <= {:to}")
-.bind({
-"from": "2023-06-25 00:00:00.000Z",
-"to":   "2023-06-28 23:59:59.999Z",
-})
-.all(result)
+    .newQuery("SELECT name, created FROM posts WHERE created >= {:from} and created <= {:to}")
+    .bind({
+        "from": "2023-06-25 00:00:00.000Z",
+        "to":   "2023-06-28 23:59:59.999Z",
+    })
+    .all(result)
 
 console.log(result.length)
 ```
@@ -886,17 +886,17 @@ Instead of writing plain SQLs, you can also compose SQL statements programmatica
 
 ```javascript
 const result = arrayOf(new DynamicModel({
-"id":    "",
-"email": "",
+    "id":    "",
+    "email": "",
 }))
 
 $app.db()
-.select("id", "email")
-.from("users")
-.andWhere($dbx.like("email", "example.com"))
-.limit(100)
-.orderBy("created ASC")
-.all(result)
+    .select("id", "email")
+    .from("users")
+    .andWhere($dbx.like("email", "example.com"))
+    .limit(100)
+    .orderBy("created ASC")
+    .all(result)
 ```
 
 #### select(), andSelect(), distinct()
@@ -905,10 +905,10 @@ The `select(...cols)` method initializes a `SELECT` query builder. It accepts a 
 
 ```javascript
 $app.db()
-.select("id", "avatar as image")
-.andSelect("(firstName || ' ' || lastName) as fullName")
-.distinct(true)
-...
+    .select("id", "avatar as image")
+    .andSelect("(firstName || ' ' || lastName) as fullName")
+    .distinct(true)
+    ...
 ```
 
 #### from()
@@ -917,9 +917,9 @@ The `from(...tables)` method specifies which tables to select from (plain table 
 
 ```javascript
 $app.db()
-.select("table1.id", "table2.name")
-.from("table1", "table2")
-...
+    .select("table1.id", "table2.name")
+    .from("table1", "table2")
+    ...
 ```
 
 #### join()
@@ -936,11 +936,11 @@ For convenience, you can also use the shortcuts `innerJoin(table, on)`, `leftJoi
 
 ```javascript
 $app.db()
-.select("users.*")
-.from("users")
-.innerJoin("profiles", $dbx.exp("profiles.user_id = users.id"))
-.join("FULL OUTER JOIN", "department", $dbx.exp("department.id = {:id}", {id: "someId"}))
-...
+    .select("users.*")
+    .from("users")
+    .innerJoin("profiles", $dbx.exp("profiles.user_id = users.id"))
+    .join("FULL OUTER JOIN", "department", $dbx.exp("department.id = {:id}", {id: "someId"}))
+    ...
 ```
 
 #### where(), andWhere(), orWhere()
@@ -952,28 +952,28 @@ The `where(exp)` method specifies the `WHERE` condition of the query. You can al
 SELECT users.*
 FROM users
 WHERE id = "someId" AND
-status = "public" AND
-name like "%john%" OR
-(
-role = "manager" AND
-fullTime IS TRUE AND
-experience > 10
-)
+    status = "public" AND
+    name like "%john%" OR
+    (
+        role = "manager" AND
+        fullTime IS TRUE AND
+        experience > 10
+    )
 */
 $app.db()
-.select("users.*")
-.from("users")
-.where($dbx.exp("id = {:id}", { id: "someId" }))
-.andWhere($dbx.hashExp({ status: "public" }))
-.andWhere($dbx.like("name", "john"))
-.orWhere($dbx.and(
-$dbx.hashExp({
-role:     "manager",
-fullTime: true,
-}),
-$dbx.exp("experience > {:exp}", { exp: 10 })
-))
-...
+    .select("users.*")
+    .from("users")
+    .where($dbx.exp("id = {:id}", { id: "someId" }))
+    .andWhere($dbx.hashExp({ status: "public" }))
+    .andWhere($dbx.like("name", "john"))
+    .orWhere($dbx.and(
+        $dbx.hashExp({
+            role:     "manager",
+            fullTime: true,
+        }),
+        $dbx.exp("experience > {:exp}", { exp: 10 })
+    ))
+    ...
 ```
 
 The following `dbx.Expression` methods are available:
@@ -1000,10 +1000,10 @@ to the corresponding values.
 ```javascript
 // slug = "example" AND active IS TRUE AND tags in ("tag1", "tag2", "tag3") AND parent IS NULL
 $dbx.hashExp({
-slug:   "example",
-active: true,
-tags:   ["tag1", "tag2", "tag3"],
-parent: null,
+    slug:   "example",
+    active: true,
+    tags:   ["tag1", "tag2", "tag3"],
+    parent: null,
 })
 ```
 
@@ -1176,11 +1176,11 @@ The `orderBy(...cols)` specifies the `ORDER BY` clause of the query. A column na
 
 ```javascript
 $app.db()
-.select("users.*")
-.from("users")
-.orderBy("created ASC", "updated DESC")
-.andOrderBy("title ASC")
-...
+    .select("users.*")
+    .from("users")
+    .orderBy("created ASC", "updated DESC")
+    .andOrderBy("title ASC")
+    ...
 ```
 
 #### groupBy(), andGroupBy()
@@ -1189,10 +1189,10 @@ The `groupBy(...cols)` specifies the `GROUP BY` clause of the query. You can als
 
 ```javascript
 $app.db()
-.select("users.*")
-.from("users")
-.groupBy("department", "level")
-...
+    .select("users.*")
+    .from("users")
+    .groupBy("department", "level")
+    ...
 ```
 
 #### having(), andHaving(), orHaving()
@@ -1201,11 +1201,11 @@ The `having(exp)` specifies the `HAVING` clause of the query. Similarly to `wher
 
 ```javascript
 $app.db()
-.select("users.*")
-.from("users")
-.groupBy("department", "level")
-.having($dbx.exp("sum(level) > {:sum}", { sum: 10 }))
-...
+    .select("users.*")
+    .from("users")
+    .groupBy("department", "level")
+    .having($dbx.exp("sum(level) > {:sum}", { sum: 10 }))
+    ...
 ```
 
 #### limit()
@@ -1214,10 +1214,10 @@ The `limit(number)` method specifies the `LIMIT` clause of the query.
 
 ```javascript
 $app.db()
-.select("users.*")
-.from("users")
-.limit(30)
-...
+    .select("users.*")
+    .from("users")
+    .limit(30)
+    ...
 ```
 
 #### offset()
@@ -1226,24 +1226,24 @@ The `offset(number)` method specifies the `OFFSET` clause of the query. Usually 
 
 ```javascript
 $app.db()
-.select("users.*")
-.from("users")
-.offset(5)
-.limit(30)
-...
+    .select("users.*")
+    .from("users")
+    .offset(5)
+    .limit(30)
+    ...
 ```
 
 ### Transaction
 
 ```javascript
 $app.runInTransaction((txApp) => {
-// update a record
-const record = txApp.findRecordById("articles", "RECORD_ID")
-record.set("status", "active")
-txApp.save(record)
+    // update a record
+    const record = txApp.findRecordById("articles", "RECORD_ID")
+    record.set("status", "active")
+    txApp.save(record)
 
-// run a custom raw query (doesn't fire event hooks)
-txApp.db().newQuery("DELETE FROM articles WHERE status = 'pending'").execute()
+    // run a custom raw query (doesn't fire event hooks)
+    txApp.db().newQuery("DELETE FROM articles WHERE status = 'pending'").execute()
 })
 ```
 
@@ -1355,16 +1355,16 @@ Often the `hide/unhide` methods are used in combination with the `onRecordEnrich
 
 ```javascript
 onRecordEnrich((e) => {
-// dynamically show/hide a record field depending on whether the current
-// authenticated user has a certain "role" (or any other field constraint)
-if (
-!e.requestInfo.auth ||
-(!e.requestInfo.auth.isSuperuser() && e.requestInfo.auth.get("role") != "staff")
-) {
-e.record.hide("someStaffOnlyField")
-}
+    // dynamically show/hide a record field depending on whether the current
+    // authenticated user has a certain "role" (or any other field constraint)
+    if (
+        !e.requestInfo.auth ||
+        (!e.requestInfo.auth.isSuperuser() && e.requestInfo.auth.get("role") != "staff")
+    ) {
+        e.record.hide("someStaffOnlyField")
+    }
 
-e.next()
+    e.next()
 }, "articles")
 ```
 
@@ -1386,9 +1386,9 @@ let record = $app.findFirstRecordByData("articles", "slug", "test")
 // retrieve a single "articles" record by a string filter expression
 // (NB! use "{:placeholder}" to safely bind untrusted user input parameters)
 let record = $app.findFirstRecordByFilter(
-"articles",
-"status = 'public' && category = {:category}",
-{ "category": "news" },
+    "articles",
+    "status = 'public' && category = {:category}",
+    { "category": "news" },
 )
 ```
 
@@ -1405,19 +1405,19 @@ let totalPending = $app.countRecords("articles", $dbx.hashExp({"status": "pendin
 
 // retrieve multiple "articles" records with optional dbx expressions
 let records = $app.findAllRecords("articles",
-$dbx.exp("LOWER(username) = {:username}", {"username": "John.Doe"}),
-$dbx.hashExp({"status": "pending"}),
+    $dbx.exp("LOWER(username) = {:username}", {"username": "John.Doe"}),
+    $dbx.hashExp({"status": "pending"}),
 )
 
 // retrieve multiple paginated "articles" records by a string filter expression
 // (NB! use "{:placeholder}" to safely bind untrusted user input parameters)
 let records = $app.findRecordsByFilter(
-"articles",                                    // collection
-"status = 'public' && category = {:category}", // filter
-"-published",                                   // sort
-10,                                            // limit
-0,                                             // offset
-{ "category": "news" },                        // optional filter params
+    "articles",                                    // collection
+    "status = 'public' && category = {:category}", // filter
+    "-published",                                   // sort
+    10,                                            // limit
+    0,                                             // offset
+    { "category": "news" },                        // optional filter params
 )
 ```
 
@@ -1438,15 +1438,15 @@ In addition to the above query helpers, you can also create custom Record querie
 
 ```javascript
 function findTopArticle() {
-let record = new Record();
+    let record = new Record();
 
-$app.recordQuery("articles")
-.andWhere($dbx.hashExp({ "status": "active" }))
-.orderBy("rank ASC")
-.limit(1)
-.one(record)
+    $app.recordQuery("articles")
+        .andWhere($dbx.hashExp({ "status": "active" }))
+        .orderBy("rank ASC")
+        .limit(1)
+        .one(record)
 
-return record
+    return record
 }
 
 let article = findTopArticle()
@@ -1459,15 +1459,15 @@ For retrieving **multiple** Record models with the `all()` executor, you can use
 // $app.findRecordsByFilter("articles", "status = 'active'", '-published', 10)
 // but allows more advanced use cases and filtering (aggregations, subqueries, etc.)
 function findLatestArticles() {
-let records = arrayOf(new Record);
+    let records = arrayOf(new Record);
 
-$app.recordQuery("articles")
-.andWhere($dbx.hashExp({ "status": "active" }))
-.orderBy("published DESC")
-.limit(10)
-.all(records)
+    $app.recordQuery("articles")
+        .andWhere($dbx.hashExp({ "status": "active" }))
+        .orderBy("published DESC")
+        .limit(10)
+        .all(records)
 
-return records
+    return records
 }
 
 let articles = findLatestArticles()
@@ -1506,25 +1506,25 @@ $app.save(record);
 
 ```javascript
 onRecordCreateRequest((e) => {
-// ignore for superusers
-if (e.hasSuperuserAuth()) {
-return e.next()
-}
+    // ignore for superusers
+    if (e.hasSuperuserAuth()) {
+        return e.next()
+    }
 
-// overwrite the submitted "status" field value
-e.record.set("status", "pending")
+    // overwrite the submitted "status" field value
+    e.record.set("status", "pending")
 
-// or you can also prevent the create event by returning an error
-let status = e.record.get("status")
-if (
-status != "pending" &&
-// guest or not an editor
-(!e.auth || e.auth.get("role") != "editor")
-) {
-throw new BadRequestError("Only editors can set a status different from pending")
-}
+    // or you can also prevent the create event by returning an error
+    let status = e.record.get("status")
+    if (
+        status != "pending" &&
+        // guest or not an editor
+        (!e.auth || e.auth.get("role") != "editor")
+    ) {
+        throw new BadRequestError("Only editors can set a status different from pending")
+    }
 
-e.next()
+    e.next()
 }, "articles")
 ```
 
@@ -1558,25 +1558,25 @@ $app.save(record);
 
 ```javascript
 onRecordUpdateRequest((e) => {
-// ignore for superusers
-if (e.hasSuperuserAuth()) {
-return e.next()
-}
+    // ignore for superusers
+    if (e.hasSuperuserAuth()) {
+        return e.next()
+    }
 
-// overwrite the submitted "status" field value
-e.record.set("status", "pending")
+    // overwrite the submitted "status" field value
+    e.record.set("status", "pending")
 
-// or you can also prevent the update event by returning an error
-let status = e.record.get("status")
-if (
-status != "pending" &&
-// guest or not an editor
-(!e.auth || e.auth.get("role") != "editor")
-) {
-throw new BadRequestError("Only editors can set a status different from pending")
-}
+    // or you can also prevent the update event by returning an error
+    let status = e.record.get("status")
+    if (
+        status != "pending" &&
+        // guest or not an editor
+        (!e.auth || e.auth.get("role") != "editor")
+    ) {
+        throw new BadRequestError("Only editors can set a status different from pending")
+    }
 
-e.next()
+    e.next()
 }, "articles")
 ```
 
@@ -1596,14 +1596,14 @@ let titles = ["title1", "title2", "title3"]
 let collection = $app.findCollectionByNameOrId("articles")
 
 $app.runInTransaction((txApp) => {
-// create new record for each title
-for (let title of titles) {
-let record = new Record(collection)
+    // create new record for each title
+    for (let title of titles) {
+        let record = new Record(collection)
 
-record.set("title", title)
+        record.set("title", title)
 
-txApp.save(record)
-}
+        txApp.save(record)
+    }
 })
 ```
 
@@ -1634,16 +1634,16 @@ Below is an example of creating a custom route to retrieve a single article and 
 
 ```javascript
 routerAdd("GET", "/articles/{slug}", (e) => {
-let slug = e.request.pathValue("slug")
+    let slug = e.request.pathValue("slug")
 
-let record = e.app.findFirstRecordByData("articles", "slug", slug)
+    let record = e.app.findFirstRecordByData("articles", "slug", slug)
 
-let canAccess = e.app.canAccessRecord(record, e.requestInfo(), record.collection().viewRule)
-if (!canAccess) {
-throw new ForbiddenError()
-}
+    let canAccess = e.app.canAccessRecord(record, e.requestInfo(), record.collection().viewRule)
+    if (!canAccess) {
+        throw new ForbiddenError()
+    }
 
-return e.json(200, record)
+    return e.json(200, record)
 })
 ```
 
@@ -1721,9 +1721,9 @@ In addition to the above query helpers, you can also create custom Collection qu
 let collections = arrayOf(new Collection)
 
 $app.collectionQuery().
-andWhere($dbx.hashExp({"viewRule": null})).
-orderBy("created DESC").
-all(collections)
+    andWhere($dbx.hashExp({"viewRule": null})).
+    orderBy("created DESC").
+    all(collections)
 ```
 
 ### Field definitions
@@ -1739,32 +1739,32 @@ All collection fields *(with exception of the `JSONField`)* are non-nullable and
 // missing default options, system fields like id, email, etc. are initialized automatically
 // and will be merged with the provided configuration
 let collection = new Collection({
-type:       "base", // base | auth | view
-name:       "example",
-listRule:   null,
-viewRule:   "@request.auth.id != ''",
-createRule: "",
-updateRule: "@request.auth.id != ''",
-deleteRule: null,
-fields: [
-{
-name:     "title",
-type:     "text",
-required: true,
-max: 10,
-},
-{
-name:          "user",
-type:          "relation",
-required:      true,
-maxSelect:     1,
-collectionId:  "ae40239d2bc4477",
-cascadeDelete: true,
-},
-],
-indexes: [
-"CREATE UNIQUE INDEX idx_user ON example (user)"
-],
+    type:       "base", // base | auth | view
+    name:       "example",
+    listRule:   null,
+    viewRule:   "@request.auth.id != ''",
+    createRule: "",
+    updateRule: "@request.auth.id != ''",
+    deleteRule: null,
+    fields: [
+        {
+            name:     "title",
+            type:     "text",
+            required: true,
+            max: 10,
+        },
+        {
+            name:          "user",
+            type:          "relation",
+            required:      true,
+            maxSelect:     1,
+            collectionId:  "ae40239d2bc4477",
+            cascadeDelete: true,
+        },
+    ],
+    indexes: [
+        "CREATE UNIQUE INDEX idx_user ON example (user)"
+    ],
 })
 
 // validate and persist
@@ -1782,8 +1782,8 @@ collection.name = "example_update"
 
 // add new editor field
 collection.fields.add(new EditorField({
-name:     "description",
-required: true,
+    name:     "description",
+    required: true,
 }))
 
 // change existing field
@@ -1829,9 +1829,9 @@ To create a new blank migration you can run `migrate create`.
 ```javascript
 // pb_migrations/1687801097_your_new_migration.js
 migrate((app) => {
-// add up queries...
+    // add up queries...
 }, (app) => {
-// add down queries...
+    // add down queries...
 })
 ```
 
@@ -1877,7 +1877,7 @@ The above command will remove any entry from the `_migrations` table that doesn'
 // pb_migrations/1687801090_set_pending_status.js
 
 migrate((app) => {
-app.db().newQuery("UPDATE articles SET status = 'pending' WHERE status = ''").execute()
+    app.db().newQuery("UPDATE articles SET status = 'pending' WHERE status = ''").execute()
 })
 ```
 
@@ -1887,17 +1887,17 @@ app.db().newQuery("UPDATE articles SET status = 'pending' WHERE status = ''").ex
 // pb_migrations/1687801090_initial_settings.js
 
 migrate((app) => {
-let settings = app.settings()
+    let settings = app.settings()
 
-// for all available settings fields you could check
-// /jsvm/interfaces/core.Settings.html
-settings.meta.appName = "test"
-settings.meta.appURL = "https://example.com"
-settings.logs.maxDays = 2
-settings.logs.logAuthId = true
-settings.logs.logIP = false
+    // for all available settings fields you could check
+    // /jsvm/interfaces/core.Settings.html
+    settings.meta.appName = "test"
+    settings.meta.appURL = "https://example.com"
+    settings.logs.maxDays = 2
+    settings.logs.logAuthId = true
+    settings.logs.logIP = false
 
-app.save(settings)
+    app.save(settings)
 })
 ```
 
@@ -1909,23 +1909,23 @@ app.save(settings)
 // pb_migrations/1687801090_initial_superuser.js
 
 migrate((app) => {
-let superusers = app.findCollectionByNameOrId("_superusers")
+    let superusers = app.findCollectionByNameOrId("_superusers")
 
-let record = new Record(superusers)
+    let record = new Record(superusers)
 
-// note: the values can be eventually loaded via $os.getenv(key)
-// or from a special local config file
-record.set("email", "test@example.com")
-record.set("password", "1234567890")
+    // note: the values can be eventually loaded via $os.getenv(key)
+    // or from a special local config file
+    record.set("email", "test@example.com")
+    record.set("password", "1234567890")
 
-app.save(record)
+    app.save(record)
 }, (app) => { // optional revert operation
-try {
-let record = app.findAuthRecordByEmail("_superusers", "test@example.com")
-app.delete(record)
-} catch {
-// silent errors (probably already deleted)
-}
+    try {
+        let record = app.findAuthRecordByEmail("_superusers", "test@example.com")
+        app.delete(record)
+    } catch {
+        // silent errors (probably already deleted)
+    }
 })
 ```
 
@@ -1937,41 +1937,41 @@ app.delete(record)
 // migrations/1687801090_create_clients_collection.js
 
 migrate((app) => {
-// missing default options, system fields like id, email, etc. are initialized automatically
-// and will be merged with the provided configuration
-let collection = new Collection({
-type:     "auth",
-name:     "clients",
-listRule: "id = @request.auth.id",
-viewRule: "id = @request.auth.id",
-fields: [
-{
-type:     "text",
-name:     "company",
-required: true,
-max:      100,
-},
-{
-name:        "url",
-type:        "url",
-presentable: true,
-},
-],
-passwordAuth: {
-enabled: false,
-},
-otp: {
-enabled: true,
-},
-indexes: [
-"CREATE INDEX idx_clients_company ON clients (company)"
-],
-})
+    // missing default options, system fields like id, email, etc. are initialized automatically
+    // and will be merged with the provided configuration
+    let collection = new Collection({
+        type:     "auth",
+        name:     "clients",
+        listRule: "id = @request.auth.id",
+        viewRule: "id = @request.auth.id",
+        fields: [
+            {
+                type:     "text",
+                name:     "company",
+                required: true,
+                max:      100,
+            },
+            {
+                name:        "url",
+                type:        "url",
+                presentable: true,
+            },
+        ],
+        passwordAuth: {
+            enabled: false,
+        },
+        otp: {
+            enabled: true,
+        },
+        indexes: [
+            "CREATE INDEX idx_clients_company ON clients (company)"
+        ],
+    })
 
-app.save(collection)
+    app.save(collection)
 }, (app) => {
-let collection = app.findCollectionByNameOrId("clients")
-app.delete(collection)
+    let collection = app.findCollectionByNameOrId("clients")
+    app.delete(collection)
 })
 ```
 ## Jobs scheduling
@@ -2001,7 +2001,7 @@ Here is an example:
 ```javascript
 // prints "Hello!" every 2 minutes
 cronAdd("hello", "*/2 * * * *", () => {
-console.log("Hello!")
+    console.log("Hello!")
 })
 ```
 
@@ -2020,20 +2020,20 @@ You can send your own custom emails from everywhere within the app (hooks, middl
 
 ```go
 onRecordCreateRequest((e) => {
-e.next()
+    e.next()
 
-const message = new MailerMessage({
-from: {
-address: e.app.settings().meta.senderAddress,
-name:    e.app.settings().meta.senderName,
-},
-to:      [{address: e.record.email()}],
-subject: "YOUR_SUBJECT...",
-html:    "YOUR_HTML_BODY...",
-// bcc, cc and custom headers are also supported...
-})
+    const message = new MailerMessage({
+        from: {
+            address: e.app.settings().meta.senderAddress,
+            name:    e.app.settings().meta.senderName,
+        },
+        to:      [{address: e.record.email()}],
+        subject: "YOUR_SUBJECT...",
+        html:    "YOUR_HTML_BODY...",
+        // bcc, cc and custom headers are also supported...
+    })
 
-e.app.newMailClient().send(message)
+    e.app.newMailClient().send(message)
 }, "users")
 ```
 
@@ -2045,10 +2045,10 @@ Alternatively, you can also apply individual changes by binding to one of the [m
 
 ```javascript
 onMailerRecordPasswordResetSend((e) => {
-// modify the subject
-e.message.subject += (" " + e.record.get("name"))
+    // modify the subject
+    e.message.subject += (" " + e.record.get("name"))
 
-e.next()
+    e.next()
 })
 ```
 ## Rendering templates
@@ -2059,9 +2059,9 @@ A common task when creating custom routes or emails is the need of generating HT
 
 ```javascript
 const html = $template.loadFiles(
-` + "`${__hooks}/views/base.html`" + `,
-` + "`${__hooks}/views/partial1.html`" + `,
-` + "`${__hooks}/views/partial2.html`" + `,
+    ` + "`${__hooks}/views/base.html`" + `,
+    ` + "`${__hooks}/views/partial1.html`" + `,
+    ` + "`${__hooks}/views/partial2.html`" + `,
 ).render(data)
 ```
 
@@ -2081,12 +2081,12 @@ Consider the following app directory structure:
 
 ```html
 myapp/
-pb_hooks/
-views/
-layout.html
-hello.html
-main.pb.js
-pocketbase
+    pb_hooks/
+        views/
+            layout.html
+            hello.html
+        main.pb.js
+    pocketbase
 ```
 
 We define the content for `layout.html` as:
@@ -2095,16 +2095,16 @@ We define the content for `layout.html` as:
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<title>{{block "title" .}}Default app title{{end}}</title>
+    <title>{{block "title" .}}Default app title{{end}}</title>
 </head>
 <body>
-Header...
+    Header...
 
-{{block "body" .}}
-Default app body...
-{{end}}
+    {{block "body" .}}
+        Default app body...
+    {{end}}
 
-Footer...
+    Footer...
 </body>
 </html>
 ```
@@ -2113,11 +2113,11 @@ We define the content for `hello.html` as:
 
 ```html
 {{define "title"}}
-Page 1
+    Page 1
 {{end}}
 
 {{define "body"}}
-<p>Hello from {{.name}}</p>
+    <p>Hello from {{.name}}</p>
 {{end}}
 ```
 
@@ -2125,16 +2125,16 @@ Then to output the final page, we'll register a custom `/hello/:name` route:
 
 ```javascript
 routerAdd("get", "/hello/{name}", (e) => {
-const name = e.request.pathValue("name")
+    const name = e.request.pathValue("name")
 
-const html = $template.loadFiles(
-` + "`${__hooks}/views/layout.html`" + `,
-` + "`${__hooks}/views/hello.html`" + `,
-).render({
-"name": name,
-})
+    const html = $template.loadFiles(
+        ` + "`${__hooks}/views/layout.html`" + `,
+        ` + "`${__hooks}/views/hello.html`" + `,
+    ).render({
+        "name": name,
+    })
 
-return e.html(200, html)
+    return e.html(200, html)
 })
 ```
 ## Console commands
@@ -2145,10 +2145,10 @@ Here is an example:
 
 ```go
 $app.rootCmd.addCommand(new Command({
-use: "hello",
-run: (cmd, args) => {
-console.log("Hello world!")
-},
+    use: "hello",
+    run: (cmd, args) => {
+        console.log("Hello world!")
+    },
 }))
 ```
 
@@ -2170,11 +2170,11 @@ Below is a list with all currently supported config options and their defaults.
 ```javascript
 // throws on timeout or network connectivity error
 const res = $http.send({
-url:     "",
-method:  "GET",
-body:    "", // ex. JSON.stringify({"test": 123}) or new FormData()
-headers: {}, // ex. {"content-type": "application/json"}
-timeout: 120, // in seconds
+    url:     "",
+    method:  "GET",
+    body:    "", // ex. JSON.stringify({"test": 123}) or new FormData()
+    headers: {}, // ex. {"content-type": "application/json"}
+    timeout: 120, // in seconds
 })
 
 console.log(res.headers)    // the response headers (ex. res.headers['X-Custom'][0])
@@ -2188,23 +2188,23 @@ Here is an example that will enrich a single book record with some data based on
 
 ```javascript
 onRecordCreateRequest((e) => {
-let isbn = e.record.get("isbn");
+    let isbn = e.record.get("isbn");
 
-// try to update with the published date from the openlibrary API
-try {
-const res = $http.send({
-url: "https://openlibrary.org/isbn/" + isbn + ".json",
-headers: {"content-type": "application/json"}
-})
+    // try to update with the published date from the openlibrary API
+    try {
+        const res = $http.send({
+            url: "https://openlibrary.org/isbn/" + isbn + ".json",
+            headers: {"content-type": "application/json"}
+        })
 
-if (res.statusCode == 200) {
-e.record.set("published", res.json.publish_date)
-}
-} catch (err) {
-e.app.logger().error("Failed to retrieve book data", "error", err);
-}
+        if (res.statusCode == 200) {
+            e.record.set("published", res.json.publish_date)
+        }
+    } catch (err) {
+        e.app.logger().error("Failed to retrieve book data", "error", err);
+    }
 
-return e.next()
+    return e.next()
 }, "books")
 ```
 
@@ -2222,9 +2222,9 @@ formData.append("documents", $filesystem.fileFromBytes("doc1", "doc1.txt"))
 formData.append("documents", $filesystem.fileFromBytes("doc2", "doc2.txt"))
 
 const res = $http.send({
-url:    "https://...",
-method: "POST",
-body:   formData,
+    url:    "https://...",
+    method: "POST",
+    body:   formData,
 })
 
 console.log(res.statusCode)
@@ -2249,17 +2249,17 @@ Below you can find a minimal code sample that sends a JSON payload to all client
 
 ```javascript
 const message = new SubscriptionMessage({
-name: "example",
-data: JSON.stringify({ ... }),
+    name: "example",
+    data: JSON.stringify({ ... }),
 });
 
 // retrieve all clients (clients id indexed map)
 const clients = $app.subscriptionsBroker().clients()
 
 for (let clientId in clients) {
-if (clients[clientId].hasSubscription("example")) {
-clients[clientId].send(message)
-}
+    if (clients[clientId].hasSubscription("example")) {
+        clients[clientId].send(message)
+    }
 }
 ```
 
@@ -2268,13 +2268,13 @@ From the client-side, users can listen to the custom subscription topic by doing
 ```js
 import PocketBase from 'pocketbase';
 
-const pb = new PocketBase('http://127.0.0.1:8090');
+        const pb = new PocketBase('http://127.0.0.1:8090');
 
-...
+        ...
 
-await pb.realtime.subscribe('example', (e) => {
-console.log(e)
-})
+        await pb.realtime.subscribe('example', (e) => {
+            console.log(e)
+        })
 ```
 ## Filesystem
 
@@ -2303,17 +2303,17 @@ let avatarKey = record.baseFilesPath() + "/" + record.get("avatar")
 let fsys, reader, content;
 
 try {
-// initialize the filesystem
-fsys = $app.newFilesystem();
+    // initialize the filesystem
+    fsys = $app.newFilesystem();
 
-// retrieve a file reader for the avatar key
-reader = fsys.getReader(avatarKey)
+    // retrieve a file reader for the avatar key
+    reader = fsys.getReader(avatarKey)
 
-// copy as plain string
-content = toString(reader)
+    // copy as plain string
+    content = toString(reader)
 } finally {
-reader?.close();
-fsys?.close();
+    reader?.close();
+    fsys?.close();
 }
 ```
 
@@ -2381,9 +2381,9 @@ All standard [`slog.Logger`](https://pocketbase.io/jsvm/interfaces/slog.Logger.h
 $app.logger().debug("Debug message!")
 
 $app.logger().debug(
-"Debug message with attributes!",
-"name", "John Doe",
-"id", 123,
+    "Debug message with attributes!",
+    "name", "John Doe",
+    "id", 123,
 )
 ```
 
@@ -2393,9 +2393,9 @@ $app.logger().debug(
 $app.logger().info("Info message!")
 
 $app.logger().info(
-"Info message with attributes!",
-"name", "John Doe",
-"id", 123,
+    "Info message with attributes!",
+    "name", "John Doe",
+    "id", 123,
 )
 ```
 
@@ -2405,9 +2405,9 @@ $app.logger().info(
 $app.logger().warn("Warning message!")
 
 $app.logger().warn(
-"Warning message with attributes!",
-"name", "John Doe",
-"id", 123,
+    "Warning message with attributes!",
+    "name", "John Doe",
+    "id", 123,
 )
 ```
 
@@ -2417,9 +2417,9 @@ $app.logger().warn(
 $app.logger().error("Error message!")
 
 $app.logger().error(
-"Error message with attributes!",
-"id", 123,
-"error", err,
+    "Error message with attributes!",
+    "id", 123,
+    "error", err,
 )
 ```
 
@@ -2454,22 +2454,22 @@ The logs are usually meant to be filtered from the UI but if you want to program
 
 ```javascript
 let logs = arrayOf(new DynamicModel({
-id:      "",
-created: "",
-message: "",
-level:   0,
-data:    {},
+    id:      "",
+    created: "",
+    message: "",
+    level:   0,
+    data:    {},
 }))
 
 // see #query-builder
 $app.logQuery().
-// target only debug and info logs
-andWhere($dbx.in("level", -4, 0)).
-// the data column is serialized json object and could be anything
-andWhere($dbx.exp("json_extract(data, '$.type') = 'request'")).
-orderBy("created DESC").
-limit(100).
-all(logs)
+    // target only debug and info logs
+    andWhere($dbx.in("level", -4, 0)).
+    // the data column is serialized json object and could be anything
+    andWhere($dbx.exp("json_extract(data, '$.type') = 'request'")).
+    orderBy("created DESC").
+    limit(100).
+    all(logs)
 ```
 
 ### Intercepting logs write
@@ -2478,14 +2478,14 @@ If you want to modify the log data before persisting in the database or to forwa
 
 ```javascript
 onModelCreate((e) => {
-// print log model fields
-console.log(e.model.id)
-console.log(e.model.created)
-console.log(e.model.level)
-console.log(e.model.message)
-console.log(e.model.data)
+    // print log model fields
+    console.log(e.model.id)
+    console.log(e.model.created)
+    console.log(e.model.level)
+    console.log(e.model.message)
+    console.log(e.model.data)
 
-e.next()
+    e.next()
 }, "_logs")
 ```
 
