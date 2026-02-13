@@ -24,7 +24,7 @@ Quick links:
 
 ---
 
-### `__hooks`
+### __hooks
 
 Global helper variable that contains the absolute path to the app pb_hooks directory.
 
@@ -34,7 +34,7 @@ declare var __hooks: string;
 
 ---
 
-### `$app`
+### $app
 
 `$app` is the current running PocketBase instance that is globally
 available in each .pb.js file.
@@ -47,7 +47,7 @@ declare var $app: PocketBase;
 
 ---
 
-### `$template`
+### $template
 
 `$template` is a global helper to load and cache HTML templates on the fly.
 
@@ -69,7 +69,7 @@ declare var $template: template.Registry;
 
 ---
 
-### `Record`
+### Record
 
 Record model class.
 
@@ -94,7 +94,7 @@ declare const Record: {
 
 ---
 
-### `RequestInfo`
+### RequestInfo
 
 RequestInfo defines a single core.RequestInfo instance, usually used
 as part of various filter checks.
@@ -146,7 +146,7 @@ declare const RequestInfo: {
 
 ---
 
-### `cronAdd`
+### cronAdd
 
 CronAdd registers a new cron job.
 
@@ -170,7 +170,7 @@ declare function cronAdd(jobId: string, cronExpr: string, handler: () => void): 
 
 ---
 
-### `cronRemove`
+### cronRemove
 
 CronRemove removes a single registered cron job by its name.
 
@@ -188,7 +188,7 @@ declare function cronRemove(jobId: string): void;
 
 ---
 
-### `routerAdd`
+### routerAdd
 
 RouterAdd registers a new route definition.
 
@@ -213,7 +213,7 @@ declare function routerAdd(
 
 ---
 
-### `routerUse`
+### routerUse
 
 RouterUse registers one or more global middlewares that are executed
 along the handler middlewares after a matching route is found.
@@ -235,7 +235,7 @@ declare function routerUse(...middlewares: Array<string | ((e: core.RequestEvent
 
 ---
 
-### `readerToString`
+### readerToString
 
 This method is superseded by toString.
 
@@ -247,7 +247,7 @@ declare function readerToString(reader: any, maxBytes?: number): string;
 
 ---
 
-### `toString`
+### toString
 
 toString stringifies the specified value.
 
@@ -275,7 +275,7 @@ declare function toString(val: any, maxBytes?: number): string;
 
 ---
 
-### `toBytes`
+### toBytes
 
 toBytes converts the specified value into a bytes slice.
 
@@ -307,7 +307,7 @@ declare function toBytes(val: any, maxBytes?: number): Array<number>;
 
 ---
 
-### `sleep`
+### sleep
 
 sleep pauses the current goroutine for at least the specified user duration (in ms).
 A zero or negative duration returns immediately.
@@ -324,7 +324,7 @@ declare function sleep(milliseconds: number): void;
 
 ---
 
-### `arrayOf`
+### arrayOf
 
 arrayOf creates a placeholder array of the specified models.
 Usually used to populate DB result into an array of models.
@@ -343,7 +343,7 @@ declare function arrayOf<T>(model: T): Array<T>;
 
 ---
 
-### `nullString`
+### nullString
 
 nullString creates an empty Go string pointer usually used for
 describing a **nullable** `DynamicModel` string value.
@@ -354,7 +354,7 @@ declare function nullString(): string;
 
 ---
 
-### `nullInt`
+### nullInt
 
 nullInt creates an empty Go int64 pointer usually used for
 describing a **nullable** `DynamicModel` int value.
@@ -365,7 +365,7 @@ declare function nullInt(): number;
 
 ---
 
-### `nullFloat`
+### nullFloat
 
 nullFloat creates an empty Go float64 pointer usually used for
 describing a **nullable** `DynamicModel` float value.
@@ -376,7 +376,7 @@ declare function nullFloat(): number;
 
 ---
 
-### `nullBool`
+### nullBool
 
 nullBool creates an empty Go bool pointer usually used for
 describing a **nullable** `DynamicModel` bool value.
@@ -387,7 +387,7 @@ declare function nullBool(): boolean;
 
 ---
 
-### `nullArray`
+### nullArray
 
 nullArray creates an empty Go types.JSONArray pointer usually used for
 describing a **nullable** `DynamicModel` JSON array value.
@@ -398,7 +398,7 @@ declare function nullArray(): Array<any>;
 
 ---
 
-### `nullObject`
+### nullObject
 
 nullObject creates an empty Go types.JSONMap pointer usually used for
 describing a **nullable** `DynamicModel` JSON object value.
@@ -409,7 +409,7 @@ declare function nullObject(): { get(key: string): any; set(key: string, value: 
 
 ---
 
-### `migrate`
+### migrate
 
 Migrate defines a single migration upgrade/downgrade action.
 
@@ -464,7 +464,7 @@ declare function migrate(up: (txApp: CoreApp) => void, down?: (txApp: CoreApp) =
 
 ---
 
-### `DynamicModel`
+### DynamicModel
 
 DynamicModel creates a new dynamic model with fields from the provided data shape.
 
@@ -496,7 +496,7 @@ declare class DynamicModel {
 
 ---
 
-### `Context`
+### Context
 
 Context creates a new empty Go context.Context.
 
@@ -525,7 +525,7 @@ declare class Context implements context.Context {
 
 ---
 
-### `Collection`
+### Collection
 
 Collection model class.
 
@@ -560,7 +560,7 @@ declare class Collection implements core.Collection {
 
 ---
 
-### `FieldsList`
+### FieldsList
 
 FieldsList model class, usually used to define the Collection.fields.
 
@@ -572,7 +572,7 @@ declare class FieldsList implements core.FieldsList {
 
 ---
 
-### `Field`
+### Field
 
 Field model class, usually used as part of the FieldsList model.
 
@@ -584,7 +584,7 @@ declare class Field implements core.Field {
 
 ---
 
-### `NumberField`
+### NumberField
 
 {@inheritDoc core.NumberField}
 
@@ -596,7 +596,7 @@ declare class NumberField implements core.NumberField {
 
 ---
 
-### `BoolField`
+### BoolField
 
 {@inheritDoc core.BoolField}
 
@@ -608,7 +608,7 @@ declare class BoolField implements core.BoolField {
 
 ---
 
-### `TextField`
+### TextField
 
 {@inheritDoc core.TextField}
 
@@ -620,7 +620,7 @@ declare class TextField implements core.TextField {
 
 ---
 
-### `URLField`
+### URLField
 
 {@inheritDoc core.URLField}
 
@@ -632,7 +632,7 @@ declare class URLField implements core.URLField {
 
 ---
 
-### `EmailField`
+### EmailField
 
 {@inheritDoc core.EmailField}
 
@@ -644,7 +644,7 @@ declare class EmailField implements core.EmailField {
 
 ---
 
-### `EditorField`
+### EditorField
 
 {@inheritDoc core.EditorField}
 
@@ -656,7 +656,7 @@ declare class EditorField implements core.EditorField {
 
 ---
 
-### `PasswordField`
+### PasswordField
 
 {@inheritDoc core.PasswordField}
 
@@ -668,7 +668,7 @@ declare class PasswordField implements core.PasswordField {
 
 ---
 
-### `DateField`
+### DateField
 
 {@inheritDoc core.DateField}
 
@@ -680,7 +680,7 @@ declare class DateField implements core.DateField {
 
 ---
 
-### `AutodateField`
+### AutodateField
 
 {@inheritDoc core.AutodateField}
 
@@ -692,7 +692,7 @@ declare class AutodateField implements core.AutodateField {
 
 ---
 
-### `JSONField`
+### JSONField
 
 {@inheritDoc core.JSONField}
 
@@ -704,7 +704,7 @@ declare class JSONField implements core.JSONField {
 
 ---
 
-### `RelationField`
+### RelationField
 
 {@inheritDoc core.RelationField}
 
@@ -716,7 +716,7 @@ declare class RelationField implements core.RelationField {
 
 ---
 
-### `SelectField`
+### SelectField
 
 {@inheritDoc core.SelectField}
 
@@ -728,7 +728,7 @@ declare class SelectField implements core.SelectField {
 
 ---
 
-### `FileField`
+### FileField
 
 {@inheritDoc core.FileField}
 
@@ -740,7 +740,7 @@ declare class FileField implements core.FileField {
 
 ---
 
-### `GeoPointField`
+### GeoPointField
 
 {@inheritDoc core.GeoPointField}
 
@@ -752,7 +752,7 @@ declare class GeoPointField implements core.GeoPointField {
 
 ---
 
-### `MailerMessage`
+### MailerMessage
 
 MailerMessage defines a single email message.
 
@@ -778,7 +778,7 @@ declare class MailerMessage implements mailer.Message {
 
 ---
 
-### `Command`
+### Command
 
 Command defines a single console command.
 
@@ -801,7 +801,7 @@ declare class Command implements cobra.Command {
 
 ---
 
-### `Middleware`
+### Middleware
 
 Middleware defines a single request middleware handler.
 
@@ -824,7 +824,7 @@ declare class Middleware {
 
 ---
 
-### `Timezone`
+### Timezone
 
 Timezone returns the timezone location with the given name.
 
@@ -852,7 +852,7 @@ declare class Timezone implements time.Location {
 
 ---
 
-### `DateTime`
+### DateTime
 
 DateTime defines a single DateTime type instance.
 The returned date is always represented in UTC.
@@ -880,7 +880,7 @@ declare class DateTime implements types.DateTime {
 
 ---
 
-### `ValidationError`
+### ValidationError
 
 ValidationError defines a single formatted data validation error,
 usually used as part of an error response.
@@ -897,7 +897,7 @@ declare class ValidationError implements ozzo_validation.Error {
 
 ---
 
-### `Cookie`
+### Cookie
 
 A Cookie represents an HTTP cookie as sent in the Set-Cookie header of an
 HTTP response.
@@ -929,7 +929,7 @@ declare class Cookie implements http.Cookie {
 
 ---
 
-### `SubscriptionMessage`
+### SubscriptionMessage
 
 SubscriptionMessage defines a realtime subscription payload.
 
@@ -952,7 +952,7 @@ declare class SubscriptionMessage implements subscriptions.Message {
 
 ---
 
-### `AppleClientSecretCreateForm`
+### AppleClientSecretCreateForm
 
 ```ts
 declare class AppleClientSecretCreateForm implements forms.AppleClientSecretCreate {
@@ -962,7 +962,7 @@ declare class AppleClientSecretCreateForm implements forms.AppleClientSecretCrea
 
 ---
 
-### `RecordUpsertForm`
+### RecordUpsertForm
 
 ```ts
 declare class RecordUpsertForm implements forms.RecordUpsert {
@@ -972,7 +972,7 @@ declare class RecordUpsertForm implements forms.RecordUpsert {
 
 ---
 
-### `TestEmailSendForm`
+### TestEmailSendForm
 
 ```ts
 declare class TestEmailSendForm implements forms.TestEmailSend {
@@ -982,7 +982,7 @@ declare class TestEmailSendForm implements forms.TestEmailSend {
 
 ---
 
-### `TestS3FilesystemForm`
+### TestS3FilesystemForm
 
 ```ts
 declare class TestS3FilesystemForm implements forms.TestS3Filesystem {
@@ -992,7 +992,7 @@ declare class TestS3FilesystemForm implements forms.TestS3Filesystem {
 
 ---
 
-### `ApiError`
+### ApiError
 
 ```ts
 declare class ApiError implements router.ApiError {
@@ -1002,7 +1002,7 @@ declare class ApiError implements router.ApiError {
 
 ---
 
-### `NotFoundError`
+### NotFoundError
 
 NotFounderor returns 404 ApiError.
 
@@ -1014,7 +1014,7 @@ declare class NotFoundError implements router.ApiError {
 
 ---
 
-### `BadRequestError`
+### BadRequestError
 
 BadRequestError returns 400 ApiError.
 
@@ -1026,7 +1026,7 @@ declare class BadRequestError implements router.ApiError {
 
 ---
 
-### `ForbiddenError`
+### ForbiddenError
 
 ForbiddenError returns 403 ApiError.
 
@@ -1038,7 +1038,7 @@ declare class ForbiddenError implements router.ApiError {
 
 ---
 
-### `UnauthorizedError`
+### UnauthorizedError
 
 UnauthorizedError returns 401 ApiError.
 
@@ -1050,7 +1050,7 @@ declare class UnauthorizedError implements router.ApiError {
 
 ---
 
-### `TooManyRequestsError`
+### TooManyRequestsError
 
 TooManyRequestsError returns 429 ApiError.
 
@@ -1062,7 +1062,7 @@ declare class TooManyRequestsError implements router.ApiError {
 
 ---
 
-### `InternalServerError`
+### InternalServerError
 
 InternalServerError returns 429 ApiError.
 
@@ -1087,7 +1087,7 @@ declare class InternalServerError implements router.ApiError {
 
 ---
 
-### `$dbx`
+### $dbx
 
 `$dbx` defines common utility for working with the DB abstraction.
 For examples and guides please check the [Database guide](./extend.md#database).
@@ -1120,7 +1120,7 @@ declare namespace $dbx {
 
 ---
 
-### `$mails`
+### $mails
 
 `$mails` defines helpers to send common
 auth records emails like verification, password reset, etc.
@@ -1137,7 +1137,7 @@ declare namespace $mails {
 
 ---
 
-### `$security`
+### $security
 
 `$security` defines low level helpers for creating
 and parsing JWTs, random string generation, AES encryption, etc.
@@ -1177,7 +1177,7 @@ declare namespace $security {
 
 ---
 
-### `$filesystem`
+### $filesystem
 
 `$filesystem` defines common helpers for working
 with the PocketBase filesystem abstraction.
@@ -1216,7 +1216,7 @@ declare namespace $filesystem {
 
 ---
 
-### `$filepath`
+### $filepath
 
 `$filepath` defines common helpers for manipulating filename
 paths in a way compatible with the target operating system-defined file paths.
@@ -1243,7 +1243,7 @@ declare namespace $filepath {
 
 ---
 
-### `$os`
+### $os
 
 `$os` defines common helpers for working with the OS level primitives
 (eg. deleting directories, executing shell commands, etc.).
@@ -1307,7 +1307,7 @@ declare namespace $os {
 
 ---
 
-### `$apis`
+### $apis
 
 `$apis` defines commonly used PocketBase api helpers and middlewares.
 
@@ -1347,7 +1347,7 @@ declare namespace $apis {
 
 ---
 
-### `$http`
+### $http
 
 `$http` defines common methods for working with HTTP requests.
 
