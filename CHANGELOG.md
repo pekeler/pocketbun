@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.36.3-pocketbun.1 (Unreleased)
+
+- TBD
+
 ## 0.36.3-pocketbun.0 - 2026-02-13
 
 - Upgraded PocketBun compatibility target to PocketBase `v0.36.3` and synced vendored Admin UI assets.
