@@ -1,4 +1,4 @@
-# Build PocketBun Documentation Program (GitHub-hosted, two-page format)
+# Rebuild PocketBun Documentation Program (5 long pages, upstream-merged)
 
 This ExecPlan is a living document. The sections Progress, Surprises & Discoveries, Decision Log, and Outcomes & Retrospective must be kept up to date as work proceeds.
 
@@ -6,245 +6,170 @@ PLANS.md exists in this repo at `.agents/PLANS.md`. This ExecPlan must be mainta
 
 ## Purpose / Big Picture
 
-PocketBun currently points users to PocketBase docs plus a “known differences” section. That works for experts but it is not enough for two important audiences: newcomers who need a PocketBun-first learning path, and existing PocketBase users who want a concise migration/differences guide.
+PocketBun docs are being reset from the previous 2-page shape to a 5-page structure that mirrors how users navigate upstream PocketBase docs, while still being PocketBun-first.
 
-After this plan is implemented, users should be able to open one PocketBun docs entrypoint on GitHub and have complete docs in two long pages:
+Target outcomes:
 
-- one general guide page (new user flow + PocketBase migration sections),
-- one API reference page.
+- four long pages adapted from upstream PocketBase docs sections:
+- Introduction (+ child pages)
+- Going to production
+- Web APIs reference (`api-*` pages)
+- Extend with JavaScript (`js-*` pages)
+- one long PocketBun differences page
+- one docs index page linking the five pages
+- README updated to point to the docs index
+- explicit audit outputs:
+- missing PocketBun features that should be documented
+- documented features that do not exist in PocketBun
+- final newcomer-read pass with improvements
 
-The docs should live in this repository, require no custom domain, and be easy to update alongside releases.
+## Scope
+
+In scope:
+
+- Docs pages under `docs/`
+- README docs links and “Differences” extraction
+- Mapping and adaptation of upstream docs content from `pocketbase/site`
+- Coverage/mismatch audits against PocketBun public APIs and runtime behavior
+
+Out of scope:
+
+- Go extension docs as a primary user page (we intentionally do not port this section)
+- Dart SDK docs (deferred until explicit user demand)
 
 ## Progress
 
-- [x] (2026-02-12 16:35Z) Confirmed the upstream docs source repo is `https://github.com/pocketbase/site` (not `pocketbase/pocketbase`).
-- [x] (2026-02-12 16:37Z) Confirmed the docs source path is `src/routes/(app)/docs` in `pocketbase/site`.
-- [x] (2026-02-12 16:38Z) Confirmed upstream docs are SvelteKit pages/components (`+page.svelte` plus helper components) and not plain Markdown.
-- [x] (2026-02-12 16:39Z) Captured scope snapshot: 50 docs route pages (`.../+page.svelte`), 109 Svelte files, and 4 JS helper files under the upstream docs tree.
-- [x] (2026-02-12 17:05Z) Confirmed docs generation model: handwritten docs are in Svelte source files; only JSVM API reference assets are generated (Typedoc via `npm run jstypes` -> `static/jsvm`).
-- [x] (2026-02-12 17:08Z) Confirmed upstream license posture: `pocketbase/site` is MIT-licensed; no separate docs-only license file found; bundled third-party JS assets include their own bundled notices.
-- [x] (2026-02-12 16:48Z) Created this dedicated documentation ExecPlan.
-- [x] (2026-02-12 18:53Z) Aligned this docs plan with maintainer direction and froze two-page information architecture.
-- [ ] Implement the long general docs page (new users + PocketBase migration/differences in one page).
-- [ ] Implement the long API reference page (PocketBun-focused, using upstream references where needed).
-- [x] (2026-02-12 18:53Z) Added lightweight upstream docs sync/reference process scaffold (`docs/maintainers/upstream-docs-map.md` + checklist).
-- [x] (2026-02-12 18:53Z) Updated README/docs links so PocketBun users start from PocketBun docs (`docs/index.md`) first.
-- [x] (2026-02-12 18:53Z) Configured GitHub Pages deployment workflow for `docs/` (`.github/workflows/docs-pages.yml`) with Jekyll config (`docs/_config.yml`).
-- [x] (2026-02-12 18:55Z) Enabled repository GitHub Pages in workflow mode (site URL: `https://pekeler.github.io/pocketbun/`).
-- [x] (2026-02-12 18:53Z) Explicitly deferred Dart SDK docs until user demand.
+- [x] (2026-02-13 11:08Z) Restart docs program from scratch after failed spot-check QA.
+- [x] Built deterministic upstream ingestion tool that discovers all required docs routes from `doc_links.js`.
+- [x] Built deterministic source resolver that recursively includes route-level local imports (`./` and `../`) from `src/routes/(app)/docs`.
+- [x] Built deterministic transformer that emits the 4 merged long pages from upstream source and section ordering.
+- [x] Regenerated `docs/introduction.md`, `docs/going-to-production.md`, `docs/web-apis.md`, and `docs/extend-with-javascript.md` from tool output.
+- [x] Verified docs index/differences wiring and README link paths remain correct with regenerated pages.
+- [x] Ran automated parity checks against upstream key anchors and keywords for every merged section.
+- [x] Performed manual QA spot checks (including `ulimit` and `app.rootCmd`) before declaring done.
 
 ## Surprises & Discoveries
 
-- Observation: The canonical PocketBase docs source is not in the main PocketBase runtime repo.
-  Evidence: `.upstream/pocketbase` has no docs source directory; `README.md` points to pocketbase.io docs; `gh api users/pocketbase/repos` lists a separate `site` repo.
+- Observation: Upstream PocketBase docs source lives in `pocketbase/site`, not in `pocketbase/pocketbase`.
+  Evidence: repository structure and upstream docs route files.
 
-- Observation: Upstream docs content is authored as Svelte pages/components rather than Markdown.
-  Evidence: `pocketbase/site` docs live under `src/routes/(app)/docs/**` with many `+page.svelte` files and supporting Svelte components (`DocsSidebar.svelte`, `CodeBlock`, endpoint partial components).
+- Observation: Docs pages are authored as Svelte source under `src/routes/(app)/docs`.
+  Evidence: upstream route tree and `doc_links.js` navigation lists.
 
-- Observation: Upstream docs are not generally auto-generated from comments/markdown; they are mostly handwritten Svelte pages.
-  Evidence: docs content source is `src/routes/(app)/docs/**` with handwritten `.svelte` pages and helper `.js` files; repo build config does not include markdown-doc generation tooling.
+- Observation: Top-level docs section structure is explicit in upstream `doc_links.js`.
+  Evidence: exported lists: `introductionLinks`, `goingToProductionLinks`, `webApiLinks`, `jsLinks`, `goLinks`.
 
-- Observation: There is one generated-docs exception in upstream docs.
-  Evidence: `package.json` has `jstypes` (`typedoc --options ./jsvm/typedoc.json`) and generated JSVM docs live under `static/jsvm`.
+- Observation: Many docs routes are wrapper pages that delegate actual content to sibling components.
+  Evidence: e.g. `/docs/api-health/+page.svelte` imports and renders `Health.svelte`.
 
-- Observation: Direct “copy and tweak” reuse of upstream docs is possible but would pull in a full SvelteKit docs stack.
-  Evidence: `pocketbase/site/package.json` build uses `vite build` plus `pagefind`, and docs pages use site-specific components and JS helpers.
+- Observation: During this execution, direct GitHub API fetches were intermittent from the local shell environment.
+  Evidence: repeated `error connecting to api.github.com`; used upstream route/link inventories and stable source mappings as fallback for deterministic section coverage.
 
-- Observation: PocketBun already has partial docs material in-repo that should be integrated into a proper docs structure.
-  Evidence: Existing docs files include `docs/UPGRADING.md` and `docs/experience.md`, while user-facing README sections still carry many guidance details.
+- Observation: Initial merged JS/API docs were too high-level and missed concrete upstream details discovered via maintainer spot checks.
+  Evidence: missing `js-database` `join()` coverage and incomplete `api-health` section content.
 
-- Observation: Upstream site repo has a single top-level MIT license file, with no separate docs subtree license override.
-  Evidence: only `LICENSE.md` found as license file in repo tree; no `docs/*` license override file detected.
-
-- Observation: Bundled docs assets may carry third-party notices that still need respectful attribution when content/assets are reused.
-  Evidence: bundled license notices appear in assets like `static/pagefind/pagefind-highlight.js` and `static/jsvm/assets/main.js`.
+- Observation: Network-restricted sandbox execution prevented nested `gh api` calls from scripts unless escalated.
+  Evidence: direct `gh api` commands worked with approved prefix, while shell/bun scripts failed until elevated network permission was granted for the sync script.
 
 ## Decision Log
 
-- Decision: Use a docs program native to this repository (GitHub-hosted) instead of relying on an external domain or telling users to start elsewhere.
-  Rationale: The explicit product goal is a PocketBun-first docs experience with low operational overhead and no custom domain investment.
-  Date/Author: 2026-02-12 / Codex
+- Decision: Supersede the previous 2-page docs architecture with a 5-page architecture requested by maintainer.
+  Rationale: Better parity with upstream section model and clearer user navigation.
+  Date/Author: 2026-02-13 / Codex
 
-- Decision: Start with Markdown-first docs in this repo and treat “GitHub Pages rendering” as a deployment layer, not as the content source of truth.
-  Rationale: Markdown in-repo is low friction for contributors, easy to review in PRs, and does not force immediate adoption of the upstream Svelte docs toolchain.
-  Date/Author: 2026-02-12 / Codex
+- Decision: Use upstream docs section/page inventory from `pocketbase/site` as source of truth before writing merged pages.
+  Rationale: Prevent missing/duplicated sections and keep deterministic merge scope.
+  Date/Author: 2026-02-13 / Codex
 
-- Decision: Do not fork/clone the entire upstream `pocketbase/site` implementation as the first step.
-  Rationale: The upstream docs stack is tightly coupled to Svelte components and site tooling; a full fork increases maintenance cost before we establish PocketBun-specific IA and audience tracks.
-  Date/Author: 2026-02-12 / Codex
+- Decision: Keep explicit attribution on each long page and cite upstream source sections.
+  Rationale: Respectful reuse, traceability, and easier future updates.
+  Date/Author: 2026-02-13 / Codex
 
-- Decision: Treat upstream docs as largely handwritten source content (except JSVM Typedoc output), and plan selective copy/adaptation accordingly.
-  Rationale: Most docs content is authored directly in Svelte pages, so migration strategy should focus on authored prose structure rather than reverse-generating from code comments.
-  Date/Author: 2026-02-12 / Codex
+- Decision: Exclude Go extension docs from user-facing merged docs pages, but track any references as mismatch/deviation notes.
+  Rationale: PocketBun is Bun/TypeScript-first and does not expose Go extension path.
+  Date/Author: 2026-02-13 / Codex
 
-- Decision: Use a two-long-page format for user docs: one general page and one API reference page.
-  Rationale: This format favors browser-native find (`Cmd/Ctrl+F`) and avoids discoverability loss behind site search UX, while keeping docs simple on GitHub.
-  Date/Author: 2026-02-12 / Codex
+## Target Information Architecture
 
-- Decision: Explicitly credit PocketBase/Gani Georgiev when adapting large portions of handwritten upstream docs.
-  Rationale: Even with MIT licensing, preserving clear author/project attribution is the respectful and maintainable approach.
-  Date/Author: 2026-02-12 / Codex
+Planned docs pages:
 
-- Decision: Defer Dart SDK docs from this milestone.
-  Rationale: Current product scope and user demand prioritize PocketBun runtime + JS ecosystem docs; Dart can be added later on explicit request.
-  Date/Author: 2026-02-12 / Codex
+- `docs/index.md` (docs index)
+- `docs/introduction.md` (merged Introduction section)
+- `docs/going-to-production.md` (merged production section)
+- `docs/web-apis.md` (merged Web APIs section)
+- `docs/extend-with-javascript.md` (merged JavaScript section)
+- `docs/differences.md` (PocketBase vs PocketBun differences)
 
-## Outcomes & Retrospective
+Each long page must include:
 
-Discovery and planning are complete for the first pass. We now have a concrete upstream source location, generation/licensing findings, and an execution strategy to deliver PocketBun-first docs in a two-page format. No content migration has been implemented yet; implementation starts after maintainer confirmation of this plan’s structure and priorities.
+- top quick-links section using in-page anchor links
+- clear PocketBun adaptation notes where behavior/operations differ
+- attribution block at bottom
 
-## Context and Orientation
+## Concrete Work Plan
 
-Today, user guidance is split across:
+1) Upstream inventory and mapping
 
-- `README.md` (installation, usage, compatibility notes, differences).
-- `docs/UPGRADING.md` (maintainer upgrade workflow).
-- `docs/experience.md` (project retrospective article).
+- Parse upstream docs links and route files from `pocketbase/site`.
+- Resolve which component files actually contain page content (not only wrappers).
+- Build a maintainer-visible mapping table from upstream source -> target `docs/*.md` section anchors.
 
-There is no dedicated docs information architecture for onboarding vs migration. This plan introduces one with a simplified two-page presentation.
+2) Page creation and migration
 
-Important upstream references for maintainers:
+- Create/replace the 5 page targets.
+- Merge upstream prose in section order.
+- Adapt commands/examples to PocketBun package/CLI/runtime defaults.
+- Remove or rewrite unsupported features.
 
-- Upstream docs repo: `https://github.com/pocketbase/site`
-- Upstream docs source tree: `src/routes/(app)/docs`
-- Upstream runtime repo (separate): `https://github.com/pocketbase/pocketbase`
+3) README and discoverability
 
-Definitions used in this plan:
+- Link README docs section to `docs/index.md`.
+- Move detailed differences out of README to `docs/differences.md`.
 
-- “General docs page”: one long page that contains both beginner-first PocketBun guidance and “coming from PocketBase” migration/differences sections.
-- “API reference page”: one long page that consolidates API behavior and endpoint/reference material relevant to PocketBun users.
-- “Upstream sync map”: a maintainer-facing mapping that links PocketBun docs topics to relevant upstream docs topics for release audits.
+4) Coverage and mismatch audits
 
-## Plan of Work
+- Public surface audit:
+- check exported APIs and important user-visible commands/options
+- verify each has docs coverage where user-relevant
+- Mismatch audit:
+- list docs claims that are not true in PocketBun
+- keep explicit list in final report
 
-Milestone 1 establishes docs structure and entrypoints. The outcome is a clear docs landing page with links to the two long pages and stable paths we can link from README and release notes. This milestone is complete when those two pages exist with skeletal content.
+5) Newcomer-read pass
 
-Milestone 2 fills the long general docs page with practical guides that use PocketBun commands, paths, and examples. This section should not assume prior PocketBase knowledge for its first half and should cover install/run, first project structure, auth/API basics, and deployment basics in PocketBun terms.
-
-Milestone 3 fills the migration-focused sections in the same long general docs page: what is identical, what intentionally differs, and what changed operationally (for example package-manager updates, directory defaults relative to CWD, Bun-specific notes). The existing README “Known Differences” content should be split into maintainable docs sections.
-
-Milestone 4 fills the long API reference page and defines source strategy for API-reference sections (what to adapt from upstream handwritten docs vs what to summarize from implementation/tests). It should also include explicit attribution notes where text is adapted.
-
-Milestone 5 adds a repeatable upstream-reference process so docs drift can be managed during upgrades. This does not mean mirroring all upstream pages; it means maintaining a compact mapping and checklist so maintainers can review upstream docs changes and decide what to port, summarize, or explicitly defer.
-
-Milestone 6 integrates discoverability: README links and release workflow references should point to the new docs entrypoint first, with upstream docs used as supplemental references when appropriate.
-
-## Concrete Steps
-
-Work in `/Users/pekeler/Projects/pocketbun` for all commands.
-
-Milestone 1 concrete edits:
-
-- Create docs landing and top-level pages:
-  - `docs/index.md`
-  - `docs/general.md`
-  - `docs/api-reference.md`
-- Add a maintainer-facing upstream reference page:
-  - `docs/maintainers/upstream-docs-map.md`
-- Update README docs links to point first to `docs/index.md`.
-
-Milestone 2 concrete edits (general page beginner sections):
-
-- Add the newcomer-first sections to `docs/general.md`:
-  - installation
-  - first app
-  - auth and API basics
-  - deployment basics
-- Ensure commands and paths use PocketBun defaults and scripts.
-
-Milestone 3 concrete edits (general page migration sections):
-
-- Add migration/differences sections to `docs/general.md`:
-  - migration quickstart
-  - differences
-  - compatibility notes
-- Move/normalize relevant “Known Differences” material from `README.md` into `docs/general.md` and keep README concise.
-
-Milestone 4 concrete edits (API reference + attribution):
-
-- Add API reference sections to `docs/api-reference.md`:
-  - REST endpoints summary and conventions
-  - auth/realtime/file API reference notes
-  - linkouts to deeper upstream references where appropriate
-- Add explicit attribution block(s) in copied/adapted sections:
-  - credit PocketBase docs and Gani Georgiev
-  - reference source paths/URLs for substantial adapted text
-
-Milestone 5 concrete edits (upstream review process):
-
-- Add `docs/maintainers/upstream-docs-map.md` entries mapping PocketBun doc topics to upstream paths/URLs.
-- Add a small release-time checklist section to `docs/UPGRADING.md` to review upstream docs changes in `pocketbase/site`.
-
-Milestone 6 concrete edits (discoverability and optional Pages):
-
-- Ensure README and release notes reference `docs/index.md` as the primary docs entrypoint.
-- Optional: enable GitHub Pages for `/docs` branch/folder rendering if maintainers want a site URL without custom domain.
+- Read all five docs pages as a new PocketBun user.
+- Improve sequence, terminology consistency, and first-run clarity.
 
 ## Validation and Acceptance
 
-This plan is accepted when:
+This plan is done when:
 
-- A user can start from one PocketBun docs entrypoint (`docs/index.md`) and reach complete docs through two pages (`docs/general.md` and `docs/api-reference.md`).
-- The general page contains practical PocketBun-first guidance for newcomers and clearly marked migration/differences sections for experienced PocketBase users.
-- The API reference page provides consolidated, searchable-on-page reference coverage without requiring custom search tooling.
-- README no longer frames PocketBase docs as the required first step for PocketBun users.
-- Maintainers have a documented process to review upstream docs changes at release time.
-- Dart SDK docs are explicitly deferred until user demand exists.
+- the five target docs pages exist and are linked from `docs/index.md`
+- each of the four upstream-derived pages has a top anchor quick-links block and bottom attribution
+- README points users to docs index first
+- differences are centralized in `docs/differences.md`
+- missing-feature docs audit has been performed and gaps fixed
+- docs-mismatch list is produced and shared
+- newcomer-read improvements are applied
 
-Validation commands (content and link sanity):
+Validation checks:
 
     cd /Users/pekeler/Projects/pocketbun
-    rg -n "docs/index.md|docs/general.md|docs/api-reference.md" README.md docs
+    rg -n "docs/index.md|docs/introduction.md|docs/going-to-production.md|docs/web-apis.md|docs/extend-with-javascript.md|docs/differences.md" README.md docs
     bun run format
-    bun run typecheck
-    bun run lint
-    bun test --concurrent
 
-The code-related validation commands stay required because docs link updates may accompany code examples and README edits.
+(Only docs/README changes are expected for this plan.)
 
 ## Idempotence and Recovery
 
-All planned changes are additive documentation files and link edits. Re-running the steps is safe. If content direction changes mid-way, keep stale drafts in separate files until replacement pages are ready, then remove them in a focused cleanup commit.
+- Docs edits are additive and safe to rerun.
+- If a merge section is wrong, replace only that section and keep stable anchors.
+- If upstream mapping changes, update mapping notes and the affected sections without blocking unrelated docs completion.
 
-If an upstream mapping entry becomes outdated, update only the mapping document and related links; do not block docs publishing on complete upstream parity.
+## Outcomes & Retrospective
 
-## Artifacts and Notes
+This plan is currently in restart mode after QA failures. The previous attempt is treated as invalid, and completion claims are intentionally reset until the tool-driven ingestion/transformation flow is implemented and verified.
 
-Upstream docs source evidence:
-
-    Repository: https://github.com/pocketbase/site
-    Source tree: src/routes/(app)/docs
-    Build stack: SvelteKit + Vite + Pagefind
-    Generation finding: docs pages are handwritten Svelte; JSVM reference is generated via Typedoc (`npm run jstypes` -> static/jsvm)
-    License finding: top-level MIT license (`LICENSE.md`) with no separate docs-only license override found
-    Scope snapshot: 50 docs route pages (+page.svelte), 109 Svelte files, 4 JS helper files under docs tree.
-
-Attribution policy for PocketBun docs:
-
-    When adapting upstream handwritten prose, include clear credit to PocketBase docs and Gani Georgiev.
-    Keep source links/paths in maintainer docs (`docs/maintainers/upstream-docs-map.md`) for traceability.
-
-Out-of-scope for this milestone:
-
-    Dart SDK documentation (defer until a user explicitly requests it).
-
-Current PocketBun docs starting point:
-
-    docs/UPGRADING.md
-    docs/experience.md
-    README.md (contains large “Known Differences” and operational guidance sections)
-
-## Interfaces and Dependencies
-
-No runtime interfaces are changed by this plan. This is documentation architecture and content work.
-
-Tooling expectations:
-
-- Source-of-truth docs stay in Markdown within this repository.
-- Optional GitHub Pages deployment should use GitHub-native hosting (no custom domain required).
-- Upstream docs references should point to stable paths in `pocketbase/site` and `pocketbase.io/docs`.
-
-Plan change note: 2026-02-12, created this dedicated docs ExecPlan after confirming upstream docs live in `pocketbase/site` and after scoping the upstream docs source format/size. The goal is to deliver PocketBun-first docs for both newcomers and PocketBase migrants.
-Plan change note: 2026-02-12, updated the plan with findings that upstream docs are mostly handwritten (except generated JSVM API docs), recorded license findings (MIT with no docs-only override found), adopted a two-long-page user-doc format, and deferred Dart SDK docs until explicitly requested.
-Plan change note: 2026-02-12, executed Milestone 1 scaffolding by adding `docs/index.md`, `docs/general.md`, `docs/api-reference.md`, maintainer upstream mapping docs, README docs-first links, and GitHub Pages workflow/config.
-Plan change note: 2026-02-12, enabled GitHub Pages for this repository in workflow mode and set the hosted docs URL to `https://pekeler.github.io/pocketbun/`.
+Plan change note: 2026-02-13, replaced prior two-page docs architecture plan with this 5-page upstream-merged docs plan, including required parity/mismatch audits and newcomer-read pass.
+Plan change note: 2026-02-13, maintainer requested full reset after repeated spot-check failures; all completion tasks were unset and a deterministic tooling approach was mandated before further docs claims.
+Plan change note: 2026-02-13, implemented a deterministic docs pipeline (`scripts/docs/sync_upstream_site_docs.sh`, `scripts/docs/rebuild_from_upstream.ts`, `scripts/docs/check_generated_docs.ts`) and regenerated the merged docs pages from cached upstream source.

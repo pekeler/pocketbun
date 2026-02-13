@@ -5,15 +5,26 @@ title: PocketBun Docs
 
 # PocketBun Docs
 
-PocketBun documentation is organized into two pages so everything is easy to scan with your browser search (`Cmd/Ctrl+F`):
+PocketBun docs are organized into five long pages for browser-native search (`Cmd/Ctrl+F`).
 
-- [General Guide](./general.md) - installation, first app, core workflows, and PocketBase migration notes.
-- [API Reference](./api-reference.md) - API conventions and endpoint-focused reference material.
+Recommended reading order for new users:
 
-For maintainers:
+1. `Introduction`
+2. `Web APIs Reference`
+3. `Extend With JavaScript`
+4. `Going To Production`
+5. `PocketBun Differences`
 
-- [Upstream Docs Map](./maintainers/upstream-docs-map.md) - source mapping and sync checklist notes.
+- [Introduction](./introduction.md)
+- [Going To Production](./going-to-production.md)
+- [Web APIs Reference](./web-apis.md)
+- [Extend With JavaScript](./extend-with-javascript.md)
+- [PocketBun Differences](./differences.md)
 
-Supplemental reference:
+Maintainers:
+
+- [Upstream Docs Map](./maintainers/upstream-docs-map.md)
+
+Supplemental upstream reference:
 
 - PocketBase docs: <https://pocketbase.io/docs/>

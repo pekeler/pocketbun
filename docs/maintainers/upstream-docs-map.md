@@ -21,9 +21,11 @@ Use it during release/upgrade review to detect drift and decide what to port or 
 | PocketBun doc area | PocketBun file | Upstream source starting point |
 | --- | --- | --- |
 | Docs landing | `docs/index.md` | `src/routes/(app)/docs/+page.svelte` |
-| General guide | `docs/general.md` | `src/routes/(app)/docs/*` topic pages |
-| API reference | `docs/api-reference.md` | `src/routes/(app)/docs/api-*` pages |
-| Migration/differences | `docs/general.md` + README | upstream docs + PocketBun-specific behavior/tests |
+| Introduction (merged) | `docs/introduction.md` | intro links in `src/routes/(app)/docs/doc_links.js` (`/docs`, `/docs/how-to-use`, `/docs/collections`, `/docs/api-rules-and-filters`, `/docs/authentication`, `/docs/files-handling`, `/docs/working-with-relations`, `/docs/use-as-framework`) |
+| Going to production | `docs/going-to-production.md` | `/docs/going-to-production` |
+| Web APIs reference (merged) | `docs/web-apis.md` | `webApiLinks` in `src/routes/(app)/docs/doc_links.js` and `src/routes/(app)/docs/api-*` |
+| Extend with JavaScript (merged) | `docs/extend-with-javascript.md` | `jsLinks` in `src/routes/(app)/docs/doc_links.js` and `src/routes/(app)/docs/js-*` |
+| PocketBun differences | `docs/differences.md` | PocketBun-specific behavior + README differences + selective upstream contrast |
 
 ## Release-Time Checklist
 
@@ -31,4 +33,4 @@ Use it during release/upgrade review to detect drift and decide what to port or 
 2. Review changes in `pocketbase/site` docs tree (`src/routes/(app)/docs`).
 3. Update PocketBun docs pages for user-relevant changes.
 4. Keep attribution clear where upstream handwritten prose is adapted.
-5. Keep intentional differences documented in README/docs.
+5. Keep intentional differences documented in `docs/differences.md` (and summarize in README).
