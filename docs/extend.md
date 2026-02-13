@@ -2503,4 +2503,4 @@ You can control various log settings like logs retention period, minimal log lev
 
 ## Attribution
 
-This page is adapted from [PocketBase docs](./introduction.md).
+This page is adapted from [PocketBase docs](https://pocketbase.io/docs/js-overview/).

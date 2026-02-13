@@ -233,4 +233,4 @@ e.g. `pocketbun serve --encryptionEnv=PB_ENCRYPTION_KEY`
 
 ## Attribution
 
-This page is adapted from [PocketBase docs](./introduction.md).
+This page is adapted from [PocketBase docs](https://pocketbase.io/docs/going-to-production/).

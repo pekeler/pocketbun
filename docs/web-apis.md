@@ -4056,4 +4056,4 @@ Responses
 
 ## Attribution
 
-This page is adapted from [PocketBase docs](./introduction.md).
+This page is adapted from [PocketBase docs](https://pocketbase.io/docs/api-records/).

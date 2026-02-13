@@ -396,6 +396,31 @@ function patchReference(text: string): string {
   return out;
 }
 
+function patchAttribution(path: string, text: string): string {
+  const upstreamByDoc = new Map<string, string>([
+    ["introduction.md", "https://pocketbase.io/docs/"],
+    ["going-to-production.md", "https://pocketbase.io/docs/going-to-production/"],
+    ["web-apis.md", "https://pocketbase.io/docs/api-records/"],
+    ["extend.md", "https://pocketbase.io/docs/js-overview/"],
+  ]);
+
+  let upstreamUrl: string | null = null;
+  for (const [suffix, url] of upstreamByDoc.entries()) {
+    if (path.endsWith(suffix)) {
+      upstreamUrl = url;
+      break;
+    }
+  }
+  if (!upstreamUrl) {
+    return text;
+  }
+
+  return text.replace(
+    /This page is adapted from \[PocketBase docs\]\([^)]+\)\./g,
+    `This page is adapted from [PocketBase docs](${upstreamUrl}).`,
+  );
+}
+
 function patchFile(path: string, source: string): string {
   let out = replaceBrandMentionsOutsideCode(source);
   out = removeUpstreamMergeLead(out);
@@ -411,6 +436,8 @@ function patchFile(path: string, source: string): string {
   } else if (path.endsWith("reference.md")) {
     out = patchReference(out);
   }
+
+  out = patchAttribution(path, out);
 
   return normalizeDocument(out);
 }

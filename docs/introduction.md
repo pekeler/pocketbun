@@ -1469,4 +1469,4 @@ For further info, please check the [Extend PocketBun](./extend.md#overview) guid
 
 ## Attribution
 
-This page is adapted from [PocketBase docs](./).
+This page is adapted from [PocketBase docs](https://pocketbase.io/docs/).
