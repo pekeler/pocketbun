@@ -10,7 +10,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 
 ## Progress
 
-- Milestone status (2026-02-12):
+- Milestone status (2026-02-13):
   - Milestone 1: complete
   - Milestone 2: complete
   - Milestone 3: complete
@@ -19,7 +19,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 6: complete (CI + e2e + docs/examples + upgrade + full audit)
   - Milestone 7: complete (performance sprint paused intentionally)
   - Milestone 8: complete (post-release compatibility gaps closed)
-  - Milestone 9: planned (PocketBun docs program in two long pages: general + API reference, with newcomer + migrator content and Dart docs deferred unless requested; see `docs/EXECPLAN_docs_program.md`)
+  - Milestone 9: complete (PocketBun docs program shipped: `docs/index.md`, `docs/introduction.md`, `docs/going-to-production.md`, `docs/web-apis.md`, `docs/extend.md`, `docs/reference.md`, `docs/differences.md`, with deterministic sync/rebuild/patch/check tooling and vendored screenshot assets)
 
 ### Milestone 8 - Post-release compatibility gaps
 
@@ -31,6 +31,14 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-12 14:07Z) Tightened template compatibility in `src/tools/template/renderer.ts` by extending the internal parser with Go-style function-call syntax, pipeline args, literal tokens, and optional-context `template` includes, plus forced-internal regression coverage in `src/tools/template/renderer.test.ts`.
 - [x] (2026-02-12 14:07Z) Closed the remaining `random_by_regex` subset gap for PocketBase pattern usage by adding support for `(?:...)` groups, inverse escape classes (`\\D`, `\\W`, `\\S`), and escaped shorthand classes inside character classes (e.g. `[a-z\\d]`), with regression scenarios in `src/tools/security/random_by_regex.test.ts`.
 - [x] (2026-02-12 14:07Z) Updated README Differences so the post-Milestone 8 intentional deviations are documented once (`$template` fallback behavior and regex autogeneration scope).
+
+### Milestone 9 - Documentation Program
+
+- [x] (2026-02-13) Shipped the PocketBun docs information architecture with dedicated pages for index, introduction, production, web APIs, JS extension guide, JSVM reference, and PocketBun differences.
+- [x] (2026-02-13) Added deterministic upstream docs tooling (`scripts/docs/sync_upstream_site_docs.sh`, `scripts/docs/rebuild_from_upstream.ts`, `scripts/docs/apply_pocketbun_patches.ts`, `scripts/docs/check_generated_docs.ts`).
+- [x] (2026-02-13) Added docs QA guardrails for section parity and screenshot link integrity.
+- [x] (2026-02-13) Switched generated screenshot usage from upstream hotlinks to vendored local assets under `docs/assets/upstream/screenshots/`.
+- [x] (2026-02-13) Captured ongoing maintainer workflow and source mapping in `docs/maintainers/upstream-docs-map.md`.
 
 ### Performance TODOs (paused; optimization sprint closed 2026-02-08)
 
@@ -683,4 +691,5 @@ Plan change note: 2026-02-12, reverted a mistaken `plugins/ghupdate` reintroduct
 Plan change note: 2026-02-12, completed mailer sender parity by replacing `sendmail`/`smtp` no-op implementations with real send paths, adding SMTP/sendmail behavior tests, and awaiting async mail send result in OTP flow.
 Plan change note: 2026-02-12, closed the record field resolver parity gap by aligning nested value extraction with upstream (`JSONRaw`/map extractors/strict array indexes), removing the stale partial marker, and adding regression coverage.
 Plan change note: 2026-02-12, closed the remaining template and random-by-regex Milestone 8 gaps, then updated README differences for the remaining intentional fallback scope.
-Plan change note: 2026-02-12, added Milestone 9 planning pointer for a dedicated PocketBun docs program and linked to `docs/EXECPLAN_docs_program.md`.
+Plan change note: 2026-02-12, added Milestone 9 planning pointer for a dedicated PocketBun docs program.
+Plan change note: 2026-02-13, completed Milestone 9 docs delivery, removed the temporary docs-specific ExecPlan file, and consolidated maintainer guidance in `docs/maintainers/upstream-docs-map.md`.
