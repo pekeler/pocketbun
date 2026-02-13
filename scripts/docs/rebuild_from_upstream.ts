@@ -15,6 +15,11 @@ type RouteBundle = {
   files: string[];
 };
 
+type DocsLinkTarget = {
+  outputPath: string;
+  anchor: string | null;
+};
+
 const CACHE_ROOT = ".cache/upstream-site-docs";
 const fileCache = new Map<string, string>();
 
@@ -259,6 +264,123 @@ function toAnchor(text: string): string {
     .replace(/[^a-z0-9\s-]/g, "")
     .trim()
     .replace(/\s+/g, "-");
+}
+
+function canonicalizeUpstreamDocsPath(href: string): string | null {
+  const trimmed = href.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  let path = "";
+
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    let url: URL;
+    try {
+      url = new URL(trimmed);
+    } catch {
+      return null;
+    }
+
+    if (url.hostname !== "pocketbase.io" || !url.pathname.startsWith("/docs")) {
+      return null;
+    }
+
+    path = url.pathname;
+  } else if (trimmed.startsWith("/docs")) {
+    path = trimmed;
+  } else {
+    return null;
+  }
+
+  path = path.split("#")[0] ?? path;
+  path = path.split("?")[0] ?? path;
+  path = path.replace(/\/+$/, "");
+
+  if (path === "") {
+    return null;
+  }
+
+  return path === "/docs" ? path : path;
+}
+
+function extractHrefHash(href: string): string | null {
+  const trimmed = href.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    try {
+      const url = new URL(trimmed);
+      return url.hash ? url.hash.slice(1) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  const hashIndex = trimmed.indexOf("#");
+  if (hashIndex < 0 || hashIndex === trimmed.length - 1) {
+    return null;
+  }
+  return trimmed.slice(hashIndex + 1);
+}
+
+function rewriteUpstreamDocsLink(
+  href: string,
+  currentOutputPath: string,
+  linkTargets: Map<string, DocsLinkTarget>,
+): string | null {
+  const docsPath = canonicalizeUpstreamDocsPath(href);
+  if (!docsPath) {
+    return null;
+  }
+
+  const target = linkTargets.get(docsPath);
+  if (!target) {
+    return null;
+  }
+
+  const explicitHash = extractHrefHash(href);
+  const anchor = explicitHash || target.anchor;
+  const samePage = pathPosix.basename(target.outputPath) === pathPosix.basename(currentOutputPath);
+
+  if (samePage) {
+    return anchor ? `#${anchor}` : "./";
+  }
+
+  return anchor
+    ? `./${pathPosix.basename(target.outputPath)}#${anchor}`
+    : `./${pathPosix.basename(target.outputPath)}`;
+}
+
+function rewriteUpstreamDocsLinksInMarkdown(
+  markdown: string,
+  currentOutputPath: string,
+  linkTargets: Map<string, DocsLinkTarget>,
+): string {
+  let out = markdown.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (full, label, href) => {
+    const rewritten = rewriteUpstreamDocsLink(href, currentOutputPath, linkTargets);
+    if (!rewritten) {
+      return full;
+    }
+    return `[${label}](${rewritten})`;
+  });
+
+  out = out.replace(/<((?:https?:\/\/)?pocketbase\.io\/docs\/[^>\s]+)>/g, (full, href) => {
+    const rewritten = rewriteUpstreamDocsLink(href, currentOutputPath, linkTargets);
+    if (!rewritten) {
+      return full;
+    }
+    return `<${rewritten}>`;
+  });
+
+  out = out.replace(/https?:\/\/pocketbase\.io\/docs\/[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]*/g, (href) => {
+    const rewritten = rewriteUpstreamDocsLink(href, currentOutputPath, linkTargets);
+    return rewritten ?? href;
+  });
+
+  return out;
 }
 
 function extractResponseExamples(scriptContent: string): Array<{ code: string; body: string }> {
@@ -758,8 +880,9 @@ function buildPage(args: {
   intro: string;
   routes: RouteBundle[];
   outputPath: string;
+  linkTargets: Map<string, DocsLinkTarget>;
 }): void {
-  const { title, intro, routes, outputPath } = args;
+  const { title, intro, routes, outputPath, linkTargets } = args;
 
   const quickLinks = routes.map((bundle) => `- [${bundle.route.title}](#${toAnchor(bundle.route.title)})`);
 
@@ -789,7 +912,7 @@ function buildPage(args: {
       .join("\n\n");
   });
 
-  const body = [
+  let body = [
     "---",
     "layout: default",
     `title: ${title}`,
@@ -810,6 +933,8 @@ function buildPage(args: {
     "This page is adapted from [PocketBase docs](https://pocketbase.io/docs/).",
     "",
   ].join("\n");
+
+  body = rewriteUpstreamDocsLinksInMarkdown(body, outputPath, linkTargets);
 
   writeFileSync(outputPath, body);
 }
@@ -834,6 +959,41 @@ function parseOnlyArg(): string | null {
   return Bun.argv[idx + 1] ?? null;
 }
 
+function createDocsLinkTargets(args: {
+  introItems: RouteItem[];
+  prodItems: RouteItem[];
+  apiItems: RouteItem[];
+  jsItems: RouteItem[];
+}): Map<string, DocsLinkTarget> {
+  const targets = new Map<string, DocsLinkTarget>();
+
+  const register = (items: RouteItem[], outputPath: string): void => {
+    for (const item of items) {
+      const path = canonicalizeUpstreamDocsPath(item.href);
+      if (!path) {
+        continue;
+      }
+      targets.set(path, {
+        outputPath,
+        anchor: toAnchor(item.title),
+      });
+    }
+  };
+
+  register(args.introItems, "docs/introduction.md");
+  register(args.prodItems, "docs/going-to-production.md");
+  register(args.apiItems, "docs/web-apis.md");
+  register(args.jsItems, "docs/extend.md");
+
+  // Prefer linking to the top of the merged introduction page for /docs root.
+  targets.set("/docs", {
+    outputPath: "docs/introduction.md",
+    anchor: null,
+  });
+
+  return targets;
+}
+
 function main(): void {
   if (!existsSync(CACHE_ROOT)) {
     throw new Error(
@@ -852,6 +1012,12 @@ function main(): void {
   const jsItems = normalizeRouteItems(
     parseRouteItemsFromBlock(extractArrayBlock(docLinks, "jsLinks")).filter((item) => item.href.startsWith("/docs/")),
   );
+  const docsLinkTargets = createDocsLinkTargets({
+    introItems,
+    prodItems,
+    apiItems,
+    jsItems,
+  });
 
   const targets = new Set(["introduction", "going-to-production", "web-apis", "extend", "extend-with-javascript"]);
   const only = parseOnlyArg();
@@ -871,6 +1037,7 @@ function main(): void {
       intro: "This page merges the upstream PocketBase Introduction section and its child pages.",
       routes: introBundles,
       outputPath: "docs/introduction.md",
+      linkTargets: docsLinkTargets,
     });
   }
 
@@ -881,6 +1048,7 @@ function main(): void {
       intro: "This page merges the upstream PocketBase Going to production section.",
       routes: prodBundles,
       outputPath: "docs/going-to-production.md",
+      linkTargets: docsLinkTargets,
     });
   }
 
@@ -891,6 +1059,7 @@ function main(): void {
       intro: "This page merges upstream PocketBase Web APIs reference pages.",
       routes: apiBundles,
       outputPath: "docs/web-apis.md",
+      linkTargets: docsLinkTargets,
     });
   }
 
@@ -901,6 +1070,7 @@ function main(): void {
       intro: "This page merges upstream PocketBase JavaScript extension pages.",
       routes: jsBundles,
       outputPath: "docs/extend.md",
+      linkTargets: docsLinkTargets,
     });
   }
 

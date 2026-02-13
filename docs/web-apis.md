@@ -761,7 +761,7 @@ Authenticate with an OAuth2 provider and returns a new auth token and record dat
 
 This action usually should be called right after the provider login page redirect.
 
-You could also check the [OAuth2 web integration example](https://pocketbase.io/docs/authentication#web-oauth2-integration).
+You could also check the [OAuth2 web integration example](./introduction.md#web-oauth2-integration).
 
 ```js
 import PocketBase from 'pocketbase';
@@ -1495,7 +1495,7 @@ When you subscribe to an **entire collection**, the collection's **ListRule** wi
 
 Establishes a new SSE connection and immediately sends a `PB_CONNECT` SSE event with the created client ID.
 
-**NB!** The user/superuser authorization happens during the first [Set subscriptions](https://pocketbase.io/docs/api-realtime#set-subscriptions) call.
+**NB!** The user/superuser authorization happens during the first [Set subscriptions](#set-subscriptions) call.
 
 If the connected client doesn't receive any new messages for 5 minutes, the server will send a disconnect signal (this is to prevent forgotten/leaked connections). The connection will be automatically reestablished if the client is still active (e.g. the browser tab is still open).
 
@@ -1593,7 +1593,7 @@ null
 ```
 ## API Files
 
-Files are uploaded, updated or deleted via the [Records API](https://pocketbase.io/docs/api-records).
+Files are uploaded, updated or deleted via the [Records API](#api-records).
 
 The File API is usually used to fetch/download a file resource (with support for basic image manipulations, like generating thumbs).
 
@@ -1623,7 +1623,7 @@ Query parameters
 | Param | Type | Description |
 | --- | --- | --- |
 | thumb | String | Get the thumb of the requested file. Supported thumb formats: - `WxH` (e.g. `100x300`) crop to `WxH` from center - `WxHt` (e.g. `100x300t`) crop to `WxH` from top - `WxHb` (e.g. `100x300b`) crop to `WxH` from bottom - `WxHf` (e.g. `100x300f`) fit inside `WxH` without cropping - `0xH` (e.g. `0x300`) resize to height while preserving aspect ratio - `Wx0` (e.g. `100x0`) resize to width while preserving aspect ratio If the thumb size is not defined in the file schema field options or the file resource is not an image (jpg, png, gif, webp), then the original file resource is returned unmodified. |
-| token | String | Optional **file token** for granting access to **protected file(s)**. For an example, you can check ["Files upload and handling"](https://pocketbase.io/docs/files-handling/#protected-files). |
+| token | String | Optional **file token** for granting access to **protected file(s)**. For an example, you can check ["Files upload and handling"](./introduction.md#protected-files). |
 | download | Boolean | If it is set to a truthy value (*1*, *t*, *true*) the file will be served with `Content-Disposition: attachment` header instructing the browser to ignore the file preview for pdf, images, videos, etc. and to directly download the file. |
 
 Responses
@@ -3970,4 +3970,4 @@ Responses
 
 ## Attribution
 
-This page is adapted from [PocketBase docs](https://pocketbase.io/docs/).
+This page is adapted from [PocketBase docs](./introduction.md).

@@ -793,7 +793,7 @@ query: { "abc": 123 },
 
 `$app.db()` returns a `dbx.Builder` that can run all kinds of SQL statements, including raw queries.
 
-For more details and examples how to interact with Record and Collection models programmatically you could also check [Collection operations](https://pocketbase.io/docs/js-collections) and [Record operations](https://pocketbase.io/docs/js-records) sections.
+For more details and examples how to interact with Record and Collection models programmatically you could also check [Collection operations](#collection-operations) and [Record operations](#record-operations) sections.
 
 ### Executing queries
 
@@ -1430,7 +1430,7 @@ let user = $app.findAuthRecordByToken("YOUR_TOKEN", "auth")
 
 #### Custom record query
 
-In addition to the above query helpers, you can also create custom Record queries using [`$app.recordQuery(collection)`](https://pocketbase.io/jsvm/functions/_app.recordQuery.html) method. It returns a SELECT DB builder that can be used with the same methods described in the [Database guide](https://pocketbase.io/docs/js-database).
+In addition to the above query helpers, you can also create custom Record queries using [`$app.recordQuery(collection)`](https://pocketbase.io/jsvm/functions/_app.recordQuery.html) method. It returns a SELECT DB builder that can be used with the same methods described in the [Database guide](#database).
 
 ```javascript
 function findTopArticle() {
@@ -1645,7 +1645,7 @@ return e.json(200, record)
 
 ### Generating and validating tokens
 
-PocketBase Web APIs are fully stateless (aka. there are no sessions in the traditional sense) and an auth record is considered authenticated if the submitted request contains a valid `Authorization: TOKEN` header * (see also [Builtin auth middlewares](https://pocketbase.io/docs/js-routing/#builtin-middlewares) and [Retrieving the current auth state from a route](https://pocketbase.io/docs/js-routing/#retrieving-the-current-auth-state) ) * .
+PocketBase Web APIs are fully stateless (aka. there are no sessions in the traditional sense) and an auth record is considered authenticated if the submitted request contains a valid `Authorization: TOKEN` header * (see also [Builtin auth middlewares](#builtin-middlewares) and [Retrieving the current auth state from a route](#retrieving-the-current-auth-state) ) * .
 
 If you want to issue and verify manually a record JWT (auth, verification, password reset, etc.), you could do that using the record token type specific methods:
 
@@ -1684,7 +1684,7 @@ Inside the transaction function always use its `txApp` argument and not the orig
 To avoid performance issues, try to minimize slow/long running tasks such as sending emails, connecting to external services, etc. as part of the transaction.
 ## Collection operations
 
-Collections are usually managed via the Dashboard interface, but there are some situations where you may want to create or edit a collection programmatically (usually as part of a [DB migration](https://pocketbase.io/docs/js-migrations)). You can find all available Collection related operations and methods in [`$app`](https://pocketbase.io/jsvm/modules/_app.html) and [`Collection`](https://pocketbase.io/jsvm/classes/Collection.html) , but below are listed some of the most common ones:
+Collections are usually managed via the Dashboard interface, but there are some situations where you may want to create or edit a collection programmatically (usually as part of a [DB migration](#migrations)). You can find all available Collection related operations and methods in [`$app`](https://pocketbase.io/jsvm/modules/_app.html) and [`Collection`](https://pocketbase.io/jsvm/classes/Collection.html) , but below are listed some of the most common ones:
 
 ### Fetch collections
 
@@ -1709,7 +1709,7 @@ let authAndViewCollections = $app.findAllCollections("auth", "view")
 
 #### Custom collection query
 
-In addition to the above query helpers, you can also create custom Collection queries using [`$app.collectionQuery()`](https://pocketbase.io/jsvm/functions/_app.collectionQuery.html) method. It returns a SELECT DB builder that can be used with the same methods described in the [Database guide](https://pocketbase.io/docs/js-database).
+In addition to the above query helpers, you can also create custom Collection queries using [`$app.collectionQuery()`](https://pocketbase.io/jsvm/functions/_app.collectionQuery.html) method. It returns a SELECT DB builder that can be used with the same methods described in the [Database guide](#database).
 
 ```javascript
 let collections = arrayOf(new Collection)
@@ -1897,7 +1897,7 @@ app.save(settings)
 
 #### Creating initial superuser
 
-* For all supported record methods, you can refer to [Record operations](https://pocketbase.io/docs/js-records) * .
+* For all supported record methods, you can refer to [Record operations](#record-operations) * .
 
 ```javascript
 // pb_migrations/1687801090_initial_superuser.js
@@ -1925,7 +1925,7 @@ app.delete(record)
 
 #### Creating collection programmatically
 
-* For all supported collection methods, you can refer to [Collection operations](https://pocketbase.io/docs/js-collections) * .
+* For all supported collection methods, you can refer to [Collection operations](#collection-operations) * .
 
 ```javascript
 // migrations/1687801090_create_clients_collection.js
@@ -2035,7 +2035,7 @@ e.app.newMailClient().send(message)
 
 If you want to overwrite the default system emails for forgotten password, verification, etc., you can adjust the default templates available from the *Dashboard > Collections > Edit collection > Options* .
 
-Alternatively, you can also apply individual changes by binding to one of the [mailer hooks](https://pocketbase.io/docs/js-event-hooks/#mailer-hooks). Here is an example of appending a Record field value to the subject using the `onMailerRecordPasswordResetSend` hook:
+Alternatively, you can also apply individual changes by binding to one of the [mailer hooks](#mailer-hooks). Here is an example of appending a Record field value to the subject using the `onMailerRecordPasswordResetSend` hook:
 
 ```javascript
 onMailerRecordPasswordResetSend((e) => {
@@ -2455,7 +2455,7 @@ level:   0,
 data:    {},
 }))
 
-// see https://pocketbase.io/docs/js-database/#query-builder
+// see #query-builder
 $app.logQuery().
 // target only debug and info logs
 andWhere($dbx.in("level", -4, 0)).
@@ -2468,7 +2468,7 @@ all(logs)
 
 ### Intercepting logs write
 
-If you want to modify the log data before persisting in the database or to forward it to an external system, then you can listen for changes of the `_logs` table by attaching to the [base model hooks](https://pocketbase.io/docs/js-event-hooks/#base-model-hooks). For example:
+If you want to modify the log data before persisting in the database or to forward it to an external system, then you can listen for changes of the `_logs` table by attaching to the [base model hooks](#base-model-hooks). For example:
 
 ```javascript
 onModelCreate((e) => {
@@ -2497,4 +2497,4 @@ You can control various log settings like logs retention period, minimal log lev
 
 ## Attribution
 
-This page is adapted from [PocketBase docs](https://pocketbase.io/docs/).
+This page is adapted from [PocketBase docs](./introduction.md).

@@ -105,7 +105,7 @@ The prebuilt PocketBase executable will create and manage 2 new directories alon
 committed in your repository).
 
 You can even write custom migration scripts. For more info check the
-[JS migrations docs](https://pocketbase.io/docs/js-migrations).
+[JS migrations docs](./extend.md#migrations).
 
 You could find all available commands and their options by running `./pocketbase --help` or `./pocketbase [command] --help`
 
@@ -116,11 +116,11 @@ The easiest way to use PocketBase is by interacting with its Web APIs directly f
 
 It was designed with this exact use case in mind and it is also the reason why there are general purpose JSON APIs for listing, pagination, sorting, filtering, etc.
 
-The access and filter controls for your data are usually done through the [collection API rules](https://pocketbase.io/docs/api-rules-and-filters/) .
+The access and filter controls for your data are usually done through the [collection API rules](#api-rules-and-filters) .
 
-For the cases when you need more specialized handling (sending emails, intercepting the default actions, creating new routes, etc.) you can [extend PocketBase with Go or JavaScript](https://pocketbase.io/docs/use-as-framework/) .
+For the cases when you need more specialized handling (sending emails, intercepting the default actions, creating new routes, etc.) you can [extend PocketBase with Go or JavaScript](#extending-pocketbase) .
 
-For interacting with the [Web APIs](https://pocketbase.io/docs/api-records/) you can make use of the official SDK clients:
+For interacting with the [Web APIs](./web-apis.md#api-records) you can make use of the official SDK clients:
 
 -
 JavaScript SDK
@@ -139,7 +139,7 @@ When used on the client-side, it is safe to have a single/global SDK instance fo
 Not everyone will agree with this, but if you are building a web app with PocketBase I recommend developing the frontend as a **traditional client-side SPA** and for the cases where additional server-side handling is needed (e.g. for payment webhooks, extra data server validations, etc.) you could try to:
 
 -
-[Use PocketBase as Go/JS framework](https://pocketbase.io/docs/use-as-framework) to create new routes or
+[Use PocketBase as Go/JS framework](#extending-pocketbase) to create new routes or
 intercept existing.
 
 -
@@ -163,7 +163,7 @@ autoRefreshThreshold: 30 * 60
 })
 
 // option 2: OR authenticate as superuser via long-lived "API key"
-// (see https://pocketbase.io/docs/authentication/#api-keys)
+// (see #api-keys)
 superuserClient.authStore.save('YOUR_GENERATED_SUPERUSER_TOKEN')
 
 export default superuserClient;
@@ -301,9 +301,9 @@ The next couple pages have a little bit more information about the basic PocketB
 
 Single entry of a collection is called **record** (a single row in the SQL table).
 
-You can manage your **collections** from the Dashboard, with the Web APIs using the [client-side SDKs](https://pocketbase.io/docs/how-to-use/) (*superusers only*) or programmatically via the [Go](https://pocketbase.io/docs/go-migrations/)/[JavaScript](https://pocketbase.io/docs/js-migrations/) migrations.
+You can manage your **collections** from the Dashboard, with the Web APIs using the [client-side SDKs](#how-to-use-pocketbase) (*superusers only*) or programmatically via the [Go](https://pocketbase.io/docs/go-migrations/)/[JavaScript](./extend.md#migrations) migrations.
 
-Similarly, you can manage your **records** from the Dashboard, with the Web APIs using the [client-side SDKs](https://pocketbase.io/docs/how-to-use/) or programmatically via the [Go](https://pocketbase.io/docs/go-records/)/[JavaScript](https://pocketbase.io/docs/js-records/) Record operations.
+Similarly, you can manage your **records** from the Dashboard, with the Web APIs using the [client-side SDKs](#how-to-use-pocketbase) or programmatically via the [Go](https://pocketbase.io/docs/go-records/)/[JavaScript](./extend.md#record-operations) Record operations.
 
 Here is what a collection edit panel looks like in the Dashboard:
 
@@ -503,7 +503,7 @@ deletes one or more files from the existing field value.
 
 For example: ` `
 
-You can find more detailed information in the [Files upload and handling](https://pocketbase.io/docs/files-handling/) guide.
+You can find more detailed information in the [Files upload and handling](#files-upload-and-handling) guide.
 
 ### RelationField
 
@@ -883,7 +883,7 @@ Note that PocketBase admins (aka. `_superusers`) are similar to the regular auth
 
 ### Authenticate with password
 
-To authenticate with password you must enable the *Identity/Password* auth collection option * (see also [Web API reference](https://pocketbase.io/docs/api-records/#auth-with-password) ) *.
+To authenticate with password you must enable the *Identity/Password* auth collection option * (see also [Web API reference](./web-apis.md#auth-with-password) ) *.
 
 The default identity field is the `email` but you can configure any other unique field like "username" (it must have a UNIQUE index).
 
@@ -907,7 +907,7 @@ pb.authStore.clear();
 
 ### Authenticate with OTP
 
-To authenticate with email code you must enable the *One-time password (OTP)* auth collection option * (see also [Web API reference](https://pocketbase.io/docs/api-records/#auth-with-otp) ) *.
+To authenticate with email code you must enable the *One-time password (OTP)* auth collection option * (see also [Web API reference](./web-apis.md#auth-with-otp) ) *.
 
 The usual flow is the user typing manually the received password from their email but you can also adjust the default email template from the collection options and add a url containing the OTP and its id as query parameters * (you have access to `` and `` placeholders) *.
 
@@ -992,7 +992,7 @@ await pb.collection('users').authWithOTP(result.otpId, 'EMAIL_CODE', { 'mfaId': 
 
 ### Users impersonation
 
-Superusers have the option to generate tokens and authenticate as anyone else via the [Impersonate endpoint](https://pocketbase.io/docs/api-records#impersonate) .
+Superusers have the option to generate tokens and authenticate as anyone else via the [Impersonate endpoint](./web-apis.md#impersonate) .
 
 ** The generated impersonate auth tokens can have custom duration but are not renewable! **
 
@@ -1030,7 +1030,7 @@ To invalidate already issued tokens, you need to change the individual superuser
 
 ### Auth token verification
 
-PocketBase doesn't have a dedicated token verification endpoint, but if you want to verify an existing auth token from a 3rd party app you can send an [Auth refresh](https://pocketbase.io/docs/api-records/#auth-refresh) call, aka. `pb.collection("users").authRefresh()`.
+PocketBase doesn't have a dedicated token verification endpoint, but if you want to verify an existing auth token from a 3rd party app you can send an [Auth refresh](./web-apis.md#auth-refresh) call, aka. `pb.collection("users").authRefresh()`.
 
 On valid token - it returns a new token with refreshed `exp` claim and the latest user data.
 
@@ -1496,11 +1496,11 @@ separate paginated `getList()` request to the back-related collection to avoid t
 large JSON payloads and to reduce the memory usage.
 ## Extending PocketBase
 
-One of the main features of PocketBase is that **it can be used as a framework** which enables you to write your own custom app business logic in [Go](https://pocketbase.io/docs/go-overview) or [JavaScript](https://pocketbase.io/docs/js-overview) and still have a portable backend at the end.
+One of the main features of PocketBase is that **it can be used as a framework** which enables you to write your own custom app business logic in [Go](https://pocketbase.io/docs/go-overview) or [JavaScript](./extend.md#overview) and still have a portable backend at the end.
 
 ** Choose [Extend with Go](https://pocketbase.io/docs/go-overview) if you are already familiar with the language or have the time to learn it. ** As the primary PocketBase language, the Go APIs are better documented and you'll be able to integrate with any 3rd party Go library since you'll have more control over the application flow. The only drawback is that the Go APIs are slightly more verbose and it may require some time to get used to, especially if this is your first time working with Go.
 
-** Choose [Extend with JavaScript](https://pocketbase.io/docs/js-overview) if you don't intend to write too much custom code and want a quick way to explore the PocketBase capabilities. ** The embedded JavaScript engine is a pluggable wrapper around the existing Go APIs, so most of the time the slight performance penalty will be negligible because it'll invoke the Go functions under the hood. As a bonus, because the JS VM mirrors the Go APIs, you would be able migrate gradually without much code changes from JS -> Go at later stage in case you hit a bottleneck or want more control over the execution flow.
+** Choose [Extend with JavaScript](./extend.md#overview) if you don't intend to write too much custom code and want a quick way to explore the PocketBase capabilities. ** The embedded JavaScript engine is a pluggable wrapper around the existing Go APIs, so most of the time the slight performance penalty will be negligible because it'll invoke the Go functions under the hood. As a bonus, because the JS VM mirrors the Go APIs, you would be able migrate gradually without much code changes from JS -> Go at later stage in case you hit a bottleneck or want more control over the execution flow.
 
 With both Go and JavaScript, you can:
 
@@ -1541,8 +1541,8 @@ console.log("Hello world!")
 
 - and many more...
 
-For further info, please check the related [Extend with Go](https://pocketbase.io/docs/go-overview) or [Extend with JavaScript](https://pocketbase.io/docs/js-overview) guides.
+For further info, please check the related [Extend with Go](https://pocketbase.io/docs/go-overview) or [Extend with JavaScript](./extend.md#overview) guides.
 
 ## Attribution
 
-This page is adapted from [PocketBase docs](https://pocketbase.io/docs/).
+This page is adapted from [PocketBase docs](./).
