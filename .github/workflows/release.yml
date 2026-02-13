@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (for example v0.36.2-pocketbun.6)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  github-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Build release notes from changelog
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          tag_name="${INPUT_TAG:-$REF_TAG}"
+          if [[ -z "${tag_name}" ]]; then
+            echo "Missing release tag name." >&2
+            exit 1
+          fi
+
+          version="${tag_name#v}"
+          section_file="/tmp/pocketbun-release-section.md"
+          notes_file="/tmp/pocketbun-release-notes.md"
+
+          if ! grep -q "^## ${version} - " CHANGELOG.md; then
+            echo "Missing CHANGELOG.md section for ${version}" >&2
+            exit 1
+          fi
+
+          awk -v version="${version}" '
+            $0 ~ "^## " version " - " { found = 1; next }
+            found && $0 ~ "^## " { exit }
+            found { print }
+          ' CHANGELOG.md > "${section_file}"
+
+          if ! grep -q '[^[:space:]]' "${section_file}"; then
+            echo "Empty CHANGELOG.md section for ${version}" >&2
+            exit 1
+          fi
+
+          upstream_tag="$(tr -d '\r\n' < pocketbase_tag.txt)"
+          {
+            echo "Compatible with PocketBase ${upstream_tag}"
+            echo
+            cat "${section_file}"
+          } > "${notes_file}"
+
+          echo "TAG_NAME=${tag_name}" >> "$GITHUB_ENV"
+          echo "NOTES_FILE=${notes_file}" >> "$GITHUB_ENV"
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
+            gh release edit "${TAG_NAME}" --title "${TAG_NAME}" --notes-file "${NOTES_FILE}" --latest
+          else
+            gh release create "${TAG_NAME}" --title "${TAG_NAME}" --notes-file "${NOTES_FILE}" --latest
+          fi

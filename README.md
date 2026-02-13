@@ -1,6 +1,7 @@
 # PocketBun
 
 [![CI](https://github.com/pekeler/pocketbun/actions/workflows/ci.yml/badge.svg)](https://github.com/pekeler/pocketbun/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/pekeler/pocketbun?display_name=tag&sort=semver)](https://github.com/pekeler/pocketbun/releases/latest)
 
 PocketBun is a port of [PocketBase](https://pocketbase.io) to Bun.
 
@@ -16,6 +17,12 @@ PocketBase © 2022–present Gani Georgiev. [Project on GitHub](https://github.c
 ## Docs
 
 [PocketBun docs](https://pekeler.github.io/pocketbun/)
+
+## Releases
+
+Latest PocketBun versions are published via [GitHub Releases](https://github.com/pekeler/pocketbun/releases/latest), and the badge above always shows the latest tag.
+
+Release notes live in [CHANGELOG.md](./CHANGELOG.md), and each `vX.Y.Z-pocketbun.N` GitHub Release is generated from the matching changelog section.
 
 ## Why?
 
