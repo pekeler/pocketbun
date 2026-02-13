@@ -22,6 +22,8 @@ Quick links:
 - [`Record`](#record)
 - [`RequestInfo`](#requestinfo)
 
+---
+
 ### `__hooks`
 
 Global helper variable that contains the absolute path to the app pb_hooks directory.
@@ -29,6 +31,8 @@ Global helper variable that contains the absolute path to the app pb_hooks direc
 ```ts
 declare var __hooks: string;
 ```
+
+---
 
 ### `$app`
 
@@ -40,6 +44,8 @@ _Note that this variable is available only in pb_hooks context._
 ```ts
 declare var $app: PocketBase;
 ```
+
+---
 
 ### `$template`
 
@@ -60,6 +66,8 @@ const html = $template.loadFiles(
 ```ts
 declare var $template: template.Registry;
 ```
+
+---
 
 ### `Record`
 
@@ -83,6 +91,8 @@ declare const Record: {
   // note: declare as "newable" const due to conflict with the Record TS utility type
 };
 ```
+
+---
 
 ### `RequestInfo`
 
@@ -134,6 +144,8 @@ declare const RequestInfo: {
 - [`nullObject`](#nullobject)
 - [`migrate`](#migrate)
 
+---
+
 ### `cronAdd`
 
 CronAdd registers a new cron job.
@@ -156,6 +168,8 @@ _Note that this method is available only in pb_hooks context._
 declare function cronAdd(jobId: string, cronExpr: string, handler: () => void): void;
 ```
 
+---
+
 ### `cronRemove`
 
 CronRemove removes a single registered cron job by its name.
@@ -171,6 +185,8 @@ _Note that this method is available only in pb_hooks context._
 ```ts
 declare function cronRemove(jobId: string): void;
 ```
+
+---
 
 ### `routerAdd`
 
@@ -195,6 +211,8 @@ declare function routerAdd(
 ): void;
 ```
 
+---
+
 ### `routerUse`
 
 RouterUse registers one or more global middlewares that are executed
@@ -215,6 +233,8 @@ _Note that this method is available only in pb_hooks context._
 declare function routerUse(...middlewares: Array<string | ((e: core.RequestEvent) => void) | Middleware>): void;
 ```
 
+---
+
 ### `readerToString`
 
 This method is superseded by toString.
@@ -224,6 +244,8 @@ Deprecated.
 ```ts
 declare function readerToString(reader: any, maxBytes?: number): string;
 ```
+
+---
 
 ### `toString`
 
@@ -250,6 +272,8 @@ const ex3 = toString(null) // ""
 ```ts
 declare function toString(val: any, maxBytes?: number): string;
 ```
+
+---
 
 ### `toBytes`
 
@@ -281,6 +305,8 @@ const ex4 = toBytes(null) // []
 declare function toBytes(val: any, maxBytes?: number): Array<number>;
 ```
 
+---
+
 ### `sleep`
 
 sleep pauses the current goroutine for at least the specified user duration (in ms).
@@ -295,6 +321,8 @@ sleep(250) // sleeps for 250ms
 ```ts
 declare function sleep(milliseconds: number): void;
 ```
+
+---
 
 ### `arrayOf`
 
@@ -313,6 +341,8 @@ $app.recordQuery("articles").limit(10).all(records)
 declare function arrayOf<T>(model: T): Array<T>;
 ```
 
+---
+
 ### `nullString`
 
 nullString creates an empty Go string pointer usually used for
@@ -321,6 +351,8 @@ describing a **nullable** `DynamicModel` string value.
 ```ts
 declare function nullString(): string;
 ```
+
+---
 
 ### `nullInt`
 
@@ -331,6 +363,8 @@ describing a **nullable** `DynamicModel` int value.
 declare function nullInt(): number;
 ```
 
+---
+
 ### `nullFloat`
 
 nullFloat creates an empty Go float64 pointer usually used for
@@ -339,6 +373,8 @@ describing a **nullable** `DynamicModel` float value.
 ```ts
 declare function nullFloat(): number;
 ```
+
+---
 
 ### `nullBool`
 
@@ -349,6 +385,8 @@ describing a **nullable** `DynamicModel` bool value.
 declare function nullBool(): boolean;
 ```
 
+---
+
 ### `nullArray`
 
 nullArray creates an empty Go types.JSONArray pointer usually used for
@@ -358,6 +396,8 @@ describing a **nullable** `DynamicModel` JSON array value.
 declare function nullArray(): Array<any>;
 ```
 
+---
+
 ### `nullObject`
 
 nullObject creates an empty Go types.JSONMap pointer usually used for
@@ -366,6 +406,8 @@ describing a **nullable** `DynamicModel` JSON object value.
 ```ts
 declare function nullObject(): { get(key: string): any; set(key: string, value: any): void };
 ```
+
+---
 
 ### `migrate`
 
@@ -420,6 +462,8 @@ declare function migrate(up: (txApp: CoreApp) => void, down?: (txApp: CoreApp) =
 - [`TooManyRequestsError`](#toomanyrequestserror)
 - [`InternalServerError`](#internalservererror)
 
+---
+
 ### `DynamicModel`
 
 DynamicModel creates a new dynamic model with fields from the provided data shape.
@@ -450,6 +494,8 @@ declare class DynamicModel {
 }
 ```
 
+---
+
 ### `Context`
 
 Context creates a new empty Go context.Context.
@@ -476,6 +522,8 @@ declare class Context implements context.Context {
   constructor(parentCtx?: Context, key?: any, value?: any);
 }
 ```
+
+---
 
 ### `Collection`
 
@@ -510,6 +558,8 @@ declare class Collection implements core.Collection {
 }
 ```
 
+---
+
 ### `FieldsList`
 
 FieldsList model class, usually used to define the Collection.fields.
@@ -519,6 +569,8 @@ declare class FieldsList implements core.FieldsList {
   constructor(data?: Partial<core.FieldsList>);
 }
 ```
+
+---
 
 ### `Field`
 
@@ -530,6 +582,8 @@ declare class Field implements core.Field {
 }
 ```
 
+---
+
 ### `NumberField`
 
 {@inheritDoc core.NumberField}
@@ -539,6 +593,8 @@ declare class NumberField implements core.NumberField {
   constructor(data?: Partial<core.NumberField>);
 }
 ```
+
+---
 
 ### `BoolField`
 
@@ -550,6 +606,8 @@ declare class BoolField implements core.BoolField {
 }
 ```
 
+---
+
 ### `TextField`
 
 {@inheritDoc core.TextField}
@@ -559,6 +617,8 @@ declare class TextField implements core.TextField {
   constructor(data?: Partial<core.TextField>);
 }
 ```
+
+---
 
 ### `URLField`
 
@@ -570,6 +630,8 @@ declare class URLField implements core.URLField {
 }
 ```
 
+---
+
 ### `EmailField`
 
 {@inheritDoc core.EmailField}
@@ -579,6 +641,8 @@ declare class EmailField implements core.EmailField {
   constructor(data?: Partial<core.EmailField>);
 }
 ```
+
+---
 
 ### `EditorField`
 
@@ -590,6 +654,8 @@ declare class EditorField implements core.EditorField {
 }
 ```
 
+---
+
 ### `PasswordField`
 
 {@inheritDoc core.PasswordField}
@@ -599,6 +665,8 @@ declare class PasswordField implements core.PasswordField {
   constructor(data?: Partial<core.PasswordField>);
 }
 ```
+
+---
 
 ### `DateField`
 
@@ -610,6 +678,8 @@ declare class DateField implements core.DateField {
 }
 ```
 
+---
+
 ### `AutodateField`
 
 {@inheritDoc core.AutodateField}
@@ -619,6 +689,8 @@ declare class AutodateField implements core.AutodateField {
   constructor(data?: Partial<core.AutodateField>);
 }
 ```
+
+---
 
 ### `JSONField`
 
@@ -630,6 +702,8 @@ declare class JSONField implements core.JSONField {
 }
 ```
 
+---
+
 ### `RelationField`
 
 {@inheritDoc core.RelationField}
@@ -639,6 +713,8 @@ declare class RelationField implements core.RelationField {
   constructor(data?: Partial<core.RelationField>);
 }
 ```
+
+---
 
 ### `SelectField`
 
@@ -650,6 +726,8 @@ declare class SelectField implements core.SelectField {
 }
 ```
 
+---
+
 ### `FileField`
 
 {@inheritDoc core.FileField}
@@ -660,6 +738,8 @@ declare class FileField implements core.FileField {
 }
 ```
 
+---
+
 ### `GeoPointField`
 
 {@inheritDoc core.GeoPointField}
@@ -669,6 +749,8 @@ declare class GeoPointField implements core.GeoPointField {
   constructor(data?: Partial<core.GeoPointField>);
 }
 ```
+
+---
 
 ### `MailerMessage`
 
@@ -694,6 +776,8 @@ declare class MailerMessage implements mailer.Message {
 }
 ```
 
+---
+
 ### `Command`
 
 Command defines a single console command.
@@ -715,6 +799,8 @@ declare class Command implements cobra.Command {
 }
 ```
 
+---
+
 ### `Middleware`
 
 Middleware defines a single request middleware handler.
@@ -735,6 +821,8 @@ declare class Middleware {
   constructor(func: string | ((e: core.RequestEvent) => void), priority?: number, id?: string);
 }
 ```
+
+---
 
 ### `Timezone`
 
@@ -762,6 +850,8 @@ declare class Timezone implements time.Location {
 }
 ```
 
+---
+
 ### `DateTime`
 
 DateTime defines a single DateTime type instance.
@@ -788,6 +878,8 @@ declare class DateTime implements types.DateTime {
 }
 ```
 
+---
+
 ### `ValidationError`
 
 ValidationError defines a single formatted data validation error,
@@ -802,6 +894,8 @@ declare class ValidationError implements ozzo_validation.Error {
   constructor(code?: string, message?: string);
 }
 ```
+
+---
 
 ### `Cookie`
 
@@ -833,6 +927,8 @@ declare class Cookie implements http.Cookie {
 }
 ```
 
+---
+
 ### `SubscriptionMessage`
 
 SubscriptionMessage defines a realtime subscription payload.
@@ -854,6 +950,8 @@ declare class SubscriptionMessage implements subscriptions.Message {
 }
 ```
 
+---
+
 ### `AppleClientSecretCreateForm`
 
 ```ts
@@ -861,6 +959,8 @@ declare class AppleClientSecretCreateForm implements forms.AppleClientSecretCrea
   constructor(app: CoreApp);
 }
 ```
+
+---
 
 ### `RecordUpsertForm`
 
@@ -870,6 +970,8 @@ declare class RecordUpsertForm implements forms.RecordUpsert {
 }
 ```
 
+---
+
 ### `TestEmailSendForm`
 
 ```ts
@@ -877,6 +979,8 @@ declare class TestEmailSendForm implements forms.TestEmailSend {
   constructor(app: CoreApp);
 }
 ```
+
+---
 
 ### `TestS3FilesystemForm`
 
@@ -886,6 +990,8 @@ declare class TestS3FilesystemForm implements forms.TestS3Filesystem {
 }
 ```
 
+---
+
 ### `ApiError`
 
 ```ts
@@ -893,6 +999,8 @@ declare class ApiError implements router.ApiError {
   constructor(status?: number, message?: string, data?: any);
 }
 ```
+
+---
 
 ### `NotFoundError`
 
@@ -904,6 +1012,8 @@ declare class NotFoundError implements router.ApiError {
 }
 ```
 
+---
+
 ### `BadRequestError`
 
 BadRequestError returns 400 ApiError.
@@ -913,6 +1023,8 @@ declare class BadRequestError implements router.ApiError {
   constructor(message?: string, data?: any);
 }
 ```
+
+---
 
 ### `ForbiddenError`
 
@@ -924,6 +1036,8 @@ declare class ForbiddenError implements router.ApiError {
 }
 ```
 
+---
+
 ### `UnauthorizedError`
 
 UnauthorizedError returns 401 ApiError.
@@ -934,6 +1048,8 @@ declare class UnauthorizedError implements router.ApiError {
 }
 ```
 
+---
+
 ### `TooManyRequestsError`
 
 TooManyRequestsError returns 429 ApiError.
@@ -943,6 +1059,8 @@ declare class TooManyRequestsError implements router.ApiError {
   constructor(message?: string, data?: any);
 }
 ```
+
+---
 
 ### `InternalServerError`
 
@@ -966,6 +1084,8 @@ declare class InternalServerError implements router.ApiError {
 - [`$os`](#os)
 - [`$apis`](#apis)
 - [`$http`](#http)
+
+---
 
 ### `$dbx`
 
@@ -998,6 +1118,8 @@ declare namespace $dbx {
 }
 ```
 
+---
+
 ### `$mails`
 
 `$mails` defines helpers to send common
@@ -1012,6 +1134,8 @@ declare namespace $mails {
   let sendRecordAuthAlert: mails.sendRecordAuthAlert;
 }
 ```
+
+---
 
 ### `$security`
 
@@ -1051,6 +1175,8 @@ declare namespace $security {
 }
 ```
 
+---
+
 ### `$filesystem`
 
 `$filesystem` defines common helpers for working
@@ -1088,6 +1214,8 @@ declare namespace $filesystem {
 }
 ```
 
+---
+
 ### `$filepath`
 
 `$filepath` defines common helpers for manipulating filename
@@ -1112,6 +1240,8 @@ declare namespace $filepath {
   export let walkDir: filepath.walkDir;
 }
 ```
+
+---
 
 ### `$os`
 
@@ -1175,6 +1305,8 @@ declare namespace $os {
 }
 ```
 
+---
+
 ### `$apis`
 
 `$apis` defines commonly used PocketBase api helpers and middlewares.
@@ -1212,6 +1344,8 @@ declare namespace $apis {
   export function recordAuthResponse(e: core.RequestEvent, authRecord: core.Record, authMethod: string, meta?: any): void;
 }
 ```
+
+---
 
 ### `$http`
 

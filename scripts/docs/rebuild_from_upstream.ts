@@ -1116,6 +1116,8 @@ function buildReferencePage(args: {
     sections.push("");
 
     for (const entry of entriesForKind) {
+      sections.push("---");
+      sections.push("");
       sections.push(`### \`${entry.name}\``);
       sections.push("");
       if (entry.doc) {
