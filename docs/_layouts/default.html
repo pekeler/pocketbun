@@ -9,6 +9,15 @@
     {%- feed_meta -%}
   </head>
   <body>
+    <header class="site-header" role="banner">
+      <div class="wrapper">
+        <a class="site-title" href="{{ '/index.html' | relative_url }}">PocketBun Docs</a>
+        <nav class="site-nav">
+          <a class="page-link" href="{{ site.github.repository_url | default: 'https://github.com/pekeler/pocketbun' }}">Repository</a>
+        </nav>
+      </div>
+    </header>
+
     <main class="page-content" aria-label="Content">
       <div class="wrapper">
         {{ content }}
