@@ -33,7 +33,7 @@ The prebuilt PocketBase v0.17+ executable comes with embedded ES5 JavaScript eng
 
 You can start by creating `*.pb.js` file(s) inside a `pb_hooks` directory next to your executable.
 
-```text
+```js
 // pb_hooks/main.pb.js
 
 routerAdd("GET", "/hello/{name}", (e) => {
@@ -103,7 +103,7 @@ If after referencing the types your editor still doesn't perform linting, then y
 
 Each handler function (hook, route, middleware, etc.) is **serialized and executed in its own isolated context as a separate "program"**. This means that you don't have access to custom variables and functions declared outside of the handler scope. For example, the below code will fail:
 
-```text
+```js
 const name = "test"
 
 onBootstrap((e) => {
@@ -117,7 +117,7 @@ The above serialization and isolation context is also the reason why error stack
 
 One possible workaround for sharing/reusing code across different handlers could be to move and export the reusable code portion as local module and load it with `require()` inside the handler but keep in mind that the loaded modules use a shared registry and mutations should be avoided when possible to prevent concurrency issues:
 
-```text
+```js
 onBootstrap((e) => {
     e.next()
 
@@ -146,7 +146,7 @@ Currently only CommonJS (CJS) modules are supported and can be loaded with `cons
 
 A common usage of local modules is for loading shared helpers or configuration parameters, for example:
 
-```text
+```js
 // pb_hooks/utils.js
 module.exports = {
     hello: (name) => {
@@ -155,7 +155,7 @@ module.exports = {
 }
 ```
 
-```text
+```js
 // pb_hooks/main.pb.js
 onBootstrap((e) => {
     e.next()
@@ -325,7 +325,7 @@ You can register custom routes and middlewares by using the top-level [`routerAd
 
 Every route has a path, handler function and eventually middlewares attached to it. For example:
 
-```javascript
+```js
 // register "GET /hello/{name}" route (allowed for everyone)
 routerAdd("GET", "/hello/{name}", (e) => {
     let name = e.request.pathValue("name")
@@ -354,7 +354,7 @@ If your route path starts with `/api/` consider combining it with your unique ap
 
 Here are some examples:
 
-```javascript
+```js
 // match "GET example.com/index.html"
 routerAdd("GET", "example.com/index.html", ...)
 
@@ -379,7 +379,7 @@ In the following examples `e` is usually [`core.RequestEvent`](https://pocketbas
 
 #### Reading path parameters
 
-```javascript
+```js
 let id = e.request.pathValue("id")
 ```
 
@@ -387,7 +387,7 @@ let id = e.request.pathValue("id")
 
 The request auth state can be accessed (or set) via the `RequestEvent.auth` field.
 
-```javascript
+```js
 let authRecord = e.auth
 
 let isGuest = !e.auth
@@ -398,7 +398,7 @@ let isSuperuser = e.hasSuperuserAuth()
 
 Alternatively you could also access the request data from the summarized request info instance * (usually used in hooks like the `onRecordEnrich` where there is no direct access to the request) *.
 
-```javascript
+```js
 let info = e.requestInfo()
 
 let authRecord = info.auth
@@ -411,7 +411,7 @@ let isSuperuser = info.hasSuperuserAuth()
 
 #### Reading query parameters
 
-```javascript
+```js
 // retrieve the first value of the "search" query param
 let search = e.request.url.query().get("search")
 
@@ -425,7 +425,7 @@ let arr = query.search; // ["123", "456"]
 
 #### Reading request headers
 
-```javascript
+```js
 let token = e.request.header.get("Some-Header")
 
 // or via the parsed request info
@@ -435,13 +435,13 @@ let token = e.requestInfo().headers["some_header"]
 
 #### Writing response headers
 
-```javascript
+```js
 e.response.header().set("Some-Header", "123")
 ```
 
 #### Retrieving uploaded files
 
-```javascript
+```js
 // retrieve the uploaded files and parse the found multipart data into a ready-to-use []*filesystem.File
 let files = e.findUploadedFiles("document")
 
@@ -453,7 +453,7 @@ let [mf, mh] = e.request.formFile("document")
 
 Body parameters can be read either via [`e.bindBody`](https://pocketbase.io/jsvm/interfaces/core.RequestEvent.html#bindBody) OR through the parsed request info.
 
-```javascript
+```js
 // retrieve the entire raw body as string
 console.log(toString(e.request.body))
 
@@ -477,7 +477,7 @@ console.log(data.sometextField)
 
 #### Writing response body
 
-```javascript
+```js
 // send response with JSON body
 // (it also provides a generic response fields picker/filter if the "fields" query parameter is set)
 e.json(200, {"name": "John"})
@@ -507,7 +507,7 @@ e.blob(200, "application/octet-stream", [ ... ])
 
 #### Reading the client IP
 
-```javascript
+```js
 // The IP of the last client connecting to your server.
 // The returned IP is safe and can be always trusted.
 // When behind a reverse proxy (e.g. nginx) this method returns the IP of the proxy.
@@ -524,7 +524,7 @@ let ip = e.realIP()
 
 The `core.RequestEvent` comes with a local store that you can use to share custom data between [middlewares](#middlewares) and the route action.
 
-```javascript
+```js
 // store for the duration of the request
 e.set("someKey", 123)
 
@@ -540,7 +540,7 @@ Middlewares allow inspecting, intercepting and filtering route requests. Middlew
 
 Here is a minimal example of what a global middleware looks like:
 
-```javascript
+```js
 // register a global middleware
 routerUse((e) => {
     if (e.request.header.get("Something") == "") {
@@ -555,7 +555,7 @@ Middleware can be either registered as simple functions (`function(e){}` ) or if
 
 Below is a slightly more advanced example showing all options and the execution sequence:
 
-```javascript
+```js
 // attach global middleware
 routerUse((e) => {
     console.log(1)
@@ -584,7 +584,7 @@ routerAdd("GET", "/hello", (e) => {
 
 The global [`$apis.*`](https://pocketbase.io/jsvm/modules/_apis.html) object exposes several middlewares that you can use as part of your application.
 
-```javascript
+```js
 // Require the request client to be unauthenticated (aka. guest).
 $apis.requireGuestOnly()
 
@@ -700,7 +700,7 @@ PocketBase has a global error handler and every returned or thrown `Error` from 
 
 To make it easier returning formatted json error responses, PocketBase provides `ApiError` constructor that can be instantiated directly or using the builtin factories. `ApiError.data` will be returned in the response only if it is a map of `ValidationError` items.
 
-```javascript
+```js
 // construct ApiError with custom status code and validation data error
 throw new ApiError(500, "something went wrong", {
     "title": new ValidationError("invalid_title", "Invalid or missing title"),
@@ -723,7 +723,7 @@ throw new InternalServerError(optMessage, optData)  // 500 ApiError
 
 Expects the route to have a `` wildcard parameter.
 
-```javascript
+```js
 // serves static files from the provided dir (if exists)
 routerAdd("GET", "/{path...}", $apis.static($os.dirFS("/path/to/public"), false))
 ```
@@ -732,7 +732,7 @@ routerAdd("GET", "/{path...}", $apis.static($os.dirFS("/path/to/public"), false)
 
 [`$apis.recordAuthResponse()`](https://pocketbase.io/jsvm/functions/_apis.recordAuthResponse.html) writes standardized JSON record auth response (aka. token + record data) into the specified request body. Could be used as a return result from a custom auth route.
 
-```javascript
+```js
 routerAdd("POST", "/phone-login", (e) => {
     const data = new DynamicModel({
         phone:    "",
@@ -763,7 +763,7 @@ current logged superuser, record owner or record with manage access
 
 These helpers are also responsible for triggering the `onRecordEnrich` hook events.
 
-```javascript
+```js
 routerAdd("GET", "/custom-article", (e) => {
     let records = e.app.findRecordsByFilter("article", "status = 'active'", "-created", 40, 0)
 
@@ -805,7 +805,7 @@ To execute DB queries you can start with the `newQuery("...")` statement and the
 
 - for any query statement that is not meant to retrieve data:
 
-```javascript
+```js
 $app.db()
     .newQuery("DELETE FROM articles WHERE status = 'archived'")
     .execute() // throw an error on db failure
@@ -815,7 +815,7 @@ $app.db()
 
 - to populate a single row into [`DynamicModel`](https://pocketbase.io/jsvm/classes/DynamicModel.html) object:
 
-```javascript
+```js
 const result = new DynamicModel({
     // describe the shape of the data (used also as initial values)
     // the keys cannot start with underscore and must be a valid Go struct field name
@@ -838,7 +838,7 @@ console.log(result.id)
 
 - to populate multiple rows into an array of objects (note that the array must be created with `arrayOf`):
 
-```javascript
+```js
 const result = arrayOf(new DynamicModel({
     // describe the shape of the data (used also as initial values)
     // the keys cannot start with underscore and must be a valid Go struct field name
@@ -863,7 +863,7 @@ if (result.length > 0) {
 
 To prevent SQL injection attacks, you should use named parameters for any expression value that comes from user input. This could be done using the named `` placeholders in your SQL statement and then define the parameter values for the query with `bind(params)`. For example:
 
-```javascript
+```js
 const result = arrayOf(new DynamicModel({
     "name":    "",
     "created": "",
@@ -884,7 +884,7 @@ console.log(result.length)
 
 Instead of writing plain SQLs, you can also compose SQL statements programmatically using the db query builder. Every SQL keyword has a corresponding query building method. For example, `SELECT` corresponds to `select()`, `FROM` corresponds to `from()`, `WHERE` corresponds to `where()`, and so on.
 
-```javascript
+```js
 const result = arrayOf(new DynamicModel({
     "id":    "",
     "email": "",
@@ -903,7 +903,7 @@ $app.db()
 
 The `select(...cols)` method initializes a `SELECT` query builder. It accepts a list of the column names to be selected. To add additional columns to an existing select query, you can call `andSelect()`. To select distinct rows, you can call `distinct(true)`.
 
-```javascript
+```js
 $app.db()
     .select("id", "avatar as image")
     .andSelect("(firstName || ' ' || lastName) as fullName")
@@ -915,7 +915,7 @@ $app.db()
 
 The `from(...tables)` method specifies which tables to select from (plain table names are automatically quoted).
 
-```javascript
+```js
 $app.db()
     .select("table1.id", "table2.name")
     .from("table1", "table2")
@@ -934,7 +934,7 @@ The `join(type, table, on)` method specifies a `JOIN` clause. It takes 3 paramet
 
 For convenience, you can also use the shortcuts `innerJoin(table, on)`, `leftJoin(table, on)`, `rightJoin(table, on)` to specify `INNER JOIN`, `LEFT JOIN` and `RIGHT JOIN`, respectively.
 
-```javascript
+```js
 $app.db()
     .select("users.*")
     .from("users")
@@ -947,7 +947,7 @@ $app.db()
 
 The `where(exp)` method specifies the `WHERE` condition of the query. You can also use `andWhere(exp)` or `orWhere(exp)` to append additional one or more conditions to an existing `WHERE` clause. Each where condition accepts a single `dbx.Expression` (see below for full list).
 
-```javascript
+```js
 /*
 SELECT users.*
 FROM users
@@ -985,7 +985,7 @@ The following `dbx.Expression` methods are available:
 Generates an expression with the specified raw query fragment. Use the `optParams` to bind
 parameters to the expression.
 
-```javascript
+```js
 $dbx.exp("status = 'public'")
 $dbx.exp("total > {:min} AND total < {:max}", { min: 10, max: 30 })
 ```
@@ -997,7 +997,7 @@ $dbx.exp("total > {:min} AND total < {:max}", { min: 10, max: 30 })
 Generates a hash expression from a map whose keys are DB column names which need to be filtered according
 to the corresponding values.
 
-```javascript
+```js
 // slug = "example" AND active IS TRUE AND tags in ("tag1", "tag2", "tag3") AND parent IS NULL
 $dbx.hashExp({
     slug:   "example",
@@ -1013,7 +1013,7 @@ $dbx.hashExp({
 
 Negates a single expression by wrapping it with `NOT()`.
 
-```javascript
+```js
 // NOT(status = 1)
 $dbx.not($dbx.exp("status = 1"))
 ```
@@ -1024,7 +1024,7 @@ $dbx.not($dbx.exp("status = 1"))
 
 Creates a new expression by concatenating the specified ones with `AND`.
 
-```javascript
+```js
 // (status = 1 AND username like "%john%")
 $dbx.and($dbx.exp("status = 1"), $dbx.like("username", "john"))
 ```
@@ -1035,7 +1035,7 @@ $dbx.and($dbx.exp("status = 1"), $dbx.like("username", "john"))
 
 Creates a new expression by concatenating the specified ones with `OR`.
 
-```javascript
+```js
 // (status = 1 OR username like "%john%")
 $dbx.or($dbx.exp("status = 1"), $dbx.like("username", "john"))
 ```
@@ -1046,7 +1046,7 @@ $dbx.or($dbx.exp("status = 1"), $dbx.like("username", "john"))
 
 Generates an `IN` expression for the specified column and the list of allowed values.
 
-```javascript
+```js
 // status IN ("public", "reviewed")
 $dbx.in("status", "public", "reviewed")
 ```
@@ -1057,7 +1057,7 @@ $dbx.in("status", "public", "reviewed")
 
 Generates an `NOT IN` expression for the specified column and the list of allowed values.
 
-```javascript
+```js
 // status NOT IN ("public", "reviewed")
 $dbx.notIn("status", "public", "reviewed")
 ```
@@ -1074,7 +1074,7 @@ By default, each value will be surrounded by *"%"* to enable partial matching. S
 characters like *"%"*, *"\"*, *"_"* will also be properly escaped. You may call
 `escape(...pairs)` and/or `match(left, right)` to change the default behavior.
 
-```javascript
+```js
 // name LIKE "%test1%" AND name LIKE "%test2%"
 $dbx.like("name", "test1", "test2")
 
@@ -1088,7 +1088,7 @@ $dbx.like("name", "test1").match(false, true)
 
 Generates a `NOT LIKE` expression in similar manner as `like()`.
 
-```javascript
+```js
 // name NOT LIKE "%test1%" AND name NOT LIKE "%test2%"
 $dbx.notLike("name", "test1", "test2")
 
@@ -1103,7 +1103,7 @@ $dbx.notLike("name", "test1").match(false, true)
 This is similar to `like()` except that the column must be one of the provided values, aka.
 multiple values are concatenated with `OR` instead of `AND`.
 
-```javascript
+```js
 // name LIKE "%test1%" OR name LIKE "%test2%"
 $dbx.orLike("name", "test1", "test2")
 
@@ -1118,7 +1118,7 @@ $dbx.orLike("name", "test1", "test2").match(false, true)
 This is similar to `notLike()` except that the column must not be one of the provided
 values, aka. multiple values are concatenated with `OR` instead of `AND`.
 
-```javascript
+```js
 // name NOT LIKE "%test1%" OR name NOT LIKE "%test2%"
 $dbx.orNotLike("name", "test1", "test2")
 
@@ -1132,7 +1132,7 @@ $dbx.orNotLike("name", "test1", "test2").match(false, true)
 
 Prefix with `EXISTS` the specified expression (usually a subquery).
 
-```javascript
+```js
 // EXISTS (SELECT 1 FROM users WHERE status = 'active')
 $dbx.exists(dbx.exp("SELECT 1 FROM users WHERE status = 'active'"))
 ```
@@ -1143,7 +1143,7 @@ $dbx.exists(dbx.exp("SELECT 1 FROM users WHERE status = 'active'"))
 
 Prefix with `NOT EXISTS` the specified expression (usually a subquery).
 
-```javascript
+```js
 // NOT EXISTS (SELECT 1 FROM users WHERE status = 'active')
 $dbx.notExists(dbx.exp("SELECT 1 FROM users WHERE status = 'active'"))
 ```
@@ -1154,7 +1154,7 @@ $dbx.notExists(dbx.exp("SELECT 1 FROM users WHERE status = 'active'"))
 
 Generates a `BETWEEN` expression with the specified range.
 
-```javascript
+```js
 // age BETWEEN 3 and 99
 $dbx.between("age", 3, 99)
 ```
@@ -1165,7 +1165,7 @@ $dbx.between("age", 3, 99)
 
 Generates a `NOT BETWEEN` expression with the specified range.
 
-```javascript
+```js
 // age NOT BETWEEN 3 and 99
 $dbx.notBetween("age", 3, 99)
 ```
@@ -1174,7 +1174,7 @@ $dbx.notBetween("age", 3, 99)
 
 The `orderBy(...cols)` specifies the `ORDER BY` clause of the query. A column name can contain *"ASC"* or *"DESC"* to indicate its ordering direction. You can also use `andOrderBy(...cols)` to append additional columns to an existing `ORDER BY` clause.
 
-```javascript
+```js
 $app.db()
     .select("users.*")
     .from("users")
@@ -1187,7 +1187,7 @@ $app.db()
 
 The `groupBy(...cols)` specifies the `GROUP BY` clause of the query. You can also use `andGroupBy(...cols)` to append additional columns to an existing `GROUP BY` clause.
 
-```javascript
+```js
 $app.db()
     .select("users.*")
     .from("users")
@@ -1199,7 +1199,7 @@ $app.db()
 
 The `having(exp)` specifies the `HAVING` clause of the query. Similarly to `where(exp)`, it accept a single `dbx.Expression` (see all available expressions listed above). You can also use `andHaving(exp)` or `orHaving(exp)` to append additional one or more conditions to an existing `HAVING` clause.
 
-```javascript
+```js
 $app.db()
     .select("users.*")
     .from("users")
@@ -1212,7 +1212,7 @@ $app.db()
 
 The `limit(number)` method specifies the `LIMIT` clause of the query.
 
-```javascript
+```js
 $app.db()
     .select("users.*")
     .from("users")
@@ -1224,7 +1224,7 @@ $app.db()
 
 The `offset(number)` method specifies the `OFFSET` clause of the query. Usually used together with `limit(number)`.
 
-```javascript
+```js
 $app.db()
     .select("users.*")
     .from("users")
@@ -1235,7 +1235,7 @@ $app.db()
 
 ### Transaction
 
-```javascript
+```js
 $app.runInTransaction((txApp) => {
     // update a record
     const record = txApp.findRecordById("articles", "RECORD_ID")
@@ -1266,7 +1266,7 @@ You could find detailed documentation about all the supported Record model metho
 
 ### Set field value
 
-```javascript
+```js
 // sets the value of a single record field
 // (field type specific modifiers are also supported)
 record.set("title", "example")
@@ -1279,7 +1279,7 @@ record.load(data)
 
 ### Get field value
 
-```javascript
+```js
 // retrieve a single record field value
 // (field specific modifiers are also supported)
 record.get("someField")            // -> any (without cast)
@@ -1309,7 +1309,7 @@ record.publicExport()
 
 ### Auth accessors
 
-```javascript
+```js
 record.isSuperuser() // alias for record.collection().name == "_superusers"
 
 record.email()         // alias for record.get("email")
@@ -1329,7 +1329,7 @@ record.setRandomPassword() // sets cryptographically random 30 characters string
 
 ### Copies
 
-```javascript
+```js
 // returns a shallow copy of the current record model populated
 // with its ORIGINAL db data state and everything else reset to the defaults
 // (usually used for comparing old and new field values)
@@ -1353,7 +1353,7 @@ Record models provide an option to further control the fields serialization visi
 
 Often the `hide/unhide` methods are used in combination with the `onRecordEnrich` hook invoked on every record enriching (list, view, create, update, realtime change, etc.). For example:
 
-```javascript
+```js
 onRecordEnrich((e) => {
     // dynamically show/hide a record field depending on whether the current
     // authenticated user has a certain "role" (or any other field constraint)
@@ -1376,7 +1376,7 @@ For custom fields, not part of the record collection schema, it is required to c
 
 All single record retrieval methods throw an error if no record is found.
 
-```javascript
+```js
 // retrieve a single "articles" record by its id
 let record = $app.findRecordById("articles", "RECORD_ID")
 
@@ -1396,7 +1396,7 @@ let record = $app.findFirstRecordByFilter(
 
 All multiple records retrieval methods return an empty array if no records are found.
 
-```javascript
+```js
 // retrieve multiple "articles" records by their ids
 let records = $app.findRecordsByIds("articles", ["RECORD_ID1", "RECORD_ID2"])
 
@@ -1423,7 +1423,7 @@ let records = $app.findRecordsByFilter(
 
 #### Fetch auth records
 
-```javascript
+```js
 // retrieve a single auth record by its email
 let user = $app.findAuthRecordByEmail("users", "test@example.com")
 
@@ -1436,7 +1436,7 @@ let user = $app.findAuthRecordByToken("YOUR_TOKEN", "auth")
 
 In addition to the above query helpers, you can also create custom Record queries using [`$app.recordQuery(collection)`](https://pocketbase.io/jsvm/functions/_app.recordQuery.html) method. It returns a SELECT DB builder that can be used with the same methods described in the [Database guide](#database).
 
-```javascript
+```js
 function findTopArticle() {
     let record = new Record();
 
@@ -1454,7 +1454,7 @@ let article = findTopArticle()
 
 For retrieving **multiple** Record models with the `all()` executor, you can use `arrayOf(new Record)` to create an array placeholder in which to populate the resolved DB result.
 
-```javascript
+```js
 // the below is identical to
 // $app.findRecordsByFilter("articles", "status = 'active'", '-published', 10)
 // but allows more advanced use cases and filtering (aggregations, subqueries, etc.)
@@ -1477,7 +1477,7 @@ let articles = findLatestArticles()
 
 #### Create new record programmatically
 
-```javascript
+```js
 let collection = $app.findCollectionByNameOrId("articles")
 
 let record = new Record(collection)
@@ -1504,7 +1504,7 @@ $app.save(record);
 
 #### Intercept create request
 
-```javascript
+```js
 onRecordCreateRequest((e) => {
     // ignore for superusers
     if (e.hasSuperuserAuth()) {
@@ -1532,7 +1532,7 @@ onRecordCreateRequest((e) => {
 
 #### Update existing record programmatically
 
-```javascript
+```js
 let record = $app.findRecordById("articles", "RECORD_ID")
 
 record.set("title", "Lorem ipsum")
@@ -1556,7 +1556,7 @@ $app.save(record);
 
 #### Intercept update request
 
-```javascript
+```js
 onRecordUpdateRequest((e) => {
     // ignore for superusers
     if (e.hasSuperuserAuth()) {
@@ -1582,7 +1582,7 @@ onRecordUpdateRequest((e) => {
 
 ### Delete record
 
-```javascript
+```js
 let record = $app.findRecordById("articles", "RECORD_ID")
 
 $app.delete(record)
@@ -1590,7 +1590,7 @@ $app.delete(record)
 
 ### Transaction
 
-```javascript
+```js
 let titles = ["title1", "title2", "title3"]
 
 let collection = $app.findCollectionByNameOrId("articles")
@@ -1615,7 +1615,7 @@ Once loaded, you can access the expanded relations via [`record.expandedOne(relN
 
 For example:
 
-```javascript
+```js
 let record = $app.findFirstRecordByData("articles", "slug", "lorem-ipsum")
 
 // expand the "author" and "categories" relations
@@ -1632,7 +1632,7 @@ To check whether a custom client request or user can access a single record, you
 
 Below is an example of creating a custom route to retrieve a single article and checking if the request satisfy the View API rule of the record collection:
 
-```javascript
+```js
 routerAdd("GET", "/articles/{slug}", (e) => {
     let slug = e.request.pathValue("slug")
 
@@ -1653,7 +1653,7 @@ PocketBase Web APIs are fully stateless (aka. there are no sessions in the tradi
 
 If you want to issue and verify manually a record JWT (auth, verification, password reset, etc.), you could do that using the record token type specific methods:
 
-```javascript
+```js
 let token = record.newAuthToken()
 
 let token = record.newVerificationToken()
@@ -1673,7 +1673,7 @@ To validate a record token you can use the [`$app.findAuthRecordByToken`](https:
 
 Here is an example how to validate an auth token:
 
-```javascript
+```js
 let record = $app.findAuthRecordByToken("YOUR_TOKEN", "auth")
 ```
 
@@ -1698,7 +1698,7 @@ Collections are usually managed via the Dashboard interface, but there are some 
 
 All single collection retrieval methods throw an error if no collection is found.
 
-```javascript
+```js
 let collection = $app.findCollectionByNameOrId("example")
 ```
 
@@ -1706,7 +1706,7 @@ let collection = $app.findCollectionByNameOrId("example")
 
 All multiple collections retrieval methods return an empty array if no collections are found.
 
-```javascript
+```js
 let allCollections = $app.findAllCollections(/* optional types */)
 
 // only specific types
@@ -1717,7 +1717,7 @@ let authAndViewCollections = $app.findAllCollections("auth", "view")
 
 In addition to the above query helpers, you can also create custom Collection queries using [`$app.collectionQuery()`](https://pocketbase.io/jsvm/functions/_app.collectionQuery.html) method. It returns a SELECT DB builder that can be used with the same methods described in the [Database guide](#database).
 
-```javascript
+```js
 let collections = arrayOf(new Collection)
 
 $app.collectionQuery().
@@ -1735,7 +1735,7 @@ All collection fields *(with exception of the `JSONField`)* are non-nullable and
 
 ### Create new collection
 
-```javascript
+```js
 // missing default options, system fields like id, email, etc. are initialized automatically
 // and will be merged with the provided configuration
 let collection = new Collection({
@@ -1774,7 +1774,7 @@ $app.save(collection)
 
 ### Update existing collection
 
-```javascript
+```js
 let collection = $app.findCollectionByNameOrId("example")
 
 // change the collection name
@@ -1801,7 +1801,7 @@ $app.save(collection)
 
 ### Delete collection
 
-```javascript
+```js
 let collection = $app.findCollectionByNameOrId("example")
 
 $app.delete(collection)
@@ -1822,11 +1822,11 @@ The prebuilt executable has the `--automigrate` flag enabled by default, meaning
 
 To create a new blank migration you can run `migrate create`.
 
-```text
+```js
 [root@dev app]$ ./pocketbase migrate create "your_new_migration"
 ```
 
-```javascript
+```js
 // pb_migrations/1687801097_your_new_migration.js
 migrate((app) => {
     // add up queries...
@@ -1851,7 +1851,7 @@ Both callbacks accept a transactional `app` instance.
 
 The `migrate collections` command generates a full snapshot of your current collections configuration without having to type it manually. Similar to the `migrate create` command, this will generate a new migration file in the `pb_migrations` directory.
 
-```text
+```js
 [root@dev app]$ ./pocketbase migrate collections
 ```
 
@@ -1863,7 +1863,7 @@ All applied migration filenames are stored in the internal `_migrations` table. 
 
 To avoid the clutter and to prevent applying the intermediate steps in production, you can remove (or squash) the unnecessary migration files manually and then update the local migrations history by running:
 
-```text
+```js
 [root@dev app]$ ./pocketbase migrate history-sync
 ```
 
@@ -1873,7 +1873,7 @@ The above command will remove any entry from the `_migrations` table that doesn'
 
 #### Executing raw SQL statements
 
-```javascript
+```js
 // pb_migrations/1687801090_set_pending_status.js
 
 migrate((app) => {
@@ -1883,7 +1883,7 @@ migrate((app) => {
 
 #### Initialize default application settings
 
-```javascript
+```js
 // pb_migrations/1687801090_initial_settings.js
 
 migrate((app) => {
@@ -1905,7 +1905,7 @@ migrate((app) => {
 
 * For all supported record methods, you can refer to [Record operations](#record-operations) * .
 
-```javascript
+```js
 // pb_migrations/1687801090_initial_superuser.js
 
 migrate((app) => {
@@ -1933,7 +1933,7 @@ migrate((app) => {
 
 * For all supported collection methods, you can refer to [Collection operations](#collection-operations) * .
 
-```javascript
+```js
 // migrations/1687801090_create_clients_collection.js
 
 migrate((app) => {
@@ -1998,7 +1998,7 @@ macros
 
 Here is an example:
 
-```javascript
+```js
 // prints "Hello!" every 2 minutes
 cronAdd("hello", "*/2 * * * *", () => {
     console.log("Hello!")
@@ -2043,7 +2043,7 @@ If you want to overwrite the default system emails for forgotten password, verif
 
 Alternatively, you can also apply individual changes by binding to one of the [mailer hooks](#mailer-hooks). Here is an example of appending a Record field value to the subject using the `onMailerRecordPasswordResetSend` hook:
 
-```javascript
+```js
 onMailerRecordPasswordResetSend((e) => {
     // modify the subject
     e.message.subject += (" " + e.record.get("name"))
@@ -2057,7 +2057,7 @@ onMailerRecordPasswordResetSend((e) => {
 
 A common task when creating custom routes or emails is the need of generating HTML output. To assist with this, PocketBase provides the global `$template` helper for parsing and rendering HTML templates.
 
-```javascript
+```js
 const html = $template.loadFiles(
     ` + "`${__hooks}/views/base.html`" + `,
     ` + "`${__hooks}/views/partial1.html`" + `,
@@ -2123,7 +2123,7 @@ We define the content for `hello.html` as:
 
 Then to output the final page, we'll register a custom `/hello/:name` route:
 
-```javascript
+```js
 routerAdd("get", "/hello/{name}", (e) => {
     const name = e.request.pathValue("name")
 
@@ -2167,7 +2167,7 @@ You can use the global `$http.send(config)` helper to send HTTP requests to exte
 
 Below is a list with all currently supported config options and their defaults.
 
-```javascript
+```js
 // throws on timeout or network connectivity error
 const res = $http.send({
     url:     "",
@@ -2186,7 +2186,7 @@ console.log(res.json)       // the response body as parsed json array or map
 
 Here is an example that will enrich a single book record with some data based on its ISBN details from openlibrary.org.
 
-```javascript
+```js
 onRecordCreateRequest((e) => {
     let isbn = e.record.get("isbn");
 
@@ -2214,7 +2214,7 @@ In order to send `multipart/form-data` requests (ex. uploading files) the reques
 
 PocketBase JSVM's `FormData` has the same APIs as its browser equivalent with the main difference that for file values instead of `Blob` it accepts `$filesystem.File`.
 
-```javascript
+```js
 const formData = new FormData();
 
 formData.append("title", "Hello world!")
@@ -2247,7 +2247,7 @@ Note that a single authenticated user could have more than one active realtime c
 
 Below you can find a minimal code sample that sends a JSON payload to all clients subscribed to the "example" topic:
 
-```javascript
+```js
 const message = new SubscriptionMessage({
     name: "example",
     data: JSON.stringify({ ... }),
@@ -2294,7 +2294,7 @@ To retrieve the file content of a single stored file you can use [`getReader(key
 
 The below code shows a minimal example how to retrieve the content of a single record file as string.
 
-```javascript
+```js
 let record = $app.findAuthRecordByEmail("users", "test@example.com")
 
 // construct the full file key by concatenating the record storage path with the specific filename
@@ -2332,7 +2332,7 @@ There are several methods to save *(aka. write/upload)* files depending on the a
 
 Most users rarely will have to use the above methods directly because for collection records the file persistence is handled transparently when saving the record model (it will also perform size and MIME type validation based on the collection `file` field options). For example:
 
-```javascript
+```js
 let record = $app.findRecordById("articles", "RECORD_ID")
 
 // Other available File factories
@@ -2354,7 +2354,7 @@ Files can be deleted from the storage filesystem using [`delete(key)`](https://p
 
 Similar to the previous section, most users rarely will have to use the `delete` file method directly because for collection records the file deletion is handled transparently when removing the existing filename from the record model (this also ensures that the db entry referencing the file is also removed). For example:
 
-```javascript
+```js
 let record = $app.findRecordById("articles", "RECORD_ID")
 
 // if you want to "reset" a file field (aka. deleting the associated single or multiple files)
@@ -2377,7 +2377,7 @@ All standard [`slog.Logger`](https://pocketbase.io/jsvm/interfaces/slog.Logger.h
 
 #### debug(message, attrs...)
 
-```javascript
+```js
 $app.logger().debug("Debug message!")
 
 $app.logger().debug(
@@ -2389,7 +2389,7 @@ $app.logger().debug(
 
 #### info(message, attrs...)
 
-```javascript
+```js
 $app.logger().info("Info message!")
 
 $app.logger().info(
@@ -2401,7 +2401,7 @@ $app.logger().info(
 
 #### warn(message, attrs...)
 
-```javascript
+```js
 $app.logger().warn("Warning message!")
 
 $app.logger().warn(
@@ -2413,7 +2413,7 @@ $app.logger().warn(
 
 #### error(message, attrs...)
 
-```javascript
+```js
 $app.logger().error("Error message!")
 
 $app.logger().error(
@@ -2427,7 +2427,7 @@ $app.logger().error(
 
 `with(attrs...)` creates a new local logger that will "inject" the specified attributes with each following log.
 
-```javascript
+```js
 const l = $app.logger().with("total", 123)
 
 // results in log with data {"total": 123}
@@ -2441,7 +2441,7 @@ l.info("message B", "name", "john")
 
 `withGroup(name)` creates a new local logger that wraps all logs attributes under the specified group name.
 
-```javascript
+```js
 const l = $app.logger().withGroup("sub")
 
 // results in log with data {"sub": { "total": 123 }}
@@ -2452,7 +2452,7 @@ l.info("message A", "total", 123)
 
 The logs are usually meant to be filtered from the UI but if you want to programmatically retrieve and filter the stored logs you can make use of the [`$app.logQuery()`](https://pocketbase.io/jsvm/functions/_app.logQuery.html) query builder method. For example:
 
-```javascript
+```js
 let logs = arrayOf(new DynamicModel({
     id:      "",
     created: "",
@@ -2476,7 +2476,7 @@ $app.logQuery().
 
 If you want to modify the log data before persisting in the database or to forward it to an external system, then you can listen for changes of the `_logs` table by attaching to the [base model hooks](#base-model-hooks). For example:
 
-```javascript
+```js
 onModelCreate((e) => {
     // print log model fields
     console.log(e.model.id)

@@ -146,7 +146,7 @@ intercept existing.
 
 Create one-off Node.js/Bun/Deno/etc. server-side actions that will interact with PocketBase only as superuser and as pure data store (similar to traditional database interactions but over HTTP). In this case it is safe to have a global superuser client such as:
 
-```javascript
+```js
 // src/superuser.js
 import PocketBase from "pocketbase"
 
@@ -171,7 +171,7 @@ export default superuserClient;
 
 Then you can directly import the file in your server-side actions and use the client as usual:
 
-```javascript
+```js
 import superuserClient from './src/superuser.js'
 
 async function serverAction(req, resp) {
@@ -257,7 +257,7 @@ The SDKs come with a helper async storage implementation that allows you to hook
 
 At the time of writing, React Native on Android and iOS seems to have a non-standard `FormData` implementation and for uploading files on these platforms it requires the following special object syntax:
 
-```javascript
+```js
 {
   uri: "...",
   type: "...",
@@ -267,7 +267,7 @@ At the time of writing, React Native on Android and iOS seems to have a non-stan
 
 Or in other words, you may have to apply a conditional handling similar to:
 
-```javascript
+```js
 const data = new FormData();
 
 // result is the resolved promise of ImagePicker.launchImageLibraryAsync
@@ -653,13 +653,13 @@ because they are evaluated separately (*this behavior may change in the future*)
 
 This filter could be used to target other collections that are not directly related to the current one (aka. there is no relation field pointing to it) but both shares a common field value, like for example a category id:
 
-```text
+```js
 @collection.news.categoryId ?= categoryId && @collection.news.author ?= @request.auth.id
 ```
 
 In case you want to join the same collection multiple times but based on different criteria, you can define an alias by appending `:alias` suffix to the collection name.
 
-```text
+```js
 // see https://github.com/pocketbase/pocketbase/discussions/3805#discussioncomment-7634791
 @request.auth.id != "" &&
 @collection.courseRegistrations.user ?= id &&
@@ -714,7 +714,7 @@ The following datetime macros are available and can be used as part of the filte
 
 For example:
 
-```text
+```js
 @request.body.publicDate >= @now
 ```
 
@@ -722,7 +722,7 @@ For example:
 
 The `:isset` field modifier is available only for the `@request.*` fields and can be used to check whether the client submitted a specific data with the request. Here is for example a rule that disallows submitting a "role" field:
 
-```text
+```js
 @request.body.role:isset = false
 ```
 
@@ -732,7 +732,7 @@ Note that `@request.body.*:isset` at the moment doesn't support checking for new
 
 The `:changed` field modifier is available only for the `@request.body.*` fields and can be used to check whether the client submitted AND changed a specific record field with the request. Here is for example a rule that disallows changing a "role" field:
 
-```text
+```js
 // the same as: (@request.body.role:isset = false || @request.body.role = role)
 @request.body.role:changed = false
 ```
@@ -743,7 +743,7 @@ Note that `@request.body.*:changed` at the moment doesn't support checking for n
 
 The `:length` field modifier could be used to check the number of items in an array field (multiple `file`, `select`, `relation`). Could be used with both the collection schema fields and the `@request.body.*` fields. For example:
 
-```text
+```js
 // check example submitted data: {"someSelectField": ["val1", "val2"]}
 @request.body.someSelectField:length > 1
 
@@ -757,7 +757,7 @@ Note that `@request.body.*:length` at the moment doesn't support checking for ne
 
 The `:each` field modifier works only with multiple `select`, `file` and `relation` type fields. It could be used to apply a condition on each item from the field array. For example:
 
-```text
+```js
 // check if all submitted select options contain the "create" text
 @request.body.someSelectField:each ~ "create"
 
@@ -771,7 +771,7 @@ Note that `@request.body.*:each` at the moment doesn't support checking for new 
 
 The `:lower` field modifier could be used to perform lower-case string comparisons. For example:
 
-```text
+```js
 // check if the submitted lower-cased body "title" field is equal to "test" ("Test", "tEsT", etc.)
 @request.body.title:lower = "test"
 
@@ -789,7 +789,7 @@ The function is intended to be used primarily with the `geoPoint` field type, bu
 
 For example:
 
-```text
+```js
 // offices that are less than 25km from my location (address is a geoPoint field in the offices collection)
 geoDistance(address.lon, address.lat, 23.32, 42.69) < 25
 ```
@@ -823,7 +823,7 @@ https://sqlite.org/lang_datefunc.html#modifiers
 
 A match-all constraint will be also applied in case the time-value is an identifier as a result of a multi-value relation field. For example:
 
-```text
+```js
 // requires ALL multiRel records to have "created" that match the formatted string "2026-01"
 strftime('%Y-%m', multiRel.created) = "2026-01"
 
@@ -836,21 +836,21 @@ strftime('%Y-%m', multiRel.created) ?= "2026-01"
 -
 Allow only registered users:
 
-```text
+```js
 @request.auth.id != ""
 ```
 
 -
 Allow only registered users and return records that are either "active" or "pending":
 
-```text
+```js
 @request.auth.id != "" && (status = "active" || status = "pending")
 ```
 
 -
 Allow only registered users who are listed in an *allowed_users* multi-relation field value:
 
-```text
+```js
 @request.auth.id != "" && allowed_users.id ?= @request.auth.id
 ```
 
@@ -858,7 +858,7 @@ Allow only registered users who are listed in an *allowed_users* multi-relation 
 Allow access by anyone and return only the records where the *title* field value starts with
 "Lorem" (ex. "Lorem ipsum"):
 
-```text
+```js
 title ~ "Lorem%"
 ```
 ## Authentication
@@ -1354,7 +1354,7 @@ For example, to list all **comments** with their **user** relation expanded, we 
 await pb.collection("comments").getList(1, 30, { expand: "user" })
 ```
 
-```text
+```js
 {
     "page": 1,
     "perPage": 30,
@@ -1404,7 +1404,7 @@ await pb.collection("posts").getList(1, 30, {
         })
 ```
 
-```text
+```js
 {
     "page": 1,
     "perPage": 30,

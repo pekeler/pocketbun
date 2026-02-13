@@ -47,7 +47,7 @@ myapp/
 
 Upload the binary and anything else required by your application to your remote server, for example using **rsync**:
 
-```text
+```js
 rsync -avz -e ssh /local/path/to/myapp root@YOUR_SERVER_IP:/root/pb
 ```
 
@@ -55,7 +55,7 @@ rsync -avz -e ssh /local/path/to/myapp root@YOUR_SERVER_IP:/root/pb
 
 Start a SSH session with your server:
 
-```text
+```js
 ssh root@YOUR_SERVER_IP
 ```
 
@@ -63,13 +63,13 @@ ssh root@YOUR_SERVER_IP
 
 Start the executable (specifying a domain name will issue a Let's encrypt certificate for it)
 
-```text
+```js
 [root@dev ~]$ /root/pb/pocketbase serve yourdomain.com
 ```
 
 Notice that in the above example we are logged in as **root** which allows us to bind to the **privileged 80 and 443 ports**. For **non-root** users usually you'll need special privileges to be able to do that. You have several options depending on your OS - `authbind`, `setcap`, `iptables`, `sysctl`, etc. Here is an example using `setcap`:
 
-```text
+```js
 [myuser@dev ~]$ sudo setcap 'cap_net_bind_service=+ep' /root/pb/pocketbase
 ```
 
@@ -79,7 +79,7 @@ Notice that in the above example we are logged in as **root** which allows us to
 
 You can skip step 3 and create a **Systemd service** to allow your application to start/restart on its own. Here is an example service file (usually created in `/lib/systemd/system/pocketbase.service`):
 
-```text
+```js
 [Unit]
 Description = pocketbase
 
@@ -101,14 +101,14 @@ WantedBy = multi-user.target
 
 After that we just have to enable it and start the service using `systemctl`:
 
-```text
+```js
 [root@dev ~]$ systemctl enable pocketbase.service
 [root@dev ~]$ systemctl start pocketbase
 ```
 
 You can find a link to the Web UI installer in the `/root/pb/std.log`, but alternatively you can also create the first superuser explicitly via the `superuser` PocketBase command:
 
-```text
+```js
 [root@dev ~]$ /root/pb/pocketbase superuser create EMAIL PASS
 ```
 

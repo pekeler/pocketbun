@@ -215,6 +215,28 @@ function extractAttr(attrs: string, name: string): string | null {
   return null;
 }
 
+function normalizeCodeFenceLanguage(raw: string | null): string {
+  const lang = (raw ?? "").trim().toLowerCase();
+  if (!lang) {
+    // Match upstream CodeBlock.svelte default (`language = "javascript"`).
+    return "js";
+  }
+
+  switch (lang) {
+    case "javascript":
+      return "js";
+    case "typescript":
+      return "ts";
+    case "shell":
+    case "sh":
+      return "bash";
+    case "plaintext":
+      return "text";
+    default:
+      return lang;
+  }
+}
+
 function decodeHtmlEntities(text: string): string {
   return text
     .replaceAll("&lt;", "<")
@@ -845,7 +867,7 @@ function convertSvelte(content: string): string {
   });
 
   text = text.replace(/<CodeBlock([\s\S]*?)\/>/g, (_full, attrs) => {
-    const lang = extractAttr(attrs, "language") ?? "text";
+    const lang = normalizeCodeFenceLanguage(extractAttr(attrs, "language"));
     let code = parseCodeBlockContent(attrs);
 
     code = code
