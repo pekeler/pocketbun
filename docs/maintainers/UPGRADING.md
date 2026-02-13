@@ -52,11 +52,42 @@ This document describes the upgrade process we follow when PocketBase publishes 
 
    Capture any gaps in `.agents/EXECPLAN.md` (Progress and TODOs) or in a dedicated audit report.
 
-6) Fix any breakages.
+6) Update user docs using the deterministic pipeline (instead of raw upstream docs diffs).
+
+   The upstream docs repo (`pocketbase/site`) has many generated/structural changes that can make raw git diffs noisy and low-signal. For release upgrades, treat the **generated PocketBun docs output** as the review surface.
+
+   Run:
+
+       bun run docs:rebuild:full
+
+   This performs:
+   - upstream docs source snapshot sync (`scripts/docs/sync_upstream_site_docs.sh`)
+   - deterministic docs generation (`scripts/docs/rebuild_from_upstream.ts`)
+   - deterministic PocketBun patches (`scripts/docs/apply_pocketbun_patches.ts`)
+   - parity checks (`scripts/docs/check_generated_docs.ts`)
+
+   Then review only the local generated outputs and mapping metadata:
+
+       git diff -- docs/users docs/assets/upstream/screenshots docs/maintainers/upstream-docs-manifest.json
+
+   Rules:
+   - Do not hand-edit generated user docs pages as part of routine upgrades.
+   - If output is wrong/noisy, adjust generator/patch logic in `scripts/docs/rebuild_from_upstream.ts` and/or `scripts/docs/apply_pocketbun_patches.ts`, then rerun.
+   - Keep PocketBun-only behavior notes in `docs/users/differences.md` (and summarize in README when relevant).
+   - Keep `docs/maintainers/upstream-docs-map.md` current when upstream docs structure changes (new routes/sections).
+
+   Optional (recommended for release traceability):
+
+       SITE_SHA="$(gh api repos/pocketbase/site/commits/master --jq .sha)"
+       echo "$SITE_SHA"
+
+   Record that `SITE_SHA` in the release PR/notes so the docs snapshot can be reproduced later.
+
+7) Fix any breakages.
 
    Reconcile upstream changes in code and tests. Prefer mechanical ports, keep 1:1 file mapping where feasible, and document unavoidable deviations.
 
-7) Validate and document.
+8) Validate and document.
 
    Run the full validation suite:
 
@@ -67,7 +98,7 @@ This document describes the upgrade process we follow when PocketBase publishes 
 
    Update README compatibility notes and any known differences if behavior changed.
 
-8) Commit.
+9) Commit.
 
    Commit the version bump, upstream sync changes, and any fixes/tests. Keep commits focused and note the new upstream tag in commit messages or release notes.
 
