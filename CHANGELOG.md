@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.36.3-pocketbun.0 (Unreleased)
+## 0.36.3-pocketbun.0 - 2026-02-13
 
 - Upgraded PocketBun compatibility target to PocketBase `v0.36.3` and synced vendored Admin UI assets.
 - Added `Accept-Encoding: identity` to S3 signed requests (unless explicitly set) to avoid transparent decompression/zeroed content-length edge cases.
