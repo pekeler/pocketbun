@@ -11,3 +11,4 @@ relative_links:
 
 exclude:
   - EXECPLAN_docs_program.md
+  - maintainers

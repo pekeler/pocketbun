@@ -50,7 +50,7 @@ This document describes the upgrade process we follow when PocketBase publishes 
 
        bun run upstream:audit
 
-   Capture any gaps in `EXECPLAN.md` (Progress and TODOs) or in a dedicated audit report.
+   Capture any gaps in `.agents/EXECPLAN.md` (Progress and TODOs) or in a dedicated audit report.
 
 6) Fix any breakages.
 

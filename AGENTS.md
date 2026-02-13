@@ -55,7 +55,8 @@ Goal: maximize long-term maintainability and upstream-syncability by keeping Poc
 - **Regression tests required:** For each ported subsystem or endpoint, add/adjust tests so behavior is pinned. If you discover an upstream edge case, add a regression test immediately.
 
 ## ExecPlans
-When writing complex features or significant refactors, use an ExecPlan (as described in .agent/PLANS.md) from design to implementation.
+When writing complex features or significant refactors, use an ExecPlan (as described in `.agents/PLANS.md`) from design to implementation.
+Keep the active plan in `.agents/EXECPLAN.md`.
 
 ## PERFORMANCE
 - Follow `.agents/PERFORMANCE.md` for all performance work.
