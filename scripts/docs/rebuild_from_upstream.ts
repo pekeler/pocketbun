@@ -209,6 +209,28 @@ function decodeHtmlEntities(text: string): string {
     .replaceAll("&#39;", "'");
 }
 
+function normalizeUpstreamHref(href: string): string {
+  const trimmed = href.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("mailto:") ||
+    trimmed.startsWith("#")
+  ) {
+    return trimmed;
+  }
+
+  if (trimmed.startsWith("/")) {
+    return `https://pocketbase.io${trimmed}`;
+  }
+
+  return trimmed;
+}
+
 function normalizeSpacing(text: string): string {
   const out: string[] = [];
   let blankRun = 0;
@@ -407,7 +429,7 @@ function parseCodeBlockContent(attrs: string): string {
   return chunks.join("\n").trim();
 }
 
-function htmlToInlineMarkdown(raw: string): string {
+function convertInlineHtml(raw: string): string {
   let text = raw;
 
   text = text.replace(/<CodeBlock([\s\S]*?)\/>/g, (_full, attrs) => {
@@ -418,14 +440,21 @@ function htmlToInlineMarkdown(raw: string): string {
     return `<code>${code}</code>`;
   });
 
+  text = text.replace(/<a([^>]*)>([\s\S]*?)<\/a>/g, (_full, attrs, inner) => {
+    const href = normalizeUpstreamHref(extractAttr(attrs, "href") ?? "");
+    const label = convertInlineHtml(inner)
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .trim();
+    if (!href) {
+      return label;
+    }
+    return `[${label}](${href})`;
+  });
+
   text = text.replace(/<br\s*\/?>/gi, "<br>");
   text = text.replace(/<\/p>\s*<p[^>]*>/gi, "<br><br>");
   text = text.replace(/<p[^>]*>/gi, "");
   text = text.replace(/<\/p>/gi, "");
-  text = text.replace(/<ul[^>]*>/gi, "");
-  text = text.replace(/<\/ul>/gi, "");
-  text = text.replace(/<li[^>]*>/gi, "- ");
-  text = text.replace(/<\/li>/gi, "<br>");
   text = text.replace(/<span[^>]*>/gi, "");
   text = text.replace(/<\/span>/gi, "");
   text = text.replace(/<div[^>]*>/gi, "");
@@ -439,17 +468,26 @@ function htmlToInlineMarkdown(raw: string): string {
   text = text.replace(/\{`([^`]*)`\}/g, "$1");
   text = text.replace(/\{["']([^"']+)["']\}/g, "$1");
   text = text.replace(/\{[^}]+\}/g, "");
-  text = text.replace(/<[^>]+>/g, " ");
+  text = text.replace(/<[^>]+>/g, "");
 
   text = decodeHtmlEntities(text);
   text = text.replace(/\s*<br>\s*/g, "<br>");
   text = text.replace(/(<br>){2,}/g, "<br>");
+  text = text.replace(/[\r\n]+/g, " ");
   text = text.replace(/[\t ]+/g, " ");
-  text = text.replace(/ ?\n ?/g, " ");
   text = text.trim();
   text = text.replace(/\|/g, "\\|");
 
   return text;
+}
+
+function htmlToInlineMarkdown(raw: string): string {
+  let text = raw;
+  text = text.replace(/<ul[^>]*>/gi, "");
+  text = text.replace(/<\/ul>/gi, "");
+  text = text.replace(/<li[^>]*>/gi, "- ");
+  text = text.replace(/<\/li>/gi, "<br>");
+  return convertInlineHtml(text);
 }
 
 function tableToMarkdown(tableHtml: string): string {
@@ -599,6 +637,25 @@ function convertSvelte(content: string): string {
 
   text = text.replace(/<script[\s\S]*?<\/script>/g, "\n");
 
+  text = text.replace(/<p[^>]*>([\s\S]*?)<\/p>/g, (_full, inner) => {
+    const paragraph = convertInlineHtml(inner);
+    if (!paragraph) {
+      return "\n";
+    }
+    return `\n${paragraph}\n`;
+  });
+
+  text = text.replace(/<a([^>]*)>([\s\S]*?)<\/a>/g, (_full, attrs, inner) => {
+    const href = normalizeUpstreamHref(extractAttr(attrs, "href") ?? "");
+    const label = convertInlineHtml(inner)
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .trim();
+    if (!href) {
+      return label;
+    }
+    return `[${label}](${href})`;
+  });
+
   text = text.replace(/<HeadingLink([^>]*)\/>/g, (_full, attrs) => {
     const title = extractAttr(attrs, "title");
     if (!title) {
@@ -648,8 +705,14 @@ function convertSvelte(content: string): string {
 
   text = text.replace(/<[^>]+>/g, "\n");
   text = text.replace(/\{[^}]+\}/g, "");
+  text = text.replace(/^Upstream source:.*$/gim, "");
+  text = text.replace(/^Source Fragment:.*$/gim, "");
+  text = text.replace(/^### Source Fragment:.*$/gim, "");
   text = stripSvelteArtifacts(text);
   text = decodeHtmlEntities(text);
+  text = text.replace(/^Upstream source:.*$/gim, "");
+  text = text.replace(/^Source Fragment:.*$/gim, "");
+  text = text.replace(/^### Source Fragment:.*$/gim, "");
   text = stripSvelteArtifacts(text);
   text = normalizeSpacing(text);
 

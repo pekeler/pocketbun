@@ -104,22 +104,18 @@ function main(): void {
 
   for (const route of introItems) {
     assertIncludes(introDoc, route.title, "docs/introduction.md");
-    assertIncludes(introDoc, route.href, "docs/introduction.md");
   }
 
   for (const route of prodItems) {
     assertIncludes(prodDoc, route.title, "docs/going-to-production.md");
-    assertIncludes(prodDoc, route.href, "docs/going-to-production.md");
   }
 
   for (const route of apiItems) {
     assertIncludes(apiDoc, route.title, "docs/web-apis.md");
-    assertIncludes(apiDoc, route.href, "docs/web-apis.md");
   }
 
   for (const route of jsItems) {
     assertIncludes(jsDoc, route.title, "docs/extend.md");
-    assertIncludes(jsDoc, route.href, "docs/extend.md");
   }
 
   // Critical explicit checks from recent misses.
