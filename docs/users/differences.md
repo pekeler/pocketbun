@@ -10,6 +10,7 @@ This page tracks user-relevant differences between PocketBase and PocketBun.
 
 Quick links:
 
+- [PocketBase To PocketBun Migration Checklist](#pocketbase-to-pocketbun-migration-checklist)
 - [Runtime And Distribution](#runtime-and-distribution)
 - [CLI Defaults And Paths](#cli-defaults-and-paths)
 - [Hooks Plugin Naming](#hooks-plugin-naming)
@@ -17,6 +18,41 @@ Quick links:
 - [Operational Differences](#operational-differences)
 - [PocketBase Docs Topics That Do Not Apply Directly](#pocketbase-docs-topics-that-do-not-apply-directly)
 - [Intentional Omissions](#intentional-omissions)
+
+## PocketBase To PocketBun Migration Checklist
+
+Use this as a quick migration recipe for an existing PocketBase project.
+
+1. Switch executable and update flow.
+   - Replace `pocketbase` commands with `pocketbun`.
+   - There is no PocketBase-style binary self-update command; update via package manager.
+2. Create (or convert to) a Bun project.
+   - Option A: convert your existing project directory:
+     - initialize package metadata: `bun init`
+     - add PocketBun dependency: `bun add pocketbun`
+   - Option B: scaffold a new PocketBun project and copy your existing data/code:
+     - create project: `bun create pocketbun my-app`
+     - copy your PocketBase `pb_*` directories into the new project (`pb_data`, `pb_hooks`, `pb_migrations`, optional `pb_public`)
+3. Keep the project layout, but verify startup working directory.
+   - Keep `pb_data`, `pb_hooks`, `pb_migrations`, and optional `pb_public`.
+   - PocketBun resolves default paths from current working directory (CWD), so start from your project root or pass explicit dirs.
+4. Move hooks as-is, then fix hook-chain calls.
+   - In handlers that call `e.next()`, return/await it:
+     - sync: `return e.next()`
+     - async: `const err = await e.next(); if (err) return err; ...`
+   - This is especially important for `onBootstrap` when using async startup paths.
+   - If you see `OnBootstrap hook didn't fail but the app is still not bootstrapped`, this is usually the cause.
+5. Keep API clients and route assumptions.
+   - Existing client SDK usage should continue to work with the same API base paths (`/api/`, `/_/`).
+6. If you embed PocketBun programmatically, prefer PocketBun naming.
+   - Prefer `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*`.
+   - `RegisterJSVM*` / `MustRegisterJSVM*` remain compatibility aliases.
+7. Run a migration smoke test before deploying.
+   - Start: `pocketbun serve --dev`
+   - Verify health: `GET /api/health`
+   - Verify custom hooks/routes and auth flows you use in production.
+8. Review the sections below for details.
+   - Use this checklist for the quick pass, then check each section in this page only where your app uses that feature.
 
 ## Runtime And Distribution
 
