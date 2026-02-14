@@ -8,6 +8,10 @@ permalink: /differences.html
 
 This page tracks user-relevant differences between PocketBase and PocketBun.
 
+Notation used in examples:
+
+- `e` refers to the hook or route event parameter (for example: `onBootstrap((e) => { ... })` or `routerAdd("GET", "/path", (e) => { ... })`).
+
 Quick links:
 
 - [PocketBase To PocketBun Migration Checklist](#pocketbase-to-pocketbun-migration-checklist)
@@ -120,6 +124,25 @@ PocketBun uses Sharp for image resizing. Output bytes may differ from PocketBase
 PocketBun `$template` helper supports common PocketBase template patterns.
 
 For closer Go `text/template` parity, install optional `go-text-template`.
+
+### JSVM RequestEvent request/response surface
+
+For custom routes, `e` below means the route event parameter passed to `routerAdd(..., (e) => { ... })`.
+
+PocketBun now supports the common PocketBase custom-route access patterns:
+
+- `e.response.header().set(...)`
+- `e.request.pathValue(...)` and `e.request.setPathValue(...)`
+- `e.request.url.path`
+- `e.request.url.query().get(...)`
+- `e.request.header.get(...)`
+
+Remaining incompatibilities in this area:
+
+- Go `http.Request` form helpers are not implemented on `e.request` (`formFile`, `parseForm`, `parseMultipartForm`, `formValue`, `postFormValue`).
+  - use `e.findUploadedFiles(...)`, `e.bindBody(...)`, or `e.requestInfo().body` instead.
+- Go `http.ResponseWriter` write primitives are not implemented (`e.response.write(...)`, `e.response.writeHeader(...)`).
+  - use route event helpers (`e.json`, `e.string`, `e.html`, `e.xml`, `e.blob`, `e.noContent`, `e.redirect`).
 
 ### SQL placeholders and dbx rewriting
 

@@ -62,7 +62,29 @@ describe("jsvm loader", () => {
       join(hooksDir, "hooks.pb.js"),
       `globalThis.__pbHooksCalls = 0;
 routerAdd("GET", "/hooks-test", (e) => {
+  e.response.header().set("X-Hooks-Test", "1");
   return e.json(200, { ok: true });
+});
+routerAdd("GET", "/hooks-request/{name}", (e) => {
+  const originalName = e.request.pathValue("name");
+  const search = e.request.url.query().get("search");
+  const missingQuery = e.request.url.query().get("missing");
+  const requestToken = e.request.header.get("X-Test-Token");
+  const missingHeader = e.request.header.get("X-Missing");
+
+  e.request.setPathValue("name", originalName + "_updated");
+  const updatedName = e.request.pathValue("name");
+
+  e.response.header().set("X-Request-Compat", updatedName);
+  return e.json(200, {
+    path: e.request.url.path,
+    originalName,
+    updatedName,
+    search,
+    missingQuery,
+    requestToken,
+    missingHeader
+  });
 });
 onModelUpdate((e) => {
   globalThis.__pbHooksCalls++;
@@ -93,7 +115,27 @@ onModelUpdate((e) => {
     const handler = buildServeHandler(app);
     const response = await handler(new Request("http://127.0.0.1/hooks-test"));
     expect(response.status).toBe(200);
+    expect(response.headers.get("x-hooks-test")).toBe("1");
     expect(await response.json()).toEqual({ ok: true });
+
+    const compatResponse = await handler(
+      new Request("http://127.0.0.1/hooks-request/alice?search=demo", {
+        headers: {
+          "X-Test-Token": "abc123",
+        },
+      }),
+    );
+    expect(compatResponse.status).toBe(200);
+    expect(compatResponse.headers.get("x-request-compat")).toBe("alice_updated");
+    expect(await compatResponse.json()).toEqual({
+      path: "/hooks-request/alice",
+      originalName: "alice",
+      updatedName: "alice_updated",
+      search: "demo",
+      missingQuery: "",
+      requestToken: "abc123",
+      missingHeader: "",
+    });
 
     const record = app.FindFirstRecordByFilter("demo2", "1=1");
     record.Set("title", "update");

@@ -91,11 +91,18 @@ type EventOptions = {
   requestUrl?: URL;
 };
 
+type ResponseWriterCompat = {
+  Header: () => Headers;
+  header: () => Headers;
+};
+
 // Event specifies based Route handler event that is usually intended
 // to be embedded as part of a custom event struct.
 //
 // NB! It is expected that the Response and Request fields are always set.
 export class Event implements Resolver {
+  // Compatibility shim for JSVM hooks expecting `e.response.header().set(...)`.
+  Response: ResponseWriterCompat;
   request: Request;
   params: Record<string, string>;
   responseHeaders: Headers;
@@ -114,6 +121,11 @@ export class Event implements Resolver {
     this.request = options.request;
     this.params = options.params ?? {};
     this.responseHeaders = new Headers();
+    const headerAccessor = () => this.responseHeaders;
+    this.Response = {
+      Header: headerAccessor,
+      header: headerAccessor,
+    };
     this.#next = options.next ?? null;
     this.#remoteAddress = options.remoteAddress ?? null;
     this.#data = new Store();

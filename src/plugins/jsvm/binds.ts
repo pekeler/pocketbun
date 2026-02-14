@@ -215,6 +215,10 @@ function wrapApp<T extends object>(app: T): T {
 function wrapEvent<T extends object>(event: T): T {
   return new Proxy(event, {
     get(target, prop, receiver) {
+      if (prop === "request" && isRouteRequestContext(target)) {
+        return wrapRouteRequest(target);
+      }
+
       const value = resolveMappedProperty(target, prop, receiver);
       if (typeof value === "function") {
         return (...args: unknown[]) => {
@@ -234,6 +238,278 @@ function wrapEvent<T extends object>(event: T): T {
       return setMappedProperty(target, prop, value, receiver);
     },
   });
+}
+
+type RouteRequestContext = {
+  request: Request;
+  params?: Record<string, string>;
+  requestUrl?: () => URL;
+};
+
+const requestCompatCache = new WeakMap<object, object>();
+const requestUrlCompatCache = new WeakMap<object, object>();
+const headersCompatCache = new WeakMap<object, object>();
+const queryCompatCache = new WeakMap<object, object>();
+
+function isRouteRequestContext(value: unknown): value is RouteRequestContext {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const raw = value as { request?: unknown };
+  return raw.request instanceof Request;
+}
+
+function wrapRouteRequest(event: RouteRequestContext): object {
+  const eventObject = event as unknown as object;
+  const cached = requestCompatCache.get(eventObject);
+  if (cached) {
+    return cached;
+  }
+
+  const proxy = new Proxy(event.request, {
+    get(_target, prop, _receiver) {
+      const request = event.request;
+
+      if (prop === "header") {
+        return wrapHeaderValues(request.headers);
+      }
+
+      if (prop === "url") {
+        return wrapRouteRequestURL(event);
+      }
+
+      if (prop === "pathValue") {
+        return (name: string): string => {
+          const key = toPrimitiveString(name);
+          return event.params?.[key] ?? "";
+        };
+      }
+
+      if (prop === "setPathValue") {
+        return (name: string, value: string): void => {
+          const key = toPrimitiveString(name);
+          const normalizedValue = toPrimitiveString(value);
+          if (!event.params) {
+            event.params = {};
+          }
+          event.params[key] = normalizedValue;
+        };
+      }
+
+      if (prop === "raw") {
+        return request;
+      }
+
+      const mapped = resolveMappedProperty(request as unknown as object, prop, request);
+      if (typeof mapped === "function") {
+        return (...args: unknown[]) => {
+          const result = mapped.apply(
+            request,
+            args.map((arg) => unwrapBoundValue(arg)),
+          );
+          if (result instanceof Error) {
+            throw result;
+          }
+          return wrapBoundValue(result);
+        };
+      }
+
+      return wrapBoundValue(mapped);
+    },
+    set(_target, prop, value, _receiver) {
+      const request = event.request;
+      return setMappedProperty(request as unknown as object, prop, value, request);
+    },
+  });
+
+  requestCompatCache.set(eventObject, proxy);
+  return proxy;
+}
+
+function wrapRouteRequestURL(event: RouteRequestContext): object {
+  const eventObject = event as unknown as object;
+  const cached = requestUrlCompatCache.get(eventObject);
+  if (cached) {
+    return cached;
+  }
+
+  const proxy = new Proxy(
+    {},
+    {
+      get(_target, prop) {
+        const requestUrl = getRouteRequestURL(event);
+
+        if (prop === "path") {
+          return requestUrl.pathname;
+        }
+
+        if (prop === "query") {
+          return () => wrapQueryValues(requestUrl.searchParams);
+        }
+
+        if (prop === "rawQuery") {
+          return requestUrl.search.startsWith("?") ? requestUrl.search.slice(1) : requestUrl.search;
+        }
+
+        if (prop === "scheme") {
+          return requestUrl.protocol.replace(/:$/, "");
+        }
+
+        if (prop === "string" || prop === "toString") {
+          return () => requestUrl.toString();
+        }
+
+        const value = Reflect.get(requestUrl as unknown as object, prop, requestUrl);
+        if (typeof value === "function") {
+          return (...args: unknown[]) => {
+            const result = value.apply(
+              requestUrl,
+              args.map((arg) => unwrapBoundValue(arg)),
+            );
+            if (result instanceof Error) {
+              throw result;
+            }
+            return wrapBoundValue(result);
+          };
+        }
+
+        return wrapBoundValue(value);
+      },
+      set(_target, prop, value) {
+        const requestUrl = getRouteRequestURL(event);
+        return Reflect.set(requestUrl as unknown as object, prop, unwrapBoundValue(value), requestUrl);
+      },
+    },
+  );
+
+  requestUrlCompatCache.set(eventObject, proxy);
+  return proxy;
+}
+
+function getRouteRequestURL(event: RouteRequestContext): URL {
+  if (typeof event.requestUrl === "function") {
+    return event.requestUrl();
+  }
+
+  return new URL(event.request.url);
+}
+
+function wrapHeaderValues(headers: Headers): object {
+  const headersObject = headers as unknown as object;
+  const cached = headersCompatCache.get(headersObject);
+  if (cached) {
+    return cached;
+  }
+
+  const proxy = new Proxy(headers, {
+    get(target, prop, receiver) {
+      if (prop === "get") {
+        return (name: string): string => target.get(toPrimitiveString(name)) ?? "";
+      }
+
+      if (prop === "values") {
+        return (name: string): string[] => splitHeaderValues(target.get(toPrimitiveString(name)));
+      }
+
+      if (prop === "toJSON") {
+        return () => headerValuesToJSON(target);
+      }
+
+      const value = Reflect.get(target as unknown as object, prop, receiver);
+      if (typeof value === "function") {
+        return (...args: unknown[]) =>
+          value.apply(
+            target,
+            args.map((arg) => unwrapBoundValue(arg)),
+          );
+      }
+
+      return wrapBoundValue(value);
+    },
+  });
+
+  headersCompatCache.set(headersObject, proxy);
+  return proxy;
+}
+
+function splitHeaderValues(raw: string | null): string[] {
+  if (!raw) {
+    return [];
+  }
+
+  return raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part !== "");
+}
+
+function headerValuesToJSON(headers: Headers): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+
+  for (const [key, value] of headers.entries()) {
+    out[key] = splitHeaderValues(value);
+  }
+
+  return out;
+}
+
+function wrapQueryValues(query: URLSearchParams): object {
+  const queryObject = query as unknown as object;
+  const cached = queryCompatCache.get(queryObject);
+  if (cached) {
+    return cached;
+  }
+
+  const proxy = new Proxy(query, {
+    get(target, prop, receiver) {
+      if (prop === "get") {
+        return (name: string): string => target.get(toPrimitiveString(name)) ?? "";
+      }
+
+      if (prop === "toJSON") {
+        return () => queryValuesToJSON(target);
+      }
+
+      if (prop === "string" || prop === "toString") {
+        return () => target.toString();
+      }
+
+      if (prop === "del") {
+        return (name: string): void => {
+          target.delete(toPrimitiveString(name));
+        };
+      }
+
+      const value = Reflect.get(target as unknown as object, prop, receiver);
+      if (typeof value === "function") {
+        return (...args: unknown[]) =>
+          value.apply(
+            target,
+            args.map((arg) => unwrapBoundValue(arg)),
+          );
+      }
+
+      return wrapBoundValue(value);
+    },
+  });
+
+  queryCompatCache.set(queryObject, proxy);
+  return proxy;
+}
+
+function queryValuesToJSON(query: URLSearchParams): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+
+  for (const [key, value] of query.entries()) {
+    const existing = out[key];
+    if (existing) {
+      existing.push(value);
+    } else {
+      out[key] = [value];
+    }
+  }
+
+  return out;
 }
 
 function resolveMappedProperty(target: object, prop: string | symbol, receiver: unknown): unknown {
