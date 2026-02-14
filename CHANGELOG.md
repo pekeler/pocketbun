@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.36.3-pocketbun.1 (Unreleased)
+## 0.36.3-pocketbun.1 - 2026-02-14
 
 - Improved JSVM route-event compatibility for PocketBase custom routes by adding `RequestEvent` request/response surface support for `e.response.header().set(...)`, `e.request.pathValue(...)`, `e.request.setPathValue(...)`, `e.request.url.path`, `e.request.url.query().get(...)`, and `e.request.header.get(...)`.
 - Implemented the new JSVM request compatibility wrappers with lazy access and caching to keep route hot-path overhead low when `e.request` compatibility fields are not used.
