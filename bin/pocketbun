@@ -2,15 +2,23 @@
 // PocketBun-only: Bun CLI entrypoint that mirrors the PocketBase binary interface.
 // In local development, prefer source to avoid stale dist artifacts between edits.
 
+// Preserve POSIX signal exit codes so parent script runners (eg. nested `bun run`)
+// treat Ctrl-C/SIGTERM as an interrupted process instead of a normal success exit.
+let signalExitCode = 0;
+process.once("SIGINT", () => {
+  signalExitCode = 130;
+});
+process.once("SIGTERM", () => {
+  signalExitCode = 143;
+});
+
 const cliModule = await import("../src/cli.ts").catch(async () => import("../dist/src/cli.js"));
-const main = (cliModule as { main: () => Promise<void> }).main;
+const main = cliModule.main;
 
 try {
   await main();
-  // Force process termination after graceful shutdown to avoid requiring a
-  // second SIGINT when background handles (watchers/timers) are still open.
-  process.exit(0);
+  process.exit(signalExitCode || 0);
 } catch (error) {
   console.error(error);
-  process.exit(1);
+  process.exit(signalExitCode || 1);
 }
