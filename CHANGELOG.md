@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.36.3-pocketbun.3 (Unreleased)
+
+- TBD
+
 ## 0.36.3-pocketbun.2 - 2026-02-14
 
 - Disabled persistent SQLite WAL sidecars (`SQLITE_FCNTL_PERSIST_WAL=0`) on PocketBun DB connections so `-wal`/`-shm` files are cleaned up on graceful shutdown.
