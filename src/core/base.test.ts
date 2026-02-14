@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/base_test.go.
 
 import { describe, expect, it } from "bun:test";
-import { mkdtemp, rm, stat } from "node:fs/promises";
+import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DbxDatabase } from "../tools/dbx/database.ts";
@@ -131,6 +131,35 @@ describe("BaseApp", () => {
     expect(hasDb(() => app.auxDb())).toBe(true);
 
     app.resetBootstrapState();
+    await rm(dataDir, { recursive: true, force: true });
+  });
+
+  it("BaseAppResetBootstrapStateRemovesWalAndShmFiles", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
+    await rm(dataDir, { recursive: true, force: true });
+
+    const app = new BaseApp({ dataDir });
+    await app.bootstrapAsync();
+
+    app.db().run("create table if not exists _pb_reset_cleanup_check (id integer primary key)");
+    app.db().run("insert into _pb_reset_cleanup_check default values");
+    app.auxDb().run("create table if not exists _pb_reset_cleanup_check (id integer primary key)");
+    app.auxDb().run("insert into _pb_reset_cleanup_check default values");
+
+    const before = await readdir(dataDir);
+    expect(before.includes("data.db-wal")).toBe(true);
+    expect(before.includes("data.db-shm")).toBe(true);
+    expect(before.includes("auxiliary.db-wal")).toBe(true);
+    expect(before.includes("auxiliary.db-shm")).toBe(true);
+
+    app.resetBootstrapState();
+
+    const after = await readdir(dataDir);
+    expect(after.includes("data.db-wal")).toBe(false);
+    expect(after.includes("data.db-shm")).toBe(false);
+    expect(after.includes("auxiliary.db-wal")).toBe(false);
+    expect(after.includes("auxiliary.db-shm")).toBe(false);
+
     await rm(dataDir, { recursive: true, force: true });
   });
 
