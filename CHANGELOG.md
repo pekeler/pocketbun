@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.36.3-pocketbun.3 (Unreleased)
+## 0.36.3-pocketbun.3 - 2026-02-15
 
 - Simplified `--dev` SQL logging to a Bun-native output format (`[X.XXms] <sql>`) based on the executed rewritten SQL, instead of matching PocketBase debug formatting details.
 - Removed non-dev SQL logging overhead by short-circuiting timing/wrapping paths when query logging is disabled, preserving runtime performance outside `--dev`.
