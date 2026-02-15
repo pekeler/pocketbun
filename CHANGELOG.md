@@ -2,6 +2,9 @@
 
 ## 0.36.3-pocketbun.3 (Unreleased)
 
+- Simplified `--dev` SQL logging to a Bun-native output format (`[X.XXms] <sql>`) based on the executed rewritten SQL, instead of matching PocketBase debug formatting details.
+- Removed non-dev SQL logging overhead by short-circuiting timing/wrapping paths when query logging is disabled, preserving runtime performance outside `--dev`.
+- Documented the dev SQL logging format difference in `docs/users/differences.md`.
 - Fixed backup API compatibility with PocketBase by returning lowercase JSON keys (`key`, `size`, `modified`) in `/api/backups` list responses, resolving Admin UI backup rows showing `undefined (NaN B)`.
 - Added backup API regression coverage to assert backup list item key names and prevent response-shape regressions.
 - Fixed OAuth2 redirect payload compatibility by ignoring JSON `user` in `/api/oauth2-redirect` POST bodies to match upstream `json:"-"` behavior for `AppleUser` (form-only field).

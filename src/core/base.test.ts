@@ -134,6 +134,41 @@ describe("BaseApp", () => {
     await rm(dataDir, { recursive: true, force: true });
   });
 
+  it("BaseAppBootstrapDevSQLLogger", async () => {
+    const scenarios = [
+      { name: "dev mode", isDev: true, hasLogger: true },
+      { name: "nondev mode", isDev: false, hasLogger: false },
+    ];
+
+    for (const scenario of scenarios) {
+      const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
+      const app = new BaseApp({ dataDir, isDev: scenario.isDev });
+
+      try {
+        app.bootstrap();
+
+        const db = app.db() as DbxDatabase;
+        expect(typeof db.QueryLogFunc === "function").toBe(scenario.hasLogger);
+
+        if (scenario.hasLogger) {
+          const queries: Array<{ sql: string; durationMs: number | undefined }> = [];
+          db.QueryLogFunc = (sql, durationMs) => {
+            queries.push({ sql, durationMs });
+          };
+
+          void db.query("select 1").get();
+
+          expect(queries.length).toBeGreaterThan(0);
+          expect(queries[0]?.sql).toBe("select 1");
+          expect(typeof queries[0]?.durationMs).toBe("number");
+        }
+      } finally {
+        app.resetBootstrapState();
+        await rm(dataDir, { recursive: true, force: true });
+      }
+    }
+  });
+
   it("BaseAppResetBootstrapStateRemovesWalAndShmFiles", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
     await rm(dataDir, { recursive: true, force: true });

@@ -915,6 +915,7 @@ export class BaseApp implements App {
       // to preserve PRAGMA tuning (WAL, synchronous, busy_timeout) used by benchmarks and production.
       this.#db = DefaultDBConnect(join(this.#dataDir, "data.db"));
       this.#auxDb = DefaultDBConnect(join(this.#dataDir, "auxiliary.db"));
+      this.initDevSqlLogger();
       const loggerErr = this.initLogger();
       if (loggerErr) {
         return loggerErr;
@@ -964,6 +965,7 @@ export class BaseApp implements App {
       // to preserve PRAGMA tuning (WAL, synchronous, busy_timeout) used by benchmarks and production.
       this.#db = DefaultDBConnect(join(this.#dataDir, "data.db"));
       this.#auxDb = DefaultDBConnect(join(this.#dataDir, "auxiliary.db"));
+      this.initDevSqlLogger();
       const loggerErr = this.initLogger();
       if (loggerErr) {
         return loggerErr;
@@ -1120,6 +1122,17 @@ export class BaseApp implements App {
       this.#logWriter = new LogWriter(join(this.#dataDir, "auxiliary.db"));
     }
     return this.#logWriter;
+  }
+
+  private initDevSqlLogger(): void {
+    if (!this.#isDev || !this.#db) {
+      return;
+    }
+
+    const db = this.#db as DbxDatabase;
+    db.QueryLogFunc = (sql, durationMs = 0) => {
+      printSQLLog(durationMs, sql);
+    };
   }
 
   resetBootstrapState(): void {
@@ -4784,6 +4797,18 @@ function resolveBaseTokenKey(collection: Collection, tokenType: string): string 
     default:
       return "";
   }
+}
+
+function printSQLLog(durationMs: number, sql: string): void {
+  const safeDuration = Number.isFinite(durationMs) ? durationMs : 0;
+  const line = `[${safeDuration.toFixed(2)}ms] ${sql}\n`;
+
+  if (Bun.enableANSIColors) {
+    process.stderr.write(`\u001b[90m${line}\u001b[0m`);
+    return;
+  }
+
+  process.stderr.write(line);
 }
 
 function applySettingsLoggerReload(app: App): void {

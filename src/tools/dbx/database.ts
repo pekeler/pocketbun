@@ -4,7 +4,7 @@ import { Database, type Changes, type DatabaseOptions, type SQLQueryBindings, ty
 import { rewriteDbxIdentifiers } from "./identifiers.ts";
 import { DbxQuery, DbxSelectQuery } from "./query.ts";
 
-export type QueryLogFunc = (sql: string) => void;
+export type QueryLogFunc = (sql: string, durationMs?: number) => void;
 
 export class DbxDatabase extends Database {
   QueryLogFunc?: QueryLogFunc;
@@ -15,15 +15,34 @@ export class DbxDatabase extends Database {
 
   override run<ParamsType extends SQLQueryBindings[]>(sql: string, ...bindings: ParamsType[]): Changes {
     const rewritten = rewriteDbxIdentifiers(sql);
-    this.QueryLogFunc?.(sql);
-    return super.run(rewritten, ...bindings);
+    const queryLogFunc = this.QueryLogFunc;
+    if (!queryLogFunc) {
+      return super.run(rewritten, ...bindings);
+    }
+
+    const startedAt = performance.now();
+    try {
+      return super.run(rewritten, ...bindings);
+    } finally {
+      queryLogFunc(rewritten, performance.now() - startedAt);
+    }
   }
 
   override exec<ParamsType extends SQLQueryBindings[]>(sql: string, ...bindings: ParamsType[]): Changes {
     const rewritten = rewriteDbxIdentifiers(sql);
-    this.QueryLogFunc?.(sql);
-    // eslint-disable-next-line typescript-eslint/no-deprecated -- bun:sqlite exec supports multi-statement SQL.
-    return super.exec(rewritten, ...bindings);
+    const queryLogFunc = this.QueryLogFunc;
+    if (!queryLogFunc) {
+      // eslint-disable-next-line typescript-eslint/no-deprecated -- bun:sqlite exec supports multi-statement SQL.
+      return super.exec(rewritten, ...bindings);
+    }
+
+    const startedAt = performance.now();
+    try {
+      // eslint-disable-next-line typescript-eslint/no-deprecated -- bun:sqlite exec supports multi-statement SQL.
+      return super.exec(rewritten, ...bindings);
+    } finally {
+      queryLogFunc(rewritten, performance.now() - startedAt);
+    }
   }
 
   override query<ReturnType, ParamsType extends SQLQueryBindings | SQLQueryBindings[]>(
@@ -31,10 +50,11 @@ export class DbxDatabase extends Database {
   ): Statement<ReturnType, ParamsType extends any[] ? ParamsType : [ParamsType]> {
     const rewritten = rewriteDbxIdentifiers(sql);
     const stmt = super.query(rewritten) as Statement<ReturnType, ParamsType extends any[] ? ParamsType : [ParamsType]>;
-    if (!this.QueryLogFunc) {
+    const queryLogFunc = this.QueryLogFunc;
+    if (!queryLogFunc) {
       return stmt;
     }
-    return wrapStatement(stmt, sql, this.QueryLogFunc);
+    return wrapStatement(stmt, rewritten, queryLogFunc);
   }
 
   override prepare<ReturnType, ParamsType extends SQLQueryBindings | SQLQueryBindings[]>(
@@ -46,10 +66,11 @@ export class DbxDatabase extends Database {
       ReturnType,
       ParamsType extends any[] ? ParamsType : [ParamsType]
     >;
-    if (!this.QueryLogFunc) {
+    const queryLogFunc = this.QueryLogFunc;
+    if (!queryLogFunc) {
       return stmt;
     }
-    return wrapStatement(stmt, sql, this.QueryLogFunc);
+    return wrapStatement(stmt, rewritten, queryLogFunc);
   }
 
   newQuery(sql: string, ...params: SQLQueryBindings[]): DbxQuery {
@@ -84,8 +105,12 @@ function wrapStatement<ReturnType, ParamsType extends SQLQueryBindings | SQLQuer
       return;
     }
     target[name] = (...args: unknown[]) => {
-      logFn?.(logSql);
-      return (fn as (...callArgs: unknown[]) => unknown).apply(stmt, args);
+      const startedAt = performance.now();
+      try {
+        return (fn as (...callArgs: unknown[]) => unknown).apply(stmt, args);
+      } finally {
+        logFn?.(logSql, performance.now() - startedAt);
+      }
     };
   };
 

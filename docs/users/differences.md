@@ -149,6 +149,12 @@ Remaining incompatibilities in this area:
 PocketBun supports dbx-style query marker rewriting for SQLite helpers.
 Logged placeholder formats can differ while query behavior remains compatible.
 
+### Dev SQL logging format
+
+In `--dev` mode, PocketBun prints SQL logs using a Bun-native format based on
+the executed rewritten SQL (`[X.XXms] <sql>`). The exact formatting may differ
+from PocketBase and is informational only.
+
 ### Windows behavior
 
 - `HooksWatch` restart behavior has no effect on Windows.
