@@ -2,7 +2,8 @@
 
 ## 0.36.3-pocketbun.3 (Unreleased)
 
-- TBD
+- Fixed collection API response shape compatibility with PocketBase by flattening type-specific collection options (auth/view) at the top-level JSON object instead of nesting them under `options`, which resolves Admin UI "Edit collection" crashes (for example on `users` with `mfa.enabled` access).
+- Added collection API regression coverage to assert flattened auth options for collection view/scaffold responses and prevent `options` nesting regressions.
 
 ## 0.36.3-pocketbun.2 - 2026-02-14
 

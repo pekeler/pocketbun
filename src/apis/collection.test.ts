@@ -205,6 +205,19 @@ const viewScenarios: ApiScenario[] = [
     },
   },
   {
+    name: "authorized as superuser + auth collection uses flattened auth options",
+    method: "GET",
+    url: "/api/collections/users",
+    headers: { Authorization: superuserToken },
+    expectedStatus: 200,
+    expectedContent: ['"name":"users"', '"passwordAuth":{"enabled":', '"mfa":{"enabled":'],
+    notExpectedContent: ['"options":{'],
+    expectedEvents: {
+      "*": 0,
+      OnCollectionViewRequest: 1,
+    },
+  },
+  {
     name: "OnCollectionViewRequest tx body write check",
     method: "GET",
     url: "/api/collections/wsmn24bux7wo113",
@@ -1307,10 +1320,13 @@ const scaffoldsScenarios: ApiScenario[] = [
       '"type":"auth"',
       '"type":"base"',
       '"type":"view"',
+      '"passwordAuth":{"enabled":true',
+      '"mfa":{"enabled":false',
       '"fields":[{',
       '"fields":[{',
       '"id":"text3208210256"',
     ],
+    notExpectedContent: ['"options":{'],
   },
 ];
 

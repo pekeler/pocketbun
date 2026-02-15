@@ -53,7 +53,7 @@ type CollectionResponse = {
   createRule: string | null;
   updateRule: string | null;
   deleteRule: string | null;
-  options: Record<string, unknown>;
+  [key: string]: unknown;
 };
 
 type CollectionsListResult = {
@@ -302,7 +302,7 @@ function collectionScaffolds(app: App, event: RequestEvent): Response {
 
 function normalizeCollectionRow(row: CollectionRow | Collection): CollectionResponse {
   const collection = row instanceof Collection ? row : collectionFromRow(row);
-  return {
+  const base: CollectionResponse = {
     id: collection.id,
     created: collection.created.toString(),
     updated: collection.updated.toString(),
@@ -316,7 +316,13 @@ function normalizeCollectionRow(row: CollectionRow | Collection): CollectionResp
     createRule: collection.createRule ?? null,
     updateRule: collection.updateRule ?? null,
     deleteRule: collection.deleteRule ?? null,
-    options: collection.SafeOptions(),
+  };
+
+  // Match PocketBase API shape by flattening type-specific options on the
+  // collection root object instead of nesting them under an "options" key.
+  return {
+    ...base,
+    ...collection.SafeOptions(),
   };
 }
 
