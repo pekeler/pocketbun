@@ -25,9 +25,9 @@ export function bindBackupApi(app: App, rg: RouterGroup<RequestEvent>): void {
 }
 
 type BackupFileInfo = {
-  Modified: DateTime;
-  Key: string;
-  Size: number;
+  modified: DateTime;
+  key: string;
+  size: number;
 };
 
 async function backupsList(app: App, event: RequestEvent): Promise<Response> {
@@ -47,9 +47,9 @@ async function backupsList(app: App, event: RequestEvent): Promise<Response> {
     fsys.SetContext(controller.signal);
     const backups = await fsys.List("");
     const result: BackupFileInfo[] = backups.map((obj) => ({
-      Key: obj.Key,
-      Size: obj.Size,
-      Modified: ParseDateTime(obj.ModTime),
+      key: obj.Key,
+      size: obj.Size,
+      modified: ParseDateTime(obj.ModTime),
     }));
     return event.json(200, result);
   } catch (error) {

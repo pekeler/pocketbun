@@ -21,7 +21,7 @@ const oauth2Topic = "@oauth2";
 
 const clientStubs: ClientStubs[] = [];
 
-for (let i = 0; i < 10; i += 1) {
+for (let i = 0; i < 11; i += 1) {
   const c1 = new DefaultClient();
 
   const c2 = new DefaultClient();
@@ -64,6 +64,7 @@ const stub6 = mustStub(6);
 const stub7 = mustStub(7);
 const stub8 = mustStub(8);
 const stub9 = mustStub(9);
+const stub10 = mustStub(10);
 
 const checkFailureRedirect = (res: Response) => {
   const location = res.headers.get("Location") ?? "";
@@ -267,6 +268,38 @@ const scenarios: ApiScenario[] = [
       checkSuccessRedirect(res);
       if (stub7.c3.HasSubscription(oauth2Topic)) {
         throw new Error("Expected oauth2 subscription to be removed");
+      }
+    },
+  },
+  {
+    name: "client with @oauth2 subscription (POST json ignores user)",
+    method: "POST",
+    url: "/api/oauth2-redirect",
+    body: JSON.stringify({
+      code: "jsoncode",
+      state: stub10.c3.Id(),
+      user: JSON.stringify({
+        name: {
+          firstName: "aaa",
+          lastName: "bbb",
+        },
+      }),
+    }),
+    headers: { "content-type": "application/json" },
+    beforeTest: beforeTestFunc(stub10, {
+      c3: [`"state":"${stub10.c3.Id()}"`, `"code":"jsoncode"`],
+    }),
+    expectedStatus: 303,
+    expectedEvents: { "*": 0 },
+    afterTest: async (app, res) => {
+      await afterTestFunc(app);
+      checkSuccessRedirect(res);
+      if (stub10.c3.HasSubscription(oauth2Topic)) {
+        throw new Error("Expected oauth2 subscription to be removed");
+      }
+      const storedName = app.store().get("@redirect_name_jsoncode");
+      if (storedName != null) {
+        throw new Error(`Didn't expect stored name, got ${JSON.stringify(storedName)}`);
       }
     },
   },

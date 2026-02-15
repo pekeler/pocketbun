@@ -71,7 +71,7 @@ const scenarios: ApiScenario[] = [
       await createTestBackups(app);
     },
     expectedStatus: 200,
-    expectedContent: ['"test1.zip"', '"test2.zip"', '"test3.zip"'],
+    expectedContent: ['"key":"test1.zip"', '"key":"test2.zip"', '"key":"test3.zip"'],
     expectedEvents: { "*": 0 },
   },
   {

@@ -84,7 +84,8 @@ async function readRedirectData(event: RequestEvent): Promise<OAuth2RedirectData
           data.State = typeof raw.state === "string" ? raw.state : "";
           data.Code = typeof raw.code === "string" ? raw.code : "";
           data.Error = typeof raw.error === "string" ? raw.error : "";
-          data.AppleUser = typeof raw.user === "string" ? raw.user : "";
+          // Match upstream `json:"-"` behavior for AppleUser: ignore JSON "user".
+          data.AppleUser = "";
         }
         return data;
       }

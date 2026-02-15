@@ -2,6 +2,10 @@
 
 ## 0.36.3-pocketbun.3 (Unreleased)
 
+- Fixed backup API compatibility with PocketBase by returning lowercase JSON keys (`key`, `size`, `modified`) in `/api/backups` list responses, resolving Admin UI backup rows showing `undefined (NaN B)`.
+- Added backup API regression coverage to assert backup list item key names and prevent response-shape regressions.
+- Fixed OAuth2 redirect payload compatibility by ignoring JSON `user` in `/api/oauth2-redirect` POST bodies to match upstream `json:"-"` behavior for `AppleUser` (form-only field).
+- Added OAuth2 redirect regression coverage to ensure JSON `user` does not populate Apple name storage.
 - Fixed collection API response shape compatibility with PocketBase by flattening type-specific collection options (auth/view) at the top-level JSON object instead of nesting them under `options`, which resolves Admin UI "Edit collection" crashes (for example on `users` with `mfa.enabled` access).
 - Added collection API regression coverage to assert flattened auth options for collection view/scaffold responses and prevent `options` nesting regressions.
 
