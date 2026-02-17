@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   BaseApp,
-  RegisterJSVMAsync,
+  MustRegisterJSVMAsync,
   RegisterMigrateCmd,
   Static,
   TemplateLangJS,
@@ -27,7 +27,8 @@ await Promise.all([
 const app = new BaseApp({ dataDir, isDev: true });
 
 // PocketBun-only async variant to avoid sync fs startup work in JSVM setup.
-await RegisterJSVMAsync(app, {
+// Use the throwing helper so hook loading errors are surfaced immediately.
+await MustRegisterJSVMAsync(app, {
   HooksDir: hooksDir,
   HooksWatch: true,
   HooksPoolSize: 5,
