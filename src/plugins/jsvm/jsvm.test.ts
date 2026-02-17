@@ -154,11 +154,11 @@ onModelUpdate((e) => {
     const hooksDir = join(rootDir, "pb_hooks");
 
     await mkdir(hooksDir, { recursive: true });
-    await writeFile(join(hooksDir, "foo.ts"), `export const foo = 3;\n`);
+    await writeFile(join(hooksDir, "shared_value.ts"), `export const sharedValue = 3;\n`);
     await writeFile(
       join(hooksDir, "hooks.pb.ts"),
-      `import { foo } from "./foo.ts";
-routerAdd("GET", "/hello", (e) => e.json(200, { foo }));
+      `import { sharedValue } from "./shared_value.ts";
+routerAdd("GET", "/hello", (e) => e.json(200, { sharedValue }));
 `,
     );
 
@@ -172,7 +172,52 @@ routerAdd("GET", "/hello", (e) => e.json(200, { foo }));
       const handler = buildServeHandler(app);
       const response = await handler(new Request("http://127.0.0.1/hello"));
       expect(response.status).toBe(200);
-      expect(await response.json()).toEqual({ foo: 3 });
+      expect(await response.json()).toEqual({ sharedValue: 3 });
+    } finally {
+      await cleanup();
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it.serial("supports dependency imports in .pb.ts hooks", async () => {
+    const { app, cleanup } = await newTestApp();
+    const rootDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-"));
+    const hooksDir = join(rootDir, "pb_hooks");
+    const dependencyDir = join(rootDir, "node_modules", "pocketbun-hooks-dependency");
+
+    await mkdir(hooksDir, { recursive: true });
+    await mkdir(dependencyDir, { recursive: true });
+    await writeFile(
+      join(dependencyDir, "package.json"),
+      JSON.stringify(
+        {
+          name: "pocketbun-hooks-dependency",
+          type: "module",
+          exports: "./index.js",
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFile(join(dependencyDir, "index.js"), `export const dependencyMessage = "from dependency";\n`);
+    await writeFile(
+      join(hooksDir, "hooks.pb.ts"),
+      `import { dependencyMessage } from "pocketbun-hooks-dependency";
+routerAdd("GET", "/hello", (event) => event.json(200, { message: dependencyMessage }));
+`,
+    );
+
+    try {
+      const err = await RegisterAsync(app, {
+        HooksDir: hooksDir,
+        TypesDir: rootDir,
+      });
+      expect(err).toBeNull();
+
+      const handler = buildServeHandler(app);
+      const response = await handler(new Request("http://127.0.0.1/hello"));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ message: "from dependency" });
     } finally {
       await cleanup();
       await rm(rootDir, { recursive: true, force: true });

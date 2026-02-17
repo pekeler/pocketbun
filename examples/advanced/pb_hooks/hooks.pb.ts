@@ -1,3 +1,5 @@
+import { buildHelloResponse, logHelloRequestMiddleware } from "./hello_route_helpers.ts";
+
 const slugify = (value: string): string =>
   value
     .trim()
@@ -5,8 +7,14 @@ const slugify = (value: string): string =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-routerAdd("GET", "/hello", (e) => {
-  return e.json(200, { message: "Hello from PocketBun hooks." });
+onServe((serveEvent) => {
+  serveEvent.router
+    .get("/hello", (requestEvent) => {
+      return requestEvent.json(200, buildHelloResponse());
+    })
+    .bindFunc(logHelloRequestMiddleware);
+
+  return serveEvent.next();
 });
 
 onRecordCreate((e) => {

@@ -4,6 +4,7 @@
 
 - Added JSVM-compatible lowercase hook APIs across `BaseApp`, `Hook`, and `TaggedHook` (for example `on*`, `bindFunc`, `unbind`, `length`, `trigger`) while keeping Go-style names as aliases.
 - Added `onRecordRequestOTPRequest` / `OnRecordRequestOTPRequest` aliases to match JSVM OTP hook naming.
+- Clarified `pb_hooks` docs and advanced example to show `.pb.ts` imports and route middleware chaining via `onServe(...).bindFunc(...)`.
 
 ## 0.36.3-pocketbun.4 - 2026-02-17
 

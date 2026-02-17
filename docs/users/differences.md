@@ -18,6 +18,7 @@ Quick links:
 - [Runtime And Distribution](#runtime-and-distribution)
 - [CLI Defaults And Paths](#cli-defaults-and-paths)
 - [Hooks Plugin Naming](#hooks-plugin-naming)
+- [Hooks API And Module Loading](#hooks-api-and-module-loading)
 - [Async API Extensions](#async-api-extensions)
 - [Operational Differences](#operational-differences)
 - [PocketBase Docs Topics That Do Not Apply Directly](#pocketbase-docs-topics-that-do-not-apply-directly)
@@ -46,6 +47,7 @@ Use this as a quick migration recipe for an existing PocketBase project.
      - async: `const err = await e.next(); if (err) return err; ...`
    - This is especially important for `onBootstrap` when using async startup paths.
    - If you see `OnBootstrap hook didn't fail but the app is still not bootstrapped`, this is usually the cause.
+   - In `.pb.ts` hooks, use standard `import` for neighboring files and dependencies when needed.
 5. Keep API clients and route assumptions.
    - Existing client SDK usage should continue to work with the same API base paths (`/api/`, `/_/`).
 6. If you embed PocketBun programmatically, prefer JSVM-compatible naming.
@@ -93,6 +95,18 @@ PocketBun keeps those names as primary and also provides aliases:
 - aliases: `RegisterHooksPlugin*`, `MustRegisterHooksPlugin*`
 
 Both names map to the same plugin registration behavior.
+
+## Hooks API And Module Loading
+
+PocketBun supports JSVM-style lowercase hook/router naming and keeps Go-style names as aliases:
+
+- preferred JSVM-style names: `onServe`, `bindFunc`, `bind`, `unbind`, `length`, `trigger`
+- alias names: `OnServe`, `BindFunc`, `Bind`, `Unbind`, `Length`, `Trigger`
+
+For `pb_hooks` module loading:
+
+- `.pb.ts` supports ESM imports from local files and dependencies (`node_modules`)
+- `.pb.js` supports `require(...)`
 
 ## Async API Extensions
 

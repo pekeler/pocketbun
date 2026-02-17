@@ -30,9 +30,9 @@ Quick links:
 
 ### JavaScript engine
 
-PocketBun executes your hooks and custom server code with Bun, allowing you to write server-side logic in JavaScript.
+PocketBun executes your hooks and custom server code with Bun, allowing you to write server-side logic in JavaScript or TypeScript.
 
-You can start by creating `*.pb.js` file(s) inside a `pb_hooks` directory in your project.
+You can start by creating `*.pb.js` or `*.pb.ts` file(s) inside a `pb_hooks` directory in your project.
 
 ```js
 // pb_hooks/main.pb.js
@@ -50,7 +50,7 @@ onRecordAfterUpdateSuccess((e) => {
 }, "users")
 ```
 
-* For convenience, when making changes to the files inside `pb_hooks`, the process will automatically restart/reload itself (currently supported only on UNIX based platforms). The `*.pb.js` files are loaded per their filename sort order.
+* For convenience, when making changes to files inside `pb_hooks`, the process will automatically restart/reload itself (currently supported only on UNIX based platforms). Hook files are loaded per filename sort order.
 
 On Windows, HooksWatch restart behavior has no effect.
 
@@ -94,15 +94,19 @@ And many more - for all exposed APIs, please refer to the
 
 ### TypeScript declarations and code completion
 
-While you can't use directly TypeScript (*without transpiling it to JS on your own*), PocketBun comes with builtin **ambient TypeScript declarations** that can help providing information and documentation about the available global variables, methods and arguments, code completion, etc. as long as your editor has TypeScript LSP support *(most editors either have it builtin or available as plugin)*.
+PocketBun can execute `.pb.ts` files directly, and it also provides builtin **ambient TypeScript declarations** for editor completion and inline docs.
 
-The types declarations are stored in `pb_data/types.d.ts` file. You can point to those declarations using the reference triple-slash directive at the top of your JS file:
+The declarations are stored in `pb_data/types.d.ts`. You can reference them from hooks files:
 
-onBootstrap((e) => )
-`}
-/>
+```ts
+/// <reference path="../pb_data/types.d.ts" />
 
-If after referencing the types your editor still doesn't perform linting, then you can try to rename your file to have `.pb.ts` extension.
+onBootstrap((event) => {
+  return event.next();
+});
+```
+
+If your editor still doesn't provide completion, make sure the hook file uses the `.pb.ts` extension.
 
 ### Caveats and limitations
 
@@ -149,27 +153,30 @@ You can load modules either by specifying their local filesystem path or by usin
 
 - any parent `node_modules` directory
 
-Currently only CommonJS (CJS) modules are supported and can be loaded with `const x = require(...)`. ECMAScript modules (ESM) can be loaded by first precompiling and transforming your dependencies with a bundler like [rollup](https://rollupjs.org/), [webpack](https://webpack.js.org/), [browserify](https://browserify.org/), etc.
+In `.pb.ts` files, you can use ESM imports:
 
-A common usage of local modules is for loading shared helpers or configuration parameters, for example:
+- local/relative imports (for example `import { helper } from "./helper.ts"`)
+- dependency imports from `node_modules` (for example `import { helper } from "my-hooks-dependency"`)
 
-```js
-// pb_hooks/utils.js
-module.exports = {
-    hello: (name) => {
-        console.log("Hello " + name)
-    }
-}
+In `.pb.js` files, `require(...)` remains supported.
+
+A common usage is loading shared helpers from local modules:
+
+```ts
+// pb_hooks/utils.ts
+export const hello = (name: string) => {
+  console.log("Hello " + name);
+};
 ```
 
-```js
-// pb_hooks/main.pb.js
-onBootstrap((e) => {
-    e.next()
+```ts
+// pb_hooks/main.pb.ts
+import { hello } from "./utils.ts";
 
-    const utils = require(` + "`${__hooks}/utils.js`" + `)
-    utils.hello("world")
-})
+onBootstrap((event) => {
+  hello("world");
+  return event.next();
+});
 ```
 
 Loaded modules use a shared registry and mutations should be avoided when possible to prevent concurrency issues.
@@ -567,6 +574,29 @@ routerAdd("GET", "/hello", (e) => {
     console.log(3)
     return e.next()
 })
+```
+
+#### Route middleware chaining via `onServe`
+
+If you prefer router-style chaining, you can attach route middlewares via `bindFunc(...)` in `onServe(...)`:
+
+```ts
+onServe((serveEvent) => {
+  const requireTraceIdMiddleware = (requestEvent) => {
+    if (requestEvent.request.header.get("x-trace-id") === "") {
+      return requestEvent.json(400, { error: "Missing x-trace-id header." });
+    }
+    return requestEvent.next();
+  };
+
+  serveEvent.router
+    .get("/hello", (requestEvent) => {
+      return requestEvent.json(200, { message: "Hello!" });
+    })
+    .bindFunc(requireTraceIdMiddleware);
+
+  return serveEvent.next();
+});
 ```
 
 #### Builtin middlewares
