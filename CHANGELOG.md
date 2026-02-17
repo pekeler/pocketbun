@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.36.3-pocketbun.5 (Unreleased)
+
+- TBD
+
 ## 0.36.3-pocketbun.4 - 2026-02-17
 
 - Fixed `pb_hooks` module loading to execute `.pb.ts` files from their real paths, so relative imports (for example `import "./foo.ts"`) and dependency imports resolve correctly.
