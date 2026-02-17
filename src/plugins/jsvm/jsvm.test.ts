@@ -148,6 +148,37 @@ onModelUpdate((e) => {
     await rm(rootDir, { recursive: true, force: true });
   });
 
+  it.serial("supports relative imports in .pb.ts hooks", async () => {
+    const { app, cleanup } = await newTestApp();
+    const rootDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-"));
+    const hooksDir = join(rootDir, "pb_hooks");
+
+    await mkdir(hooksDir, { recursive: true });
+    await writeFile(join(hooksDir, "foo.ts"), `export const foo = 3;\n`);
+    await writeFile(
+      join(hooksDir, "hooks.pb.ts"),
+      `import { foo } from "./foo.ts";
+routerAdd("GET", "/hello", (e) => e.json(200, { foo }));
+`,
+    );
+
+    try {
+      const err = await RegisterAsync(app, {
+        HooksDir: hooksDir,
+        TypesDir: rootDir,
+      });
+      expect(err).toBeNull();
+
+      const handler = buildServeHandler(app);
+      const response = await handler(new Request("http://127.0.0.1/hello"));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ foo: 3 });
+    } finally {
+      await cleanup();
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
   it.serial("supports onRecordUpdateRequest hooks that return e.next()", async () => {
     const { app, cleanup } = await newTestApp();
     const rootDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-"));

@@ -2,78 +2,62 @@
 
 ## 0.36.3-pocketbun.4 (Unreleased)
 
-- TBD
+- Fixed `pb_hooks` module loading to execute `.pb.ts` files from their real paths, so relative imports (for example `import "./foo.ts"`) and dependency imports resolve correctly.
 
 ## 0.36.3-pocketbun.3 - 2026-02-15
 
-- Simplified `--dev` SQL logging to a Bun-native output format (`[X.XXms] <sql>`) based on the executed rewritten SQL, instead of matching PocketBase debug formatting details.
-- Removed non-dev SQL logging overhead by short-circuiting timing/wrapping paths when query logging is disabled, preserving runtime performance outside `--dev`.
-- Documented the dev SQL logging format difference in `docs/users/differences.md`.
-- Fixed backup API compatibility with PocketBase by returning lowercase JSON keys (`key`, `size`, `modified`) in `/api/backups` list responses, resolving Admin UI backup rows showing `undefined (NaN B)`.
-- Added backup API regression coverage to assert backup list item key names and prevent response-shape regressions.
-- Fixed OAuth2 redirect payload compatibility by ignoring JSON `user` in `/api/oauth2-redirect` POST bodies to match upstream `json:"-"` behavior for `AppleUser` (form-only field).
-- Added OAuth2 redirect regression coverage to ensure JSON `user` does not populate Apple name storage.
-- Fixed collection API response shape compatibility with PocketBase by flattening type-specific collection options (auth/view) at the top-level JSON object instead of nesting them under `options`, which resolves Admin UI "Edit collection" crashes (for example on `users` with `mfa.enabled` access).
-- Added collection API regression coverage to assert flattened auth options for collection view/scaffold responses and prevent `options` nesting regressions.
+- Simplified `--dev` SQL logging to a Bun-native format (`[X.XXms] <sql>`) and reduced SQL logging overhead when dev logging is disabled.
+- Fixed `/api/backups` list response keys to match PocketBase (`key`, `size`, `modified`), resolving Admin UI backup row rendering issues.
+- Fixed `/api/oauth2-redirect` JSON handling to ignore the `user` field, matching PocketBase behavior.
+- Fixed collection API response shape by flattening type-specific options at the top level, resolving Admin UI collection edit failures.
+- Documented intentional compatibility differences in `docs/users/differences.md`.
 
 ## 0.36.3-pocketbun.2 - 2026-02-14
 
-- Disabled persistent SQLite WAL sidecars (`SQLITE_FCNTL_PERSIST_WAL=0`) on PocketBun DB connections so `-wal`/`-shm` files are cleaned up on graceful shutdown.
-- Added a regression test to ensure `resetBootstrapState()` removes `data.db`/`auxiliary.db` WAL and SHM sidecar files.
+- Disabled persistent SQLite WAL sidecars so `-wal` and `-shm` files are cleaned up on graceful shutdown.
 
 ## 0.36.3-pocketbun.1 - 2026-02-14
 
-- Improved JSVM route-event compatibility for PocketBase custom routes by adding `RequestEvent` request/response surface support for `e.response.header().set(...)`, `e.request.pathValue(...)`, `e.request.setPathValue(...)`, `e.request.url.path`, `e.request.url.query().get(...)`, and `e.request.header.get(...)`.
-- Implemented the new JSVM request compatibility wrappers with lazy access and caching to keep route hot-path overhead low when `e.request` compatibility fields are not used.
-- Added regression tests for route-hook request/response compatibility (including path values, query/header getters, and empty-string fallback semantics).
-- Documented this compatibility area and remaining limitations in `docs/users/differences.md`, including supported alternatives for unimplemented Go form/write primitives.
+- Improved JSVM route compatibility for custom routes by adding support for common `e.request` and `e.response` helpers used by PocketBase hooks.
+- Documented supported JSVM compatibility behavior and current limitations in `docs/users/differences.md`.
 
 ## 0.36.3-pocketbun.0 - 2026-02-13
 
 - Upgraded PocketBun compatibility target to PocketBase `v0.36.3` and synced vendored Admin UI assets.
-- Added `Accept-Encoding: identity` to S3 signed requests (unless explicitly set) to avoid transparent decompression/zeroed content-length edge cases.
-- Synced JSVM generated TypeScript declarations to upstream `v0.36.3` while preserving PocketBun async helper typings (for example `$http.sendAsync(...)` and `$os.readFileAsync(...)`).
+- Added `Accept-Encoding: identity` to S3 signed requests by default to avoid transparent decompression edge cases.
+- Synced JSVM generated TypeScript declarations to upstream `v0.36.3` while preserving PocketBun async helper typings.
 
 ## 0.36.2-pocketbun.6 - 2026-02-12
 
-- Implemented functional SMTP and sendmail delivery paths so mailer sends now execute real transport flows (including SMTP AUTH and sendmail command execution) instead of placeholder behavior.
-- Improved PocketBase parity for record field resolution, template rendering, and random-by-regex generation by aligning additional edge cases and upstream-compatible parsing behavior.
+- Implemented functional SMTP and sendmail delivery paths so mail sending uses real transport flows.
+- Improved PocketBase parity for record field resolution, template rendering, and random-by-regex behavior.
 
 ## 0.36.2-pocketbun.5 - 2026-02-12
 
-- Fixed OTP/MFA cron cleanup hooks to skip teardown-time execution when the app is not bootstrapped and to handle async cleanup rejections without leaking unhandled errors.
-- Added a regression test to ensure OTP/MFA cleanup cron jobs don’t emit unhandled promise rejections after bootstrap reset.
-- Aligned `RestartAsync` behavior with PocketBase terminate-and-reexec flow: it now triggers terminate hooks with `IsRestart=true`, attempts process re-exec with the current argv/env, and re-bootstraps only when re-exec fails.
-- Aligned sync `Restart` behavior with PocketBase terminate-and-reexec flow by triggering `OnTerminate` with `IsRestart=true` before attempting process re-exec.
-- Added restart regression coverage for re-exec argument wiring and failed re-exec fallback bootstrap behavior.
-- Changed PocketBun CLI default directory resolution to use the current working directory (`./pb_data`, sibling `./pb_hooks`/`./pb_migrations`, and `./pb_public`) so package-managed entrypoints don’t write under `node_modules`; removed `--dir ./pb_data` template/example script workarounds and added regression coverage for npm-style CLI paths.
-- Expanded GitHub Actions CI coverage to run format/lint/typecheck/tests on a Linux/macOS/Windows matrix and split Playwright E2E into a dedicated Ubuntu job.
-- Completed OAuth2 provider compatibility parity across all implemented providers by porting provider-specific `FetchAuthUser` mappings and raw-user fetch flows (including verified-email gating, active-account checks, id_token validation, GraphQL/userinfo/header-specific requests, and fallback email resolution), and added regression coverage for each provider (Google, GitHub, GitLab, OIDC, Apple, Microsoft, Discord, Facebook, Bitbucket, Box, Linear, Lark, Gitea, Kakao, Instagram Login, Gitee, Notion, mailcow, monday.com, LiveChat, Patreon, Yandex, X/Twitter, WakaTime, VK, Trakt, Planning Center, Twitch, Spotify, and Strava).
+- Fixed OTP/MFA cleanup hooks to avoid teardown-time errors and async rejection leaks.
+- Aligned `Restart` and `RestartAsync` with PocketBase terminate-and-reexec behavior.
+- Changed default CLI directories to current working directory paths (`./pb_data`, `./pb_hooks`, `./pb_migrations`, `./pb_public`) to avoid writes under `node_modules`.
+- Completed OAuth2 provider parity across all implemented providers.
 
 ## 0.36.2-pocketbun.4 - 2026-02-10
 
-- Fixed CLI `--version` output to resolve PocketBun version from package metadata in installed environments instead of showing `(untracked)`.
-- Added a regression test to ensure PocketBun version resolution stays stable.
+- Fixed CLI `--version` output to resolve the package version correctly in installed environments.
 
 ## 0.36.2-pocketbun.3 - 2026-02-10
 
-- Fixed JSVM migration/runtime compatibility so JS migrations can use collection helper constructors (`newCollection`, `newBaseCollection`, `newViewCollection`, `newAuthCollection`) and mapped method access consistently.
-- Aligned migration execution transaction flow with PocketBase-style tx-app handling in the migrations runner.
-- Added/updated JSVM regression tests covering migration helper constructor loading and lower-camel mapped collection helper access.
-- Fixed multipart record create parsing to use clone-based form-data parsing in the record CRUD path, avoiding Bun `undefined is not a function` failures on project/file creates.
-- Added a regression test for multipart create fallback behavior when multipart parsing fails on the primary request object.
-- Fixed realtime SSE stability on Bun by adding periodic SSE keepalive comments and setting Bun server `idleTimeout` to the supported max (`255s`) so idle realtime streams are not closed prematurely.
-- Clarified advanced example realtime instructions to use authenticated subscriptions (`Authorization` header), wildcard topic subscription (`projects/*`), and expected `204 No Content` on subscribe requests.
+- Fixed JSVM migration/runtime compatibility so JS migrations can use collection helper constructors consistently.
+- Fixed multipart record create parsing fallback behavior on Bun for file-upload flows.
+- Improved realtime SSE stability with keepalive comments and a Bun-compatible max idle timeout (`255s`).
+- Clarified advanced realtime example usage for authenticated subscriptions and expected subscribe responses.
 
 ## 0.36.2-pocketbun.2 - 2026-02-09
 
-- Fixed CLI command resolution for runnable leaf commands so positional args are handled correctly (for example, `superuser upsert <email> <password>`).
-- Added a regression test for positional-argument handling in the CLI compatibility shim.
-- Updated the `create-pocketbun` simple template to avoid embedding default superuser credentials in `package.json` and to use `bun run pocketbun superuser upsert ...` directly.
+- Fixed CLI runnable leaf command resolution so positional arguments are handled correctly.
+- Updated the `create-pocketbun` template to avoid default superuser credentials in `package.json`.
 
 ## 0.36.2-pocketbun.1 - 2026-02-09
 
-- Added npm package metadata (`license`, `repository`, `bugs`, `homepage`) to improve npm listing details.
+- Added npm package metadata (`license`, `repository`, `bugs`, `homepage`) to improve package listing details.
 
 ## 0.36.2-pocketbun.0 - 2026-02-09
 

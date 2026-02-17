@@ -163,7 +163,8 @@ Add tests whenever:
 - Do not reformat unrelated files.
 - If you copy upstream code/assets, preserve required license notices and document what was copied.
 - If PocketBun intentionally deviates from PocketBase behavior, document it explicitly (README / docs).
-- Keep `/CHANGELOG.md` up to date: every important user-facing or developer-relevant change must be recorded under an appropriate version (or `Unreleased`) before release.
+- Keep `/CHANGELOG.md` up to date: every important user-facing change must be recorded under an appropriate version (or `Unreleased`) before release.
+- Keep changelog entries concise and outcome-focused; skip internal-only details (tests, refactors, CI/tooling churn) unless they directly affect users.
 
 ## Versioning
 PocketBun versions must be valid SemVer for npm/Bun tooling, and must clearly encode which PocketBase release we target.

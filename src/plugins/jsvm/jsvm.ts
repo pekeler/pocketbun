@@ -6,8 +6,7 @@ import type { Dirent } from "node:fs";
 import { readdirSync, readFileSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { tmpdir } from "node:os";
-import { dirname, extname, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { App } from "../../core/app.ts";
 import { AppMigrations } from "../../core/migrations_runner.ts";
@@ -158,7 +157,7 @@ function registerMigrations(app: App, config: Config): Error | null {
   const absHooksDir = resolve(config.HooksDir ?? "");
   const templateRegistry = NewRegistry();
 
-  for (const [file, content] of files.entries()) {
+  for (const [file, filePath] of files.entries()) {
     const globals = createGlobals(app, absHooksDir, config);
     appBinds(globals, app);
     baseBinds(globals);
@@ -185,7 +184,7 @@ function registerMigrations(app: App, config: Config): Error | null {
     }
 
     try {
-      executeModule(file, content, globals);
+      executeModule(filePath, globals);
     } catch (err) {
       return new Error(`failed to run migration ${file}: ${String(err)}`);
     }
@@ -203,7 +202,7 @@ async function registerMigrationsAsync(app: App, config: Config): Promise<Error 
   const absHooksDir = resolve(config.HooksDir ?? "");
   const templateRegistry = NewRegistry();
 
-  for (const [file, content] of files.entries()) {
+  for (const [file, filePath] of files.entries()) {
     const globals = createGlobals(app, absHooksDir, config);
     appBinds(globals, app);
     baseBinds(globals);
@@ -230,7 +229,7 @@ async function registerMigrationsAsync(app: App, config: Config): Promise<Error 
     }
 
     try {
-      await executeModuleAsync(file, content, globals);
+      await executeModuleAsync(filePath, globals);
     } catch (err) {
       return new Error(`failed to run migration ${file}: ${String(err)}`);
     }
@@ -269,9 +268,9 @@ function registerHooks(app: App, config: Config): Error | null {
     config.OnInit(globals);
   }
 
-  for (const [file, content] of files.entries()) {
+  for (const [file, filePath] of files.entries()) {
     try {
-      executeModule(file, content, globals);
+      executeModule(filePath, globals);
     } catch (err) {
       return new Error(`failed to execute ${file}: ${String(err)}`);
     }
@@ -310,9 +309,9 @@ async function registerHooksAsync(app: App, config: Config): Promise<Error | nul
     config.OnInit(globals);
   }
 
-  for (const [file, content] of files.entries()) {
+  for (const [file, filePath] of files.entries()) {
     try {
-      await executeModuleAsync(file, content, globals);
+      await executeModuleAsync(filePath, globals);
     } catch (err) {
       return new Error(`failed to execute ${file}: ${String(err)}`);
     }
@@ -327,58 +326,24 @@ function createGlobals(app: App, hooksDir: string, _config: Config): Record<stri
   return globals;
 }
 
-function executeModule(fileName: string, content: string, globals: Record<string, unknown>): void {
-  const ext = extname(fileName).toLowerCase();
-  const tmpPath = writeTempModule(fileName, content);
-
-  const require = createRequire(pathToFileURL(tmpPath));
+function executeModule(filePath: string, globals: Record<string, unknown>): void {
+  const resolvedPath = resolve(filePath);
+  const require = createRequire(pathToFileURL(resolvedPath));
   globals.require = require;
-  globals.__filename = tmpPath;
-  globals.__dirname = dirname(tmpPath);
-
-  if (ext === ".cjs" || ext === ".js" || ext === ".ts") {
-    delete (require as unknown as { cache?: Record<string, unknown> }).cache?.[tmpPath];
-    require(tmpPath);
-    return;
-  }
-
-  delete (require as unknown as { cache?: Record<string, unknown> }).cache?.[tmpPath];
-  require(tmpPath);
+  globals.__filename = resolvedPath;
+  globals.__dirname = dirname(resolvedPath);
+  delete (require as unknown as { cache?: Record<string, unknown> }).cache?.[resolvedPath];
+  require(resolvedPath);
 }
 
-async function executeModuleAsync(fileName: string, content: string, globals: Record<string, unknown>): Promise<void> {
-  const ext = extname(fileName).toLowerCase();
-  const tmpPath = await writeTempModuleAsync(fileName, content);
-
-  const require = createRequire(pathToFileURL(tmpPath));
+async function executeModuleAsync(filePath: string, globals: Record<string, unknown>): Promise<void> {
+  const resolvedPath = resolve(filePath);
+  const require = createRequire(pathToFileURL(resolvedPath));
   globals.require = require;
-  globals.__filename = tmpPath;
-  globals.__dirname = dirname(tmpPath);
-
-  if (ext === ".cjs" || ext === ".js" || ext === ".ts") {
-    delete (require as unknown as { cache?: Record<string, unknown> }).cache?.[tmpPath];
-    require(tmpPath);
-    return;
-  }
-
-  delete (require as unknown as { cache?: Record<string, unknown> }).cache?.[tmpPath];
-  require(tmpPath);
-}
-
-function writeTempModule(fileName: string, content: string): string {
-  const tmpDir = join(tmpdir(), "pb_hooks_tmp");
-  mkdirSync(tmpDir, { recursive: true });
-  const tmpPath = join(tmpDir, fileName);
-  writeFileSync(tmpPath, content);
-  return tmpPath;
-}
-
-async function writeTempModuleAsync(fileName: string, content: string): Promise<string> {
-  const tmpDir = join(tmpdir(), "pb_hooks_tmp");
-  await mkdir(tmpDir, { recursive: true });
-  const tmpPath = join(tmpDir, fileName);
-  await writeFile(tmpPath, content);
-  return tmpPath;
+  globals.__filename = resolvedPath;
+  globals.__dirname = dirname(resolvedPath);
+  delete (require as unknown as { cache?: Record<string, unknown> }).cache?.[resolvedPath];
+  require(resolvedPath);
 }
 
 function filesContent(dirPath: string, pattern: string): Map<string, string> | null {
@@ -401,8 +366,7 @@ function filesContent(dirPath: string, pattern: string): Map<string, string> | n
     if (regex && !regex.test(name)) {
       continue;
     }
-    const raw = readFileSync(full, "utf8");
-    result.set(name, raw);
+    result.set(name, full);
   }
 
   return result;
@@ -421,14 +385,10 @@ async function filesContentAsync(dirPath: string, pattern: string): Promise<Map<
   const fileNames = sorted
     .filter((entry) => !entry.isDirectory() && (!regex || regex.test(entry.name)))
     .map((entry) => entry.name);
-  const contents = await Promise.all(fileNames.map(async (name) => await readFile(join(dirPath, name), "utf8")));
-
   const result = new Map<string, string>();
-  for (let i = 0; i < fileNames.length; i += 1) {
-    const fileName = fileNames[i];
-    const content = contents[i];
-    if (fileName && content !== undefined) {
-      result.set(fileName, content);
+  for (const fileName of fileNames) {
+    if (fileName) {
+      result.set(fileName, join(dirPath, fileName));
     }
   }
 
