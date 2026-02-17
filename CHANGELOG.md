@@ -2,7 +2,8 @@
 
 ## 0.36.3-pocketbun.5 (Unreleased)
 
-- TBD
+- Added JSVM-compatible lowercase hook APIs across `BaseApp`, `Hook`, and `TaggedHook` (for example `on*`, `bindFunc`, `unbind`, `length`, `trigger`) while keeping Go-style names as aliases.
+- Added `onRecordRequestOTPRequest` / `OnRecordRequestOTPRequest` aliases to match JSVM OTP hook naming.
 
 ## 0.36.3-pocketbun.4 - 2026-02-17
 

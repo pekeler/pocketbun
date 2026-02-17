@@ -133,6 +133,30 @@ export class Hook<T extends Resolver> {
     event.setNextFunc(next);
     return event.Next();
   }
+
+  bind(handler: Handler<T>): string {
+    return this.Bind(handler);
+  }
+
+  bindFunc(fn: HandlerFunc<T>): string {
+    return this.BindFunc(fn);
+  }
+
+  unbind(...idsToRemove: string[]): void {
+    this.Unbind(...idsToRemove);
+  }
+
+  unbindAll(): void {
+    this.UnbindAll();
+  }
+
+  length(): number {
+    return this.Length();
+  }
+
+  trigger(event: T, ...oneOffHandlerFuncs: HandlerFunc<T>[]): unknown {
+    return this.Trigger(event, ...oneOffHandlerFuncs);
+  }
 }
 
 function canRunTaggedHandler<T extends Resolver>(handler: InternalHandler<T>, event: T, cache: { tags?: string[] }): boolean {

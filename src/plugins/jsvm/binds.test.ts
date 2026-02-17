@@ -1328,7 +1328,7 @@ server.listen(0, "127.0.0.1", () => {
     const app = newUnbootstrappedTestApp();
     const scope: BindScope = {};
     hooksBinds(app, scope);
-    expect(countKeys(scope)).toBe(82);
+    expect(countKeys(scope)).toBe(83);
   });
 
   it("hooks binds", async () => {

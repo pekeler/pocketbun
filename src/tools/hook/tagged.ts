@@ -75,6 +75,34 @@ export class TaggedHook<T extends Tagger> {
   Length(): number {
     return this.#hook.Length();
   }
+
+  canTriggerOn(tagsToCheck: string[]): boolean {
+    return this.CanTriggerOn(tagsToCheck);
+  }
+
+  bind(handler: Handler<T>): string {
+    return this.Bind(handler);
+  }
+
+  bindFunc(fn: HandlerFunc<T>): string {
+    return this.BindFunc(fn);
+  }
+
+  trigger(event: T, ...oneOffHandlerFuncs: HandlerFunc<T>[]): unknown {
+    return this.Trigger(event, ...oneOffHandlerFuncs);
+  }
+
+  unbind(...idsToRemove: string[]): void {
+    this.Unbind(...idsToRemove);
+  }
+
+  unbindAll(): void {
+    this.UnbindAll();
+  }
+
+  length(): number {
+    return this.Length();
+  }
 }
 
 const untaggedHookCache = new WeakMap<Hook<Tagger>, TaggedHook<Tagger>>();

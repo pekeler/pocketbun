@@ -19,6 +19,7 @@ When implementing behavior, prioritize **matching PocketBase observable behavior
 - auth/token behavior
 - realtime protocol behavior (SSE)
 - error formatting
+- JS developer-facing APIs (method names/casing and usage patterns) as documented by PocketBase JSVM
 
 If you’re unsure about an edge case:
 1) check PocketBase docs
@@ -40,6 +41,9 @@ Goal: maximize long-term maintainability and upstream-syncability by keeping Poc
 - **1:1 file mapping (when reasonable):** Prefer one `.ts` file per corresponding `.go` file and mirror directory structure (Go packages → TS folders) to keep diffs and future syncing straightforward.
   - If strict 1:1 creates unnatural modules (circular imports, huge files, etc.), it’s OK to merge/split — but document it in a comment near the top of the file and list every upstream source file included.
 - **Naming:** Prefer upstream naming and concepts for internal identifiers (types/functions), even if not idiomatic JS/TS, **as long as it doesn’t reduce clarity or cause bugs**.
+  - For public JS/TS APIs, prioritize PocketBase JSVM naming/casing over Go exported naming.
+  - Go-style names may exist as compatibility aliases, but must not be the only public API form when a JSVM equivalent exists.
+  - Docs/examples should use JSVM-style names and casing.
   - Do not rename just for style.
 - **Only deviate when necessary:** Deviations are allowed when required by JS/Bun semantics (async I/O, concurrency model, time/number handling, resource cleanup, etc.).
   - When you deviate, leave a brief comment explaining *why*.
@@ -53,6 +57,7 @@ Goal: maximize long-term maintainability and upstream-syncability by keeping Poc
     - permissively licensed (MIT/Apache/BSD).
   - Avoid adding dependencies for trivial utilities—write small local helpers instead.
 - **Regression tests required:** For each ported subsystem or endpoint, add/adjust tests so behavior is pinned. If you discover an upstream edge case, add a regression test immediately.
+  - For public API naming/alias compatibility (especially JSVM-facing names), add regression tests that lock expected method names and behavior.
 
 ## ExecPlans
 When writing complex features or significant refactors, use an ExecPlan (as described in `.agents/PLANS.md`) from design to implementation.
@@ -165,6 +170,8 @@ Add tests whenever:
 - If PocketBun intentionally deviates from PocketBase behavior, document it explicitly (README / docs).
 - Keep `/CHANGELOG.md` up to date: every important user-facing change must be recorded under an appropriate version (or `Unreleased`) before release.
 - Keep changelog entries concise and outcome-focused; skip internal-only details (tests, refactors, CI/tooling churn) unless they directly affect users.
+- Commit gate: do not create a commit with user-facing or developer-relevant changes unless `/CHANGELOG.md` has a concise entry under the target version (or `Unreleased`) for those changes.
+- Do not leave `TBD` in the active changelog section when committing user-facing or developer-relevant changes.
 
 ## Versioning
 PocketBun versions must be valid SemVer for npm/Bun tooling, and must clearly encode which PocketBase release we target.

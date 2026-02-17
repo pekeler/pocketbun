@@ -769,6 +769,10 @@ export class BaseApp implements App {
     return NewTaggedHook(this.#onRecordCreateOTPRequest, ...tags);
   }
 
+  OnRecordRequestOTPRequest(tags: string[] = []): ReturnType<typeof NewTaggedHook<RecordCreateOTPRequestEvent>> {
+    return this.OnRecordCreateOTPRequest(tags);
+  }
+
   OnRecordRequestPasswordResetRequest(
     tags: string[] = [],
   ): ReturnType<typeof NewTaggedHook<RecordRequestPasswordResetRequestEvent>> {
@@ -899,6 +903,342 @@ export class BaseApp implements App {
 
   OnCollectionAfterDeleteError(tags: string[] = []): ReturnType<typeof NewTaggedHook<CollectionErrorEvent>> {
     return NewTaggedHook(this.#onCollectionAfterDeleteError, ...tags);
+  }
+
+  onBootstrap() {
+    return this.OnBootstrap();
+  }
+
+  onServe() {
+    return this.OnServe();
+  }
+
+  onTerminate() {
+    return this.OnTerminate();
+  }
+
+  onCollectionsListRequest() {
+    return this.OnCollectionsListRequest();
+  }
+
+  onCollectionViewRequest() {
+    return this.OnCollectionViewRequest();
+  }
+
+  onCollectionCreateRequest() {
+    return this.OnCollectionCreateRequest();
+  }
+
+  onCollectionUpdateRequest() {
+    return this.OnCollectionUpdateRequest();
+  }
+
+  onCollectionDeleteRequest() {
+    return this.OnCollectionDeleteRequest();
+  }
+
+  onCollectionsImportRequest() {
+    return this.OnCollectionsImportRequest();
+  }
+
+  onBatchRequest() {
+    return this.OnBatchRequest();
+  }
+
+  onRealtimeConnectRequest() {
+    return this.OnRealtimeConnectRequest();
+  }
+
+  onRealtimeMessageSend() {
+    return this.OnRealtimeMessageSend();
+  }
+
+  onRealtimeSubscribeRequest() {
+    return this.OnRealtimeSubscribeRequest();
+  }
+
+  onSettingsListRequest() {
+    return this.OnSettingsListRequest();
+  }
+
+  onSettingsUpdateRequest() {
+    return this.OnSettingsUpdateRequest();
+  }
+
+  onModelCreate(...tags: string[]) {
+    return this.OnModelCreate(tags);
+  }
+
+  onModelCreateExecute(...tags: string[]) {
+    return this.OnModelCreateExecute(tags);
+  }
+
+  onModelAfterCreateSuccess(...tags: string[]) {
+    return this.OnModelAfterCreateSuccess(tags);
+  }
+
+  onModelAfterCreateError(...tags: string[]) {
+    return this.OnModelAfterCreateError(tags);
+  }
+
+  onModelUpdate(...tags: string[]) {
+    return this.OnModelUpdate(tags);
+  }
+
+  onModelUpdateExecute(...tags: string[]) {
+    return this.OnModelUpdateExecute(tags);
+  }
+
+  onModelAfterUpdateSuccess(...tags: string[]) {
+    return this.OnModelAfterUpdateSuccess(tags);
+  }
+
+  onModelAfterUpdateError(...tags: string[]) {
+    return this.OnModelAfterUpdateError(tags);
+  }
+
+  onModelValidate(...tags: string[]) {
+    return this.OnModelValidate(tags);
+  }
+
+  onModelDelete(...tags: string[]) {
+    return this.OnModelDelete(tags);
+  }
+
+  onModelDeleteExecute(...tags: string[]) {
+    return this.OnModelDeleteExecute(tags);
+  }
+
+  onModelAfterDeleteSuccess(...tags: string[]) {
+    return this.OnModelAfterDeleteSuccess(tags);
+  }
+
+  onModelAfterDeleteError(...tags: string[]) {
+    return this.OnModelAfterDeleteError(tags);
+  }
+
+  onRecordValidate(...tags: string[]) {
+    return this.OnRecordValidate(tags);
+  }
+
+  onRecordCreate(...tags: string[]) {
+    return this.OnRecordCreate(tags);
+  }
+
+  onRecordCreateExecute(...tags: string[]) {
+    return this.OnRecordCreateExecute(tags);
+  }
+
+  onRecordAfterCreateSuccess(...tags: string[]) {
+    return this.OnRecordAfterCreateSuccess(tags);
+  }
+
+  onRecordAfterCreateError(...tags: string[]) {
+    return this.OnRecordAfterCreateError(tags);
+  }
+
+  onRecordUpdate(...tags: string[]) {
+    return this.OnRecordUpdate(tags);
+  }
+
+  onRecordUpdateExecute(...tags: string[]) {
+    return this.OnRecordUpdateExecute(tags);
+  }
+
+  onRecordAfterUpdateSuccess(...tags: string[]) {
+    return this.OnRecordAfterUpdateSuccess(tags);
+  }
+
+  onRecordAfterUpdateError(...tags: string[]) {
+    return this.OnRecordAfterUpdateError(tags);
+  }
+
+  onRecordDelete(...tags: string[]) {
+    return this.OnRecordDelete(tags);
+  }
+
+  onRecordDeleteExecute(...tags: string[]) {
+    return this.OnRecordDeleteExecute(tags);
+  }
+
+  onRecordAfterDeleteSuccess(...tags: string[]) {
+    return this.OnRecordAfterDeleteSuccess(tags);
+  }
+
+  onRecordAfterDeleteError(...tags: string[]) {
+    return this.OnRecordAfterDeleteError(tags);
+  }
+
+  onRecordEnrich(...tags: string[]) {
+    return this.OnRecordEnrich(tags);
+  }
+
+  onRecordAuthWithPasswordRequest(...tags: string[]) {
+    return this.OnRecordAuthWithPasswordRequest(tags);
+  }
+
+  onRecordAuthWithOAuth2Request(...tags: string[]) {
+    return this.OnRecordAuthWithOAuth2Request(tags);
+  }
+
+  onRecordAuthWithOTPRequest(...tags: string[]) {
+    return this.OnRecordAuthWithOTPRequest(tags);
+  }
+
+  onRecordsListRequest(...tags: string[]) {
+    return this.OnRecordsListRequest(tags);
+  }
+
+  onRecordViewRequest(...tags: string[]) {
+    return this.OnRecordViewRequest(tags);
+  }
+
+  onRecordCreateRequest(...tags: string[]) {
+    return this.OnRecordCreateRequest(tags);
+  }
+
+  onRecordUpdateRequest(...tags: string[]) {
+    return this.OnRecordUpdateRequest(tags);
+  }
+
+  onRecordDeleteRequest(...tags: string[]) {
+    return this.OnRecordDeleteRequest(tags);
+  }
+
+  onRecordAuthRequest(...tags: string[]) {
+    return this.OnRecordAuthRequest(tags);
+  }
+
+  onRecordAuthRefreshRequest(...tags: string[]) {
+    return this.OnRecordAuthRefreshRequest(tags);
+  }
+
+  onRecordCreateOTPRequest(...tags: string[]) {
+    return this.OnRecordCreateOTPRequest(tags);
+  }
+
+  onRecordRequestOTPRequest(...tags: string[]) {
+    return this.OnRecordRequestOTPRequest(tags);
+  }
+
+  onRecordRequestPasswordResetRequest(...tags: string[]) {
+    return this.OnRecordRequestPasswordResetRequest(tags);
+  }
+
+  onRecordConfirmPasswordResetRequest(...tags: string[]) {
+    return this.OnRecordConfirmPasswordResetRequest(tags);
+  }
+
+  onRecordRequestVerificationRequest(...tags: string[]) {
+    return this.OnRecordRequestVerificationRequest(tags);
+  }
+
+  onRecordConfirmVerificationRequest(...tags: string[]) {
+    return this.OnRecordConfirmVerificationRequest(tags);
+  }
+
+  onRecordRequestEmailChangeRequest(...tags: string[]) {
+    return this.OnRecordRequestEmailChangeRequest(tags);
+  }
+
+  onRecordConfirmEmailChangeRequest(...tags: string[]) {
+    return this.OnRecordConfirmEmailChangeRequest(tags);
+  }
+
+  onSettingsReload() {
+    return this.OnSettingsReload();
+  }
+
+  onBackupCreate() {
+    return this.OnBackupCreate();
+  }
+
+  onBackupRestore() {
+    return this.OnBackupRestore();
+  }
+
+  onFileDownloadRequest(...tags: string[]) {
+    return this.OnFileDownloadRequest(tags);
+  }
+
+  onFileTokenRequest(...tags: string[]) {
+    return this.OnFileTokenRequest(tags);
+  }
+
+  onMailerSend() {
+    return this.OnMailerSend();
+  }
+
+  onMailerRecordAuthAlertSend(...tags: string[]) {
+    return this.OnMailerRecordAuthAlertSend(tags);
+  }
+
+  onMailerRecordPasswordResetSend(...tags: string[]) {
+    return this.OnMailerRecordPasswordResetSend(tags);
+  }
+
+  onMailerRecordVerificationSend(...tags: string[]) {
+    return this.OnMailerRecordVerificationSend(tags);
+  }
+
+  onMailerRecordEmailChangeSend(...tags: string[]) {
+    return this.OnMailerRecordEmailChangeSend(tags);
+  }
+
+  onMailerRecordOTPSend(...tags: string[]) {
+    return this.OnMailerRecordOTPSend(tags);
+  }
+
+  onCollectionValidate(...tags: string[]) {
+    return this.OnCollectionValidate(tags);
+  }
+
+  onCollectionCreate(...tags: string[]) {
+    return this.OnCollectionCreate(tags);
+  }
+
+  onCollectionCreateExecute(...tags: string[]) {
+    return this.OnCollectionCreateExecute(tags);
+  }
+
+  onCollectionAfterCreateSuccess(...tags: string[]) {
+    return this.OnCollectionAfterCreateSuccess(tags);
+  }
+
+  onCollectionAfterCreateError(...tags: string[]) {
+    return this.OnCollectionAfterCreateError(tags);
+  }
+
+  onCollectionUpdate(...tags: string[]) {
+    return this.OnCollectionUpdate(tags);
+  }
+
+  onCollectionUpdateExecute(...tags: string[]) {
+    return this.OnCollectionUpdateExecute(tags);
+  }
+
+  onCollectionAfterUpdateSuccess(...tags: string[]) {
+    return this.OnCollectionAfterUpdateSuccess(tags);
+  }
+
+  onCollectionAfterUpdateError(...tags: string[]) {
+    return this.OnCollectionAfterUpdateError(tags);
+  }
+
+  onCollectionDelete(...tags: string[]) {
+    return this.OnCollectionDelete(tags);
+  }
+
+  onCollectionDeleteExecute(...tags: string[]) {
+    return this.OnCollectionDeleteExecute(tags);
+  }
+
+  onCollectionAfterDeleteSuccess(...tags: string[]) {
+    return this.OnCollectionAfterDeleteSuccess(tags);
+  }
+
+  onCollectionAfterDeleteError(...tags: string[]) {
+    return this.OnCollectionAfterDeleteError(tags);
   }
 
   isBootstrapped(): boolean {
@@ -3043,7 +3383,7 @@ export class BaseApp implements App {
     return null;
   }
 
-  private async onRecordDeleteExecute(event: RecordEvent): Promise<Error | null> {
+  private async handleRecordDeleteExecute(event: RecordEvent): Promise<Error | null> {
     const record = event.Record;
     if (!record) {
       return new Error("missing record in record delete event");
@@ -4337,7 +4677,7 @@ export class BaseApp implements App {
     onRecordDeleteExecuteHook.Bind({
       Id: systemHookIdRecord,
       Priority: 99,
-      Func: (event) => this.onRecordDeleteExecute(event),
+      Func: (event) => this.handleRecordDeleteExecute(event),
     });
 
     this.OnModelAfterDeleteSuccess([RecordModelTypeHookTag]).Bind({

@@ -83,4 +83,59 @@ describe("tagged hook", () => {
       }
     }
   });
+
+  it("lowercase aliases", async () => {
+    let calls = "";
+    const base = new Hook<MockTagsEvent>();
+    const tagged = NewTaggedHook(base, "a");
+
+    if (!tagged.canTriggerOn(["a"])) {
+      throw new Error("Expected canTriggerOn to match tag");
+    }
+
+    const firstId = tagged.bind({
+      Func: async (event) => {
+        calls += "1";
+        return event.Next();
+      },
+    });
+    tagged.bindFunc(async (event) => {
+      calls += "2";
+      return event.Next();
+    });
+
+    if (tagged.length() !== 2) {
+      throw new Error(`Expected 2 handlers, got ${tagged.length()}`);
+    }
+
+    const event = Object.assign(new Event(), {
+      tags: ["a"],
+      Tags() {
+        return this.tags ?? [];
+      },
+    }) as MockTagsEvent;
+
+    const result = await tagged.trigger(event, async (_event) => {
+      calls += "3";
+      return null;
+    });
+
+    if (result !== null) {
+      throw new Error("Expected null result");
+    }
+
+    if (calls !== "123") {
+      throw new Error(`Expected calls sequence 123, got ${calls}`);
+    }
+
+    tagged.unbind(firstId);
+    if (tagged.length() !== 1) {
+      throw new Error(`Expected 1 handler, got ${tagged.length()}`);
+    }
+
+    tagged.unbindAll();
+    if (tagged.length() !== 0) {
+      throw new Error(`Expected 0 handlers, got ${tagged.length()}`);
+    }
+  });
 });

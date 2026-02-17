@@ -48,9 +48,9 @@ Use this as a quick migration recipe for an existing PocketBase project.
    - If you see `OnBootstrap hook didn't fail but the app is still not bootstrapped`, this is usually the cause.
 5. Keep API clients and route assumptions.
    - Existing client SDK usage should continue to work with the same API base paths (`/api/`, `/_/`).
-6. If you embed PocketBun programmatically, prefer PocketBun naming.
-   - Prefer `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*`.
-   - `RegisterJSVM*` / `MustRegisterJSVM*` remain compatibility aliases.
+6. If you embed PocketBun programmatically, prefer JSVM-compatible naming.
+   - Prefer `RegisterJSVM*` / `MustRegisterJSVM*` for naming parity with PocketBase JSVM docs.
+   - `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain aliases.
 7. Run a migration smoke test before deploying.
    - Start: `pocketbun serve --dev`
    - Verify health: `GET /api/health`
@@ -87,10 +87,10 @@ This prevents accidental writes into `node_modules`-adjacent paths when used as 
 ## Hooks Plugin Naming
 
 PocketBase JS extension naming uses `jsvm` package naming.
-PocketBun keeps compatibility aliases and adds clearer names:
+PocketBun keeps those names as primary and also provides aliases:
 
-- compatibility: `RegisterJSVM*`, `MustRegisterJSVM*`
-- preferred in PocketBun docs/code: `RegisterHooksPlugin*`, `MustRegisterHooksPlugin*`
+- preferred for parity: `RegisterJSVM*`, `MustRegisterJSVM*`
+- aliases: `RegisterHooksPlugin*`, `MustRegisterHooksPlugin*`
 
 Both names map to the same plugin registration behavior.
 
@@ -103,7 +103,7 @@ PocketBun keeps sync-compatible APIs but adds async alternatives for I/O-heavy p
 | Archive helpers | `Create`, `Extract` | `CreateAsync`, `ExtractAsync` |
 | App bootstrap/serve | `app.bootstrap()`, `serve(...)` | `app.bootstrapAsync()`, `serveAsync(...)` |
 | Migration helper | `migrate(...)` | `migrateAsync(...)` |
-| Hooks plugin register | `RegisterHooksPlugin(...)` | `RegisterHooksPluginAsync(...)` |
+| Hooks plugin register | `RegisterJSVM(...)` | `RegisterJSVMAsync(...)` |
 | Filesystem factories | `NewFilesystem()` | `NewFilesystemAsync()` |
 | JSVM helpers | `$http.send(...)`, `$os.readFile(...)` | `$http.sendAsync(...)`, `$os.readFileAsync(...)` |
 

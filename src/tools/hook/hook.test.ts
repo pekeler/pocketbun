@@ -207,4 +207,56 @@ describe("hook", () => {
       }
     }
   });
+
+  it("lowercase aliases", async () => {
+    const hook = new Hook<Event>();
+    let calls = "";
+
+    const id0 = hook.bind({
+      Func: async (event) => {
+        calls += "0";
+        return event.Next();
+      },
+    });
+    hook.bindFunc(async (event) => {
+      calls += "1";
+      return event.Next();
+    });
+
+    if (hook.length() !== 2) {
+      throw new Error(`Expected 2 handlers, got ${hook.length()}`);
+    }
+
+    hook.unbind(id0);
+
+    if (hook.length() !== 1) {
+      throw new Error(`Expected 1 handler, got ${hook.length()}`);
+    }
+
+    const result = await hook.trigger(
+      new Event(),
+      async (event) => {
+        calls += "2";
+        return event.Next();
+      },
+      async (_event) => {
+        calls += "3";
+        return null;
+      },
+    );
+
+    if (result !== null) {
+      throw new Error("Expected null result");
+    }
+
+    if (calls !== "123") {
+      throw new Error(`Expected calls sequence 123, got ${calls}`);
+    }
+
+    hook.unbindAll();
+
+    if (hook.length() !== 0) {
+      throw new Error(`Expected 0 handlers, got ${hook.length()}`);
+    }
+  });
 });

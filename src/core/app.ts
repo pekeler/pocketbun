@@ -335,6 +335,7 @@ export interface App {
   OnRecordAuthRequest(tags?: string[]): TaggedHook<RecordAuthRequestEvent>;
   OnRecordAuthRefreshRequest(tags?: string[]): TaggedHook<RecordAuthRefreshRequestEvent>;
   OnRecordCreateOTPRequest(tags?: string[]): TaggedHook<RecordCreateOTPRequestEvent>;
+  OnRecordRequestOTPRequest(tags?: string[]): TaggedHook<RecordCreateOTPRequestEvent>;
   OnRecordRequestPasswordResetRequest(tags?: string[]): TaggedHook<RecordRequestPasswordResetRequestEvent>;
   OnRecordConfirmPasswordResetRequest(tags?: string[]): TaggedHook<RecordConfirmPasswordResetRequestEvent>;
   OnRecordRequestVerificationRequest(tags?: string[]): TaggedHook<RecordRequestVerificationRequestEvent>;
@@ -373,6 +374,96 @@ export interface App {
   OnCollectionDeleteExecute(tags?: string[]): TaggedHook<CollectionEvent>;
   OnCollectionAfterDeleteSuccess(tags?: string[]): TaggedHook<CollectionEvent>;
   OnCollectionAfterDeleteError(tags?: string[]): TaggedHook<CollectionErrorEvent>;
+
+  onBootstrap(): Hook<BootstrapEvent>;
+  onServe(): Hook<ServeEvent>;
+  onTerminate(): Hook<TerminateEvent>;
+  onCollectionsListRequest(): Hook<CollectionsListRequestEvent>;
+  onCollectionViewRequest(): Hook<CollectionRequestEvent>;
+  onCollectionCreateRequest(): Hook<CollectionRequestEvent>;
+  onCollectionUpdateRequest(): Hook<CollectionRequestEvent>;
+  onCollectionDeleteRequest(): Hook<CollectionRequestEvent>;
+  onCollectionsImportRequest(): Hook<CollectionsImportRequestEvent>;
+  onBatchRequest(): Hook<BatchRequestEvent>;
+  onSettingsListRequest(): Hook<SettingsListRequestEvent>;
+  onSettingsUpdateRequest(): Hook<SettingsUpdateRequestEvent>;
+
+  onModelCreate(...tags: string[]): TaggedHook<ModelEvent>;
+  onModelCreateExecute(...tags: string[]): TaggedHook<ModelEvent>;
+  onModelAfterCreateSuccess(...tags: string[]): TaggedHook<ModelEvent>;
+  onModelAfterCreateError(...tags: string[]): TaggedHook<ModelErrorEvent>;
+  onModelUpdate(...tags: string[]): TaggedHook<ModelEvent>;
+  onModelUpdateExecute(...tags: string[]): TaggedHook<ModelEvent>;
+  onModelAfterUpdateSuccess(...tags: string[]): TaggedHook<ModelEvent>;
+  onModelAfterUpdateError(...tags: string[]): TaggedHook<ModelErrorEvent>;
+  onModelValidate(...tags: string[]): TaggedHook<ModelEvent>;
+  onModelDelete(...tags: string[]): TaggedHook<ModelEvent>;
+  onModelDeleteExecute(...tags: string[]): TaggedHook<ModelEvent>;
+  onModelAfterDeleteSuccess(...tags: string[]): TaggedHook<ModelEvent>;
+  onModelAfterDeleteError(...tags: string[]): TaggedHook<ModelErrorEvent>;
+
+  onRecordValidate(...tags: string[]): TaggedHook<RecordEvent>;
+  onRecordCreate(...tags: string[]): TaggedHook<RecordEvent>;
+  onRecordCreateExecute(...tags: string[]): TaggedHook<RecordEvent>;
+  onRecordAfterCreateSuccess(...tags: string[]): TaggedHook<RecordEvent>;
+  onRecordAfterCreateError(...tags: string[]): TaggedHook<RecordErrorEvent>;
+  onRecordUpdate(...tags: string[]): TaggedHook<RecordEvent>;
+  onRecordUpdateExecute(...tags: string[]): TaggedHook<RecordEvent>;
+  onRecordAfterUpdateSuccess(...tags: string[]): TaggedHook<RecordEvent>;
+  onRecordAfterUpdateError(...tags: string[]): TaggedHook<RecordErrorEvent>;
+  onRecordDelete(...tags: string[]): TaggedHook<RecordEvent>;
+  onRecordDeleteExecute(...tags: string[]): TaggedHook<RecordEvent>;
+  onRecordAfterDeleteSuccess(...tags: string[]): TaggedHook<RecordEvent>;
+  onRecordAfterDeleteError(...tags: string[]): TaggedHook<RecordErrorEvent>;
+  onRecordEnrich(...tags: string[]): TaggedHook<RecordEnrichEvent>;
+  onRecordAuthWithPasswordRequest(...tags: string[]): TaggedHook<RecordAuthWithPasswordRequestEvent>;
+  onRecordAuthWithOAuth2Request(...tags: string[]): TaggedHook<RecordAuthWithOAuth2RequestEvent>;
+  onRecordAuthWithOTPRequest(...tags: string[]): TaggedHook<RecordAuthWithOTPRequestEvent>;
+  onRecordsListRequest(...tags: string[]): TaggedHook<RecordsListRequestEvent>;
+  onRecordViewRequest(...tags: string[]): TaggedHook<RecordRequestEvent>;
+  onRecordCreateRequest(...tags: string[]): TaggedHook<RecordRequestEvent>;
+  onRecordUpdateRequest(...tags: string[]): TaggedHook<RecordRequestEvent>;
+  onRecordDeleteRequest(...tags: string[]): TaggedHook<RecordRequestEvent>;
+  onRecordAuthRequest(...tags: string[]): TaggedHook<RecordAuthRequestEvent>;
+  onRecordAuthRefreshRequest(...tags: string[]): TaggedHook<RecordAuthRefreshRequestEvent>;
+  onRecordCreateOTPRequest(...tags: string[]): TaggedHook<RecordCreateOTPRequestEvent>;
+  onRecordRequestOTPRequest(...tags: string[]): TaggedHook<RecordCreateOTPRequestEvent>;
+  onRecordRequestPasswordResetRequest(...tags: string[]): TaggedHook<RecordRequestPasswordResetRequestEvent>;
+  onRecordConfirmPasswordResetRequest(...tags: string[]): TaggedHook<RecordConfirmPasswordResetRequestEvent>;
+  onRecordRequestVerificationRequest(...tags: string[]): TaggedHook<RecordRequestVerificationRequestEvent>;
+  onRecordConfirmVerificationRequest(...tags: string[]): TaggedHook<RecordConfirmVerificationRequestEvent>;
+  onRecordRequestEmailChangeRequest(...tags: string[]): TaggedHook<RecordRequestEmailChangeRequestEvent>;
+  onRecordConfirmEmailChangeRequest(...tags: string[]): TaggedHook<RecordConfirmEmailChangeRequestEvent>;
+  onSettingsReload(): Hook<SettingsReloadEvent>;
+  onBackupCreate(): Hook<BackupEvent>;
+  onBackupRestore(): Hook<BackupEvent>;
+  onFileDownloadRequest(...tags: string[]): TaggedHook<FileDownloadRequestEvent>;
+  onFileTokenRequest(...tags: string[]): TaggedHook<FileTokenRequestEvent>;
+
+  onMailerSend(): Hook<MailerEvent>;
+  onMailerRecordAuthAlertSend(...tags: string[]): TaggedHook<MailerRecordEvent>;
+  onMailerRecordPasswordResetSend(...tags: string[]): TaggedHook<MailerRecordEvent>;
+  onMailerRecordVerificationSend(...tags: string[]): TaggedHook<MailerRecordEvent>;
+  onMailerRecordEmailChangeSend(...tags: string[]): TaggedHook<MailerRecordEvent>;
+  onMailerRecordOTPSend(...tags: string[]): TaggedHook<MailerRecordEvent>;
+
+  onRealtimeConnectRequest(): Hook<RealtimeConnectRequestEvent>;
+  onRealtimeMessageSend(): Hook<RealtimeMessageEvent>;
+  onRealtimeSubscribeRequest(): Hook<RealtimeSubscribeRequestEvent>;
+
+  onCollectionValidate(...tags: string[]): TaggedHook<CollectionEvent>;
+  onCollectionCreate(...tags: string[]): TaggedHook<CollectionEvent>;
+  onCollectionCreateExecute(...tags: string[]): TaggedHook<CollectionEvent>;
+  onCollectionAfterCreateSuccess(...tags: string[]): TaggedHook<CollectionEvent>;
+  onCollectionAfterCreateError(...tags: string[]): TaggedHook<CollectionErrorEvent>;
+  onCollectionUpdate(...tags: string[]): TaggedHook<CollectionEvent>;
+  onCollectionUpdateExecute(...tags: string[]): TaggedHook<CollectionEvent>;
+  onCollectionAfterUpdateSuccess(...tags: string[]): TaggedHook<CollectionEvent>;
+  onCollectionAfterUpdateError(...tags: string[]): TaggedHook<CollectionErrorEvent>;
+  onCollectionDelete(...tags: string[]): TaggedHook<CollectionEvent>;
+  onCollectionDeleteExecute(...tags: string[]): TaggedHook<CollectionEvent>;
+  onCollectionAfterDeleteSuccess(...tags: string[]): TaggedHook<CollectionEvent>;
+  onCollectionAfterDeleteError(...tags: string[]): TaggedHook<CollectionErrorEvent>;
 
   // DeleteView drops the specified view name.
   //

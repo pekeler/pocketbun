@@ -112,4 +112,37 @@ describe("Route", () => {
     expect(route.excludedMiddlewares?.has("test1")).toBe(true);
     expect(route.excludedMiddlewares?.has("test3")).toBe(true);
   });
+
+  it("lowercase aliases", () => {
+    const route = new Route<Event>("GET", "/test", () => null);
+    let calls = "";
+
+    route.bindFunc(() => {
+      calls += "a";
+      return null;
+    });
+    route.bind({
+      Id: "test1",
+      Func: () => {
+        calls += "b";
+        return null;
+      },
+    });
+    route.bind({
+      Id: "test2",
+      Func: () => {
+        calls += "c";
+        return null;
+      },
+    });
+
+    route.unbind("test1");
+
+    expect(route.Middlewares.length).toBe(2);
+    for (const handler of route.Middlewares) {
+      handler.Func(null as unknown as Event);
+    }
+    expect(calls).toBe("ac");
+    expect(route.excludedMiddlewares?.has("test1")).toBe(true);
+  });
 });

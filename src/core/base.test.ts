@@ -70,6 +70,52 @@ describe("BaseApp", () => {
     await rm(dataDir, { recursive: true, force: true });
   });
 
+  it("BaseAppOnHookAliases", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
+    const app = new BaseApp({ dataDir });
+
+    try {
+      const methods = app as unknown as Record<string, (...args: unknown[]) => unknown>;
+      const onMethodNames = Object.getOwnPropertyNames(BaseApp.prototype).filter((name) => {
+        return name.startsWith("On") && typeof methods[name] === "function";
+      });
+
+      for (const onMethodName of onMethodNames) {
+        const aliasMethodName = `${onMethodName.slice(0, 1).toLowerCase()}${onMethodName.slice(1)}`;
+        const aliasMethod = methods[aliasMethodName];
+        if (typeof aliasMethod !== "function") {
+          throw new Error(`Missing lowercase alias ${aliasMethodName} for ${onMethodName}`);
+        }
+
+        const upperMethod = methods[onMethodName];
+        if (typeof upperMethod !== "function") {
+          throw new Error(`Missing hook method ${onMethodName}`);
+        }
+        const upperResult = upperMethod.call(app);
+        const aliasResult = aliasMethod.call(app);
+        expect(aliasResult).toBe(upperResult);
+      }
+
+      const onModelCreate = methods.onModelCreate;
+      if (typeof onModelCreate !== "function") {
+        throw new Error("Missing onModelCreate alias");
+      }
+      const modelHook = onModelCreate.call(app, "users", "admins") as { CanTriggerOn: (tags: string[]) => boolean };
+      expect(modelHook.CanTriggerOn(["users"])).toBe(true);
+      expect(modelHook.CanTriggerOn(["missing"])).toBe(false);
+
+      const onRecordRequestOTPRequest = methods.onRecordRequestOTPRequest;
+      if (typeof onRecordRequestOTPRequest !== "function") {
+        throw new Error("Missing onRecordRequestOTPRequest alias");
+      }
+      const otpHook = onRecordRequestOTPRequest.call(app, "users") as { CanTriggerOn: (tags: string[]) => boolean };
+      expect(otpHook.CanTriggerOn(["users"])).toBe(true);
+      expect(otpHook.CanTriggerOn(["missing"])).toBe(false);
+    } finally {
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  });
+
   it("BaseAppBootstrap", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
     await rm(dataDir, { recursive: true, force: true });

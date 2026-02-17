@@ -64,9 +64,9 @@ Go exported method and field names are converted to camelCase, for example:
 
 - Errors are thrown as regular JavaScript exceptions and not returned as explicit error values.
 
-In the PocketBun package API, use `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` as preferred names. `RegisterJSVM*` / `MustRegisterJSVM*` remain available as compatibility aliases.
+In the PocketBun package API, use `RegisterJSVM*` / `MustRegisterJSVM*` as the preferred names for PocketBase JSVM parity. `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain available as aliases.
 
-Many I/O-heavy APIs also expose Async variants (for example `serveAsync(...)`, `migrateAsync(...)`, and `RegisterHooksPluginAsync(...)`).
+Many I/O-heavy APIs also expose Async variants (for example `serveAsync(...)`, `migrateAsync(...)`, and `RegisterJSVMAsync(...)`).
 
 #### Global objects
 

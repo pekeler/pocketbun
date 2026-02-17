@@ -60,4 +60,16 @@ export class Route<T extends Resolver> {
 
     return this;
   }
+
+  bindFunc(...middlewareFuncs: Array<(e: T) => unknown>): this {
+    return this.BindFunc(...middlewareFuncs);
+  }
+
+  bind(...middlewares: Array<HookHandler<T>>): this {
+    return this.Bind(...middlewares);
+  }
+
+  unbind(...middlewareIds: string[]): this {
+    return this.Unbind(...middlewareIds);
+  }
 }
