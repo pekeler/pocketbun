@@ -576,27 +576,26 @@ routerAdd("GET", "/hello", (e) => {
 })
 ```
 
-#### Route middleware chaining via `onServe`
+#### Route middleware with reusable handlers
 
-If you prefer router-style chaining, you can attach route middlewares via `bindFunc(...)` in `onServe(...)`:
+To keep middleware reusable, define it once and pass it as an extra `routerAdd(...)` argument:
 
 ```ts
-onServe((serveEvent) => {
-  const requireTraceIdMiddleware = (requestEvent) => {
-    if (requestEvent.request.header.get("x-trace-id") === "") {
-      return requestEvent.json(400, { error: "Missing x-trace-id header." });
-    }
-    return requestEvent.next();
-  };
+const requireTraceIdMiddleware = (requestEvent) => {
+  if (requestEvent.request.header.get("x-trace-id") === "") {
+    return requestEvent.json(400, { error: "Missing x-trace-id header." });
+  }
+  return requestEvent.next();
+};
 
-  serveEvent.router
-    .get("/hello", (requestEvent) => {
-      return requestEvent.json(200, { message: "Hello!" });
-    })
-    .bindFunc(requireTraceIdMiddleware);
-
-  return serveEvent.next();
-});
+routerAdd(
+  "GET",
+  "/hello",
+  (requestEvent) => {
+    return requestEvent.json(200, { message: "Hello!" });
+  },
+  requireTraceIdMiddleware,
+);
 ```
 
 #### Builtin middlewares

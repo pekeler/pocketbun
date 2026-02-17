@@ -2,7 +2,7 @@
 
 ## 0.36.3-pocketbun.6 (Unreleased)
 
-- TBD
+- Fixed advanced `pb_hooks` examples/docs to use supported `routerAdd(..., middleware)` (instead of global `onServe(...)`), eliminating related TypeScript errors and runtime confusion.
 
 ## 0.36.3-pocketbun.5 - 2026-02-17
 

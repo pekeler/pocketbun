@@ -95,8 +95,9 @@ Create or update a project and watch the realtime event stream in terminal A.
 
 ## Custom route (hooks)
 
-The hooks file registers `GET /hello` from an `onServe(...)` hook and attaches
-route middleware via `bindFunc(...)`. The route response and middleware are
-imported from a neighboring `pb_hooks/hello_route_helpers.ts` module.
+The hooks file registers `GET /hello` via `routerAdd(...)` and attaches
+route middleware as an additional `routerAdd(...)` argument. The route response
+and middleware are imported from a neighboring `pb_hooks/hello_route_helpers.ts`
+module.
 
     curl http://127.0.0.1:8090/hello

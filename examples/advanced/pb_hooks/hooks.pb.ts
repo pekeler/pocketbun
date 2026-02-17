@@ -7,15 +7,14 @@ const slugify = (value: string): string =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-onServe((serveEvent) => {
-  serveEvent.router
-    .get("/hello", (requestEvent) => {
-      return requestEvent.json(200, buildHelloResponse());
-    })
-    .bindFunc(logHelloRequestMiddleware);
-
-  return serveEvent.next();
-});
+routerAdd(
+  "GET",
+  "/hello",
+  (requestEvent) => {
+    return requestEvent.json(200, buildHelloResponse());
+  },
+  logHelloRequestMiddleware,
+);
 
 onRecordCreate((e) => {
   const record = e.record;

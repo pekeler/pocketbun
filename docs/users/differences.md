@@ -98,10 +98,12 @@ Both names map to the same plugin registration behavior.
 
 ## Hooks API And Module Loading
 
-PocketBun supports JSVM-style lowercase hook/router naming and keeps Go-style names as aliases:
+PocketBun supports JSVM-style lowercase naming and keeps Go-style aliases where applicable:
 
-- preferred JSVM-style names: `onServe`, `bindFunc`, `bind`, `unbind`, `length`, `trigger`
-- alias names: `OnServe`, `BindFunc`, `Bind`, `Unbind`, `Length`, `Trigger`
+- preferred hook object names: `bindFunc`, `bind`, `unbind`, `length`, `trigger`
+- alias hook object names: `BindFunc`, `Bind`, `Unbind`, `Length`, `Trigger`
+- app method style: prefer `$app.onServe()`; `$app.OnServe()` is also accepted
+- `pb_hooks` global hook bindings intentionally mirror upstream JSVM (so there is no global `onServe(...)`)
 
 For `pb_hooks` module loading:
 
