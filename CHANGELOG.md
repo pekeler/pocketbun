@@ -35,7 +35,7 @@
 
 ## 0.36.3-pocketbun.0 - 2026-02-13
 
-- Upgraded PocketBun compatibility target to PocketBase `v0.36.3` and synced vendored Admin UI assets.
+- Upgraded PocketBun compatibility target to PocketBase `v0.36.3` and synced vendored Admin UI assets. Upstream notes: [PocketBase v0.36.3 changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0363).
 - Added `Accept-Encoding: identity` to S3 signed requests by default to avoid transparent decompression edge cases.
 - Synced JSVM generated TypeScript declarations to upstream `v0.36.3` while preserving PocketBun async helper typings.
 
@@ -73,4 +73,4 @@
 
 ## 0.36.2-pocketbun.0 - 2026-02-09
 
-- Initial public npm release of `pocketbun`.
+- Initial public npm release of `pocketbun` with compatibility target PocketBase `v0.36.2`. Upstream notes: [PocketBase v0.36.2 changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0362).
