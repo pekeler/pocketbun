@@ -12,6 +12,8 @@
 
 - Fixed `new Record(collection, data)` / `NewRecord(collection, data)` initialization to apply field setters for provided values (matching PocketBase `NewRecord + Load` behavior), so auth passwords and other setter-backed fields are normalized correctly.
 
+- Fixed JSVM `request.pathValue(name)` to decode percent-encoded route params while safely falling back to raw values on malformed escapes, and preserved `setPathValue` roundtrip behavior for values containing `%`.
+
 ## 0.36.3-pocketbun.5 - 2026-02-17
 
 - Added JSVM-compatible lowercase hook APIs across `BaseApp`, `Hook`, and `TaggedHook` (for example `on*`, `bindFunc`, `unbind`, `length`, `trigger`) while keeping Go-style names as aliases.
