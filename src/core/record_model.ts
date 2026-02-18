@@ -69,22 +69,19 @@ export class Record {
     this.#isNew = isNew;
 
     if (isNew) {
-      for (const field of collection.Fields) {
-        const name = field.GetName();
-        if (name === FieldNameId) {
-          continue;
-        }
-        const prepared = field.PrepareValue(this, null);
-        if (!Object.prototype.hasOwnProperty.call(this.#originalData, name)) {
-          this.#originalData[name] = prepared;
-        }
-        // Deviation: mirror defaults into #data to emulate Go's store.GetOk fallback behavior.
-        if (!Object.prototype.hasOwnProperty.call(this.#data, name)) {
-          this.#data[name] = prepared;
-        }
-      }
-    }
-  }
+     for (const field of collection.Fields) {
+             const name = field.GetName();
+             if (name === FieldNameId) {
+                     continue;
+             }
+             const rawValue = Object.prototype.hasOwnProperty.call(this.#data, name)
+                     ? this.#data[name]
+                     : null;
+             const prepared = field.PrepareValue(this, rawValue);
+             this.#originalData[name] = prepared;
+             this.#data[name] = prepared;
+     }
+}
 
   collection(): Collection {
     return this.#collection;
