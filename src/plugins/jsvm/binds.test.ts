@@ -1063,6 +1063,27 @@ console.log(new URL(server.url).port);`);
     }
   });
 
+  it("app binds save supports records with async field interceptors", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      appBinds(scope, app);
+
+      const record = scope.$app.findFirstRecordByFilter("demo1", "1=1");
+      record.set("text", "updated by jsvm app bind");
+
+      const saveErr = await scope.$app.save(record);
+      expect(saveErr).toBeNull();
+
+      const reloaded = app.FindRecordById("demo1", record.id);
+      expect(reloaded).not.toBeNull();
+      expect(reloaded?.GetString("text")).toBe("updated by jsvm app bind");
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("http client binds count", () => {
     const scope: BindScope = {};
     httpClientBinds(scope);
@@ -1378,12 +1399,12 @@ server.listen(0, "127.0.0.1", () => {
         e.next();
       }, "demo2");
 
-      scope.onBootstrap((e: any) => {
-        e.next();
+      scope.onBootstrap(async (e: any) => {
+        await e.next();
 
         const recordA = scope.$app.findFirstRecordByFilter("demo2", "1=1");
         recordA.set("title", "update");
-        scope.$app.save(recordA);
+        await scope.$app.save(recordA);
         if (result.called !== 2) {
           throw new Error(`Expected result.called to be 2, got ${result.called}`);
         }
@@ -1394,7 +1415,7 @@ server.listen(0, "127.0.0.1", () => {
         try {
           const recordB = scope.$app.findFirstRecordByFilter("demo1", "1=1");
           recordB.set("text", "update");
-          scope.$app.save(recordB);
+          await scope.$app.save(recordB);
         } catch {
           hasErr = true;
         }
@@ -1406,7 +1427,7 @@ server.listen(0, "127.0.0.1", () => {
         }
       });
 
-      app.bootstrap();
+      await app.bootstrapAsync();
     } finally {
       await cleanup();
     }
