@@ -14,6 +14,8 @@
 
 - Fixed JSVM `request.pathValue(name)` to decode percent-encoded route params while safely falling back to raw values on malformed escapes, and preserved `setPathValue` roundtrip behavior for values containing `%`.
 
+- Optimized JSVM `request.pathValue(name)` hot-path behavior by skipping decode work for plain route params and lazily allocating `setPathValue` override storage.
+
 ## 0.36.3-pocketbun.5 - 2026-02-17
 
 - Added JSVM-compatible lowercase hook APIs across `BaseApp`, `Hook`, and `TaggedHook` (for example `on*`, `bindFunc`, `unbind`, `length`, `trigger`) while keeping Go-style names as aliases.

@@ -346,7 +346,8 @@ function wrapRouteRequest(event: RouteRequestContext): object {
   }
 
   // Keep explicit setPathValue overrides raw so pathValue can roundtrip "%"-containing values.
-  const overriddenPathValues = new Map<string, string>();
+  // Lazily initialized to avoid per-request allocation when setPathValue is unused.
+  let overriddenPathValues: Map<string, string> | null = null;
 
   const proxy = new Proxy(event.request, {
     get(_target, prop, _receiver) {
@@ -363,13 +364,18 @@ function wrapRouteRequest(event: RouteRequestContext): object {
       if (prop === "pathValue") {
         return (name: string): string => {
           const key = toPrimitiveString(name);
-          if (overriddenPathValues.has(key)) {
+          if (overriddenPathValues?.has(key)) {
             return overriddenPathValues.get(key) ?? "";
           }
 
           const raw = event.params?.[key] ?? "";
           if (raw === "") {
             return "";
+          }
+
+          // Fast path: avoid decode work when route param has no escape sequences.
+          if (!raw.includes("%")) {
+            return raw;
           }
 
           try {
@@ -388,6 +394,9 @@ function wrapRouteRequest(event: RouteRequestContext): object {
             event.params = {};
           }
           event.params[key] = normalizedValue;
+          if (!overriddenPathValues) {
+            overriddenPathValues = new Map<string, string>();
+          }
           overriddenPathValues.set(key, normalizedValue);
         };
       }
