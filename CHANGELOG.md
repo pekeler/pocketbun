@@ -3,6 +3,7 @@
 ## 0.36.3-pocketbun.6 (Unreleased)
 
 - Fixed advanced `pb_hooks` examples/docs to use supported `routerAdd(..., middleware)` (instead of global `onServe(...)`), eliminating related TypeScript errors and runtime confusion.
+- Fixed JSVM `request.pathValue(name)` to decode percent-encoded route params while safely falling back to raw values on malformed escapes, and preserved `setPathValue` roundtrip behavior for values containing `%`.
 
 ## 0.36.3-pocketbun.5 - 2026-02-17
 

@@ -266,6 +266,9 @@ function wrapRouteRequest(event: RouteRequestContext): object {
     return cached;
   }
 
+  // Keep explicit setPathValue overrides raw so pathValue can roundtrip "%"-containing values.
+  const overriddenPathValues = new Map<string, string>();
+
   const proxy = new Proxy(event.request, {
     get(_target, prop, _receiver) {
       const request = event.request;
@@ -281,7 +284,20 @@ function wrapRouteRequest(event: RouteRequestContext): object {
       if (prop === "pathValue") {
         return (name: string): string => {
           const key = toPrimitiveString(name);
-          return decodeURIComponent(event.params?.[key] ?? "") ?? "";
+          if (overriddenPathValues.has(key)) {
+            return overriddenPathValues.get(key) ?? "";
+          }
+
+          const raw = event.params?.[key] ?? "";
+          if (raw === "") {
+            return "";
+          }
+
+          try {
+            return decodeURIComponent(raw);
+          } catch {
+            return raw;
+          }
         };
       }
 
@@ -293,6 +309,7 @@ function wrapRouteRequest(event: RouteRequestContext): object {
             event.params = {};
           }
           event.params[key] = normalizedValue;
+          overriddenPathValues.set(key, normalizedValue);
         };
       }
 

@@ -71,15 +71,20 @@ routerAdd("GET", "/hooks-request/{name}", (e) => {
   const missingQuery = e.request.url.query().get("missing");
   const requestToken = e.request.header.get("X-Test-Token");
   const missingHeader = e.request.header.get("X-Missing");
+  const manualRaw = originalName + "%2Fmanual";
 
   e.request.setPathValue("name", originalName + "_updated");
   const updatedName = e.request.pathValue("name");
+  e.request.setPathValue("manual", manualRaw);
+  const manualRoundtrip = e.request.pathValue("manual");
 
   e.response.header().set("X-Request-Compat", updatedName);
   return e.json(200, {
     path: e.request.url.path,
     originalName,
     updatedName,
+    manualRaw,
+    manualRoundtrip,
     search,
     missingQuery,
     requestToken,
@@ -131,9 +136,41 @@ onModelUpdate((e) => {
       path: "/hooks-request/alice",
       originalName: "alice",
       updatedName: "alice_updated",
+      manualRaw: "alice%2Fmanual",
+      manualRoundtrip: "alice%2Fmanual",
       search: "demo",
       missingQuery: "",
       requestToken: "abc123",
+      missingHeader: "",
+    });
+
+    const encodedCompatResponse = await handler(new Request("http://127.0.0.1/hooks-request/hello%20world"));
+    expect(encodedCompatResponse.status).toBe(200);
+    expect(encodedCompatResponse.headers.get("x-request-compat")).toBe("hello world_updated");
+    expect(await encodedCompatResponse.json()).toEqual({
+      path: "/hooks-request/hello%20world",
+      originalName: "hello world",
+      updatedName: "hello world_updated",
+      manualRaw: "hello world%2Fmanual",
+      manualRoundtrip: "hello world%2Fmanual",
+      search: "",
+      missingQuery: "",
+      requestToken: "",
+      missingHeader: "",
+    });
+
+    const malformedCompatResponse = await handler(new Request("http://127.0.0.1/hooks-request/a%ZZ"));
+    expect(malformedCompatResponse.status).toBe(200);
+    expect(malformedCompatResponse.headers.get("x-request-compat")).toBe("a%ZZ_updated");
+    expect(await malformedCompatResponse.json()).toEqual({
+      path: "/hooks-request/a%ZZ",
+      originalName: "a%ZZ",
+      updatedName: "a%ZZ_updated",
+      manualRaw: "a%ZZ%2Fmanual",
+      manualRoundtrip: "a%ZZ%2Fmanual",
+      search: "",
+      missingQuery: "",
+      requestToken: "",
       missingHeader: "",
     });
 
