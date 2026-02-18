@@ -222,7 +222,7 @@ release_pocketbun() {
   echo "==> Publish ${package_name}@${package_version}"
   publish_package "$ROOT_DIR" 0
 
-  git tag "$release_tag"
+  git tag -m "Release ${package_name}@${package_version}" "$release_tag"
   git push origin "$release_tag"
 
   echo "==> Start next iteration ${next_version}"
@@ -262,7 +262,7 @@ release_create_pocketbun() {
   echo "==> Publish ${package_name}@${package_version}"
   publish_package "$package_dir" 0
 
-  git tag "$release_tag"
+  git tag -m "Release ${package_name}@${package_version}" "$release_tag"
   git push origin "$release_tag"
 }
 

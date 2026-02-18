@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.36.4-pocketbun.1 (Unreleased)
+
+- Fixed release tagging to pass an explicit tag message, avoiding editor prompts when signed tags are enabled.
+
 ## 0.36.4-pocketbun.0 - 2026-02-18
 
 - Upgraded PocketBun compatibility target to PocketBase `v0.36.4` and synced vendored Admin UI assets. Upstream notes: [PocketBase v0.36.4 changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0364).
