@@ -25,6 +25,7 @@ import { Record as RecordModel } from "../../core/record_model.ts";
 import { ValidationError } from "../../internal/compat/validation.ts";
 import { TestApp, newTestApp } from "../../tests/app.ts";
 import { File } from "../../tools/filesystem/file.ts";
+import { System } from "../../tools/filesystem/filesystem.ts";
 import { ApiError } from "../../tools/router/api_error.ts";
 import { JSONRaw } from "../../tools/types/index.ts";
 import {
@@ -738,6 +739,7 @@ describe("jsvm binds", () => {
 
   it("filesystem binds", async () => {
     const { app, cleanup } = await newTestApp();
+    const localDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-filesystem-"));
     const server = await startExternalServer(`const server = Bun.serve({
   port: 0,
   fetch(req) {
@@ -754,7 +756,13 @@ console.log(new URL(server.url).port);`);
       const scope: BindScope = {};
       filesystemBinds(scope);
 
-      expect(countKeys(scope.$filesystem)).toBe(6);
+      expect(countKeys(scope.$filesystem)).toBe(8);
+
+      const s3Filesystem = scope.$filesystem.s3("bucketName", "region", "endpoint", "accessKey", "secretKey", true) as System;
+      expect(s3Filesystem).toBeInstanceOf(System);
+
+      const localFilesystem = scope.$filesystem.local(localDir) as System;
+      expect(localFilesystem).toBeInstanceOf(System);
 
       const testFile = join(app.DataDir(), "data.db");
 
@@ -794,8 +802,12 @@ console.log(new URL(server.url).port);`);
         asyncUrlErr = err as Error;
       }
       expect(asyncUrlErr).not.toBeNull();
+
+      await localFilesystem.Close();
+      await s3Filesystem.Close();
     } finally {
       await server.stop();
+      await rm(localDir, { recursive: true, force: true });
       await cleanup();
     }
   }, 30000);

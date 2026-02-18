@@ -10,7 +10,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 
 ## Progress
 
-- Milestone status (2026-02-13):
+- Milestone status (2026-02-17):
   - Milestone 1: complete
   - Milestone 2: complete
   - Milestone 3: complete
@@ -21,6 +21,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 8: complete (post-release compatibility gaps closed)
   - Milestone 9: complete (PocketBun docs program shipped: `docs/users/index.md`, `docs/users/introduction.md`, `docs/users/going-to-production.md`, `docs/users/web-apis.md`, `docs/users/extend.md`, `docs/users/reference.md`, `docs/users/differences.md`, with deterministic sync/rebuild/patch/check tooling and vendored screenshot assets)
   - Milestone 10: complete (PocketBase v0.36.3 upgrade: upstream sync, admin UI refresh, v0.36.3 compatibility deltas ported, docs pipeline rerun)
+  - Milestone 11: complete (PocketBase v0.36.4 upgrade: upstream sync, admin UI refresh, middleware/JSVM compatibility deltas ported, docs version gate fixed, full validation rerun)
 
 ### Milestone 8 - Post-release compatibility gaps
 
@@ -209,6 +210,7 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 - [x] (2026-02-04 23:59Z) Define the upgrade workflow doc with release notes + git diff instructions.
 - [x] (2026-02-04 23:59Z) Upgrade to PocketBase v0.36.2 (sync upstream, bump versions, reconcile diffs, and update docs/tests).
 - [x] (2026-02-13 23:55Z) Upgrade to PocketBase v0.36.3 (sync upstream, bump versions, port S3/event/types deltas, rerun docs pipeline, and validate).
+- [x] (2026-02-17 23:22Z) Upgrade to PocketBase v0.36.4 (sync upstream, bump versions, port auth-header/JSVM filesystem deltas, rerun docs pipeline checks, and validate).
 - [x] (2026-02-04 23:59Z) Snapshot .upstream/pocketbase as v0.36.1, sync upstream to v0.36.2, and bump package.json to 0.36.2-pocketbun.0.
 - [x] (2026-02-04 23:59Z) Ran a full port audit against upstream v0.36.2; only missing files are ghupdate plugin sources/tests (intentional and documented).
 - [x] (2026-02-04 23:59Z) Add an advanced example under examples/ that demonstrates core features (auth, CRUD, files, realtime, hooks, and CLI usage).
@@ -218,6 +220,10 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 ## Surprises & Discoveries
 
+- Observation: The `v0.36.4` docs pipeline run failed on the generated docs parity gate until `docs/_config.yml` was bumped to the new package version.
+  Evidence: `bun run docs:rebuild:full` failed in `docs:check` with `docs/_config.yml has '0.36.3-pocketbun.0' but package.json has '0.36.4-pocketbun.0'`; updating `pocketbun_version` and rerunning `bun run docs:check` passed.
+- Observation: Upstream now accepts `Authorization: Bearer` prefixes case-insensitively, and its API test harness trims header values before request execution.
+  Evidence: Upstream `apis/middlewares.go` switched to case-insensitive `Bearer ` matching and `tests/api.go` now uses `strings.TrimSpace(v)`; PocketBun mirrored both in `src/apis/middlewares.ts` and `src/tests/api.ts`, with added regression coverage in `src/apis/middlewares.test.ts`.
 - Observation: The upstream mapping audit still reports missing `plugins/ghupdate` source and test files in PocketBun by design.
   Evidence: `bun run upstream:audit` reports missing `plugins/ghupdate/release.go`, `plugins/ghupdate/ghupdate.go`, `plugins/ghupdate/release_test.go`, and `plugins/ghupdate/ghupdate_test.go`, and README documents `update` command removal for package-manager upgrades.
 - Observation: Mail sender parity gap is now closed with real send implementations (sendmail exec path and SMTP protocol path), including hooks and send-path regression coverage.
@@ -313,6 +319,9 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 ## Decision Log
 
+- Decision: For the `v0.36.4` upgrade, port the observable runtime/API deltas (case-insensitive auth header parsing, JSVM `$filesystem.s3`/`$filesystem.local`, and test-harness header trimming) while preserving existing PocketBun async filesystem helper extensions.
+  Rationale: This keeps behavior aligned with upstream where it is user-visible, avoids unnecessary churn in PocketBun-only async APIs, and keeps the release diff focused on compatibility-critical changes.
+  Date/Author: 2026-02-17 / Codex
 - Decision: Keep `plugins/ghupdate` intentionally out of scope for PocketBun while focusing Milestone 8 on runtime parity gaps that affect package users (mailer send paths and documented partial subsystems).
   Rationale: PocketBun is distributed and upgraded through package managers; shipping a self-updating binary command is not part of the product model and is already documented as a known difference.
   Date/Author: 2026-02-12 / Codex
@@ -471,7 +480,7 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 ## Outcomes & Retrospective
 
-Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. Realtime (SSE) support is now ported with tests. Collection CRUD/import parity is now in place. pb_hooks/pb_migrations loader coverage is now in place via dedicated jsvm loader tests. The current performance optimization sprint is now paused after completing the planned profiling and hot-path work; latest 3x/3x upstream benchmark runs on Hetzner CCX13 show PocketBun/PocketBase factors ranging roughly `0.17x..4.36x` with geometric mean around `0.61x`, and remaining performance tasks are intentionally deferred unless new regressions appear.
+Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. Realtime (SSE) support is now ported with tests. Collection CRUD/import parity is now in place. pb_hooks/pb_migrations loader coverage is now in place via dedicated jsvm loader tests. Milestone 11 (`v0.36.4` upgrade) is now complete with upstream sync, admin UI refresh, middleware/JSVM compatibility delta ports, and docs/version gate updates. The current performance optimization sprint is now paused after completing the planned profiling and hot-path work; latest 3x/3x upstream benchmark runs on Hetzner CCX13 show PocketBun/PocketBase factors ranging roughly `0.17x..4.36x` with geometric mean around `0.61x`, and remaining performance tasks are intentionally deferred unless new regressions appear.
 
 ## Context and Orientation
 
@@ -496,6 +505,7 @@ Each milestone keeps files 1:1 with upstream where possible, adds a header comme
 Plan update (2026-02-01): recorded the batch + picker milestone, added related discoveries and decisions, and narrowed the remaining APIs list to exclude batch.
 Plan update (2026-02-02): recorded backups + archive/osutils progress, plus the zip output discovery/decision, and updated the outcomes to reflect backups completion.
 Plan update (2026-02-02): recorded collection CRUD/import parity work, added validation/merge/hook decisions, and clarified remaining pb_hooks scope.
+Plan update (2026-02-17): recorded Milestone 11 (`v0.36.4`) upgrade completion, including runtime parity deltas and docs version gate alignment.
 
 ## Concrete Steps
 
@@ -695,3 +705,4 @@ Plan change note: 2026-02-12, closed the record field resolver parity gap by ali
 Plan change note: 2026-02-12, closed the remaining template and random-by-regex Milestone 8 gaps, then updated README differences for the remaining intentional fallback scope.
 Plan change note: 2026-02-12, added Milestone 9 planning pointer for a dedicated PocketBun docs program.
 Plan change note: 2026-02-13, completed Milestone 9 docs delivery, removed the temporary docs-specific ExecPlan file, and consolidated maintainer guidance in `docs/maintainers/upstream-docs-map.md`.
+Plan change note: 2026-02-17, completed the PocketBase v0.36.4 upgrade (sync, version bumps, middleware/JSVM parity ports, docs version gate fix, and full validation) and updated the living sections accordingly.

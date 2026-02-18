@@ -41,7 +41,8 @@ export async function runApiScenario(scenario: ApiScenario): Promise<void> {
     headers.set("content-type", "application/json");
     if (scenario.headers) {
       for (const [key, value] of Object.entries(scenario.headers)) {
-        headers.set(key, value);
+        // trim whitespaces for consistency with the net/http request parsing
+        headers.set(key, value.trim());
       }
     }
 

@@ -169,6 +169,15 @@ describe("middlewares", () => {
         expectedContent: ["test123"],
       },
       {
+        name: "valid record auth token with Bearer case-insensitive prefix",
+        method: "GET",
+        url: "/my/test",
+        headers: { Authorization: `BeArEr ${regularAuthToken}` },
+        beforeTest: buildRoute(RequireAuth),
+        expectedStatus: 200,
+        expectedContent: ["test123"],
+      },
+      {
         name: "valid record static auth token",
         method: "GET",
         url: "/my/test",

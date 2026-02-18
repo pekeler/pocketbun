@@ -81,6 +81,7 @@ import {
   NotBetween,
 } from "../../tools/dbx/expr.ts";
 import { NewFileFromBytes, NewFileFromMultipart, NewFileFromPath, NewFileFromPathAsync } from "../../tools/filesystem/file.ts";
+import { NewLocal, NewS3 } from "../../tools/filesystem/filesystem.ts";
 import {
   ApiError,
   NewBadRequestError,
@@ -1629,6 +1630,8 @@ function isRetryableSyncFetchMessage(message: string): boolean {
 
 export function filesystemBinds(target: BindTarget): void {
   target.$filesystem = {
+    s3: NewS3,
+    local: NewLocal,
     fileFromPath: NewFileFromPath,
     // PocketBun-only async alternative to fileFromPath.
     fileFromPathAsync: NewFileFromPathAsync,

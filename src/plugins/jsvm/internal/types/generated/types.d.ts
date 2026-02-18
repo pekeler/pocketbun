@@ -1,5 +1,5 @@
 // Ported from pocketbase/plugins/jsvm/internal/types/generated/types.d.ts
-// 1770993581
+// 1771272151
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
 // -------------------------------------------------------------------
@@ -878,6 +878,24 @@ declare namespace $filesystem {
   export function fileFromPathAsync(path: string): Promise<filesystem.File>;
   let fileFromBytes: filesystem.newFileFromBytes;
   let fileFromMultipart: filesystem.newFileFromMultipart;
+
+  /**
+   * Initializes a new S3-only filesystem instance
+   * (make sure to call `close()` after you are done working with it).
+   *
+   * Most users should prefer `$app.newFilesystem()` which will
+   * construct a local or S3 filesystem based on the configured application settings.
+   */
+  let s3: filesystem.newS3;
+
+  /**
+   * Initializes a new local-only filesystem instance
+   * (make sure to call `close()` after you are done working with it).
+   *
+   * Most users should prefer `$app.newFilesystem()` which will
+   * construct a local or S3 filesystem based on the configured application settings.
+   */
+  let local: filesystem.newLocal;
 
   /**
    * fileFromURL creates a new File from the provided url by

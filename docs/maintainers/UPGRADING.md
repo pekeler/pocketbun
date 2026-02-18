@@ -19,6 +19,8 @@ This document describes the upgrade process we follow when PocketBase publishes 
 
    PocketBase keeps release notes in `CHANGELOG.md` and older changelog files in the upstream repo. Before changing code, read the entries for the target tag so you know which areas to double‑check.
 
+   When adding the PocketBun upgrade entry in `CHANGELOG.md`, always include a direct link to the upstream PocketBase changelog anchor for that release (for example `https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0364` for `v0.36.4`).
+
    Then generate a diff between the old and new tags using a temporary clone (with `.git`) so we don’t miss silent changes. Keep the previous tag in a variable before editing `pocketbase_tag.txt`:
 
        OLD_TAG="v0.36.1"
