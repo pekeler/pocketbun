@@ -4,7 +4,7 @@
 
 - Upgraded PocketBun compatibility target to PocketBase `v0.36.4` and synced vendored Admin UI assets. Upstream notes: [PocketBase v0.36.4 changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0364).
 
-- Fixed advanced `pb_hooks` examples/docs to use supported `routerAdd(..., middleware)` (instead of global `onServe(...)`), eliminating related TypeScript errors and runtime confusion.
+- Fixed advanced `pb_hooks` examples/docs to use supported `routerAdd(..., middleware)` (instead of global `onServe(...)`), including a built-in `$apis.requireGuestOnly()` middleware example, eliminating related TypeScript errors and runtime confusion.
 
 ## 0.36.3-pocketbun.5 - 2026-02-17
 
