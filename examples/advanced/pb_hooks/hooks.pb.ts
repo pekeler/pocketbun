@@ -14,6 +14,7 @@ routerAdd(
     return requestEvent.json(200, buildHelloResponse());
   },
   logHelloRequestMiddleware,
+  $apis.requireGuestOnly(),
 );
 
 onRecordCreate((e) => {

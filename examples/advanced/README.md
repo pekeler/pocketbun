@@ -96,8 +96,28 @@ Create or update a project and watch the realtime event stream in terminal A.
 ## Custom route (hooks)
 
 The hooks file registers `GET /hello` via `routerAdd(...)` and attaches
-route middleware as an additional `routerAdd(...)` argument. The route response
-and middleware are imported from a neighboring `pb_hooks/hello_route_helpers.ts`
-module.
+route middleware as additional `routerAdd(...)` arguments. It demonstrates both
+custom middleware and a built-in middleware (`$apis.requireGuestOnly()`), so
+authenticated callers are rejected.
+
+Guest request:
 
     curl http://127.0.0.1:8090/hello
+
+Authenticated request (expected to fail):
+
+    curl -H "Authorization: <TOKEN>" http://127.0.0.1:8090/hello
+
+## Custom route (programmatic `OnServe`)
+
+`examples/advanced/main.ts` also shows the code-first `BaseApp` style using
+`e.Router.GET(...).Bind(...)` with a built-in middleware imported from
+`pocketbun` (`RequireGuestOnly`).
+
+Guest request:
+
+    curl http://127.0.0.1:8090/hello-from-main
+
+Authenticated request (expected to fail):
+
+    curl -H "Authorization: <TOKEN>" http://127.0.0.1:8090/hello-from-main

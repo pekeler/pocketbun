@@ -110,6 +110,11 @@ For `pb_hooks` module loading:
 - `.pb.ts` supports ESM imports from local files and dependencies (`node_modules`)
 - `.pb.js` supports `require(...)`
 
+For code-first `BaseApp` usage:
+
+- built-in route middlewares are available as package exports (for example `RequireGuestOnly`, `SkipSuccessActivityLog`)
+- you can bind them directly in `OnServe` routes with `e.Router.GET(...).Bind(...)`
+
 ## Async API Extensions
 
 PocketBun keeps sync-compatible APIs but adds async alternatives for I/O-heavy paths.

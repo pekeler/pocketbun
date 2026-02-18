@@ -81,6 +81,7 @@ import {
   NotBetween,
 } from "../../tools/dbx/expr.ts";
 import { NewFileFromBytes, NewFileFromMultipart, NewFileFromPath, NewFileFromPathAsync } from "../../tools/filesystem/file.ts";
+import { NewLocal, NewS3 } from "../../tools/filesystem/filesystem.ts";
 import {
   ApiError,
   NewBadRequestError,
@@ -167,11 +168,18 @@ export function appBinds(target: BindTarget, app: App): void {
 }
 
 function wrapApp<T extends object>(app: T): T {
+  const saveOverrides: Record<string, { sync: string; async: string; modelArgIndex: number }> = {
+    save: { sync: "SaveSync", async: "Save", modelArgIndex: 0 },
+    saveNoValidate: { sync: "SaveNoValidateSync", async: "SaveNoValidate", modelArgIndex: 0 },
+    saveWithContext: { sync: "SaveWithContextSync", async: "SaveWithContext", modelArgIndex: 1 },
+    saveNoValidateWithContext: {
+      sync: "SaveNoValidateWithContextSync",
+      async: "SaveNoValidateWithContext",
+      modelArgIndex: 1,
+    },
+  };
+
   const syncOverrides: Record<string, string> = {
-    save: "SaveSync",
-    saveNoValidate: "SaveNoValidateSync",
-    saveWithContext: "SaveWithContextSync",
-    saveNoValidateWithContext: "SaveNoValidateWithContextSync",
     validate: "ValidateSync",
     runInTransaction: "RunInTransactionSync",
     saveView: "SaveViewSync",
@@ -181,6 +189,21 @@ function wrapApp<T extends object>(app: T): T {
   const resolveAppProperty = (target: object, prop: string | symbol, receiver: unknown): unknown => {
     if (typeof prop === "string") {
       const key = prop.slice(0, 1).toLowerCase() + prop.slice(1);
+      const saveOverride = saveOverrides[key];
+      if (saveOverride && saveOverride.sync in target) {
+        const syncMethod = (target as Record<string, unknown>)[saveOverride.sync];
+        const asyncMethod = (target as Record<string, unknown>)[saveOverride.async];
+        if (typeof syncMethod === "function") {
+          return (...args: unknown[]) => {
+            const model = args[saveOverride.modelArgIndex];
+            if (typeof asyncMethod === "function" && hasAsyncSaveInterceptors(model)) {
+              return normalizeAsyncErrorResult((asyncMethod as (...input: unknown[]) => unknown).apply(target, args));
+            }
+            return (syncMethod as (...input: unknown[]) => unknown).apply(target, args);
+          };
+        }
+      }
+
       const override = syncOverrides[key];
       if (override && override in target) {
         return (target as Record<string, unknown>)[override];
@@ -210,6 +233,62 @@ function wrapApp<T extends object>(app: T): T {
       return setMappedProperty(target, prop, value, receiver);
     },
   });
+}
+
+const asyncSaveInterceptorCollections = new WeakSet<object>();
+
+function hasAsyncSaveInterceptors(model: unknown): boolean {
+  if (!(model instanceof RecordModel)) {
+    return false;
+  }
+
+  const collection = model.collection();
+  const collectionObject = collection as unknown as object;
+  if (asyncSaveInterceptorCollections.has(collectionObject)) {
+    return true;
+  }
+
+  for (const field of collection.Fields) {
+    // FileField.Intercept is async and always part of save execution actions.
+    if (field instanceof FileField) {
+      asyncSaveInterceptorCollections.add(collectionObject);
+      return true;
+    }
+
+    const interceptor = field as unknown as { Intercept?: unknown };
+    if (typeof interceptor.Intercept !== "function") {
+      continue;
+    }
+
+    if (interceptor.Intercept.constructor?.name === "AsyncFunction") {
+      asyncSaveInterceptorCollections.add(collectionObject);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function normalizeAsyncErrorResult(result: unknown): unknown {
+  if (result instanceof Error) {
+    throw result;
+  }
+  if (!isPromiseLike(result)) {
+    return result;
+  }
+  return (result as Promise<unknown>).then((value) => {
+    if (value instanceof Error) {
+      throw value;
+    }
+    return value;
+  });
+}
+
+function isPromiseLike(value: unknown): value is Promise<unknown> {
+  if (value == null) {
+    return false;
+  }
+  return (typeof value === "object" || typeof value === "function") && typeof (value as { then?: unknown }).then === "function";
 }
 
 function wrapEvent<T extends object>(event: T): T {
@@ -1646,6 +1725,8 @@ function isRetryableSyncFetchMessage(message: string): boolean {
 
 export function filesystemBinds(target: BindTarget): void {
   target.$filesystem = {
+    s3: NewS3,
+    local: NewLocal,
     fileFromPath: NewFileFromPath,
     // PocketBun-only async alternative to fileFromPath.
     fileFromPathAsync: NewFileFromPathAsync,

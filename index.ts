@@ -2,6 +2,14 @@
 
 export { buildServeHandler, serve, serveAsync, type ServeConfig } from "./src/apis/serve.ts";
 export { Static, StaticWildcardParam } from "./src/apis/base.ts";
+export {
+  RequireGuestOnly,
+  RequireAuth,
+  RequireSuperuserAuth,
+  RequireSuperuserOrOwnerAuth,
+  RequireSameCollectionContextAuth,
+  SkipSuccessActivityLog,
+} from "./src/apis/middlewares.ts";
 export { superuser, superuserCreate, superuserDelete, superuserOTP, superuserUpdate, superuserUpsert } from "./src/cmd/superuser.ts";
 export { type SuperuserOtpResult } from "./src/cmd/superuser.ts";
 export { BaseApp, type BaseAppConfig } from "./src/core/base.ts";

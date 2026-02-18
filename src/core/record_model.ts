@@ -63,9 +63,9 @@ export class Record {
 
   constructor(collection: Collection, data: RecordData = {}, isNew = false) {
     this.#collection = collection;
-    this.#data = { ...data };
-    this.#originalData = { ...data };
-    this.id = typeof data.id === "string" ? data.id : "";
+    this.#data = {};
+    this.#originalData = {};
+    this.id = "";
     this.#isNew = isNew;
 
     if (isNew) {
@@ -75,15 +75,18 @@ export class Record {
           continue;
         }
         const prepared = field.PrepareValue(this, null);
-        if (!Object.prototype.hasOwnProperty.call(this.#originalData, name)) {
-          this.#originalData[name] = prepared;
-        }
+        this.#originalData[name] = prepared;
         // Deviation: mirror defaults into #data to emulate Go's store.GetOk fallback behavior.
-        if (!Object.prototype.hasOwnProperty.call(this.#data, name)) {
-          this.#data[name] = prepared;
-        }
+        this.#data[name] = prepared;
       }
+
+      this.Load(data);
+      return;
     }
+
+    this.#data = { ...data };
+    this.#originalData = { ...data };
+    this.id = typeof data.id === "string" ? data.id : "";
   }
 
   collection(): Collection {

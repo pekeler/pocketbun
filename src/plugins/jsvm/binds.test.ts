@@ -15,7 +15,7 @@ import { FileField } from "../../core/field_file.ts";
 import { GeoPointField } from "../../core/field_geo_point.ts";
 import { JSONField } from "../../core/field_json.ts";
 import { NumberField } from "../../core/field_number.ts";
-import { PasswordField } from "../../core/field_password.ts";
+import { PasswordField, PasswordFieldValue } from "../../core/field_password.ts";
 import { RelationField } from "../../core/field_relation.ts";
 import { SelectField } from "../../core/field_select.ts";
 import { TextField } from "../../core/field_text.ts";
@@ -25,6 +25,7 @@ import { Record as RecordModel } from "../../core/record_model.ts";
 import { ValidationError } from "../../internal/compat/validation.ts";
 import { TestApp, newTestApp } from "../../tests/app.ts";
 import { File } from "../../tools/filesystem/file.ts";
+import { System } from "../../tools/filesystem/filesystem.ts";
 import { ApiError } from "../../tools/router/api_error.ts";
 import { JSONRaw } from "../../tools/types/index.ts";
 import {
@@ -355,6 +356,11 @@ describe("jsvm binds", () => {
       expect(record2).toBeInstanceOf(RecordModel);
       expect(record2.collection().Name).toBe("users");
       expect(record2.Email()).toBe("test@example.com");
+
+      const record3 = new scope.Record(collection, { password: "secret123" });
+      const password = record3.GetRaw("password");
+      expect(password).toBeInstanceOf(PasswordFieldValue);
+      expect((password as PasswordFieldValue).Hash.startsWith("$2")).toBeTrue();
     } finally {
       await cleanup();
     }
@@ -738,6 +744,7 @@ describe("jsvm binds", () => {
 
   it("filesystem binds", async () => {
     const { app, cleanup } = await newTestApp();
+    const localDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-filesystem-"));
     const server = await startExternalServer(`const server = Bun.serve({
   port: 0,
   fetch(req) {
@@ -754,7 +761,13 @@ console.log(new URL(server.url).port);`);
       const scope: BindScope = {};
       filesystemBinds(scope);
 
-      expect(countKeys(scope.$filesystem)).toBe(6);
+      expect(countKeys(scope.$filesystem)).toBe(8);
+
+      const s3Filesystem = scope.$filesystem.s3("bucketName", "region", "endpoint", "accessKey", "secretKey", true) as System;
+      expect(s3Filesystem).toBeInstanceOf(System);
+
+      const localFilesystem = scope.$filesystem.local(localDir) as System;
+      expect(localFilesystem).toBeInstanceOf(System);
 
       const testFile = join(app.DataDir(), "data.db");
 
@@ -794,8 +807,12 @@ console.log(new URL(server.url).port);`);
         asyncUrlErr = err as Error;
       }
       expect(asyncUrlErr).not.toBeNull();
+
+      await localFilesystem.Close();
+      await s3Filesystem.Close();
     } finally {
       await server.stop();
+      await rm(localDir, { recursive: true, force: true });
       await cleanup();
     }
   }, 30000);
@@ -1046,6 +1063,27 @@ console.log(new URL(server.url).port);`);
       expect(result[0].text).toBe("test");
       expect(result[1].id).toBe("al1h9ijdeojtsjy");
       expect(result[1].text).toBe("test2");
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("app binds save supports records with async field interceptors", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      appBinds(scope, app);
+
+      const record = scope.$app.findFirstRecordByFilter("demo1", "1=1");
+      record.set("text", "updated by jsvm app bind");
+
+      const saveErr = await scope.$app.save(record);
+      expect(saveErr).toBeNull();
+
+      const reloaded = app.FindRecordById("demo1", record.id);
+      expect(reloaded).not.toBeNull();
+      expect(reloaded?.GetString("text")).toBe("updated by jsvm app bind");
     } finally {
       await cleanup();
     }
@@ -1366,12 +1404,12 @@ server.listen(0, "127.0.0.1", () => {
         e.next();
       }, "demo2");
 
-      scope.onBootstrap((e: any) => {
-        e.next();
+      scope.onBootstrap(async (e: any) => {
+        await e.next();
 
         const recordA = scope.$app.findFirstRecordByFilter("demo2", "1=1");
         recordA.set("title", "update");
-        scope.$app.save(recordA);
+        await scope.$app.save(recordA);
         if (result.called !== 2) {
           throw new Error(`Expected result.called to be 2, got ${result.called}`);
         }
@@ -1382,7 +1420,7 @@ server.listen(0, "127.0.0.1", () => {
         try {
           const recordB = scope.$app.findFirstRecordByFilter("demo1", "1=1");
           recordB.set("text", "update");
-          scope.$app.save(recordB);
+          await scope.$app.save(recordB);
         } catch {
           hasErr = true;
         }
@@ -1394,7 +1432,7 @@ server.listen(0, "127.0.0.1", () => {
         }
       });
 
-      app.bootstrap();
+      await app.bootstrapAsync();
     } finally {
       await cleanup();
     }

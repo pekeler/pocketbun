@@ -282,10 +282,14 @@ export function SkipSuccessActivityLog(): Handler<RequestEvent> {
 }
 
 function getAuthTokenFromRequest(event: RequestEvent): string {
-  let token = event.request.headers.get("Authorization") ?? "";
-  if (token.startsWith("Bearer ")) {
-    token = token.slice("Bearer ".length);
+  const token = event.request.headers.get("Authorization") ?? "";
+
+  // the "Bearer" schema prefix is not required by PocketBase and it is
+  // supported only for compatibility with the defaults of some HTTP clients
+  if (token.length > 7 && token.slice(0, 7).toLowerCase() === "bearer ") {
+    return token.slice(7);
   }
+
   return token;
 }
 

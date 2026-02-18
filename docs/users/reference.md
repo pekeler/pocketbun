@@ -1194,6 +1194,24 @@ declare namespace $filesystem {
   let fileFromMultipart: filesystem.newFileFromMultipart;
 
   /**
+   * Initializes a new S3-only filesystem instance
+   * (make sure to call `close()` after you are done working with it).
+   *
+   * Most users should prefer `$app.newFilesystem()` which will
+   * construct a local or S3 filesystem based on the configured application settings.
+   */
+  let s3: filesystem.newS3;
+
+  /**
+   * Initializes a new local-only filesystem instance
+   * (make sure to call `close()` after you are done working with it).
+   *
+   * Most users should prefer `$app.newFilesystem()` which will
+   * construct a local or S3 filesystem based on the configured application settings.
+   */
+  let local: filesystem.newLocal;
+
+  /**
    * fileFromURL creates a new File from the provided url by
    * downloading the resource and creating a BytesReader.
    *
