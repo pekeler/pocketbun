@@ -107,3 +107,17 @@ Guest request:
 Authenticated request (expected to fail):
 
     curl -H "Authorization: <TOKEN>" http://127.0.0.1:8090/hello
+
+## Custom route (programmatic `OnServe`)
+
+`examples/advanced/main.ts` also shows the code-first `BaseApp` style using
+`e.Router.GET(...).Bind(...)` with a built-in middleware imported from
+`pocketbun` (`RequireGuestOnly`).
+
+Guest request:
+
+    curl http://127.0.0.1:8090/hello-from-main
+
+Authenticated request (expected to fail):
+
+    curl -H "Authorization: <TOKEN>" http://127.0.0.1:8090/hello-from-main

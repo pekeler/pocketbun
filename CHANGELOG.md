@@ -6,6 +6,8 @@
 
 - Fixed advanced `pb_hooks` examples/docs to use supported `routerAdd(..., middleware)` (instead of global `onServe(...)`), including a built-in `$apis.requireGuestOnly()` middleware example, eliminating related TypeScript errors and runtime confusion.
 
+- Re-exported built-in route middlewares at the package entrypoint (for example `RequireGuestOnly`, `SkipSuccessActivityLog`) and added a code-first `OnServe` middleware usage example in `examples/advanced/main.ts`.
+
 - Fixed JSVM `$app.save(...)` in hooks/migrations to support collections with async field interceptors (for example file fields), preventing sync-save panic errors and preserving PocketBase-compatible save behavior.
 
 ## 0.36.3-pocketbun.5 - 2026-02-17

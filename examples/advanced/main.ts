@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   BaseApp,
   MustRegisterJSVMAsync,
+  RequireGuestOnly,
   RegisterMigrateCmd,
   Static,
   TemplateLangJS,
@@ -43,6 +44,10 @@ RegisterMigrateCmd(app, null, {
 
 app.OnServe().Bind({
   Func: (e: ServeEvent) => {
+    e.Router.GET("/hello-from-main", (requestEvent) => {
+      return requestEvent.JSON(200, { message: "Hello from BaseApp route." });
+    }).Bind(RequireGuestOnly());
+
     if (!e.Router.HasRoute("GET", "/{path...}")) {
       e.Router.GET("/{path...}", Static(publicDir, true));
     }

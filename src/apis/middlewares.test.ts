@@ -4,6 +4,7 @@ import { describe, it } from "bun:test";
 import type { ServeEvent } from "../core/events.ts";
 import type { ApiScenario } from "../tests/api.ts";
 import type { TestApp } from "../tests/app.ts";
+import { RequireGuestOnly as ExportedRequireGuestOnly } from "../../index.ts";
 import { runApiScenario } from "../tests/api.ts";
 import {
   RequireAuth,
@@ -114,6 +115,38 @@ describe("middlewares", () => {
         beforeTest,
         expectedStatus: 200,
         expectedContent: ["test123"],
+        expectedEvents: { "*": 0 },
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      await runApiScenario(scenario);
+    }
+  });
+
+  it("re-exports require guest only in the package entrypoint", async () => {
+    const beforeTest = bindServeRoute((event) => {
+      event.Router.get("/my/test", (reqEvent) => reqEvent.String(200, "test123")).Bind(ExportedRequireGuestOnly());
+    });
+
+    const scenarios: ApiScenario[] = [
+      {
+        name: "guest",
+        method: "GET",
+        url: "/my/test",
+        beforeTest,
+        expectedStatus: 200,
+        expectedContent: ["test123"],
+        expectedEvents: { "*": 0 },
+      },
+      {
+        name: "valid regular user token",
+        method: "GET",
+        url: "/my/test",
+        headers: { Authorization: regularAuthToken },
+        beforeTest,
+        expectedStatus: 400,
+        expectedContent: ['"data":{}'],
         expectedEvents: { "*": 0 },
       },
     ];
