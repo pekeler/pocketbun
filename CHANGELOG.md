@@ -10,6 +10,8 @@
 
 - Fixed JSVM `$app.save(...)` in hooks/migrations to support collections with async field interceptors (for example file fields), preventing sync-save panic errors and preserving PocketBase-compatible save behavior.
 
+- Fixed `new Record(collection, data)` / `NewRecord(collection, data)` initialization to apply field setters for provided values (matching PocketBase `NewRecord + Load` behavior), so auth passwords and other setter-backed fields are normalized correctly.
+
 ## 0.36.3-pocketbun.5 - 2026-02-17
 
 - Added JSVM-compatible lowercase hook APIs across `BaseApp`, `Hook`, and `TaggedHook` (for example `on*`, `bindFunc`, `unbind`, `length`, `trigger`) while keeping Go-style names as aliases.

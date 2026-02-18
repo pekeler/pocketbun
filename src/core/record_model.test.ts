@@ -2,8 +2,9 @@
 
 import { describe, expect, it } from "bun:test";
 import type { GetterFunc, SetterFunc } from "./field.ts";
-import { NewBaseCollection } from "./collection_model.ts";
+import { NewAuthCollection, NewBaseCollection } from "./collection_model.ts";
 import { NumberField } from "./field_number.ts";
+import { PasswordFieldValue } from "./field_password.ts";
 import { TextField } from "./field_text.ts";
 import { NewRecord } from "./record_model.ts";
 
@@ -68,5 +69,20 @@ describe("Record.ReplaceModifiers", () => {
     for (const [key, value] of Object.entries(originalData)) {
       expect(record.Get(key)).toBe(value);
     }
+  });
+});
+
+describe("Record constructor", () => {
+  it("applies field setters for initial data on new records", () => {
+    const users = NewAuthCollection("users");
+
+    const record = NewRecord(users, {
+      email: "test@example.com",
+      password: "secret123",
+    });
+
+    const password = record.GetRaw("password");
+    expect(password).toBeInstanceOf(PasswordFieldValue);
+    expect((password as PasswordFieldValue).Hash.startsWith("$2")).toBeTrue();
   });
 });

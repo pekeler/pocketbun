@@ -15,7 +15,7 @@ import { FileField } from "../../core/field_file.ts";
 import { GeoPointField } from "../../core/field_geo_point.ts";
 import { JSONField } from "../../core/field_json.ts";
 import { NumberField } from "../../core/field_number.ts";
-import { PasswordField } from "../../core/field_password.ts";
+import { PasswordField, PasswordFieldValue } from "../../core/field_password.ts";
 import { RelationField } from "../../core/field_relation.ts";
 import { SelectField } from "../../core/field_select.ts";
 import { TextField } from "../../core/field_text.ts";
@@ -356,6 +356,11 @@ describe("jsvm binds", () => {
       expect(record2).toBeInstanceOf(RecordModel);
       expect(record2.collection().Name).toBe("users");
       expect(record2.Email()).toBe("test@example.com");
+
+      const record3 = new scope.Record(collection, { password: "secret123" });
+      const password = record3.GetRaw("password");
+      expect(password).toBeInstanceOf(PasswordFieldValue);
+      expect((password as PasswordFieldValue).Hash.startsWith("$2")).toBeTrue();
     } finally {
       await cleanup();
     }
