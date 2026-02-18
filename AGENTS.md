@@ -168,6 +168,7 @@ Add tests whenever:
 - Do not reformat unrelated files.
 - If you copy upstream code/assets, preserve required license notices and document what was copied.
 - If PocketBun intentionally deviates from PocketBase behavior, document it explicitly (README / docs).
+- For non-trivial code changes, do a quick performance review of affected paths; if there is potentially measurable overhead/regression, apply a simple optimization before merge (or document why not).
 - Keep `/CHANGELOG.md` up to date: every important user-facing change must be recorded under an appropriate version (or `Unreleased`) before release.
 - Keep changelog entries concise and outcome-focused; skip internal-only details (tests, refactors, CI/tooling churn) unless they directly affect users.
 - Commit gate: do not create a commit with user-facing or developer-relevant changes unless `/CHANGELOG.md` has a concise entry under the target version (or `Unreleased`) for those changes.
