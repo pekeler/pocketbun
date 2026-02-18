@@ -281,7 +281,7 @@ function wrapRouteRequest(event: RouteRequestContext): object {
       if (prop === "pathValue") {
         return (name: string): string => {
           const key = toPrimitiveString(name);
-          return event.params?.[key] ?? "";
+          return decodeURIComponent(event.params?.[key] ?? "") ?? "";
         };
       }
 
