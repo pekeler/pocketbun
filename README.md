@@ -75,7 +75,7 @@ Precise comparisons are difficult due to [fluctuating results](https://github.co
 
 ## Tests
 
-PocketBun keeps upstream test coverage close to PocketBase and adds a small set of PocketBun-specific tests.
+PocketBun keeps upstream test coverage close to PocketBase and adds around 20% additional PocketBun-specific tests.
 
 Only 2 tests didn't get ported. They are for PocketBase’s self-update command/plugin which doesn't exist in PocketBun.
 
