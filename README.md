@@ -111,3 +111,6 @@ cd examples/simple
 bun install
 bun run start
 ```
+
+---
+![Jeans with logos.](docs/jeans.webp)
