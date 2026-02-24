@@ -2,7 +2,8 @@
 
 ## 0.36.5-pocketbun.1 (Unreleased)
 
-- TBD
+- Added the missing JSVM global `unmarshal(data, dst)` declaration to generated `pb_data/types.d.ts`, fixing migration IDE/type errors (`Cannot find name 'unmarshal'`).
+- Documented the upstream JSVM typing gap and PocketBun behavior in `docs/users/differences.md`.
 
 ## 0.36.5-pocketbun.0 - 2026-02-21
 

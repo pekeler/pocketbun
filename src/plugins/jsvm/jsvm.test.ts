@@ -1,15 +1,40 @@
 // PocketBun-only: verify pb_hooks/pb_migrations loader behavior since upstream lacks coverage.
 
 import { describe, expect, it } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildServeHandler } from "../../apis/serve.ts";
 import { CollectionNameSuperusers } from "../../core/collection_model.ts";
-import { newTestApp } from "../../tests/app.ts";
+import { TestApp, newTestApp } from "../../tests/app.ts";
 import { Register, RegisterAsync } from "./jsvm.ts";
 
 describe("jsvm loader", () => {
+  it.serial("writes unmarshal declaration in generated types", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-"));
+    const dataDir = join(rootDir, "pb_data");
+    const hooksDir = join(rootDir, "pb_hooks");
+    const app = new TestApp({ dataDir, encryptionEnv: "pb_test_env" });
+
+    await mkdir(hooksDir, { recursive: true });
+
+    try {
+      const err = Register(app, {
+        HooksDir: hooksDir,
+        TypesDir: rootDir,
+      });
+      expect(err).toBeNull();
+
+      app.bootstrap();
+
+      const types = await readFile(join(rootDir, "types.d.ts"), "utf8");
+      expect(types).toContain("declare function unmarshal(data: any, dst: object): void;");
+    } finally {
+      app.resetBootstrapState();
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
   it.serial("loads migration helper constructors and app.save() mapping", async () => {
     const { app, cleanup } = await newTestApp();
     const rootDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-"));

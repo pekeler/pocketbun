@@ -206,6 +206,23 @@ declare function toString(val: any, maxBytes?: number): string;
 declare function toBytes(val: any, maxBytes?: number): Array<number>;
 
 /**
+ * unmarshal json-serializes the specified data and assigns the parsed
+ * top-level properties to the provided destination object.
+ *
+ * Example:
+ *
+ * ```js
+ * const collection = app.findCollectionByNameOrId("posts")
+ * unmarshal({
+ *   listRule: "@request.auth.id != ''",
+ * }, collection)
+ * ```
+ *
+ * @group PocketBase
+ */
+declare function unmarshal(data: any, dst: object): void;
+
+/**
  * sleep pauses the current goroutine for at least the specified user duration (in ms).
  * A zero or negative duration returns immediately.
  *
