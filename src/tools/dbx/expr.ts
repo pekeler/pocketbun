@@ -75,24 +75,55 @@ export function NewExp(sql: string, params: Params = {}): SqlExpr {
 }
 
 export type LikeExpr = SqlExpr & {
+  Escape: (...chars: string[]) => LikeExpr;
+  escape: (...chars: string[]) => LikeExpr;
   Match: (left: boolean, right: boolean) => LikeExpr;
+  like?: string;
 };
 
 class LikeExpression extends DbxExpr implements LikeExpr {
+  like: string;
   #field: string;
   #values: string[];
   #joiner: "AND" | "OR";
-  #operator: "LIKE" | "NOT LIKE";
-  #leftMatch = false;
-  #rightMatch = false;
+  #leftMatch = true;
+  #rightMatch = true;
+  #escapePairs: Array<[string, string]> = [
+    ["\\", "\\\\"],
+    ["%", "\\%"],
+    ["_", "\\_"],
+  ];
 
   constructor(field: string, values: string[], operator: "LIKE" | "NOT LIKE", joiner: "AND" | "OR") {
     super("");
+    this.like = operator;
     this.#field = field;
     this.#values = values;
-    this.#operator = operator;
     this.#joiner = joiner;
     this.update();
+  }
+
+  Escape(...chars: string[]): LikeExpr {
+    if (chars.length === 0) {
+      return this;
+    }
+
+    const pairs: Array<[string, string]> = [];
+    for (let i = 0; i < chars.length; i += 2) {
+      const source = chars[i];
+      if (!source) {
+        continue;
+      }
+      const replacement = chars[i + 1] ?? "";
+      pairs.push([source, replacement]);
+    }
+    this.#escapePairs = pairs;
+    this.update();
+    return this;
+  }
+
+  escape(...chars: string[]): LikeExpr {
+    return this.Escape(...chars);
   }
 
   Match(left: boolean, right: boolean): LikeExpr {
@@ -111,6 +142,12 @@ class LikeExpression extends DbxExpr implements LikeExpr {
     const parts: string[] = [];
     for (const value of this.#values) {
       let pattern = value;
+      for (const [source, replacement] of this.#escapePairs) {
+        if (!source) {
+          continue;
+        }
+        pattern = pattern.split(source).join(replacement);
+      }
       if (this.#leftMatch) {
         pattern = `%${pattern}`;
       }
@@ -118,7 +155,7 @@ class LikeExpression extends DbxExpr implements LikeExpr {
         pattern = `${pattern}%`;
       }
       patterns.push(pattern);
-      parts.push(`[[${this.#field}]] ${this.#operator} ?`);
+      parts.push(`[[${this.#field}]] ${this.like} ?`);
     }
     this.sql = parts.join(` ${this.#joiner} `);
     this.params = patterns;

@@ -611,6 +611,19 @@ describe("jsvm binds", () => {
         const result = scenario.expr.build(app.db(), params);
         expect(result).toBe(scenario.expected);
       }
+
+      const likeDefaultsParams: Record<string, unknown> = {};
+      const likeDefaultsSql = scope.$dbx.like("a", "test").build(app.db(), likeDefaultsParams);
+      expect(likeDefaultsSql).toBe("`a` LIKE {:p0}");
+      expect(likeDefaultsParams.p0).toBe("%test%");
+
+      const escapedLikeParams: Record<string, unknown> = {};
+      const escapedLikeSql = scope.$dbx
+        .like("a", "50%_\\")
+        .escape("\\", "\\\\", "%", "\\%", "_", "\\_")
+        .build(app.db(), escapedLikeParams);
+      expect(escapedLikeSql).toBe("`a` LIKE {:p0}");
+      expect(escapedLikeParams.p0).toBe("%50\\%\\_\\\\%");
     } finally {
       await cleanup();
     }
