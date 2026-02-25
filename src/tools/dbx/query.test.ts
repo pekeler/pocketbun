@@ -408,6 +408,38 @@ describe("DbxSelectQuery", () => {
       expect(result).toBe(model);
       expect(model.id).toBe("u1");
       expect(model.email).toBe("alice@example.com");
+
+      const tableNameUpperModel: { id: string; email: string; TableName: () => string } = {
+        id: "",
+        email: "",
+        TableName: () => "users",
+      };
+      expect(db.select("id", "email").model("u1", tableNameUpperModel)).toBe(tableNameUpperModel);
+      expect(tableNameUpperModel.id).toBe("u1");
+
+      const collectionMethodModel: { id: string; email: string; collection: () => { name: string } } = {
+        id: "",
+        email: "",
+        collection: () => ({ name: "users" }),
+      };
+      expect(db.select("id", "email").model("u1", collectionMethodModel)).toBe(collectionMethodModel);
+      expect(collectionMethodModel.id).toBe("u1");
+
+      const collectionPropModel: { id: string; email: string; Collection: { name: string } } = {
+        id: "",
+        email: "",
+        Collection: { name: "users" },
+      };
+      expect(db.select("id", "email").model("u1", collectionPropModel)).toBe(collectionPropModel);
+      expect(collectionPropModel.id).toBe("u1");
+
+      const tablePropModel: { id: string; email: string; table: string } = {
+        id: "",
+        email: "",
+        table: "users",
+      };
+      expect(db.select("id", "email").model("u1", tablePropModel)).toBe(tablePropModel);
+      expect(tablePropModel.id).toBe("u1");
     } finally {
       db.close();
     }

@@ -48,6 +48,51 @@ import {
 setDefaultTimeout(15000);
 
 type BindScope = Record<string, any>;
+const generatedTypesUrl = new URL("./internal/types/generated/types.d.ts", import.meta.url);
+
+function extractNamespace(source: string, namespaceName: string): string {
+  const marker = `declare namespace ${namespaceName} {`;
+  const start = source.indexOf(marker);
+  if (start === -1) {
+    return "";
+  }
+
+  const rest = source.slice(start + marker.length);
+  const nextNamespaceStart = rest.indexOf("\ndeclare namespace ");
+  if (nextNamespaceStart === -1) {
+    return source.slice(start);
+  }
+
+  return source.slice(start, start + marker.length + nextNamespaceStart);
+}
+
+function extractInterfaceMethodNames(source: string, interfaceName: string): string[] {
+  const methodNames = new Set<string>();
+  const startToken = `interface ${interfaceName} {`;
+  let offset = 0;
+
+  while (offset < source.length) {
+    const start = source.indexOf(startToken, offset);
+    if (start === -1) {
+      break;
+    }
+
+    const end = source.indexOf("\n  }", start);
+    if (end === -1) {
+      break;
+    }
+
+    const block = source.slice(start, end);
+    const methodMatches = block.matchAll(/\n\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/g);
+    for (const match of methodMatches) {
+      methodNames.add(match[1] ?? "");
+    }
+
+    offset = end + 4;
+  }
+
+  return [...methodNames].filter(Boolean).sort();
+}
 
 async function startExternalServer(script: string): Promise<{ port: number; stop: () => Promise<void> }> {
   const maxAttempts = 15;
@@ -1044,23 +1089,15 @@ console.log(new URL(server.url).port);`);
       appBinds(scope, app);
 
       const query = scope.$app.db().newQuery("SELECT 1");
+      const typesSource = await Bun.file(generatedTypesUrl).text();
+      const dbxNamespace = extractNamespace(typesSource, "dbx");
+      const documentedQueryMethods = extractInterfaceMethodNames(dbxNamespace, "Query");
+      const documentedSelectMethods = extractInterfaceMethodNames(dbxNamespace, "SelectQuery");
+      const queryRecord = query as unknown as Record<string, unknown>;
 
-      expect(typeof query.bind).toBe("function");
-      expect(typeof query.execute).toBe("function");
-      expect(typeof query.one).toBe("function");
-      expect(typeof query.all).toBe("function");
-      expect(typeof query.row).toBe("function");
-      expect(typeof query.rows).toBe("function");
-      expect(typeof query.column).toBe("function");
-      expect(typeof query.sql).toBe("function");
-      expect(typeof query.params).toBe("function");
-      expect(typeof query.prepare).toBe("function");
-      expect(typeof query.close).toBe("function");
-      expect(typeof query.withContext).toBe("function");
-      expect(typeof query.context).toBe("function");
-      expect(typeof query.withExecHook).toBe("function");
-      expect(typeof query.withOneHook).toBe("function");
-      expect(typeof query.withAllHook).toBe("function");
+      for (const methodName of documentedQueryMethods) {
+        expect(typeof queryRecord[methodName]).toBe("function");
+      }
       expect(typeof query.Bind).toBe("function");
 
       const queryCtx = { traceId: "query-methods" };
@@ -1068,44 +1105,10 @@ console.log(new URL(server.url).port);`);
       expect(query.context()).toEqual(queryCtx);
 
       const select = scope.$app.db().select("id").from("demo1");
-      expect(typeof select.select).toBe("function");
-      expect(typeof select.andSelect).toBe("function");
-      expect(typeof select.distinct).toBe("function");
-      expect(typeof select.selectOption).toBe("function");
-      expect(typeof select.from).toBe("function");
-      expect(typeof select.where).toBe("function");
-      expect(typeof select.andWhere).toBe("function");
-      expect(typeof select.orWhere).toBe("function");
-      expect(typeof select.join).toBe("function");
-      expect(typeof select.innerJoin).toBe("function");
-      expect(typeof select.leftJoin).toBe("function");
-      expect(typeof select.rightJoin).toBe("function");
-      expect(typeof select.groupBy).toBe("function");
-      expect(typeof select.andGroupBy).toBe("function");
-      expect(typeof select.having).toBe("function");
-      expect(typeof select.andHaving).toBe("function");
-      expect(typeof select.orHaving).toBe("function");
-      expect(typeof select.orderBy).toBe("function");
-      expect(typeof select.andOrderBy).toBe("function");
-      expect(typeof select.limit).toBe("function");
-      expect(typeof select.offset).toBe("function");
-      expect(typeof select.bind).toBe("function");
-      expect(typeof select.andBind).toBe("function");
-      expect(typeof select.preFragment).toBe("function");
-      expect(typeof select.postFragment).toBe("function");
-      expect(typeof select.withBuildHook).toBe("function");
-      expect(typeof select.withContext).toBe("function");
-      expect(typeof select.context).toBe("function");
-      expect(typeof select.union).toBe("function");
-      expect(typeof select.unionAll).toBe("function");
-      expect(typeof select.build).toBe("function");
-      expect(typeof select.model).toBe("function");
-      expect(typeof select.info).toBe("function");
-      expect(typeof select.one).toBe("function");
-      expect(typeof select.all).toBe("function");
-      expect(typeof select.rows).toBe("function");
-      expect(typeof select.row).toBe("function");
-      expect(typeof select.column).toBe("function");
+      const selectRecord = select as unknown as Record<string, unknown>;
+      for (const methodName of documentedSelectMethods) {
+        expect(typeof selectRecord[methodName]).toBe("function");
+      }
 
       const selectCtx = { traceId: "select-methods" };
       select.withContext(selectCtx);
