@@ -203,13 +203,21 @@ describe("DbxQuery", () => {
       const allResult = query.all(allTarget);
       expect(allResult).toEqual([{ token: "x" }]);
 
+      query.Bind("x");
+      const rowResult = query.row() as unknown[];
+      expect(rowResult).toEqual(["x"]);
+
+      query.Bind("x");
+      const columnResult = query.column() as unknown[];
+      expect(columnResult).toEqual(["x"]);
+
       query.Bind("y");
       const execResult = query.execute();
       expect(execResult.changes).toBe(0);
 
       expect(oneHookCalls).toBe(1);
       expect(allHookCalls).toBe(1);
-      expect(execHookCalls).toBe(3);
+      expect(execHookCalls).toBe(5);
     } finally {
       db.close();
     }
@@ -264,6 +272,30 @@ describe("DbxSelectQuery", () => {
         .all<{ id: string; total: number }>();
 
       expect(result).toEqual([{ id: "u1", total: 2 }]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("supports andGroupBy/andHaving/orHaving and join alias chaining", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      const select = db
+        .select("id")
+        .from("users")
+        .leftJoin("profiles", NewExp("[[profiles.user_id]] = [[users.id]]"))
+        .rightJoin("teams", NewExp("[[teams.user_id]] = [[users.id]]"))
+        .groupBy("[[users.id]]")
+        .andGroupBy("[[profiles.id]]")
+        .having(NewExp("count(*) > {:min}", { min: 0 }))
+        .andHaving(NewExp("sum(1) >= {:sum}", { sum: 1 }))
+        .orHaving(NewExp("max(1) = {:max}", { max: 1 }));
+
+      const info = select.info();
+      expect(info.join.map((join) => join.typ)).toEqual(["LEFT JOIN", "RIGHT JOIN"]);
+      expect(info.groupBy).toEqual(["[[users.id]]", "[[profiles.id]]"]);
+      expect(info.having?.sql).toBe("(count(*) > ?) AND (sum(1) >= ?) OR (max(1) = ?)");
+      expect(info.having?.params).toEqual([0, 1, 1]);
     } finally {
       db.close();
     }

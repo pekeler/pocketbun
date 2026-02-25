@@ -1190,6 +1190,49 @@ console.log(new URL(server.url).port);`);
     }
   });
 
+  it("newQuery withExecHook wraps execute/one/all/row/column", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      dbxBinds(scope);
+      appBinds(scope, app);
+
+      app.db().run("create table if not exists _pb_dbx_exec_hook_test (name text)");
+      app.db().run("delete from _pb_dbx_exec_hook_test");
+      app.db().run("insert into _pb_dbx_exec_hook_test (name) values (?)", ["x"]);
+      app.db().run("insert into _pb_dbx_exec_hook_test (name) values (?)", ["y"]);
+
+      const query = scope.$app.db().newQuery("SELECT name FROM _pb_dbx_exec_hook_test WHERE name = {:name}");
+      let execHookCalls = 0;
+      query.withExecHook((_q: unknown, op: () => unknown) => {
+        execHookCalls += 1;
+        return op();
+      });
+
+      const oneTarget = new scope.DynamicModel({ name: "" });
+      query.bind({ name: "x" }).one(oneTarget);
+      expect(oneTarget.name).toBe("x");
+
+      const allTarget = scope.arrayOf(new scope.DynamicModel({ name: "" }));
+      query.bind({ name: "x" }).all(allTarget);
+      expect(allTarget.map((item: { name: string }) => item.name)).toEqual(["x"]);
+
+      const rowTarget: unknown[] = [];
+      query.bind({ name: "x" }).row(rowTarget);
+      expect(rowTarget).toEqual(["x"]);
+
+      const columnTarget: unknown[] = [];
+      query.bind({ name: "x" }).column(columnTarget);
+      expect(columnTarget).toEqual(["x"]);
+
+      query.bind({ name: "y" }).execute();
+      expect(execHookCalls).toBe(5);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("select query builder supports documented chaining methods", async () => {
     const { app, cleanup } = await newTestApp();
     try {
