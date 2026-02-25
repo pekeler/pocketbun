@@ -328,6 +328,59 @@ describe("DbxSelectQuery", () => {
     }
   });
 
+  it("supports select info snapshots", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      const select = db
+        .select("id")
+        .from("users")
+        .where(NewExp("[[id]] = {:id}", { id: "u1" }))
+        .groupBy("id")
+        .having(NewExp("count(*) > {:min}", { min: 0 }))
+        .orderBy("id ASC")
+        .bind({ id: "u1" })
+        .withContext({ traceId: "ctx-info" });
+
+      const info = select.info();
+      expect(info.selects).toEqual(["id"]);
+      expect(info.from).toEqual(["users"]);
+      expect(info.where?.sql).toContain("[[id]] = ?");
+      expect(info.where?.params).toEqual(["u1"]);
+      expect(info.groupBy).toEqual(["id"]);
+      expect(info.having?.sql).toContain("count(*) > ?");
+      expect(info.having?.params).toEqual([0]);
+      expect(info.orderBy).toEqual(["id ASC"]);
+      expect(info.params).toEqual([{ id: "u1" }]);
+      expect(info.context).toEqual({ traceId: "ctx-info" });
+
+      info.from.push("modified");
+      expect(select.info().from).toEqual(["users"]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("supports model shortcut and table-name inference", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      db.run("create table users (id text, email text)");
+      db.run("insert into users (id, email) values (?, ?)", ["u1", "alice@example.com"]);
+
+      const model: { id: string; email: string; tableName: () => string } = {
+        id: "",
+        email: "",
+        tableName: () => "users",
+      };
+
+      const result = db.select("id", "email").model("u1", model);
+      expect(result).toBe(model);
+      expect(model.id).toBe("u1");
+      expect(model.email).toBe("alice@example.com");
+    } finally {
+      db.close();
+    }
+  });
+
   it("supports select bind and andBind combinations", () => {
     const db = new DbxDatabase(":memory:");
     try {

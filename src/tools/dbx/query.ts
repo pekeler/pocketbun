@@ -490,6 +490,22 @@ export class DbxSelectQuery {
     return query.one(into);
   }
 
+  model<T extends Record<string, unknown>>(pk: SQLQueryBindings, model: T): T | null {
+    if (this.#from.length === 0) {
+      const tableName = inferSelectModelTableName(model);
+      if (tableName) {
+        this.from(tableName);
+      }
+    }
+
+    if (this.#from.length === 0) {
+      throw new Error("cannot infer table name for model()");
+    }
+
+    this.andWhere({ sql: "[[id]] = ?", params: [pk] });
+    return this.one(model);
+  }
+
   all<T extends Record<string, unknown>>(into?: T[]): T[] {
     const query = this.build();
     return query.all(into);
@@ -505,6 +521,29 @@ export class DbxSelectQuery {
 
   column(into?: unknown): unknown {
     return this.build().column(into);
+  }
+
+  info(): SelectQueryInfo {
+    return {
+      preFragment: this.#preFragment,
+      postFragment: this.#postFragment,
+      builder: this.#db,
+      selects: [...this.#fields],
+      distinct: this.#distinct,
+      selectOption: this.#selectOption,
+      from: [...this.#from],
+      where: combineSelectExpr(this.#where),
+      join: this.#joins.map((join) => ({ ...join })),
+      orderBy: [...this.#orderBy],
+      groupBy: [...this.#groupBy],
+      having: combineSelectExpr(this.#having),
+      union: this.#unions.map((union) => ({ ...union })),
+      limit: this.#limit,
+      offset: this.#offset,
+      params: this.#bindParams.map(cloneBindParam),
+      context: this.#context,
+      buildHook: this.#buildHook,
+    };
   }
 
   build(): DbxQuery {
@@ -656,6 +695,27 @@ type SelectUnion = {
   query: DbxQuery;
 };
 
+type SelectQueryInfo = {
+  preFragment: string;
+  postFragment: string;
+  builder: DbxDatabase;
+  selects: string[];
+  distinct: boolean;
+  selectOption: string;
+  from: string[];
+  where: SqlExpr | null;
+  join: SelectJoin[];
+  orderBy: string[];
+  groupBy: string[];
+  having: SqlExpr | null;
+  union: SelectUnion[];
+  limit: number | null;
+  offset: number | null;
+  params: Array<SQLQueryBindings | DbxNamedParams>;
+  context: unknown;
+  buildHook: DbxBuildHookFunc | null;
+};
+
 function normalizeSelectExpr(expr: SqlExpr | string | undefined): SqlExpr | null {
   if (!expr) {
     return null;
@@ -669,20 +729,85 @@ function normalizeSelectExpr(expr: SqlExpr | string | undefined): SqlExpr | null
   return null;
 }
 
-function combineSelectConditions(conditions: SelectCondition[]): string {
+function combineSelectExpr(conditions: SelectCondition[]): SqlExpr | null {
   if (conditions.length === 0) {
-    return "";
+    return null;
   }
+
   let sql = "";
+  const params: SQLQueryBindings[] = [];
+
   for (const condition of conditions) {
     const clause = `(${condition.expr.sql})`;
     if (!condition.op || !sql) {
       sql = clause;
-      continue;
+    } else {
+      sql += ` ${condition.op} ${clause}`;
     }
-    sql += ` ${condition.op} ${clause}`;
+
+    if (Array.isArray(condition.expr.params)) {
+      params.push(...(condition.expr.params as SQLQueryBindings[]));
+    }
   }
-  return sql;
+
+  if (!sql) {
+    return null;
+  }
+
+  return { sql, params };
+}
+
+function combineSelectConditions(conditions: SelectCondition[]): string {
+  return combineSelectExpr(conditions)?.sql ?? "";
+}
+
+function cloneBindParam(value: SQLQueryBindings | DbxNamedParams): SQLQueryBindings | DbxNamedParams {
+  if (isDbxNamedParams(value)) {
+    return { ...value };
+  }
+  return value;
+}
+
+function inferSelectModelTableName(model: Record<string, unknown>): string {
+  const directMethod = callStringMethod(model, "tableName") || callStringMethod(model, "TableName");
+  if (directMethod) {
+    return directMethod;
+  }
+
+  const collectionRef =
+    callUnknownMethod(model, "collection") ??
+    callUnknownMethod(model, "Collection") ??
+    (model.collection as unknown) ??
+    (model.Collection as unknown);
+  if (collectionRef && typeof collectionRef === "object") {
+    const collectionName = (collectionRef as Record<string, unknown>).name;
+    if (typeof collectionName === "string" && collectionName.trim()) {
+      return collectionName.trim();
+    }
+  }
+
+  const directProp = model.tableName ?? model.TableName ?? model.table ?? model.Table;
+  if (typeof directProp === "string" && directProp.trim()) {
+    return directProp.trim();
+  }
+
+  return "";
+}
+
+function callUnknownMethod(target: Record<string, unknown>, name: string): unknown {
+  const candidate = target[name];
+  if (typeof candidate !== "function") {
+    return undefined;
+  }
+  return (candidate as (...args: never[]) => unknown).call(target);
+}
+
+function callStringMethod(target: Record<string, unknown>, name: string): string {
+  const result = callUnknownMethod(target, name);
+  if (typeof result === "string" && result.trim()) {
+    return result.trim();
+  }
+  return "";
 }
 
 function scanIntoTargets(values: unknown[], targets: unknown[]): void {

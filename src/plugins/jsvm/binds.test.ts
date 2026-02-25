@@ -1086,6 +1086,8 @@ console.log(new URL(server.url).port);`);
       expect(typeof select.union).toBe("function");
       expect(typeof select.unionAll).toBe("function");
       expect(typeof select.build).toBe("function");
+      expect(typeof select.model).toBe("function");
+      expect(typeof select.info).toBe("function");
       expect(typeof select.one).toBe("function");
       expect(typeof select.all).toBe("function");
       expect(typeof select.rows).toBe("function");
