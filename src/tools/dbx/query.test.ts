@@ -160,6 +160,60 @@ describe("DbxQuery", () => {
       db.close();
     }
   });
+
+  it("supports context and exec/one/all hooks", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      db.run("create table t (token text)");
+      db.run("insert into t (token) values (?)", ["x"]);
+      db.run("insert into t (token) values (?)", ["y"]);
+
+      const query = db.newQuery("select [[token]] as [[token]] from t where [[token]] = ?", "x");
+      query.withContext({ traceId: "ctx-1" });
+      expect(query.context()).toEqual({ traceId: "ctx-1" });
+
+      let execHookCalls = 0;
+      let oneHookCalls = 0;
+      let allHookCalls = 0;
+
+      query.withExecHook((q, op) => {
+        expect(q).toBe(query);
+        execHookCalls += 1;
+        return op();
+      });
+      query.withOneHook((q, into, op) => {
+        expect(q).toBe(query);
+        expect(into as { token: string } | undefined).toEqual({ token: "" });
+        oneHookCalls += 1;
+        return op(into);
+      });
+      query.withAllHook((q, into, op) => {
+        expect(q).toBe(query);
+        expect(into as Array<{ token: string }> | undefined).toEqual([]);
+        allHookCalls += 1;
+        return op(into);
+      });
+
+      const oneTarget = { token: "" };
+      const oneResult = query.one(oneTarget);
+      expect(oneResult?.token).toBe("x");
+
+      query.Bind("x");
+      const allTarget: Array<{ token: string }> = [];
+      const allResult = query.all(allTarget);
+      expect(allResult).toEqual([{ token: "x" }]);
+
+      query.Bind("y");
+      const execResult = query.execute();
+      expect(execResult.changes).toBe(0);
+
+      expect(oneHookCalls).toBe(1);
+      expect(allHookCalls).toBe(1);
+      expect(execHookCalls).toBe(1);
+    } finally {
+      db.close();
+    }
+  });
 });
 
 describe("DbxSelectQuery", () => {
@@ -231,6 +285,72 @@ describe("DbxSelectQuery", () => {
         .all<{ id: string }>();
 
       expect(result).toEqual([{ id: "u1" }, { id: "u2" }]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("supports build hooks, context, fragments and unions", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      db.run("create table users (id text)");
+      db.run("insert into users (id) values (?)", ["u1"]);
+      db.run("insert into users (id) values (?)", ["u2"]);
+
+      let buildHookCalls = 0;
+      let builtSql = "";
+
+      const query = db
+        .select("[[id]] as [[id]]")
+        .selectOption("ALL")
+        .from("users")
+        .where(NewExp("[[id]] = {:id}", { id: "u1" }))
+        .preFragment("/*pre*/")
+        .postFragment("/*post*/")
+        .unionAll(db.newQuery("SELECT [[id]] as [[id]] FROM users WHERE [[id]] = ?", "u2"))
+        .withContext({ traceId: "ctx-2" })
+        .withBuildHook((built) => {
+          buildHookCalls += 1;
+          builtSql = built.sql();
+        })
+        .build();
+
+      expect(query.context()).toEqual({ traceId: "ctx-2" });
+      const rows = query.all<{ id: string }>();
+      expect(rows.map((row) => row.id).sort()).toEqual(["u1", "u2"]);
+      expect(buildHookCalls).toBe(1);
+      expect(builtSql).toContain("/*pre*/");
+      expect(builtSql).toContain("SELECT ALL");
+      expect(builtSql).toContain("/*post*/");
+      expect(builtSql).toContain("UNION ALL");
+    } finally {
+      db.close();
+    }
+  });
+
+  it("supports select bind and andBind combinations", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      db.run("create table users (id text)");
+      db.run("insert into users (id) values (?)", ["u1"]);
+      db.run("insert into users (id) values (?)", ["u2"]);
+
+      const namedRows = db
+        .select("id")
+        .from("users")
+        .where("[[id]] = {:id}")
+        .bind({ id: "u1" })
+        .andBind({ ignored: "ignored" })
+        .all<{ id: string }>();
+      expect(namedRows).toEqual([{ id: "u1" }]);
+
+      expect(() => {
+        db.select("id")
+          .from("users")
+          .where(NewExp("[[id]] = {:id}", { id: "u1" }))
+          .bind({ id: "u1" })
+          .all();
+      }).toThrow("cannot combine named bind params with expression-generated params");
     } finally {
       db.close();
     }

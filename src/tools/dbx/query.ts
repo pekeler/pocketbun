@@ -10,6 +10,10 @@ export const DynamicModelShapeKey = "__pbDynamicModelShape";
 export const DynamicModelFactoryKey = "__pbDynamicModelFactory";
 type DbxNamedParams = Record<string, SQLQueryBindings>;
 const errNoRowsMessage = "sql: no rows in result set";
+type DbxExecHookFunc = (q: DbxQuery, op: () => Changes) => Changes | void;
+type DbxOneHookFunc = <T>(q: DbxQuery, into: T | undefined, op: (nextInto: T | undefined) => T | null) => T | null | void;
+type DbxAllHookFunc = <T>(q: DbxQuery, into: T[] | undefined, op: (nextInto: T[] | undefined) => T[]) => T[] | void;
+type DbxBuildHookFunc = (q: DbxQuery) => void;
 type DbxExecutableStmt = {
   run: (...params: SQLQueryBindings[]) => Changes;
   get: (...params: SQLQueryBindings[]) => unknown;
@@ -23,6 +27,10 @@ export class DbxQuery {
   #sql: string;
   #params: SQLQueryBindings[];
   #preparedStmt: DbxExecutableStmt | null = null;
+  #context: unknown = null;
+  #execHook: DbxExecHookFunc | null = null;
+  #oneHook: DbxOneHookFunc | null = null;
+  #allHook: DbxAllHookFunc | null = null;
 
   constructor(db: DbxDatabase, sql: string, params: SQLQueryBindings[] = []) {
     this.#db = db;
@@ -61,6 +69,30 @@ export class DbxQuery {
     return [...this.#params];
   }
 
+  context(): unknown {
+    return this.#context;
+  }
+
+  withContext(ctx: unknown): this {
+    this.#context = ctx;
+    return this;
+  }
+
+  withExecHook(fn: DbxExecHookFunc): this {
+    this.#execHook = fn;
+    return this;
+  }
+
+  withOneHook(fn: DbxOneHookFunc): this {
+    this.#oneHook = fn;
+    return this;
+  }
+
+  withAllHook(fn: DbxAllHookFunc): this {
+    this.#allHook = fn;
+    return this;
+  }
+
   prepare(): this {
     if (!this.#preparedStmt) {
       this.#preparedStmt = this.#db.prepare(this.#sql) as unknown as DbxExecutableStmt;
@@ -78,10 +110,56 @@ export class DbxQuery {
   }
 
   execute() {
-    return this.#stmt().run(...this.#params);
+    const op = () => this.#stmt().run(...this.#params);
+    const hook = this.#execHook;
+    if (!hook) {
+      return op();
+    }
+
+    let executed = false;
+    let result: Changes | undefined;
+    const wrappedOp = () => {
+      executed = true;
+      result = op();
+      return result;
+    };
+
+    const hookResult = hook(this, wrappedOp);
+    if (hookResult !== undefined) {
+      return hookResult;
+    }
+    if (!executed) {
+      return wrappedOp();
+    }
+    return result as Changes;
   }
 
   one<T extends Record<string, unknown>>(into?: T): T | null {
+    const hook = this.#oneHook as DbxOneHookFunc | null;
+    const op = (nextInto?: T): T | null => this.#oneWithoutHook(nextInto);
+    if (!hook) {
+      return op(into);
+    }
+
+    let executed = false;
+    let result: T | null | undefined;
+    const wrappedOp = (nextInto?: T): T | null => {
+      executed = true;
+      result = op(nextInto);
+      return result;
+    };
+
+    const hookResult = hook(this, into, wrappedOp);
+    if (hookResult !== undefined) {
+      return hookResult as T | null;
+    }
+    if (!executed) {
+      return wrappedOp(into);
+    }
+    return result as T | null;
+  }
+
+  #oneWithoutHook<T extends Record<string, unknown>>(into?: T): T | null {
     const row = this.#stmt().get(...this.#params) as Record<string, unknown> | undefined;
     if (!row) {
       throw new Error(errNoRowsMessage);
@@ -94,6 +172,31 @@ export class DbxQuery {
   }
 
   all<T extends Record<string, unknown>>(into?: T[]): T[] {
+    const hook = this.#allHook as DbxAllHookFunc | null;
+    const op = (nextInto?: T[]): T[] => this.#allWithoutHook(nextInto);
+    if (!hook) {
+      return op(into);
+    }
+
+    let executed = false;
+    let result: T[] | undefined;
+    const wrappedOp = (nextInto?: T[]): T[] => {
+      executed = true;
+      result = op(nextInto);
+      return result;
+    };
+
+    const hookResult = hook(this, into, wrappedOp);
+    if (hookResult !== undefined) {
+      return hookResult as T[];
+    }
+    if (!executed) {
+      return wrappedOp(into);
+    }
+    return result as T[];
+  }
+
+  #allWithoutHook<T extends Record<string, unknown>>(into?: T[]): T[] {
     const rows = this.#stmt().all(...this.#params) as Record<string, unknown>[] | undefined;
     const result = rows ?? [];
     if (!into) {
@@ -192,6 +295,12 @@ export class DbxSelectQuery {
   #limit: number | null = null;
   #offset: number | null = null;
   #bindParams: Array<SQLQueryBindings | DbxNamedParams> = [];
+  #buildHook: DbxBuildHookFunc | null = null;
+  #context: unknown = null;
+  #preFragment = "";
+  #postFragment = "";
+  #selectOption = "";
+  #unions: SelectUnion[] = [];
 
   constructor(db: DbxDatabase, fields: string[]) {
     this.#db = db;
@@ -214,6 +323,35 @@ export class DbxSelectQuery {
 
   distinct(value: boolean): this {
     this.#distinct = value;
+    return this;
+  }
+
+  selectOption(option: string): this {
+    this.#selectOption = option.trim();
+    return this;
+  }
+
+  withBuildHook(fn: DbxBuildHookFunc): this {
+    this.#buildHook = fn;
+    return this;
+  }
+
+  context(): unknown {
+    return this.#context;
+  }
+
+  withContext(ctx: unknown): this {
+    this.#context = ctx;
+    return this;
+  }
+
+  preFragment(fragment: string): this {
+    this.#preFragment = fragment.trim();
+    return this;
+  }
+
+  postFragment(fragment: string): this {
+    this.#postFragment = fragment.trim();
     return this;
   }
 
@@ -313,6 +451,16 @@ export class DbxSelectQuery {
     return this;
   }
 
+  union(query: DbxQuery): this {
+    this.#unions.push({ all: false, query });
+    return this;
+  }
+
+  unionAll(query: DbxQuery): this {
+    this.#unions.push({ all: true, query });
+    return this;
+  }
+
   limit(limit: number): this {
     this.#limit = limit;
     return this;
@@ -362,9 +510,11 @@ export class DbxSelectQuery {
   build(): DbxQuery {
     const builtParams = this.buildParams();
     const query = new DbxQuery(this.#db, this.buildSql());
+    query.withContext(this.#context);
 
     if (this.#bindParams.length === 0) {
       query.Bind(...builtParams);
+      this.#buildHook?.(query);
       return query;
     }
 
@@ -374,15 +524,20 @@ export class DbxSelectQuery {
         throw new Error("cannot combine named bind params with expression-generated params");
       }
       query.Bind(first);
+      this.#buildHook?.(query);
       return query;
     }
 
     query.Bind(...builtParams, ...(this.#bindParams as SQLQueryBindings[]));
+    this.#buildHook?.(query);
     return query;
   }
 
   private buildSql(): string {
-    const selectPrefix = this.#distinct ? "SELECT DISTINCT" : "SELECT";
+    let selectPrefix = this.#distinct ? "SELECT DISTINCT" : "SELECT";
+    if (this.#selectOption) {
+      selectPrefix += ` ${this.#selectOption}`;
+    }
     const fields = this.#fields.length > 0 ? this.#fields.join(", ") : "*";
     const tables = this.#from.length > 0 ? this.#from : [""];
     let sql = `${selectPrefix} ${fields} FROM ${tables.map((table) => `{{${table}}}`).join(", ")}`;
@@ -417,6 +572,25 @@ export class DbxSelectQuery {
     if (this.#offset != null) {
       sql += ` OFFSET ${this.#offset}`;
     }
+
+    if (this.#postFragment) {
+      sql += ` ${this.#postFragment}`;
+    }
+
+    if (this.#unions.length > 0) {
+      for (const union of this.#unions) {
+        const unionSql = union.query.sql().trim();
+        if (!unionSql) {
+          continue;
+        }
+        sql += ` ${union.all ? "UNION ALL" : "UNION"} ${unionSql}`;
+      }
+    }
+
+    if (this.#preFragment) {
+      sql = `${this.#preFragment} ${sql}`;
+    }
+
     return sql;
   }
 
@@ -436,6 +610,9 @@ export class DbxSelectQuery {
       if (condition.expr.params && Array.isArray(condition.expr.params)) {
         params.push(...(condition.expr.params as SQLQueryBindings[]));
       }
+    }
+    for (const union of this.#unions) {
+      params.push(...union.query.params());
     }
     return params;
   }
@@ -472,6 +649,11 @@ type SelectJoin = {
   typ: string;
   table: string;
   on: SqlExpr | null;
+};
+
+type SelectUnion = {
+  all: boolean;
+  query: DbxQuery;
 };
 
 function normalizeSelectExpr(expr: SqlExpr | string | undefined): SqlExpr | null {

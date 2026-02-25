@@ -7,6 +7,7 @@
 - Fixed JSVM `newQuery(...).bind({...}).execute()` compatibility by implementing query `execute()` and dbx named placeholder binding (`{:param}`), and reduced repeated bind overhead with SQL-template placeholder-name caching.
 - Aligned JSVM dbx `newQuery(...).one(...)` missing-row behavior with PocketBase/`sql.ErrNoRows` (`sql: no rows in result set`) and added contract tests for documented `newQuery` + `bind({:token})` flows.
 - Expanded JSVM/dbx query compatibility coverage and runtime support for documented query-builder chains (for example `andWhere`, `andSelect`, `distinct`, joins, grouping/having, and multi-order clauses), plus additional `Query` helpers (`sql`, `params`, `prepare`/`close`, `row`, `column`, `rows`).
+- Added JSVM dbx compatibility for query context/hook APIs (`withContext`/`context`, `withExecHook`, `withOneHook`, `withAllHook`, `withBuildHook`) and select fragments/unions (`preFragment`, `postFragment`, `selectOption`, `union`, `unionAll`) with regression coverage.
 
 ## 0.36.5-pocketbun.0 - 2026-02-21
 
