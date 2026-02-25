@@ -5,6 +5,7 @@
 - Added the missing JSVM global `unmarshal(data, dst)` declaration to generated `pb_data/types.d.ts`, fixing migration IDE/type errors (`Cannot find name 'unmarshal'`).
 - Documented the upstream JSVM typing gap and PocketBun behavior in `docs/users/differences.md`.
 - Fixed JSVM `newQuery(...).bind({...}).execute()` compatibility by implementing query `execute()` and dbx named placeholder binding (`{:param}`), and reduced repeated bind overhead with SQL-template placeholder-name caching.
+- Aligned JSVM dbx `newQuery(...).one(...)` missing-row behavior with PocketBase/`sql.ErrNoRows` (`sql: no rows in result set`) and added contract tests for documented `newQuery` + `bind({:token})` flows.
 
 ## 0.36.5-pocketbun.0 - 2026-02-21
 

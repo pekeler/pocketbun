@@ -83,4 +83,28 @@ describe("DbxQuery", () => {
       db.close();
     }
   });
+
+  it("one throws sql.ErrNoRows-compatible error on missing rows", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      db.run("create table t (token text)");
+
+      expect(() => {
+        db.newQuery("select [[token]] from t where [[token]] = {:token}").Bind({ token: "missing" }).one();
+      }).toThrow("sql: no rows in result set");
+    } finally {
+      db.close();
+    }
+  });
+
+  it("all returns an empty array on missing rows", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      db.run("create table t (token text)");
+      const result = db.newQuery("select [[token]] from t where [[token]] = {:token}").Bind({ token: "missing" }).all();
+      expect(result).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
 });

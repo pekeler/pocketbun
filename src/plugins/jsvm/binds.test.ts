@@ -1022,6 +1022,101 @@ console.log(new URL(server.url).port);`);
     }
   });
 
+  it("newQuery exposes documented query methods", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      dbxBinds(scope);
+      appBinds(scope, app);
+
+      const query = scope.$app.db().newQuery("SELECT 1");
+
+      expect(typeof query.bind).toBe("function");
+      expect(typeof query.execute).toBe("function");
+      expect(typeof query.one).toBe("function");
+      expect(typeof query.all).toBe("function");
+      expect(typeof query.Bind).toBe("function");
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("newQuery bind with {:token} placeholders matches docs behavior", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      dbxBinds(scope);
+      appBinds(scope, app);
+
+      app.db().run("create table if not exists _pb_dbx_bind_docs_test (name text, created text)");
+      app.db().run("delete from _pb_dbx_bind_docs_test");
+      app
+        .db()
+        .run("insert into _pb_dbx_bind_docs_test (name, created) values (?, ?)", ["too-early", "2023-06-24 23:59:59.999Z"]);
+      app
+        .db()
+        .run("insert into _pb_dbx_bind_docs_test (name, created) values (?, ?)", ["in-range-a", "2023-06-25 00:00:00.000Z"]);
+      app
+        .db()
+        .run("insert into _pb_dbx_bind_docs_test (name, created) values (?, ?)", ["in-range-b", "2023-06-28 23:59:59.999Z"]);
+      app
+        .db()
+        .run("insert into _pb_dbx_bind_docs_test (name, created) values (?, ?)", ["too-late", "2023-06-29 00:00:00.000Z"]);
+
+      const result = scope.arrayOf(
+        new scope.DynamicModel({
+          name: "",
+          created: "",
+        }),
+      );
+
+      scope.$app
+        .db()
+        .newQuery(
+          "SELECT name, created FROM _pb_dbx_bind_docs_test WHERE created >= {:from} and created <= {:to} ORDER BY created ASC",
+        )
+        .bind({
+          from: "2023-06-25 00:00:00.000Z",
+          to: "2023-06-28 23:59:59.999Z",
+        })
+        .all(result);
+
+      expect(result.map((item: { name: string }) => item.name)).toEqual(["in-range-a", "in-range-b"]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("newQuery one throws sql.ErrNoRows-compatible error when no row matches", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      dbxBinds(scope);
+      appBinds(scope, app);
+
+      app.db().run("create table if not exists _pb_dbx_bind_no_rows_test (name text)");
+      app.db().run("delete from _pb_dbx_bind_no_rows_test");
+      app.db().run("insert into _pb_dbx_bind_no_rows_test (name) values (?)", ["present"]);
+
+      const result = new scope.DynamicModel({
+        name: "",
+      });
+
+      expect(() => {
+        scope.$app
+          .db()
+          .newQuery("SELECT name FROM _pb_dbx_bind_no_rows_test WHERE name = {:name}")
+          .bind({ name: "missing" })
+          .one(result);
+      }).toThrow("sql: no rows in result set");
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("dynamic model map field caching", () => {
     const scope: BindScope = {};
     baseBinds(scope);

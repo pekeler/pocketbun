@@ -9,6 +9,7 @@ import { extractDbxParamNames } from "./identifiers.ts";
 export const DynamicModelShapeKey = "__pbDynamicModelShape";
 export const DynamicModelFactoryKey = "__pbDynamicModelFactory";
 type DbxNamedParams = Record<string, SQLQueryBindings>;
+const errNoRowsMessage = "sql: no rows in result set";
 
 export class DbxQuery {
   #db: DbxDatabase;
@@ -47,7 +48,7 @@ export class DbxQuery {
   one<T extends Record<string, unknown>>(into?: T): T | null {
     const row = this.#db.query(this.#sql).get(...this.#params) as Record<string, unknown> | undefined;
     if (!row) {
-      return null;
+      throw new Error(errNoRowsMessage);
     }
     if (into) {
       applyRow(into as Record<string, unknown>, row);
