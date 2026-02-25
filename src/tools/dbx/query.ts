@@ -4,9 +4,11 @@ import type { SQLQueryBindings } from "bun:sqlite";
 import type { SqlExpr } from "../search/types.ts";
 import type { DbxDatabase } from "./database.ts";
 import { JSONArray, JSONMap } from "../types/index.ts";
+import { extractDbxParamNames } from "./identifiers.ts";
 
 export const DynamicModelShapeKey = "__pbDynamicModelShape";
 export const DynamicModelFactoryKey = "__pbDynamicModelFactory";
+type DbxNamedParams = Record<string, SQLQueryBindings>;
 
 export class DbxQuery {
   #db: DbxDatabase;
@@ -19,9 +21,27 @@ export class DbxQuery {
     this.#params = params;
   }
 
-  Bind(...params: SQLQueryBindings[]): this {
-    this.#params = params;
+  Bind(...params: Array<SQLQueryBindings | DbxNamedParams>): this {
+    const first = params[0];
+    if (params.length === 1 && first && isDbxNamedParams(first)) {
+      const values: SQLQueryBindings[] = [];
+      const names = extractDbxParamNames(this.#sql);
+      for (const name of names) {
+        if (!Object.prototype.hasOwnProperty.call(first, name)) {
+          throw new Error(`missing param :${name}`);
+        }
+        values.push(first[name] as SQLQueryBindings);
+      }
+      this.#params = values;
+      return this;
+    }
+
+    this.#params = params as SQLQueryBindings[];
     return this;
+  }
+
+  execute() {
+    return this.#db.query(this.#sql).run(...this.#params);
   }
 
   one<T extends Record<string, unknown>>(into?: T): T | null {
@@ -63,6 +83,19 @@ export class DbxQuery {
 
     return into;
   }
+}
+
+function isDbxNamedParams(value: SQLQueryBindings | DbxNamedParams): value is DbxNamedParams {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  if (Array.isArray(value)) {
+    return false;
+  }
+  if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+    return false;
+  }
+  return true;
 }
 
 export class DbxSelectQuery {

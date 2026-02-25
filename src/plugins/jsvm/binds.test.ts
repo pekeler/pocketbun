@@ -991,6 +991,37 @@ console.log(new URL(server.url).port);`);
     }
   });
 
+  it("newQuery execute supports bind params", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      dbxBinds(scope);
+      appBinds(scope, app);
+
+      app.db().run("create table if not exists _pb_dbx_bind_execute_test (token text)");
+      app.db().run("delete from _pb_dbx_bind_execute_test");
+      app.db().run("insert into _pb_dbx_bind_execute_test (token) values (?)", ["test-token"]);
+
+      const result = scope.$app
+        .db()
+        .newQuery("DELETE FROM _pb_dbx_bind_execute_test WHERE token = {:token}")
+        .bind({ token: "test-token" })
+        .execute();
+
+      expect(result?.changes).toBe(1);
+
+      const row = app.db().query("select count(*) as total from _pb_dbx_bind_execute_test where token = ?").get("test-token") as
+        | {
+            total?: number;
+          }
+        | undefined;
+      expect(row?.total).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("dynamic model map field caching", () => {
     const scope: BindScope = {};
     baseBinds(scope);

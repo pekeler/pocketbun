@@ -2,6 +2,9 @@
 
 const rewriteCache = new Map<string, string>();
 const maxRewriteCacheEntries = 2048;
+const paramNamesCache = new Map<string, readonly string[]>();
+const maxParamNamesCacheEntries = 2048;
+const emptyParamNames = Object.freeze([]) as readonly string[];
 
 function getCachedRewrite(sql: string): string | null {
   const cached = rewriteCache.get(sql);
@@ -22,6 +25,28 @@ function setCachedRewrite(sql: string, rewritten: string): void {
   const oldest = rewriteCache.keys().next().value as string | undefined;
   if (oldest) {
     rewriteCache.delete(oldest);
+  }
+}
+
+function getCachedParamNames(sql: string): readonly string[] | null {
+  const cached = paramNamesCache.get(sql);
+  if (cached == null) {
+    return null;
+  }
+  // refresh insertion order for basic LRU-like behavior
+  paramNamesCache.delete(sql);
+  paramNamesCache.set(sql, cached);
+  return cached;
+}
+
+function setCachedParamNames(sql: string, names: readonly string[]): void {
+  paramNamesCache.set(sql, names);
+  if (paramNamesCache.size <= maxParamNamesCacheEntries) {
+    return;
+  }
+  const oldest = paramNamesCache.keys().next().value as string | undefined;
+  if (oldest) {
+    paramNamesCache.delete(oldest);
   }
 }
 
@@ -187,6 +212,155 @@ export function rewriteDbxIdentifiers(sql: string): string {
 
   setCachedRewrite(sql, result);
   return result;
+}
+
+export function extractDbxParamNames(sql: string): readonly string[] {
+  if (sql.indexOf("{:") === -1) {
+    return emptyParamNames;
+  }
+
+  const cached = getCachedParamNames(sql);
+  if (cached != null) {
+    return cached;
+  }
+
+  const names: string[] = [];
+  let i = 0;
+  let mode: QuoteMode = "none";
+
+  while (i < sql.length) {
+    const char = sql[i] ?? "";
+
+    if (mode === "line_comment") {
+      i += 1;
+      if (char === "\n" || char === "\r") {
+        mode = "none";
+      }
+      continue;
+    }
+
+    if (mode === "block_comment") {
+      i += 1;
+      if (char === "*" && sql[i] === "/") {
+        i += 1;
+        mode = "none";
+      }
+      continue;
+    }
+
+    if (mode === "none") {
+      if (char === "-" && sql[i + 1] === "-") {
+        mode = "line_comment";
+        i += 2;
+        continue;
+      }
+      if (char === "/" && sql[i + 1] === "*") {
+        mode = "block_comment";
+        i += 2;
+        continue;
+      }
+      if (char === "'") {
+        mode = "single";
+        i += 1;
+        continue;
+      }
+      if (char === '"') {
+        mode = "double";
+        i += 1;
+        continue;
+      }
+      if (char === "`") {
+        mode = "backtick";
+        i += 1;
+        continue;
+      }
+      if (char === "[") {
+        if (sql[i + 1] === "[") {
+          const end = sql.indexOf("]]", i + 2);
+          if (end === -1) {
+            i += 1;
+            continue;
+          }
+          i = end + 2;
+          continue;
+        }
+        mode = "bracket";
+        i += 1;
+        continue;
+      }
+      if (char === "{" && sql[i + 1] === "{") {
+        const end = sql.indexOf("}}", i + 2);
+        if (end === -1) {
+          i += 1;
+          continue;
+        }
+        i = end + 2;
+        continue;
+      }
+      if (char === "{" && sql[i + 1] === ":") {
+        const end = sql.indexOf("}", i + 2);
+        if (end === -1) {
+          i += 1;
+          continue;
+        }
+        const name = sql.slice(i + 2, end).trim();
+        if (name) {
+          names.push(name);
+        }
+        i = end + 1;
+        continue;
+      }
+
+      i += 1;
+      continue;
+    }
+
+    i += 1;
+
+    if (mode === "single" && char === "'") {
+      if (sql[i] === "'") {
+        i += 1;
+      } else {
+        mode = "none";
+      }
+      continue;
+    }
+
+    if (mode === "double" && char === '"') {
+      if (sql[i] === '"') {
+        i += 1;
+      } else {
+        mode = "none";
+      }
+      continue;
+    }
+
+    if (mode === "backtick" && char === "`") {
+      if (sql[i] === "`") {
+        i += 1;
+      } else {
+        mode = "none";
+      }
+      continue;
+    }
+
+    if (mode === "bracket" && char === "]") {
+      if (sql[i] === "]") {
+        i += 1;
+      } else {
+        mode = "none";
+      }
+    }
+  }
+
+  if (names.length === 0) {
+    setCachedParamNames(sql, emptyParamNames);
+    return emptyParamNames;
+  }
+
+  const frozen = Object.freeze(names.slice()) as readonly string[];
+  setCachedParamNames(sql, frozen);
+  return frozen;
 }
 
 type QuoteMode = "none" | "single" | "double" | "backtick" | "bracket" | "line_comment" | "block_comment";
