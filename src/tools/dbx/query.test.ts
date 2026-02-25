@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { DbxDatabase } from "./database.ts";
+import { NewExp } from "./expr.ts";
 
 describe("DbxQuery", () => {
   it("maps named bind values by SQL placeholder order", () => {
@@ -103,6 +104,133 @@ describe("DbxQuery", () => {
       db.run("create table t (token text)");
       const result = db.newQuery("select [[token]] from t where [[token]] = {:token}").Bind({ token: "missing" }).all();
       expect(result).toEqual([]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("exposes sql and params accessors", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      const query = db.newQuery("select [[token]] from t where [[token]] = ?", "x");
+      expect(query.sql()).toBe("select [[token]] from t where [[token]] = ?");
+      expect(query.params()).toEqual(["x"]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("supports prepare and close", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      db.run("create table t (token text)");
+      db.run("insert into t (token) values (?)", ["x"]);
+
+      const query = db.newQuery("select [[token]] as [[token]] from t where [[token]] = ?", "x").prepare();
+      const row = query.one<{ token: string }>();
+      expect(row?.token).toBe("x");
+      query.close();
+      query.close();
+    } finally {
+      db.close();
+    }
+  });
+
+  it("supports row and column helpers", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      db.run("create table t (a text, b text)");
+      db.run("insert into t (a, b) values (?, ?)", ["x", "y"]);
+      db.run("insert into t (a, b) values (?, ?)", ["z", "w"]);
+
+      const row = db.newQuery("select [[a]], [[b]] from t where [[a]] = ?", "x").row() as unknown[];
+      expect(row).toEqual(["x", "y"]);
+
+      const rowTarget = { value: "" };
+      db.newQuery("select [[a]] from t where [[a]] = ?", "x").row(rowTarget);
+      expect(rowTarget.value).toBe("x");
+
+      const column = db.newQuery("select [[a]] from t order by [[a]] asc").column() as unknown[];
+      expect(column).toEqual(["x", "z"]);
+
+      const columnTarget: unknown[] = [];
+      db.newQuery("select [[a]] from t order by [[a]] asc").column(columnTarget);
+      expect(columnTarget).toEqual(["x", "z"]);
+    } finally {
+      db.close();
+    }
+  });
+});
+
+describe("DbxSelectQuery", () => {
+  it("supports documented select builder methods", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      db.run("create table users (id text, email text, created text)");
+      db.run("insert into users (id, email, created) values (?, ?, ?)", [
+        "u1",
+        "alice@example.com",
+        "2023-06-25 00:00:00.000Z",
+      ]);
+      db.run("insert into users (id, email, created) values (?, ?, ?)", ["u2", "bob@test.dev", "2023-06-26 00:00:00.000Z"]);
+
+      const result = db
+        .select("id", "email")
+        .andSelect("created")
+        .distinct(true)
+        .from("users")
+        .andWhere(NewExp("[[email]] LIKE {:email}", { email: "%example.com%" }))
+        .orderBy("created ASC")
+        .andOrderBy("id ASC")
+        .limit(100)
+        .all<{ id: string; email: string; created: string }>();
+
+      expect(result).toEqual([{ id: "u1", email: "alice@example.com", created: "2023-06-25 00:00:00.000Z" }]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("supports groupBy/having and join helpers", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      db.run("create table users (id text, email text)");
+      db.run("create table profiles (id text, user_id text)");
+      db.run("insert into users (id, email) values (?, ?)", ["u1", "alice@example.com"]);
+      db.run("insert into users (id, email) values (?, ?)", ["u2", "bob@example.com"]);
+      db.run("insert into profiles (id, user_id) values (?, ?)", ["p1", "u1"]);
+      db.run("insert into profiles (id, user_id) values (?, ?)", ["p2", "u1"]);
+
+      const result = db
+        .select("[[users.id]] as [[id]]", "count([[profiles.id]]) as [[total]]")
+        .from("users")
+        .innerJoin("profiles", NewExp("[[profiles.user_id]] = [[users.id]]"))
+        .groupBy("[[users.id]]")
+        .having(NewExp("count([[profiles.id]]) > {:min}", { min: 1 }))
+        .all<{ id: string; total: number }>();
+
+      expect(result).toEqual([{ id: "u1", total: 2 }]);
+    } finally {
+      db.close();
+    }
+  });
+
+  it("supports where and orWhere chaining", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      db.run("create table users (id text, email text)");
+      db.run("insert into users (id, email) values (?, ?)", ["u1", "alice@example.com"]);
+      db.run("insert into users (id, email) values (?, ?)", ["u2", "bob@example.com"]);
+
+      const result = db
+        .select("id")
+        .from("users")
+        .where(NewExp("[[id]] = {:id}", { id: "u1" }))
+        .orWhere(NewExp("[[id]] = {:id}", { id: "u2" }))
+        .orderBy("id ASC")
+        .all<{ id: string }>();
+
+      expect(result).toEqual([{ id: "u1" }, { id: "u2" }]);
     } finally {
       db.close();
     }

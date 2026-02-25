@@ -1117,6 +1117,102 @@ console.log(new URL(server.url).port);`);
     }
   });
 
+  it("select query builder supports documented chaining methods", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      dbxBinds(scope);
+      appBinds(scope, app);
+
+      app.db().run("create table if not exists _pb_dbx_select_docs_users (id text, email text, created text)");
+      app.db().run("delete from _pb_dbx_select_docs_users");
+      app
+        .db()
+        .run("insert into _pb_dbx_select_docs_users (id, email, created) values (?, ?, ?)", [
+          "u1",
+          "alice@example.com",
+          "2023-06-25 00:00:00.000Z",
+        ]);
+      app
+        .db()
+        .run("insert into _pb_dbx_select_docs_users (id, email, created) values (?, ?, ?)", [
+          "u2",
+          "bob@test.dev",
+          "2023-06-26 00:00:00.000Z",
+        ]);
+
+      const result = scope.arrayOf(
+        new scope.DynamicModel({
+          id: "",
+          email: "",
+          created: "",
+        }),
+      );
+
+      scope.$app
+        .db()
+        .select("id", "email")
+        .andSelect("created")
+        .distinct(true)
+        .from("_pb_dbx_select_docs_users")
+        .andWhere(scope.$dbx.like("email", "example.com").match(true, true))
+        .limit(100)
+        .orderBy("created ASC")
+        .andOrderBy("id ASC")
+        .all(result);
+
+      expect(result.map((item: { id: string }) => item.id)).toEqual(["u1"]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("select query builder supports join/groupBy/having helpers", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      dbxBinds(scope);
+      appBinds(scope, app);
+
+      app.db().run("create table if not exists _pb_dbx_select_docs_users (id text, email text)");
+      app.db().run("create table if not exists _pb_dbx_select_docs_profiles (id text, user_id text)");
+      app.db().run("delete from _pb_dbx_select_docs_users");
+      app.db().run("delete from _pb_dbx_select_docs_profiles");
+
+      app.db().run("insert into _pb_dbx_select_docs_users (id, email) values (?, ?)", ["u1", "alice@example.com"]);
+      app.db().run("insert into _pb_dbx_select_docs_users (id, email) values (?, ?)", ["u2", "bob@example.com"]);
+      app.db().run("insert into _pb_dbx_select_docs_profiles (id, user_id) values (?, ?)", ["p1", "u1"]);
+      app.db().run("insert into _pb_dbx_select_docs_profiles (id, user_id) values (?, ?)", ["p2", "u1"]);
+
+      const result = scope.arrayOf(
+        new scope.DynamicModel({
+          id: "",
+          total: 0,
+        }),
+      );
+
+      scope.$app
+        .db()
+        .select("[[_pb_dbx_select_docs_users.id]] as [[id]]", "count([[_pb_dbx_select_docs_profiles.id]]) as [[total]]")
+        .from("_pb_dbx_select_docs_users")
+        .innerJoin(
+          "_pb_dbx_select_docs_profiles",
+          scope.$dbx.exp("[[_pb_dbx_select_docs_profiles.user_id]] = [[_pb_dbx_select_docs_users.id]]"),
+        )
+        .groupBy("[[_pb_dbx_select_docs_users.id]]")
+        .having(scope.$dbx.exp("count([[_pb_dbx_select_docs_profiles.id]]) > {:min}", { min: 1 }))
+        .all(result);
+
+      expect(result.length).toBe(1);
+      expect(result[0].id).toBe("u1");
+      expect(result[0].total).toBe(2);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("dynamic model map field caching", () => {
     const scope: BindScope = {};
     baseBinds(scope);

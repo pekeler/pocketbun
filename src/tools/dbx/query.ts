@@ -1,6 +1,6 @@
 // PocketBun-only: minimal dbx query helpers for pb_hooks compatibility.
 
-import type { SQLQueryBindings } from "bun:sqlite";
+import type { Changes, SQLQueryBindings } from "bun:sqlite";
 import type { SqlExpr } from "../search/types.ts";
 import type { DbxDatabase } from "./database.ts";
 import { JSONArray, JSONMap } from "../types/index.ts";
@@ -10,11 +10,19 @@ export const DynamicModelShapeKey = "__pbDynamicModelShape";
 export const DynamicModelFactoryKey = "__pbDynamicModelFactory";
 type DbxNamedParams = Record<string, SQLQueryBindings>;
 const errNoRowsMessage = "sql: no rows in result set";
+type DbxExecutableStmt = {
+  run: (...params: SQLQueryBindings[]) => Changes;
+  get: (...params: SQLQueryBindings[]) => unknown;
+  all: (...params: SQLQueryBindings[]) => unknown;
+  values: (...params: SQLQueryBindings[]) => unknown;
+  finalize?: () => void;
+};
 
 export class DbxQuery {
   #db: DbxDatabase;
   #sql: string;
   #params: SQLQueryBindings[];
+  #preparedStmt: DbxExecutableStmt | null = null;
 
   constructor(db: DbxDatabase, sql: string, params: SQLQueryBindings[] = []) {
     this.#db = db;
@@ -41,12 +49,40 @@ export class DbxQuery {
     return this;
   }
 
+  bind(...params: Array<SQLQueryBindings | DbxNamedParams>): this {
+    return this.Bind(...params);
+  }
+
+  sql(): string {
+    return this.#sql;
+  }
+
+  params(): SQLQueryBindings[] {
+    return [...this.#params];
+  }
+
+  prepare(): this {
+    if (!this.#preparedStmt) {
+      this.#preparedStmt = this.#db.prepare(this.#sql) as unknown as DbxExecutableStmt;
+    }
+    return this;
+  }
+
+  close(): void {
+    if (!this.#preparedStmt) {
+      this.#preparedStmt = null;
+      return;
+    }
+    this.#preparedStmt.finalize?.();
+    this.#preparedStmt = null;
+  }
+
   execute() {
-    return this.#db.query(this.#sql).run(...this.#params);
+    return this.#stmt().run(...this.#params);
   }
 
   one<T extends Record<string, unknown>>(into?: T): T | null {
-    const row = this.#db.query(this.#sql).get(...this.#params) as Record<string, unknown> | undefined;
+    const row = this.#stmt().get(...this.#params) as Record<string, unknown> | undefined;
     if (!row) {
       throw new Error(errNoRowsMessage);
     }
@@ -58,7 +94,7 @@ export class DbxQuery {
   }
 
   all<T extends Record<string, unknown>>(into?: T[]): T[] {
-    const rows = this.#db.query(this.#sql).all(...this.#params) as Record<string, unknown>[] | undefined;
+    const rows = this.#stmt().all(...this.#params) as Record<string, unknown>[] | undefined;
     const result = rows ?? [];
     if (!into) {
       return result as T[];
@@ -84,6 +120,50 @@ export class DbxQuery {
 
     return into;
   }
+
+  rows<T extends Record<string, unknown>>(): T[] {
+    return this.all<T>();
+  }
+
+  row(...into: unknown[]): unknown {
+    const rows = this.#stmt().values(...this.#params) as unknown[] | undefined;
+    if (!rows || rows.length === 0) {
+      throw new Error(errNoRowsMessage);
+    }
+
+    const first = rows[0];
+    const values = Array.isArray(first) ? first : [first];
+    if (into.length > 0) {
+      scanIntoTargets(values, into);
+      return undefined;
+    }
+    return values;
+  }
+
+  column(into?: unknown): unknown {
+    const rows = this.#stmt().values(...this.#params) as unknown[] | undefined;
+    const values = !rows
+      ? []
+      : rows.map((row) => {
+          if (Array.isArray(row)) {
+            return row[0];
+          }
+          return row;
+        });
+    if (Array.isArray(into)) {
+      into.length = 0;
+      into.push(...values);
+      return undefined;
+    }
+    return values;
+  }
+
+  #stmt(): DbxExecutableStmt {
+    if (this.#preparedStmt) {
+      return this.#preparedStmt;
+    }
+    return this.#db.query(this.#sql) as unknown as DbxExecutableStmt;
+  }
 }
 
 function isDbxNamedParams(value: SQLQueryBindings | DbxNamedParams): value is DbxNamedParams {
@@ -102,29 +182,134 @@ function isDbxNamedParams(value: SQLQueryBindings | DbxNamedParams): value is Db
 export class DbxSelectQuery {
   #db: DbxDatabase;
   #fields: string[] = [];
-  #table = "";
-  #where: SqlExpr[] = [];
-  #orderBy: string | null = null;
+  #from: string[] = [];
+  #joins: SelectJoin[] = [];
+  #where: SelectCondition[] = [];
+  #having: SelectCondition[] = [];
+  #groupBy: string[] = [];
+  #orderBy: string[] = [];
+  #distinct = false;
   #limit: number | null = null;
+  #offset: number | null = null;
+  #bindParams: Array<SQLQueryBindings | DbxNamedParams> = [];
 
   constructor(db: DbxDatabase, fields: string[]) {
     this.#db = db;
     this.#fields = fields;
   }
 
-  from(table: string): this {
-    this.#table = table;
+  select(...fields: string[]): this {
+    if (fields.length > 0) {
+      this.#fields = fields;
+    }
+    return this;
+  }
+
+  andSelect(...fields: string[]): this {
+    if (fields.length > 0) {
+      this.#fields.push(...fields);
+    }
+    return this;
+  }
+
+  distinct(value: boolean): this {
+    this.#distinct = value;
+    return this;
+  }
+
+  from(...tables: string[]): this {
+    if (tables.length > 0) {
+      this.#from = tables;
+    }
     return this;
   }
 
   where(expr: SqlExpr | string): this {
-    if (typeof expr === "string") {
-      this.#where.push({ sql: expr, params: [] });
+    this.#appendWhere("AND", expr);
+    return this;
+  }
+
+  andWhere(expr: SqlExpr | string): this {
+    this.#appendWhere("AND", expr);
+    return this;
+  }
+
+  orWhere(expr: SqlExpr | string): this {
+    this.#appendWhere("OR", expr);
+    return this;
+  }
+
+  join(typ: string, table: string, on?: SqlExpr | string): this {
+    this.#joins.push({
+      typ,
+      table,
+      on: normalizeSelectExpr(on),
+    });
+    return this;
+  }
+
+  innerJoin(table: string, on?: SqlExpr | string): this {
+    return this.join("INNER JOIN", table, on);
+  }
+
+  leftJoin(table: string, on?: SqlExpr | string): this {
+    return this.join("LEFT JOIN", table, on);
+  }
+
+  rightJoin(table: string, on?: SqlExpr | string): this {
+    return this.join("RIGHT JOIN", table, on);
+  }
+
+  groupBy(...columns: string[]): this {
+    if (columns.length > 0) {
+      this.#groupBy = columns;
+    }
+    return this;
+  }
+
+  andGroupBy(...columns: string[]): this {
+    if (columns.length > 0) {
+      this.#groupBy.push(...columns);
+    }
+    return this;
+  }
+
+  having(expr: SqlExpr | string): this {
+    this.#appendHaving("AND", expr);
+    return this;
+  }
+
+  andHaving(expr: SqlExpr | string): this {
+    this.#appendHaving("AND", expr);
+    return this;
+  }
+
+  orHaving(expr: SqlExpr | string): this {
+    this.#appendHaving("OR", expr);
+    return this;
+  }
+
+  bind(...params: Array<SQLQueryBindings | DbxNamedParams>): this {
+    this.#bindParams = params;
+    return this;
+  }
+
+  andBind(...params: Array<SQLQueryBindings | DbxNamedParams>): this {
+    if (params.length === 0) {
       return this;
     }
-    if (expr && typeof expr.sql === "string") {
-      this.#where.push(expr);
+
+    const firstCurrent = this.#bindParams[0];
+    const firstNext = params[0];
+    const currentNamed = this.#bindParams.length === 1 && firstCurrent && isDbxNamedParams(firstCurrent);
+    const nextNamed = params.length === 1 && firstNext && isDbxNamedParams(firstNext);
+
+    if (currentNamed && nextNamed) {
+      this.#bindParams = [{ ...(firstCurrent as DbxNamedParams), ...(firstNext as DbxNamedParams) }];
+      return this;
     }
+
+    this.#bindParams.push(...params);
     return this;
   }
 
@@ -133,45 +318,211 @@ export class DbxSelectQuery {
     return this;
   }
 
-  orderBy(expr: string): this {
-    this.#orderBy = expr;
+  offset(offset: number): this {
+    this.#offset = offset;
+    return this;
+  }
+
+  orderBy(...expr: string[]): this {
+    if (expr.length > 0) {
+      this.#orderBy = expr;
+    }
+    return this;
+  }
+
+  andOrderBy(...expr: string[]): this {
+    if (expr.length > 0) {
+      this.#orderBy.push(...expr);
+    }
     return this;
   }
 
   one<T extends Record<string, unknown>>(into?: T): T | null {
-    const query = new DbxQuery(this.#db, this.buildSql(), this.buildParams());
+    const query = this.build();
     return query.one(into);
   }
 
   all<T extends Record<string, unknown>>(into?: T[]): T[] {
-    const query = new DbxQuery(this.#db, this.buildSql(), this.buildParams());
+    const query = this.build();
     return query.all(into);
   }
 
+  rows<T extends Record<string, unknown>>(): T[] {
+    return this.build().rows<T>();
+  }
+
+  row(...into: unknown[]): unknown {
+    return this.build().row(...into);
+  }
+
+  column(into?: unknown): unknown {
+    return this.build().column(into);
+  }
+
+  build(): DbxQuery {
+    const builtParams = this.buildParams();
+    const query = new DbxQuery(this.#db, this.buildSql());
+
+    if (this.#bindParams.length === 0) {
+      query.Bind(...builtParams);
+      return query;
+    }
+
+    const first = this.#bindParams[0];
+    if (this.#bindParams.length === 1 && first && isDbxNamedParams(first)) {
+      if (builtParams.length > 0) {
+        throw new Error("cannot combine named bind params with expression-generated params");
+      }
+      query.Bind(first);
+      return query;
+    }
+
+    query.Bind(...builtParams, ...(this.#bindParams as SQLQueryBindings[]));
+    return query;
+  }
+
   private buildSql(): string {
+    const selectPrefix = this.#distinct ? "SELECT DISTINCT" : "SELECT";
     const fields = this.#fields.length > 0 ? this.#fields.join(", ") : "*";
-    let sql = `SELECT ${fields} FROM {{${this.#table}}}`;
-    if (this.#where.length > 0) {
-      const clauses = this.#where.map((expr) => `(${expr.sql})`);
-      sql += ` WHERE ${clauses.join(" AND ")}`;
+    const tables = this.#from.length > 0 ? this.#from : [""];
+    let sql = `${selectPrefix} ${fields} FROM ${tables.map((table) => `{{${table}}}`).join(", ")}`;
+    for (const join of this.#joins) {
+      sql += ` ${join.typ} {{${join.table}}}`;
+      if (join.on?.sql) {
+        sql += ` ON (${join.on.sql})`;
+      }
     }
-    if (this.#orderBy) {
-      sql += ` ORDER BY ${this.#orderBy}`;
+
+    const where = combineSelectConditions(this.#where);
+    if (where) {
+      sql += ` WHERE ${where}`;
     }
+
+    if (this.#groupBy.length > 0) {
+      sql += ` GROUP BY ${this.#groupBy.join(", ")}`;
+    }
+
+    const having = combineSelectConditions(this.#having);
+    if (having) {
+      sql += ` HAVING ${having}`;
+    }
+
+    if (this.#orderBy.length > 0) {
+      sql += ` ORDER BY ${this.#orderBy.join(", ")}`;
+    }
+
     if (this.#limit != null) {
       sql += ` LIMIT ${this.#limit}`;
+    }
+    if (this.#offset != null) {
+      sql += ` OFFSET ${this.#offset}`;
     }
     return sql;
   }
 
   private buildParams(): SQLQueryBindings[] {
     const params: SQLQueryBindings[] = [];
-    for (const expr of this.#where) {
-      if (expr.params && Array.isArray(expr.params)) {
-        params.push(...(expr.params as SQLQueryBindings[]));
+    for (const join of this.#joins) {
+      if (join.on?.params && Array.isArray(join.on.params)) {
+        params.push(...(join.on.params as SQLQueryBindings[]));
+      }
+    }
+    for (const condition of this.#where) {
+      if (condition.expr.params && Array.isArray(condition.expr.params)) {
+        params.push(...(condition.expr.params as SQLQueryBindings[]));
+      }
+    }
+    for (const condition of this.#having) {
+      if (condition.expr.params && Array.isArray(condition.expr.params)) {
+        params.push(...(condition.expr.params as SQLQueryBindings[]));
       }
     }
     return params;
+  }
+
+  #appendWhere(op: "AND" | "OR", expr: SqlExpr | string): void {
+    const normalized = normalizeSelectExpr(expr);
+    if (!normalized?.sql) {
+      return;
+    }
+    this.#where.push({
+      op: this.#where.length === 0 ? null : op,
+      expr: normalized,
+    });
+  }
+
+  #appendHaving(op: "AND" | "OR", expr: SqlExpr | string): void {
+    const normalized = normalizeSelectExpr(expr);
+    if (!normalized?.sql) {
+      return;
+    }
+    this.#having.push({
+      op: this.#having.length === 0 ? null : op,
+      expr: normalized,
+    });
+  }
+}
+
+type SelectCondition = {
+  op: "AND" | "OR" | null;
+  expr: SqlExpr;
+};
+
+type SelectJoin = {
+  typ: string;
+  table: string;
+  on: SqlExpr | null;
+};
+
+function normalizeSelectExpr(expr: SqlExpr | string | undefined): SqlExpr | null {
+  if (!expr) {
+    return null;
+  }
+  if (typeof expr === "string") {
+    return { sql: expr, params: [] };
+  }
+  if (expr && typeof expr.sql === "string") {
+    return expr;
+  }
+  return null;
+}
+
+function combineSelectConditions(conditions: SelectCondition[]): string {
+  if (conditions.length === 0) {
+    return "";
+  }
+  let sql = "";
+  for (const condition of conditions) {
+    const clause = `(${condition.expr.sql})`;
+    if (!condition.op || !sql) {
+      sql = clause;
+      continue;
+    }
+    sql += ` ${condition.op} ${clause}`;
+  }
+  return sql;
+}
+
+function scanIntoTargets(values: unknown[], targets: unknown[]): void {
+  for (let i = 0; i < targets.length; i += 1) {
+    const target = targets[i];
+    const value = values[i];
+    if (Array.isArray(target)) {
+      target.length = 0;
+      target.push(value);
+      continue;
+    }
+    if (!target || typeof target !== "object") {
+      continue;
+    }
+    const objectTarget = target as Record<string, unknown>;
+    if ("value" in objectTarget) {
+      objectTarget.value = value;
+      continue;
+    }
+    if ("current" in objectTarget) {
+      objectTarget.current = value;
+    }
   }
 }
 
