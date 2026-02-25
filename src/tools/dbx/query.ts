@@ -10,7 +10,7 @@ export const DynamicModelShapeKey = "__pbDynamicModelShape";
 export const DynamicModelFactoryKey = "__pbDynamicModelFactory";
 type DbxNamedParams = Record<string, SQLQueryBindings>;
 const errNoRowsMessage = "sql: no rows in result set";
-type DbxExecHookFunc = (q: DbxQuery, op: () => Changes) => Changes | void;
+type DbxExecHookFunc = (q: DbxQuery, op: () => unknown) => unknown;
 type DbxOneHookFunc = <T>(q: DbxQuery, into: T | undefined, op: (nextInto: T | undefined) => T | null) => T | null | void;
 type DbxAllHookFunc = <T>(q: DbxQuery, into: T[] | undefined, op: (nextInto: T[] | undefined) => T[]) => T[] | void;
 type DbxBuildHookFunc = (q: DbxQuery) => void;
@@ -110,53 +110,34 @@ export class DbxQuery {
   }
 
   execute() {
-    const op = () => this.#stmt().run(...this.#params);
-    const hook = this.#execHook;
-    if (!hook) {
-      return op();
-    }
-
-    let executed = false;
-    let result: Changes | undefined;
-    const wrappedOp = () => {
-      executed = true;
-      result = op();
-      return result;
-    };
-
-    const hookResult = hook(this, wrappedOp);
-    if (hookResult !== undefined) {
-      return hookResult;
-    }
-    if (!executed) {
-      return wrappedOp();
-    }
-    return result as Changes;
+    return this.#runWithExecHook(() => this.#stmt().run(...this.#params)) as Changes;
   }
 
   one<T extends Record<string, unknown>>(into?: T): T | null {
-    const hook = this.#oneHook as DbxOneHookFunc | null;
-    const op = (nextInto?: T): T | null => this.#oneWithoutHook(nextInto);
-    if (!hook) {
-      return op(into);
-    }
+    return this.#runWithExecHook(() => {
+      const hook = this.#oneHook as DbxOneHookFunc | null;
+      const op = (nextInto?: T): T | null => this.#oneWithoutHook(nextInto);
+      if (!hook) {
+        return op(into);
+      }
 
-    let executed = false;
-    let result: T | null | undefined;
-    const wrappedOp = (nextInto?: T): T | null => {
-      executed = true;
-      result = op(nextInto);
-      return result;
-    };
+      let executed = false;
+      let result: T | null | undefined;
+      const wrappedOp = (nextInto?: T): T | null => {
+        executed = true;
+        result = op(nextInto);
+        return result;
+      };
 
-    const hookResult = hook(this, into, wrappedOp);
-    if (hookResult !== undefined) {
-      return hookResult as T | null;
-    }
-    if (!executed) {
-      return wrappedOp(into);
-    }
-    return result as T | null;
+      const hookResult = hook(this, into, wrappedOp);
+      if (hookResult !== undefined) {
+        return hookResult as T | null;
+      }
+      if (!executed) {
+        return wrappedOp(into);
+      }
+      return result as T | null;
+    }) as T | null;
   }
 
   #oneWithoutHook<T extends Record<string, unknown>>(into?: T): T | null {
@@ -172,28 +153,30 @@ export class DbxQuery {
   }
 
   all<T extends Record<string, unknown>>(into?: T[]): T[] {
-    const hook = this.#allHook as DbxAllHookFunc | null;
-    const op = (nextInto?: T[]): T[] => this.#allWithoutHook(nextInto);
-    if (!hook) {
-      return op(into);
-    }
+    return this.#runWithExecHook(() => {
+      const hook = this.#allHook as DbxAllHookFunc | null;
+      const op = (nextInto?: T[]): T[] => this.#allWithoutHook(nextInto);
+      if (!hook) {
+        return op(into);
+      }
 
-    let executed = false;
-    let result: T[] | undefined;
-    const wrappedOp = (nextInto?: T[]): T[] => {
-      executed = true;
-      result = op(nextInto);
-      return result;
-    };
+      let executed = false;
+      let result: T[] | undefined;
+      const wrappedOp = (nextInto?: T[]): T[] => {
+        executed = true;
+        result = op(nextInto);
+        return result;
+      };
 
-    const hookResult = hook(this, into, wrappedOp);
-    if (hookResult !== undefined) {
-      return hookResult as T[];
-    }
-    if (!executed) {
-      return wrappedOp(into);
-    }
-    return result as T[];
+      const hookResult = hook(this, into, wrappedOp);
+      if (hookResult !== undefined) {
+        return hookResult as T[];
+      }
+      if (!executed) {
+        return wrappedOp(into);
+      }
+      return result as T[];
+    }) as T[];
   }
 
   #allWithoutHook<T extends Record<string, unknown>>(into?: T[]): T[] {
@@ -229,36 +212,64 @@ export class DbxQuery {
   }
 
   row(...into: unknown[]): unknown {
-    const rows = this.#stmt().values(...this.#params) as unknown[] | undefined;
-    if (!rows || rows.length === 0) {
-      throw new Error(errNoRowsMessage);
-    }
+    return this.#runWithExecHook(() => {
+      const rows = this.#stmt().values(...this.#params) as unknown[] | undefined;
+      if (!rows || rows.length === 0) {
+        throw new Error(errNoRowsMessage);
+      }
 
-    const first = rows[0];
-    const values = Array.isArray(first) ? first : [first];
-    if (into.length > 0) {
-      scanIntoTargets(values, into);
-      return undefined;
-    }
-    return values;
+      const first = rows[0];
+      const values = Array.isArray(first) ? first : [first];
+      if (into.length > 0) {
+        scanIntoTargets(values, into);
+        return undefined;
+      }
+      return values;
+    });
   }
 
   column(into?: unknown): unknown {
-    const rows = this.#stmt().values(...this.#params) as unknown[] | undefined;
-    const values = !rows
-      ? []
-      : rows.map((row) => {
-          if (Array.isArray(row)) {
-            return row[0];
-          }
-          return row;
-        });
-    if (Array.isArray(into)) {
-      into.length = 0;
-      into.push(...values);
-      return undefined;
+    return this.#runWithExecHook(() => {
+      const rows = this.#stmt().values(...this.#params) as unknown[] | undefined;
+      const values = !rows
+        ? []
+        : rows.map((row) => {
+            if (Array.isArray(row)) {
+              return row[0];
+            }
+            return row;
+          });
+      if (Array.isArray(into)) {
+        into.length = 0;
+        into.push(...values);
+        return undefined;
+      }
+      return values;
+    });
+  }
+
+  #runWithExecHook<T>(op: () => T): T {
+    const execHook = this.#execHook;
+    if (!execHook) {
+      return op();
     }
-    return values;
+
+    let executed = false;
+    let result: T | undefined;
+    const wrappedOp = () => {
+      executed = true;
+      result = op();
+      return result;
+    };
+
+    const hookResult = execHook(this, wrappedOp);
+    if (executed) {
+      return result as T;
+    }
+    if (hookResult !== undefined) {
+      return hookResult as T;
+    }
+    return wrappedOp();
   }
 
   #stmt(): DbxExecutableStmt {

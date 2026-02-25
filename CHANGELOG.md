@@ -8,6 +8,7 @@
 - Aligned JSVM dbx `newQuery(...).one(...)` missing-row behavior with PocketBase/`sql.ErrNoRows` (`sql: no rows in result set`) and added contract tests for documented `newQuery` + `bind({:token})` flows.
 - Expanded JSVM/dbx query compatibility coverage and runtime support for documented query-builder chains (for example `andWhere`, `andSelect`, `distinct`, joins, grouping/having, and multi-order clauses), plus additional `Query` helpers (`sql`, `params`, `prepare`/`close`, `row`, `column`, `rows`).
 - Added JSVM dbx compatibility for query context/hook APIs (`withContext`/`context`, `withExecHook`, `withOneHook`, `withAllHook`, `withBuildHook`) and select fragments/unions (`preFragment`, `postFragment`, `selectOption`, `union`, `unionAll`) with regression coverage.
+- Aligned dbx `withExecHook` behavior with upstream by applying it across all query resolvers (`execute`, `one`, `all`, `row`, `column`) and expanded hook assertions in compatibility tests.
 - Added missing `dbx.SelectQuery` JSVM methods `info()` and `model(pk, model)` (including table-name inference for `model(...)`) and locked them with compatibility tests.
 - Aligned JSVM/dbx `LikeExp` compatibility by adding `.escape(...)` support and restoring default wildcard matching (`%value%`) for `like`/`notLike` variants.
 

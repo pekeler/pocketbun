@@ -209,7 +209,7 @@ describe("DbxQuery", () => {
 
       expect(oneHookCalls).toBe(1);
       expect(allHookCalls).toBe(1);
-      expect(execHookCalls).toBe(1);
+      expect(execHookCalls).toBe(3);
     } finally {
       db.close();
     }
