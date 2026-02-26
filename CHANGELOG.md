@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.36.5-pocketbun.1 (Unreleased)
+## 0.36.5-pocketbun.1 - 2026-02-26
 
 - Completed a broad JSVM/dbx compatibility sweep for documented `newQuery(...)` and `select(...)` flows, including `execute()`, named `bind({:token})`, `one()` missing-row behavior, query-builder chains, context/hook APIs, unions/fragments, `LikeExp.escape`, `rows()` cursor iteration, and missing `SelectQuery` helpers (`info`, `model`).
 - Improved JSVM/dbx internals by aligning `withExecHook` coverage across query resolvers, exposing query metadata fields (for example `lastError`), and caching SQL-template parameter-name extraction to reduce repeated bind overhead.
