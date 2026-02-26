@@ -67,11 +67,13 @@ Then visit `http://127.0.0.1:8090/_/` for the Admin UI and `http://127.0.0.1:809
 
 ## Performance
 
-PocketBase is fast for many use cases. PocketBun has been optimized to perform in the same ballpark, but Go (1.25.7) and Bun (1.3.9) are different runtimes, so differences exist.
+PocketBase is fast for many use cases. PocketBun has been optimized to perform in the same ballpark, but Go (1.26.0) and Bun (1.3.10) are different runtimes, so differences exist.
 
-Depending on the benchmark scenario, **PocketBun is 5.5× faster to 3.1× slower** than PocketBase, with a geometric mean of **1.6× faster**.
+On Hetzner CCX13 (2 dedicated vCPU, 8 GB RAM), with PocketBase `v0.36.5` and PocketBun `0.36.5-pocketbun.2`, and using five full runs per system, **PocketBun is 6.1× faster to 3.0× slower** than PocketBase depending on the scenario, with a geometric mean of **1.6× faster**.
 
-Precise comparisons are difficult due to [fluctuating results](https://github.com/pocketbase/benchmarks/issues/8) in the benchmarking suite. PocketBase’s benchmark suite has been run on a Hetzner CCX13 (2 dedicated vCPU, 8 GB RAM) three times for each system and calculated the numbers above from the mean times of those runs.
+In this setup, the aggregate mean benchmark times (sum of mean `Completed` across all scenarios) are about **10m 2s** for PocketBun vs about **21m 41s** for PocketBase.
+
+Precise comparisons are difficult due to [fluctuating results](https://github.com/pocketbase/benchmarks/issues/8) in the benchmarking suite. The numbers above are based on mean times across five runs per system.
 
 ## Tests
 

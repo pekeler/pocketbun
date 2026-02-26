@@ -237,7 +237,7 @@ async function runGoBuild(config: GoBuildConfig & { cwd: string }): Promise<void
   };
 
   const buildProc = Bun.spawn({
-    cmd: [goBinary, "build", "-o", config.outputPath],
+    cmd: [goBinary, "build", "-mod=mod", "-o", config.outputPath],
     cwd: config.cwd,
     env: processEnv,
     stdio: ["ignore", "inherit", "inherit"],

@@ -18,6 +18,7 @@ each side, then reports:
 - smallest factor (PocketBun/PocketBase)
 - largest factor (PocketBun/PocketBase)
 - geometric mean factor across comparable scenarios
+- summed mean Completed time across all summed scenarios
 `);
 }
 
@@ -210,6 +211,28 @@ function formatFactor(value) {
   return value.toFixed(2);
 }
 
+function formatDurationNs(ns) {
+  if (!Number.isFinite(ns)) {
+    return "n/a";
+  }
+  if (ns >= 60 * 60 * 1e9) {
+    return `${(ns / (60 * 60 * 1e9)).toFixed(3)}h`;
+  }
+  if (ns >= 60 * 1e9) {
+    return `${(ns / (60 * 1e9)).toFixed(3)}m`;
+  }
+  if (ns >= 1e9) {
+    return `${(ns / 1e9).toFixed(3)}s`;
+  }
+  if (ns >= 1e6) {
+    return `${(ns / 1e6).toFixed(3)}ms`;
+  }
+  if (ns >= 1e3) {
+    return `${(ns / 1e3).toFixed(3)}us`;
+  }
+  return `${ns.toFixed(0)}ns`;
+}
+
 function main() {
   const { resultsDir } = parseArgs(process.argv.slice(2));
 
@@ -247,6 +270,8 @@ function main() {
       scenario: pb.scenario,
       category: pb.category,
       factor: pbu.meanNs / pb.meanNs,
+      pocketbaseMeanNs: pb.meanNs,
+      pocketbunMeanNs: pbu.meanNs,
     });
   }
 
@@ -257,11 +282,18 @@ function main() {
   const smallest = factors.reduce((best, row) => (row.factor < best.factor ? row : best));
   const largest = factors.reduce((best, row) => (row.factor > best.factor ? row : best));
   const gmean = geometricMean(factors.map((row) => row.factor));
+  const pocketbaseAllScenarioMeans = [...pocketbase.aggregates.values()].filter((row) => row.meanNs > 0);
+  const pocketbunAllScenarioMeans = [...pocketbun.aggregates.values()].filter((row) => row.meanNs > 0);
+  const pocketbaseTotalMeanNs = pocketbaseAllScenarioMeans.reduce((acc, row) => acc + row.meanNs, 0);
+  const pocketbunTotalMeanNs = pocketbunAllScenarioMeans.reduce((acc, row) => acc + row.meanNs, 0);
+  const totalCompletedFactor = pocketbunTotalMeanNs / pocketbaseTotalMeanNs;
 
   console.log(`results dir: ${resultsDir}`);
   console.log(`PocketBase files loaded: ${pocketbase.nonEmptyFiles.length}`);
   console.log(`PocketBun files loaded: ${pocketbun.nonEmptyFiles.length}`);
   console.log(`comparable scenarios: ${factors.length}`);
+  console.log(`PocketBase scenarios summed: ${pocketbaseAllScenarioMeans.length}`);
+  console.log(`PocketBun scenarios summed: ${pocketbunAllScenarioMeans.length}`);
   console.log("");
   console.log(
     `smallest factor A (PocketBun/PocketBase): ${formatFactor(smallest.factor)}x [${smallest.category} | ${smallest.scenario}]`,
@@ -270,6 +302,9 @@ function main() {
     `largest factor B (PocketBun/PocketBase): ${formatFactor(largest.factor)}x [${largest.category} | ${largest.scenario}]`,
   );
   console.log(`geometric mean C (PocketBun/PocketBase): ${formatFactor(gmean)}x`);
+  console.log(
+    `sum mean completed D (all summed scenarios): PocketBase=${formatDurationNs(pocketbaseTotalMeanNs)}, PocketBun=${formatDurationNs(pocketbunTotalMeanNs)}, PocketBun/PocketBase=${formatFactor(totalCompletedFactor)}x`,
+  );
   console.log("");
 
   if (gmean <= 1) {
@@ -279,6 +314,16 @@ function main() {
   } else {
     console.log(
       `PocketBun is between ${formatFactor(1 / smallest.factor)} times faster and ${formatFactor(largest.factor)} times slower than PocketBase, with a geometric mean of being ${formatFactor(gmean)} times slower.`,
+    );
+  }
+
+  if (totalCompletedFactor <= 1) {
+    console.log(
+      `By summed mean Completed time across all summed scenarios, PocketBun is ${formatFactor(1 / totalCompletedFactor)} times faster than PocketBase.`,
+    );
+  } else {
+    console.log(
+      `By summed mean Completed time across all summed scenarios, PocketBun is ${formatFactor(totalCompletedFactor)} times slower than PocketBase.`,
     );
   }
 }

@@ -20,6 +20,18 @@ bun run bench:upstream
 bun run bench:upstream:pocketbun
 ```
 
+Remote paired-run helper (local-only script):
+
+```sh
+bash scripts/bench_upstream_compare_ssh.sh start
+bash scripts/bench_upstream_compare_ssh.sh status
+bash scripts/bench_upstream_compare_ssh.sh report
+```
+
+By default, the helper runs both systems 5 times each on the remote host,
+stores remote raw files under `benchmarks/results/batches/<session>/`, and
+writes a local markdown summary with the mean-factor output.
+
 Current retention policy:
 
 - keep the latest 3 full zero-error PocketBase upstream runs per machine tag
