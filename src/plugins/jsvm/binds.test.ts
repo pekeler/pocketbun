@@ -94,6 +94,34 @@ function extractInterfaceMethodNames(source: string, interfaceName: string): str
   return [...methodNames].filter(Boolean).sort();
 }
 
+function extractInterfacePropertyNames(source: string, interfaceName: string): string[] {
+  const propertyNames = new Set<string>();
+  const startToken = `interface ${interfaceName} {`;
+  let offset = 0;
+
+  while (offset < source.length) {
+    const start = source.indexOf(startToken, offset);
+    if (start === -1) {
+      break;
+    }
+
+    const end = source.indexOf("\n  }", start);
+    if (end === -1) {
+      break;
+    }
+
+    const block = source.slice(start, end);
+    const propertyMatches = block.matchAll(/\n\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*[^;\n]+;/g);
+    for (const match of propertyMatches) {
+      propertyNames.add(match[1] ?? "");
+    }
+
+    offset = end + 4;
+  }
+
+  return [...propertyNames].filter(Boolean).sort();
+}
+
 async function startExternalServer(script: string): Promise<{ port: number; stop: () => Promise<void> }> {
   const maxAttempts = 15;
 
@@ -1093,7 +1121,9 @@ console.log(new URL(server.url).port);`);
       const dbxNamespace = extractNamespace(typesSource, "dbx");
       const sqlNamespace = extractNamespace(typesSource, "sql");
       const documentedQueryMethods = extractInterfaceMethodNames(dbxNamespace, "Query");
+      const documentedQueryProperties = extractInterfacePropertyNames(dbxNamespace, "Query");
       const documentedSelectMethods = extractInterfaceMethodNames(dbxNamespace, "SelectQuery");
+      const documentedSelectProperties = extractInterfacePropertyNames(dbxNamespace, "SelectQuery");
       const documentedDbxRowsMethods = extractInterfaceMethodNames(dbxNamespace, "Rows");
       const documentedSqlRowsMethods = extractInterfaceMethodNames(sqlNamespace, "Rows");
       const documentedRowsMethods = [...new Set([...documentedDbxRowsMethods, ...documentedSqlRowsMethods])];
@@ -1101,6 +1131,9 @@ console.log(new URL(server.url).port);`);
 
       for (const methodName of documentedQueryMethods) {
         expect(typeof queryRecord[methodName]).toBe("function");
+      }
+      for (const propertyName of documentedQueryProperties) {
+        expect(propertyName in queryRecord).toBe(true);
       }
       expect(typeof query.Bind).toBe("function");
 
@@ -1119,6 +1152,9 @@ console.log(new URL(server.url).port);`);
       const selectRecord = select as unknown as Record<string, unknown>;
       for (const methodName of documentedSelectMethods) {
         expect(typeof selectRecord[methodName]).toBe("function");
+      }
+      for (const propertyName of documentedSelectProperties) {
+        expect(propertyName in selectRecord).toBe(true);
       }
 
       const selectCtx = { traceId: "select-methods" };

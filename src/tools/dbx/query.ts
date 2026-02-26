@@ -110,11 +110,18 @@ export class DbxQuery {
   #execHook: DbxExecHookFunc | null = null;
   #oneHook: DbxOneHookFunc | null = null;
   #allHook: DbxAllHookFunc | null = null;
+  fieldMapper: unknown = null;
+  lastError: Error | null = null;
+  logFunc: unknown = null;
+  perfFunc: unknown = null;
+  queryLogFunc: unknown = null;
+  execLogFunc: unknown = null;
 
   constructor(db: DbxDatabase, sql: string, params: SQLQueryBindings[] = []) {
     this.#db = db;
     this.#sql = sql;
     this.#params = params;
+    this.queryLogFunc = (db as { QueryLogFunc?: unknown }).QueryLogFunc ?? null;
   }
 
   Bind(...params: Array<SQLQueryBindings | DbxNamedParams>): this {
@@ -174,7 +181,11 @@ export class DbxQuery {
 
   prepare(): this {
     if (!this.#preparedStmt) {
-      this.#preparedStmt = this.#db.prepare(this.#sql) as unknown as DbxExecutableStmt;
+      try {
+        this.#preparedStmt = this.#db.prepare(this.#sql) as unknown as DbxExecutableStmt;
+      } catch (error) {
+        this.lastError = toError(error);
+      }
     }
     return this;
   }
@@ -189,10 +200,12 @@ export class DbxQuery {
   }
 
   execute() {
+    this.#consumeLastError();
     return this.#runWithExecHook(() => this.#stmt().run(...this.#params)) as Changes;
   }
 
   one<T extends Record<string, unknown>>(into?: T): T | null {
+    this.#consumeLastError();
     return this.#runWithExecHook(() => {
       const hook = this.#oneHook as DbxOneHookFunc | null;
       const op = (nextInto?: T): T | null => this.#oneWithoutHook(nextInto);
@@ -232,6 +245,7 @@ export class DbxQuery {
   }
 
   all<T extends Record<string, unknown>>(into?: T[]): T[] {
+    this.#consumeLastError();
     return this.#runWithExecHook(() => {
       const hook = this.#allHook as DbxAllHookFunc | null;
       const op = (nextInto?: T[]): T[] => this.#allWithoutHook(nextInto);
@@ -287,11 +301,13 @@ export class DbxQuery {
   }
 
   rows(): DbxRows {
+    this.#consumeLastError();
     const rows = this.#stmt().all(...this.#params) as Array<Record<string, unknown>> | undefined;
     return new DbxRows(rows ?? []);
   }
 
   row(...into: unknown[]): unknown {
+    this.#consumeLastError();
     return this.#runWithExecHook(() => {
       const rows = this.#stmt().values(...this.#params) as unknown[] | undefined;
       if (!rows || rows.length === 0) {
@@ -309,6 +325,7 @@ export class DbxQuery {
   }
 
   column(into?: unknown): unknown {
+    this.#consumeLastError();
     return this.#runWithExecHook(() => {
       const rows = this.#stmt().values(...this.#params) as unknown[] | undefined;
       const values = !rows
@@ -358,6 +375,14 @@ export class DbxQuery {
     }
     return this.#db.query(this.#sql) as unknown as DbxExecutableStmt;
   }
+
+  #consumeLastError(): void {
+    const error = this.lastError;
+    this.lastError = null;
+    if (error) {
+      throw error;
+    }
+  }
 }
 
 function isDbxNamedParams(value: SQLQueryBindings | DbxNamedParams): value is DbxNamedParams {
@@ -371,6 +396,13 @@ function isDbxNamedParams(value: SQLQueryBindings | DbxNamedParams): value is Db
     return false;
   }
   return true;
+}
+
+function toError(value: unknown): Error {
+  if (value instanceof Error) {
+    return value;
+  }
+  return new Error(String(value));
 }
 
 export class DbxSelectQuery {
@@ -392,6 +424,8 @@ export class DbxSelectQuery {
   #postFragment = "";
   #selectOption = "";
   #unions: SelectUnion[] = [];
+  fieldMapper: unknown = null;
+  tableMapper: unknown = null;
 
   constructor(db: DbxDatabase, fields: string[]) {
     this.#db = db;

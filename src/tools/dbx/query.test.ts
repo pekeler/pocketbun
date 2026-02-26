@@ -136,6 +136,18 @@ describe("DbxQuery", () => {
     }
   });
 
+  it("tracks and clears prepare errors via lastError", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      const query = db.newQuery("select [[token]] from missing_table").prepare();
+      expect(query.lastError).toBeInstanceOf(Error);
+      expect(() => query.one()).toThrow();
+      expect(query.lastError).toBeNull();
+    } finally {
+      db.close();
+    }
+  });
+
   it("supports row and column helpers", () => {
     const db = new DbxDatabase(":memory:");
     try {
