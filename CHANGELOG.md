@@ -13,6 +13,7 @@
 - Aligned JSVM/dbx `LikeExp` compatibility by adding `.escape(...)` support and restoring default wildcard matching (`%value%`) for `like`/`notLike` variants.
 - Aligned JSVM/dbx `rows()` with upstream cursor semantics by returning a row iterator (`next`, `scan`, `scanMap`, `scanStruct`, `columns`, `close`) instead of materialized arrays, with regression tests at dbx and JSVM bind layers.
 - Exposed generated dbx query metadata fields (`lastError`, `fieldMapper`, `queryLogFunc`, etc.) on JSVM `newQuery(...)`/`select(...)` objects and aligned `lastError` clearing semantics on query resolvers with upstream behavior.
+- Expanded `docs/users/extend.md` database guidance with side-by-side DBX-first and direct `bun:sqlite` examples, plus practical differences (placeholders, missing-row behavior, result mapping, and migration/perf tradeoffs).
 
 ## 0.36.5-pocketbun.0 - 2026-02-21
 
