@@ -1091,14 +1091,25 @@ console.log(new URL(server.url).port);`);
       const query = scope.$app.db().newQuery("SELECT 1");
       const typesSource = await Bun.file(generatedTypesUrl).text();
       const dbxNamespace = extractNamespace(typesSource, "dbx");
+      const sqlNamespace = extractNamespace(typesSource, "sql");
       const documentedQueryMethods = extractInterfaceMethodNames(dbxNamespace, "Query");
       const documentedSelectMethods = extractInterfaceMethodNames(dbxNamespace, "SelectQuery");
+      const documentedDbxRowsMethods = extractInterfaceMethodNames(dbxNamespace, "Rows");
+      const documentedSqlRowsMethods = extractInterfaceMethodNames(sqlNamespace, "Rows");
+      const documentedRowsMethods = [...new Set([...documentedDbxRowsMethods, ...documentedSqlRowsMethods])];
       const queryRecord = query as unknown as Record<string, unknown>;
 
       for (const methodName of documentedQueryMethods) {
         expect(typeof queryRecord[methodName]).toBe("function");
       }
       expect(typeof query.Bind).toBe("function");
+
+      const rows = query.rows();
+      const rowsRecord = rows as unknown as Record<string, unknown>;
+      for (const methodName of documentedRowsMethods) {
+        expect(typeof rowsRecord[methodName]).toBe("function");
+      }
+      rows.close();
 
       const queryCtx = { traceId: "query-methods" };
       query.withContext(queryCtx);
