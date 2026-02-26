@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.36.5-pocketbun.2 (Unreleased)
+
+- TBD
+
 ## 0.36.5-pocketbun.1 - 2026-02-26
 
 - Completed a broad JSVM/dbx compatibility sweep for documented `newQuery(...)` and `select(...)` flows, including `execute()`, named `bind({:token})`, `one()` missing-row behavior, query-builder chains, context/hook APIs, unions/fragments, `LikeExp.escape`, `rows()` cursor iteration, and missing `SelectQuery` helpers (`info`, `model`).
