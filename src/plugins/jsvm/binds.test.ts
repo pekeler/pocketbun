@@ -51,17 +51,38 @@ type BindScope = Record<string, any>;
 const generatedTypesUrl = new URL("./internal/types/generated/types.d.ts", import.meta.url);
 
 function extractNamespace(source: string, namespaceName: string): string {
-  const marker = `declare namespace ${namespaceName} {`;
-  const start = source.indexOf(marker);
-  if (start === -1) {
+  const markers = [
+    `declare namespace ${namespaceName} {`,
+    `namespace ${namespaceName} {`,
+    `declare namespace $${namespaceName} {`,
+    `namespace $${namespaceName} {`,
+  ];
+
+  let marker = "";
+  let start = -1;
+  for (const candidate of markers) {
+    const index = source.indexOf(candidate);
+    if (index === -1) {
+      continue;
+    }
+    if (start === -1 || index < start) {
+      marker = candidate;
+      start = index;
+    }
+  }
+
+  if (start === -1 || !marker) {
     return "";
   }
 
   const rest = source.slice(start + marker.length);
-  const nextNamespaceStart = rest.indexOf("\ndeclare namespace ");
-  if (nextNamespaceStart === -1) {
+  const nextNamespaceStarts = [rest.indexOf("\ndeclare namespace "), rest.indexOf("\nnamespace ")].filter(
+    (index) => index >= 0,
+  );
+  if (nextNamespaceStarts.length === 0) {
     return source.slice(start);
   }
+  const nextNamespaceStart = Math.min(...nextNamespaceStarts);
 
   return source.slice(start, start + marker.length + nextNamespaceStart);
 }
