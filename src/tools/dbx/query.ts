@@ -22,6 +22,85 @@ type DbxExecutableStmt = {
   finalize?: () => void;
 };
 
+class DbxRows {
+  #rows: Array<Record<string, unknown>>;
+  #columns: string[];
+  #index = -1;
+  #current: Record<string, unknown> | null = null;
+  #closed = false;
+
+  constructor(rows: Array<Record<string, unknown>>) {
+    this.#rows = rows;
+    const first = this.#rows[0];
+    this.#columns = first ? Object.keys(first) : [];
+  }
+
+  next(): boolean {
+    if (this.#closed) {
+      return false;
+    }
+
+    const nextIndex = this.#index + 1;
+    if (nextIndex >= this.#rows.length) {
+      this.#current = null;
+      this.close();
+      return false;
+    }
+
+    this.#index = nextIndex;
+    this.#current = this.#rows[nextIndex] ?? null;
+    return this.#current != null;
+  }
+
+  nextResultSet(): boolean {
+    return false;
+  }
+
+  err(): null {
+    return null;
+  }
+
+  columns(): string[] {
+    return [...this.#columns];
+  }
+
+  columnTypes(): unknown[] {
+    return [];
+  }
+
+  scanMap(into: Record<string, unknown>): void {
+    const row = this.#requireCurrent();
+    Object.assign(into, row);
+  }
+
+  scanStruct(into: Record<string, unknown>): void {
+    const row = this.#requireCurrent();
+    applyRow(into, row);
+  }
+
+  scan(...into: unknown[]): void {
+    if (into.length === 0) {
+      return;
+    }
+
+    const row = this.#requireCurrent();
+    const values = this.#columns.map((column) => row[column]);
+    scanIntoTargets(values, into);
+  }
+
+  close(): void {
+    this.#closed = true;
+    this.#current = null;
+  }
+
+  #requireCurrent(): Record<string, unknown> {
+    if (!this.#current || this.#closed) {
+      throw new Error("rows: call next() before scan");
+    }
+    return this.#current;
+  }
+}
+
 export class DbxQuery {
   #db: DbxDatabase;
   #sql: string;
@@ -207,8 +286,9 @@ export class DbxQuery {
     return into;
   }
 
-  rows<T extends Record<string, unknown>>(): T[] {
-    return this.all<T>();
+  rows(): DbxRows {
+    const rows = this.#stmt().all(...this.#params) as Array<Record<string, unknown>> | undefined;
+    return new DbxRows(rows ?? []);
   }
 
   row(...into: unknown[]): unknown {
@@ -522,8 +602,8 @@ export class DbxSelectQuery {
     return query.all(into);
   }
 
-  rows<T extends Record<string, unknown>>(): T[] {
-    return this.build().rows<T>();
+  rows(): DbxRows {
+    return this.build().rows();
   }
 
   row(...into: unknown[]): unknown {

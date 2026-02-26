@@ -11,6 +11,7 @@
 - Aligned dbx `withExecHook` behavior with upstream by applying it across all query resolvers (`execute`, `one`, `all`, `row`, `column`) and expanded hook assertions in compatibility tests.
 - Added missing `dbx.SelectQuery` JSVM methods `info()` and `model(pk, model)` (including table-name inference for `model(...)`) and locked them with compatibility tests.
 - Aligned JSVM/dbx `LikeExp` compatibility by adding `.escape(...)` support and restoring default wildcard matching (`%value%`) for `like`/`notLike` variants.
+- Aligned JSVM/dbx `rows()` with upstream cursor semantics by returning a row iterator (`next`, `scan`, `scanMap`, `scanStruct`, `columns`, `close`) instead of materialized arrays, with regression tests at dbx and JSVM bind layers.
 
 ## 0.36.5-pocketbun.0 - 2026-02-21
 

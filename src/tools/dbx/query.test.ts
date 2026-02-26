@@ -161,6 +161,45 @@ describe("DbxQuery", () => {
     }
   });
 
+  it("supports rows cursor helpers", () => {
+    const db = new DbxDatabase(":memory:");
+    try {
+      db.run("create table t (a text, b text)");
+      db.run("insert into t (a, b) values (?, ?)", ["x", "1"]);
+      db.run("insert into t (a, b) values (?, ?)", ["z", "2"]);
+
+      const rows = db.newQuery("select [[a]], [[b]] from t order by [[a]] asc").rows();
+      expect(rows.columns()).toEqual(["a", "b"]);
+      expect(rows.err()).toBeNull();
+      expect(rows.nextResultSet()).toBe(false);
+
+      expect(rows.next()).toBe(true);
+      const firstMap: Record<string, unknown> = {};
+      rows.scanMap(firstMap);
+      expect(firstMap).toEqual({ a: "x", b: "1" });
+
+      expect(rows.next()).toBe(true);
+      const secondStruct = { a: "", b: "" };
+      rows.scanStruct(secondStruct);
+      expect(secondStruct).toEqual({ a: "z", b: "2" });
+
+      const rowsForScan = db.newQuery("select [[a]], [[b]] from t where [[a]] = ?", "x").rows();
+      expect(rowsForScan.next()).toBe(true);
+      const aTarget = { value: "" };
+      const bTarget = { value: "" };
+      rowsForScan.scan(aTarget, bTarget);
+      expect(aTarget.value).toBe("x");
+      expect(bTarget.value).toBe("1");
+
+      rowsForScan.close();
+      expect(rowsForScan.next()).toBe(false);
+
+      expect(rows.next()).toBe(false);
+    } finally {
+      db.close();
+    }
+  });
+
   it("supports context and exec/one/all hooks", () => {
     const db = new DbxDatabase(":memory:");
     try {
@@ -210,6 +249,10 @@ describe("DbxQuery", () => {
       query.Bind("x");
       const columnResult = query.column() as unknown[];
       expect(columnResult).toEqual(["x"]);
+
+      query.Bind("x");
+      const rows = query.rows();
+      expect(rows.next()).toBe(true);
 
       query.Bind("y");
       const execResult = query.execute();

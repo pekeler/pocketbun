@@ -1193,6 +1193,60 @@ console.log(new URL(server.url).port);`);
     }
   });
 
+  it("newQuery rows cursor supports next/scan helpers", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      dbxBinds(scope);
+      appBinds(scope, app);
+
+      app.db().run("create table if not exists _pb_dbx_rows_cursor_test (name text, rank integer)");
+      app.db().run("delete from _pb_dbx_rows_cursor_test");
+      app.db().run("insert into _pb_dbx_rows_cursor_test (name, rank) values (?, ?)", ["a", 1]);
+      app.db().run("insert into _pb_dbx_rows_cursor_test (name, rank) values (?, ?)", ["b", 2]);
+
+      const rows = scope.$app.db().newQuery("SELECT name, rank FROM _pb_dbx_rows_cursor_test ORDER BY name ASC").rows();
+      expect(typeof rows.next).toBe("function");
+      expect(typeof rows.scanMap).toBe("function");
+      expect(typeof rows.scanStruct).toBe("function");
+      expect(typeof rows.scan).toBe("function");
+      expect(typeof rows.columns).toBe("function");
+      expect(typeof rows.close).toBe("function");
+      expect(rows.columns()).toEqual(["name", "rank"]);
+      expect(rows.err()).toBeNull();
+      expect(rows.nextResultSet()).toBe(false);
+
+      expect(rows.next()).toBe(true);
+      const firstMap: Record<string, unknown> = {};
+      rows.scanMap(firstMap);
+      expect(firstMap).toEqual({ name: "a", rank: 1 });
+
+      expect(rows.next()).toBe(true);
+      const model = new scope.DynamicModel({ name: "", rank: 0 });
+      rows.scanStruct(model);
+      expect(model.name).toBe("b");
+      expect(model.rank).toBe(2);
+      expect(rows.next()).toBe(false);
+
+      const rowsForScan = scope.$app
+        .db()
+        .newQuery("SELECT name, rank FROM _pb_dbx_rows_cursor_test WHERE name = {:name}")
+        .bind({ name: "a" })
+        .rows();
+      expect(rowsForScan.next()).toBe(true);
+      const nameTarget = { value: "" };
+      const rankTarget = { value: 0 };
+      rowsForScan.scan(nameTarget, rankTarget);
+      expect(nameTarget.value).toBe("a");
+      expect(rankTarget.value).toBe(1);
+      rowsForScan.close();
+      expect(rowsForScan.next()).toBe(false);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("newQuery withExecHook wraps execute/one/all/row/column", async () => {
     const { app, cleanup } = await newTestApp();
     try {
