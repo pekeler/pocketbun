@@ -2,17 +2,9 @@
 
 ## 0.36.5-pocketbun.1 (Unreleased)
 
-- Added the missing JSVM global `unmarshal(data, dst)` declaration to generated `pb_data/types.d.ts`, fixing migration IDE/type errors (`Cannot find name 'unmarshal'`).
-- Documented the upstream JSVM typing gap and PocketBun behavior in `docs/users/differences.md`.
-- Fixed JSVM `newQuery(...).bind({...}).execute()` compatibility by implementing query `execute()` and dbx named placeholder binding (`{:param}`), and reduced repeated bind overhead with SQL-template placeholder-name caching.
-- Aligned JSVM dbx `newQuery(...).one(...)` missing-row behavior with PocketBase/`sql.ErrNoRows` (`sql: no rows in result set`) and added contract tests for documented `newQuery` + `bind({:token})` flows.
-- Expanded JSVM/dbx query compatibility coverage and runtime support for documented query-builder chains (for example `andWhere`, `andSelect`, `distinct`, joins, grouping/having, and multi-order clauses), plus additional `Query` helpers (`sql`, `params`, `prepare`/`close`, `row`, `column`, `rows`).
-- Added JSVM dbx compatibility for query context/hook APIs (`withContext`/`context`, `withExecHook`, `withOneHook`, `withAllHook`, `withBuildHook`) and select fragments/unions (`preFragment`, `postFragment`, `selectOption`, `union`, `unionAll`) with regression coverage.
-- Aligned dbx `withExecHook` behavior with upstream by applying it across all query resolvers (`execute`, `one`, `all`, `row`, `column`) and expanded hook assertions in compatibility tests.
-- Added missing `dbx.SelectQuery` JSVM methods `info()` and `model(pk, model)` (including table-name inference for `model(...)`) and locked them with compatibility tests.
-- Aligned JSVM/dbx `LikeExp` compatibility by adding `.escape(...)` support and restoring default wildcard matching (`%value%`) for `like`/`notLike` variants.
-- Aligned JSVM/dbx `rows()` with upstream cursor semantics by returning a row iterator (`next`, `scan`, `scanMap`, `scanStruct`, `columns`, `close`) instead of materialized arrays, with regression tests at dbx and JSVM bind layers.
-- Exposed generated dbx query metadata fields (`lastError`, `fieldMapper`, `queryLogFunc`, etc.) on JSVM `newQuery(...)`/`select(...)` objects and aligned `lastError` clearing semantics on query resolvers with upstream behavior.
+- Completed a broad JSVM/dbx compatibility sweep for documented `newQuery(...)` and `select(...)` flows, including `execute()`, named `bind({:token})`, `one()` missing-row behavior, query-builder chains, context/hook APIs, unions/fragments, `LikeExp.escape`, `rows()` cursor iteration, and missing `SelectQuery` helpers (`info`, `model`).
+- Improved JSVM/dbx internals by aligning `withExecHook` coverage across query resolvers, exposing query metadata fields (for example `lastError`), and caching SQL-template parameter-name extraction to reduce repeated bind overhead.
+- Added the missing JSVM global `unmarshal(data, dst)` declaration to generated `pb_data/types.d.ts` and documented the related upstream typing gap in `docs/users/differences.md`.
 - Expanded `docs/users/extend.md` database guidance with side-by-side DBX-first and direct `bun:sqlite` examples, plus practical differences (placeholders, missing-row behavior, result mapping, and migration/perf tradeoffs).
 - Added direct regression coverage for non-DBX runtime compatibility shims (`cast`, `request_body`, `slog`, `validation`) to reduce hidden drift risk in shared auth/request/validation paths.
 
