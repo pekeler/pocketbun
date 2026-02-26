@@ -1,1075 +1,1075 @@
 # PocketBun Upstream-Port Benchmark Result
 
 - machine: hetzner_ccx13
-- timestamp: 2026-02-08T22:50:58.315Z
+- timestamp: 2026-02-26T15:23:54.020Z
 - tests: create,auth,search,custom,delete
 ## Creating organizations (100)
 #### Creating 50 organizations [reqs:50, conc:10, rule:`""`]
 ```
-┌─ Best:      6.519982ms
-├─ Worst:     48.734863ms
-├─ Completed: 129.871926ms
+┌─ Best:      6.833059ms
+├─ Worst:     62.255478ms
+├─ Completed: 122.94443ms
 └─ Errors:    0
 ```
 #### Creating 50 organizations [reqs:50, conc:10, rule:`"@request.body.name != ''"`]
 ```
-┌─ Best:      11.941876ms
-├─ Worst:     31.302582ms
-├─ Completed: 112.620858ms
+┌─ Best:      12.736901ms
+├─ Worst:     24.673189ms
+├─ Completed: 100.010549ms
 └─ Errors:    0
 ```
 
 ## Creating permissions (50)
 #### Creating 25 permissions [reqs:25, conc:5, rule:`""`]
 ```
-┌─ Best:      3.890847ms
-├─ Worst:     12.009918ms
-├─ Completed: 37.970335ms
+┌─ Best:      3.644253ms
+├─ Worst:     13.869755ms
+├─ Completed: 36.170594ms
 └─ Errors:    0
 ```
 #### Creating 25 permissions [reqs:25, conc:5, rule:`"@request.body.name != ''"`]
 ```
-┌─ Best:      9.275555ms
-├─ Worst:     13.723859ms
-├─ Completed: 59.833523ms
+┌─ Best:      5.923911ms
+├─ Worst:     22.936356ms
+├─ Completed: 52.219429ms
 └─ Errors:    0
 ```
 
 ## Creating users (500 - expected to be slow due to passwordHash generation)
 #### Creating 250 users [reqs:250, conc:50, rule:`""`]
 ```
-┌─ Best:      133.578105ms
-├─ Worst:     3.519627058s
-├─ Completed: 8.150782369s
+┌─ Best:      134.711224ms
+├─ Worst:     3.79568249s
+├─ Completed: 8.0926241s
 └─ Errors:    0
 ```
 #### Creating 250 users [reqs:250, conc:50, rule:`"@request.body.email != '' && @request.body.permissions:length > 0"`]
 ```
-┌─ Best:      126.897572ms
-├─ Worst:     3.931909998s
-├─ Completed: 8.166590014s
+┌─ Best:      123.713188ms
+├─ Worst:     4.297028363s
+├─ Completed: 8.121319795s
 └─ Errors:    0
 ```
 
 ## Creating posts (10k, 25k, 50k, 100k)
 #### Creating 5000 posts10k [reqs:5000, conc:500, rule:`""`]
 ```
-┌─ Best:      84.292737ms
-├─ Worst:     322.14679ms
-├─ Completed: 1.933289544s
+┌─ Best:      82.487598ms
+├─ Worst:     353.705666ms
+├─ Completed: 1.961212916s
 └─ Errors:    0
 ```
 #### Creating 5000 posts10k [reqs:5000, conc:500, rule:`"@request.auth.id != '' && @request.body.public:isset = true"`]
 ```
-┌─ Best:      122.699136ms
-├─ Worst:     442.786765ms
-├─ Completed: 2.679967889s
+┌─ Best:      105.533094ms
+├─ Worst:     394.781188ms
+├─ Completed: 2.638154135s
 └─ Errors:    0
 ```
 #### Creating 12500 posts25k [reqs:12500, conc:500, rule:`""`]
 ```
-┌─ Best:      70.981878ms
-├─ Worst:     305.659785ms
-├─ Completed: 4.248111404s
+┌─ Best:      70.068474ms
+├─ Worst:     303.844564ms
+├─ Completed: 4.241803304s
 └─ Errors:    0
 ```
 #### Creating 12500 posts25k [reqs:12500, conc:500, rule:`"@request.auth.id != '' && @request.body.public:isset = true"`]
 ```
-┌─ Best:      98.996415ms
-├─ Worst:     359.152545ms
-├─ Completed: 6.030483891s
+┌─ Best:      93.060213ms
+├─ Worst:     353.490343ms
+├─ Completed: 5.985936502s
 └─ Errors:    0
 ```
 #### Creating 25000 posts50k [reqs:25000, conc:500, rule:`""`]
 ```
-┌─ Best:      72.493698ms
-├─ Worst:     245.986102ms
-├─ Completed: 8.345204406s
+┌─ Best:      71.049518ms
+├─ Worst:     254.258273ms
+├─ Completed: 8.203015674s
 └─ Errors:    0
 ```
 #### Creating 25000 posts50k [reqs:25000, conc:500, rule:`"@request.auth.id != '' && @request.body.public:isset = true"`]
 ```
-┌─ Best:      110.206182ms
-├─ Worst:     383.470857ms
-├─ Completed: 12.18238527s
+┌─ Best:      95.176386ms
+├─ Worst:     394.062481ms
+├─ Completed: 12.20265512s
 └─ Errors:    0
 ```
 #### Creating 50000 posts100k [reqs:50000, conc:500, rule:`""`]
 ```
-┌─ Best:      66.823309ms
-├─ Worst:     285.659851ms
-├─ Completed: 17.013289073s
+┌─ Best:      67.687422ms
+├─ Worst:     296.624302ms
+├─ Completed: 16.96329482s
 └─ Errors:    0
 ```
 #### Creating 50000 posts100k [reqs:50000, conc:500, rule:`"@request.auth.id != '' && @request.body.public:isset = true"`]
 ```
-┌─ Best:      96.306761ms
-├─ Worst:     345.602427ms
-├─ Completed: 24.783406421s
+┌─ Best:      97.260572ms
+├─ Worst:     417.090053ms
+├─ Completed: 24.512238967s
 └─ Errors:    0
 ```
 
 ## User auth with password (expected to be slow due to passwordHash verification)
 #### users auth with email/pass - high concurrency [reqs:250, conc:250]
 ```
-┌─ Best:      164.8622ms
-├─ Worst:     7.931338012s
-├─ Completed: 7.932235209s
+┌─ Best:      156.567277ms
+├─ Worst:     7.931310075s
+├─ Completed: 7.93379218s
 └─ Errors:    0
 ```
 #### users auth with email/pass - small concurrency [reqs:250, conc:10]
 ```
-┌─ Best:      70.45659ms
-├─ Worst:     750.278694ms
-├─ Completed: 7.954495842s
+┌─ Best:      63.118347ms
+├─ Worst:     741.321684ms
+├─ Completed: 7.876127089s
 └─ Errors:    0
 ```
 
 ## User auth refresh
 #### users - auth refresh (high concurrency) [reqs:1000, conc:1000]
 ```
-┌─ Best:      94.100362ms
-├─ Worst:     287.454522ms
-├─ Completed: 297.674084ms
+┌─ Best:      108.204968ms
+├─ Worst:     284.814425ms
+├─ Completed: 298.859315ms
 └─ Errors:    0
 ```
 #### users - auth refresh (medium concurrency) [reqs:1000, conc:100]
 ```
-┌─ Best:      7.964869ms
-├─ Worst:     96.954794ms
-├─ Completed: 332.21865ms
+┌─ Best:      7.300573ms
+├─ Worst:     94.105806ms
+├─ Completed: 338.437267ms
 └─ Errors:    0
 ```
 
 ## List records
-#### users - getOne for auth refresh comparison (medium concurrency) [reqs:1000, conc:100, rule:`""`, query:`/l6os9vt1c4mkmh5`]
+#### users - getOne for auth refresh comparison (medium concurrency) [reqs:1000, conc:100, rule:`""`, query:`/895yi88i2g0eomf`]
 ```
-┌─ Best:      6.384119ms
-├─ Worst:     116.522549ms
-├─ Completed: 305.691752ms
+┌─ Best:      7.817431ms
+├─ Worst:     91.495391ms
+├─ Completed: 323.882062ms
 └─ Errors:    0
 ```
-#### users - getOne for auth refresh comparison (high concurrency) [reqs:1000, conc:1000, rule:`""`, query:`/l6os9vt1c4mkmh5`]
+#### users - getOne for auth refresh comparison (high concurrency) [reqs:1000, conc:1000, rule:`""`, query:`/895yi88i2g0eomf`]
 ```
-┌─ Best:      117.003681ms
-├─ Worst:     288.840311ms
-├─ Completed: 298.902476ms
+┌─ Best:      100.116159ms
+├─ Worst:     262.750272ms
+├─ Completed: 271.203498ms
 └─ Errors:    0
 ```
 #### posts10k - simpleA (many requests, no rules, no concurrency) [reqs:1000, conc:1, rule:`""`, query:`?perPage=20`]
 ```
-┌─ Best:      691.367µs
-├─ Worst:     12.098171ms
-├─ Completed: 1.889347612s
+┌─ Best:      682.196µs
+├─ Worst:     7.534115ms
+├─ Completed: 1.652285492s
 └─ Errors:    0
 ```
 #### posts10k - simpleB (many requests, no rules, high concurrency) [reqs:1000, conc:1000, rule:`""`, query:`?perPage=20`]
 ```
-┌─ Best:      178.210894ms
-├─ Worst:     831.618139ms
-├─ Completed: 842.178864ms
+┌─ Best:      139.376363ms
+├─ Worst:     783.918176ms
+├─ Completed: 794.285373ms
 └─ Errors:    0
 ```
 #### posts10k - simpleC (many requests, no rules, high concurrency, skipTotal) [reqs:1000, conc:1000, rule:`""`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      118.831351ms
-├─ Worst:     487.483537ms
-├─ Completed: 497.354674ms
+┌─ Best:      138.424063ms
+├─ Worst:     498.878283ms
+├─ Completed: 509.173032ms
 └─ Errors:    0
 ```
 #### posts10k - mixed read and write (simpleA list with additional 300 concurrent random posts10k updates running in the background) [reqs:1000, conc:1000, rule:`""`, query:`?perPage=20`]
 ```
-┌─ Best:      156.895249ms
-├─ Worst:     854.219098ms
-├─ Completed: 862.513933ms
+┌─ Best:      155.903803ms
+├─ Worst:     826.213444ms
+├─ Completed: 834.301251ms
 └─ Errors:    0
 ```
 #### posts10k - expand author [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author`]
 ```
-┌─ Best:      5.616196ms
-├─ Worst:     57.77845ms
-├─ Completed: 221.85397ms
+┌─ Best:      6.275201ms
+├─ Worst:     52.944572ms
+├─ Completed: 238.388661ms
 └─ Errors:    0
 ```
 #### posts10k - expand author (limited fields) [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author&fields=id,collectionId,expand.author.id`]
 ```
-┌─ Best:      10.164218ms
-├─ Worst:     64.092012ms
-├─ Completed: 230.123743ms
+┌─ Best:      9.418029ms
+├─ Worst:     61.415396ms
+├─ Completed: 241.706751ms
 └─ Errors:    0
 ```
 #### posts10k - expand author.permissions [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author.permissions`]
 ```
-┌─ Best:      5.207983ms
-├─ Worst:     69.904652ms
-├─ Completed: 285.164275ms
+┌─ Best:      4.89872ms
+├─ Worst:     55.965687ms
+├─ Completed: 246.806645ms
 └─ Errors:    0
 ```
 #### posts10k - expand author.permissions (limited fields) [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author.permissions&fields=id,collectionId,expand.author.id,expand.author.expand.permissions.id`]
 ```
-┌─ Best:      7.519831ms
-├─ Worst:     104.47879ms
-├─ Completed: 305.186944ms
+┌─ Best:      8.309862ms
+├─ Worst:     114.879819ms
+├─ Completed: 317.962024ms
 └─ Errors:    0
 ```
 #### posts10k - simple auth rule [reqs:100, conc:10, rule:`"@request.auth.id != ''"`, query:`?perPage=20`]
 ```
-┌─ Best:      6.21996ms
-├─ Worst:     44.347121ms
-├─ Completed: 196.342106ms
+┌─ Best:      5.936621ms
+├─ Worst:     37.776131ms
+├─ Completed: 175.60155ms
 └─ Errors:    0
 ```
 #### posts10k - author check (no index) [reqs:100, conc:10, rule:`"author = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      4.435785ms
-├─ Worst:     70.732554ms
-├─ Completed: 296.577129ms
+┌─ Best:      14.785995ms
+├─ Worst:     64.859807ms
+├─ Completed: 250.391089ms
 └─ Errors:    0
 ```
 #### posts10k - author check (with index) [reqs:100, conc:10, rule:`"author = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      5.001413ms
-├─ Worst:     27.938554ms
-├─ Completed: 131.140177ms
+┌─ Best:      9.034873ms
+├─ Worst:     27.642617ms
+├─ Completed: 133.203095ms
 └─ Errors:    0
 ```
 #### posts10k - author check (with index and skipTotal) [reqs:100, conc:10, rule:`"author = @request.auth.id"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      6.69231ms
-├─ Worst:     44.08731ms
-├─ Completed: 133.211016ms
+┌─ Best:      6.5535ms
+├─ Worst:     22.432939ms
+├─ Completed: 111.282278ms
 └─ Errors:    0
 ```
 #### posts10k - author.id (extra join) check (no index) [reqs:100, conc:10, rule:`"author.id = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      5.541694ms
-├─ Worst:     69.871581ms
-├─ Completed: 263.656319ms
+┌─ Best:      3.552004ms
+├─ Worst:     73.044641ms
+├─ Completed: 221.957321ms
 └─ Errors:    0
 ```
 #### posts10k - author.id (extra join) check (with index) [reqs:100, conc:10, rule:`"author.id = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      2.93289ms
-├─ Worst:     25.57605ms
-├─ Completed: 129.430884ms
+┌─ Best:      8.380248ms
+├─ Worst:     24.907292ms
+├─ Completed: 120.543581ms
 └─ Errors:    0
 ```
 #### posts10k - author.id (extra join) check (with index and skipTotal) [reqs:100, conc:10, rule:`"author.id = @request.auth.id"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      5.283086ms
-├─ Worst:     24.763772ms
-├─ Completed: 117.063327ms
+┌─ Best:      5.635998ms
+├─ Worst:     22.924278ms
+├─ Completed: 116.887963ms
 └─ Errors:    0
 ```
 #### posts10k - loose large text search (no index) [reqs:100, conc:10, rule:`"description ~ 'ipsum dolor'"`, query:`?perPage=20`]
 ```
-┌─ Best:      14.083557ms
-├─ Worst:     67.753304ms
-├─ Completed: 266.994959ms
+┌─ Best:      14.687196ms
+├─ Worst:     74.243684ms
+├─ Completed: 260.654017ms
 └─ Errors:    0
 ```
 #### posts10k - loose large text search (with index) [reqs:100, conc:10, rule:`"description ~ 'ipsum dolor'"`, query:`?perPage=20`]
 ```
-┌─ Best:      7.484199ms
-├─ Worst:     64.816077ms
-├─ Completed: 222.659004ms
+┌─ Best:      6.55411ms
+├─ Worst:     61.417295ms
+├─ Completed: 238.823852ms
 └─ Errors:    0
 ```
 #### posts10k - loose large text search (with index and skipTotal) [reqs:100, conc:10, rule:`"description ~ 'ipsum dolor'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      3.199539ms
-├─ Worst:     23.714747ms
-├─ Completed: 120.735239ms
+┌─ Best:      4.060209ms
+├─ Worst:     21.621238ms
+├─ Completed: 114.590123ms
 └─ Errors:    0
 ```
 #### posts10k - multiple select :each (no index, match-all) [reqs:100, conc:10, rule:`"type:each != 'c'"`, query:`?perPage=20`]
 ```
-┌─ Best:      28.476802ms
-├─ Worst:     257.95777ms
-├─ Completed: 1.45955978s
+┌─ Best:      71.945006ms
+├─ Worst:     250.389857ms
+├─ Completed: 1.387447852s
 └─ Errors:    0
 ```
 #### posts10k - multiple select :each (no index, match-all, skipTotal) [reqs:100, conc:10, rule:`"type:each != 'c'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      2.875202ms
-├─ Worst:     32.520667ms
-├─ Completed: 169.877944ms
+┌─ Best:      5.877753ms
+├─ Worst:     32.626765ms
+├─ Completed: 156.306212ms
 └─ Errors:    0
 ```
 #### posts10k - multiple select :each (no index, at-least-one) [reqs:100, conc:10, rule:`"type:each ?!= 'c'"`, query:`?perPage=20`]
 ```
-┌─ Best:      42.089774ms
-├─ Worst:     109.540184ms
-├─ Completed: 591.016867ms
+┌─ Best:      12.292323ms
+├─ Worst:     108.357538ms
+├─ Completed: 606.588235ms
 └─ Errors:    0
 ```
 #### posts10k - multiple select :each (no index, at-least-one, skipTotal) [reqs:100, conc:10, rule:`"type:each ?!= 'c'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      6.83991ms
-├─ Worst:     25.105894ms
-├─ Completed: 137.314501ms
+┌─ Best:      7.295656ms
+├─ Worst:     24.869785ms
+├─ Completed: 126.393039ms
 └─ Errors:    0
 ```
 #### posts10k - nested single relations lookup (no indexes) [reqs:100, conc:10, rule:`"author.organization.name != 'test'"`, query:`?perPage=20`]
 ```
-┌─ Best:      37.425746ms
-├─ Worst:     138.533458ms
-├─ Completed: 774.538556ms
+┌─ Best:      29.30029ms
+├─ Worst:     140.069276ms
+├─ Completed: 796.867406ms
 └─ Errors:    0
 ```
 #### posts10k - nested single relations lookup (no indexes, skipTotal) [reqs:100, conc:10, rule:`"author.organization.name != 'test'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      6.997226ms
-├─ Worst:     28.350021ms
-├─ Completed: 136.17397ms
+┌─ Best:      8.475932ms
+├─ Worst:     28.200305ms
+├─ Completed: 141.174666ms
 └─ Errors:    0
 ```
 #### posts10k - nested multiple relations lookup (no indexes, match-all) [reqs:100, conc:10, rule:`"author.permissions.active = true"`, query:`?perPage=20`]
 ```
-┌─ Best:      130.903232ms
-├─ Worst:     785.165771ms
-├─ Completed: 4.404291896s
+┌─ Best:      360.55903ms
+├─ Worst:     741.986606ms
+├─ Completed: 4.127145854s
 └─ Errors:    0
 ```
 #### posts10k - nested multiple relations lookup (no indexes, match-all, skipTotal) [reqs:100, conc:10, rule:`"author.permissions.active = true"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      17.196528ms
-├─ Worst:     48.662433ms
-├─ Completed: 236.242543ms
+┌─ Best:      4.321713ms
+├─ Worst:     53.108789ms
+├─ Completed: 188.299906ms
 └─ Errors:    0
 ```
 #### posts10k - nested multiple relations lookup (no indexes, at-least-one) [reqs:100, conc:10, rule:`"author.permissions.active ?= true"`, query:`?perPage=20`]
 ```
-┌─ Best:      1.009457513s
-├─ Worst:     2.063742229s
-├─ Completed: 11.378578436s
+┌─ Best:      938.369773ms
+├─ Worst:     2.144138861s
+├─ Completed: 11.33879236s
 └─ Errors:    0
 ```
 #### posts10k - nested multiple relations lookup (no indexes, at-least-one, skipTotal) [reqs:100, conc:10, rule:`"author.permissions.active ?= true"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      13.995065ms
-├─ Worst:     40.416715ms
-├─ Completed: 199.570318ms
+┌─ Best:      10.880439ms
+├─ Worst:     38.424909ms
+├─ Completed: 190.026564ms
 └─ Errors:    0
 ```
 #### posts25k - simpleA (many requests, no rules, no concurrency) [reqs:1000, conc:1, rule:`""`, query:`?perPage=20`]
 ```
-┌─ Best:      1.062814ms
-├─ Worst:     6.91826ms
-├─ Completed: 2.645855287s
+┌─ Best:      2.13278ms
+├─ Worst:     16.184558ms
+├─ Completed: 3.064939347s
 └─ Errors:    0
 ```
 #### posts25k - simpleB (many requests, no rules, high concurrency) [reqs:1000, conc:1000, rule:`""`, query:`?perPage=20`]
 ```
-┌─ Best:      99.469738ms
-├─ Worst:     1.174533332s
-├─ Completed: 1.185132414s
+┌─ Best:      159.059935ms
+├─ Worst:     1.151600556s
+├─ Completed: 1.163419106s
 └─ Errors:    0
 ```
 #### posts25k - simpleC (many requests, no rules, high concurrency, skipTotal) [reqs:1000, conc:1000, rule:`""`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      138.084435ms
-├─ Worst:     500.063128ms
-├─ Completed: 511.182509ms
+┌─ Best:      139.66816ms
+├─ Worst:     507.734275ms
+├─ Completed: 517.752817ms
 └─ Errors:    0
 ```
 #### posts25k - mixed read and write (simpleA list with additional 300 concurrent random posts25k updates running in the background) [reqs:1000, conc:1000, rule:`""`, query:`?perPage=20`]
 ```
-┌─ Best:      207.51052ms
-├─ Worst:     1.230485554s
-├─ Completed: 1.240984665s
+┌─ Best:      193.803275ms
+├─ Worst:     1.183995072s
+├─ Completed: 1.193195234s
 └─ Errors:    0
 ```
 #### posts25k - expand author [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author`]
 ```
-┌─ Best:      4.016205ms
-├─ Worst:     67.035136ms
-├─ Completed: 236.232376ms
+┌─ Best:      10.785666ms
+├─ Worst:     72.641664ms
+├─ Completed: 223.610136ms
 └─ Errors:    0
 ```
 #### posts25k - expand author (limited fields) [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author&fields=id,collectionId,expand.author.id`]
 ```
-┌─ Best:      9.176977ms
-├─ Worst:     67.740555ms
-├─ Completed: 256.335736ms
+┌─ Best:      14.328176ms
+├─ Worst:     78.607261ms
+├─ Completed: 283.811286ms
 └─ Errors:    0
 ```
 #### posts25k - expand author.permissions [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author.permissions`]
 ```
-┌─ Best:      4.364848ms
-├─ Worst:     78.017174ms
-├─ Completed: 248.861255ms
+┌─ Best:      13.823497ms
+├─ Worst:     78.43442ms
+├─ Completed: 240.53377ms
 └─ Errors:    0
 ```
 #### posts25k - expand author.permissions (limited fields) [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author.permissions&fields=id,collectionId,expand.author.id,expand.author.expand.permissions.id`]
 ```
-┌─ Best:      18.534586ms
-├─ Worst:     117.819166ms
-├─ Completed: 320.341854ms
+┌─ Best:      17.952548ms
+├─ Worst:     97.818449ms
+├─ Completed: 284.945831ms
 └─ Errors:    0
 ```
 #### posts25k - simple auth rule [reqs:100, conc:10, rule:`"@request.auth.id != ''"`, query:`?perPage=20`]
 ```
-┌─ Best:      9.181013ms
-├─ Worst:     72.187687ms
-├─ Completed: 227.830604ms
+┌─ Best:      8.156971ms
+├─ Worst:     73.963804ms
+├─ Completed: 299.962747ms
 └─ Errors:    0
 ```
 #### posts25k - author check (no index) [reqs:100, conc:10, rule:`"author = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      18.494616ms
-├─ Worst:     88.31475ms
-├─ Completed: 363.274056ms
+┌─ Best:      11.704869ms
+├─ Worst:     113.266992ms
+├─ Completed: 345.13157ms
 └─ Errors:    0
 ```
 #### posts25k - author check (with index) [reqs:100, conc:10, rule:`"author = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      4.203446ms
-├─ Worst:     24.831232ms
-├─ Completed: 122.683081ms
+┌─ Best:      6.916205ms
+├─ Worst:     24.629744ms
+├─ Completed: 118.486368ms
 └─ Errors:    0
 ```
 #### posts25k - author check (with index and skipTotal) [reqs:100, conc:10, rule:`"author = @request.auth.id"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      5.33875ms
-├─ Worst:     22.372393ms
-├─ Completed: 118.150642ms
+┌─ Best:      5.530441ms
+├─ Worst:     22.585979ms
+├─ Completed: 113.722077ms
 └─ Errors:    0
 ```
 #### posts25k - author.id (extra join) check (no index) [reqs:100, conc:10, rule:`"author.id = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      21.493054ms
-├─ Worst:     81.817382ms
-├─ Completed: 363.885171ms
+┌─ Best:      24.343032ms
+├─ Worst:     104.146352ms
+├─ Completed: 349.993726ms
 └─ Errors:    0
 ```
 #### posts25k - author.id (extra join) check (with index) [reqs:100, conc:10, rule:`"author.id = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      3.28552ms
-├─ Worst:     35.086016ms
-├─ Completed: 136.101149ms
+┌─ Best:      6.051895ms
+├─ Worst:     23.578722ms
+├─ Completed: 124.083585ms
 └─ Errors:    0
 ```
 #### posts25k - author.id (extra join) check (with index and skipTotal) [reqs:100, conc:10, rule:`"author.id = @request.auth.id"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      6.203967ms
-├─ Worst:     21.530441ms
-├─ Completed: 115.817279ms
+┌─ Best:      6.903296ms
+├─ Worst:     22.007589ms
+├─ Completed: 113.53275ms
 └─ Errors:    0
 ```
 #### posts25k - loose large text search (no index) [reqs:100, conc:10, rule:`"description ~ 'ipsum dolor'"`, query:`?perPage=20`]
 ```
-┌─ Best:      27.88889ms
-├─ Worst:     125.683264ms
-├─ Completed: 533.947986ms
+┌─ Best:      42.392568ms
+├─ Worst:     110.867814ms
+├─ Completed: 588.381235ms
 └─ Errors:    0
 ```
 #### posts25k - loose large text search (with index) [reqs:100, conc:10, rule:`"description ~ 'ipsum dolor'"`, query:`?perPage=20`]
 ```
-┌─ Best:      29.506356ms
-├─ Worst:     81.432358ms
-├─ Completed: 375.122733ms
+┌─ Best:      28.952607ms
+├─ Worst:     88.851572ms
+├─ Completed: 432.455494ms
 └─ Errors:    0
 ```
 #### posts25k - loose large text search (with index and skipTotal) [reqs:100, conc:10, rule:`"description ~ 'ipsum dolor'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      4.197647ms
-├─ Worst:     22.542889ms
-├─ Completed: 117.346603ms
+┌─ Best:      3.049057ms
+├─ Worst:     42.511466ms
+├─ Completed: 146.460902ms
 └─ Errors:    0
 ```
 #### posts25k - multiple select :each (no index, match-all) [reqs:100, conc:10, rule:`"type:each != 'c'"`, query:`?perPage=20`]
 ```
-┌─ Best:      307.316818ms
-├─ Worst:     725.728602ms
-├─ Completed: 3.832843521s
+┌─ Best:      80.603193ms
+├─ Worst:     706.476304ms
+├─ Completed: 3.942924677s
 └─ Errors:    0
 ```
 #### posts25k - multiple select :each (no index, match-all, skipTotal) [reqs:100, conc:10, rule:`"type:each != 'c'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      2.455164ms
-├─ Worst:     30.149411ms
-├─ Completed: 152.785492ms
+┌─ Best:      9.128965ms
+├─ Worst:     28.013595ms
+├─ Completed: 138.734468ms
 └─ Errors:    0
 ```
 #### posts25k - multiple select :each (no index, at-least-one) [reqs:100, conc:10, rule:`"type:each ?!= 'c'"`, query:`?perPage=20`]
 ```
-┌─ Best:      108.408785ms
-├─ Worst:     243.675213ms
-├─ Completed: 1.381887974s
+┌─ Best:      55.205643ms
+├─ Worst:     237.424441ms
+├─ Completed: 1.352636977s
 └─ Errors:    0
 ```
 #### posts25k - multiple select :each (no index, at-least-one, skipTotal) [reqs:100, conc:10, rule:`"type:each ?!= 'c'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      8.224258ms
-├─ Worst:     25.793466ms
-├─ Completed: 133.390848ms
+┌─ Best:      8.998838ms
+├─ Worst:     26.142691ms
+├─ Completed: 128.167831ms
 └─ Errors:    0
 ```
 #### posts25k - nested single relations lookup (no indexes) [reqs:100, conc:10, rule:`"author.organization.name != 'test'"`, query:`?perPage=20`]
 ```
-┌─ Best:      91.395001ms
-├─ Worst:     353.596507ms
-├─ Completed: 1.884136069s
+┌─ Best:      164.134772ms
+├─ Worst:     360.458429ms
+├─ Completed: 1.966747009s
 └─ Errors:    0
 ```
 #### posts25k - nested single relations lookup (no indexes, skipTotal) [reqs:100, conc:10, rule:`"author.organization.name != 'test'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      4.65935ms
-├─ Worst:     28.340146ms
-├─ Completed: 139.572258ms
+┌─ Best:      7.620305ms
+├─ Worst:     25.243566ms
+├─ Completed: 127.469069ms
 └─ Errors:    0
 ```
 #### posts25k - nested multiple relations lookup (no indexes, match-all) [reqs:100, conc:10, rule:`"author.permissions.active = true"`, query:`?perPage=20`]
 ```
-┌─ Best:      946.054205ms
-├─ Worst:     1.950380048s
-├─ Completed: 10.688369144s
+┌─ Best:      916.330948ms
+├─ Worst:     1.862065864s
+├─ Completed: 10.310504337s
 └─ Errors:    0
 ```
 #### posts25k - nested multiple relations lookup (no indexes, match-all, skipTotal) [reqs:100, conc:10, rule:`"author.permissions.active = true"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      5.521493ms
-├─ Worst:     52.610646ms
-├─ Completed: 215.076659ms
+┌─ Best:      3.60225ms
+├─ Worst:     51.18164ms
+├─ Completed: 215.485065ms
 └─ Errors:    0
 ```
 #### posts25k - nested multiple relations lookup (no indexes, at-least-one) [reqs:100, conc:10, rule:`"author.permissions.active ?= true"`, query:`?perPage=20`]
 ```
-┌─ Best:      829.677765ms
-├─ Worst:     4.989657762s
-├─ Completed: 27.720427009s
+┌─ Best:      2.203774007s
+├─ Worst:     5.103940262s
+├─ Completed: 27.726280873s
 └─ Errors:    0
 ```
 #### posts25k - nested multiple relations lookup (no indexes, at-least-one, skipTotal) [reqs:100, conc:10, rule:`"author.permissions.active ?= true"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      7.144758ms
-├─ Worst:     36.279939ms
-├─ Completed: 171.663473ms
+┌─ Best:      4.809717ms
+├─ Worst:     36.039961ms
+├─ Completed: 180.486392ms
 └─ Errors:    0
 ```
 #### posts50k - simpleA (many requests, no rules, no concurrency) [reqs:1000, conc:1, rule:`""`, query:`?perPage=20`]
 ```
-┌─ Best:      1.932209ms
-├─ Worst:     11.586984ms
-├─ Completed: 3.422540648s
+┌─ Best:      1.915742ms
+├─ Worst:     9.408355ms
+├─ Completed: 3.37428094s
 └─ Errors:    0
 ```
 #### posts50k - simpleB (many requests, no rules, high concurrency) [reqs:1000, conc:1000, rule:`""`, query:`?perPage=20`]
 ```
-┌─ Best:      109.566452ms
-├─ Worst:     2.063748492s
-├─ Completed: 2.075284858s
+┌─ Best:      223.159398ms
+├─ Worst:     2.017765136s
+├─ Completed: 2.027374773s
 └─ Errors:    0
 ```
 #### posts50k - simpleC (many requests, no rules, high concurrency, skipTotal) [reqs:1000, conc:1000, rule:`""`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      127.86373ms
-├─ Worst:     501.087363ms
-├─ Completed: 511.189978ms
+┌─ Best:      123.561832ms
+├─ Worst:     468.665713ms
+├─ Completed: 478.088508ms
 └─ Errors:    0
 ```
 #### posts50k - mixed read and write (simpleA list with additional 300 concurrent random posts50k updates running in the background) [reqs:1000, conc:1000, rule:`""`, query:`?perPage=20`]
 ```
-┌─ Best:      275.451263ms
-├─ Worst:     2.118422455s
-├─ Completed: 2.127236868s
+┌─ Best:      257.01073ms
+├─ Worst:     2.08632944s
+├─ Completed: 2.093864617s
 └─ Errors:    0
 ```
 #### posts50k - expand author [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author`]
 ```
-┌─ Best:      16.956488ms
-├─ Worst:     60.075346ms
-├─ Completed: 283.241851ms
+┌─ Best:      15.153438ms
+├─ Worst:     61.429728ms
+├─ Completed: 283.353158ms
 └─ Errors:    0
 ```
 #### posts50k - expand author (limited fields) [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author&fields=id,collectionId,expand.author.id`]
 ```
-┌─ Best:      21.019244ms
-├─ Worst:     74.422609ms
-├─ Completed: 314.702287ms
+┌─ Best:      20.914695ms
+├─ Worst:     71.556049ms
+├─ Completed: 312.017367ms
 └─ Errors:    0
 ```
 #### posts50k - expand author.permissions [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author.permissions`]
 ```
-┌─ Best:      21.465763ms
-├─ Worst:     67.173744ms
-├─ Completed: 308.17204ms
+┌─ Best:      8.752957ms
+├─ Worst:     104.016147ms
+├─ Completed: 312.415783ms
 └─ Errors:    0
 ```
 #### posts50k - expand author.permissions (limited fields) [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author.permissions&fields=id,collectionId,expand.author.id,expand.author.expand.permissions.id`]
 ```
-┌─ Best:      26.109079ms
-├─ Worst:     146.035125ms
-├─ Completed: 431.77941ms
+┌─ Best:      22.499701ms
+├─ Worst:     87.091142ms
+├─ Completed: 367.31197ms
 └─ Errors:    0
 ```
 #### posts50k - simple auth rule [reqs:100, conc:10, rule:`"@request.auth.id != ''"`, query:`?perPage=20`]
 ```
-┌─ Best:      4.341743ms
-├─ Worst:     90.30811ms
-├─ Completed: 284.296683ms
+┌─ Best:      6.422813ms
+├─ Worst:     88.120182ms
+├─ Completed: 277.466945ms
 └─ Errors:    0
 ```
 #### posts50k - author check (no index) [reqs:100, conc:10, rule:`"author = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      94.302713ms
-├─ Worst:     336.508831ms
-├─ Completed: 1.905241004s
+┌─ Best:      166.954414ms
+├─ Worst:     355.125147ms
+├─ Completed: 1.955169376s
 └─ Errors:    0
 ```
 #### posts50k - author check (with index) [reqs:100, conc:10, rule:`"author = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      5.344027ms
-├─ Worst:     24.279555ms
-├─ Completed: 123.371676ms
+┌─ Best:      3.569229ms
+├─ Worst:     24.12243ms
+├─ Completed: 136.020552ms
 └─ Errors:    0
 ```
 #### posts50k - author check (with index and skipTotal) [reqs:100, conc:10, rule:`"author = @request.auth.id"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      5.037187ms
-├─ Worst:     23.367156ms
-├─ Completed: 117.715918ms
+┌─ Best:      2.464508ms
+├─ Worst:     20.210826ms
+├─ Completed: 115.695517ms
 └─ Errors:    0
 ```
 #### posts50k - author.id (extra join) check (no index) [reqs:100, conc:10, rule:`"author.id = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      159.208424ms
-├─ Worst:     331.524314ms
-├─ Completed: 1.852427758s
+┌─ Best:      166.211977ms
+├─ Worst:     366.171025ms
+├─ Completed: 1.955852092s
 └─ Errors:    0
 ```
 #### posts50k - author.id (extra join) check (with index) [reqs:100, conc:10, rule:`"author.id = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      6.122214ms
-├─ Worst:     23.699172ms
-├─ Completed: 119.648476ms
+┌─ Best:      5.157059ms
+├─ Worst:     24.676915ms
+├─ Completed: 121.975726ms
 └─ Errors:    0
 ```
 #### posts50k - author.id (extra join) check (with index and skipTotal) [reqs:100, conc:10, rule:`"author.id = @request.auth.id"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      4.658227ms
-├─ Worst:     24.86382ms
-├─ Completed: 112.637618ms
+┌─ Best:      7.932053ms
+├─ Worst:     20.92526ms
+├─ Completed: 110.990498ms
 └─ Errors:    0
 ```
 #### posts50k - loose large text search (no index) [reqs:100, conc:10, rule:`"description ~ 'ipsum dolor'"`, query:`?perPage=20`]
 ```
-┌─ Best:      75.39018ms
-├─ Worst:     346.322573ms
-├─ Completed: 1.968764174s
+┌─ Best:      154.288108ms
+├─ Worst:     365.392153ms
+├─ Completed: 1.959934317s
 └─ Errors:    0
 ```
 #### posts50k - loose large text search (with index) [reqs:100, conc:10, rule:`"description ~ 'ipsum dolor'"`, query:`?perPage=20`]
 ```
-┌─ Best:      98.742172ms
-├─ Worst:     233.211664ms
-├─ Completed: 1.174503491s
+┌─ Best:      80.988191ms
+├─ Worst:     221.022316ms
+├─ Completed: 1.166643875s
 └─ Errors:    0
 ```
 #### posts50k - loose large text search (with index and skipTotal) [reqs:100, conc:10, rule:`"description ~ 'ipsum dolor'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      3.681123ms
-├─ Worst:     22.608237ms
-├─ Completed: 113.015496ms
+┌─ Best:      4.190924ms
+├─ Worst:     21.094705ms
+├─ Completed: 109.964754ms
 └─ Errors:    0
 ```
 #### posts50k - multiple select :each (no index, match-all) [reqs:100, conc:10, rule:`"type:each != 'c'"`, query:`?perPage=20`]
 ```
-┌─ Best:      757.221505ms
-├─ Worst:     1.537665599s
-├─ Completed: 8.539008417s
+┌─ Best:      674.349794ms
+├─ Worst:     1.529675334s
+├─ Completed: 8.500752295s
 └─ Errors:    0
 ```
 #### posts50k - multiple select :each (no index, match-all, skipTotal) [reqs:100, conc:10, rule:`"type:each != 'c'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      5.722736ms
-├─ Worst:     29.781949ms
-├─ Completed: 157.400534ms
+┌─ Best:      4.837698ms
+├─ Worst:     31.469643ms
+├─ Completed: 147.996752ms
 └─ Errors:    0
 ```
 #### posts50k - multiple select :each (no index, at-least-one) [reqs:100, conc:10, rule:`"type:each ?!= 'c'"`, query:`?perPage=20`]
 ```
-┌─ Best:      166.144852ms
-├─ Worst:     758.275266ms
-├─ Completed: 4.055198947s
+┌─ Best:      350.674812ms
+├─ Worst:     757.819219ms
+├─ Completed: 4.000751748s
 └─ Errors:    0
 ```
 #### posts50k - multiple select :each (no index, at-least-one, skipTotal) [reqs:100, conc:10, rule:`"type:each ?!= 'c'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      7.800762ms
-├─ Worst:     25.851752ms
-├─ Completed: 128.711141ms
+┌─ Best:      5.020233ms
+├─ Worst:     24.855003ms
+├─ Completed: 124.631182ms
 └─ Errors:    0
 ```
 #### posts50k - nested single relations lookup (no indexes) [reqs:100, conc:10, rule:`"author.organization.name != 'test'"`, query:`?perPage=20`]
 ```
-┌─ Best:      426.535819ms
-├─ Worst:     872.40982ms
-├─ Completed: 4.847258166s
+┌─ Best:      387.013991ms
+├─ Worst:     944.458717ms
+├─ Completed: 4.935443763s
 └─ Errors:    0
 ```
 #### posts50k - nested single relations lookup (no indexes, skipTotal) [reqs:100, conc:10, rule:`"author.organization.name != 'test'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      6.026691ms
-├─ Worst:     26.038854ms
-├─ Completed: 132.607117ms
+┌─ Best:      4.516114ms
+├─ Worst:     24.971349ms
+├─ Completed: 128.867494ms
 └─ Errors:    0
 ```
 #### posts50k - nested multiple relations lookup (no indexes, match-all) [reqs:100, conc:10, rule:`"author.permissions.active = true"`, query:`?perPage=20`]
 ```
-┌─ Best:      504.758684ms
-├─ Worst:     4.029971458s
-├─ Completed: 22.312408087s
+┌─ Best:      1.726911036s
+├─ Worst:     3.914837969s
+├─ Completed: 21.598168248s
 └─ Errors:    0
 ```
 #### posts50k - nested multiple relations lookup (no indexes, match-all, skipTotal) [reqs:100, conc:10, rule:`"author.permissions.active = true"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      6.472761ms
-├─ Worst:     57.627272ms
-├─ Completed: 271.847226ms
+┌─ Best:      9.58451ms
+├─ Worst:     56.313271ms
+├─ Completed: 237.117219ms
 └─ Errors:    0
 ```
 #### posts50k - nested multiple relations lookup (no indexes, at-least-one) [reqs:100, conc:10, rule:`"author.permissions.active ?= true"`, query:`?perPage=20`]
 ```
-┌─ Best:      4.465124871s
-├─ Worst:     10.217578241s
-├─ Completed: 55.988562649s
+┌─ Best:      4.434106156s
+├─ Worst:     10.031842476s
+├─ Completed: 55.554276982s
 └─ Errors:    0
 ```
 #### posts50k - nested multiple relations lookup (no indexes, at-least-one, skipTotal) [reqs:100, conc:10, rule:`"author.permissions.active ?= true"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      5.687933ms
-├─ Worst:     40.666019ms
-├─ Completed: 188.079118ms
+┌─ Best:      6.339998ms
+├─ Worst:     40.21382ms
+├─ Completed: 187.826786ms
 └─ Errors:    0
 ```
 #### posts100k - simpleA (many requests, no rules, no concurrency) [reqs:1000, conc:1, rule:`""`, query:`?perPage=20`]
 ```
-┌─ Best:      3.408895ms
-├─ Worst:     13.145781ms
-├─ Completed: 4.550230958s
+┌─ Best:      3.403371ms
+├─ Worst:     12.258723ms
+├─ Completed: 4.177567006s
 └─ Errors:    0
 ```
 #### posts100k - simpleB (many requests, no rules, high concurrency) [reqs:1000, conc:1000, rule:`""`, query:`?perPage=20`]
 ```
-┌─ Best:      121.664471ms
-├─ Worst:     3.588383503s
-├─ Completed: 3.599690556s
+┌─ Best:      313.980618ms
+├─ Worst:     3.514402058s
+├─ Completed: 3.523463552s
 └─ Errors:    0
 ```
 #### posts100k - simpleC (many requests, no rules, high concurrency, skipTotal) [reqs:1000, conc:1000, rule:`""`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      127.021938ms
-├─ Worst:     515.774475ms
-├─ Completed: 526.855058ms
+┌─ Best:      121.960184ms
+├─ Worst:     477.456108ms
+├─ Completed: 486.528177ms
 └─ Errors:    0
 ```
 #### posts100k - mixed read and write (simpleA list with additional 300 concurrent random posts100k updates running in the background) [reqs:1000, conc:1000, rule:`""`, query:`?perPage=20`]
 ```
-┌─ Best:      339.286736ms
-├─ Worst:     3.622009148s
-├─ Completed: 3.628867817s
+┌─ Best:      356.836641ms
+├─ Worst:     3.59620055s
+├─ Completed: 3.606697002s
 └─ Errors:    0
 ```
 #### posts100k - expand author [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author`]
 ```
-┌─ Best:      8.687422ms
-├─ Worst:     123.046865ms
-├─ Completed: 437.220808ms
+┌─ Best:      25.882039ms
+├─ Worst:     93.682962ms
+├─ Completed: 434.474395ms
 └─ Errors:    0
 ```
 #### posts100k - expand author (limited fields) [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author&fields=id,collectionId,expand.author.id`]
 ```
-┌─ Best:      16.50435ms
-├─ Worst:     96.4055ms
-├─ Completed: 461.158532ms
+┌─ Best:      34.47825ms
+├─ Worst:     137.160671ms
+├─ Completed: 524.343177ms
 └─ Errors:    0
 ```
 #### posts100k - expand author.permissions [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author.permissions`]
 ```
-┌─ Best:      36.10166ms
-├─ Worst:     97.565967ms
-├─ Completed: 481.090701ms
+┌─ Best:      15.836826ms
+├─ Worst:     116.923616ms
+├─ Completed: 464.974299ms
 └─ Errors:    0
 ```
 #### posts100k - expand author.permissions (limited fields) [reqs:100, conc:10, rule:`""`, query:`?perPage=20&expand=author.permissions&fields=id,collectionId,expand.author.id,expand.author.expand.permissions.id`]
 ```
-┌─ Best:      38.744725ms
-├─ Worst:     104.499851ms
-├─ Completed: 549.770906ms
+┌─ Best:      30.043448ms
+├─ Worst:     140.956943ms
+├─ Completed: 498.185035ms
 └─ Errors:    0
 ```
 #### posts100k - simple auth rule [reqs:100, conc:10, rule:`"@request.auth.id != ''"`, query:`?perPage=20`]
 ```
-┌─ Best:      27.966535ms
-├─ Worst:     86.719699ms
-├─ Completed: 408.666322ms
+┌─ Best:      7.932074ms
+├─ Worst:     91.803123ms
+├─ Completed: 427.650649ms
 └─ Errors:    0
 ```
 #### posts100k - author check (no index) [reqs:100, conc:10, rule:`"author = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      146.066178ms
-├─ Worst:     639.344325ms
-├─ Completed: 3.525946974s
+┌─ Best:      119.414122ms
+├─ Worst:     643.523568ms
+├─ Completed: 3.597731534s
 └─ Errors:    0
 ```
 #### posts100k - author check (with index) [reqs:100, conc:10, rule:`"author = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      6.593722ms
-├─ Worst:     24.677101ms
-├─ Completed: 124.616482ms
+┌─ Best:      4.44696ms
+├─ Worst:     23.927788ms
+├─ Completed: 120.648209ms
 └─ Errors:    0
 ```
 #### posts100k - author check (with index and skipTotal) [reqs:100, conc:10, rule:`"author = @request.auth.id"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      5.475083ms
-├─ Worst:     23.30242ms
-├─ Completed: 114.749639ms
+┌─ Best:      4.084596ms
+├─ Worst:     23.852704ms
+├─ Completed: 115.866686ms
 └─ Errors:    0
 ```
 #### posts100k - author.id (extra join) check (no index) [reqs:100, conc:10, rule:`"author.id = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      307.063467ms
-├─ Worst:     627.628267ms
-├─ Completed: 3.505170103s
+┌─ Best:      289.441019ms
+├─ Worst:     647.83152ms
+├─ Completed: 3.620864488s
 └─ Errors:    0
 ```
 #### posts100k - author.id (extra join) check (with index) [reqs:100, conc:10, rule:`"author.id = @request.auth.id"`, query:`?perPage=20`]
 ```
-┌─ Best:      4.727721ms
-├─ Worst:     24.534677ms
-├─ Completed: 124.303279ms
+┌─ Best:      5.267926ms
+├─ Worst:     23.1314ms
+├─ Completed: 119.822186ms
 └─ Errors:    0
 ```
 #### posts100k - author.id (extra join) check (with index and skipTotal) [reqs:100, conc:10, rule:`"author.id = @request.auth.id"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      7.528575ms
-├─ Worst:     23.780476ms
-├─ Completed: 119.814876ms
+┌─ Best:      7.470859ms
+├─ Worst:     21.822812ms
+├─ Completed: 111.419644ms
 └─ Errors:    0
 ```
 #### posts100k - loose large text search (no index) [reqs:100, conc:10, rule:`"description ~ 'ipsum dolor'"`, query:`?perPage=20`]
 ```
-┌─ Best:      88.111986ms
-├─ Worst:     681.067157ms
-├─ Completed: 3.828262797s
+┌─ Best:      152.12846ms
+├─ Worst:     700.076791ms
+├─ Completed: 3.893382828s
 └─ Errors:    0
 ```
 #### posts100k - loose large text search (with index) [reqs:100, conc:10, rule:`"description ~ 'ipsum dolor'"`, query:`?perPage=20`]
 ```
-┌─ Best:      32.171424ms
-├─ Worst:     586.462741ms
-├─ Completed: 3.006209304s
+┌─ Best:      90.836169ms
+├─ Worst:     591.611878ms
+├─ Completed: 3.033274387s
 └─ Errors:    0
 ```
 #### posts100k - loose large text search (with index and skipTotal) [reqs:100, conc:10, rule:`"description ~ 'ipsum dolor'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      5.094834ms
-├─ Worst:     22.187095ms
-├─ Completed: 113.772553ms
+┌─ Best:      3.684202ms
+├─ Worst:     22.368653ms
+├─ Completed: 110.441754ms
 └─ Errors:    0
 ```
 #### posts100k - multiple select :each (no index, match-all) [reqs:100, conc:10, rule:`"type:each != 'c'"`, query:`?perPage=20`]
 ```
-┌─ Best:      701.987901ms
-├─ Worst:     3.177776447s
-├─ Completed: 17.615138805s
+┌─ Best:      1.559144254s
+├─ Worst:     3.139174853s
+├─ Completed: 17.445903126s
 └─ Errors:    0
 ```
 #### posts100k - multiple select :each (no index, match-all, skipTotal) [reqs:100, conc:10, rule:`"type:each != 'c'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      4.426972ms
-├─ Worst:     32.171784ms
-├─ Completed: 148.095222ms
+┌─ Best:      7.705613ms
+├─ Worst:     29.0479ms
+├─ Completed: 146.765701ms
 └─ Errors:    0
 ```
 #### posts100k - multiple select :each (no index, at-least-one) [reqs:100, conc:10, rule:`"type:each ?!= 'c'"`, query:`?perPage=20`]
 ```
-┌─ Best:      690.863192ms
-├─ Worst:     1.391654309s
-├─ Completed: 7.762145406s
+┌─ Best:      621.719506ms
+├─ Worst:     1.403657103s
+├─ Completed: 7.835277024s
 └─ Errors:    0
 ```
 #### posts100k - multiple select :each (no index, at-least-one, skipTotal) [reqs:100, conc:10, rule:`"type:each ?!= 'c'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      7.242985ms
-├─ Worst:     26.802199ms
-├─ Completed: 142.362892ms
+┌─ Best:      2.436986ms
+├─ Worst:     25.988849ms
+├─ Completed: 126.278399ms
 └─ Errors:    0
 ```
 #### posts100k - nested single relations lookup (no indexes) [reqs:100, conc:10, rule:`"author.organization.name != 'test'"`, query:`?perPage=20`]
 ```
-┌─ Best:      470.37716ms
-├─ Worst:     1.713213661s
-├─ Completed: 9.522607956s
+┌─ Best:      752.969716ms
+├─ Worst:     1.752049633s
+├─ Completed: 9.589982786s
 └─ Errors:    0
 ```
 #### posts100k - nested single relations lookup (no indexes, skipTotal) [reqs:100, conc:10, rule:`"author.organization.name != 'test'"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      6.297479ms
-├─ Worst:     25.032755ms
-├─ Completed: 131.064974ms
+┌─ Best:      5.86308ms
+├─ Worst:     25.186201ms
+├─ Completed: 129.243112ms
 └─ Errors:    0
 ```
 #### posts100k - nested multiple relations lookup (no indexes, match-all) [reqs:100, conc:10, rule:`"author.permissions.active = true"`, query:`?perPage=20`]
 ```
-┌─ Best:      4.041761945s
-├─ Worst:     8.157460864s
-├─ Completed: 45.164981249s
+┌─ Best:      3.41522487s
+├─ Worst:     7.86480211s
+├─ Completed: 43.155494097s
 └─ Errors:    0
 ```
 #### posts100k - nested multiple relations lookup (no indexes, match-all, skipTotal) [reqs:100, conc:10, rule:`"author.permissions.active = true"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      3.489454ms
-├─ Worst:     82.004614ms
-├─ Completed: 218.969918ms
+┌─ Best:      2.290796ms
+├─ Worst:     43.71124ms
+├─ Completed: 187.779254ms
 └─ Errors:    0
 ```
 #### posts100k - nested multiple relations lookup (no indexes, at-least-one) [reqs:100, conc:10, rule:`"author.permissions.active ?= true"`, query:`?perPage=20`]
 ```
-┌─ Best:      2.244590009s
-├─ Worst:     20.130593228s
-├─ Completed: 111.289257001s
+┌─ Best:      4.401349011s
+├─ Worst:     21.239057517s
+├─ Completed: 111.263333694s
 └─ Errors:    0
 ```
 #### posts100k - nested multiple relations lookup (no indexes, at-least-one, skipTotal) [reqs:100, conc:10, rule:`"author.permissions.active ?= true"`, query:`?perPage=20&skipTotal=1`]
 ```
-┌─ Best:      2.423276ms
-├─ Worst:     52.469554ms
-├─ Completed: 173.62406ms
+┌─ Best:      5.951062ms
+├─ Worst:     38.71267ms
+├─ Completed: 186.07425ms
 └─ Errors:    0
 ```
 
 ## Go vs JS route execution
 #### JS route (high concurrency) [reqs:500, conc:500]
 ```
-┌─ Best:      188.531915ms
-├─ Worst:     5.5663811s
-├─ Completed: 5.572893159s
+┌─ Best:      181.073837ms
+├─ Worst:     5.577603822s
+├─ Completed: 5.583250738s
 └─ Errors:    0
 ```
 #### Go route (high concurrency) [reqs:500, conc:500]
 ```
-┌─ Best:      759.787623ms
-├─ Worst:     5.483392852s
-├─ Completed: 5.48894426s
+┌─ Best:      798.146964ms
+├─ Worst:     5.572823641s
+├─ Completed: 5.578726051s
 └─ Errors:    0
 ```
 #### JS route (medium concurrency) [reqs:500, conc:50]
 ```
-┌─ Best:      93.638235ms
-├─ Worst:     1.079960002s
-├─ Completed: 5.547355489s
+┌─ Best:      244.987793ms
+├─ Worst:     1.070106304s
+├─ Completed: 5.481958689s
 └─ Errors:    0
 ```
 #### Go route (medium concurrency) [reqs:500, conc:50]
 ```
-┌─ Best:      165.394594ms
-├─ Worst:     1.157130555s
-├─ Completed: 5.509706446s
+┌─ Best:      278.659709ms
+├─ Worst:     1.076268275s
+├─ Completed: 5.490264677s
 └─ Errors:    0
 ```
 #### JS route (no concurrency) [reqs:500, conc:1]
 ```
-┌─ Best:      10.590138ms
-├─ Worst:     31.024132ms
-├─ Completed: 5.97099633s
+┌─ Best:      10.576373ms
+├─ Worst:     32.021565ms
+├─ Completed: 6.03383998s
 └─ Errors:    0
 ```
 #### Go route (no concurrency) [reqs:500, conc:1]
 ```
-┌─ Best:      10.434293ms
-├─ Worst:     29.811172ms
-├─ Completed: 5.9595788s
+┌─ Best:      10.513016ms
+├─ Worst:     31.543465ms
+├─ Completed: 6.092092253s
 └─ Errors:    0
 ```
 
 ## Go vs JS hooks execution
 #### JS OnRecordBeforeUpdateRequest hook handler - [reqs:100, conc:10]
 ```
-┌─ Best:      3.141221ms
-├─ Worst:     24.598563ms
-├─ Completed: 119.840038ms
+┌─ Best:      7.360784ms
+├─ Worst:     23.645133ms
+├─ Completed: 114.156823ms
 └─ Errors:    0
 ```
 #### Go OnRecordBeforeUpdateRequest hook handler - [reqs:100, conc:10]
 ```
-┌─ Best:      7.374023ms
-├─ Worst:     20.614097ms
-├─ Completed: 108.842469ms
+┌─ Best:      4.253138ms
+├─ Worst:     25.143286ms
+├─ Completed: 112.203986ms
 └─ Errors:    0
 ```
 
 ## Deleting records
 #### deleting 100 posts10k - simple (no cascade, no rule) [conc:10, rule:`""`]
 ```
-┌─ Best:      4.225239ms
-├─ Worst:     24.990311ms
-├─ Completed: 103.46049ms
+┌─ Best:      5.192071ms
+├─ Worst:     18.873053ms
+├─ Completed: 101.61187ms
 └─ Errors:    0
 ```
 #### deleting 100 posts10k - simple (no cascade, with rule) [conc:10, rule:`"@request.auth.id != ''"`]
 ```
-┌─ Best:      4.725239ms
-├─ Worst:     21.417681ms
-├─ Completed: 106.071488ms
+┌─ Best:      4.075561ms
+├─ Worst:     22.281892ms
+├─ Completed: 107.87912ms
 └─ Errors:    0
 ```
 #### deleting 100 posts25k - simple (no cascade, no rule) [conc:10, rule:`""`]
 ```
-┌─ Best:      3.31955ms
-├─ Worst:     17.005661ms
-├─ Completed: 84.105265ms
+┌─ Best:      3.96108ms
+├─ Worst:     14.68354ms
+├─ Completed: 81.2284ms
 └─ Errors:    0
 ```
 #### deleting 100 posts25k - simple (no cascade, with rule) [conc:10, rule:`"@request.auth.id != ''"`]
 ```
-┌─ Best:      2.739118ms
-├─ Worst:     57.103126ms
-├─ Completed: 138.634299ms
+┌─ Best:      3.368157ms
+├─ Worst:     49.691338ms
+├─ Completed: 133.017077ms
 └─ Errors:    0
 ```
 #### deleting 100 posts50k - simple (no cascade, no rule) [conc:10, rule:`""`]
 ```
-┌─ Best:      1.588843ms
-├─ Worst:     15.760575ms
-├─ Completed: 86.834012ms
+┌─ Best:      5.152301ms
+├─ Worst:     16.230568ms
+├─ Completed: 81.271498ms
 └─ Errors:    0
 ```
 #### deleting 100 posts50k - simple (no cascade, with rule) [conc:10, rule:`"@request.auth.id != ''"`]
 ```
-┌─ Best:      6.947123ms
-├─ Worst:     17.635277ms
-├─ Completed: 93.079352ms
+┌─ Best:      6.04884ms
+├─ Worst:     16.735628ms
+├─ Completed: 84.574068ms
 └─ Errors:    0
 ```
 #### deleting 100 posts100k - simple (no cascade, no rule) [conc:10, rule:`""`]
 ```
-┌─ Best:      4.248434ms
-├─ Worst:     17.195577ms
-├─ Completed: 85.59269ms
+┌─ Best:      4.752119ms
+├─ Worst:     35.113467ms
+├─ Completed: 97.802037ms
 └─ Errors:    0
 ```
 #### deleting 100 posts100k - simple (no cascade, with rule) [conc:10, rule:`"@request.auth.id != ''"`]
 ```
-┌─ Best:      5.515324ms
-├─ Worst:     17.715778ms
-├─ Completed: 91.768142ms
+┌─ Best:      3.228337ms
+├─ Worst:     18.858001ms
+├─ Completed: 86.043849ms
 └─ Errors:    0
 ```
 #### deleting 100 users - with cascade deleting all associated posts [conc:10, rule:`""`]
 ```
-┌─ Best:      94.2197ms
-├─ Worst:     2.148082872s
-├─ Completed: 11.284559969s
+┌─ Best:      451.165599ms
+├─ Worst:     2.114633076s
+├─ Completed: 11.422294519s
 └─ Errors:    0
 ```
 #### deleting 100 organizations - with cascade deleting all users and associated posts [conc:10, rule:`""`]
 ```
-┌─ Best:      1.119637374s
-├─ Worst:     7.744579222s
-├─ Completed: 30.814507767s
+┌─ Best:      704.032876ms
+├─ Worst:     8.352707168s
+├─ Completed: 30.732591574s
 └─ Errors:    0
 ```
 
