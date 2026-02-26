@@ -10,7 +10,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 
 ## Progress
 
-- Milestone status (2026-02-17):
+- Milestone status (2026-02-26):
   - Milestone 1: complete
   - Milestone 2: complete
   - Milestone 3: complete
@@ -22,6 +22,15 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 9: complete (PocketBun docs program shipped: `docs/users/index.md`, `docs/users/introduction.md`, `docs/users/going-to-production.md`, `docs/users/web-apis.md`, `docs/users/extend.md`, `docs/users/reference.md`, `docs/users/differences.md`, with deterministic sync/rebuild/patch/check tooling and vendored screenshot assets)
   - Milestone 10: complete (PocketBase v0.36.3 upgrade: upstream sync, admin UI refresh, v0.36.3 compatibility deltas ported, docs pipeline rerun)
   - Milestone 11: complete (PocketBase v0.36.4 upgrade: upstream sync, admin UI refresh, middleware/JSVM compatibility deltas ported, docs version gate fixed, full validation rerun)
+  - Milestone 12: complete (non-DBX compatibility shim audit + hardening with direct regression coverage and full validation gate)
+
+### Milestone 12 - Non-DBX compatibility shim hardening
+
+- [x] (2026-02-26 07:16Z) Audited non-DBX runtime compatibility shims and direct test coverage. Identified shim modules with no dedicated tests: `src/internal/compat/cast.ts`, `src/internal/compat/request_body.ts`, `src/internal/compat/slog.ts`, and `src/internal/compat/validation.ts`.
+- [x] (2026-02-26 07:16Z) Scoped this milestone to runtime shims only, excluding `src/internal/compat/request_form_data.ts` (already covered by `request_form_data.test.ts`) and `src/types/go-text-template.d.ts` (type-only declaration shim).
+- [x] (2026-02-26 07:20Z) Added dedicated regression tests for all listed runtime shims and locked behavior/edge cases in: `src/internal/compat/cast.test.ts`, `src/internal/compat/request_body.test.ts`, `src/internal/compat/slog.test.ts`, and `src/internal/compat/validation.test.ts`.
+- [x] (2026-02-26 07:20Z) Confirmed no runtime behavior mismatches were found while hardening shim coverage; no production shim logic changes were required in this sweep.
+- [x] (2026-02-26 07:20Z) Ran full required validation gate successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
 
 ### Milestone 8 - Post-release compatibility gaps
 
@@ -220,6 +229,8 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 ## Surprises & Discoveries
 
+- Observation: Four non-DBX runtime compatibility shims in `src/internal/compat/` had no dedicated direct tests, despite being used across many auth/request/validation paths.
+  Evidence: coverage scan found missing direct test files for `cast.ts`, `request_body.ts`, `slog.ts`, and `validation.ts`, while `request_form_data.ts` already had dedicated tests.
 - Observation: The `v0.36.4` docs pipeline run failed on the generated docs parity gate until `docs/_config.yml` was bumped to the new package version.
   Evidence: `bun run docs:rebuild:full` failed in `docs:check` with `docs/_config.yml has '0.36.3-pocketbun.0' but package.json has '0.36.4-pocketbun.0'`; updating `pocketbun_version` and rerunning `bun run docs:check` passed.
 - Observation: Upstream now accepts `Authorization: Bearer` prefixes case-insensitively, and its API test harness trims header values before request execution.
@@ -319,6 +330,9 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 ## Decision Log
 
+- Decision: Scope the post-DBX shim hardening sweep to runtime compatibility shims under `src/internal/compat` (`cast`, `request_body`, `slog`, `validation`) and complete each with direct regression coverage.
+  Rationale: These are PocketBun-owned behavior bridges with no upstream source-of-truth tests and no direct local tests, so they represent the highest risk of hidden compatibility drift.
+  Date/Author: 2026-02-26 / Codex
 - Decision: For the `v0.36.4` upgrade, port the observable runtime/API deltas (case-insensitive auth header parsing, JSVM `$filesystem.s3`/`$filesystem.local`, and test-harness header trimming) while preserving existing PocketBun async filesystem helper extensions.
   Rationale: This keeps behavior aligned with upstream where it is user-visible, avoids unnecessary churn in PocketBun-only async APIs, and keeps the release diff focused on compatibility-critical changes.
   Date/Author: 2026-02-17 / Codex
@@ -480,7 +494,7 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 ## Outcomes & Retrospective
 
-Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. Realtime (SSE) support is now ported with tests. Collection CRUD/import parity is now in place. pb_hooks/pb_migrations loader coverage is now in place via dedicated jsvm loader tests. Milestone 11 (`v0.36.4` upgrade) is now complete with upstream sync, admin UI refresh, middleware/JSVM compatibility delta ports, and docs/version gate updates. The current performance optimization sprint is now paused after completing the planned profiling and hot-path work; latest 3x/3x upstream benchmark runs on Hetzner CCX13 show PocketBun/PocketBase factors ranging roughly `0.17x..4.36x` with geometric mean around `0.61x`, and remaining performance tasks are intentionally deferred unless new regressions appear.
+Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. Realtime (SSE) support is now ported with tests. Collection CRUD/import parity is now in place. pb_hooks/pb_migrations loader coverage is now in place via dedicated jsvm loader tests. Milestone 11 (`v0.36.4` upgrade) is now complete with upstream sync, admin UI refresh, middleware/JSVM compatibility delta ports, and docs/version gate updates. Milestone 12 is also complete: all non-DBX runtime compatibility shims in `src/internal/compat` now have dedicated regression coverage (`cast`, `request_body`, `slog`, `validation`) and the full validation gate passes cleanly. The current performance optimization sprint is now paused after completing the planned profiling and hot-path work; latest 3x/3x upstream benchmark runs on Hetzner CCX13 show PocketBun/PocketBase factors ranging roughly `0.17x..4.36x` with geometric mean around `0.61x`, and remaining performance tasks are intentionally deferred unless new regressions appear.
 
 ## Context and Orientation
 
@@ -706,3 +720,5 @@ Plan change note: 2026-02-12, closed the remaining template and random-by-regex 
 Plan change note: 2026-02-12, added Milestone 9 planning pointer for a dedicated PocketBun docs program.
 Plan change note: 2026-02-13, completed Milestone 9 docs delivery, removed the temporary docs-specific ExecPlan file, and consolidated maintainer guidance in `docs/maintainers/upstream-docs-map.md`.
 Plan change note: 2026-02-17, completed the PocketBase v0.36.4 upgrade (sync, version bumps, middleware/JSVM parity ports, docs version gate fix, and full validation) and updated the living sections accordingly.
+Plan change note: 2026-02-26, added Milestone 12 with a concrete non-DBX shim list (`cast`, `request_body`, `slog`, `validation`) and execution checklist to close direct-coverage gaps end-to-end.
+Plan change note: 2026-02-26, completed Milestone 12 by adding direct regression tests for all listed runtime shims and recording a full clean validation gate run.

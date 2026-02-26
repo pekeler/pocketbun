@@ -14,6 +14,7 @@
 - Aligned JSVM/dbx `rows()` with upstream cursor semantics by returning a row iterator (`next`, `scan`, `scanMap`, `scanStruct`, `columns`, `close`) instead of materialized arrays, with regression tests at dbx and JSVM bind layers.
 - Exposed generated dbx query metadata fields (`lastError`, `fieldMapper`, `queryLogFunc`, etc.) on JSVM `newQuery(...)`/`select(...)` objects and aligned `lastError` clearing semantics on query resolvers with upstream behavior.
 - Expanded `docs/users/extend.md` database guidance with side-by-side DBX-first and direct `bun:sqlite` examples, plus practical differences (placeholders, missing-row behavior, result mapping, and migration/perf tradeoffs).
+- Added direct regression coverage for non-DBX runtime compatibility shims (`cast`, `request_body`, `slog`, `validation`) to reduce hidden drift risk in shared auth/request/validation paths.
 
 ## 0.36.5-pocketbun.0 - 2026-02-21
 
