@@ -20,7 +20,7 @@ jobs:
             tests_timeout_minutes: 15
           - os: windows-2022
             test-command: bun test --concurrent --max-concurrency 8 --timeout 30000
-            tests_timeout_minutes: 25
+            tests_timeout_minutes: 15
 
     steps:
       - name: Configure Git line endings (Windows)
