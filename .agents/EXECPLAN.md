@@ -24,6 +24,11 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 11: complete (PocketBase v0.36.4 upgrade: upstream sync, admin UI refresh, middleware/JSVM compatibility deltas ported, docs version gate fixed, full validation rerun)
   - Milestone 12: complete (non-DBX compatibility shim audit + hardening with direct regression coverage and full validation gate)
 
+### Maintenance TODOs
+
+- [ ] (2026-02-26) Bun workaround retirement sweep: whenever a Bun runtime fix suggests a PocketBun workaround may no longer be needed, attempt removing the workaround behind a focused change and run thorough verification before/after (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`, plus targeted compatibility regression tests for the affected subsystem). Keep the workaround only if compatibility or stability regresses.
+- [x] (2026-02-27) Applied the workaround-retirement sweep to multipart parsing: removed fallback multipart reconstruction from `src/internal/compat/request_form_data.ts`, updated direct helper tests to assert native `Request.formData()` behavior, removed the synthetic batch fallback regression, and re-ran full validation (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`) successfully.
+
 ### Milestone 12 - Non-DBX compatibility shim hardening
 
 - [x] (2026-02-26 07:16Z) Audited non-DBX runtime compatibility shims and direct test coverage. Identified shim modules with no dedicated tests: `src/internal/compat/cast.ts`, `src/internal/compat/request_body.ts`, `src/internal/compat/slog.ts`, and `src/internal/compat/validation.ts`.

@@ -1,38 +1,29 @@
-// PocketBun-only: regression tests for multipart parsing fallback behavior.
+// PocketBun-only: tests for multipart parsing helper behavior.
 //
 // Why this file exists:
-// Bun multipart parsing may fail on some incoming request shapes. These tests
-// pin the fallback and preserve-body behavior used across API handlers.
+// Keep helper semantics pinned for preserve-body clone parsing and native error
+// propagation.
 
 import { describe, expect, it } from "bun:test";
 import { parseMultipartFormData } from "./request_form_data.ts";
 
 describe("parseMultipartFormData", () => {
-  it("falls back to reconstructed multipart parsing when formData() throws", async () => {
-    const boundary = "----pocketbun-test-boundary";
-    const contentType = `multipart/form-data; boundary=${boundary}`;
-    const body = new TextEncoder().encode(
-      `--${boundary}\r\n` +
-        'Content-Disposition: form-data; name="title"\r\n' +
-        "\r\n" +
-        "from-fallback\r\n" +
-        `--${boundary}--\r\n`,
-    ).buffer;
-
+  it("propagates native formData() errors", async () => {
     const request = {
-      headers: {
-        get: (name: string) => (name.toLowerCase() === "content-type" ? contentType : null),
-      },
       formData: async () => {
-        throw new TypeError("undefined is not a function");
+        throw new TypeError("Can't decode form data from body because of incorrect MIME type/boundary");
       },
-      arrayBuffer: async () => body,
-      method: "POST",
-      url: "http://localhost",
     };
 
-    const parsed = await parseMultipartFormData(request);
-    expect(parsed.get("title")).toBe("from-fallback");
+    let caught: unknown = null;
+    try {
+      await parseMultipartFormData(request);
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TypeError);
+    expect((caught as Error).message).toContain("Can't decode form data from body because of incorrect MIME type/boundary");
   });
 
   it("uses request.clone() when preserveBody is true", async () => {
@@ -45,7 +36,6 @@ describe("parseMultipartFormData", () => {
     cloneForm.set("source", "clone");
 
     const cloneRequest = {
-      headers: { get: (_name: string) => "multipart/form-data; boundary=test" },
       formData: async () => {
         cloneCalls += 1;
         return cloneForm;
@@ -53,7 +43,6 @@ describe("parseMultipartFormData", () => {
     };
 
     const request = {
-      headers: { get: (_name: string) => "multipart/form-data; boundary=test" },
       formData: async () => {
         sourceCalls += 1;
         return sourceForm;
@@ -67,7 +56,7 @@ describe("parseMultipartFormData", () => {
     expect(sourceCalls).toBe(0);
   });
 
-  it("falls back to the original request when preserveBody clone parsing fails", async () => {
+  it("does not fallback to original request when preserveBody clone parsing fails", async () => {
     let sourceCalls = 0;
     let cloneCalls = 0;
 
@@ -75,18 +64,13 @@ describe("parseMultipartFormData", () => {
     sourceForm.set("source", "source");
 
     const cloneRequest = {
-      headers: { get: (_name: string) => "multipart/form-data; boundary=test" },
       formData: async () => {
         cloneCalls += 1;
         throw new TypeError("Can't decode form data from body because of incorrect MIME type/boundary");
       },
-      arrayBuffer: async () => {
-        throw new TypeError("body stream already consumed");
-      },
     };
 
     const request = {
-      headers: { get: (_name: string) => "multipart/form-data; boundary=test" },
       formData: async () => {
         sourceCalls += 1;
         return sourceForm;
@@ -94,9 +78,16 @@ describe("parseMultipartFormData", () => {
       clone: () => cloneRequest,
     };
 
-    const parsed = await parseMultipartFormData(request, { preserveBody: true });
-    expect(parsed.get("source")).toBe("source");
+    let caught: unknown = null;
+    try {
+      await parseMultipartFormData(request, { preserveBody: true });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(TypeError);
+    expect((caught as Error).message).toContain("Can't decode form data from body because of incorrect MIME type/boundary");
     expect(cloneCalls).toBe(1);
-    expect(sourceCalls).toBe(1);
+    expect(sourceCalls).toBe(0);
   });
 });

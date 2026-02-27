@@ -3,11 +3,9 @@
 import { describe, it } from "bun:test";
 import { setTimeout as delay } from "node:timers/promises";
 import type { TestApp } from "../tests/app.ts";
-import { parseMultipartFormData } from "../internal/compat/request_form_data.ts";
 import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 import { MockMultipartData } from "../tests/request.ts";
 import { JSONPayloadKey } from "../tools/router/unmarshal_request_data.ts";
-import { setBatchMultipartFormDataParserForTests } from "./batch.ts";
 
 const multipart = await MockMultipartData(
   {
@@ -25,14 +23,6 @@ const multipart = await MockMultipartData(
   "requests.0.files",
   "requests[2].files",
 );
-
-const multipartFallback = await MockMultipartData({
-  [JSONPayloadKey]: `{
-      "requests":[
-        {"method":"POST", "url":"/api/collections/demo2/records", "body": {"title": "batch_fallback"}}
-      ]
-    }`,
-});
 
 const enableBatch = (scenario: ApiScenario): ApiScenario => {
   const beforeTest = scenario.beforeTest;
@@ -626,51 +616,4 @@ describe("batch api", () => {
       await runApiScenario(scenario);
     });
   }
-
-  it.serial("multipart/form-data parser fallback regression", async () => {
-    let failOnce = true;
-    setBatchMultipartFormDataParserForTests(async (request) => {
-      const wrappedRequest = {
-        headers: request.headers,
-        method: request.method,
-        url: request.url,
-        clone: () => request.clone(),
-        arrayBuffer: () => request.arrayBuffer(),
-        formData: async () => {
-          if (failOnce) {
-            failOnce = false;
-            throw new TypeError("undefined is not a function");
-          }
-          // eslint-disable-next-line typescript-eslint/no-deprecated -- regression test intentionally exercises native Request.formData behavior.
-          return request.formData();
-        },
-      };
-      return (await parseMultipartFormData(wrappedRequest)) as Awaited<ReturnType<Request["formData"]>>;
-    });
-
-    try {
-      await runApiScenario(
-        enableBatch({
-          method: "POST",
-          url: "/api/batch",
-          body: multipartFallback.body,
-          headers: {
-            Authorization:
-              "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6ImdrMzkwcWVnczR5NDd3biIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoidjg1MXE0cjc5MHJoa25sIiwiZXhwIjoyNTI0NjA0NDYxLCJyZWZyZXNoYWJsZSI6dHJ1ZX0.0ONnm_BsvPRZyDNT31GN1CKUB6uQRxvVvQ-Wc9AZfG0",
-            "Content-Type": multipartFallback.contentType,
-          },
-          expectedStatus: 200,
-          expectedContent: ['"title":"batch_fallback"', '"status":200'],
-          expectedEvents: {
-            OnBatchRequest: 1,
-          },
-          afterTest: (app) => {
-            app.FindFirstRecordByFilter("demo2", `title="batch_fallback"`);
-          },
-        }),
-      );
-    } finally {
-      setBatchMultipartFormDataParserForTests(null);
-    }
-  });
 });
