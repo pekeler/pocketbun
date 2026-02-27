@@ -687,12 +687,12 @@ describe("record CRUD list", () => {
   }
 });
 
-describe("record CRUD fallback regressions", () => {
-  it.serial("create succeeds when multipart requestInfo parsing fails once", async () => {
+describe("record CRUD multipart regression coverage", () => {
+  it.serial("create succeeds when multipart RequestInfo bindBody fails once", async () => {
     let restoreBindBody: () => void = () => {};
     try {
       await runApiScenario({
-        name: "multipart requestInfo fallback remains usable for enrich",
+        name: "multipart RequestInfo recovery remains usable for enrich",
         method: "POST",
         url: "/api/collections/demo2/records",
         body: createMultipartNoFiles.body,
@@ -734,7 +734,7 @@ describe("record CRUD fallback regressions", () => {
     }
   });
 
-  it.serial("create succeeds when multipart file parsing needs request clone fallback", async () => {
+  it.serial("create succeeds when multipart file parsing uses request clone path", async () => {
     let restorePatchedFormData: () => void = () => {};
     let restoreBindBody: () => void = () => {};
     try {
@@ -781,7 +781,7 @@ describe("record CRUD fallback regressions", () => {
       };
 
       await runApiScenario({
-        name: "multipart file parse clone fallback remains usable for create",
+        name: "multipart file parse clone path remains usable for create",
         method: "POST",
         url: "/api/collections/demo3/records",
         body: createMultipart.body,

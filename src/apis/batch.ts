@@ -34,17 +34,6 @@ type PreparedAction = {
 };
 
 type RequestFormData = Awaited<ReturnType<Request["formData"]>>;
-type BatchMultipartFormDataParser = (request: Request) => Promise<RequestFormData>;
-
-const defaultBatchMultipartFormDataParser: BatchMultipartFormDataParser = async (request) =>
-  (await parseMultipartFormData(request)) as RequestFormData;
-
-let batchMultipartFormDataParser: BatchMultipartFormDataParser = defaultBatchMultipartFormDataParser;
-
-// PocketBun-only test helper to inject a custom multipart parser for /api/batch.
-export function setBatchMultipartFormDataParserForTests(parser: BatchMultipartFormDataParser | null): void {
-  batchMultipartFormDataParser = parser ?? defaultBatchMultipartFormDataParser;
-}
 
 export function bindBatchApi(app: App, rg: RouterGroup<RequestEvent>): void {
   const sub = rg.group("/batch");
@@ -505,7 +494,7 @@ async function readBatchRequests(
         },
         body: bound.body,
       });
-      const form = await batchMultipartFormDataParser(parserRequest);
+      const form = (await parseMultipartFormData(parserRequest)) as RequestFormData;
       const raw: Record<string, string[]> = {};
       for (const [key, value] of form.entries()) {
         if (typeof value === "string") {
