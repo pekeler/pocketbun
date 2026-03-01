@@ -14,10 +14,6 @@ PocketBun is a port of [PocketBase](https://pocketbase.io) to Bun.
 
 PocketBase © 2022–present Gani Georgiev. [Project on GitHub](https://github.com/pocketbase/pocketbase).
 
-## Docs
-
-[PocketBun docs](https://pekeler.github.io/pocketbun/)
-
 ## Why?
 
 PocketBase is an excellent, well-designed, self-hosted Backend-as-a-Service. You can extend it with Go and JavaScript, but the embedded JS engine has limited ES6/Node compatibility, making complex customizations difficult. Your project may end up with a second backend.
@@ -36,6 +32,10 @@ Key differences:
 PocketBase is still under active development and NOT recommended for production.
 
 Naturally, the same applies to PocketBun.
+
+## Docs
+
+[PocketBun docs](https://pekeler.github.io/pocketbun/)
 
 ## Installation
 
