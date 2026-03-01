@@ -1,5 +1,6 @@
 // Ported from pocketbase/apis/serve.go
 
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,11 +31,17 @@ type BuiltServeHandler = {
 };
 
 const serveModuleDir = dirname(fileURLToPath(import.meta.url));
-const adminDistPath = resolve(serveModuleDir, "../../vendor/pocketbase-admin-ui/dist");
+const adminDistPath = resolveServeAssetPath(serveModuleDir, [
+  "../../vendor/pocketbase-admin-ui/dist",
+  "../vendor/pocketbase-admin-ui/dist",
+]);
 // PocketBun-only: brand the vendored Admin UI at runtime without modifying upstream assets.
 const adminBrandingScriptFileName = "pocketbun-branding.js";
 const adminBrandingScriptRoute = `/_/${adminBrandingScriptFileName}`;
-const adminBrandingScriptPath = resolve(serveModuleDir, "../../src/ui/admin_branding.js");
+const adminBrandingScriptPath = resolveServeAssetPath(serveModuleDir, [
+  "../../src/ui/admin_branding.js",
+  "../src/ui/admin_branding.js",
+]);
 const adminContentSecurityPolicy =
   "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://127.0.0.1:* https://tile.openstreetmap.org data: blob:; connect-src 'self' http://127.0.0.1:* https://nominatim.openstreetmap.org; script-src 'self' 'sha256-GRUzBA7PzKYug7pqxv5rJaec5bwDCw1Vo6/IXwvD3Tc='";
 // Bun currently limits `idleTimeout` to <= 255 seconds.
@@ -42,6 +49,18 @@ const defaultServerIdleTimeoutSeconds = 255;
 
 let brandedAdminIndexHtmlPromise: Promise<string> | null = null;
 let adminBrandingScriptPromise: Promise<string | null> | null = null;
+
+// PocketBun-only: resolve bundled assets in both source and npm package layouts.
+export function resolveServeAssetPath(baseDir: string, relativeCandidates: string[]): string {
+  for (const relativePath of relativeCandidates) {
+    const candidate = resolve(baseDir, relativePath);
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return resolve(baseDir, relativeCandidates[0] ?? ".");
+}
 
 function hasAsyncBootstrap(app: App): app is AppWithAsyncBootstrap {
   return typeof (app as { bootstrapAsync?: unknown }).bootstrapAsync === "function";
