@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.36.5-pocketbun.3 (Unreleased)
+
+- TBD
+
 ## 0.36.5-pocketbun.2 - 2026-03-01
 
 - Updated CI workflows to run on Bun `1.3.10` (from `1.3.8`) so automated checks and E2E runs use the latest Bun fixes/performance improvements.
