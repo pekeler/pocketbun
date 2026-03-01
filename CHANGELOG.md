@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.36.5-pocketbun.2 (Unreleased)
+## 0.36.5-pocketbun.2 - 2026-03-01
 
 - Updated CI workflows to run on Bun `1.3.10` (from `1.3.8`) so automated checks and E2E runs use the latest Bun fixes/performance improvements.
 - Removed the multipart `Request.formData()` fallback reconstruction workaround and now use Bun's native parser path directly (with clone-based preserve-body behavior), plus updated regression coverage around the new behavior.
