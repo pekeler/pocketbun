@@ -10,6 +10,7 @@ import { FieldTypeEmail } from "./field_email.ts";
 import { FieldTypeFile } from "./field_file.ts";
 import { FieldTypeJSON } from "./field_json.ts";
 import { FieldTypeNumber } from "./field_number.ts";
+import { NumberField } from "./field_number.ts";
 import { FieldTypeRelation } from "./field_relation.ts";
 import { FieldTypeSelect } from "./field_select.ts";
 import { FieldTypeText } from "./field_text.ts";
@@ -521,6 +522,49 @@ describe("view helpers", () => {
       }
 
       ensureNoTempViews(app);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("CreateViewFieldsWithNumberOnlyInt", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const result = await app.CreateViewFields(`select
+        a.id,
+        count(a.id) count,
+        total(a.id) total,
+        cast(a.id as int) cast_int,
+        cast(a.id as integer) cast_integer,
+        cast(a.id as real) cast_real,
+        cast(a.id as decimal) cast_decimal,
+        cast(a.id as numeric) cast_numeric
+      from demo1 a`);
+
+      const onlyInts: Record<string, boolean> = {
+        count: true,
+        total: false,
+        cast_int: true,
+        cast_integer: true,
+        cast_real: false,
+        cast_decimal: false,
+        cast_numeric: false,
+      };
+
+      expect(result.length).toBe(Object.keys(onlyInts).length + 1);
+
+      for (const field of result) {
+        if (field.GetName() === "id") {
+          continue;
+        }
+
+        expect(field.Type()).toBe(FieldTypeNumber);
+        const expectedOnlyInt = onlyInts[field.GetName()];
+        if (expectedOnlyInt == null) {
+          throw new Error(`missing OnlyInt expectation for ${field.GetName()}`);
+        }
+        expect((field as NumberField).OnlyInt).toBe(expectedOnlyInt);
+      }
     } finally {
       await cleanup();
     }

@@ -317,7 +317,14 @@ function parseQueryToFields(app: App, selectQuery: string): Map<string, QueryFie
       continue;
     }
 
-    if (colLower.startsWith("count(") || colLower.startsWith("total(")) {
+    if (colLower.startsWith("count(")) {
+      const field = new NumberField();
+      field.Name = col.alias;
+      field.OnlyInt = true;
+      result.set(col.alias, { field, collection: null, original: null });
+      continue;
+    }
+    if (colLower.startsWith("total(")) {
       const field = new NumberField();
       field.Name = col.alias;
       result.set(col.alias, { field, collection: null, original: null });
@@ -327,9 +334,15 @@ function parseQueryToFields(app: App, selectQuery: string): Map<string, QueryFie
     const castMatch = castRegex.exec(colLower);
     if (castMatch && castMatch[1]) {
       switch (castMatch[1]) {
-        case "real":
-        case "integer":
         case "int":
+        case "integer": {
+          const field = new NumberField();
+          field.Name = col.alias;
+          field.OnlyInt = true;
+          result.set(col.alias, { field, collection: null, original: null });
+          continue;
+        }
+        case "real":
         case "decimal":
         case "numeric": {
           const field = new NumberField();

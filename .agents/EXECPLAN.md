@@ -10,7 +10,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 
 ## Progress
 
-- Milestone status (2026-02-26):
+- Milestone status (2026-03-07):
   - Milestone 1: complete
   - Milestone 2: complete
   - Milestone 3: complete
@@ -23,11 +23,22 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 10: complete (PocketBase v0.36.3 upgrade: upstream sync, admin UI refresh, v0.36.3 compatibility deltas ported, docs pipeline rerun)
   - Milestone 11: complete (PocketBase v0.36.4 upgrade: upstream sync, admin UI refresh, middleware/JSVM compatibility deltas ported, docs version gate fixed, full validation rerun)
   - Milestone 12: complete (non-DBX compatibility shim audit + hardening with direct regression coverage and full validation gate)
+  - Milestone 13: complete (PocketBase v0.36.6 upgrade: upstream sync, admin UI refresh, view/list-rule/runtime deltas ported, JSVM `unmarshal(...)` workaround retired, full validation rerun)
 
 ### Maintenance TODOs
 
 - [ ] (2026-02-26) Bun workaround retirement sweep: whenever a Bun runtime fix suggests a PocketBun workaround may no longer be needed, attempt removing the workaround behind a focused change and run thorough verification before/after (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`, plus targeted compatibility regression tests for the affected subsystem). Keep the workaround only if compatibility or stability regresses.
 - [x] (2026-02-27) Applied the workaround-retirement sweep to multipart parsing: removed fallback multipart reconstruction from `src/internal/compat/request_form_data.ts`, updated direct helper tests to assert native `Request.formData()` behavior, removed the synthetic batch fallback regression, and re-ran full validation (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`) successfully.
+- [x] (2026-03-07 08:36Z) Applied the workaround-retirement sweep to JSVM generated types: removed the PocketBun-only `unmarshal(...)` typing-gap docs note, synced the declaration/signature to upstream `v0.36.6`, and re-ran focused + full validation successfully.
+
+### Milestone 13 - PocketBase v0.36.6 upgrade
+
+- [x] (2026-03-07 08:36Z) Audited the upstream `v0.36.5..v0.36.6` delta and scoped the PocketBun work to the observable runtime changes: view `OnlyInt` inference, empty-relation-safe list-rule joins, `Store.GetOrSet` overwrite protection, `FireAndForget()` stack cap, regenerated JSVM types, and vendored Admin UI refresh.
+- [x] (2026-03-07 08:36Z) Bumped the compatibility metadata to PocketBase `v0.36.6` / PocketBun `0.36.6-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, `README.md`, and `CHANGELOG.md`.
+- [x] (2026-03-07 08:36Z) Synced `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.36.6`.
+- [x] (2026-03-07 08:36Z) Ported the runtime deltas in `src/core/view.ts`, `src/core/record_field_resolver.ts`, `src/tools/store/store.ts`, `src/tools/routine/routine.ts`, and `src/plugins/jsvm/internal/types/generated/types.d.ts`.
+- [x] (2026-03-07 08:36Z) Added or updated regression coverage in `src/core/view.test.ts`, `src/core/record_field_resolver.test.ts`, `src/tools/store/store.test.ts`, `src/tools/routine/routine.test.ts`, and `src/plugins/jsvm/jsvm.test.ts`.
+- [x] (2026-03-07 08:36Z) Ran focused upgrade verification (`bun test --concurrent src/core/view.test.ts src/core/record_field_resolver.test.ts src/tools/store/store.test.ts src/tools/routine/routine.test.ts src/plugins/jsvm/jsvm.test.ts`) and the full required gate (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`) successfully.
 
 ### Milestone 12 - Non-DBX compatibility shim hardening
 
@@ -234,6 +245,12 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 ## Surprises & Discoveries
 
+- Observation: Upstream PocketBase `v0.36.6` now includes the global JSVM `unmarshal(...)` declaration in the generated ambient types, so the local PocketBun docs note/workaround from the earlier compatibility release became unnecessary.
+  Evidence: `.upstream/pocketbase/plugins/jsvm/internal/types/generated/types.d.ts` now declares `unmarshal(data: any, dst: any): void`, and PocketBun now mirrors that upstream declaration in `src/plugins/jsvm/internal/types/generated/types.d.ts`.
+- Observation: The `v0.36.6` list-rule join fix is not just cosmetic; without the extra `id='' || (...)` guard, OR-ed client-side filters against missing relations evaluate too strictly and hide rows that upstream now returns.
+  Evidence: upstream `core/record_field_resolver.go` now builds `id='' || (\nRULE\n)` for list-rule join filters, and the matching regression expectations in `src/core/record_field_resolver.test.ts` now include the `id='' OR ...` clause.
+- Observation: View field inference needs to distinguish integer-only numeric expressions from general numbers to match the new upstream schema generation behavior.
+  Evidence: `src/core/view.test.ts` now includes `CreateViewFieldsWithNumberOnlyInt`, which expects `OnlyInt=true` for `count(...)`, `cast(... as int)`, and `cast(... as integer)`, but not for `total(...)`, `real`, `decimal`, or `numeric`.
 - Observation: Four non-DBX runtime compatibility shims in `src/internal/compat/` had no dedicated direct tests, despite being used across many auth/request/validation paths.
   Evidence: coverage scan found missing direct test files for `cast.ts`, `request_body.ts`, `slog.ts`, and `validation.ts`, while `request_form_data.ts` already had dedicated tests.
 - Observation: The `v0.36.4` docs pipeline run failed on the generated docs parity gate until `docs/_config.yml` was bumped to the new package version.
@@ -335,6 +352,9 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 ## Decision Log
 
+- Decision: For the `v0.36.6` upgrade, port the observable runtime deltas directly and retire the local JSVM `unmarshal(...)` typing-gap workaround instead of preserving a PocketBun-only docs divergence.
+  Rationale: Upstream now ships the ambient declaration, so keeping the older workaround note would document a difference that no longer exists; the remaining release delta is small and maps cleanly to existing PocketBun ports (`view`, `record_field_resolver`, `store`, `routine`, generated types, and admin UI assets).
+  Date/Author: 2026-03-07 / Codex
 - Decision: Scope the post-DBX shim hardening sweep to runtime compatibility shims under `src/internal/compat` (`cast`, `request_body`, `slog`, `validation`) and complete each with direct regression coverage.
   Rationale: These are PocketBun-owned behavior bridges with no upstream source-of-truth tests and no direct local tests, so they represent the highest risk of hidden compatibility drift.
   Date/Author: 2026-02-26 / Codex
@@ -498,6 +518,8 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
   Date/Author: 2026-02-02 / Codex
 
 ## Outcomes & Retrospective
+
+Milestone 13 is now complete. PocketBun targets PocketBase `v0.36.6`, the vendored Admin UI is refreshed, the upstream runtime deltas for view schema inference and list-rule join filtering are ported, and the temporary JSVM `unmarshal(...)` typing workaround from the earlier `v0.36.5` cycle has been retired because upstream now generates that declaration directly. Full validation passed after the upgrade (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`).
 
 Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. Realtime (SSE) support is now ported with tests. Collection CRUD/import parity is now in place. pb_hooks/pb_migrations loader coverage is now in place via dedicated jsvm loader tests. Milestone 11 (`v0.36.4` upgrade) is now complete with upstream sync, admin UI refresh, middleware/JSVM compatibility delta ports, and docs/version gate updates. Milestone 12 is also complete: all non-DBX runtime compatibility shims in `src/internal/compat` now have dedicated regression coverage (`cast`, `request_body`, `slog`, `validation`) and the full validation gate passes cleanly. The current performance optimization sprint is now paused after completing the planned profiling and hot-path work; latest 3x/3x upstream benchmark runs on Hetzner CCX13 show PocketBun/PocketBase factors ranging roughly `0.17x..4.36x` with geometric mean around `0.61x`, and remaining performance tasks are intentionally deferred unless new regressions appear.
 
@@ -727,3 +749,4 @@ Plan change note: 2026-02-13, completed Milestone 9 docs delivery, removed the t
 Plan change note: 2026-02-17, completed the PocketBase v0.36.4 upgrade (sync, version bumps, middleware/JSVM parity ports, docs version gate fix, and full validation) and updated the living sections accordingly.
 Plan change note: 2026-02-26, added Milestone 12 with a concrete non-DBX shim list (`cast`, `request_body`, `slog`, `validation`) and execution checklist to close direct-coverage gaps end-to-end.
 Plan change note: 2026-02-26, completed Milestone 12 by adding direct regression tests for all listed runtime shims and recording a full clean validation gate run.
+Plan change note: 2026-03-07, completed the PocketBase v0.36.6 upgrade (metadata bump, upstream/admin UI sync, view/list-rule/runtime parity ports, JSVM `unmarshal(...)` workaround retirement, and full validation) and updated the living sections accordingly.

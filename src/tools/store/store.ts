@@ -99,6 +99,9 @@ export class Store<K, T> {
     }
 
     const value = setFunc();
+    if (this.#data.has(key)) {
+      return this.#data.get(key) as T;
+    }
     this.#data.set(key, value);
     return value;
   }

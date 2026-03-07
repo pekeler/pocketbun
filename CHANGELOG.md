@@ -1,8 +1,9 @@
 # Changelog
 
-## 0.36.5-pocketbun.3 (Unreleased)
+## 0.36.6-pocketbun.0 (Unreleased)
 
-- TBD
+- Upgraded PocketBun compatibility target to PocketBase `v0.36.6`, synced vendored Admin UI assets, and ported the upstream view/list-rule/runtime deltas. Upstream notes: [PocketBase v0.36.6 changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0366).
+- Removed the temporary local JSVM `unmarshal(...)` typing-gap workaround now that upstream `v0.36.6` ships the declaration in generated types.
 
 ## 0.36.5-pocketbun.2 - 2026-03-01
 

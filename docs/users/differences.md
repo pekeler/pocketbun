@@ -20,7 +20,6 @@ Quick links:
 - [Hooks Plugin Naming](#hooks-plugin-naming)
 - [Hooks API And Module Loading](#hooks-api-and-module-loading)
 - [Async API Extensions](#async-api-extensions)
-- [JSVM Type Declarations](#jsvm-type-declarations)
 - [Operational Differences](#operational-differences)
 - [PocketBase Docs Topics That Do Not Apply Directly](#pocketbase-docs-topics-that-do-not-apply-directly)
 - [Intentional Omissions](#intentional-omissions)
@@ -128,15 +127,6 @@ PocketBun keeps sync-compatible APIs but adds async alternatives for I/O-heavy p
 | Hooks plugin register | `RegisterJSVM(...)` | `RegisterJSVMAsync(...)` |
 | Filesystem factories | `NewFilesystem()` | `NewFilesystemAsync()` |
 | JSVM helpers | `$http.send(...)`, `$os.readFile(...)` | `$http.sendAsync(...)`, `$os.readFileAsync(...)` |
-
-## JSVM Type Declarations
-
-PocketBase `v0.36.5` has a JSVM ambient typing gap for the global migration helper `unmarshal(...)`:
-
-- runtime helper exists and is used by generated migration templates
-- generated `pb_data/types.d.ts` omits `declare function unmarshal(...)`, which causes IDE errors like `Cannot find name 'unmarshal'`
-
-PocketBun declares `unmarshal` in generated `pb_data/types.d.ts` to match observable runtime behavior.
 
 ## Operational Differences
 

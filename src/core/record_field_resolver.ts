@@ -160,7 +160,7 @@ export class RecordFieldResolver implements FieldResolver {
         clone.baseCollectionAlias = alias;
         clone.joinAliasSuffix = randomString(8);
 
-        const expr = buildFilterExpr(collection.listRule, clone, DefaultFilterExprLimit);
+        const expr = buildFilterExpr(`id='' || (\n${collection.listRule}\n)`, clone, DefaultFilterExprLimit);
         if (expr.sql) {
           const wrappedRule = `(${expr.sql})`;
           selectSql = appendWhere(selectSql, wrappedRule);

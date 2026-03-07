@@ -28,7 +28,7 @@ describe("jsvm loader", () => {
       app.bootstrap();
 
       const types = await readFile(join(rootDir, "types.d.ts"), "utf8");
-      expect(types).toContain("declare function unmarshal(data: any, dst: object): void;");
+      expect(types).toContain("declare function unmarshal(data: any, dst: any): void;");
     } finally {
       app.resetBootstrapState();
       await rm(rootDir, { recursive: true, force: true });

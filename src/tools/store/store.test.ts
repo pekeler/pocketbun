@@ -183,6 +183,18 @@ describe("store", () => {
     }
   });
 
+  it("GetOrSet preserves values assigned during setFunc", () => {
+    const s = new Store<string, number>(null, 0);
+
+    const result = s.getOrSet("test", () => {
+      s.set("test", 10);
+      return 20;
+    });
+
+    expect(result).toBe(10);
+    expect(s.get("test")).toBe(10);
+  });
+
   it("SetIfLessThanLimit", () => {
     const s = new Store<string, number>(null, 0);
     const limit = 2;
