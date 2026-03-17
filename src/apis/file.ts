@@ -144,6 +144,7 @@ class FileApi {
     }
 
     let fsys: System;
+    let releaseFilesystem = false;
     try {
       fsys =
         typeof event.app.NewFilesystemAsync === "function" ? await event.app.NewFilesystemAsync() : event.app.NewFilesystem();
@@ -202,7 +203,18 @@ class FileApi {
 
       const response = await event.app.OnFileDownloadRequest().Trigger(hookEvent, async () => {
         return execAfterSuccessTx(true, event.app, () => {
-          return serveFile(event, fsys, hookEvent.ServedPath, hookEvent.ServedName);
+          return serveFile(
+            event,
+            fsys,
+            hookEvent.ServedPath,
+            hookEvent.ServedName,
+            () => {
+              releaseFilesystem = true;
+            },
+            async () => {
+              await fsys.Close();
+            },
+          );
         });
       });
 
@@ -210,9 +222,22 @@ class FileApi {
         return response;
       }
 
-      return await serveFile(event, fsys, hookEvent.ServedPath, hookEvent.ServedName);
+      return await serveFile(
+        event,
+        fsys,
+        hookEvent.ServedPath,
+        hookEvent.ServedName,
+        () => {
+          releaseFilesystem = true;
+        },
+        async () => {
+          await fsys.Close();
+        },
+      );
     } finally {
-      await fsys.Close();
+      if (!releaseFilesystem) {
+        await fsys.Close();
+      }
     }
   }
 
@@ -245,14 +270,27 @@ class FileApi {
   }
 }
 
-async function serveFile(event: RequestEvent, fsys: System, servedPath: string, servedName: string): Promise<Response> {
-  const recorder = new ResponseRecorder(event.responseHeaders);
+async function serveFile(
+  event: RequestEvent,
+  fsys: System,
+  servedPath: string,
+  servedName: string,
+  onTakeOwnership: () => void,
+  onClose: () => void | Promise<void>,
+): Promise<Response> {
   const headers = headersToObject(event.request.headers);
-  const err = await fsys.Serve(recorder, { url: event.request.url, headers }, servedPath, servedName);
-  if (err) {
+  const response = await fsys.ServeResponse(
+    event.responseHeaders,
+    { url: event.request.url, headers },
+    servedPath,
+    servedName,
+    onClose,
+  );
+  if (response instanceof Error) {
     return notFound(event, "");
   }
-  return recorder.toResponse();
+  onTakeOwnership();
+  return response;
 }
 
 function headersToObject(headers: Headers): Record<string, string> {
@@ -261,77 +299,6 @@ function headersToObject(headers: Headers): Record<string, string> {
     out[key] = value;
   }
   return out;
-}
-
-class ResponseRecorder {
-  statusCode = 200;
-  #headers = new Map<string, string>();
-  #controller: ReadableStreamDefaultController<Uint8Array> | null = null;
-  #pendingChunks: Uint8Array[] = [];
-  #ended = false;
-  #stream: ReadableStream<Uint8Array>;
-
-  constructor(initial: Headers) {
-    for (const [key, value] of initial.entries()) {
-      this.setHeader(key, value);
-    }
-
-    this.#stream = new ReadableStream<Uint8Array>({
-      start: (controller) => {
-        this.#controller = controller;
-        for (const chunk of this.#pendingChunks) {
-          controller.enqueue(chunk);
-        }
-        this.#pendingChunks = [];
-        if (this.#ended) {
-          controller.close();
-        }
-      },
-      cancel: () => {
-        this.#controller = null;
-        this.#pendingChunks = [];
-      },
-    });
-  }
-
-  setHeader(name: string, value: string): void {
-    this.#headers.set(name.toLowerCase(), value);
-  }
-
-  getHeader(name: string): string | undefined {
-    return this.#headers.get(name.toLowerCase());
-  }
-
-  write(body?: Uint8Array): void {
-    if (!body || body.length === 0 || this.#ended) {
-      return;
-    }
-
-    if (this.#controller) {
-      this.#controller.enqueue(body);
-    } else {
-      this.#pendingChunks.push(body);
-    }
-  }
-
-  end(body?: Uint8Array): void {
-    this.write(body);
-    if (this.#ended) {
-      return;
-    }
-    this.#ended = true;
-    if (this.#controller) {
-      this.#controller.close();
-    }
-  }
-
-  toResponse(): Response {
-    const headers = new Headers();
-    for (const [key, value] of this.#headers.entries()) {
-      headers.set(key, value);
-    }
-    return new Response(this.#stream, { status: this.statusCode, headers });
-  }
 }
 
 // Deviation: local semaphore + singleflight to model Go sync primitives without extra deps.

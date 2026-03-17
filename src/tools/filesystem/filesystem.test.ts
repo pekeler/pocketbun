@@ -13,11 +13,11 @@ class ResponseRecorder {
   #chunks: Uint8Array[] = [];
 
   setHeader(name: string, value: string) {
-    this.#headers.set(name, value);
+    this.#headers.set(name.toLowerCase(), value);
   }
 
   getHeader(name: string): string | undefined {
-    return this.#headers.get(name);
+    return this.#headers.get(name.toLowerCase());
   }
 
   write(chunk: Uint8Array | string) {
@@ -616,6 +616,96 @@ describe("filesystem system", () => {
     }
   });
 
+  it("serve response", async () => {
+    const dir = await createTestDir();
+    try {
+      const fsys = NewLocal(dir);
+
+      const scenarios = [
+        {
+          path: "test/sub2.txt",
+          name: "test_name.txt",
+          query: {},
+          headers: {
+            "Content-Disposition": "1",
+            "Content-Type": "2",
+            "Content-Length": "1",
+            "Content-Security-Policy": "4",
+            "Cache-Control": "5",
+            "X-Custom": "6",
+          },
+          expectError: false,
+          expected: {
+            "Content-Disposition": "1",
+            "Content-Type": "2",
+            "Content-Security-Policy": "4",
+            "Cache-Control": "5",
+            "X-Custom": "6",
+          },
+        },
+        {
+          path: "image.png",
+          name: "image.png",
+          query: {},
+          headers: {},
+          expectError: false,
+          expected: {
+            "Content-Disposition": "inline; filename=image.png",
+            "Content-Type": "image/png",
+          },
+        },
+      ];
+
+      for (const scenario of scenarios) {
+        const query = new URLSearchParams(scenario.query).toString();
+        const url = query ? `/?${query}` : "/";
+        const initialHeaders = new Headers(
+          Object.entries(scenario.headers).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+        );
+        const result = await fsys.ServeResponse(initialHeaders, { url, headers: {} }, scenario.path, scenario.name);
+
+        expect(result instanceof Error).toBe(scenario.expectError);
+        if (result instanceof Error || !scenario.expected) {
+          continue;
+        }
+
+        for (const [header, value] of Object.entries(scenario.expected)) {
+          expect(result.headers.get(header)).toBe(value);
+        }
+
+        const attrs = await fsys.Attributes(scenario.path);
+        expect(result.headers.get("Content-Length")).toBe(String(attrs.Size));
+        expect((await result.arrayBuffer()).byteLength).toBe(attrs.Size);
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("serve response single range", async () => {
+    const dir = await createTestDir();
+    try {
+      const fsys = NewLocal(dir);
+      const attrs = await fsys.Attributes("image.png");
+      const result = await fsys.ServeResponse(
+        new Headers(),
+        { url: "/", headers: { Range: "bytes=0-20" } },
+        "image.png",
+        "image.png",
+      );
+      if (result instanceof Error) {
+        throw result;
+      }
+
+      expect(result.status).toBe(206);
+      expect(result.headers.get("Content-Range")).toBe(`bytes 0-20/${attrs.Size}`);
+      expect(result.headers.get("Content-Length")).toBe("21");
+      expect((await result.arrayBuffer()).byteLength).toBe(21);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("serve multi range", async () => {
     const dir = await createTestDir();
     try {
@@ -626,6 +716,28 @@ describe("filesystem system", () => {
       expect(res.statusCode).toBe(206);
       expect(res.header("Content-Type").startsWith("multipart/byteranges; boundary=")).toBe(true);
       expect(res.body().length).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("serve response multi range", async () => {
+    const dir = await createTestDir();
+    try {
+      const fsys = NewLocal(dir);
+      const result = await fsys.ServeResponse(
+        new Headers(),
+        { url: "/", headers: { Range: "bytes=0-20, 25-30" } },
+        "image.png",
+        "image.png",
+      );
+      if (result instanceof Error) {
+        throw result;
+      }
+
+      expect(result.status).toBe(206);
+      expect(result.headers.get("Content-Type")?.startsWith("multipart/byteranges; boundary=")).toBe(true);
+      expect((await result.arrayBuffer()).byteLength).toBe(0);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

@@ -40,7 +40,7 @@ type MultipartPartHeaders = {
 };
 
 type MultipartPartWriter = {
-  write: (chunk: Uint8Array) => number;
+  write: (chunk: Uint8Array) => number | Promise<number>;
   end: (error?: Error) => number | Promise<number>;
 };
 
@@ -391,7 +391,10 @@ async function appendMultipartPartChunk(part: PendingMultipartPart, chunk: Uint8
 
   part.size += chunk.length;
   if (part.writer) {
-    part.writer.write(chunk);
+    const result = part.writer.write(chunk);
+    if (result instanceof Promise) {
+      await result;
+    }
     return;
   }
 

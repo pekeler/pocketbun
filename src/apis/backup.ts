@@ -84,25 +84,32 @@ async function backupDownload(app: App, event: RequestEvent): Promise<Response> 
     return internalServerError(event, "Failed to load backups filesystem.", error as Error);
   }
 
+  let releaseFilesystem = false;
   try {
     fsys.SetContext(controller.signal);
     const key = decodeURIComponent(event.params.key ?? "");
 
-    const recorder = new ResponseRecorder(event.responseHeaders);
     const headers = headersToObject(event.request.headers);
-    const err = await fsys.Serve(
-      recorder,
+    const response = await fsys.ServeResponse(
+      event.responseHeaders,
       { url: event.request.url, headers },
       key,
       key.split("/").pop() ?? key, // without the path prefix (if any)
+      async () => {
+        clearTimeout(timeout);
+        await fsys.Close();
+      },
     );
-    if (err) {
+    if (response instanceof Error) {
       return notFound(event, "");
     }
-    return recorder.toResponse();
+    releaseFilesystem = true;
+    return response;
   } finally {
-    clearTimeout(timeout);
-    await fsys.Close();
+    if (!releaseFilesystem) {
+      clearTimeout(timeout);
+      await fsys.Close();
+    }
   }
 }
 
@@ -198,75 +205,4 @@ function headersToObject(headers: Headers): Record<string, string> {
     out[key] = value;
   }
   return out;
-}
-
-class ResponseRecorder {
-  statusCode = 200;
-  #headers = new Map<string, string>();
-  #controller: ReadableStreamDefaultController<Uint8Array> | null = null;
-  #pendingChunks: Uint8Array[] = [];
-  #ended = false;
-  #stream: ReadableStream<Uint8Array>;
-
-  constructor(initial: Headers) {
-    for (const [key, value] of initial.entries()) {
-      this.setHeader(key, value);
-    }
-
-    this.#stream = new ReadableStream<Uint8Array>({
-      start: (controller) => {
-        this.#controller = controller;
-        for (const chunk of this.#pendingChunks) {
-          controller.enqueue(chunk);
-        }
-        this.#pendingChunks = [];
-        if (this.#ended) {
-          controller.close();
-        }
-      },
-      cancel: () => {
-        this.#controller = null;
-        this.#pendingChunks = [];
-      },
-    });
-  }
-
-  setHeader(name: string, value: string): void {
-    this.#headers.set(name.toLowerCase(), value);
-  }
-
-  getHeader(name: string): string | undefined {
-    return this.#headers.get(name.toLowerCase());
-  }
-
-  write(body?: Uint8Array): void {
-    if (!body || body.length === 0 || this.#ended) {
-      return;
-    }
-
-    if (this.#controller) {
-      this.#controller.enqueue(body);
-    } else {
-      this.#pendingChunks.push(body);
-    }
-  }
-
-  end(body?: Uint8Array): void {
-    this.write(body);
-    if (this.#ended) {
-      return;
-    }
-    this.#ended = true;
-    if (this.#controller) {
-      this.#controller.close();
-    }
-  }
-
-  toResponse(): Response {
-    const headers = new Headers();
-    for (const [key, value] of this.#headers.entries()) {
-      headers.set(key, value);
-    }
-    return new Response(this.#stream, { status: this.statusCode, headers });
-  }
 }

@@ -8,6 +8,7 @@
 - Added end-to-end regression coverage that verifies multipart uploads are stored byte-for-byte intact, and removed one remaining full-file copy from async MIME validation by sampling only the bytes needed for type detection on path-backed uploads.
 - Switched multipart temp-file spooling to Bun's native `FileSink`, which reduced local fresh-process upload RSS to about `+26 MiB` for `256 MiB` uploads and `+32-34 MiB` for `512 MiB` uploads on this host; the local PocketBase comparison now shows PocketBun in the same ballpark or lower on upload memory, though idle RSS remains higher.
 - Added a local PocketBase-vs-PocketBun memory comparison harness and README spot-check notes, which currently show PocketBun still using materially more idle RSS than PocketBase on local tests.
+- Reworked file and backup downloads to use pull-based streaming `Response` bodies instead of buffering the full served file through an intermediate recorder; local download probes on this host dropped from about `+132 MiB` / `+441 MiB` RSS on `64 MiB` / `256 MiB` single downloads to about `+38 MiB` / `+69 MiB`, with matching file bytes and range-response regressions added for the new path.
 
 ## 0.36.6-pocketbun.0 - 2026-03-07
 

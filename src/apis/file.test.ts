@@ -1,6 +1,6 @@
 // Ported from pocketbase/apis/file_test.go
 
-import { describe, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -425,6 +425,30 @@ describe("file download", () => {
       await runFileScenario(scenario);
     });
   }
+
+  it("existing image range request", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const handler = buildServeHandler(app);
+      const response = await handler(
+        new Request("http://localhost/api/files/_pb_users_auth_/4q1xlclmfloku33/300_1SEi6Q6U72.png", {
+          headers: { Range: "bytes=0-20" },
+        }),
+      );
+
+      expect(response.status).toBe(206);
+      expect(response.headers.get("Content-Range")).toContain("bytes 0-20/");
+      expect(response.headers.get("Content-Length")).toBe("21");
+
+      const body = new Uint8Array(await response.arrayBuffer());
+      expect(body.length).toBe(21);
+      for (let i = 0; i < body.length; i += 1) {
+        expect(body[i]).toBe(testImg[i]);
+      }
+    } finally {
+      await cleanup();
+    }
+  });
 });
 
 describe("concurrent thumbs generation", () => {

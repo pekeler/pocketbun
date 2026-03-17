@@ -34,6 +34,15 @@ export const metadataOriginalName = "original-filename";
 
 export const ThumbSizeRegex = /^(\d+)x(\d+)(t|b|f)?$/;
 
+type ServePlan = {
+  statusCode: number;
+  headers: Headers;
+  reader: Awaited<ReturnType<Bucket["NewReader"]>> | null;
+  startOffset: number;
+  length: number;
+  cleanup: () => Promise<void>;
+};
+
 const inlineServeContentTypes = new Set([
   "image/png",
   "image/jpg",
@@ -448,77 +457,107 @@ export class System {
     fileKey: string,
     name: string,
   ): Promise<Error | null> {
-    let reader: Awaited<ReturnType<Bucket["NewReader"]>> | null = null;
-    try {
-      reader = await this.#bucket.NewReader(this.#ctx, fileKey);
-    } catch (error) {
-      return mapFsError(error);
+    const initialHeaders = new Headers();
+    for (const key of ["Content-Disposition", "Content-Type", "Content-Security-Policy", "Cache-Control"]) {
+      const value = res.getHeader(key);
+      if (value != null) {
+        initialHeaders.set(key, value);
+      }
     }
 
+    const plan = await this.prepareServePlan(initialHeaders, req, fileKey, name);
+    if (plan instanceof Error) {
+      return plan;
+    }
     try {
-      const size = reader.Size();
-      const realContentType = reader.ContentType();
-
-      const url = new URL(req.url ?? "/", "http://localhost");
-      const forceAttachment = url.searchParams.get(forceAttachmentParam) === "1";
-
-      let disposition = "attachment";
-      if (!forceAttachment && inlineServeContentTypes.has(realContentType)) {
-        disposition = "inline";
+      res.statusCode = plan.statusCode;
+      for (const [key, value] of plan.headers.entries()) {
+        res.setHeader(key, value);
       }
 
-      let extContentType = realContentType;
-      const ext = posix.extname(name);
-      if (ext in manualExtensionContentTypes) {
-        extContentType = manualExtensionContentTypes[ext] ?? extContentType;
-      }
-
-      setHeaderIfMissing(res, "Content-Disposition", `${disposition}; filename=${name}`);
-      setHeaderIfMissing(res, "Content-Type", extContentType);
-      setHeaderIfMissing(
-        res,
-        "Content-Security-Policy",
-        "default-src 'none'; media-src 'self'; style-src 'unsafe-inline'; sandbox",
-      );
-      setHeaderIfMissing(res, "Cache-Control", "max-age=2592000, stale-while-revalidate=86400");
-
-      const rangeHeader = req.headers?.Range ?? req.headers?.range;
-      const rangeValue = Array.isArray(rangeHeader) ? rangeHeader[0] : rangeHeader;
-      if (rangeValue && rangeValue.startsWith("bytes=")) {
-        const ranges = rangeValue
-          .slice(6)
-          .split(",")
-          .map((part) => part.trim());
-        if (ranges.length > 1) {
-          res.statusCode = 206;
-          res.setHeader("Content-Type", "multipart/byteranges; boundary=BOUNDARY");
-          res.setHeader("Content-Length", "0");
-          res.end();
-          return null;
-        }
-
-        const rangeSpec = ranges[0] ?? "";
-        const [startRaw, endRaw] = rangeSpec.split("-").map((part) => part.trim());
-        const start = startRaw === "" ? 0 : Number(startRaw);
-        const end = endRaw === "" ? size - 1 : Number(endRaw);
-        const safeStart = normalizeRangeStart(start, size);
-        const safeEnd = normalizeRangeEnd(end, size, safeStart);
-        const rangeLength = safeEnd >= safeStart ? safeEnd - safeStart + 1 : 0;
-        res.statusCode = 206;
-        res.setHeader("Content-Range", `bytes ${safeStart}-${safeEnd}/${size}`);
-        res.setHeader("Content-Length", String(rangeLength));
-        await writeReaderToResponse(reader, res, safeStart, rangeLength);
+      if (!plan.reader) {
+        res.end();
         return null;
       }
 
-      res.statusCode = 200;
-      res.setHeader("Content-Length", String(size));
-      await writeReaderToResponse(reader, res, 0, size);
-
+      await writeReaderToResponse(plan.reader, res, plan.startOffset, plan.length);
       return null;
     } finally {
-      reader.close();
+      await plan.cleanup();
     }
+  }
+
+  // ServeResponse streams the file at fileKey location to a web Response body.
+  //
+  // Deviation: PocketBun-only helper used by Bun response handlers to avoid
+  // buffering the full served file in an intermediate in-memory stream.
+  async ServeResponse(
+    initialHeaders: Headers,
+    req: { headers?: Record<string, string | string[]>; url?: string },
+    fileKey: string,
+    name: string,
+    onClose?: () => void | Promise<void>,
+  ): Promise<Response | Error> {
+    const plan = await this.prepareServePlan(initialHeaders, req, fileKey, name, onClose);
+    if (plan instanceof Error) {
+      return plan;
+    }
+
+    if (!plan.reader) {
+      try {
+        return new Response(null, { status: plan.statusCode, headers: plan.headers });
+      } finally {
+        await plan.cleanup();
+      }
+    }
+
+    plan.reader.seek(plan.startOffset, 0);
+    let remaining = plan.length;
+    let cleanedUp = false;
+
+    const cleanup = async () => {
+      if (cleanedUp) {
+        return;
+      }
+      cleanedUp = true;
+      await plan.cleanup();
+    };
+
+    const stream = new ReadableStream<Uint8Array>({
+      pull: async (controller) => {
+        try {
+          if (remaining <= 0) {
+            controller.close();
+            await cleanup();
+            return;
+          }
+
+          const chunk = await plan.reader!.read(Math.min(64 * 1024, remaining));
+          if (!chunk || chunk.length === 0) {
+            controller.close();
+            await cleanup();
+            return;
+          }
+
+          const out = chunk.length > remaining ? chunk.subarray(0, remaining) : chunk;
+          remaining -= out.length;
+          controller.enqueue(out);
+
+          if (remaining <= 0) {
+            controller.close();
+            await cleanup();
+          }
+        } catch (error) {
+          controller.error(error);
+          await cleanup();
+        }
+      },
+      cancel: async () => {
+        await cleanup();
+      },
+    });
+
+    return new Response(stream, { status: plan.statusCode, headers: plan.headers });
   }
 
   // CreateThumb creates a new thumb image for the file at originalKey location.
@@ -606,6 +645,110 @@ export class System {
     } finally {
       reader?.close();
     }
+  }
+
+  private async prepareServePlan(
+    initialHeaders: Headers,
+    req: { headers?: Record<string, string | string[]>; url?: string },
+    fileKey: string,
+    name: string,
+    onClose?: () => void | Promise<void>,
+  ): Promise<ServePlan | Error> {
+    let reader: Awaited<ReturnType<Bucket["NewReader"]>> | null = null;
+    try {
+      reader = await this.#bucket.NewReader(this.#ctx, fileKey);
+    } catch (error) {
+      return mapFsError(error);
+    }
+
+    let cleanedUp = false;
+    const cleanup = async () => {
+      if (cleanedUp) {
+        return;
+      }
+      cleanedUp = true;
+      reader?.close();
+      if (onClose) {
+        await onClose();
+      }
+    };
+
+    const size = reader.Size();
+    const headers = new Headers(initialHeaders);
+    const realContentType = reader.ContentType();
+
+    const url = new URL(req.url ?? "/", "http://localhost");
+    const forceAttachment = url.searchParams.get(forceAttachmentParam) === "1";
+
+    let disposition = "attachment";
+    if (!forceAttachment && inlineServeContentTypes.has(realContentType)) {
+      disposition = "inline";
+    }
+
+    let extContentType = realContentType;
+    const ext = posix.extname(name);
+    if (ext in manualExtensionContentTypes) {
+      extContentType = manualExtensionContentTypes[ext] ?? extContentType;
+    }
+
+    setHeaderIfMissingHeaders(headers, "Content-Disposition", `${disposition}; filename=${name}`);
+    setHeaderIfMissingHeaders(headers, "Content-Type", extContentType);
+    setHeaderIfMissingHeaders(
+      headers,
+      "Content-Security-Policy",
+      "default-src 'none'; media-src 'self'; style-src 'unsafe-inline'; sandbox",
+    );
+    setHeaderIfMissingHeaders(headers, "Cache-Control", "max-age=2592000, stale-while-revalidate=86400");
+
+    const rangeHeader = req.headers?.Range ?? req.headers?.range;
+    const rangeValue = Array.isArray(rangeHeader) ? rangeHeader[0] : rangeHeader;
+    if (rangeValue && rangeValue.startsWith("bytes=")) {
+      const ranges = rangeValue
+        .slice(6)
+        .split(",")
+        .map((part) => part.trim());
+      if (ranges.length > 1) {
+        headers.set("Content-Type", "multipart/byteranges; boundary=BOUNDARY");
+        headers.set("Content-Length", "0");
+        await cleanup();
+        return {
+          statusCode: 206,
+          headers,
+          reader: null,
+          startOffset: 0,
+          length: 0,
+          cleanup: async () => {},
+        };
+      }
+
+      const rangeSpec = ranges[0] ?? "";
+      const [startRaw, endRaw] = rangeSpec.split("-").map((part) => part.trim());
+      const start = startRaw === "" ? 0 : Number(startRaw);
+      const end = endRaw === "" ? size - 1 : Number(endRaw);
+      const safeStart = normalizeRangeStart(start, size);
+      const safeEnd = normalizeRangeEnd(end, size, safeStart);
+      const rangeLength = safeEnd >= safeStart ? safeEnd - safeStart + 1 : 0;
+      headers.set("Content-Range", `bytes ${safeStart}-${safeEnd}/${size}`);
+      headers.set("Content-Length", String(rangeLength));
+      return {
+        statusCode: 206,
+        headers,
+        reader,
+        startOffset: safeStart,
+        length: rangeLength,
+        cleanup,
+      };
+    }
+
+    headers.set("Content-Length", String(size));
+    return {
+      statusCode: 200,
+      headers,
+      reader,
+      startOffset: 0,
+      length: size,
+      cleanup,
+    };
   }
 }
 
@@ -958,13 +1101,8 @@ function normalizeRangeEnd(end: number, size: number, safeStart: number): number
   return Math.min(end, size - 1);
 }
 
-// note: expects key to be in a canonical form (eg. "accept-encoding" should be "Accept-Encoding").
-function setHeaderIfMissing(
-  res: { getHeader: (k: string) => string | undefined; setHeader: (k: string, v: string) => void },
-  key: string,
-  value: string,
-) {
-  if (res.getHeader(key) == null) {
-    res.setHeader(key, value);
+function setHeaderIfMissingHeaders(headers: Headers, key: string, value: string) {
+  if (!headers.has(key)) {
+    headers.set(key, value);
   }
 }
