@@ -1,4 +1,4 @@
-// PocketBun-only: compare local PocketBase vs PocketBun RSS on idle, load, and uploads.
+// PocketBun-only: compare local PocketBase vs PocketBun RSS on idle/load and upload throughput.
 //
 // Why this file exists:
 // The repository already has benchmark and upload probes, but this script keeps a
@@ -45,6 +45,7 @@ type UploadMeasurement = {
   afterBytes: number;
   peakDeltaBytes: number;
   durationMs: number;
+  throughputMiBsPerSec: number;
   statusCode: number;
 };
 
@@ -469,15 +470,17 @@ async function runUploadProbe(pid: number, baseUrl: string, collectionName: stri
   const idle = await sampleWindow(pid, parsed.idleDurationMs, parsed.sampleIntervalMs);
   const beforeBytes = idle.meanBytes;
   const upload = await runUploadRequest(baseUrl, collectionName, sizeMiB, pid);
+  const fileSizeBytes = mebibytes(sizeMiB);
   return {
     fileSizeMiB: sizeMiB,
-    fileSizeBytes: mebibytes(sizeMiB),
+    fileSizeBytes,
     beforeBytes,
     idleBytes: idle.meanBytes,
     peakBytes: upload.peakBytes,
     afterBytes: upload.afterBytes,
     peakDeltaBytes: upload.peakBytes - beforeBytes,
     durationMs: upload.durationMs,
+    throughputMiBsPerSec: calculateThroughputMiBsPerSec(fileSizeBytes, upload.durationMs),
     statusCode: upload.statusCode,
   };
 }
@@ -640,7 +643,7 @@ function buildFindings(results: EngineMeasurement[]): string[] {
       continue;
     }
     findings.push(
-      `${sizeMiB} MiB upload peak delta: PocketBase ${formatMiB(baseUpload.peakDeltaBytes)}, PocketBun ${formatMiB(bunUpload.peakDeltaBytes)}.`,
+      `${sizeMiB} MiB upload peak delta: PocketBase ${formatMiB(baseUpload.peakDeltaBytes)}, PocketBun ${formatMiB(bunUpload.peakDeltaBytes)}; throughput: PocketBase ${formatThroughput(baseUpload.throughputMiBsPerSec)}, PocketBun ${formatThroughput(bunUpload.throughputMiBsPerSec)}.`,
     );
   }
 
@@ -725,6 +728,17 @@ function mebibytes(value: number): number {
 
 function formatMiB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
+function formatThroughput(value: number): string {
+  return `${value.toFixed(1)} MiB/s`;
+}
+
+function calculateThroughputMiBsPerSec(bytes: number, durationMs: number): number {
+  if (durationMs <= 0) {
+    return 0;
+  }
+  return bytes / (1024 * 1024) / (durationMs / 1000);
 }
 
 async function findAvailablePort(): Promise<number> {

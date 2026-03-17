@@ -85,11 +85,13 @@ In this benchmark batch, PocketBun was generally faster on read-heavy/filter-hea
 
 The benchmark suite itself has [known fluctuations](https://github.com/pocketbase/benchmarks/issues/8), so treat these numbers as directional rather than absolute.
 
-Local memory spot-check on 2026-03-17 (M2 Max macOS) via `bun scripts/compare_memory_local.ts`:
+Local memory and file-I/O spot-check on 2026-03-17 (M2 Max macOS) via `bun scripts/compare_memory_local.ts` and `bun scripts/compare_download_local.ts`:
 
-- full-server idle RSS after warmup: PocketBase `53.3 MiB`, PocketBun `172.5 MiB`
-- 10s authenticated list load peak: PocketBase `481.9 MiB`, PocketBun `283.3 MiB`
-- upload peak delta above idle: PocketBase `85-86 MiB`, PocketBun `23-27 MiB` for `64/256/512 MiB` files on this host
+- full-server idle RSS after warmup: PocketBase about `70 MiB`, PocketBun about `190 MiB`
+- 10s authenticated list load peak: PocketBase about `500 MiB`, PocketBun about `290 MiB`
+- single-upload spot-check (`64/256/512 MiB`, fresh server per size): PocketBun landed around `36-172 MiB/s` and `+21-28 MiB` RSS above idle, versus PocketBase `33-111 MiB/s` and `+88-93 MiB`
+- local-file download spot-check (`64/256 MiB`): single-download RSS stayed essentially flat for both, and throughput stayed in the same range at PocketBun `582/924 MiB/s` versus PocketBase `582/934 MiB/s`
+- local-file download burst spot-check (`x4`): both stayed near-flat on RSS, and one local run reached PocketBun `2327/4676 MiB/s` versus PocketBase `1561/2723 MiB/s`
 
 Treat the memory numbers as local spot-checks, not universal results.
 

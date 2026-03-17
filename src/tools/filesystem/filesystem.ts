@@ -11,7 +11,7 @@ import { Bucket, NewBucket } from "./blob/bucket.ts";
 import { ErrNotFound, NotFoundError, type Attributes as BlobAttributes, type WriterOptions } from "./blob/driver.ts";
 import { ErrEOF, isNotFoundError } from "./blob/errors.ts";
 import { BytesReader, File, PathReader, ReadFileReaderBytesAsync, detectMimeTypeFromBytes, normalizeName } from "./file.ts";
-import { New as NewFileBlob, NewAsync as NewFileBlobAsync } from "./internal/fileblob/fileblob.ts";
+import { New as NewFileBlob, NewAsync as NewFileBlobAsync, TryResolveLocalPath } from "./internal/fileblob/fileblob.ts";
 import { S3 } from "./internal/s3blob/s3/s3.ts";
 import { New as NewS3Blob } from "./internal/s3blob/s3blob.ts";
 
@@ -38,6 +38,7 @@ type ServePlan = {
   statusCode: number;
   headers: Headers;
   reader: Awaited<ReturnType<Bucket["NewReader"]>> | null;
+  body: Blob | null;
   startOffset: number;
   length: number;
   cleanup: () => Promise<void>;
@@ -475,6 +476,11 @@ export class System {
         res.setHeader(key, value);
       }
 
+      if (plan.body) {
+        res.end(new Uint8Array(await plan.body.arrayBuffer()));
+        return null;
+      }
+
       if (!plan.reader) {
         res.end();
         return null;
@@ -501,6 +507,14 @@ export class System {
     const plan = await this.prepareServePlan(initialHeaders, req, fileKey, name, onClose);
     if (plan instanceof Error) {
       return plan;
+    }
+
+    if (plan.body) {
+      try {
+        return new Response(plan.body, { status: plan.statusCode, headers: plan.headers });
+      } finally {
+        await plan.cleanup();
+      }
     }
 
     if (!plan.reader) {
@@ -655,8 +669,10 @@ export class System {
     onClose?: () => void | Promise<void>,
   ): Promise<ServePlan | Error> {
     let reader: Awaited<ReturnType<Bucket["NewReader"]>> | null = null;
+    let body: Blob | null = null;
+    let localPath: string | null = null;
     try {
-      reader = await this.#bucket.NewReader(this.#ctx, fileKey);
+      localPath = await TryResolveLocalPath(this.#bucket.drv, fileKey);
     } catch (error) {
       return mapFsError(error);
     }
@@ -673,9 +689,16 @@ export class System {
       }
     };
 
-    const size = reader.Size();
+    let attrs: BlobAttributes;
+    try {
+      attrs = await this.#bucket.Attributes(this.#ctx, fileKey);
+    } catch (error) {
+      return mapFsError(error);
+    }
+
+    const size = attrs.Size;
     const headers = new Headers(initialHeaders);
-    const realContentType = reader.ContentType();
+    const realContentType = attrs.ContentType;
 
     const url = new URL(req.url ?? "/", "http://localhost");
     const forceAttachment = url.searchParams.get(forceAttachmentParam) === "1";
@@ -715,6 +738,7 @@ export class System {
           statusCode: 206,
           headers,
           reader: null,
+          body: null,
           startOffset: 0,
           length: 0,
           cleanup: async () => {},
@@ -730,10 +754,31 @@ export class System {
       const rangeLength = safeEnd >= safeStart ? safeEnd - safeStart + 1 : 0;
       headers.set("Content-Range", `bytes ${safeStart}-${safeEnd}/${size}`);
       headers.set("Content-Length", String(rangeLength));
+
+      if (localPath) {
+        body = rangeLength > 0 ? Bun.file(localPath).slice(safeStart, safeStart + rangeLength) : null;
+        await cleanup();
+        return {
+          statusCode: 206,
+          headers,
+          reader: null,
+          body,
+          startOffset: safeStart,
+          length: rangeLength,
+          cleanup: async () => {},
+        };
+      }
+
+      try {
+        reader = await this.#bucket.NewReader(this.#ctx, fileKey);
+      } catch (error) {
+        return mapFsError(error);
+      }
       return {
         statusCode: 206,
         headers,
         reader,
+        body: null,
         startOffset: safeStart,
         length: rangeLength,
         cleanup,
@@ -741,10 +786,31 @@ export class System {
     }
 
     headers.set("Content-Length", String(size));
+
+    if (localPath) {
+      body = size > 0 ? Bun.file(localPath) : null;
+      await cleanup();
+      return {
+        statusCode: 200,
+        headers,
+        reader: null,
+        body,
+        startOffset: 0,
+        length: size,
+        cleanup: async () => {},
+      };
+    }
+
+    try {
+      reader = await this.#bucket.NewReader(this.#ctx, fileKey);
+    } catch (error) {
+      return mapFsError(error);
+    }
     return {
       statusCode: 200,
       headers,
       reader,
+      body: null,
       startOffset: 0,
       length: size,
       cleanup,

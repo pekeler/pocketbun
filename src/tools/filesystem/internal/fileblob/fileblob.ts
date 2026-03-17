@@ -106,6 +106,18 @@ export async function NewAsync(dir: string, opts?: Partial<Options>): Promise<Dr
   return new FileDriver(absdir, options);
 }
 
+// TryResolveLocalPath returns the underlying local filesystem path for a fileblob key.
+//
+// Deviation: PocketBun-only helper used by download serving to hand Bun a native
+// file-backed response body when the storage driver is local.
+export async function TryResolveLocalPath(drv: Driver, key: string): Promise<string | null> {
+  if (!(drv instanceof FileDriver)) {
+    return null;
+  }
+
+  return await drv.PathForKey(key);
+}
+
 class FileDriver implements Driver {
   #opts: Options;
   #dir: string;
@@ -368,6 +380,10 @@ class FileDriver implements Driver {
         throw err;
       }
     }
+  }
+
+  async PathForKey(key: string): Promise<string> {
+    return (await this.#forKeyAsync(key)).path;
   }
 
   #path(key: string): string {
