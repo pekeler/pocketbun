@@ -171,6 +171,10 @@ Add tests whenever:
 - For non-trivial code changes, do a quick performance review of affected paths; if there is potentially measurable overhead/regression, apply a simple optimization before merge (or document why not).
 - Keep `/CHANGELOG.md` up to date: every important user-facing change must be recorded under an appropriate version (or `Unreleased`) before release.
 - Keep changelog entries concise and outcome-focused; skip internal-only details (tests, refactors, CI/tooling churn) unless they directly affect users.
+- Write changelog entries from the user's point of view: lead with what is new, better, or fixed for users, not with implementation details or the internal work log.
+- Treat the changelog as lightly promotional as well as informative: it should help existing and potential users feel PocketBun is making meaningful progress, without turning into hype or marketing fluff.
+- Use consistent wording for compatibility bumps, for example: `Now compatible with PocketBase vX.Y.Z` plus a link to the upstream changelog.
+- If a change is directly ported from upstream, list it as an indented sub-point under the compatibility bullet instead of as a separate top-level PocketBun item.
 - Commit gate: do not create a commit with user-facing or developer-relevant changes unless `/CHANGELOG.md` has a concise entry under the target version (or `Unreleased`) for those changes.
 - Do not leave `TBD` in the active changelog section when committing user-facing or developer-relevant changes.
 

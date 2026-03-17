@@ -2,15 +2,10 @@
 
 ## 0.36.7-pocketbun.0 (Unreleased)
 
-- Upgraded PocketBun compatibility target to PocketBase `v0.36.7`, synced the vendored Admin UI assets, and ported the upstream fixed-window rate limiter change. Upstream notes: [PocketBase v0.36.7 changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0367).
-- Reworked multipart upload handling to spool uploaded files to temp storage instead of materializing repeated in-memory copies, reduced request-body reread overhead on upload routes, and raised Bun's server request cap so PocketBun can accept large uploads before its own body/file limits apply.
-- Reduced multipart upload ingress RSS further by switching boundary scans to native byte search and avoiding eager `requestInfo()` multipart parsing on file-upload create/update routes; fresh-process upload probes now land around `+146 MiB` for `256 MiB` uploads and `+156 MiB` for `512 MiB` uploads on this host, though repeated Bun-side runs still show some local `512 MiB` variance.
-- Added end-to-end regression coverage that verifies multipart uploads are stored byte-for-byte intact, and removed one remaining full-file copy from async MIME validation by sampling only the bytes needed for type detection on path-backed uploads.
-- Switched multipart temp-file spooling to Bun's native `FileSink`, which reduced local fresh-process upload RSS to about `+26 MiB` for `256 MiB` uploads and `+32-34 MiB` for `512 MiB` uploads on this host; the local PocketBase comparison now shows PocketBun in the same ballpark or lower on upload memory, though idle RSS remains higher.
-- Added a local PocketBase-vs-PocketBun memory comparison harness and README spot-check notes, which currently show PocketBun still using materially more idle RSS than PocketBase on local tests.
-- Reworked file and backup downloads to use pull-based streaming `Response` bodies instead of buffering the full served file through an intermediate recorder; local download probes on this host dropped from about `+132 MiB` / `+441 MiB` RSS on `64 MiB` / `256 MiB` single downloads to about `+38 MiB` / `+69 MiB`, with matching file bytes and range-response regressions added for the new path.
-- Added a native local-filesystem download fast path that returns `Bun.file(...)` bodies directly for full and single-range file/backup responses; the same local probe now shows PocketBun essentially flat on large downloads too (`64 MiB` and `256 MiB` single-download deltas both around `+0.0 MiB`, burst x4 around `+0.1-0.3 MiB`) while preserving byte integrity.
-- Reduced idle baseline RSS by lazy-loading optional filesystem-native modules (`sharp` and S3 support) instead of importing them at app startup; on this host, a clean-room CLI serve milestone dropped from about `117 MiB` to `98 MiB`, and the local warmup spot-check now lands around `178 MiB`.
+- Now compatible with PocketBase `v0.36.7` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0367).
+  - Rate limits now reset in a more predictable fixed-window way, so limits like "X requests per Y seconds" behave more intuitively and line up better with what the Admin UI communicates.
+- Large file uploads now use dramatically less memory and reliably support much bigger uploads, bringing PocketBun much closer to PocketBase for real-world file handling.
+- Large file and backup downloads now stay effectively flat in memory instead of buffering the whole file in RAM, making file serving much more production-friendly.
 
 ## 0.36.6-pocketbun.0 - 2026-03-07
 
