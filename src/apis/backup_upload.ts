@@ -4,9 +4,8 @@ import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { File } from "../tools/filesystem/file.ts";
 import { UploadedFileMimeTypeAsync } from "../core/validators/file.ts";
-import { parseMultipartFormData } from "../internal/compat/request_form_data.ts";
+import { multipartValueToFilesystemFile, parseMultipartFormData } from "../internal/compat/request_form_data.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
-import { NewFileFromBytes } from "../tools/filesystem/file.ts";
 import { badRequest, noContent } from "./api_errors.ts";
 
 export async function backupUpload(app: App, event: RequestEvent): Promise<Response> {
@@ -26,12 +25,7 @@ export async function backupUpload(app: App, event: RequestEvent): Promise<Respo
       const formData = await parseMultipartFormData(event.request);
       const file = formData.get("file");
       if (file && typeof file !== "string") {
-        const fileLike = file as { arrayBuffer?: () => Promise<ArrayBuffer>; name?: string };
-        if (typeof fileLike.arrayBuffer === "function") {
-          const buffer = new Uint8Array(await fileLike.arrayBuffer());
-          const name = fileLike.name ?? "file";
-          form.File = NewFileFromBytes(buffer, name);
-        }
+        form.File = await multipartValueToFilesystemFile(file);
       }
     }
 

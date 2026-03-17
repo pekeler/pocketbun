@@ -6,11 +6,11 @@ PLANS.md exists in this repo at .agents/PLANS.md. This ExecPlan must be maintain
 
 ## Purpose / Big Picture
 
-The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.36.1 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
+The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.36.7 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
 
 ## Progress
 
-- Milestone status (2026-03-07):
+- Milestone status (2026-03-17):
   - Milestone 1: complete
   - Milestone 2: complete
   - Milestone 3: complete
@@ -24,12 +24,27 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 11: complete (PocketBase v0.36.4 upgrade: upstream sync, admin UI refresh, middleware/JSVM compatibility deltas ported, docs version gate fixed, full validation rerun)
   - Milestone 12: complete (non-DBX compatibility shim audit + hardening with direct regression coverage and full validation gate)
   - Milestone 13: complete (PocketBase v0.36.6 upgrade: upstream sync, admin UI refresh, view/list-rule/runtime deltas ported, JSVM `unmarshal(...)` workaround retired, full validation rerun)
+  - Milestone 14: complete (PocketBase v0.36.7 upgrade: upstream sync, admin UI refresh, fixed-window rate limiting parity, streaming/temp-file-backed multipart upload handling, large-upload memory remeasurement, and full validation rerun)
 
 ### Maintenance TODOs
 
 - [ ] (2026-02-26) Bun workaround retirement sweep: whenever a Bun runtime fix suggests a PocketBun workaround may no longer be needed, attempt removing the workaround behind a focused change and run thorough verification before/after (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`, plus targeted compatibility regression tests for the affected subsystem). Keep the workaround only if compatibility or stability regresses.
 - [x] (2026-02-27) Applied the workaround-retirement sweep to multipart parsing: removed fallback multipart reconstruction from `src/internal/compat/request_form_data.ts`, updated direct helper tests to assert native `Request.formData()` behavior, removed the synthetic batch fallback regression, and re-ran full validation (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`) successfully.
 - [x] (2026-03-07 08:36Z) Applied the workaround-retirement sweep to JSVM generated types: removed the PocketBun-only `unmarshal(...)` typing-gap docs note, synced the declaration/signature to upstream `v0.36.6`, and re-ran focused + full validation successfully.
+
+### Milestone 14 - PocketBase v0.36.7 upgrade
+
+- [x] (2026-03-17) Audited the upstream `v0.36.6..v0.36.7` delta after capturing the `v0.36.6` upload-memory baseline; scoped the PocketBun work to the fixed-window rate limiter changes, refreshed generated JSVM types, the vendored Admin UI update, and a PocketBun-specific upload-path memory fix so the new upstream upload-memory note could be matched in practice.
+- [x] (2026-03-17) Added a repeatable local measurement script at `scripts/upload_memory_probe.ts` that starts PocketBun on temporary data, drives multipart uploads through a real record-create endpoint, and samples server RSS before/during/after the upload.
+- [x] (2026-03-17) Captured clean pre-upgrade RSS baselines on fresh server processes: idle after warmup is ~135.8 MiB for the 64 MiB run and ~136.6 MiB for the 112 MiB run; 64 MiB upload peaks at ~667.2 MiB RSS (+531.4 MiB), and 112 MiB upload peaks at ~1125.7 MiB RSS (+989.1 MiB).
+- [x] (2026-03-17) Confirmed the current server hard-stops larger multipart bodies before PocketBun upload handling: 128 MiB and 256 MiB probe uploads returned HTTP 413 because PocketBun currently inherits Bun's default `maxRequestBodySize` limit.
+- [x] (2026-03-17) Recorded the current code-path explanation for the RSS shape: `src/apis/record_crud.ts` parses multipart from `request.clone()` and then materializes each uploaded file via `await fileLike.arrayBuffer()` + `NewFileFromBytes(...)`, which is consistent with the large multi-copy RSS spikes measured above.
+- [x] (2026-03-17) Bumped PocketBun to PocketBase `v0.36.7` / `0.36.7-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, and `CHANGELOG.md`, then ran `bun run upstream:sync` to refresh `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist`.
+- [x] (2026-03-17) Ported the upstream fixed-window rate limiter semantics in `src/apis/middlewares_rate_limit.ts` and rewrote `src/apis/middlewares_rate_limit.test.ts` to use deterministic mocked time so the new window behavior is pinned directly.
+- [x] (2026-03-17) Replaced the multipart upload hot path with a request-scoped streaming/temp-file-backed parser in `src/internal/compat/request_form_data.ts`, switched record/batch/backup upload call sites to consume temp-file-backed filesystem files instead of `arrayBuffer()` copies, and added async request cleanup in `src/tools/router/event.ts` + `src/tools/router/router.ts` to remove the temporary spooled files after each request.
+- [x] (2026-03-17) Raised PocketBun's default Bun request-body cap to `4 GiB` in `src/apis/serve.ts` so large uploads now reach PocketBun's upload handlers instead of failing at Bun's old default `128 MiB` ceiling.
+- [x] (2026-03-17) Captured clean post-upgrade RSS measurements on fresh server processes: `64 MiB` upload peaks at ~233.1 MiB RSS from ~125.8 MiB idle (+107.3 MiB), `112 MiB` peaks at ~262.1 MiB from ~129.0 MiB idle (+133.1 MiB), `256 MiB` peaks at ~364.7 MiB from ~125.9 MiB idle (+238.8 MiB), and `512 MiB` peaks at ~410.9 MiB from ~129.0 MiB idle (+281.9 MiB). All four uploads now return HTTP 200.
+- [x] (2026-03-17) Ran the full required validation gate successfully on the final `v0.36.7` tree: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
 
 ### Milestone 13 - PocketBase v0.36.6 upgrade
 
@@ -245,6 +260,12 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 ## Surprises & Discoveries
 
+- Observation: The large multi-copy upload RSS spikes were caused by PocketBun's own multipart/file-materialization path, not just Bun's request-body limit, and a temp-file-backed parser removes that pathological growth.
+  Evidence: before the refactor, fresh probe runs peaked at about `667.2 MiB` RSS for a `64 MiB` upload and `1125.7 MiB` for a `112 MiB` upload; after replacing `request.clone()` + `arrayBuffer()` + `NewFileFromBytes(...)` with streaming temp-file spooling, the same probe reports peaks of about `233.1 MiB` and `262.1 MiB` respectively.
+- Observation: Raising Bun's request-body cap was necessary to expose PocketBun's real large-upload behavior, but it was not sufficient by itself; the multipart pipeline had to stop materializing extra full-file copies to make large uploads viable.
+  Evidence: prior to the serve change, `scripts/upload_memory_probe.ts` returned HTTP 413 for `128 MiB` and `256 MiB`; after `src/apis/serve.ts` began passing a `4 GiB` `maxRequestBodySize` and the upload path switched to temp-file-backed handling, `256 MiB` and `512 MiB` uploads both returned HTTP 200 with peak RSS deltas of about `+238.8 MiB` and `+281.9 MiB`.
+- Observation: Upstream `v0.36.7` rate limiting uses a fixed-window counter, so tests that only asserted second-level expiry behavior were too weak to distinguish it from the earlier sliding-ish PocketBun behavior.
+  Evidence: `src/apis/middlewares_rate_limit.test.ts` now mocks `Date.now()` directly and asserts that requests just after a new window boundary are accepted, which fails under the old implementation and passes with the ported upstream logic.
 - Observation: Upstream PocketBase `v0.36.6` now includes the global JSVM `unmarshal(...)` declaration in the generated ambient types, so the local PocketBun docs note/workaround from the earlier compatibility release became unnecessary.
   Evidence: `.upstream/pocketbase/plugins/jsvm/internal/types/generated/types.d.ts` now declares `unmarshal(data: any, dst: any): void`, and PocketBun now mirrors that upstream declaration in `src/plugins/jsvm/internal/types/generated/types.d.ts`.
 - Observation: The `v0.36.6` list-rule join fix is not just cosmetic; without the extra `id='' || (...)` guard, OR-ed client-side filters against missing relations evaluate too strictly and hide rows that upstream now returns.
@@ -352,6 +373,18 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 ## Decision Log
 
+- Decision: Treat Bun's default `128 MiB` request-body cap as part of the pre-upgrade baseline and measure successful uploads on fresh server processes just below that ceiling before touching the `v0.36.7` sync.
+  Rationale: PocketBun started `Bun.serve(...)` without overriding `maxRequestBodySize`, so larger uploads did not reach PocketBun's multipart/record-file pipeline at all; clean below-limit RSS measurements were needed to separate the Bun transport ceiling from PocketBun's own upload memory behavior.
+  Date/Author: 2026-03-17 / Codex
+- Decision: Fix PocketBun upload memory behavior by introducing a request-scoped streaming/temp-file-backed multipart parser and converting uploaded parts into filesystem files by path, with explicit request cleanup, instead of trying to shave copies off the existing `request.clone()` + `arrayBuffer()` path.
+  Rationale: The measured RSS deltas showed the old path was fundamentally buffering multiple full copies of the same upload; switching the representation to temp-file-backed uploaded parts removes the largest source of memory amplification while staying behavior-compatible for downstream PocketBun file handling.
+  Date/Author: 2026-03-17 / Codex
+- Decision: Raise PocketBun's default Bun `maxRequestBodySize` to `4 GiB` as part of the `v0.36.7` upload work.
+  Rationale: Keeping Bun's old default `128 MiB` cap would continue to reject large uploads before PocketBun's now-fixed upload path runs, which would make the memory improvement unobservable to users and keep PocketBun behind upstream on practical upload support.
+  Date/Author: 2026-03-17 / Codex
+- Decision: Port upstream `v0.36.7` rate limiting as a fixed-window counter and lock the behavior with mocked-time regression tests.
+  Rationale: The release delta is observable at request boundaries, and mocked time is the simplest way to make the distinction deterministic without introducing brittle sleep-based tests.
+  Date/Author: 2026-03-17 / Codex
 - Decision: For the `v0.36.6` upgrade, port the observable runtime deltas directly and retire the local JSVM `unmarshal(...)` typing-gap workaround instead of preserving a PocketBun-only docs divergence.
   Rationale: Upstream now ships the ambient declaration, so keeping the older workaround note would document a difference that no longer exists; the remaining release delta is small and maps cleanly to existing PocketBun ports (`view`, `record_field_resolver`, `store`, `routine`, generated types, and admin UI assets).
   Date/Author: 2026-03-07 / Codex
@@ -519,13 +552,19 @@ Performance notes (2026-02-08, pause point): with three full upstream runs each 
 
 ## Outcomes & Retrospective
 
+Milestone 14 is now complete. PocketBun targets PocketBase `v0.36.7`, the vendored Admin UI is refreshed, the upstream fixed-window rate limiter behavior is ported, and the multipart upload path has been rewritten around request-scoped streaming/temp-file-backed parsing so uploaded files no longer need to be materialized as multiple in-memory copies. PocketBun now also passes an explicit `4 GiB` `maxRequestBodySize` to Bun so large uploads reach the PocketBun handlers instead of failing at the old Bun default ceiling.
+
+The before/after RSS measurements show the upload-memory problem is no longer release-blocking. Fresh pre-upgrade runs on `v0.36.6` measured idle RSS around `136 MiB`, with a `64 MiB` upload peaking around `667 MiB` RSS and a `112 MiB` upload peaking around `1126 MiB`. Fresh post-upgrade runs on `v0.36.7` measured idle RSS around `126-129 MiB`, with peaks around `233 MiB` for `64 MiB`, `262 MiB` for `112 MiB`, `365 MiB` for `256 MiB`, and `411 MiB` for `512 MiB`. That leaves large-upload RSS deltas at or below the upload size in the larger-file runs, and `256 MiB` plus `512 MiB` uploads now complete successfully with HTTP 200 instead of failing at `413`.
+
+Full validation passed after the upgrade and upload-path refactor: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
+
 Milestone 13 is now complete. PocketBun targets PocketBase `v0.36.6`, the vendored Admin UI is refreshed, the upstream runtime deltas for view schema inference and list-rule join filtering are ported, and the temporary JSVM `unmarshal(...)` typing workaround from the earlier `v0.36.5` cycle has been retired because upstream now generates that declaration directly. Full validation passed after the upgrade (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`).
 
 Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. Realtime (SSE) support is now ported with tests. Collection CRUD/import parity is now in place. pb_hooks/pb_migrations loader coverage is now in place via dedicated jsvm loader tests. Milestone 11 (`v0.36.4` upgrade) is now complete with upstream sync, admin UI refresh, middleware/JSVM compatibility delta ports, and docs/version gate updates. Milestone 12 is also complete: all non-DBX runtime compatibility shims in `src/internal/compat` now have dedicated regression coverage (`cast`, `request_body`, `slog`, `validation`) and the full validation gate passes cleanly. The current performance optimization sprint is now paused after completing the planned profiling and hot-path work; latest 3x/3x upstream benchmark runs on Hetzner CCX13 show PocketBun/PocketBase factors ranging roughly `0.17x..4.36x` with geometric mean around `0.61x`, and remaining performance tasks are intentionally deferred unless new regressions appear.
 
 ## Context and Orientation
 
-This repository currently contains a minimal Bun setup with index.ts printing a message, a scripts/sync_upstream_pocketbase.sh helper, a vendor/pocketbase-admin-ui/dist directory, and pocketbase_tag.txt set to v0.36.1. The upstream PocketBase reference exists in .upstream/pocketbase and includes key subsystems in apis/, core/, tools/router/, forms/, migrations/, plugins/, tests/, and ui/.
+This repository now contains a full Bun-native PocketBase-compatible server targeting PocketBase `v0.36.7`, with the upstream reference synced in `.upstream/pocketbase`, the vendored Admin UI under `vendor/pocketbase-admin-ui/dist`, and the package/version metadata aligned to `0.36.7-pocketbun.0`. The `scripts/upload_memory_probe.ts` helper provides a repeatable way to measure upload RSS on real multipart record-create requests before and after upload-path changes.
 
 PocketBase’s main behavior is organized around an App interface (core.App), a BaseApp implementation, a router with events and middleware, and API binders such as apis/health.go. The Admin UI is served as static assets from ui/dist under the /_/ prefix, while public files in pb_public/ are served at /.
 

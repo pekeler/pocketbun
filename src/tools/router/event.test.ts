@@ -155,11 +155,14 @@ describe("Event", () => {
       form.set("test", new File(["test"], scenario.filename));
       const request = await newMultipartRequest("http://example.com/", form);
       const event = new Event({ request });
-
-      const result = await event.FindUploadedFiles("test");
-      expect(result.length).toBe(1);
-      expect(result[0]?.Size).toBe(4);
-      expect(scenario.expectedPattern.test(result[0]?.Name ?? "")).toBe(true);
+      try {
+        const result = await event.FindUploadedFiles("test");
+        expect(result.length).toBe(1);
+        expect(result[0]?.Size).toBe(4);
+        expect(scenario.expectedPattern.test(result[0]?.Name ?? "")).toBe(true);
+      } finally {
+        await event.Cleanup();
+      }
     }
   });
 
@@ -167,14 +170,17 @@ describe("Event", () => {
     const form = new FormData();
     const request = new Request("http://example.com/", { method: "POST", body: form });
     const event = new Event({ request });
-
-    let hasError = false;
     try {
-      await event.FindUploadedFiles("test");
-    } catch {
-      hasError = true;
+      let hasError = false;
+      try {
+        await event.FindUploadedFiles("test");
+      } catch {
+        hasError = true;
+      }
+      expect(hasError).toBe(true);
+    } finally {
+      await event.Cleanup();
     }
-    expect(hasError).toBe(true);
   });
 
   it("Get/Set store", () => {

@@ -734,19 +734,14 @@ describe("record CRUD multipart regression coverage", () => {
     }
   });
 
-  it.serial("create succeeds when multipart file parsing uses request clone path", async () => {
+  it.serial("create succeeds even if request.formData is unusable on multipart file uploads", async () => {
     let restorePatchedFormData: () => void = () => {};
     let restoreBindBody: () => void = () => {};
     try {
-      const failingRequests = new WeakSet<Request>();
-      const patchedRequests = new Map<Request, (this: Request) => Promise<unknown>>();
+      const patchedRequests = new Set<Request>();
       restorePatchedFormData = () => {
-        for (const [request, originalFormData] of patchedRequests.entries()) {
-          Object.defineProperty(request, "formData", {
-            configurable: true,
-            writable: true,
-            value: originalFormData,
-          });
+        for (const request of patchedRequests) {
+          delete (request as { formData?: unknown }).formData;
         }
         patchedRequests.clear();
       };
@@ -758,21 +753,17 @@ describe("record CRUD multipart regression coverage", () => {
         if (contentType.startsWith("multipart/form-data")) {
           const request = this.request as Request;
           if (!patchedRequests.has(request)) {
-            // eslint-disable-next-line @typescript-eslint/no-deprecated -- test patching the native multipart parser path.
-            const originalFormData = request.formData.bind(request) as (this: Request) => Promise<unknown>;
-            patchedRequests.set(request, originalFormData);
+            // Keep the native method patched to confirm PocketBun no longer depends on Request.formData()
+            // in the multipart create path once requestInfo() has touched the body.
+            patchedRequests.add(request);
             Object.defineProperty(request, "formData", {
               configurable: true,
               writable: true,
-              value: async function patchedRequestFormData(this: Request): Promise<unknown> {
-                if (failingRequests.has(this)) {
-                  throw new TypeError("undefined is not a function");
-                }
-                return originalFormData.call(this);
+              value: async function patchedRequestFormData(): Promise<unknown> {
+                throw new TypeError("undefined is not a function");
               },
             });
           }
-          failingRequests.add(request);
         }
         return originalBindBody.call(this, target);
       };
@@ -781,7 +772,7 @@ describe("record CRUD multipart regression coverage", () => {
       };
 
       await runApiScenario({
-        name: "multipart file parse clone path remains usable for create",
+        name: "multipart file create stays usable without native request formData",
         method: "POST",
         url: "/api/collections/demo3/records",
         body: createMultipart.body,

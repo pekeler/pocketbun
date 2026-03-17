@@ -141,7 +141,7 @@ export function checkRateLimit(event: RequestEvent, rtId: string, rule: RateLimi
     return null;
   }
 
-  const limiter = store.getOrSet(rtId, () => newRateLimiter(rule.maxRequests, rule.duration, rule.duration + 1800));
+  const limiter = store.getOrSet(rtId, () => newRateLimiter(rule.maxRequests, rule.duration, 1800));
   if (!limiter) {
     event.app.Logger().Warn("Failed to retrieve app rate limiter", "id", rtId);
     return null;
@@ -179,7 +179,7 @@ export function isClientRateLimited(event: RequestEvent, rtId: string): boolean 
     return false;
   }
 
-  return client.available <= 0 && Date.now() / 1000 - client.lastConsume < client.interval;
+  return client.available <= 0 && Date.now() / 1000 - client.start < client.interval;
 }
 
 function skipRateLimit(event: RequestEvent): boolean {
@@ -285,29 +285,29 @@ class RateClient {
   maxAllowed: number;
   available: number;
   interval: number;
-  lastConsume: number;
+  start: number;
 
   constructor(maxAllowed: number, interval: number) {
     this.maxAllowed = maxAllowed;
     this.interval = interval;
     this.available = 0;
-    this.lastConsume = 0;
+    this.start = 0;
   }
 
   hasExpired(relativeNow: number, minElapsed: number): boolean {
-    return relativeNow - this.lastConsume > minElapsed;
+    return relativeNow - (this.start + this.interval) > minElapsed;
   }
 
   consume(): boolean {
     const now = Math.floor(Date.now() / 1000);
 
-    if (now - this.lastConsume >= this.interval) {
+    if (now - this.start >= this.interval) {
       this.available = this.maxAllowed;
+      this.start = now;
     }
 
     if (this.available > 0) {
       this.available -= 1;
-      this.lastConsume = now;
       return true;
     }
 

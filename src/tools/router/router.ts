@@ -12,7 +12,7 @@ type RouterEvent = Resolver & {
   json: (status: number, body: unknown) => Response;
 };
 
-type EventFactoryResult<E extends RouterEvent> = E | { event: E; cleanup?: () => void };
+type EventFactoryResult<E extends RouterEvent> = E | { event: E; cleanup?: () => void | Promise<void> };
 
 export type EventFactory<E extends RouterEvent> = (options: {
   request: Request;
@@ -167,7 +167,7 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
         }
         return new Response(null, { status: 500 });
       } finally {
-        cleanup?.();
+        await cleanup?.();
       }
     };
   }
@@ -458,11 +458,17 @@ function unwrapEventFactoryResult<E extends RouterEvent>(
   result: EventFactoryResult<E>,
 ): {
   event: E;
-  cleanup: (() => void) | null;
+  cleanup: (() => void | Promise<void>) | null;
 } {
   if (result && typeof result === "object" && "event" in result) {
-    const wrapped = result as { event: E; cleanup?: () => void };
+    const wrapped = result as { event: E; cleanup?: () => void | Promise<void> };
     return { event: wrapped.event, cleanup: wrapped.cleanup ?? null };
   }
-  return { event: result as E, cleanup: null };
+
+  const event = result as E & { Cleanup?: () => void | Promise<void> };
+  if (typeof event.Cleanup === "function") {
+    return { event, cleanup: () => event.Cleanup!() };
+  }
+
+  return { event, cleanup: null };
 }

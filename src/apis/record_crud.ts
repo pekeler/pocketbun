@@ -13,9 +13,9 @@ import { PasswordFieldValue } from "../core/field_password.ts";
 import { RecordFieldResolver } from "../core/record_field_resolver.ts";
 import { FieldNamePassword, NewRecord, Record as RecordModel, type RecordData } from "../core/record_model.ts";
 import { RecordUpsert } from "../forms/record_upsert.ts";
-import { parseMultipartFormData } from "../internal/compat/request_form_data.ts";
+import { multipartValueToFilesystemFile, parseMultipartFormData } from "../internal/compat/request_form_data.ts";
 import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";
-import { NewFileFromBytes, type File as LocalFile } from "../tools/filesystem/file.ts";
+import { type File as LocalFile } from "../tools/filesystem/file.ts";
 import { columnify } from "../tools/inflector/inflector.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { ApiError, ToApiError, apiErrorResponse } from "../tools/router/api_error.ts";
@@ -958,10 +958,8 @@ async function parseRequestData(
         return;
       }
 
-      const fileLike = value as { arrayBuffer?: () => Promise<ArrayBuffer>; name?: string };
-      if (typeof fileLike.arrayBuffer === "function" && typeof fileLike.name === "string") {
-        const buffer = new Uint8Array(await fileLike.arrayBuffer());
-        const local = NewFileFromBytes(buffer, fileLike.name);
+      const local = await multipartValueToFilesystemFile(value);
+      if (local) {
         const current = files.get(key) ?? [];
         current.push(local);
         files.set(key, current);

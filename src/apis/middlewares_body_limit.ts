@@ -4,6 +4,7 @@ import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { Handler } from "../tools/hook/hook.ts";
 import { type MaxBodySizeCalculator } from "../core/field.ts";
+import { readRequestBytesAndRebind } from "../internal/compat/request_body.ts";
 import { DefaultRateLimitMiddlewarePriority } from "./middlewares.ts";
 
 export const DefaultMaxBodySize = 32 << 20;
@@ -93,10 +94,9 @@ export async function applyBodyLimit(event: RequestEvent, limitBytes: number): P
     return null;
   }
 
-  // Deviation: probe body size via a cloned request so the original body stream
-  // remains untouched for downstream binders/parsers.
-  const body = await event.request.clone().arrayBuffer();
-  if (body.byteLength > limitBytes) {
+  const bound = await readRequestBytesAndRebind(event.request);
+  event.request = bound.request;
+  if (bound.body.byteLength > limitBytes) {
     return requestEntityTooLarge(event);
   }
 

@@ -8,8 +8,12 @@ import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { NextFunc, Resolver } from "../hook/event.ts";
 import { readRequestTextAndRebind } from "../../internal/compat/request_body.ts";
-import { parseMultipartFormData } from "../../internal/compat/request_form_data.ts";
-import { File as FilesystemFile, NewFileFromMultipart } from "../filesystem/file.ts";
+import {
+  cleanupParsedMultipartFormData,
+  multipartValueToFilesystemFile,
+  parseMultipartFormData,
+} from "../../internal/compat/request_form_data.ts";
+import { File as FilesystemFile } from "../filesystem/file.ts";
 import { Pick } from "../picker/pick.ts";
 import { Store } from "../store/store.ts";
 import {
@@ -171,6 +175,10 @@ export class Event implements Resolver {
     return new Error("response doesn't support flush");
   }
 
+  async Cleanup(): Promise<void> {
+    await cleanupParsedMultipartFormData(this.request);
+  }
+
   requestUrl(): URL {
     const raw = this.request.url;
     if (!this.#cachedUrl || this.#cachedUrlRaw !== raw) {
@@ -228,18 +236,11 @@ export class Event implements Resolver {
 
     const files: FilesystemFile[] = [];
     for (const entry of entries) {
-      const multipartFile = toMultipartFile(entry);
-      if (!multipartFile) {
+      const file = await multipartValueToFilesystemFile(entry);
+      if (!file) {
         continue;
       }
-      const buffer = new Uint8Array(await multipartFile.arrayBuffer());
-      files.push(
-        NewFileFromMultipart({
-          filename: multipartFile.name,
-          size: multipartFile.size,
-          buffer,
-        }),
-      );
+      files.push(file);
     }
 
     if (files.length === 0) {
@@ -764,38 +765,6 @@ function collectFormData(form: FormDataLike): Record<string, string[]> {
   }
 
   throw new TypeError("invalid multipart form data object");
-}
-
-type MultipartFileLike = {
-  name: string;
-  size: number;
-  arrayBuffer: () => Promise<ArrayBuffer>;
-};
-
-function toMultipartFile(value: unknown): MultipartFileLike | null {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as {
-    name?: unknown;
-    size?: unknown;
-    arrayBuffer?: unknown;
-  };
-
-  if (typeof candidate.arrayBuffer !== "function") {
-    return null;
-  }
-
-  const name = typeof candidate.name === "string" && candidate.name !== "" ? candidate.name : "file";
-  const rawSize = Number(candidate.size);
-  const size = Number.isFinite(rawSize) && rawSize >= 0 ? rawSize : 0;
-
-  return {
-    name,
-    size,
-    arrayBuffer: () => (candidate.arrayBuffer as (this: unknown) => Promise<ArrayBuffer>).call(candidate),
-  };
 }
 
 function parseXmlBody(raw: string): Record<string, string[]> {

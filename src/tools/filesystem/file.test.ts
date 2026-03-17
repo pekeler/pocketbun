@@ -11,6 +11,7 @@ import {
   NewFileFromBytes,
   NewFileFromMultipart,
   NewFileFromPath,
+  NewFileFromPathWithOriginalName,
   NewFileFromPathAsync,
   NewFileFromURL,
   PathReader,
@@ -61,6 +62,19 @@ describe("filesystem file", () => {
       const f = await NewFileFromPathAsync(join(dir, originalName));
       expect(f.OriginalName).toBe(originalName);
       expect(f.Name).toMatch(/^image_special_\w{10}\.png$/);
+      expect(f.Size).toBeGreaterThan(0);
+      expect(f.Reader).toBeInstanceOf(PathReader);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("NewFileFromPathWithOriginalName", async () => {
+    const dir = await createTestDir();
+    try {
+      const f = NewFileFromPathWithOriginalName(join(dir, "image_!@ special"), "uploaded name.txt");
+      expect(f.OriginalName).toBe("uploaded name.txt");
+      expect(f.Name).toMatch(/^uploaded_name_\w{10}\.txt$/);
       expect(f.Size).toBeGreaterThan(0);
       expect(f.Reader).toBeInstanceOf(PathReader);
     } finally {

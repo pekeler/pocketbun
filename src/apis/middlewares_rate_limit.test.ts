@@ -1,7 +1,6 @@
 // Ported from pocketbase/apis/middlewares_rate_limit_test.go.
 
 import { afterAll, describe, it } from "bun:test";
-import { setTimeout as delay } from "node:timers/promises";
 import { RequestEvent } from "../core/event_request.ts";
 import { newTestApp } from "../tests/app.ts";
 import { Router } from "../tools/router/router.ts";
@@ -19,7 +18,7 @@ describe("middlewares rate limit", () => {
 
   const setup = async () => {
     const { app, cleanup } = await newTestApp();
-    // Use a 2s window to avoid second-boundary flakes on slower CI runners.
+    // Use a 2s window and mock Date.now() so the fixed-window behavior stays deterministic.
     app.settings().rateLimits.enabled = true;
     app.settings().rateLimits.rules = [
       { label: "/rate/", maxRequests: 2, duration: 2 },
@@ -47,70 +46,79 @@ describe("middlewares rate limit", () => {
     return { app, cleanup, handler };
   };
 
-  it("applies rate limits based on rules and audience", async () => {
+  it.serial("applies rate limits based on rules and audience", async () => {
     const setupResult = await setup();
     cleanup = setupResult.cleanup;
     const { app, handler } = setupResult;
 
     const scenarios = [
-      { url: "/norate", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/norate", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/norate", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/norate", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/norate", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/rate/a", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/rate/a", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/rate/a", wait: 0, authenticated: false, expectedStatus: 429 },
-      { url: "/rate/a", wait: 0, authenticated: false, expectedStatus: 429 },
-      { url: "/rate/a", wait: 2.1, authenticated: false, expectedStatus: 200 },
-      { url: "/rate/a", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/rate/a", wait: 0, authenticated: false, expectedStatus: 429 },
-      { url: "/rate/b", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/rate/b", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/rate/b", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/rate/b", wait: 0, authenticated: false, expectedStatus: 429 },
-      { url: "/rate/b", wait: 2.1, authenticated: false, expectedStatus: 200 },
-      { url: "/rate/b", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/rate/b", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/rate/b", wait: 0, authenticated: false, expectedStatus: 429 },
-      { url: "/rate/auth", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/rate/auth", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/rate/auth", wait: 0, authenticated: false, expectedStatus: 429 },
-      { url: "/rate/auth", wait: 0, authenticated: false, expectedStatus: 429 },
-      { url: "/rate/auth", wait: 0, authenticated: true, expectedStatus: 200 },
-      { url: "/rate/auth", wait: 0, authenticated: true, expectedStatus: 429 },
-      { url: "/rate/auth", wait: 0, authenticated: true, expectedStatus: 429 },
-      { url: "/rate/guest", wait: 0, authenticated: false, expectedStatus: 200 },
-      { url: "/rate/guest", wait: 0, authenticated: false, expectedStatus: 429 },
-      { url: "/rate/guest", wait: 0, authenticated: false, expectedStatus: 429 },
-      { url: "/rate/guest", wait: 2.1, authenticated: true, expectedStatus: 200 },
-      { url: "/rate/guest", wait: 0, authenticated: true, expectedStatus: 200 },
-      { url: "/rate/guest", wait: 0, authenticated: true, expectedStatus: 429 },
-      { url: "/rate/guest", wait: 0, authenticated: true, expectedStatus: 429 },
+      { url: "/norate", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/norate", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/norate", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/norate", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/norate", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/a", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/a", waitMs: 1100, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/a", waitMs: 1100, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/a", waitMs: 1100, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/a", waitMs: 0, authenticated: false, expectedStatus: 429 },
+      { url: "/rate/a", waitMs: 0, authenticated: false, expectedStatus: 429 },
+      { url: "/rate/a", waitMs: 0, authenticated: false, expectedStatus: 429 },
+      { url: "/rate/a", waitMs: 2000, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/a", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/a", waitMs: 0, authenticated: false, expectedStatus: 429 },
+      { url: "/rate/b", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/b", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/b", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/b", waitMs: 0, authenticated: false, expectedStatus: 429 },
+      { url: "/rate/b", waitMs: 2000, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/b", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/b", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/b", waitMs: 0, authenticated: false, expectedStatus: 429 },
+      { url: "/rate/auth", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/auth", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/auth", waitMs: 0, authenticated: false, expectedStatus: 429 },
+      { url: "/rate/auth", waitMs: 0, authenticated: false, expectedStatus: 429 },
+      { url: "/rate/auth", waitMs: 0, authenticated: true, expectedStatus: 200 },
+      { url: "/rate/auth", waitMs: 0, authenticated: true, expectedStatus: 429 },
+      { url: "/rate/auth", waitMs: 0, authenticated: true, expectedStatus: 429 },
+      { url: "/rate/guest", waitMs: 0, authenticated: false, expectedStatus: 200 },
+      { url: "/rate/guest", waitMs: 0, authenticated: false, expectedStatus: 429 },
+      { url: "/rate/guest", waitMs: 0, authenticated: false, expectedStatus: 429 },
+      { url: "/rate/guest", waitMs: 2000, authenticated: true, expectedStatus: 200 },
+      { url: "/rate/guest", waitMs: 0, authenticated: true, expectedStatus: 200 },
+      { url: "/rate/guest", waitMs: 0, authenticated: true, expectedStatus: 429 },
+      { url: "/rate/guest", waitMs: 0, authenticated: true, expectedStatus: 429 },
     ];
 
-    for (const scenario of scenarios) {
-      if (scenario.wait > 0) {
-        await delay(scenario.wait * 1000);
-      }
+    let fakeNowMs = 10_000;
+    const originalDateNow = Date.now;
+    Date.now = () => fakeNowMs;
 
-      const headers = new Headers();
-      if (scenario.authenticated) {
-        const auth = app.FindAuthRecordByEmail("users", "test@example.com");
-        const token = auth.NewAuthToken();
-        headers.set("Authorization", token);
-      }
+    try {
+      for (const scenario of scenarios) {
+        fakeNowMs += scenario.waitMs;
 
-      const response = await handler(
-        new Request(`http://localhost${scenario.url}`, {
-          method: "GET",
-          headers,
-        }),
-      );
+        const headers = new Headers();
+        if (scenario.authenticated) {
+          const auth = app.FindAuthRecordByEmail("users", "test@example.com");
+          const token = auth.NewAuthToken();
+          headers.set("Authorization", token);
+        }
 
-      if (response.status !== scenario.expectedStatus) {
-        throw new Error(`Expected response status ${scenario.expectedStatus}, got ${response.status}`);
+        const response = await handler(
+          new Request(`http://localhost${scenario.url}`, {
+            method: "GET",
+            headers,
+          }),
+        );
+
+        if (response.status !== scenario.expectedStatus) {
+          throw new Error(`Expected response status ${scenario.expectedStatus}, got ${response.status}`);
+        }
       }
+    } finally {
+      Date.now = originalDateNow;
     }
-  }, 15000);
+  });
 });

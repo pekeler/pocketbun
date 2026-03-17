@@ -128,6 +128,19 @@ export function NewFileFromPath(path: string): File {
   return f;
 }
 
+// NewFileFromPathWithOriginalName creates a new File instance from the
+// provided local file path while preserving a separate uploaded original name.
+export function NewFileFromPathWithOriginalName(path: string, originalName: string): File {
+  const info = statSync(path);
+
+  const f = new File();
+  f.Reader = new PathReader(path);
+  f.Size = info.size;
+  f.OriginalName = originalName;
+  f.Name = normalizeName(f.Reader, originalName);
+  return f;
+}
+
 // NewFileFromPathAsync creates a new File instance from the provided local file path.
 //
 // Deviation: PocketBun-only async alternative that eagerly reads file content

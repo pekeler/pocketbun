@@ -5,10 +5,10 @@ import type { RouterGroup } from "../tools/router/group.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { RequestEventKeyInfoContext, RequestInfoContextBatch, RequestInfoContextDefault } from "../core/event_request.ts";
 import { BatchRequestEvent, InternalRequest } from "../core/event_request_batch.ts";
-import { readRequestBytesAndRebind, readRequestTextAndRebind } from "../internal/compat/request_body.ts";
-import { parseMultipartFormData } from "../internal/compat/request_form_data.ts";
+import { readRequestTextAndRebind } from "../internal/compat/request_body.ts";
+import { multipartValueToFilesystemFile, parseMultipartFormData } from "../internal/compat/request_form_data.ts";
 import { ValidationError, ValidationErrors, newError, ErrRequired } from "../internal/compat/validation.ts";
-import { NewFileFromBytes, ReadFileReaderBytesAsync, File as LocalFile } from "../tools/filesystem/file.ts";
+import { ReadFileReaderBytesAsync, File as LocalFile } from "../tools/filesystem/file.ts";
 import { JSONPayloadKey, unmarshalRequestData } from "../tools/router/unmarshal_request_data.ts";
 import { forbidden } from "./api_errors.ts";
 import { applyBodyLimit, DefaultBodyLimitMiddlewareId } from "./middlewares_body_limit.ts";
@@ -465,9 +465,10 @@ async function extractPrefixedFiles(form: RequestFormData, ...prefixes: string[]
         continue;
       }
       const resultKey = key.slice(prefix.length);
-      const fileLike = value as File;
-      const buffer = new Uint8Array(await fileLike.arrayBuffer());
-      const local = NewFileFromBytes(buffer, fileLike.name);
+      const local = await multipartValueToFilesystemFile(value);
+      if (!local) {
+        continue;
+      }
       const current = result.get(resultKey) ?? [];
       current.push(local);
       result.set(resultKey, current);
@@ -485,16 +486,7 @@ async function readBatchRequests(
 
   if (contentType.includes("multipart/form-data")) {
     try {
-      const bound = await readRequestBytesAndRebind(event.request);
-      event.request = bound.request;
-      const parserRequest = new Request("http://localhost", {
-        method: "POST",
-        headers: {
-          "content-type": rawContentType,
-        },
-        body: bound.body,
-      });
-      const form = (await parseMultipartFormData(parserRequest)) as RequestFormData;
+      const form = (await parseMultipartFormData(event.request, { preserveBody: true })) as RequestFormData;
       const raw: Record<string, string[]> = {};
       for (const [key, value] of form.entries()) {
         if (typeof value === "string") {
