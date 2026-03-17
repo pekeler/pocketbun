@@ -5,17 +5,17 @@
 
 import { mkdirSync } from "node:fs";
 import { mkdir, open } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { posix } from "node:path";
-import sharp from "sharp";
 import { Bucket, NewBucket } from "./blob/bucket.ts";
 import { ErrNotFound, NotFoundError, type Attributes as BlobAttributes, type WriterOptions } from "./blob/driver.ts";
 import { ErrEOF, isNotFoundError } from "./blob/errors.ts";
 import { BytesReader, File, PathReader, ReadFileReaderBytesAsync, detectMimeTypeFromBytes, normalizeName } from "./file.ts";
 import { New as NewFileBlob, NewAsync as NewFileBlobAsync, TryResolveLocalPath } from "./internal/fileblob/fileblob.ts";
-import { S3 } from "./internal/s3blob/s3/s3.ts";
-import { New as NewS3Blob } from "./internal/s3blob/s3blob.ts";
 
 export { ErrNotFound, NotFoundError };
+
+const requireModule = createRequire(import.meta.url);
 
 export type Attributes = {
   Size: number;
@@ -84,6 +84,34 @@ const manualExtensionContentTypes: Record<string, string> = {
 // force "Content-Disposition: attachment" header.
 const forceAttachmentParam = "download";
 
+type SharpModule = typeof import("sharp");
+type S3Module = typeof import("./internal/s3blob/s3/s3.ts");
+type S3BlobModule = typeof import("./internal/s3blob/s3blob.ts");
+
+let sharpFactory: SharpModule | null = null;
+let s3Ctor: S3Module["S3"] | null = null;
+let newS3BlobFactory: S3BlobModule["New"] | null = null;
+
+function getSharp() {
+  if (!sharpFactory) {
+    sharpFactory = requireModule("sharp") as SharpModule;
+  }
+  return sharpFactory;
+}
+
+function getS3Support(): { S3: S3Module["S3"]; NewS3Blob: S3BlobModule["New"] } {
+  if (!s3Ctor) {
+    s3Ctor = (requireModule("./internal/s3blob/s3/s3.ts") as S3Module).S3;
+  }
+  if (!newS3BlobFactory) {
+    newS3BlobFactory = (requireModule("./internal/s3blob/s3blob.ts") as S3BlobModule).New;
+  }
+  return {
+    S3: s3Ctor,
+    NewS3Blob: newS3BlobFactory,
+  };
+}
+
 export class System {
   #bucket: Bucket;
   #ctx: AbortSignal | null;
@@ -114,6 +142,7 @@ export class System {
     secret: string,
     s3ForcePathStyle: boolean,
   ): System {
+    const { S3, NewS3Blob } = getS3Support();
     const client = Object.assign(new S3(), {
       Bucket: bucketName,
       Region: region,
@@ -611,6 +640,7 @@ export class System {
       }
 
       const originalBytes = await reader.readAll();
+      const sharp = getSharp();
 
       let transformer = sharp(originalBytes, { failOn: "none" }).rotate();
       if (width === 0 || height === 0) {

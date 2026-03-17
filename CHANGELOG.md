@@ -10,6 +10,7 @@
 - Added a local PocketBase-vs-PocketBun memory comparison harness and README spot-check notes, which currently show PocketBun still using materially more idle RSS than PocketBase on local tests.
 - Reworked file and backup downloads to use pull-based streaming `Response` bodies instead of buffering the full served file through an intermediate recorder; local download probes on this host dropped from about `+132 MiB` / `+441 MiB` RSS on `64 MiB` / `256 MiB` single downloads to about `+38 MiB` / `+69 MiB`, with matching file bytes and range-response regressions added for the new path.
 - Added a native local-filesystem download fast path that returns `Bun.file(...)` bodies directly for full and single-range file/backup responses; the same local probe now shows PocketBun essentially flat on large downloads too (`64 MiB` and `256 MiB` single-download deltas both around `+0.0 MiB`, burst x4 around `+0.1-0.3 MiB`) while preserving byte integrity.
+- Reduced idle baseline RSS by lazy-loading optional filesystem-native modules (`sharp` and S3 support) instead of importing them at app startup; on this host, a clean-room CLI serve milestone dropped from about `117 MiB` to `98 MiB`, and the local warmup spot-check now lands around `178 MiB`.
 
 ## 0.36.6-pocketbun.0 - 2026-03-07
 
