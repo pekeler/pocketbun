@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.36.7-pocketbun.0 (Unreleased)
+## 0.36.7-pocketbun.0 - 2026-03-17
 
 - Now compatible with PocketBase `v0.36.7` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0367).
   - Rate limits now reset in a more predictable fixed-window way, so limits like "X requests per Y seconds" behave more intuitively and line up better with what the Admin UI communicates.
