@@ -85,6 +85,14 @@ In this benchmark batch, PocketBun was generally faster on read-heavy/filter-hea
 
 The benchmark suite itself has [known fluctuations](https://github.com/pocketbase/benchmarks/issues/8), so treat these numbers as directional rather than absolute.
 
+Local memory spot-check on 2026-03-17 (M2 Max macOS) via `bun scripts/compare_memory_local.ts`:
+
+- full-server idle RSS after warmup: PocketBase `42.7 MiB`, PocketBun `152.2 MiB`
+- 10s authenticated list load peak: PocketBase `503.9 MiB`, PocketBun `277.8 MiB`
+- large uploads are much better after the upload-path fix, but still use materially more memory than PocketBase in local tests
+
+Treat the memory numbers as local spot-checks, not universal results.
+
 ## Tests
 
 PocketBun keeps upstream test coverage close to PocketBase and adds around 20% additional PocketBun-specific tests.
