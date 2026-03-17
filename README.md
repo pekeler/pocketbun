@@ -88,7 +88,7 @@ The benchmark suite itself has [known fluctuations](https://github.com/pocketbas
 Memory footprint and file transfer behavior:
 
 - Idle memory: PocketBun uses about `100 MiB` more baseline RSS than PocketBase.
-- API load: authenticated list workloads are in the same range, and PocketBun can peak lower.
+- API load: typical API traffic is in the same range as PocketBase, and PocketBun can use less memory under load.
 - Uploads: large file uploads stay in the same ballpark as PocketBase for memory use and throughput.
 - Downloads: large local-file downloads stay essentially flat in memory and perform in the same ballpark as PocketBase, including under concurrent load.
 
