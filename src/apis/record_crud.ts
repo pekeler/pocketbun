@@ -468,50 +468,61 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
     return rateLimitResponse;
   }
 
+  const parseMultipartFiles = hasFileUploadFields(collection);
   let requestInfo: RequestInfo;
   let forceMultipartParse = false;
-  try {
-    requestInfo = await event.requestInfo();
-  } catch (error) {
-    const fallbackInfo = fallbackRequestInfoForMultipart(event);
-    if (fallbackInfo) {
-      if (app.IsDev()) {
-        app
-          .Logger()
-          .Error(
-            "Record create requestInfo fallback for multipart body",
-            "collectionId",
-            collection.id,
-            "contentType",
-            event.request.headers.get("content-type") ?? "",
-            "error",
-            error instanceof Error ? error.message : String(error),
-          );
+  const lightweightRequestInfo = parseMultipartFiles ? fallbackRequestInfoForMultipart(event) : null;
+  if (lightweightRequestInfo) {
+    // PocketBun perf deviation: for file-upload collections, avoid the eager
+    // multipart body bind inside event.requestInfo(); parseRequestData() will
+    // do the single file-aware multipart parse and then populate requestInfo.body.
+    requestInfo = lightweightRequestInfo;
+    event.setRequestInfo(lightweightRequestInfo);
+    forceMultipartParse = true;
+  } else {
+    try {
+      requestInfo = await event.requestInfo();
+    } catch (error) {
+      const fallbackInfo = fallbackRequestInfoForMultipart(event);
+      if (fallbackInfo) {
+        if (app.IsDev()) {
+          app
+            .Logger()
+            .Error(
+              "Record create requestInfo fallback for multipart body",
+              "collectionId",
+              collection.id,
+              "contentType",
+              event.request.headers.get("content-type") ?? "",
+              "error",
+              error instanceof Error ? error.message : String(error),
+            );
+        }
+        requestInfo = fallbackInfo;
+        event.setRequestInfo(fallbackInfo);
+        forceMultipartParse = true;
+      } else {
+        if (app.IsDev()) {
+          app
+            .Logger()
+            .Error(
+              "Record create request body parse error",
+              "collectionId",
+              collection.id,
+              "contentType",
+              event.request.headers.get("content-type") ?? "",
+              "error",
+              error instanceof Error ? error.message : String(error),
+              "stack",
+              error instanceof Error ? (error.stack ?? "") : "",
+            );
+        }
+        return badRequest(event, "Failed to read the submitted data.", error as Error);
       }
-      requestInfo = fallbackInfo;
-      event.setRequestInfo(fallbackInfo);
-      forceMultipartParse = true;
-    } else {
-      if (app.IsDev()) {
-        app
-          .Logger()
-          .Error(
-            "Record create request body parse error",
-            "collectionId",
-            collection.id,
-            "contentType",
-            event.request.headers.get("content-type") ?? "",
-            "error",
-            error instanceof Error ? error.message : String(error),
-            "stack",
-            error instanceof Error ? (error.stack ?? "") : "",
-          );
-      }
-      return badRequest(event, "Failed to read the submitted data.", error as Error);
     }
   }
 
-  const parsed = await parseRequestData(event.request, requestInfo.body, hasFileUploadFields(collection), forceMultipartParse);
+  const parsed = await parseRequestData(event.request, requestInfo.body, parseMultipartFiles, forceMultipartParse);
   if (parsed.error) {
     if (app.IsDev()) {
       app
@@ -680,50 +691,61 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
     return notFound(event, "");
   }
 
+  const parseMultipartFiles = hasFileUploadFields(collection);
   let requestInfo: RequestInfo;
   let forceMultipartParse = false;
-  try {
-    requestInfo = await event.requestInfo();
-  } catch (error) {
-    const fallbackInfo = fallbackRequestInfoForMultipart(event);
-    if (fallbackInfo) {
-      if (app.IsDev()) {
-        app
-          .Logger()
-          .Error(
-            "Record update requestInfo fallback for multipart body",
-            "collectionId",
-            collection.id,
-            "contentType",
-            event.request.headers.get("content-type") ?? "",
-            "error",
-            error instanceof Error ? error.message : String(error),
-          );
+  const lightweightRequestInfo = parseMultipartFiles ? fallbackRequestInfoForMultipart(event) : null;
+  if (lightweightRequestInfo) {
+    // PocketBun perf deviation: for file-upload collections, avoid the eager
+    // multipart body bind inside event.requestInfo(); parseRequestData() will
+    // do the single file-aware multipart parse and then populate requestInfo.body.
+    requestInfo = lightweightRequestInfo;
+    event.setRequestInfo(lightweightRequestInfo);
+    forceMultipartParse = true;
+  } else {
+    try {
+      requestInfo = await event.requestInfo();
+    } catch (error) {
+      const fallbackInfo = fallbackRequestInfoForMultipart(event);
+      if (fallbackInfo) {
+        if (app.IsDev()) {
+          app
+            .Logger()
+            .Error(
+              "Record update requestInfo fallback for multipart body",
+              "collectionId",
+              collection.id,
+              "contentType",
+              event.request.headers.get("content-type") ?? "",
+              "error",
+              error instanceof Error ? error.message : String(error),
+            );
+        }
+        requestInfo = fallbackInfo;
+        event.setRequestInfo(fallbackInfo);
+        forceMultipartParse = true;
+      } else {
+        if (app.IsDev()) {
+          app
+            .Logger()
+            .Error(
+              "Record update request body parse error",
+              "collectionId",
+              collection.id,
+              "contentType",
+              event.request.headers.get("content-type") ?? "",
+              "error",
+              error instanceof Error ? error.message : String(error),
+              "stack",
+              error instanceof Error ? (error.stack ?? "") : "",
+            );
+        }
+        return badRequest(event, "Failed to read the submitted data.", error as Error);
       }
-      requestInfo = fallbackInfo;
-      event.setRequestInfo(fallbackInfo);
-      forceMultipartParse = true;
-    } else {
-      if (app.IsDev()) {
-        app
-          .Logger()
-          .Error(
-            "Record update request body parse error",
-            "collectionId",
-            collection.id,
-            "contentType",
-            event.request.headers.get("content-type") ?? "",
-            "error",
-            error instanceof Error ? error.message : String(error),
-            "stack",
-            error instanceof Error ? (error.stack ?? "") : "",
-          );
-      }
-      return badRequest(event, "Failed to read the submitted data.", error as Error);
     }
   }
 
-  const parsed = await parseRequestData(event.request, requestInfo.body, hasFileUploadFields(collection), forceMultipartParse);
+  const parsed = await parseRequestData(event.request, requestInfo.body, parseMultipartFiles, forceMultipartParse);
   if (parsed.error) {
     if (app.IsDev()) {
       app

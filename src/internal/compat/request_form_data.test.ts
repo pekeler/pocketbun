@@ -52,6 +52,26 @@ async function newMultipartRequest(url: string, form: FormData): Promise<Request
   });
 }
 
+async function newChunkedMultipartRequest(url: string, form: FormData, chunkSize: number): Promise<Request> {
+  const request = await newMultipartRequest(url, form);
+  const body = new Uint8Array(await request.arrayBuffer());
+  const boundary = request.headers.get("content-type");
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (let offset = 0; offset < body.length; offset += chunkSize) {
+        controller.enqueue(body.subarray(offset, Math.min(body.length, offset + chunkSize)));
+      }
+      controller.close();
+    },
+  });
+
+  return new Request(url, {
+    method: "POST",
+    headers: { "content-type": boundary ?? "" },
+    body: stream,
+  });
+}
+
 describe("parseMultipartFormData", () => {
   it("spools uploaded files to temp files and reuses the cached parse result", async () => {
     const form = new FormData();
@@ -141,5 +161,27 @@ describe("parseMultipartFormData", () => {
     expect((caught as Error).message).toContain("Can't decode form data from body because of incorrect MIME type/boundary");
     expect(cloneCalls).toBe(1);
     expect(sourceCalls).toBe(0);
+  });
+
+  it("handles boundaries split across many stream chunks", async () => {
+    const fileBytes = new Uint8Array(4096);
+    for (let i = 0; i < fileBytes.length; i += 1) {
+      fileBytes[i] = i % 251;
+    }
+
+    const form = new FormData();
+    form.set("title", "streamed");
+    form.set("file", new File([fileBytes], "split.bin", { type: "application/octet-stream" }));
+    const request = await newChunkedMultipartRequest("http://localhost/test", form, 7);
+
+    const parsed = await parseMultipartFormData(request, { preserveBody: true });
+    expect(parsed.get("title")).toBe("streamed");
+
+    const value = parsed.get("file");
+    expect(value).toBeInstanceOf(StoredMultipartFile);
+    expect((value as StoredMultipartFile).size).toBe(fileBytes.length);
+    expect(new Uint8Array(await (value as StoredMultipartFile).arrayBuffer())).toEqual(fileBytes);
+
+    await cleanupParsedMultipartFormData(request);
   });
 });

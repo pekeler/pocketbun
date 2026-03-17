@@ -46,9 +46,16 @@ type PendingMultipartPart = MultipartPartHeaders & {
   writer: Awaited<ReturnType<typeof open>> | null;
 };
 
+type MultipartBodyChunkResult = {
+  finished: boolean;
+  remainder: Uint8Array;
+  tail: Uint8Array;
+};
+
 const multipartCache = new WeakMap<Request, StoredMultipartFormData>();
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
+const emptyBytes = new Uint8Array(0);
 const headerSeparatorBytes = encoder.encode("\r\n\r\n");
 const formDataDecodeError = "Can't decode form data from body because of incorrect MIME type/boundary";
 
@@ -92,15 +99,19 @@ export class StoredMultipartFile {
 
 class StoredMultipartFormData implements ParsedFormData {
   readonly #entriesList: Array<[string, string | StoredMultipartFile]> = [];
-  readonly #tempDir: string | null;
+  #tempDir: string | null;
   #cleaned = false;
 
-  constructor(tempDir: string | null) {
+  constructor(tempDir: string | null = null) {
     this.#tempDir = tempDir;
   }
 
   append(key: string, value: string | StoredMultipartFile): void {
     this.#entriesList.push([key, value]);
+  }
+
+  setTempDir(tempDir: string): void {
+    this.#tempDir = tempDir;
   }
 
   get(name: string): unknown {
@@ -208,7 +219,8 @@ async function parseMultipartRequest(request: Request): Promise<StoredMultipartF
   const reader = request.body.getReader();
 
   let tempDir: string | null = null;
-  let buffer: Uint8Array<ArrayBufferLike> = new Uint8Array(0);
+  let buffer: Uint8Array<ArrayBufferLike> = emptyBytes;
+  let bodyTail: Uint8Array<ArrayBufferLike> = emptyBytes;
   let state: "start" | "headers" | "body" | "afterBoundary" | "done" = "start";
   let part: PendingMultipartPart | null = null;
 
@@ -224,7 +236,21 @@ async function parseMultipartRequest(request: Request): Promise<StoredMultipartF
     while (true) {
       const { value, done } = await reader.read();
       if (value && value.length > 0) {
-        buffer = concatBytes(buffer, value);
+        if (state === "body" && buffer.length === 0) {
+          if (!part) {
+            throw new TypeError(formDataDecodeError);
+          }
+          const bodyResult = await consumeMultipartBodyChunk(part, bodyTail, value, delimiterBytes);
+          bodyTail = bodyResult.tail;
+          if (bodyResult.finished) {
+            await finishMultipartPart(part, form);
+            part = null;
+            buffer = bodyResult.remainder;
+            state = "afterBoundary";
+          }
+        } else {
+          buffer = concatBytes(buffer, value);
+        }
       }
 
       processBuffer: while (true) {
@@ -236,12 +262,12 @@ async function parseMultipartRequest(request: Request): Promise<StoredMultipartF
               break processBuffer;
             }
             if (boundaryIndex > 0) {
-              buffer = buffer.slice(boundaryIndex);
+              buffer = buffer.subarray(boundaryIndex);
             }
             if (buffer.length < startBoundaryBytes.length + 2) {
               break processBuffer;
             }
-            buffer = buffer.slice(startBoundaryBytes.length);
+            buffer = buffer.subarray(startBoundaryBytes.length);
             state = "afterBoundary";
             continue;
           }
@@ -251,8 +277,8 @@ async function parseMultipartRequest(request: Request): Promise<StoredMultipartF
             if (headersEnd < 0) {
               break processBuffer;
             }
-            part = await startMultipartPart(buffer.slice(0, headersEnd), ensureTempDir);
-            buffer = buffer.slice(headersEnd + headerSeparatorBytes.length);
+            part = await startMultipartPart(buffer.subarray(0, headersEnd), ensureTempDir);
+            buffer = buffer.subarray(headersEnd + headerSeparatorBytes.length);
             state = "body";
             continue;
           }
@@ -261,22 +287,17 @@ async function parseMultipartRequest(request: Request): Promise<StoredMultipartF
             if (!part) {
               throw new TypeError(formDataDecodeError);
             }
-            const delimiterIndex = indexOfBytes(buffer, delimiterBytes);
-            if (delimiterIndex < 0) {
-              const keepBytes = delimiterBytes.length + 4;
-              const flushLength = Math.max(0, buffer.length - keepBytes);
-              if (flushLength > 0) {
-                await appendMultipartPartChunk(part, buffer.subarray(0, flushLength));
-                buffer = buffer.slice(flushLength);
-              }
+            if (buffer.length === 0) {
               break processBuffer;
             }
-            if (delimiterIndex > 0) {
-              await appendMultipartPartChunk(part, buffer.subarray(0, delimiterIndex));
+            const bodyResult = await consumeMultipartBodyChunk(part, bodyTail, buffer, delimiterBytes);
+            bodyTail = bodyResult.tail;
+            buffer = bodyResult.remainder;
+            if (!bodyResult.finished) {
+              break processBuffer;
             }
             await finishMultipartPart(part, form);
             part = null;
-            buffer = buffer.slice(delimiterIndex + delimiterBytes.length);
             state = "afterBoundary";
             continue;
           }
@@ -286,12 +307,12 @@ async function parseMultipartRequest(request: Request): Promise<StoredMultipartF
               break processBuffer;
             }
             if (buffer[0] === 45 && buffer[1] === 45) {
-              buffer = buffer.slice(2);
+              buffer = buffer.subarray(2);
               state = "done";
               continue;
             }
             if (buffer[0] === 13 && buffer[1] === 10) {
-              buffer = buffer.slice(2);
+              buffer = buffer.subarray(2);
               state = "headers";
               continue;
             }
@@ -299,7 +320,8 @@ async function parseMultipartRequest(request: Request): Promise<StoredMultipartF
           }
 
           case "done":
-            buffer = new Uint8Array(0);
+            buffer = emptyBytes;
+            bodyTail = emptyBytes;
             break processBuffer;
         }
       }
@@ -323,16 +345,10 @@ async function parseMultipartRequest(request: Request): Promise<StoredMultipartF
     throw error;
   }
 
-  return tempDir ? new StoredMultipartFormDataWithEntries(tempDir, form) : form;
-}
-
-class StoredMultipartFormDataWithEntries extends StoredMultipartFormData {
-  constructor(tempDir: string, source: StoredMultipartFormData) {
-    super(tempDir);
-    for (const [key, value] of source.entries()) {
-      this.append(key, value as string | StoredMultipartFile);
-    }
+  if (tempDir) {
+    form.setTempDir(tempDir);
   }
+  return form;
 }
 
 async function startMultipartPart(rawHeaders: Uint8Array, ensureTempDir: () => Promise<string>): Promise<PendingMultipartPart> {
@@ -457,7 +473,7 @@ function extractMultipartBoundary(contentType: string | null): string | null {
 
 function concatBytes(left: Uint8Array<ArrayBufferLike>, right: Uint8Array<ArrayBufferLike>): Uint8Array<ArrayBufferLike> {
   if (left.length === 0) {
-    return right.slice();
+    return right;
   }
   const merged = new Uint8Array(left.length + right.length);
   merged.set(left, 0);
@@ -479,26 +495,163 @@ function indexOfBytes(source: Uint8Array<ArrayBufferLike>, needle: Uint8Array<Ar
   if (source.length < needle.length) {
     return -1;
   }
+  // PocketBun perf deviation: use the runtime's native byte search to reduce
+  // JS work while scanning large multipart file bodies.
+  return Buffer.from(source.buffer, source.byteOffset, source.byteLength).indexOf(
+    Buffer.from(needle.buffer, needle.byteOffset, needle.byteLength),
+  );
+}
 
-  const first = needle[0];
-  const max = source.length - needle.length;
-  for (let i = 0; i <= max; i += 1) {
-    if (source[i] !== first) {
-      continue;
-    }
-    let matched = true;
-    for (let j = 1; j < needle.length; j += 1) {
-      if (source[i + j] !== needle[j]) {
-        matched = false;
-        break;
-      }
-    }
-    if (matched) {
-      return i;
+async function consumeMultipartBodyChunk(
+  part: PendingMultipartPart,
+  tail: Uint8Array<ArrayBufferLike>,
+  chunk: Uint8Array<ArrayBufferLike>,
+  delimiterBytes: Uint8Array<ArrayBufferLike>,
+): Promise<MultipartBodyChunkResult> {
+  if (chunk.length === 0) {
+    return {
+      finished: false,
+      remainder: emptyBytes,
+      tail,
+    };
+  }
+
+  const delimiterIndex = indexOfCombinedBytes(tail, chunk, delimiterBytes);
+  if (delimiterIndex >= 0) {
+    await appendCombinedBytesRange(part, tail, chunk, 0, delimiterIndex);
+    return {
+      finished: true,
+      remainder: sliceCombinedBytes(tail, chunk, delimiterIndex + delimiterBytes.length),
+      tail: emptyBytes,
+    };
+  }
+
+  const keepBytes = delimiterBytes.length + 4;
+  const combinedLength = tail.length + chunk.length;
+  const flushLength = Math.max(0, combinedLength - keepBytes);
+  if (flushLength > 0) {
+    await appendCombinedBytesRange(part, tail, chunk, 0, flushLength);
+  }
+
+  return {
+    finished: false,
+    remainder: emptyBytes,
+    tail: copyCombinedSuffix(tail, chunk, combinedLength - flushLength),
+  };
+}
+
+async function appendCombinedBytesRange(
+  part: PendingMultipartPart,
+  tail: Uint8Array<ArrayBufferLike>,
+  chunk: Uint8Array<ArrayBufferLike>,
+  start: number,
+  end: number,
+): Promise<void> {
+  if (end <= start) {
+    return;
+  }
+
+  const tailLength = tail.length;
+  if (start < tailLength) {
+    const tailEnd = Math.min(end, tailLength);
+    await appendMultipartPartChunk(part, tail.subarray(start, tailEnd));
+  }
+
+  if (end > tailLength) {
+    const chunkStart = Math.max(0, start - tailLength);
+    const chunkEnd = end - tailLength;
+    await appendMultipartPartChunk(part, chunk.subarray(chunkStart, chunkEnd));
+  }
+}
+
+function sliceCombinedBytes(
+  tail: Uint8Array<ArrayBufferLike>,
+  chunk: Uint8Array<ArrayBufferLike>,
+  start: number,
+): Uint8Array<ArrayBufferLike> {
+  const combinedLength = tail.length + chunk.length;
+  if (start <= 0) {
+    return concatBytes(tail, chunk);
+  }
+  if (start >= combinedLength) {
+    return emptyBytes;
+  }
+  if (start >= tail.length) {
+    return chunk.subarray(start - tail.length);
+  }
+
+  const length = combinedLength - start;
+  const result = new Uint8Array(length);
+  let offset = 0;
+  const tailSlice = tail.subarray(start);
+  result.set(tailSlice, offset);
+  offset += tailSlice.length;
+  result.set(chunk, offset);
+  return result;
+}
+
+function copyCombinedSuffix(
+  tail: Uint8Array<ArrayBufferLike>,
+  chunk: Uint8Array<ArrayBufferLike>,
+  suffixLength: number,
+): Uint8Array<ArrayBufferLike> {
+  if (suffixLength <= 0) {
+    return emptyBytes;
+  }
+
+  const combinedLength = tail.length + chunk.length;
+  if (suffixLength >= combinedLength) {
+    return concatBytes(tail, chunk);
+  }
+
+  const start = combinedLength - suffixLength;
+  return sliceCombinedBytes(tail, chunk, start);
+}
+
+function indexOfCombinedBytes(
+  tail: Uint8Array<ArrayBufferLike>,
+  chunk: Uint8Array<ArrayBufferLike>,
+  needle: Uint8Array<ArrayBufferLike>,
+): number {
+  if (needle.length === 0) {
+    return 0;
+  }
+
+  const chunkIndex = indexOfBytes(chunk, needle);
+  let combinedIndex = chunkIndex >= 0 ? tail.length + chunkIndex : -1;
+
+  const overlapStart = Math.max(0, tail.length - needle.length + 1);
+  const overlapEnd = tail.length;
+  for (let i = overlapStart; i < overlapEnd; i += 1) {
+    if (matchesCombinedBytesAt(tail, chunk, needle, i)) {
+      combinedIndex = combinedIndex >= 0 ? Math.min(combinedIndex, i) : i;
+      break;
     }
   }
 
-  return -1;
+  return combinedIndex;
+}
+
+function matchesCombinedBytesAt(
+  tail: Uint8Array<ArrayBufferLike>,
+  chunk: Uint8Array<ArrayBufferLike>,
+  needle: Uint8Array<ArrayBufferLike>,
+  start: number,
+): boolean {
+  const combinedLength = tail.length + chunk.length;
+  if (start < 0 || start + needle.length > combinedLength) {
+    return false;
+  }
+
+  for (let i = 0; i < needle.length; i += 1) {
+    const index = start + i;
+    const value = index < tail.length ? tail[index] : chunk[index - tail.length];
+    if (value !== needle[i]) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function cloneRequestIfPossible(request: MultipartRequestLike): MultipartRequestLike | null {
