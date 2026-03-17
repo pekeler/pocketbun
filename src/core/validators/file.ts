@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/validators/file.go
 
 import { newError } from "../../internal/compat/validation.ts";
-import { File, ReadFileReaderBytes, ReadFileReaderBytesAsync } from "../../tools/filesystem/file.ts";
+import { File, ReadFileReaderBytes, ReadFileReaderSampleBytesAsync } from "../../tools/filesystem/file.ts";
 import { detectMimeTypeFromBytes } from "../../tools/filesystem/file.ts";
 import { ErrUnsupportedValueType } from "./validators.ts";
 
@@ -111,7 +111,7 @@ export function UploadedFileMimeTypeAsync(validTypes: string[]) {
     }
 
     try {
-      const bytes = await ReadFileReaderBytesAsync(file.Reader);
+      const bytes = await ReadFileReaderSampleBytesAsync(file.Reader);
       const mime = detectMimeTypeFromBytes(bytes);
       for (const allowed of validTypes) {
         if (mimeMatches(mime, allowed)) {

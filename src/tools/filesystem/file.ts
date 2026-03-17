@@ -86,6 +86,30 @@ async function readFileReaderSampleBytesAsync(reader: FileReader, maxBytes = mim
   return readFileReaderSampleBytes(reader, maxBytes);
 }
 
+// ReadFileReaderSampleBytes returns a small prefix of the provided FileReader content.
+export function ReadFileReaderSampleBytes(
+  reader: FileReader | null | undefined,
+  maxBytes = mimeDetectionSampleSize,
+): Uint8Array {
+  if (!reader) {
+    return new Uint8Array();
+  }
+
+  return readFileReaderSampleBytes(reader, maxBytes);
+}
+
+// ReadFileReaderSampleBytesAsync is a PocketBun-only async alternative to ReadFileReaderSampleBytes().
+export async function ReadFileReaderSampleBytesAsync(
+  reader: FileReader | null | undefined,
+  maxBytes = mimeDetectionSampleSize,
+): Promise<Uint8Array> {
+  if (!reader) {
+    return new Uint8Array();
+  }
+
+  return await readFileReaderSampleBytesAsync(reader, maxBytes);
+}
+
 // File defines a single file [io.ReadSeekCloser] resource.
 //
 // The file could be from a local path, multipart/form-data header, etc.

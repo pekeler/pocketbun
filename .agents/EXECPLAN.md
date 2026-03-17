@@ -49,6 +49,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-03-17) Removed the eager multipart body parse from `recordCreate`/`recordUpdate` for collections with file fields by pre-populating a lightweight `RequestInfo` via the existing multipart fallback helper and forcing the real file-aware multipart parse only once in `parseRequestData()`.
 - [x] (2026-03-17) Re-ran focused multipart/CRUD regression coverage plus the full required gate after the ingress follow-up (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`) successfully.
 - [x] (2026-03-17) Captured updated post-follow-up upload RSS on fresh direct-serve probes: `256 MiB` now peaks at ~273.1 MiB RSS from ~126.7 MiB idle (`+146.4 MiB`) and `512 MiB` peaks at ~282.0 MiB from ~125.6 MiB idle (`+156.3 MiB`) in the best fresh-process runs on this host. Repeated local CLI-vs-PocketBase comparison runs still show Bun-side `512 MiB` variance, with PocketBun upload deltas ranging from roughly `+178 MiB` to `+320 MiB` locally.
+- [x] (2026-03-17) Added end-to-end multipart byte-integrity coverage in `src/apis/record_crud.test.ts`, narrowed async MIME validation to sample-only reads for path-backed uploads in `src/core/validators/file.ts`, and released the multipart request-body reader lock after parsing in `src/internal/compat/request_form_data.ts`; the full validation gate passed again, but fresh RSS probes remain noisy and the remaining large-upload gap is still unresolved.
 
 ### Milestone 13 - PocketBase v0.36.6 upgrade
 

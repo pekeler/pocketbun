@@ -4,7 +4,7 @@ import { describe, expect, it } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { NewFileFromBytes, NewFileFromPath, PathReader } from "../../tools/filesystem/file.ts";
+import { File, NewFileFromBytes, NewFileFromPath, PathReader, openFuncAsReader } from "../../tools/filesystem/file.ts";
 import { UploadedFileMimeType, UploadedFileMimeTypeAsync, UploadedFileSize } from "./file.ts";
 
 describe("file validators", () => {
@@ -74,5 +74,41 @@ describe("file validators", () => {
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
+  });
+
+  it("UploadedFileMimeTypeAsync only samples reader bytes", async () => {
+    const sampledFile = new File();
+    sampledFile.Name = "sample_test.txt";
+    sampledFile.OriginalName = "sample.txt";
+    sampledFile.Size = 1 << 20;
+    sampledFile.Reader = openFuncAsReader(() => {
+      let offset = 0;
+      const source = new TextEncoder().encode("test");
+      return {
+        read(size?: number): Uint8Array | null {
+          if (offset >= source.length) {
+            return null;
+          }
+          const end = size && size > 0 ? Math.min(source.length, offset + size) : source.length;
+          const chunk = source.slice(offset, end);
+          offset = end;
+          return chunk;
+        },
+        readAll(): Uint8Array {
+          throw new Error("readAll should not be used for mime detection");
+        },
+        seek(position: number): number {
+          offset = Math.max(0, Math.min(source.length, position));
+          return offset;
+        },
+        close(): void {},
+        size(): number {
+          return source.length;
+        },
+      };
+    });
+
+    const asyncErr = await UploadedFileMimeTypeAsync(["text/plain; charset=utf-8"])(sampledFile);
+    expect(asyncErr).toBeNull();
   });
 });

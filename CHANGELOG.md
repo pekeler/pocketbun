@@ -5,6 +5,7 @@
 - Upgraded PocketBun compatibility target to PocketBase `v0.36.7`, synced the vendored Admin UI assets, and ported the upstream fixed-window rate limiter change. Upstream notes: [PocketBase v0.36.7 changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0367).
 - Reworked multipart upload handling to spool uploaded files to temp storage instead of materializing repeated in-memory copies, reduced request-body reread overhead on upload routes, and raised Bun's server request cap so PocketBun can accept large uploads before its own body/file limits apply.
 - Reduced multipart upload ingress RSS further by switching boundary scans to native byte search and avoiding eager `requestInfo()` multipart parsing on file-upload create/update routes; fresh-process upload probes now land around `+146 MiB` for `256 MiB` uploads and `+156 MiB` for `512 MiB` uploads on this host, though repeated Bun-side runs still show some local `512 MiB` variance.
+- Added end-to-end regression coverage that verifies multipart uploads are stored byte-for-byte intact, and removed one remaining full-file copy from async MIME validation by sampling only the bytes needed for type detection on path-backed uploads.
 - Added a local PocketBase-vs-PocketBun memory comparison harness and README spot-check notes, which currently show PocketBun still using materially more idle and large-upload RSS than PocketBase on local tests.
 
 ## 0.36.6-pocketbun.0 - 2026-03-07

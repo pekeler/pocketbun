@@ -1,7 +1,7 @@
 // Ported from pocketbase/apis/record_crud_test.go
 
-import { describe, it } from "bun:test";
-import { readdir } from "node:fs/promises";
+import { describe, expect, it } from "bun:test";
+import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type { TestApp } from "../tests/app.ts";
 import { NewAuthOrigin } from "../core/auth_origin_model.ts";
@@ -64,6 +64,53 @@ const updateMultipartRulePass = await MockMultipartData(
   },
   "files",
 );
+const multipartIntegrityRecordId = "upldmatchbytes1";
+const multipartIntegrityBytes = buildMultipartIntegrityBytes();
+const createMultipartIntegrity = await buildMultipartDataWithFile(
+  {
+    id: multipartIntegrityRecordId,
+    title: "title_integrity",
+  },
+  "files",
+  "integrity.bin",
+  multipartIntegrityBytes,
+);
+
+function buildMultipartIntegrityBytes(): Uint8Array {
+  const bytes = new Uint8Array(8192);
+  for (let i = 0; i < bytes.length; i += 1) {
+    bytes[i] = (i * 31 + 7) % 256;
+  }
+  bytes[0] = 0;
+  bytes[1] = 255;
+  bytes[1024] = 13;
+  bytes[1025] = 10;
+  bytes[2048] = 45;
+  bytes[2049] = 45;
+  return bytes;
+}
+
+async function buildMultipartDataWithFile(
+  fields: Record<string, string>,
+  fileField: string,
+  fileName: string,
+  fileBytes: Uint8Array,
+  fileType = "application/octet-stream",
+): Promise<{ body: Uint8Array; contentType: string }> {
+  const form = new FormData();
+
+  for (const [key, value] of Object.entries(fields)) {
+    form.append(key, value);
+  }
+
+  form.append(fileField, new File([fileBytes], fileName, { type: fileType }));
+
+  const request = new Request("http://localhost", { method: "POST", body: form });
+  const contentType = request.headers.get("content-type") ?? "";
+  const body = new Uint8Array(await request.arrayBuffer());
+
+  return { body, contentType };
+}
 
 describe("record CRUD list", () => {
   const scenarios: ApiScenario[] = [
@@ -800,6 +847,47 @@ describe("record CRUD multipart regression coverage", () => {
       restoreBindBody();
       restorePatchedFormData();
     }
+  });
+
+  it("create stores multipart uploaded bytes unchanged", async () => {
+    await runApiScenario({
+      name: "multipart upload preserves stored file bytes",
+      method: "POST",
+      url: "/api/collections/demo3/records",
+      body: createMultipartIntegrity.body,
+      headers: {
+        "Content-Type": createMultipartIntegrity.contentType,
+        Authorization: superuserToken,
+      },
+      afterTest: async (app) => {
+        const record = app.FindRecordById("demo3", multipartIntegrityRecordId);
+        if (!record) {
+          throw new Error("missing integrity test record");
+        }
+
+        const files = record.GetStringSlice("files");
+        expect(files).toHaveLength(1);
+
+        const storedPath = join(app.dataDir(), "storage", record.BaseFilesPath(), files[0] ?? "");
+        const storedBytes = new Uint8Array(await readFile(storedPath));
+        expect(Array.from(storedBytes)).toEqual(Array.from(multipartIntegrityBytes));
+      },
+      expectedStatus: 200,
+      expectedContent: ['"id":"upldmatchbytes1"', '"title":"title_integrity"', '"files":["'],
+      expectedEvents: {
+        "*": 0,
+        OnRecordCreateRequest: 1,
+        OnModelCreate: 1,
+        OnModelCreateExecute: 1,
+        OnModelAfterCreateSuccess: 1,
+        OnRecordCreate: 1,
+        OnRecordCreateExecute: 1,
+        OnRecordAfterCreateSuccess: 1,
+        OnModelValidate: 1,
+        OnRecordValidate: 1,
+        OnRecordEnrich: 1,
+      },
+    });
   });
 });
 

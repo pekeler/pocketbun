@@ -343,6 +343,8 @@ async function parseMultipartRequest(request: Request): Promise<StoredMultipartF
       await rm(tempDir, { recursive: true, force: true });
     }
     throw error;
+  } finally {
+    reader.releaseLock();
   }
 
   if (tempDir) {
