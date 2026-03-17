@@ -7,7 +7,7 @@
 // to temp files and expose a lightweight FormData-like interface.
 
 import { randomUUID } from "node:crypto";
-import { open, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { File as FilesystemFile, NewFileFromBytes, NewFileFromPathWithOriginalName } from "../../tools/filesystem/file.ts";
@@ -39,11 +39,16 @@ type MultipartPartHeaders = {
   contentType: string;
 };
 
+type MultipartPartWriter = {
+  write: (chunk: Uint8Array) => number;
+  end: (error?: Error) => number | Promise<number>;
+};
+
 type PendingMultipartPart = MultipartPartHeaders & {
   chunks: Uint8Array[];
   size: number;
   path: string | null;
-  writer: Awaited<ReturnType<typeof open>> | null;
+  writer: MultipartPartWriter | null;
 };
 
 type MultipartBodyChunkResult = {
@@ -58,6 +63,7 @@ const decoder = new TextDecoder();
 const emptyBytes = new Uint8Array(0);
 const headerSeparatorBytes = encoder.encode("\r\n\r\n");
 const formDataDecodeError = "Can't decode form data from body because of incorrect MIME type/boundary";
+const multipartPartWriterHighWaterMark = 64 * 1024;
 
 export class StoredMultipartFile {
   readonly name: string;
@@ -336,7 +342,7 @@ async function parseMultipartRequest(request: Request): Promise<StoredMultipartF
     }
   } catch (error) {
     if (part?.writer) {
-      await part.writer.close().catch(() => {});
+      await closeMultipartPartWriter(part.writer).catch(() => {});
     }
     await form.cleanup();
     if (tempDir) {
@@ -372,7 +378,9 @@ async function startMultipartPart(rawHeaders: Uint8Array, ensureTempDir: () => P
     chunks: [],
     size: 0,
     path,
-    writer: await open(path, "w"),
+    // PocketBun perf deviation: use Bun's native FileSink for multipart temp-file
+    // spooling to reduce per-chunk async fs overhead and improve ingress backpressure.
+    writer: Bun.file(path).writer({ highWaterMark: multipartPartWriterHighWaterMark }),
   };
 }
 
@@ -383,7 +391,7 @@ async function appendMultipartPartChunk(part: PendingMultipartPart, chunk: Uint8
 
   part.size += chunk.length;
   if (part.writer) {
-    await part.writer.write(chunk);
+    part.writer.write(chunk);
     return;
   }
 
@@ -392,7 +400,7 @@ async function appendMultipartPartChunk(part: PendingMultipartPart, chunk: Uint8
 
 async function finishMultipartPart(part: PendingMultipartPart, form: StoredMultipartFormData): Promise<void> {
   if (part.writer && part.path !== null && part.fileName !== null) {
-    await part.writer.close();
+    await closeMultipartPartWriter(part.writer);
     form.append(part.fieldName, new StoredMultipartFile(part.path, part.fileName, part.size, part.contentType));
     return;
   }
@@ -418,6 +426,13 @@ function decodePartText(chunks: Uint8Array[]): string {
     offset += chunk.length;
   }
   return decoder.decode(merged);
+}
+
+async function closeMultipartPartWriter(writer: MultipartPartWriter): Promise<void> {
+  const result = writer.end();
+  if (result instanceof Promise) {
+    await result;
+  }
 }
 
 function parseMultipartPartHeaders(rawHeaders: string): MultipartPartHeaders {

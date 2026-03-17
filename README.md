@@ -87,9 +87,9 @@ The benchmark suite itself has [known fluctuations](https://github.com/pocketbas
 
 Local memory spot-check on 2026-03-17 (M2 Max macOS) via `bun scripts/compare_memory_local.ts`:
 
-- full-server idle RSS after warmup: PocketBase `42.7 MiB`, PocketBun `152.2 MiB`
-- 10s authenticated list load peak: PocketBase `503.9 MiB`, PocketBun `277.8 MiB`
-- large uploads are much better after the upload-path fix, but still use materially more memory than PocketBase in local tests
+- full-server idle RSS after warmup: PocketBase `53.3 MiB`, PocketBun `172.5 MiB`
+- 10s authenticated list load peak: PocketBase `481.9 MiB`, PocketBun `283.3 MiB`
+- upload peak delta above idle: PocketBase `85-86 MiB`, PocketBun `23-27 MiB` for `64/256/512 MiB` files on this host
 
 Treat the memory numbers as local spot-checks, not universal results.
 
