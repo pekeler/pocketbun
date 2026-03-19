@@ -1,9 +1,11 @@
 // Ported from pocketbase/core/db_table_test.go.
 
+import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
 import type { DbxDatabase } from "../tools/dbx/database.ts";
 import { newTestApp } from "../tests/app.ts";
 import { CollectionNameSuperusers } from "./collection_model.ts";
+import { TableColumns, TableInfo } from "./db_table.ts";
 
 describe("db table helpers", () => {
   it("HasTable", async () => {
@@ -89,6 +91,18 @@ describe("db table helpers", () => {
       }
     } finally {
       await cleanup();
+    }
+  });
+
+  it("TableInfo and TableColumns support quoted names", () => {
+    const db = new Database(":memory:");
+    try {
+      db.run('create table "we\'ird"(id integer primary key, value text)');
+
+      expect(TableColumns(db, "we'ird")).toEqual(["id", "value"]);
+      expect(TableInfo(db, "we'ird").map((row) => row.Name)).toEqual(["id", "value"]);
+    } finally {
+      db.close();
     }
   });
 

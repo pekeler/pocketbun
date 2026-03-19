@@ -1656,80 +1656,39 @@ function runSyncFetch(
     PB_SYNC_TIMEOUT: String(options.timeoutSeconds),
     PB_SYNC_HAS_BODY: bodyBytes ? "1" : "0",
   };
-  const spawnSyncFetch = () =>
-    Bun.spawnSync({
-      cmd: [process.execPath, "-e", syncFetchScript],
-      env,
-      stdin: bodyBytes,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
+  const result = Bun.spawnSync({
+    cmd: [process.execPath, "-e", syncFetchScript],
+    env,
+    stdin: bodyBytes,
+    stdout: "pipe",
+    stderr: "pipe",
+  });
 
-  const maxAttempts = 10;
-  let lastParseError: unknown = null;
-  let lastEmptyStderr = "";
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const result = spawnSyncFetch();
-    if (result.exitCode !== 0) {
-      const stderr = new TextDecoder().decode(result.stderr ?? new Uint8Array()).trim();
-      const stdout = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
-      const message = stderr || stdout || "sync fetch failed";
-      if (attempt < maxAttempts && isRetryableSyncFetchMessage(message)) {
-        Bun.sleepSync(Math.min(attempt * 10, 100));
-        continue;
-      }
-      throw new Error(message);
-    }
-
+  if (result.exitCode !== 0) {
     const stderr = new TextDecoder().decode(result.stderr ?? new Uint8Array()).trim();
-    const output = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
-    if (!output) {
-      if (stderr) {
-        lastEmptyStderr = stderr;
-      }
-      if (attempt < maxAttempts) {
-        Bun.sleepSync(Math.min(attempt * 10, 100));
-      }
-      continue;
-    }
-
-    try {
-      const payload = JSON.parse(output) as SyncFetchPayload;
-      const body = Uint8Array.from(Buffer.from(payload.bodyBase64 ?? "", "base64"));
-      return {
-        status: payload.status,
-        headers: payload.headers ?? [],
-        setCookie: payload.setCookie ?? null,
-        body,
-      };
-    } catch (error) {
-      lastParseError = error;
-      if (attempt < maxAttempts) {
-        Bun.sleepSync(Math.min(attempt * 10, 100));
-      }
-      continue;
-    }
+    const stdout = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
+    throw new Error(stderr || stdout || "sync fetch failed");
   }
 
-  if (lastParseError) {
-    const message = lastParseError instanceof Error ? lastParseError.message : "unknown parse error";
+  const stderr = new TextDecoder().decode(result.stderr ?? new Uint8Array()).trim();
+  const output = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
+  if (!output) {
+    throw new Error(stderr ? `sync fetch failed: empty response (${stderr})` : "sync fetch failed: empty response");
+  }
+
+  try {
+    const payload = JSON.parse(output) as SyncFetchPayload;
+    const body = Uint8Array.from(Buffer.from(payload.bodyBase64 ?? "", "base64"));
+    return {
+      status: payload.status,
+      headers: payload.headers ?? [],
+      setCookie: payload.setCookie ?? null,
+      body,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "unknown parse error";
     throw new Error(`sync fetch failed: invalid response (${message})`);
   }
-  if (lastEmptyStderr) {
-    throw new Error(`sync fetch failed: empty response (${lastEmptyStderr})`);
-  }
-  throw new Error("sync fetch failed: empty response");
-}
-
-function isRetryableSyncFetchMessage(message: string): boolean {
-  const normalized = message.toLowerCase();
-  return (
-    normalized.includes("was there a typo in the url or port?") ||
-    normalized.includes("econnrefused") ||
-    normalized.includes("connection refused") ||
-    normalized.includes("fetch failed")
-  );
 }
 
 export function filesystemBinds(target: BindTarget): void {

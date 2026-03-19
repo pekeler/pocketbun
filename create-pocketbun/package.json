@@ -26,7 +26,7 @@
     "start": "bun ./bin/create-pocketbun.js --help"
   },
   "engines": {
-    "bun": ">=1.3.0"
+    "bun": ">=1.3.11"
   },
   "publishConfig": {
     "access": "public"

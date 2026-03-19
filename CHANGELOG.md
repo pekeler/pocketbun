@@ -2,7 +2,8 @@
 
 ## 0.36.7-pocketbun.1 (Unreleased)
 
-- TBD
+- PocketBun now requires Bun `v1.3.11` or newer, aligning the package, examples, and CI with the Bun fixes PocketBun now relies on.
+- JSVM sync HTTP flows are now more reliable on Windows with the Bun `v1.3.11` baseline.
 
 ## 0.36.7-pocketbun.0 - 2026-03-17
 

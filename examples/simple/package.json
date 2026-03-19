@@ -7,6 +7,6 @@
     "pocketbun": "bun ../../bin/pocketbun"
   },
   "engines": {
-    "bun": ">=1.3.0"
+    "bun": ">=1.3.11"
   }
 }

@@ -31,6 +31,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [ ] (2026-02-26) Bun workaround retirement sweep: whenever a Bun runtime fix suggests a PocketBun workaround may no longer be needed, attempt removing the workaround behind a focused change and run thorough verification before/after (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`, plus targeted compatibility regression tests for the affected subsystem). Keep the workaround only if compatibility or stability regresses.
 - [x] (2026-02-27) Applied the workaround-retirement sweep to multipart parsing: removed fallback multipart reconstruction from `src/internal/compat/request_form_data.ts`, updated direct helper tests to assert native `Request.formData()` behavior, removed the synthetic batch fallback regression, and re-ran full validation (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`) successfully.
 - [x] (2026-03-07 08:36Z) Applied the workaround-retirement sweep to JSVM generated types: removed the PocketBun-only `unmarshal(...)` typing-gap docs note, synced the declaration/signature to upstream `v0.36.6`, and re-ran focused + full validation successfully.
+- [x] (2026-03-19 10:45Z) Applied the Bun `v1.3.11` maintenance sweep: confirmed locally that `Request.formData()` no longer truncates null-byte multipart files while `Bun.serve({ idleTimeout: 300 })` still fails, removed the retired Windows `spawnSync` retry workaround from `src/plugins/jsvm/binds.ts`, restored sync-path coverage in `src/plugins/jsvm/binds.test.ts`, switched `src/core/db_table.ts` to parameterized `pragma_table_info(?)` queries, refreshed the Bun watchlist, updated CI to Bun `1.3.11`, and raised the declared minimum Bun version to `>=1.3.11` across the root package plus scaffolding/examples.
 
 ### Milestone 14 - PocketBase v0.36.7 upgrade
 
@@ -271,6 +272,10 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Surprises & Discoveries
 
+- Observation: Bun `1.3.11` fixes the small multipart null-byte corruption bug, but the global `Bun.serve` `idleTimeout` cap is still unchanged.
+  Evidence: local repro on `2026-03-19` with Bun `1.3.11` preserved multipart bytes `[31,139,8,0]` exactly via `request.formData()`, while a separate `Bun.serve({ idleTimeout: 300, ... })` repro still threw `TypeError [ERR_INVALID_ARG_TYPE]: Bun.serve expects idleTimeout to be 255 or less`.
+- Observation: PocketBun did not need inline SQL quoting for table-info helpers; Bun `1.3.11` cleanly supports the parameterized table-valued `pragma_table_info(?)` form.
+  Evidence: local repro `db.query("select * from pragma_table_info(?)").all("demo")` on Bun `1.3.11` returned the expected schema rows, and the new quoted-table regression in `src/core/db_table.test.ts` passes with `tableName === "we'ird"`.
 - Observation: The large multi-copy upload RSS spikes were caused by PocketBun's own multipart/file-materialization path, not just Bun's request-body limit, and a temp-file-backed parser removes that pathological growth.
   Evidence: before the refactor, fresh probe runs peaked at about `667.2 MiB` RSS for a `64 MiB` upload and `1125.7 MiB` for a `112 MiB` upload; after replacing `request.clone()` + `arrayBuffer()` + `NewFileFromBytes(...)` with streaming temp-file spooling, the same probe reports peaks of about `233.1 MiB` and `262.1 MiB` respectively.
 - Observation: Raising Bun's request-body cap was necessary to expose PocketBun's real large-upload behavior, but it was not sufficient by itself; the multipart pipeline had to stop materializing extra full-file copies to make large uploads viable.
@@ -384,6 +389,12 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Decision Log
 
+- Decision: Retire the JSVM sync-fetch retry loop and Windows async-only test detour, and move CI to Bun `1.3.11` in the same change.
+  Rationale: Bun `v1.3.11` explicitly includes the Windows subprocess pipe fix that maps to the original `Bun.spawnSync` symptom, so keeping retry/backoff logic in both runtime code and tests would preserve stale complexity and latency while continuing to test against the wrong Bun version.
+  Date/Author: 2026-03-19 / Codex
+- Decision: Replace the inline-quoted `pragma_table_info(...)` SQL in `src/core/db_table.ts` with the parameterized table-valued `pragma_table_info(?)` form.
+  Rationale: The issue we filed (`#27480`) was a docs/syntax gap, not a Bun runtime limitation; the parameterized select form works on Bun `1.3.11`, removes manual SQL quoting, and more accurately documents the real constraint (`PRAGMA table_info(?)` is invalid SQLite syntax).
+  Date/Author: 2026-03-19 / Codex
 - Decision: Treat Bun's default `128 MiB` request-body cap as part of the pre-upgrade baseline and measure successful uploads on fresh server processes just below that ceiling before touching the `v0.36.7` sync.
   Rationale: PocketBun started `Bun.serve(...)` without overriding `maxRequestBodySize`, so larger uploads did not reach PocketBun's multipart/record-file pipeline at all; clean below-limit RSS measurements were needed to separate the Bun transport ceiling from PocketBun's own upload memory behavior.
   Date/Author: 2026-03-17 / Codex
@@ -563,6 +574,8 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Outcomes & Retrospective
 
+Bun `v1.3.11` maintenance sweep is now complete. PocketBun’s Bun watchlist has been refreshed against the current upstream issue state, CI now pins Bun `1.3.11`, the retired Windows JSVM sync-fetch retry workaround is gone, `src/core/db_table.ts` now uses the parameterized table-valued pragma form instead of manual SQL quoting, and the declared minimum Bun version has been raised to `>=1.3.11` across the root package plus scaffolding/examples so published expectations match the runtime fixes PocketBun now relies on. Local repros on `2026-03-19` confirmed that `Request.formData()` byte truncation is fixed in Bun `1.3.11`, while the global `Bun.serve` `idleTimeout > 255` limitation remains and still justifies the server-side timeout cap in PocketBun.
+
 Milestone 14 is now complete. PocketBun targets PocketBase `v0.36.7`, the vendored Admin UI is refreshed, the upstream fixed-window rate limiter behavior is ported, and the multipart upload path has been rewritten around request-scoped streaming/temp-file-backed parsing so uploaded files no longer need to be materialized as multiple in-memory copies. PocketBun now also passes an explicit `4 GiB` `maxRequestBodySize` to Bun so large uploads reach the PocketBun handlers instead of failing at the old Bun default ceiling.
 
 The before/after RSS measurements show the upload-memory problem is no longer release-blocking. Fresh pre-upgrade runs on `v0.36.6` measured idle RSS around `136 MiB`, with a `64 MiB` upload peaking around `667 MiB` RSS and a `112 MiB` upload peaking around `1126 MiB`. Fresh post-upgrade runs on `v0.36.7` measured idle RSS around `126-129 MiB`, with peaks around `233 MiB` for `64 MiB`, `262 MiB` for `112 MiB`, `365 MiB` for `256 MiB`, and `411 MiB` for `512 MiB`. That leaves large-upload RSS deltas at or below the upload size in the larger-file runs, and `256 MiB` plus `512 MiB` uploads now complete successfully with HTTP 200 instead of failing at `413`.
@@ -597,6 +610,7 @@ Plan update (2026-02-01): recorded the batch + picker milestone, added related d
 Plan update (2026-02-02): recorded backups + archive/osutils progress, plus the zip output discovery/decision, and updated the outcomes to reflect backups completion.
 Plan update (2026-02-02): recorded collection CRUD/import parity work, added validation/merge/hook decisions, and clarified remaining pb_hooks scope.
 Plan update (2026-02-17): recorded Milestone 11 (`v0.36.4`) upgrade completion, including runtime parity deltas and docs version gate alignment.
+Plan update (2026-03-19): recorded the Bun `v1.3.11` maintenance sweep, including local repro results, JSVM sync-fetch workaround retirement, parameterized `pragma_table_info(?)` cleanup, watchlist refresh, CI pin update, and minimum-Bun-version bump.
 
 ## Concrete Steps
 

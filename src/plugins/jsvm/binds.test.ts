@@ -1616,38 +1616,6 @@ server.listen(0, "127.0.0.1", () => {
         baseBinds(scope);
         httpClientBinds(scope);
 
-        // Bun's sync fetch path remains flaky on Windows CI; validate equivalent async behavior there.
-        if (process.platform === "win32") {
-          const test0 = await scope.$http.sendAsync({ url: `http://127.0.0.1:${server.port}/?testError=1` });
-          const test1 = await scope.$http.sendAsync({
-            method: "post",
-            url: `http://127.0.0.1:${server.port}/`,
-            headers: { header1: "123", header2: "456" },
-            body: "789",
-          });
-          const formData = new scope.FormData();
-          formData.append("title", "123");
-          const test2 = await scope.$http.sendAsync({
-            method: "post",
-            url: `http://127.0.0.1:${server.port}/`,
-            body: formData,
-          });
-
-          const test1Payload = JSON.parse(new TextDecoder().decode(test1.body));
-          expect(test0.statusCode).toBe(400);
-          expect(test1.statusCode).toBe(200);
-          expect(test1Payload.method).toBe("POST");
-          expect(test1Payload.headers.header1).toBe("123");
-          expect(test1Payload.headers.header2).toBe("456");
-          expect(test1Payload.body).toBe("789");
-
-          const test2Payload = JSON.parse(new TextDecoder().decode(test2.body));
-          expect(test2.statusCode).toBe(200);
-          expect(test2Payload.method).toBe("POST");
-          expect(test2Payload.body).toContain('Content-Disposition: form-data; name="title"');
-          return;
-        }
-
         let timeoutErr: Error | null = null;
         try {
           scope.$http.send({ url: `http://127.0.0.1:${server.port}/?testTimeout=3`, timeout: 1 });
@@ -1664,65 +1632,25 @@ server.listen(0, "127.0.0.1", () => {
         }
         expect(timeoutAsyncErr).not.toBeNull();
 
-        const isRetryableSyncFetchError = (err: unknown): boolean => {
-          if (!(err instanceof Error)) {
-            return false;
-          }
-          return (
-            err.message.includes("sync fetch failed: empty response") ||
-            err.message.includes("sync fetch failed: invalid response") ||
-            err.message.includes("Was there a typo in the url or port?") ||
-            err.message.includes("ECONNREFUSED")
-          );
-        };
-
-        const canUseAsyncFallback = (params: Record<string, unknown>): boolean => {
-          const method = typeof params.method === "string" ? params.method.toUpperCase() : "GET";
-          const hasBody = params.body != null || (params.data != null && typeof params.data === "object");
-          if (!hasBody) {
-            return true;
-          }
-          return method !== "GET" && method !== "HEAD" && method !== "OPTIONS";
-        };
-
-        const sendWithRetry = async (params: Record<string, unknown>) => {
-          let lastErr: unknown = null;
-          for (let attempt = 1; attempt <= 16; attempt++) {
-            try {
-              return scope.$http.send(params);
-            } catch (err) {
-              lastErr = err;
-              if (!isRetryableSyncFetchError(err)) {
-                throw err;
-              }
-              Bun.sleepSync(Math.min(attempt * 25, 250));
-            }
-          }
-          if (canUseAsyncFallback(params)) {
-            return await scope.$http.sendAsync(params);
-          }
-          throw lastErr;
-        };
-
-        const test0 = await sendWithRetry({ url: `http://127.0.0.1:${server.port}/?testError=1` });
-        const test1 = await sendWithRetry({
+        const test0 = scope.$http.send({ url: `http://127.0.0.1:${server.port}/?testError=1` });
+        const test1 = scope.$http.send({
           method: "post",
           url: `http://127.0.0.1:${server.port}/`,
           headers: { header1: "123", header2: "456" },
           body: "789",
         });
-        const test2 = await sendWithRetry({
+        const test2 = scope.$http.send({
           url: `http://127.0.0.1:${server.port}/`,
           headers: { "content-type": "text/plain" },
         });
         const formData = new scope.FormData();
         formData.append("title", "123");
-        const test3 = await sendWithRetry({
+        const test3 = scope.$http.send({
           url: `http://127.0.0.1:${server.port}/`,
           body: formData,
           headers: { "content-type": "text/plain" },
         });
-        const test4 = await sendWithRetry({
+        const test4 = scope.$http.send({
           method: "post",
           url: `http://127.0.0.1:${server.port}/`,
           body: "test",
