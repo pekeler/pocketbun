@@ -6,11 +6,11 @@ PLANS.md exists in this repo at .agents/PLANS.md. This ExecPlan must be maintain
 
 ## Purpose / Big Picture
 
-The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.36.7 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
+The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.36.8 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
 
 ## Progress
 
-- Milestone status (2026-03-17):
+- Milestone status (2026-03-28):
   - Milestone 1: complete
   - Milestone 2: complete
   - Milestone 3: complete
@@ -25,6 +25,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 12: complete (non-DBX compatibility shim audit + hardening with direct regression coverage and full validation gate)
   - Milestone 13: complete (PocketBase v0.36.6 upgrade: upstream sync, admin UI refresh, view/list-rule/runtime deltas ported, JSVM `unmarshal(...)` workaround retired, full validation rerun)
   - Milestone 14: complete (PocketBase v0.36.7 upgrade: upstream sync, admin UI refresh, fixed-window rate limiting parity, streaming/temp-file-backed multipart upload handling, large-upload memory remeasurement, and full validation rerun)
+  - Milestone 15: complete (PocketBase v0.36.8 upgrade: upstream sync, admin UI refresh, cached-collection OAuth2 serialization parity audit, regression coverage, and full validation rerun)
 
 ### Maintenance TODOs
 
@@ -32,6 +33,14 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-02-27) Applied the workaround-retirement sweep to multipart parsing: removed fallback multipart reconstruction from `src/internal/compat/request_form_data.ts`, updated direct helper tests to assert native `Request.formData()` behavior, removed the synthetic batch fallback regression, and re-ran full validation (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`) successfully.
 - [x] (2026-03-07 08:36Z) Applied the workaround-retirement sweep to JSVM generated types: removed the PocketBun-only `unmarshal(...)` typing-gap docs note, synced the declaration/signature to upstream `v0.36.6`, and re-ran focused + full validation successfully.
 - [x] (2026-03-19 10:45Z) Applied the Bun `v1.3.11` maintenance sweep: confirmed locally that `Request.formData()` no longer truncates null-byte multipart files while `Bun.serve({ idleTimeout: 300 })` still fails, removed the retired Windows `spawnSync` retry workaround from `src/plugins/jsvm/binds.ts`, restored sync-path coverage in `src/plugins/jsvm/binds.test.ts`, switched `src/core/db_table.ts` to parameterized `pragma_table_info(?)` queries, refreshed the Bun watchlist, updated CI to Bun `1.3.11`, and raised the declared minimum Bun version to `>=1.3.11` across the root package plus scaffolding/examples.
+
+### Milestone 15 - PocketBase v0.36.8 upgrade
+
+- [x] (2026-03-28 10:43Z) Confirmed the upstream `v0.36.8` release from the official PocketBase GitHub release metadata and scoped the expected runtime delta to the cached-collection OAuth2 client-secret serialization fix plus the usual vendored Admin UI refresh and dependency drift audit.
+- [x] (2026-03-28 10:43Z) Bumped the compatibility metadata to PocketBase `v0.36.8` / PocketBun `0.36.8-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, and `CHANGELOG.md` so the repository state matches the intended upstream target before syncing.
+- [x] (2026-03-28 10:43Z) Ran `bun run upstream:sync` to refresh `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.36.8`, then audited the official compare (`v0.36.7...v0.36.8`) and confirmed the only substantive runtime delta is the cached-collection OAuth2 serialization fix, plus a tiny already-ported impersonation error-return fix, regenerated JSVM types, and dependency/UI churn.
+- [x] (2026-03-28 10:43Z) Confirmed PocketBun's `src/core/collection_model.ts` serializer already avoids the upstream mutation bug by projecting OAuth2 providers into fresh plain objects, and added direct regression coverage in `src/core/collection_model.test.ts` (`CollectionSerializeNotModifyingCachedCollection`) to pin that behavior on cached collections.
+- [x] (2026-03-28 10:49Z) Ran the required validation gate on the final `v0.36.8` tree successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
 
 ### Milestone 14 - PocketBase v0.36.7 upgrade
 
@@ -272,6 +281,8 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Surprises & Discoveries
 
+- Observation: The upstream `v0.36.8` cached-collection OAuth2 client-secret bug does not reproduce in PocketBun because `serializeOAuth2(...)` already maps providers into new plain objects instead of mutating the stored provider configs.
+  Evidence: the targeted regression `CollectionSerializeNotModifyingCachedCollection` in `src/core/collection_model.test.ts` passes after calling `app.FindCachedCollectionByNameOrId("users")`, assigning non-empty token/provider secrets, and verifying `collection.MarshalJSON()` redacts the output without changing the cached model values.
 - Observation: Bun `1.3.11` fixes the small multipart null-byte corruption bug, but the global `Bun.serve` `idleTimeout` cap is still unchanged.
   Evidence: local repro on `2026-03-19` with Bun `1.3.11` preserved multipart bytes `[31,139,8,0]` exactly via `request.formData()`, while a separate `Bun.serve({ idleTimeout: 300, ... })` repro still threw `TypeError [ERR_INVALID_ARG_TYPE]: Bun.serve expects idleTimeout to be 255 or less`.
 - Observation: PocketBun did not need inline SQL quoting for table-info helpers; Bun `1.3.11` cleanly supports the parameterized table-valued `pragma_table_info(?)` form.
@@ -389,6 +400,9 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Decision Log
 
+- Decision: Do not port upstream's `Collection.MarshalJSON()` deep-copy change into `src/core/collection_model.ts`; add a direct cached-collection regression test instead.
+  Rationale: PocketBun's serializer was already structurally immune to the mutation bug because it builds fresh serialized provider records, so copying production logic that solves a Go slice-aliasing problem would add noise without changing behavior. The regression test is enough to lock parity and guard against future serializer refactors.
+  Date/Author: 2026-03-28 / Codex
 - Decision: Retire the JSVM sync-fetch retry loop and Windows async-only test detour, and move CI to Bun `1.3.11` in the same change.
   Rationale: Bun `v1.3.11` explicitly includes the Windows subprocess pipe fix that maps to the original `Bun.spawnSync` symptom, so keeping retry/backoff logic in both runtime code and tests would preserve stale complexity and latency while continuing to test against the wrong Bun version.
   Date/Author: 2026-03-19 / Codex
@@ -574,6 +588,8 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Outcomes & Retrospective
 
+Milestone 15 is now complete. PocketBun targets PocketBase `v0.36.8`, the vendored Admin UI is refreshed, and the upstream cached-collection OAuth2 client-secret serialization fix has been audited directly against PocketBun's serializer. No production serializer change was needed because `src/core/collection_model.ts` was already building fresh serialized OAuth2 provider records instead of mutating cached provider configs, but the new regression `CollectionSerializeNotModifyingCachedCollection` now locks that behavior explicitly. Full validation passed after the upgrade (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`).
+
 Bun `v1.3.11` maintenance sweep is now complete. PocketBun’s Bun watchlist has been refreshed against the current upstream issue state, CI now pins Bun `1.3.11`, the retired Windows JSVM sync-fetch retry workaround is gone, `src/core/db_table.ts` now uses the parameterized table-valued pragma form instead of manual SQL quoting, and the declared minimum Bun version has been raised to `>=1.3.11` across the root package plus scaffolding/examples so published expectations match the runtime fixes PocketBun now relies on. Local repros on `2026-03-19` confirmed that `Request.formData()` byte truncation is fixed in Bun `1.3.11`, while the global `Bun.serve` `idleTimeout > 255` limitation remains and still justifies the server-side timeout cap in PocketBun.
 
 Milestone 14 is now complete. PocketBun targets PocketBase `v0.36.7`, the vendored Admin UI is refreshed, the upstream fixed-window rate limiter behavior is ported, and the multipart upload path has been rewritten around request-scoped streaming/temp-file-backed parsing so uploaded files no longer need to be materialized as multiple in-memory copies. PocketBun now also passes an explicit `4 GiB` `maxRequestBodySize` to Bun so large uploads reach the PocketBun handlers instead of failing at the old Bun default ceiling.
@@ -588,7 +604,7 @@ Milestones 1 and 2 are substantially complete, including migrations and auth-awa
 
 ## Context and Orientation
 
-This repository now contains a full Bun-native PocketBase-compatible server targeting PocketBase `v0.36.7`, with the upstream reference synced in `.upstream/pocketbase`, the vendored Admin UI under `vendor/pocketbase-admin-ui/dist`, and the package/version metadata aligned to `0.36.7-pocketbun.0`. The `scripts/upload_memory_probe.ts` helper provides a repeatable way to measure upload RSS on real multipart record-create requests before and after upload-path changes.
+This repository now contains a full Bun-native PocketBase-compatible server targeting PocketBase `v0.36.8`, with the upstream reference synced in `.upstream/pocketbase`, the vendored Admin UI under `vendor/pocketbase-admin-ui/dist`, and the package/version metadata aligned to `0.36.8-pocketbun.0`. The `scripts/upload_memory_probe.ts` helper provides a repeatable way to measure upload RSS on real multipart record-create requests before and after upload-path changes.
 
 PocketBase’s main behavior is organized around an App interface (core.App), a BaseApp implementation, a router with events and middleware, and API binders such as apis/health.go. The Admin UI is served as static assets from ui/dist under the /_/ prefix, while public files in pb_public/ are served at /.
 
@@ -815,3 +831,4 @@ Plan change note: 2026-02-26, added Milestone 12 with a concrete non-DBX shim li
 Plan change note: 2026-02-26, completed Milestone 12 by adding direct regression tests for all listed runtime shims and recording a full clean validation gate run.
 Plan change note: 2026-03-07, completed the PocketBase v0.36.6 upgrade (metadata bump, upstream/admin UI sync, view/list-rule/runtime parity ports, JSVM `unmarshal(...)` workaround retirement, and full validation) and updated the living sections accordingly.
 Plan change note: 2026-03-17, reduced idle baseline RSS by lazily requiring optional native modules (`sharp`, filesystem/S3 support, mailer clients, and log writer) after startup attribution showed most of the pre-request gap was module import cost rather than live JS heap; local clean-room CLI serve RSS dropped from about 117 MiB to 96 MiB, and the warmed local comparison moved from about 191 MiB to 177 MiB.
+Plan change note: 2026-03-28, completed the PocketBase v0.36.8 upgrade by syncing upstream/admin UI assets, auditing the tiny compare window, adding cached-collection serialization regression coverage, and recording the clean full validation gate.

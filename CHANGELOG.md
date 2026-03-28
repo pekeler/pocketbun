@@ -1,7 +1,9 @@
 # Changelog
 
-## 0.36.7-pocketbun.1 (Unreleased)
+## 0.36.8-pocketbun.0 (Unreleased)
 
+- Now compatible with PocketBase `v0.36.8` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0368).
+  - PocketBun already avoided the OAuth2 client-secret serialization issue.
 - PocketBun now requires Bun `v1.3.11` or newer, aligning the package, examples, and CI with the Bun fixes PocketBun now relies on.
 - JSVM sync HTTP flows are now more reliable on Windows with the Bun `v1.3.11` baseline.
 

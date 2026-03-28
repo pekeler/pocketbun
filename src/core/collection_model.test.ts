@@ -570,6 +570,47 @@ describe("collection model", () => {
     }
   });
 
+  it("CollectionSerializeNotModifyingCachedCollection", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const reloadErr = app.ReloadCachedCollections();
+      if (reloadErr) {
+        throw reloadErr;
+      }
+
+      const collection = app.FindCachedCollectionByNameOrId("users");
+      collection.AuthToken.Secret = "auth_token_secret";
+      collection.FileToken.Secret = "file_token_secret";
+      collection.PasswordResetToken.Secret = "password_reset_token_secret";
+      collection.EmailChangeToken.Secret = "email_change_token_secret";
+      collection.VerificationToken.Secret = "verification_token_secret";
+
+      const provider = new OAuth2ProviderConfig();
+      provider.Name = "test";
+      provider.ClientId = "test_client_id";
+      provider.ClientSecret = "test_client_secret";
+      collection.OAuth2.Providers = [provider];
+
+      const raw = collection.MarshalJSON();
+
+      expect(raw.includes("auth_token_secret")).toBe(false);
+      expect(raw.includes("file_token_secret")).toBe(false);
+      expect(raw.includes("password_reset_token_secret")).toBe(false);
+      expect(raw.includes("email_change_token_secret")).toBe(false);
+      expect(raw.includes("verification_token_secret")).toBe(false);
+      expect(raw.includes("test_client_secret")).toBe(false);
+
+      expect(collection.AuthToken.Secret).toBe("auth_token_secret");
+      expect(collection.FileToken.Secret).toBe("file_token_secret");
+      expect(collection.PasswordResetToken.Secret).toBe("password_reset_token_secret");
+      expect(collection.EmailChangeToken.Secret).toBe("email_change_token_secret");
+      expect(collection.VerificationToken.Secret).toBe("verification_token_secret");
+      expect(collection.OAuth2.Providers?.[0]?.ClientSecret).toBe("test_client_secret");
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("CollectionDBExport", async () => {
     const { cleanup } = await newTestApp();
     try {
