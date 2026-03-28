@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.36.8-pocketbun.0 (Unreleased)
+## 0.36.8-pocketbun.0 - 2026-03-28
 
 - Now compatible with PocketBase `v0.36.8` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0368).
   - PocketBun already avoided the OAuth2 client-secret serialization issue.
