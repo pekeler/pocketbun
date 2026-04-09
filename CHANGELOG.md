@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.36.9-pocketbun.0 (Unreleased)
+## 0.36.9-pocketbun.0 - 2026-04-09
 
 - Now compatible with PocketBase `v0.36.9` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0369).
   - OAuth2 avatar imports mapped to file fields now reject loopback/private targets instead of probing internal network addresses.
