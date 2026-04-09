@@ -6,7 +6,7 @@ PLANS.md exists in this repo at .agents/PLANS.md. This ExecPlan must be maintain
 
 ## Purpose / Big Picture
 
-The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.36.8 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
+The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.36.9 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
 
 ## Progress
 
@@ -26,6 +26,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 13: complete (PocketBase v0.36.6 upgrade: upstream sync, admin UI refresh, view/list-rule/runtime deltas ported, JSVM `unmarshal(...)` workaround retired, full validation rerun)
   - Milestone 14: complete (PocketBase v0.36.7 upgrade: upstream sync, admin UI refresh, fixed-window rate limiting parity, streaming/temp-file-backed multipart upload handling, large-upload memory remeasurement, and full validation rerun)
   - Milestone 15: complete (PocketBase v0.36.8 upgrade: upstream sync, admin UI refresh, cached-collection OAuth2 serialization parity audit, regression coverage, and full validation rerun)
+  - Milestone 16: in progress (PocketBase v0.36.9 upgrade: upstream sync, admin UI refresh, settings/OAuth2/Discord deltas ported, regression coverage, and full validation rerun)
 
 ### Maintenance TODOs
 
@@ -41,6 +42,14 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-03-28 10:43Z) Ran `bun run upstream:sync` to refresh `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.36.8`, then audited the official compare (`v0.36.7...v0.36.8`) and confirmed the only substantive runtime delta is the cached-collection OAuth2 serialization fix, plus a tiny already-ported impersonation error-return fix, regenerated JSVM types, and dependency/UI churn.
 - [x] (2026-03-28 10:43Z) Confirmed PocketBun's `src/core/collection_model.ts` serializer already avoids the upstream mutation bug by projecting OAuth2 providers into fresh plain objects, and added direct regression coverage in `src/core/collection_model.test.ts` (`CollectionSerializeNotModifyingCachedCollection`) to pin that behavior on cached collections.
 - [x] (2026-03-28 10:49Z) Ran the required validation gate on the final `v0.36.8` tree successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
+
+### Milestone 16 - PocketBase v0.36.9 upgrade
+
+- [x] (2026-04-09 18:06Z) Confirmed the upstream `v0.36.9` release from the official PocketBase GitHub release metadata and scoped the expected runtime delta to the SMTP password clear-persistence fix, extra OAuth2 avatar-download network safety checks, the Discord `AuthUser.Name` `global_name` mapping, the usual vendored Admin UI refresh, and generated JSVM/docs drift.
+- [x] (2026-04-09 18:06Z) Bumped the compatibility metadata to PocketBase `v0.36.9` / PocketBun `0.36.9-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, and `docs/_config.yml` so the repository state matches the intended upstream target before syncing.
+- [x] (2026-04-09 18:24Z) Ran `bun run upstream:sync` to refresh `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.36.9`, then audited the upstream compare and confirmed the remaining observable JSVM delta is the `$apis.static(...)` `fs.FS` acceptance/doc refresh in addition to the release-noted settings/OAuth2/Discord changes.
+- [x] (2026-04-09 18:49Z) Ported the `v0.36.9` runtime changes in `src/apis/record_auth_with_oauth2.ts`, `src/tools/auth/discord.ts`, and `src/plugins/jsvm/binds.ts`, refreshed vendored/generated artifacts, and added direct regression coverage in `src/apis/record_auth_with_oauth2.test.ts`, `src/apis/settings.test.ts`, `src/tools/auth/discord.test.ts`, and `src/plugins/jsvm/binds.test.ts`.
+- [x] (2026-04-09 19:18Z) Updated `CHANGELOG.md` with concise `0.36.9-pocketbun.0` user-facing notes and reran the required validation gate successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
 
 ### Milestone 14 - PocketBase v0.36.7 upgrade
 
@@ -281,6 +290,10 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Surprises & Discoveries
 
+- Observation: PocketBun already handled the upstream SMTP password clear-persistence bug correctly because settings persistence serializes `settings.toRaw()` directly instead of reusing the redacted response JSON path.
+  Evidence: `src/core/base.ts` still writes `JSON.stringify(settings.toRaw())`, and the new `src/apis/settings.test.ts` regression now verifies that PATCH `/api/settings` persists `"smtp.password"`, `"s3.secret"`, and `"backups.s3.secret"` while still redacting them from the API response.
+- Observation: The local sandbox cannot rely on public internet access for avatar-download success scenarios, so the new OAuth2 avatar safety coverage had to be split between a real loopback-blocked API scenario and a stubbed helper success test.
+  Evidence: `src/apis/record_auth_with_oauth2.test.ts` now keeps the real local `127.0.0.1` avatar server and asserts the file-field mapping stays empty, while the exported `safeFileFromURL(...)` helper is covered directly with stubbed public-IP lookup/fetch inputs.
 - Observation: The upstream `v0.36.8` cached-collection OAuth2 client-secret bug does not reproduce in PocketBun because `serializeOAuth2(...)` already maps providers into new plain objects instead of mutating the stored provider configs.
   Evidence: the targeted regression `CollectionSerializeNotModifyingCachedCollection` in `src/core/collection_model.test.ts` passes after calling `app.FindCachedCollectionByNameOrId("users")`, assigning non-empty token/provider secrets, and verifying `collection.MarshalJSON()` redacts the output without changing the cached model values.
 - Observation: Bun `1.3.11` fixes the small multipart null-byte corruption bug, but the global `Bun.serve` `idleTimeout` cap is still unchanged.
@@ -400,6 +413,15 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Decision Log
 
+- Decision: Do not replicate upstream's `SMTPConfig` JSON marshaler workaround in PocketBun; keep the existing settings persistence path and add regression coverage instead.
+  Rationale: PocketBun persists settings through `saveSettings(...)` and `toRaw()` rather than through the redacted response serializer, so the upstream Go struct-tag fix would add churn without changing runtime behavior. The API regression is sufficient to lock the already-correct behavior.
+  Date/Author: 2026-04-09 / Codex
+- Decision: Port the upstream `$apis.static(...)` `fs.FS` acceptance and generated type update as part of the `v0.36.9` bump even though the release notes only call out documentation.
+  Rationale: The compare shows an observable JSVM API widening in `plugins/jsvm/binds.go`, and PocketBun already models `fs.FS`-style values as `{ root: string }`, so accepting that shape keeps the documented hook API aligned with upstream at low cost.
+  Date/Author: 2026-04-09 / Codex
+- Decision: Implement OAuth2 avatar-download safety in JS with upfront DNS/IP validation plus manual redirect validation instead of trying to emulate Go's dial-time socket controls exactly.
+  Rationale: Bun/JS does not expose the same post-connect socket hook that upstream uses to guard against DNS rebinding, so the smallest practical compatibility port is to validate each resolved host and redirect target before fetch while documenting the runtime constraint inline.
+  Date/Author: 2026-04-09 / Codex
 - Decision: Do not port upstream's `Collection.MarshalJSON()` deep-copy change into `src/core/collection_model.ts`; add a direct cached-collection regression test instead.
   Rationale: PocketBun's serializer was already structurally immune to the mutation bug because it builds fresh serialized provider records, so copying production logic that solves a Go slice-aliasing problem would add noise without changing behavior. The regression test is enough to lock parity and guard against future serializer refactors.
   Date/Author: 2026-03-28 / Codex
@@ -588,6 +610,10 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Outcomes & Retrospective
 
+Milestone 16 is now complete. PocketBun targets PocketBase `v0.36.9`, the vendored Admin UI is refreshed, and the upstream settings/OAuth2/Discord deltas are either ported directly or confirmed to already match PocketBun behavior. The `v0.36.9` upgrade adds guarded OAuth2 avatar downloads for file-field mappings, updates Discord OAuth2 naming to prefer `global_name`, widens JSVM `$apis.static(...)` to accept `$os.dirFS(...)` / `fs.FS`-style roots, and pins the already-correct settings secret persistence path with a direct regression.
+
+Full validation passed after the upgrade: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
+
 Milestone 15 is now complete. PocketBun targets PocketBase `v0.36.8`, the vendored Admin UI is refreshed, and the upstream cached-collection OAuth2 client-secret serialization fix has been audited directly against PocketBun's serializer. No production serializer change was needed because `src/core/collection_model.ts` was already building fresh serialized OAuth2 provider records instead of mutating cached provider configs, but the new regression `CollectionSerializeNotModifyingCachedCollection` now locks that behavior explicitly. Full validation passed after the upgrade (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`).
 
 Bun `v1.3.11` maintenance sweep is now complete. PocketBun’s Bun watchlist has been refreshed against the current upstream issue state, CI now pins Bun `1.3.11`, the retired Windows JSVM sync-fetch retry workaround is gone, `src/core/db_table.ts` now uses the parameterized table-valued pragma form instead of manual SQL quoting, and the declared minimum Bun version has been raised to `>=1.3.11` across the root package plus scaffolding/examples so published expectations match the runtime fixes PocketBun now relies on. Local repros on `2026-03-19` confirmed that `Request.formData()` byte truncation is fixed in Bun `1.3.11`, while the global `Bun.serve` `idleTimeout > 255` limitation remains and still justifies the server-side timeout cap in PocketBun.
@@ -604,7 +630,7 @@ Milestones 1 and 2 are substantially complete, including migrations and auth-awa
 
 ## Context and Orientation
 
-This repository now contains a full Bun-native PocketBase-compatible server targeting PocketBase `v0.36.8`, with the upstream reference synced in `.upstream/pocketbase`, the vendored Admin UI under `vendor/pocketbase-admin-ui/dist`, and the package/version metadata aligned to `0.36.8-pocketbun.0`. The `scripts/upload_memory_probe.ts` helper provides a repeatable way to measure upload RSS on real multipart record-create requests before and after upload-path changes.
+This repository now contains a full Bun-native PocketBase-compatible server targeting PocketBase `v0.36.9`, with the upstream reference synced in `.upstream/pocketbase`, the vendored Admin UI under `vendor/pocketbase-admin-ui/dist`, and the package/version metadata aligned to `0.36.9-pocketbun.0`. The `scripts/upload_memory_probe.ts` helper provides a repeatable way to measure upload RSS on real multipart record-create requests before and after upload-path changes.
 
 PocketBase’s main behavior is organized around an App interface (core.App), a BaseApp implementation, a router with events and middleware, and API binders such as apis/health.go. The Admin UI is served as static assets from ui/dist under the /_/ prefix, while public files in pb_public/ are served at /.
 
@@ -627,6 +653,7 @@ Plan update (2026-02-02): recorded backups + archive/osutils progress, plus the 
 Plan update (2026-02-02): recorded collection CRUD/import parity work, added validation/merge/hook decisions, and clarified remaining pb_hooks scope.
 Plan update (2026-02-17): recorded Milestone 11 (`v0.36.4`) upgrade completion, including runtime parity deltas and docs version gate alignment.
 Plan update (2026-03-19): recorded the Bun `v1.3.11` maintenance sweep, including local repro results, JSVM sync-fetch workaround retirement, parameterized `pragma_table_info(?)` cleanup, watchlist refresh, CI pin update, and minimum-Bun-version bump.
+Plan update (2026-04-09): recorded Milestone 16 (`v0.36.9`) upgrade completion, including the admin UI refresh, OAuth2 avatar safety port, Discord `global_name` mapping, `$apis.static(...)` JSVM compatibility update, settings-secret persistence audit, changelog refresh, and full validation evidence.
 
 ## Concrete Steps
 

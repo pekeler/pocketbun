@@ -13,8 +13,9 @@ const superuserToken =
 
 const validData = `{
   "meta":{"appName":"update_test"},
-  "s3":{"secret": "s3_secret"},
-  "backups":{"s3":{"secret":"backups_s3_secret"}}
+  "smtp":{"password":"new_smtp_password"},
+  "s3":{"secret":"new_s3_secret"},
+  "backups":{"s3":{"secret":"new_backups_s3_secret"}}
 }`;
 
 const { privateKey: applePrivateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
@@ -140,6 +141,17 @@ const scenarios: ApiScenario[] = [
     url: "/api/settings",
     body: validData,
     headers: { Authorization: superuserToken },
+    afterTest: (app) => {
+      if (app.settings().smtp.password !== "new_smtp_password") {
+        throw new Error(`Expected smtp.password to persist, got ${JSON.stringify(app.settings().smtp.password)}`);
+      }
+      if (app.settings().s3.secret !== "new_s3_secret") {
+        throw new Error(`Expected s3.secret to persist, got ${JSON.stringify(app.settings().s3.secret)}`);
+      }
+      if (app.settings().backups.s3.secret !== "new_backups_s3_secret") {
+        throw new Error(`Expected backups.s3.secret to persist, got ${JSON.stringify(app.settings().backups.s3.secret)}`);
+      }
+    },
     expectedStatus: 200,
     expectedContent: ['"meta":{', '"logs":{', '"smtp":{', '"s3":{', '"backups":{', '"batch":{', '"appName":"update_test"'],
     notExpectedContent: ["secret", "password"],

@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, sep, normalize } from "node:path";
 import type { App } from "../../core/app.ts";
 import type { ServeEvent } from "../../core/events.ts";
+import { Static } from "../../apis/base.ts";
 import {
   RequireAuth,
   RequireGuestOnly,
@@ -1847,22 +1848,12 @@ export function formsBinds(target: BindTarget): void {
 
 export function apisBinds(target: BindTarget): void {
   target.$apis = {
-    static: (dir: string, indexFallback: boolean) => {
-      return async (event: { request: Request }) => {
-        const url = new URL(event.request.url);
-        const filePath = join(dir, decodeURIComponent(url.pathname));
-        const file = Bun.file(filePath);
-        if (!(await file.exists())) {
-          if (indexFallback) {
-            const index = Bun.file(join(dir, "index.html"));
-            if (await index.exists()) {
-              return new Response(index);
-            }
-          }
-          return new Response("Not Found", { status: 404 });
-        }
-        return new Response(file);
-      };
+    static: (dirOrFS: string | { root: string }, indexFallback: boolean) => {
+      if (typeof dirOrFS === "string" || (dirOrFS && typeof dirOrFS === "object" && typeof dirOrFS.root === "string")) {
+        return Static(dirOrFS, indexFallback);
+      }
+
+      throw new Error("$apis.static expects the first argument to be either a plain string path or fs.FS value");
     },
     requireGuestOnly: RequireGuestOnly,
     requireAuth: RequireAuth,

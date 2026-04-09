@@ -1,5 +1,8 @@
 // Ported from pocketbase/apis/record_auth_with_oauth2.go
 
+import { lookup as dnsLookup } from "node:dns/promises";
+import { isIP } from "node:net";
+import { basename } from "node:path";
 import type { App } from "../core/app.ts";
 import type { Collection } from "../core/collection_model.ts";
 import type { RequestInfo } from "../core/event_request.ts";
@@ -21,9 +24,10 @@ import { AuthUser } from "../tools/auth/auth.ts";
 import { SetAuthURLParam } from "../tools/auth/oauth2.ts";
 import { findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
 import { HashExp, NewExp } from "../tools/dbx/expr.ts";
-import { NewFileFromURL } from "../tools/filesystem/file.ts";
+import { NewFileFromBytes } from "../tools/filesystem/file.ts";
 import { randomString } from "../tools/security/random.ts";
 import { badRequest, forbidden, internalServerError } from "./api_errors.ts";
+import { DefaultMaxBodySize } from "./middlewares_body_limit.ts";
 import { authCollectionNotFound, findAuthCollection } from "./record_auth_utils.ts";
 import { buildCreateRuleContext, checkCreateRule, resolveRecordData } from "./record_crud.ts";
 import { EnrichRecord, RecordAuthResponse } from "./record_helpers.ts";
@@ -47,6 +51,22 @@ type OAuth2CreateContext = {
   hasSuperuser: boolean;
   skipPlainPasswordRecordValidators: boolean;
 };
+
+type SafeLookup = (
+  hostname: string,
+  options: { all: true; verbatim: true },
+) => Promise<Array<{ address: string; family: number }>>;
+
+type SafeFetch = (input: string, init?: RequestInit) => Promise<Response>;
+
+type SafeFileFromURLOptions = {
+  lookup?: SafeLookup;
+  fetch?: SafeFetch;
+  maxBodySize?: number;
+  maxRedirects?: number;
+};
+
+const safeFileFromURLMaxRedirects = 5;
 
 export async function recordAuthWithOAuth2(app: App, event: RequestEvent): Promise<Response> {
   const collection = findAuthCollection(app, event);
@@ -425,9 +445,11 @@ async function buildOAuth2CreatePayload(event: RecordAuthWithOAuth2RequestEvent,
     if (mappedField && mappedField.Type() === FieldTypeFile) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15_000);
+        const timeout = setTimeout(() => controller.abort(), 10_000);
         try {
-          payload[mappedFields.AvatarURL] = await NewFileFromURL(controller.signal, avatarUrl);
+          // The extra checks are not required because the OAuth2 APIs are trusted vendors,
+          // but are here to minimize the impact in case the provider is vulnerable.
+          payload[mappedFields.AvatarURL] = await safeFileFromURL(controller.signal, avatarUrl);
         } finally {
           clearTimeout(timeout);
         }
@@ -440,6 +462,44 @@ async function buildOAuth2CreatePayload(event: RecordAuthWithOAuth2RequestEvent,
   }
 
   return payload;
+}
+
+export async function safeFileFromURL(signal: AbortSignal | null, url: string, options: SafeFileFromURLOptions = {}) {
+  const lookup = options.lookup ?? dnsLookup;
+  const fetchImpl = options.fetch ?? fetch;
+  const maxBodySize = options.maxBodySize ?? DefaultMaxBodySize;
+  const maxRedirects = options.maxRedirects ?? safeFileFromURLMaxRedirects;
+
+  let currentUrl = new URL(url);
+
+  for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
+    await validateSafeRemoteURL(currentUrl, lookup);
+
+    // Deviation: Bun doesn't expose Go's dial-time host controls, so validate each
+    // resolved host and redirect target up front before issuing the fetch.
+    const response = await fetchImpl(currentUrl.toString(), {
+      signal: signal ?? undefined,
+      redirect: "manual",
+    });
+
+    if (isRedirectStatus(response.status)) {
+      const location = response.headers.get("location");
+      if (!location) {
+        throw new Error(`failed to download url ${currentUrl.toString()} (${response.status})`);
+      }
+      currentUrl = new URL(location, currentUrl);
+      continue;
+    }
+
+    if (response.status < 200 || response.status > 399) {
+      throw new Error(`failed to download url ${currentUrl.toString()} (${response.status})`);
+    }
+
+    const data = await readLimitedResponseBody(response, maxBodySize);
+    return NewFileFromBytes(data, decodeURLFilename(currentUrl));
+  }
+
+  throw new Error(`failed to download url ${url} (too many redirects)`);
 }
 
 function oldCanAssignUsername(app: App, collection: Collection, username: string): boolean {
@@ -473,6 +533,159 @@ function oldCanAssignUsername(app: App, collection: Collection, username: string
   }
 
   return field.ValidatePlainValue(username) == null;
+}
+
+async function validateSafeRemoteURL(url: URL, lookup: SafeLookup): Promise<void> {
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`failed to download url ${url.toString()} (unsupported protocol)`);
+  }
+
+  const hostname = url.hostname;
+  if (!hostname) {
+    throw new Error(`failed to download url ${url.toString()} (missing host)`);
+  }
+
+  const addresses = await lookup(hostname, { all: true, verbatim: true });
+  if (!Array.isArray(addresses) || addresses.length === 0) {
+    throw new Error(`address ${JSON.stringify(hostname)} is invalid or resolve to disallowed IP`);
+  }
+
+  for (const entry of addresses) {
+    if (!entry?.address || isDisallowedIP(entry.address)) {
+      throw new Error(`address ${JSON.stringify(entry?.address ?? hostname)} is invalid or resolve to disallowed IP`);
+    }
+  }
+}
+
+function isRedirectStatus(status: number): boolean {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
+}
+
+function isDisallowedIP(address: string): boolean {
+  const normalized = address.toLowerCase().split("%", 1)[0] ?? address.toLowerCase();
+  const version = isIP(normalized);
+  if (version === 4) {
+    return isDisallowedIPv4(normalized);
+  }
+  if (version === 6) {
+    return isDisallowedIPv6(normalized);
+  }
+  return true;
+}
+
+function isDisallowedIPv4(address: string): boolean {
+  const parts = address.split(".").map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return true;
+  }
+
+  const a = parts[0]!;
+  const b = parts[1]!;
+  if (a === 0 || a === 127) {
+    return true;
+  }
+  if (a === 10) {
+    return true;
+  }
+  if (a === 172 && b >= 16 && b <= 31) {
+    return true;
+  }
+  if (a === 192 && b === 168) {
+    return true;
+  }
+  if (a === 169 && b === 254) {
+    return true;
+  }
+  if (a >= 224 && a <= 239) {
+    return true;
+  }
+
+  return false;
+}
+
+function isDisallowedIPv6(address: string): boolean {
+  if (address === "::" || address === "::1") {
+    return true;
+  }
+
+  const mappedIPv4 = extractMappedIPv4(address);
+  if (mappedIPv4) {
+    return isDisallowedIPv4(mappedIPv4);
+  }
+
+  if (/^f[cd]/.test(address)) {
+    return true;
+  }
+  if (/^fe[89ab]/.test(address)) {
+    return true;
+  }
+  if (address.startsWith("ff")) {
+    return true;
+  }
+
+  return false;
+}
+
+function extractMappedIPv4(address: string): string | null {
+  const lastColon = address.lastIndexOf(":");
+  if (lastColon < 0) {
+    return null;
+  }
+
+  const candidate = address.slice(lastColon + 1);
+  return isIP(candidate) === 4 ? candidate : null;
+}
+
+async function readLimitedResponseBody(response: Response, maxBodySize: number): Promise<Uint8Array> {
+  if (!response.body) {
+    return new Uint8Array();
+  }
+
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done || !value) {
+      break;
+    }
+
+    if (total + value.length > maxBodySize) {
+      const remaining = maxBodySize - total;
+      if (remaining > 0) {
+        chunks.push(value.subarray(0, remaining));
+        total += remaining;
+      }
+      await reader.cancel();
+      break;
+    }
+
+    chunks.push(value);
+    total += value.length;
+  }
+
+  const data = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    data.set(chunk, offset);
+    offset += chunk.length;
+  }
+
+  return data;
+}
+
+function decodeURLFilename(url: URL): string {
+  const rawName = basename(url.pathname);
+  if (!rawName) {
+    return "file";
+  }
+
+  try {
+    return decodeURIComponent(rawName);
+  } catch {
+    return rawName;
+  }
 }
 
 async function parseOAuth2Form(event: RequestEvent): Promise<{ data: OAuth2Form; error: Error | null }> {

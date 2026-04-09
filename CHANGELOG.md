@@ -1,8 +1,12 @@
 # Changelog
 
-## 0.36.8-pocketbun.1 (Unreleased)
+## 0.36.9-pocketbun.0 (Unreleased)
 
-- TBD
+- Now compatible with PocketBase `v0.36.9` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0369).
+  - OAuth2 avatar imports mapped to file fields now reject loopback/private targets instead of probing internal network addresses.
+  - Discord OAuth2 now prefers `global_name` for `AuthUser.Name` and avoids legacy `username#0` / empty-avatar URL artifacts.
+- Settings updates now reliably persist cleared or replaced SMTP passwords, matching the upstream `v0.36.9` secret-handling fix.
+- JSVM `$apis.static(...)` now accepts `$os.dirFS(...)` / `fs.FS` roots in addition to plain directory strings, matching the documented upstream usage.
 
 ## 0.36.8-pocketbun.0 - 2026-03-28
 

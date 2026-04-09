@@ -1010,6 +1010,17 @@ console.log(new URL(server.url).port);`);
     }
   });
 
+  it("apis binds static accepts fs-like roots", () => {
+    const scope: BindScope = {};
+    apisBinds(scope);
+
+    expect(typeof scope.$apis.static("/tmp", false)).toBe("function");
+    expect(typeof scope.$apis.static({ root: "/tmp" }, false)).toBe("function");
+    expect(() => scope.$apis.static(123, false)).toThrow(
+      "$apis.static expects the first argument to be either a plain string path or fs.FS value",
+    );
+  });
+
   it("loading dynamic model", async () => {
     const { app, cleanup } = await newTestApp();
     try {

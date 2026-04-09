@@ -32,14 +32,21 @@ export class Discord extends BaseProvider {
 
     // Build a full avatar URL using the avatar hash provided in the API response
     // https://discord.com/developers/docs/reference#image-formatting
-    const avatarURL = `https://cdn.discordapp.com/avatars/${extracted.Id}/${extracted.Avatar}.png`;
+    const avatarURL = extracted.Avatar ? `https://cdn.discordapp.com/avatars/${extracted.Id}/${extracted.Avatar}.png` : "";
 
-    // Concatenate the user's username and discriminator into a single username string
-    const username = `${extracted.Username}#${extracted.Discriminator}`;
+    let name = extracted.GlobalName;
+    if (!name) {
+      // Note: Discord migrated to unique usernames without discriminators.
+      // Legacy accounts still have a non-zero discriminator.
+      name = extracted.Username;
+      if (extracted.Discriminator && extracted.Discriminator !== "0") {
+        name += `#${extracted.Discriminator}`;
+      }
+    }
 
     const user = new AuthUser({
       Id: extracted.Id,
-      Name: username,
+      Name: name,
       Username: extracted.Username,
       AvatarURL: avatarURL,
       RawUser: rawUser,
@@ -69,6 +76,7 @@ function parseRawUser(raw: string): Record<string, unknown> {
 
 function parseDiscordUser(raw: string): {
   Id: string;
+  GlobalName: string;
   Username: string;
   Discriminator: string;
   Avatar: string;
@@ -78,6 +86,7 @@ function parseDiscordUser(raw: string): {
   const payload = parseRawUser(raw);
   return {
     Id: readStringField(payload, "id"),
+    GlobalName: readStringField(payload, "global_name"),
     Username: readStringField(payload, "username"),
     Discriminator: readStringField(payload, "discriminator"),
     Avatar: readStringField(payload, "avatar"),

@@ -19,6 +19,27 @@ class DiscordMock extends Discord {
 }
 
 describe("discord provider", () => {
+  it("FetchAuthUser prefers Discord global_name for AuthUser.Name", async () => {
+    const provider = new DiscordMock(
+      JSON.stringify({
+        id: "discord_user_global",
+        global_name: "Display Name",
+        username: "discord-user",
+        discriminator: "0420",
+        avatar: "avatar_hash",
+        email: "discord@example.com",
+        verified: true,
+      }),
+    );
+
+    const user = await provider.FetchAuthUser({
+      accessToken: "access_global",
+    });
+
+    expect(user.Name).toBe("Display Name");
+    expect(user.Username).toBe("discord-user");
+  });
+
   it("FetchAuthUser maps verified profile fields", async () => {
     const provider = new DiscordMock(
       JSON.stringify({
@@ -68,6 +89,23 @@ describe("discord provider", () => {
     expect(user.Name).toBe("discord-user-2#1337");
   });
 
+  it("FetchAuthUser falls back to username when Discord discriminator is zero", async () => {
+    const provider = new DiscordMock(
+      JSON.stringify({
+        id: "discord_user_zero",
+        username: "discord-user-zero",
+        discriminator: "0",
+        verified: false,
+      }),
+    );
+
+    const user = await provider.FetchAuthUser({
+      accessToken: "access_zero",
+    });
+
+    expect(user.Name).toBe("discord-user-zero");
+  });
+
   it("FetchAuthUser accepts missing optional fields", async () => {
     const provider = new DiscordMock(
       JSON.stringify({
@@ -80,9 +118,9 @@ describe("discord provider", () => {
     });
 
     expect(user.Id).toBe("discord_user_3");
-    expect(user.Name).toBe("#");
+    expect(user.Name).toBe("");
     expect(user.Username).toBe("");
-    expect(user.AvatarURL).toBe("https://cdn.discordapp.com/avatars/discord_user_3/.png");
+    expect(user.AvatarURL).toBe("");
     expect(user.Email).toBe("");
   });
 

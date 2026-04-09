@@ -1139,10 +1139,13 @@ declare namespace $apis {
   /**
    * Route handler to serve static directory content (html, js, css, etc.).
    *
-   * If a file resource is missing and indexFallback is set, the request
-   * will be forwarded to the base index.html (useful for SPA).
+   * If a file resource is missing and indexFallback is true, the request
+   * will be forwarded to the base index.html (useful for SPA with pretty urls).
+   *
+   * The first argument can be either a plain directory string path or an fs.FS value
+   * such as the result of $os.dirFS(...).
    */
-  function static(dir: string, indexFallback: boolean): (e: core.RequestEvent) => void;
+  function static(dirOrFS: string | fs.FS, indexFallback: boolean): (e: core.RequestEvent) => void;
 
   let requireGuestOnly: apis.requireGuestOnly;
   let requireAuth: apis.requireAuth;
@@ -14178,7 +14181,7 @@ namespace apis {
     /**
      * Static is a handler function to serve static directory content from fsys.
      *
-     * If a file resource is missing and indexFallback is set, the request
+     * If a file resource is missing and indexFallback is true, the request
      * will be forwarded to the base index.html (useful for SPA with pretty urls).
      *
      * NB! Expects the route to have a "{path...}" wildcard parameter.
@@ -14187,7 +14190,7 @@ namespace apis {
      * ```
      *   - if "path" is a file that ends in index.html, it is redirected to its non-index.html version (eg. /test/index.html -> /test/)
      *   - if "path" is a directory that has index.html, the index.html file is rendered,
-     *     otherwise if missing - returns 404 or fallback to the root index.html if indexFallback is set
+     *     otherwise if missing - returns 404 or fallback to the root index.html if indexFallback is true
      * ```
      *
      * Example:

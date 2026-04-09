@@ -1,6 +1,6 @@
 // Ported from pocketbase/apis/record_auth_with_oauth2_test.go
 
-import { afterAll, beforeAll, describe, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { OAuth2ProviderConfig } from "../core/collection_model_auth_options.ts";
 import { RequestInfoContextOAuth2 } from "../core/event_request.ts";
 import { NewExternalAuth } from "../core/external_auth_model.ts";
@@ -10,6 +10,7 @@ import { AuthUser, Providers, type OAuth2Token } from "../tools/auth/auth.ts";
 import { BaseProvider } from "../tools/auth/base_provider.ts";
 import { NameApple } from "../tools/auth/index.ts";
 import { findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
+import { safeFileFromURL } from "./record_auth_with_oauth2.ts";
 
 const userToken =
   "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoiX3BiX3VzZXJzX2F1dGhfIiwiZXhwIjoyNTI0NjA0NDYxLCJyZWZyZXNoYWJsZSI6dHJ1ZX0.ZT3F0Z3iM-xbGgSG3LEKiEzHrPHr8t8IuHLZGGNuxLo";
@@ -912,7 +913,7 @@ const scenarios: Scenario[] = [
     },
   },
   {
-    name: "creating user (with mapped OAuth2 fields and avatarURL->file field)",
+    name: "creating user (with mapped OAuth2 fields and local avatarURL->file field; blocked for safety)",
     method: "POST",
     url: "/api/collections/users/auth-with-oauth2",
     body: JSON.stringify({
@@ -965,7 +966,7 @@ const scenarios: Scenario[] = [
       '"username":"oauth2_username"',
       '"verified":true',
       '"rel":"0yxhwia2amd8gec"',
-      '"avatar":"oauth2_avatar_',
+      '"avatar":""',
     ],
     notExpectedContent: ['"tokenKey"', '"password"'],
     expectedEvents: {
@@ -1512,4 +1513,40 @@ describe("record auth with oauth2", () => {
       await runApiScenario(scenario);
     });
   }
+});
+
+describe("safeFileFromURL", () => {
+  it("downloads files from public IPs", async () => {
+    const file = await safeFileFromURL(null, "https://example.com/test%20avatar.png", {
+      lookup: async () => [{ address: "93.184.216.34", family: 4 }],
+      fetch: async () =>
+        new Response(new Uint8Array([1, 2, 3]), {
+          status: 200,
+          headers: { "content-type": "image/png" },
+        }),
+    });
+
+    expect(file.OriginalName).toBe("test avatar.png");
+    expect(file.Size).toBe(3);
+  });
+
+  it("rejects loopback targets before issuing the fetch", async () => {
+    let fetchCalls = 0;
+
+    try {
+      await safeFileFromURL(null, "http://127.0.0.1:8090/avatar.png", {
+        lookup: async () => [{ address: "127.0.0.1", family: 4 }],
+        fetch: async () => {
+          fetchCalls += 1;
+          return new Response(new Uint8Array([1]), { status: 200 });
+        },
+      });
+      throw new Error("Expected safeFileFromURL to reject loopback targets");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe('address "127.0.0.1" is invalid or resolve to disallowed IP');
+    }
+
+    expect(fetchCalls).toBe(0);
+  });
 });
