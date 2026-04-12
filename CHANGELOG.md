@@ -2,7 +2,8 @@
 
 ## 0.36.9-pocketbun.1 (Unreleased)
 
-- TBD
+- App cron scheduling now uses Bun's native `Bun.cron(...)` callback scheduler, removing PocketBun's old in-process ticker implementation.
+- PocketBun now requires Bun `v1.3.12` or newer; app cron expressions are interpreted in UTC and the old `setInterval(...)` / `setTimezone(...)` cron APIs have been removed.
 
 ## 0.36.9-pocketbun.0 - 2026-04-09
 

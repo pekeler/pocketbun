@@ -31,10 +31,6 @@ export class Job {
     }
   }
 
-  Schedule(): Schedule {
-    return this.#schedule;
-  }
-
   toJSON(): { id: string; expression: string } {
     return {
       id: this.Id(),

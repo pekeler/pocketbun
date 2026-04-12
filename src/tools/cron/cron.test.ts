@@ -1,61 +1,94 @@
 // Ported from pocketbase/tools/cron/cron_test.go
 
-import { describe, expect, it, setDefaultTimeout } from "bun:test";
+import { afterEach, describe, expect, it, setDefaultTimeout } from "bun:test";
 import type { Job } from "./job.ts";
 import { Cron } from "./cron.ts";
 
-class TestMutex {
-  lock(): void {}
-  unlock(): void {}
-}
+type FakeBunCronRegistration = {
+  cronExpr: string;
+  handler: () => void;
+  stopCalls: number;
+};
 
-function normalizeSchedule(job: Job): unknown {
-  return JSON.parse(JSON.stringify(job.Schedule()));
-}
+const bunWithCron = Bun as typeof Bun & {
+  cron: (
+    cronExpr: string,
+    handler: () => void,
+  ) => {
+    stop(): void;
+  };
+};
 
-async function waitFor(condition: () => boolean, timeoutMs: number, pollMs = 10): Promise<void> {
-  const start = Date.now();
+function createFakeBunCron(): {
+  registrations: FakeBunCronRegistration[];
+  register: (
+    cronExpr: string,
+    handler: () => void,
+  ) => {
+    cron: string;
+    ref(): void;
+    stop(): void;
+    unref(): void;
+    [Symbol.dispose](): void;
+  };
+} {
+  const registrations: FakeBunCronRegistration[] = [];
 
-  while (Date.now() - start <= timeoutMs) {
-    if (condition()) {
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, pollMs));
-  }
+  return {
+    registrations,
+    register: (cronExpr, handler) => {
+      const registration: FakeBunCronRegistration = {
+        cronExpr,
+        handler,
+        stopCalls: 0,
+      };
+      registrations.push(registration);
 
-  throw new Error(`condition not met within ${timeoutMs}ms`);
+      return {
+        cron: cronExpr,
+        ref(): void {},
+        stop(): void {
+          registration.stopCalls += 1;
+        },
+        unref(): void {},
+        [Symbol.dispose](): void {
+          registration.stopCalls += 1;
+        },
+      };
+    },
+  };
 }
 
 setDefaultTimeout(15_000);
 
+const originalBunCron = bunWithCron.cron;
+
 describe("Cron", () => {
+  afterEach(() => {
+    bunWithCron.cron = originalBunCron;
+  });
+
   it("uses defaults", () => {
     const c = new Cron();
     const internal = c as unknown as {
-      intervalMs: number;
-      timezone: string;
+      handles: Map<string, unknown>;
+      started: boolean;
       jobs: Job[];
-      ticker: ReturnType<typeof setInterval> | null;
     };
 
-    expect(internal.intervalMs).toBe(60_000);
-    expect(internal.timezone).toBe("UTC");
+    expect(internal.handles.size).toBe(0);
+    expect(internal.started).toBe(false);
     expect(internal.jobs.length).toBe(0);
-    expect(internal.ticker).toBeNull();
   });
 
-  it("sets interval", () => {
+  it("does not expose interval configuration", () => {
     const c = new Cron();
-    c.SetInterval(120_000);
-    const internal = c as unknown as { intervalMs: number };
-    expect(internal.intervalMs).toBe(120_000);
+    expect("SetInterval" in (c as object)).toBe(false);
   });
 
-  it("sets timezone", () => {
+  it("does not expose timezone configuration", () => {
     const c = new Cron();
-    c.SetTimezone("Asia/Tokyo");
-    const internal = c as unknown as { timezone: string };
-    expect(internal.timezone).toBe("Asia/Tokyo");
+    expect("SetTimezone" in (c as object)).toBe(false);
   });
 
   it("adds and removes jobs", () => {
@@ -86,19 +119,19 @@ describe("Cron", () => {
       expect(indexedJobs.get(key)).toBeTruthy();
     }
 
-    const expectedSchedules: Record<string, string> = {
-      test2: `{"minutes":{"1":{}},"hours":{"2":{}},"days":{"3":{}},"months":{"4":{}},"daysOfWeek":{"5":{}}}`,
-      test3: `{"minutes":{"0":{},"1":{},"10":{},"11":{},"12":{},"13":{},"14":{},"15":{},"16":{},"17":{},"18":{},"19":{},"2":{},"20":{},"21":{},"22":{},"23":{},"24":{},"25":{},"26":{},"27":{},"28":{},"29":{},"3":{},"30":{},"31":{},"32":{},"33":{},"34":{},"35":{},"36":{},"37":{},"38":{},"39":{},"4":{},"40":{},"41":{},"42":{},"43":{},"44":{},"45":{},"46":{},"47":{},"48":{},"49":{},"5":{},"50":{},"51":{},"52":{},"53":{},"54":{},"55":{},"56":{},"57":{},"58":{},"59":{},"6":{},"7":{},"8":{},"9":{}},"hours":{"0":{},"1":{},"10":{},"11":{},"12":{},"13":{},"14":{},"15":{},"16":{},"17":{},"18":{},"19":{},"2":{},"20":{},"21":{},"22":{},"23":{},"3":{},"4":{},"5":{},"6":{},"7":{},"8":{},"9":{}},"days":{"1":{},"10":{},"11":{},"12":{},"13":{},"14":{},"15":{},"16":{},"17":{},"18":{},"19":{},"2":{},"20":{},"21":{},"22":{},"23":{},"24":{},"25":{},"26":{},"27":{},"28":{},"29":{},"3":{},"30":{},"31":{},"4":{},"5":{},"6":{},"7":{},"8":{},"9":{}},"months":{"1":{},"10":{},"11":{},"12":{},"2":{},"3":{},"4":{},"5":{},"6":{},"7":{},"8":{},"9":{}},"daysOfWeek":{"0":{},"1":{},"2":{},"3":{},"4":{},"5":{},"6":{}}}`,
-      test5: `{"minutes":{"1":{}},"hours":{"2":{}},"days":{"3":{}},"months":{"4":{}},"daysOfWeek":{"5":{}}}`,
+    const expectedExpressions: Record<string, string> = {
+      test2: "1 2 3 4 5",
+      test3: "* * * * *",
+      test5: "1 2 3 4 5",
     };
 
-    for (const [key, expected] of Object.entries(expectedSchedules)) {
+    for (const [key, expected] of Object.entries(expectedExpressions)) {
       const job = indexedJobs.get(key);
       expect(job).toBeTruthy();
       if (!job) {
         continue;
       }
-      expect(normalizeSchedule(job)).toEqual(JSON.parse(expected));
+      expect(job.Expression()).toBe(expected);
     }
   });
 
@@ -162,74 +195,44 @@ describe("Cron", () => {
     expect(calls).toBe("ab");
   });
 
-  it("starts and stops ticking", async () => {
+  it("uses Bun.cron for the default scheduler", () => {
+    const fake = createFakeBunCron();
+    bunWithCron.cron = fake.register;
+
     const c = new Cron();
-    const mu = new TestMutex();
-    let test1 = 0;
-    let test2 = 0;
+    let calls = "";
 
-    const intervalMs = 200;
-    c.SetInterval(intervalMs);
-
-    c.Add("test1", "* * * * *", () => {
-      mu.lock();
-      try {
-        test1 += 1;
-      } finally {
-        mu.unlock();
-      }
+    c.Add("a", "1 * * * *", () => {
+      calls += "a";
     });
-    c.Add("test2", "* * * * *", () => {
-      mu.lock();
-      try {
-        test2 += 1;
-      } finally {
-        mu.unlock();
-      }
+    c.Add("b", "2 * * * *", () => {
+      calls += "b";
     });
 
-    try {
-      c.Start();
-      c.Start();
+    c.Start();
 
-      await waitFor(() => test1 >= 1 && test2 >= 1, 3_000);
+    expect(c.HasStarted()).toBe(true);
+    expect(fake.registrations.map((registration) => registration.cronExpr)).toEqual(["1 * * * *", "2 * * * *"]);
 
-      c.Stop();
-      c.Stop();
+    fake.registrations[1]?.handler();
+    fake.registrations[0]?.handler();
+    expect(calls).toBe("ba");
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      let stoppedTest1 = test1;
-      let stoppedTest2 = test2;
+    c.Add("a", "3 * * * *", () => {
+      calls += "A";
+    });
 
-      await new Promise((resolve) => setTimeout(resolve, intervalMs * 2 + 120));
-      mu.lock();
-      try {
-        expect(test1).toBe(stoppedTest1);
-        expect(test2).toBe(stoppedTest2);
-      } finally {
-        mu.unlock();
-      }
+    expect(fake.registrations.map((registration) => registration.cronExpr)).toEqual(["1 * * * *", "2 * * * *", "3 * * * *"]);
+    expect(fake.registrations[0]?.stopCalls).toBe(1);
 
-      c.Start();
+    c.Remove("b");
+    expect(fake.registrations[1]?.stopCalls).toBe(1);
 
-      await waitFor(() => test1 > stoppedTest1 && test2 > stoppedTest2, 3_000);
+    fake.registrations[2]?.handler();
+    expect(calls).toBe("baA");
 
-      c.Stop();
-
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      stoppedTest1 = test1;
-      stoppedTest2 = test2;
-
-      await new Promise((resolve) => setTimeout(resolve, intervalMs * 2 + 120));
-      mu.lock();
-      try {
-        expect(test1).toBe(stoppedTest1);
-        expect(test2).toBe(stoppedTest2);
-      } finally {
-        mu.unlock();
-      }
-    } finally {
-      c.Stop();
-    }
+    c.Stop();
+    expect(fake.registrations[2]?.stopCalls).toBe(1);
+    expect(c.HasStarted()).toBe(false);
   });
 });

@@ -41,6 +41,8 @@ Naturally, the same applies to PocketBun.
 
 `bun add pocketbun` to add to an existing project, or `bun create pocketbun my-app` to create a new project.
 
+PocketBun requires Bun `v1.3.12` or newer.
+
 ## Quick Start
 
 Create a small server script (for example `server.ts`):

@@ -1,6 +1,6 @@
 # Bun Issue Watchlist (PocketBun)
 
-Last updated: 2026-03-19
+Last updated: 2026-04-12
 
 This file tracks Bun issues that matter for PocketBun compatibility and workaround cleanup.
 
@@ -14,7 +14,7 @@ When any issue below is fixed upstream:
 
 | Area | Issue link | Status | PocketBun impact / note |
 | --- | --- | --- | --- |
-| `Bun.serve` `idleTimeout` capped at 255 | Canonical: https://github.com/oven-sh/bun/issues/15589 (our duplicate: https://github.com/oven-sh/bun/issues/27470, docs follow-up: https://github.com/oven-sh/bun/issues/27479) | canonical open; docs issue closed | We still pin server idle timeout to `255` in `src/apis/serve.ts` (`defaultServerIdleTimeoutSeconds`) and keep realtime SSE comment heartbeats in `src/apis/realtime.ts`. Local Bun `1.3.11` repro still throws `Bun.serve expects idleTimeout to be 255 or less` for `idleTimeout: 300`. |
+| `Bun.serve` `idleTimeout` capped at 255 | Canonical: https://github.com/oven-sh/bun/issues/15589 (our duplicate: https://github.com/oven-sh/bun/issues/27470, docs follow-up: https://github.com/oven-sh/bun/issues/27479) | canonical open; docs issue closed | We still pin server idle timeout to `255` in `src/apis/serve.ts` (`defaultServerIdleTimeoutSeconds`) and keep realtime SSE comment heartbeats in `src/apis/realtime.ts`. Local Bun `1.3.12` repro still throws `Bun.serve expects idleTimeout to be 255 or less` for `idleTimeout: 300`. |
 | `bun:sqlite` PRAGMA parameter binding docs gap | https://github.com/oven-sh/bun/issues/27480 | open | This is a docs/SQLite-syntax gap, not a Bun runtime fix candidate. PocketBun now uses the table-valued `pragma_table_info(?)` form in `src/core/db_table.ts` so the lookup stays parameterized without inline SQL quoting. |
 | Streaming / temp-file-backed multipart parsing for `Bun.serve` uploads | https://github.com/oven-sh/bun/issues/28188 | open | PocketBun still needs `src/internal/compat/request_form_data.ts` because Bun does not yet expose a native streaming/temp-file-backed multipart server API for large uploads. |
 
@@ -28,8 +28,8 @@ When any issue below is fixed upstream:
 
 | Area | Issue link | Status | PocketBun action |
 | --- | --- | --- | --- |
-| Multipart binary truncation at null byte in `Request.formData()` | Canonical: https://github.com/oven-sh/bun/issues/26740 (our duplicate: https://github.com/oven-sh/bun/issues/27478) | closed in Bun `1.3.11` | No dedicated fallback parser workaround remains. Local Bun `1.3.11` repro now preserves `[31,139,8,0]` exactly. |
-| Windows `Bun.spawnSync` intermittent empty/invalid stdout | https://github.com/oven-sh/bun/issues/27482 | closed | Removed the JSVM sync-fetch retry loop from `src/plugins/jsvm/binds.ts`, restored sync-path coverage in `src/plugins/jsvm/binds.test.ts`, and pinned CI to Bun `1.3.11` so the Windows subprocess pipe fix is present during tests. |
+| Multipart binary truncation at null byte in `Request.formData()` | Canonical: https://github.com/oven-sh/bun/issues/26740 (our duplicate: https://github.com/oven-sh/bun/issues/27478) | closed in Bun `1.3.11` | No dedicated fallback parser workaround remains. Local Bun `1.3.12` repro still preserves `[31,139,8,0]` exactly. |
+| Windows `Bun.spawnSync` intermittent empty/invalid stdout | https://github.com/oven-sh/bun/issues/27482 | closed | Removed the JSVM sync-fetch retry loop from `src/plugins/jsvm/binds.ts`, restored sync-path coverage in `src/plugins/jsvm/binds.test.ts`, and CI now pins Bun `1.3.12`, which still includes the Windows subprocess pipe fix. |
 | Default idle-timeout behavior for SSE/quiet streams docs clarity | https://github.com/oven-sh/bun/issues/27479 | closed | Bun docs were updated, but the runtime cap from issue `#15589` is still active so the PocketBun server workaround remains. |
 | `bun:sqlite` WAL sidecar cleanup docs/behavior clarity | https://github.com/oven-sh/bun/issues/27481 | closed | Keep the explicit `SQLITE_FCNTL_PERSIST_WAL` call in `src/tools/dbx/connect_pragmas.ts` for deterministic cleanup that matches PocketBase expectations. |
 

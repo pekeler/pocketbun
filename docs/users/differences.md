@@ -21,6 +21,7 @@ Quick links:
 - [Hooks API And Module Loading](#hooks-api-and-module-loading)
 - [Async API Extensions](#async-api-extensions)
 - [Operational Differences](#operational-differences)
+- [Cron Scheduling](#cron-scheduling)
 - [PocketBase Docs Topics That Do Not Apply Directly](#pocketbase-docs-topics-that-do-not-apply-directly)
 - [Intentional Omissions](#intentional-omissions)
 
@@ -133,6 +134,15 @@ PocketBun keeps sync-compatible APIs but adds async alternatives for I/O-heavy p
 ### Activity logs
 
 PocketBun persists activity logs through a background worker to reduce main-thread blocking.
+
+## Cron Scheduling
+
+PocketBun app cron scheduling now uses Bun's native `Bun.cron(...)` scheduler and interprets cron expressions in UTC.
+
+- the old `$app.cron().setInterval(...)` and `$app.cron().setTimezone(...)` APIs are not available in PocketBun
+- programmatic cron setup remains expression-based; pass the cron string directly to `cronAdd(...)` or `add(...)`
+- the Admin UI cron management pages do not rely on per-job timezone settings and already assume UTC for built-in backup scheduling
+- if your hook code previously called `setInterval(...)` or `setTimezone(...)`, remove those calls; in-process cron expressions are already interpreted in UTC regardless of the server's local timezone
 
 ### Thumbnails
 

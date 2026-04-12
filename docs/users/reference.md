@@ -154,6 +154,9 @@ CronAdd registers a new cron job.
 If a cron job with the specified name already exist, it will be
 replaced with the new one.
 
+Use a cron expression string or supported macro directly, for example
+`*/30 * * * *` or `@daily`.
+
 Example:
 
 ```js
@@ -841,9 +844,10 @@ The constructor is equivalent to calling the Go `time.LoadLocation(name)` method
 Example:
 
 ```js
-const zone = new Timezone("America/New_York")
-$app.cron().setTimezone(zone)
+const zone = new Timezone("UTC")
 ```
+
+PocketBun app cron expressions are interpreted in UTC, regardless of the server's local timezone.
 
 ```ts
 declare class Timezone implements time.Location {

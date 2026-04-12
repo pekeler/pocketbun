@@ -2056,6 +2056,8 @@ migrate((app) => {
 
 If you have tasks that need to be performed periodically, you could set up crontab-like jobs with `cronAdd(id, expr, handler)`.
 
+Programmatic cron setup is expression-based: pass the cron expression string or supported macro directly to `cronAdd(...)`.
+
 Each scheduled job runs in the `serve` command process and must have:
 
 -

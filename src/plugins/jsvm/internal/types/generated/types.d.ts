@@ -689,8 +689,9 @@ interface Timezone extends time.Location {} // merge
  *
  * ```js
  * const zone = new Timezone("America/New_York")
- * $app.cron().setTimezone(zone)
  * ```
+ *
+ * PocketBun app cron expressions are interpreted in UTC, regardless of the server's local timezone.
  *
  * @group PocketBase
  */
@@ -21738,19 +21739,6 @@ namespace cron {
   interface Cron {}
   interface Cron {
     /**
-     * SetInterval changes the current cron tick interval
-     * (it usually should be >= 1 minute).
-     */
-    setInterval(d: time.Duration): void;
-  }
-  interface Cron {
-    /**
-     * SetTimezone changes the current cron tick timezone.
-     */
-    setTimezone(l: time.Location): void;
-  }
-  interface Cron {
-    /**
      * MustAdd is similar to Add() but panic on failure.
      */
     mustAdd(jobId: string, cronExpr: string, run: () => void): void;
@@ -21763,7 +21751,7 @@ namespace cron {
      * will be replaced with the new one.
      *
      * cronExpr is a regular cron expression, eg. "0 *\/3 * * *" (aka. at minute 0 past every 3rd hour).
-     * Check cron.NewSchedule() for the supported tokens.
+     * Supports standard 5-field cron expressions and macros such as @daily and @hourly.
      */
     add(jobId: string, cronExpr: string, fn: () => void): void;
   }
@@ -21793,23 +21781,23 @@ namespace cron {
   }
   interface Cron {
     /**
-     * Stop stops the current cron ticker (if not already).
+     * Stop stops the current cron scheduler (if not already).
      *
-     * You can resume the ticker by calling Start().
+     * You can resume the scheduler by calling Start().
      */
     stop(): void;
   }
   interface Cron {
     /**
-     * Start starts the cron ticker.
+     * Start starts the cron scheduler.
      *
-     * Calling Start() on already started cron will restart the ticker.
+     * Calling Start() on already started cron will restart the scheduler.
      */
     start(): void;
   }
   interface Cron {
     /**
-     * HasStarted checks whether the current Cron ticker has been started.
+     * HasStarted checks whether the current Cron scheduler has been started.
      */
     hasStarted(): boolean;
   }
