@@ -328,49 +328,43 @@ function toAnchor(text: string): string {
     .replace(/\s+/g, "-");
 }
 
-function stripInlineMarkdown(text: string): string {
-  return text
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/[*_]/g, "")
-    .trim();
+type MarkdownHeading = {
+  level: number;
+  text: string;
+};
+
+function collectMarkdownHeadings(markdown: string): MarkdownHeading[] {
+  const headings: MarkdownHeading[] = [];
+
+  Bun.markdown.render(markdown, {
+    heading(children, meta) {
+      const text = children.replace(/\s+/g, " ").trim();
+      if (text) {
+        headings.push({
+          level: meta.level,
+          text,
+        });
+      }
+      return "";
+    },
+  });
+
+  return headings;
 }
 
 function buildTieredQuickLinksFromMarkdown(markdown: string): string[] {
   const links: string[] = [];
-  let inCodeBlock = false;
   let hasParent = false;
 
-  for (const rawLine of markdown.split(/\r?\n/)) {
-    const line = rawLine.trim();
-
-    if (line.startsWith("```")) {
-      inCodeBlock = !inCodeBlock;
-      continue;
-    }
-    if (inCodeBlock) {
-      continue;
-    }
-
-    const match = line.match(/^(#{3,4})\s+(.+)$/);
-    if (!match) {
-      continue;
-    }
-
-    const level = match[1].length;
-    const label = stripInlineMarkdown(match[2]).replace(/\s+#+$/, "").trim();
-    if (!label) {
-      continue;
-    }
-
-    if (level === 3) {
-      links.push(`- [${label}](#${toAnchor(label)})`);
+  for (const heading of collectMarkdownHeadings(markdown)) {
+    if (heading.level === 3) {
+      links.push(`- [${heading.text}](#${toAnchor(heading.text)})`);
       hasParent = true;
       continue;
     }
 
-    if (level === 4 && hasParent) {
-      links.push(`  - [${label}](#${toAnchor(label)})`);
+    if (heading.level === 4 && hasParent) {
+      links.push(`  - [${heading.text}](#${toAnchor(heading.text)})`);
     }
   }
 
