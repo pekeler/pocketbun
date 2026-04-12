@@ -1,6 +1,6 @@
 // Ported from pocketbase/core/collection_query_test.go.
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, jest } from "bun:test";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { newTestApp } from "../tests/app.ts";
@@ -292,9 +292,11 @@ describe("collection query", () => {
     }
   });
 
-  it("TruncateCollection", async () => {
+  it.serial("TruncateCollection", async () => {
     const { app, cleanup } = await newTestApp();
     try {
+      jest.useFakeTimers();
+
       const countFiles = async (collectionId: string): Promise<number> => {
         const entries = await readdir(join(app.DataDir(), "storage", collectionId));
         return entries.length;
@@ -311,7 +313,8 @@ describe("collection query", () => {
       const failErr = await app.TruncateCollection(demo3);
       expect(failErr).not.toBeNull();
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      jest.advanceTimersByTime(100);
+      await Promise.resolve();
 
       const totalRecords = app.CountRecords(demo3);
       expect(totalRecords).toBe(originalTotalRecords);
@@ -323,7 +326,8 @@ describe("collection query", () => {
       const truncateErr = await app.TruncateCollection(demo5);
       expect(truncateErr).toBeNull();
 
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      jest.advanceTimersByTime(100);
+      await Promise.resolve();
 
       const total = app.CountRecords(demo5);
       expect(total).toBe(0);
@@ -334,6 +338,7 @@ describe("collection query", () => {
       const retryErr = await app.TruncateCollection(demo5);
       expect(retryErr).toBeNull();
     } finally {
+      jest.useRealTimers();
       await cleanup();
     }
   });

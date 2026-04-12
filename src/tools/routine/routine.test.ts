@@ -18,7 +18,9 @@ describe("FireAndForget", () => {
       throw error;
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // FireAndForget schedules work via queueMicrotask(), so draining one
+    // microtask turn is enough and avoids a real timer delay in the test.
+    await Promise.resolve();
 
     expect(called).toBe(true);
     expect(warnings).toHaveLength(2);
