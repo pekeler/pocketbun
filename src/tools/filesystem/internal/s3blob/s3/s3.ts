@@ -1,6 +1,17 @@
 // Ported from pocketbase/tools/filesystem/internal/s3blob/s3/s3.go
 // Deviation: async APIs are used for HTTP I/O in Bun.
 // Note: Bun provides native S3 bindings; we keep the HTTP+SigV4 path to match PocketBase behavior/tests.
+// A 2026-04-12 migration spike against Bun 1.3.12 showed that Bun's native S3
+// still can't replace this adapter without compatibility regressions:
+// - write-side user metadata support is still tracked in oven-sh/bun#17339
+// - stat()/HEAD still doesn't expose response headers or x-amz-meta values
+//   (tracked in oven-sh/bun#19301)
+// - broader custom S3 header/query support is still tracked in oven-sh/bun#16048
+// PocketBun relies on those features for richer blob attributes and for storing
+// `metadataOriginalName` in `src/tools/filesystem/filesystem.ts`.
+// The same spike also showed that `client.write(dst, client.file(src))` performs
+// a GET+PUT copy rather than a native server-side object copy, so switching to
+// Bun's S3 API would still require non-trivial compatibility glue.
 
 import { createHmac, createHash } from "node:crypto";
 import { copyObject, type CopyObjectResponse } from "./copy_object.ts";
