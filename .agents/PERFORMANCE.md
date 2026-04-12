@@ -38,6 +38,13 @@ This file is intentionally short and practical. Use it for changes that affect r
 
 ## Change Workflow
 1. Identify hotspot (profile/benchmark, then inspect code).
+   - For whole-process Bun profiles against the real PocketBun CLI, you can use:
+     - `bun run profile:cpu -- serve --dev`
+     - `bun run profile:heap -- serve --dev`
+   - These write Bun's markdown-friendly reports under `.tmp/profile-cpu/` or `.tmp/profile-heap/`.
+   - For a narrower in-process request profile around a real server load window, use:
+     - `bun run profile:inspector:list -- --duration-ms 3000 --concurrency 16`
+   - This writes a Chrome DevTools-compatible `.cpuprofile` under `.tmp/profile-inspector/`.
 2. Compare with upstream implementation to avoid compatibility drift.
 3. Make the smallest effective change.
 4. Add or update tests when behavior-sensitive.
