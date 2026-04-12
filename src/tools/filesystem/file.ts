@@ -14,6 +14,8 @@ export interface ReadSeekCloser {
   size(): number;
 }
 
+type DisposableReadSeekCloser = ReadSeekCloser & Disposable;
+
 // FileReader defines an interface for a file resource reader.
 export interface FileReader {
   Open(): ReadSeekCloser;
@@ -25,12 +27,8 @@ export function ReadFileReaderBytes(reader: FileReader | null | undefined): Uint
     return new Uint8Array();
   }
 
-  const opened = reader.Open();
-  try {
-    return opened.readAll();
-  } finally {
-    opened.close();
-  }
+  using opened = reader.Open() as DisposableReadSeekCloser;
+  return opened.readAll();
 }
 
 // ReadFileReaderBytesAsync is a PocketBun-only async alternative to ReadFileReaderBytes().
@@ -61,25 +59,17 @@ function readFileReaderSampleBytes(reader: FileReader, maxBytes = mimeDetectionS
     }
   }
 
-  const opened = reader.Open();
-  try {
-    return opened.read(maxBytes) ?? new Uint8Array();
-  } finally {
-    opened.close();
-  }
+  using opened = reader.Open() as DisposableReadSeekCloser;
+  return opened.read(maxBytes) ?? new Uint8Array();
 }
 
 async function readFileReaderSampleBytesAsync(reader: FileReader, maxBytes = mimeDetectionSampleSize): Promise<Uint8Array> {
   if (reader instanceof PathReader) {
-    const handle = await open(reader.Path, "r");
-    try {
-      const raw = new Uint8Array(maxBytes);
-      const result = await handle.read(raw, 0, maxBytes, 0);
-      const read = result.bytesRead ?? 0;
-      return read > 0 ? raw.slice(0, read) : new Uint8Array();
-    } finally {
-      await handle.close();
-    }
+    await using handle = await open(reader.Path, "r");
+    const raw = new Uint8Array(maxBytes);
+    const result = await handle.read(raw, 0, maxBytes, 0);
+    const read = result.bytesRead ?? 0;
+    return read > 0 ? raw.slice(0, read) : new Uint8Array();
   }
 
   // Fallback for non-path readers that only expose sync Open()/read().
@@ -322,6 +312,10 @@ class BufferReadSeekCloser implements ReadSeekCloser {
 
   close(): void {}
 
+  [Symbol.dispose](): void {
+    this.close();
+  }
+
   size(): number {
     return this.#buffer.length;
   }
@@ -408,6 +402,10 @@ class LocalFileReadSeekCloser implements ReadSeekCloser {
     }
     this.#closed = true;
     closeSync(this.#fd);
+  }
+
+  [Symbol.dispose](): void {
+    this.close();
   }
 
   size(): number {

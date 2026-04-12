@@ -102,6 +102,9 @@ describe("file validators", () => {
           return offset;
         },
         close(): void {},
+        [Symbol.dispose](): void {
+          this.close();
+        },
         size(): number {
           return source.length;
         },

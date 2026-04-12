@@ -327,7 +327,7 @@ class FileDriver implements Driver {
     }
 
     const writer = await this.NewTypedWriter(controller.signal, dstKey, attrs.ContentType, wopts);
-    const fh = await openFile(srcPath, "r");
+    await using fh = await openFile(srcPath, "r");
     let closeStarted = false;
     try {
       const buffer = new Uint8Array(64 * 1024);
@@ -359,8 +359,6 @@ class FileDriver implements Driver {
         }
       }
       throw err;
-    } finally {
-      await fh.close();
     }
   }
 

@@ -24,6 +24,7 @@ import { FieldsList } from "../../core/fields_list.ts";
 import { Record as RecordModel } from "../../core/record_model.ts";
 import { ValidationError } from "../../internal/compat/validation.ts";
 import { TestApp, newTestApp } from "../../tests/app.ts";
+import { newTempDir } from "../../tests/fs.ts";
 import { File } from "../../tools/filesystem/file.ts";
 import { System } from "../../tools/filesystem/filesystem.ts";
 import { ApiError } from "../../tools/router/api_error.ts";
@@ -49,6 +50,11 @@ setDefaultTimeout(15000);
 
 type BindScope = Record<string, any>;
 const generatedTypesUrl = new URL("./internal/types/generated/types.d.ts", import.meta.url);
+type StartedExternalServer = {
+  port: number;
+  stop: () => Promise<void>;
+  [Symbol.asyncDispose]: () => Promise<void>;
+};
 
 function extractNamespace(source: string, namespaceName: string): string {
   const markers = [
@@ -143,7 +149,7 @@ function extractInterfacePropertyNames(source: string, interfaceName: string): s
   return [...propertyNames].filter(Boolean).sort();
 }
 
-async function startExternalServer(script: string): Promise<{ port: number; stop: () => Promise<void> }> {
+async function startExternalServer(script: string): Promise<StartedExternalServer> {
   const maxAttempts = 15;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -160,7 +166,7 @@ async function startExternalServer(script: string): Promise<{ port: number; stop
   throw new Error("Failed to start external test server.");
 }
 
-async function startExternalServerOnce(script: string): Promise<{ port: number; stop: () => Promise<void> }> {
+async function startExternalServerOnce(script: string): Promise<StartedExternalServer> {
   const process = Bun.spawn({
     cmd: ["bun", "-e", script],
     stdout: "pipe",
@@ -203,12 +209,15 @@ async function startExternalServerOnce(script: string): Promise<{ port: number; 
     throw new Error(`Failed to start test server on port ${port}: ${String(error)}\n${stderr}`);
   }
 
+  const stop = async () => {
+    process.kill();
+    await process.exited;
+  };
+
   return {
     port,
-    stop: async () => {
-      process.kill();
-      await process.exited;
-    },
+    stop,
+    [Symbol.asyncDispose]: stop,
   };
 }
 
@@ -850,9 +859,10 @@ describe("jsvm binds", () => {
   });
 
   it("filesystem binds", async () => {
-    const { app, cleanup } = await newTestApp();
-    const localDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-filesystem-"));
-    const server = await startExternalServer(`const server = Bun.serve({
+    await using testApp = await newTestApp();
+    const { app } = testApp;
+    await using localDir = await newTempDir("pocketbun-jsvm-filesystem-");
+    await using server = await startExternalServer(`const server = Bun.serve({
   port: 0,
   fetch(req) {
     const url = new URL(req.url);
@@ -864,64 +874,62 @@ describe("jsvm binds", () => {
 });
 console.log(new URL(server.url).port);`);
 
+    const scope: BindScope = {};
+    filesystemBinds(scope);
+
+    expect(countKeys(scope.$filesystem)).toBe(8);
+
+    await using s3Filesystem = scope.$filesystem.s3(
+      "bucketName",
+      "region",
+      "endpoint",
+      "accessKey",
+      "secretKey",
+      true,
+    ) as System;
+    expect(s3Filesystem).toBeInstanceOf(System);
+
+    await using localFilesystem = scope.$filesystem.local(localDir.path) as System;
+    expect(localFilesystem).toBeInstanceOf(System);
+
+    const testFile = join(app.DataDir(), "data.db");
+
+    const fileFromPath = scope.$filesystem.fileFromPath(testFile) as File;
+    expect(fileFromPath.OriginalName).toBe("data.db");
+    const fileFromPathAsync = (await scope.$filesystem.fileFromPathAsync(testFile)) as File;
+    expect(fileFromPathAsync.OriginalName).toBe("data.db");
+
+    const fileFromBytes = scope.$filesystem.fileFromBytes([1, 2, 3], "test") as File;
+    expect(fileFromBytes.OriginalName).toBe("test");
+
+    const multipartHeader = {
+      filename: "test",
+      size: 4,
+      buffer: new TextEncoder().encode("test"),
+    };
+    const fileFromMultipart = scope.$filesystem.fileFromMultipart(multipartHeader) as File;
+    expect(fileFromMultipart.OriginalName).toBe("test");
+
+    const fileFromURL = scope.$filesystem.fileFromURL(`http://127.0.0.1:${server.port}/test`) as File;
+    expect(fileFromURL.OriginalName).toBe("test");
+    const fileFromURLAsync = (await scope.$filesystem.fileFromURLAsync(`http://127.0.0.1:${server.port}/test`)) as File;
+    expect(fileFromURLAsync.OriginalName).toBe("test");
+
+    let urlErr: Error | null = null;
     try {
-      const scope: BindScope = {};
-      filesystemBinds(scope);
-
-      expect(countKeys(scope.$filesystem)).toBe(8);
-
-      const s3Filesystem = scope.$filesystem.s3("bucketName", "region", "endpoint", "accessKey", "secretKey", true) as System;
-      expect(s3Filesystem).toBeInstanceOf(System);
-
-      const localFilesystem = scope.$filesystem.local(localDir) as System;
-      expect(localFilesystem).toBeInstanceOf(System);
-
-      const testFile = join(app.DataDir(), "data.db");
-
-      const fileFromPath = scope.$filesystem.fileFromPath(testFile) as File;
-      expect(fileFromPath.OriginalName).toBe("data.db");
-      const fileFromPathAsync = (await scope.$filesystem.fileFromPathAsync(testFile)) as File;
-      expect(fileFromPathAsync.OriginalName).toBe("data.db");
-
-      const fileFromBytes = scope.$filesystem.fileFromBytes([1, 2, 3], "test") as File;
-      expect(fileFromBytes.OriginalName).toBe("test");
-
-      const multipartHeader = {
-        filename: "test",
-        size: 4,
-        buffer: new TextEncoder().encode("test"),
-      };
-      const fileFromMultipart = scope.$filesystem.fileFromMultipart(multipartHeader) as File;
-      expect(fileFromMultipart.OriginalName).toBe("test");
-
-      const fileFromURL = scope.$filesystem.fileFromURL(`http://127.0.0.1:${server.port}/test`) as File;
-      expect(fileFromURL.OriginalName).toBe("test");
-      const fileFromURLAsync = (await scope.$filesystem.fileFromURLAsync(`http://127.0.0.1:${server.port}/test`)) as File;
-      expect(fileFromURLAsync.OriginalName).toBe("test");
-
-      let urlErr: Error | null = null;
-      try {
-        scope.$filesystem.fileFromURL(`http://127.0.0.1:${server.port}/error`);
-      } catch (err) {
-        urlErr = err as Error;
-      }
-      expect(urlErr).not.toBeNull();
-
-      let asyncUrlErr: Error | null = null;
-      try {
-        await scope.$filesystem.fileFromURLAsync(`http://127.0.0.1:${server.port}/error`);
-      } catch (err) {
-        asyncUrlErr = err as Error;
-      }
-      expect(asyncUrlErr).not.toBeNull();
-
-      await localFilesystem.Close();
-      await s3Filesystem.Close();
-    } finally {
-      await server.stop();
-      await rm(localDir, { recursive: true, force: true });
-      await cleanup();
+      scope.$filesystem.fileFromURL(`http://127.0.0.1:${server.port}/error`);
+    } catch (err) {
+      urlErr = err as Error;
     }
+    expect(urlErr).not.toBeNull();
+
+    let asyncUrlErr: Error | null = null;
+    try {
+      await scope.$filesystem.fileFromURLAsync(`http://127.0.0.1:${server.port}/error`);
+    } catch (err) {
+      asyncUrlErr = err as Error;
+    }
+    expect(asyncUrlErr).not.toBeNull();
   }, 30000);
 
   it("forms binds", () => {
@@ -1573,7 +1581,7 @@ console.log(new URL(server.url).port);`);
   it.serial(
     "http client binds send",
     async () => {
-      const server = await startExternalServer(`const http = require("node:http");
+      await using server = await startExternalServer(`const http = require("node:http");
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, "http://127.0.0.1");
@@ -1622,136 +1630,132 @@ server.listen(0, "127.0.0.1", () => {
   console.log(server.address().port);
 });`);
 
+      const scope: BindScope = {};
+      baseBinds(scope);
+      httpClientBinds(scope);
+
+      let timeoutErr: Error | null = null;
       try {
-        const scope: BindScope = {};
-        baseBinds(scope);
-        httpClientBinds(scope);
+        scope.$http.send({ url: `http://127.0.0.1:${server.port}/?testTimeout=3`, timeout: 1 });
+      } catch (err) {
+        timeoutErr = err as Error;
+      }
+      expect(timeoutErr).not.toBeNull();
 
-        let timeoutErr: Error | null = null;
-        try {
-          scope.$http.send({ url: `http://127.0.0.1:${server.port}/?testTimeout=3`, timeout: 1 });
-        } catch (err) {
-          timeoutErr = err as Error;
-        }
-        expect(timeoutErr).not.toBeNull();
+      let timeoutAsyncErr: Error | null = null;
+      try {
+        await scope.$http.sendAsync({ url: `http://127.0.0.1:${server.port}/?testTimeout=3`, timeout: 1 });
+      } catch (err) {
+        timeoutAsyncErr = err as Error;
+      }
+      expect(timeoutAsyncErr).not.toBeNull();
 
-        let timeoutAsyncErr: Error | null = null;
-        try {
-          await scope.$http.sendAsync({ url: `http://127.0.0.1:${server.port}/?testTimeout=3`, timeout: 1 });
-        } catch (err) {
-          timeoutAsyncErr = err as Error;
-        }
-        expect(timeoutAsyncErr).not.toBeNull();
+      const test0 = scope.$http.send({ url: `http://127.0.0.1:${server.port}/?testError=1` });
+      const test1 = scope.$http.send({
+        method: "post",
+        url: `http://127.0.0.1:${server.port}/`,
+        headers: { header1: "123", header2: "456" },
+        body: "789",
+      });
+      const test2 = scope.$http.send({
+        url: `http://127.0.0.1:${server.port}/`,
+        headers: { "content-type": "text/plain" },
+      });
+      const formData = new scope.FormData();
+      formData.append("title", "123");
+      const test3 = scope.$http.send({
+        url: `http://127.0.0.1:${server.port}/`,
+        body: formData,
+        headers: { "content-type": "text/plain" },
+      });
+      const test4 = scope.$http.send({
+        method: "post",
+        url: `http://127.0.0.1:${server.port}/`,
+        body: "test",
+      });
+      const test5 = await scope.$http.sendAsync({
+        method: "post",
+        url: `http://127.0.0.1:${server.port}/`,
+        body: "test-async",
+      });
+      const test4Payload = JSON.parse(new TextDecoder().decode(test4.body));
+      expect(test4Payload.body).toBe("test");
+      expect(test4Payload.method).toBe("POST");
+      expect(test4Payload.headers.accept_encoding).toBe("gzip");
+      expect(test4Payload.headers.content_length).toBe("4");
+      expect(test4Payload.headers.user_agent).toBe("Go-http-client/1.1");
 
-        const test0 = scope.$http.send({ url: `http://127.0.0.1:${server.port}/?testError=1` });
-        const test1 = scope.$http.send({
-          method: "post",
-          url: `http://127.0.0.1:${server.port}/`,
-          headers: { header1: "123", header2: "456" },
-          body: "789",
-        });
-        const test2 = scope.$http.send({
-          url: `http://127.0.0.1:${server.port}/`,
-          headers: { "content-type": "text/plain" },
-        });
-        const formData = new scope.FormData();
-        formData.append("title", "123");
-        const test3 = scope.$http.send({
-          url: `http://127.0.0.1:${server.port}/`,
-          body: formData,
-          headers: { "content-type": "text/plain" },
-        });
-        const test4 = scope.$http.send({
-          method: "post",
-          url: `http://127.0.0.1:${server.port}/`,
-          body: "test",
-        });
-        const test5 = await scope.$http.sendAsync({
-          method: "post",
-          url: `http://127.0.0.1:${server.port}/`,
-          body: "test-async",
-        });
-        const test4Payload = JSON.parse(new TextDecoder().decode(test4.body));
-        expect(test4Payload.body).toBe("test");
-        expect(test4Payload.method).toBe("POST");
-        expect(test4Payload.headers.accept_encoding).toBe("gzip");
-        expect(test4Payload.headers.content_length).toBe("4");
-        expect(test4Payload.headers.user_agent).toBe("Go-http-client/1.1");
+      const test5Payload = JSON.parse(new TextDecoder().decode(test5.body));
+      expect(test5Payload.body).toBe("test-async");
+      expect(test5Payload.method).toBe("POST");
+      expect(test5Payload.headers.accept_encoding).toBe("gzip");
+      expect(test5Payload.headers.content_length).toBe("10");
+      expect(test5Payload.headers.user_agent).toBe("Go-http-client/1.1");
 
-        const test5Payload = JSON.parse(new TextDecoder().decode(test5.body));
-        expect(test5Payload.body).toBe("test-async");
-        expect(test5Payload.method).toBe("POST");
-        expect(test5Payload.headers.accept_encoding).toBe("gzip");
-        expect(test5Payload.headers.content_length).toBe("10");
-        expect(test5Payload.headers.user_agent).toBe("Go-http-client/1.1");
+      const scenarios: Array<[any, Record<string, unknown>]> = [
+        [test0, { statusCode: "400" }],
+        [
+          test1,
+          {
+            statusCode: "200",
+            "headers.X-Custom.0": "custom_header",
+            "cookies.sessionId.value": "123456",
+            "json.method": "POST",
+            "json.headers.header1": "123",
+            "json.headers.header2": "456",
+            "json.body": "789",
+          },
+        ],
+        [
+          test2,
+          {
+            statusCode: "200",
+            "headers.X-Custom.0": "custom_header",
+            "cookies.sessionId.value": "123456",
+            "json.method": "GET",
+            "json.headers.content_type": "text/plain",
+          },
+        ],
+        [
+          test3,
+          {
+            statusCode: "200",
+            "headers.X-Custom.0": "custom_header",
+            "cookies.sessionId.value": "123456",
+            "json.method": "GET",
+            "json.body": ['\r\nContent-Disposition: form-data; name="title"\r\n\r\n123\r\n--'],
+            "json.headers.content_type": ["multipart/form-data; boundary="],
+          },
+        ],
+        [
+          test4,
+          {
+            statusCode: "200",
+            "headers.X-Custom.0": "custom_header",
+            "cookies.sessionId.value": "123456",
+          },
+        ],
+        [
+          test5,
+          {
+            statusCode: "200",
+            "headers.X-Custom.0": "custom_header",
+            "cookies.sessionId.value": "123456",
+          },
+        ],
+      ];
 
-        const scenarios: Array<[any, Record<string, unknown>]> = [
-          [test0, { statusCode: "400" }],
-          [
-            test1,
-            {
-              statusCode: "200",
-              "headers.X-Custom.0": "custom_header",
-              "cookies.sessionId.value": "123456",
-              "json.method": "POST",
-              "json.headers.header1": "123",
-              "json.headers.header2": "456",
-              "json.body": "789",
-            },
-          ],
-          [
-            test2,
-            {
-              statusCode: "200",
-              "headers.X-Custom.0": "custom_header",
-              "cookies.sessionId.value": "123456",
-              "json.method": "GET",
-              "json.headers.content_type": "text/plain",
-            },
-          ],
-          [
-            test3,
-            {
-              statusCode: "200",
-              "headers.X-Custom.0": "custom_header",
-              "cookies.sessionId.value": "123456",
-              "json.method": "GET",
-              "json.body": ['\r\nContent-Disposition: form-data; name="title"\r\n\r\n123\r\n--'],
-              "json.headers.content_type": ["multipart/form-data; boundary="],
-            },
-          ],
-          [
-            test4,
-            {
-              statusCode: "200",
-              "headers.X-Custom.0": "custom_header",
-              "cookies.sessionId.value": "123456",
-            },
-          ],
-          [
-            test5,
-            {
-              statusCode: "200",
-              "headers.X-Custom.0": "custom_header",
-              "cookies.sessionId.value": "123456",
-            },
-          ],
-        ];
-
-        for (const [result, expectations] of scenarios) {
-          for (const [key, expectation] of Object.entries(expectations)) {
-            const value = getNestedVal(result, key);
-            if (Array.isArray(expectation)) {
-              for (const exp of expectation) {
-                expect(value).toContain(exp);
-              }
-              continue;
+      for (const [result, expectations] of scenarios) {
+        for (const [key, expectation] of Object.entries(expectations)) {
+          const value = getNestedVal(result, key);
+          if (Array.isArray(expectation)) {
+            for (const exp of expectation) {
+              expect(value).toContain(exp);
             }
-            expect(String(value)).toBe(String(expectation));
+            continue;
           }
+          expect(String(value)).toBe(String(expectation));
         }
-      } finally {
-        await server.stop();
       }
     },
     30000,

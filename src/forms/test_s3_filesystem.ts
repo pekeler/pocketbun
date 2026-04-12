@@ -64,23 +64,20 @@ export class TestS3Filesystem {
       return new Error(`failed to initialize the S3 filesystem: ${(error as Error).message}`);
     }
 
+    await using managedFsys = fsys;
+    const testPrefix = `pb_settings_test_${pseudorandomString(5)}`;
+    const testFileKey = `${testPrefix}/test.txt`;
+
     try {
-      const testPrefix = `pb_settings_test_${pseudorandomString(5)}`;
-      const testFileKey = `${testPrefix}/test.txt`;
+      await managedFsys.Upload(new TextEncoder().encode("test"), testFileKey);
+    } catch (error) {
+      return new Error(`failed to upload a test file: ${(error as Error).message}`);
+    }
 
-      try {
-        await fsys.Upload(new TextEncoder().encode("test"), testFileKey);
-      } catch (error) {
-        return new Error(`failed to upload a test file: ${(error as Error).message}`);
-      }
-
-      const deleteErrors = await fsys.DeletePrefix(testPrefix);
-      if (deleteErrors.length > 0) {
-        const first = deleteErrors[0];
-        return new Error(`failed to delete a test file: ${first?.message ?? String(first)}`);
-      }
-    } finally {
-      await fsys.Close();
+    const deleteErrors = await managedFsys.DeletePrefix(testPrefix);
+    if (deleteErrors.length > 0) {
+      const first = deleteErrors[0];
+      return new Error(`failed to delete a test file: ${first?.message ?? String(first)}`);
     }
 
     return null;

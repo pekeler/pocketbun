@@ -164,6 +164,10 @@ class StoredMultipartFormData implements ParsedFormData {
       await rm(this.#tempDir, { recursive: true, force: true });
     }
   }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.cleanup();
+  }
 }
 
 export async function parseMultipartFormData(

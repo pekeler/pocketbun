@@ -93,6 +93,10 @@ class DbxRows {
     this.#current = null;
   }
 
+  [Symbol.dispose](): void {
+    this.close();
+  }
+
   #requireCurrent(): Record<string, unknown> {
     if (!this.#current || this.#closed) {
       throw new Error("rows: call next() before scan");
@@ -197,6 +201,10 @@ export class DbxQuery {
     }
     this.#preparedStmt.finalize?.();
     this.#preparedStmt = null;
+  }
+
+  [Symbol.dispose](): void {
+    this.close();
   }
 
   execute() {

@@ -213,12 +213,8 @@ const scenarios: ApiScenario[] = [
     body: uploadBody3,
     headers: { "Content-Type": uploadContentType3, Authorization: superuserToken },
     beforeTest: async (app) => {
-      const fsys = app.NewBackupsFilesystem();
-      try {
-        await fsys.Upload(new TextEncoder().encode("123"), "test");
-      } finally {
-        await fsys.Close();
-      }
+      await using fsys = app.NewBackupsFilesystem();
+      await fsys.Upload(new TextEncoder().encode("123"), "test");
     },
     afterTest: async (app) => {
       const files = await getBackupFiles(app);
@@ -557,12 +553,8 @@ async function createTestBackups(app: TestApp): Promise<void> {
 }
 
 async function getBackupFiles(app: TestApp) {
-  const fsys = app.NewBackupsFilesystem();
-  try {
-    return await fsys.List("");
-  } finally {
-    await fsys.Close();
-  }
+  await using fsys = app.NewBackupsFilesystem();
+  return await fsys.List("");
 }
 
 async function ensureTestBackupFiles(app: TestApp, expected: number): Promise<void> {
@@ -573,14 +565,10 @@ async function ensureTestBackupFiles(app: TestApp, expected: number): Promise<vo
 }
 
 async function ensureNoBackups(app: TestApp): Promise<void> {
-  const fsys = app.NewBackupsFilesystem();
-  try {
-    const files = await fsys.List("");
-    if (files.length !== 0) {
-      throw new Error(`Expected 0 backup files, got ${files.length}`);
-    }
-  } finally {
-    await fsys.Close();
+  await using fsys = app.NewBackupsFilesystem();
+  const files = await fsys.List("");
+  if (files.length !== 0) {
+    throw new Error(`Expected 0 backup files, got ${files.length}`);
   }
 }
 

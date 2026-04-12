@@ -1,6 +1,14 @@
 // PocketBun-only: test filesystem cleanup helpers for Windows file-lock retries.
 
-import { rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+export type TempDirHandle = {
+  path: string;
+  cleanup: () => Promise<void>;
+  [Symbol.asyncDispose]: () => Promise<void>;
+};
 
 function isRetriableRemoveError(error: unknown): boolean {
   if (!error || typeof error !== "object") {
@@ -37,4 +45,23 @@ export async function removeDirWithRetry(dir: string, options: { retries?: numbe
   if (lastError && !isRetriableRemoveError(lastError)) {
     throw lastError;
   }
+}
+
+export async function newTempDir(prefix: string): Promise<TempDirHandle> {
+  const path = await mkdtemp(join(tmpdir(), prefix));
+  let cleaned = false;
+
+  const cleanup = async () => {
+    if (cleaned) {
+      return;
+    }
+    cleaned = true;
+    await removeDirWithRetry(path);
+  };
+
+  return {
+    path,
+    cleanup,
+    [Symbol.asyncDispose]: cleanup,
+  };
 }

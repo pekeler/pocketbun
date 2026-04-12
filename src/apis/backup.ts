@@ -43,9 +43,10 @@ async function backupsList(app: App, event: RequestEvent): Promise<Response> {
     return badRequest(event, "Failed to load backups filesystem.", error as Error);
   }
 
+  await using managedFsys = fsys;
   try {
-    fsys.SetContext(controller.signal);
-    const backups = await fsys.List("");
+    managedFsys.SetContext(controller.signal);
+    const backups = await managedFsys.List("");
     const result: BackupFileInfo[] = backups.map((obj) => ({
       key: obj.Key,
       size: obj.Size,
@@ -56,7 +57,6 @@ async function backupsList(app: App, event: RequestEvent): Promise<Response> {
     return badRequest(event, `Failed to retrieve backup items. Raw error: \n${(error as Error).message}`, null);
   } finally {
     clearTimeout(timeout);
-    await fsys.Close();
   }
 }
 
@@ -126,8 +126,9 @@ async function backupDelete(app: App, event: RequestEvent): Promise<Response> {
     return internalServerError(event, "Failed to load backups filesystem.", error as Error);
   }
 
+  await using managedFsys = fsys;
   try {
-    fsys.SetContext(controller.signal);
+    managedFsys.SetContext(controller.signal);
     const key = decodeURIComponent(event.params.key ?? "");
 
     const active = app.store().get(StoreKeyActiveBackup);
@@ -136,7 +137,7 @@ async function backupDelete(app: App, event: RequestEvent): Promise<Response> {
     }
 
     try {
-      await fsys.Delete(key);
+      await managedFsys.Delete(key);
     } catch (error) {
       return badRequest(event, `Invalid or already deleted backup file. Raw error: \n${(error as Error).message}`, null);
     }
@@ -144,7 +145,6 @@ async function backupDelete(app: App, event: RequestEvent): Promise<Response> {
     return noContent(event, 204);
   } finally {
     clearTimeout(timeout);
-    await fsys.Close();
   }
 }
 
@@ -167,14 +167,14 @@ async function backupRestore(app: App, event: RequestEvent): Promise<Response> {
     return internalServerError(event, "Failed to load backups filesystem.", error as Error);
   }
 
+  await using managedFsys = fsys;
   try {
-    fsys.SetContext(controller.signal);
-    if (!(await fsys.Exists(key))) {
+    managedFsys.SetContext(controller.signal);
+    if (!(await managedFsys.Exists(key))) {
       return badRequest(event, "Missing or invalid backup file.", null);
     }
   } finally {
     clearTimeout(timeout);
-    await fsys.Close();
   }
 
   FireAndForget(() => {

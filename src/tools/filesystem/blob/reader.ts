@@ -17,6 +17,7 @@ export class Reader {
   #baseLength: number;
   #relativeOffset: number;
   #savedOffset: number;
+  #closed = false;
 
   constructor(ctx: AbortSignal | null, drv: Driver, reader: DriverReader, key: string, baseOffset: number, baseLength: number) {
     this.#ctx = ctx;
@@ -90,7 +91,15 @@ export class Reader {
   }
 
   close(): void {
+    if (this.#closed) {
+      return;
+    }
+    this.#closed = true;
     this.#r.close();
+  }
+
+  [Symbol.dispose](): void {
+    this.close();
   }
 
   ContentType(): string {

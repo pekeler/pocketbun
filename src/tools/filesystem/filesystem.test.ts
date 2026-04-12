@@ -66,9 +66,8 @@ describe("filesystem system", () => {
   it("new local async", async () => {
     const dir = await createTestDir();
     try {
-      const fsys = await NewLocalAsync(dir);
+      await using fsys = await NewLocalAsync(dir);
       expect(await fsys.Exists("test/sub1.txt")).toBe(true);
-      await fsys.Close();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -491,10 +490,9 @@ describe("filesystem system", () => {
       }
       expect(missingErr instanceof NotFoundError).toBe(true);
 
-      const reader = await fsys.GetReaderAsync("test/sub1.txt");
+      using reader = await fsys.GetReaderAsync("test/sub1.txt");
       const part1 = await reader.read(2);
       const part2 = await reader.readAll();
-      reader.close();
 
       expect(new TextDecoder().decode(part1 ?? new Uint8Array())).toBe("su");
       expect(new TextDecoder().decode(part2)).toBe("b1");

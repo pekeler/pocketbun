@@ -166,6 +166,10 @@ export class System {
     await this.#bucket.Close();
   }
 
+  async [Symbol.asyncDispose](): Promise<void> {
+    await this.Close();
+  }
+
   // Exists checks if file with fileKey path exists or not.
   async Exists(fileKey: string): Promise<boolean> {
     try {
@@ -203,9 +207,8 @@ export class System {
   //
   // If the file doesn't exist returns ErrNotFound.
   async GetReader(fileKey: string): Promise<SystemReader> {
-    let reader: Awaited<ReturnType<Bucket["NewReader"]>> | null = null;
     try {
-      reader = await this.#bucket.NewReader(this.#ctx, fileKey);
+      using reader = await this.#bucket.NewReader(this.#ctx, fileKey);
       const content = await reader.readAll();
       const attrs: Attributes = {
         Size: reader.Size(),
@@ -216,8 +219,6 @@ export class System {
       return new SystemReader(content, attrs);
     } catch (error) {
       throw mapFsError(error);
-    } finally {
-      reader?.close();
     }
   }
 
@@ -259,7 +260,7 @@ export class System {
     const name = posix.basename(fileKey);
     const originalName = attrs.Metadata[metadataOriginalName] || name;
 
-    const reader = await this.GetReader(fileKey);
+    using reader = await this.GetReader(fileKey);
     const content = reader.readAll();
 
     const file = new File();
@@ -626,14 +627,8 @@ export class System {
       return new Error("thumb width and height cannot be zero at the same time");
     }
 
-    let reader: Awaited<ReturnType<Bucket["NewReader"]>> | null = null;
     try {
-      reader = await this.#bucket.NewReader(this.#ctx, originalKey);
-    } catch (error) {
-      return mapFsError(error);
-    }
-
-    try {
+      using reader = await this.#bucket.NewReader(this.#ctx, originalKey);
       const originalContentType = reader.ContentType();
       if (originalContentType === "image/svg+xml") {
         return new Error("failed to decode image");
@@ -686,8 +681,6 @@ export class System {
       return null;
     } catch (error) {
       return error as Error;
-    } finally {
-      reader?.close();
     }
   }
 
@@ -920,6 +913,10 @@ export class SystemReader {
 
   close(): void {}
 
+  [Symbol.dispose](): void {
+    this.close();
+  }
+
   ContentType(): string {
     return this.#attrs.ContentType;
   }
@@ -961,6 +958,10 @@ export class SystemAsyncReader {
 
   close(): void {
     this.#reader.close();
+  }
+
+  [Symbol.dispose](): void {
+    this.close();
   }
 
   ContentType(): string {
@@ -1049,7 +1050,7 @@ async function streamPathToWriterAndClose(
   path: string,
   writer: { write: (data?: Uint8Array | null) => Promise<number>; close: () => Promise<void> },
 ): Promise<void> {
-  const inFile = await open(path, "r");
+  await using inFile = await open(path, "r");
   let writeErr: Error | null = null;
   try {
     const buffer = new Uint8Array(64 * 1024);
@@ -1073,8 +1074,6 @@ async function streamPathToWriterAndClose(
       throw new AggregateError([writeErr, closeErr], `${writeErr.message}; ${closeErr.message}`);
     }
     throw closeErr;
-  } finally {
-    await inFile.close();
   }
 
   if (writeErr) {
@@ -1097,15 +1096,11 @@ async function writeChunkFully(
 }
 
 async function readPathSample(path: string, maxBytes = 4096): Promise<Uint8Array> {
-  const inFile = await open(path, "r");
-  try {
-    const sample = new Uint8Array(maxBytes);
-    const result = await inFile.read(sample, 0, sample.length, 0);
-    const bytesRead = result.bytesRead ?? 0;
-    return bytesRead > 0 ? sample.subarray(0, bytesRead) : new Uint8Array();
-  } finally {
-    await inFile.close();
-  }
+  await using inFile = await open(path, "r");
+  const sample = new Uint8Array(maxBytes);
+  const result = await inFile.read(sample, 0, sample.length, 0);
+  const bytesRead = result.bytesRead ?? 0;
+  return bytesRead > 0 ? sample.subarray(0, bytesRead) : new Uint8Array();
 }
 
 async function writeReaderToResponse(

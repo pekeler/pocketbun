@@ -4067,14 +4067,11 @@ export class BaseApp implements App {
           return event.Next();
         }
 
-        try {
-          const prefix = baseFilesPath.replace(/\/+$/g, "") + "/";
-          const failed = await fsys.DeletePrefix(prefix);
-          if (failed.length > 0) {
-            this.Logger().Error("Failed to delete storage prefix", "prefix", prefix);
-          }
-        } finally {
-          await fsys.Close();
+        await using managedFsys = fsys;
+        const prefix = baseFilesPath.replace(/\/+$/g, "") + "/";
+        const failed = await managedFsys.DeletePrefix(prefix);
+        if (failed.length > 0) {
+          this.Logger().Error("Failed to delete storage prefix", "prefix", prefix);
         }
 
         return event.Next();

@@ -93,12 +93,9 @@ class BackupCreateForm {
       return error as Error;
     }
 
-    try {
-      if (await fsys.Exists(value)) {
-        return newError("validation_backup_name_exists", "The backup file name is invalid or already exists.");
-      }
-    } finally {
-      await fsys.Close();
+    await using managedFsys = fsys;
+    if (await managedFsys.Exists(value)) {
+      return newError("validation_backup_name_exists", "The backup file name is invalid or already exists.");
     }
 
     return null;

@@ -640,26 +640,22 @@ export class FileField
   }
 
   private async deleteEmptyRecordDir(ctx: unknown, app: App, record: RecordLike): Promise<Error | null> {
-    const fsys = typeof app.NewFilesystemAsync === "function" ? await app.NewFilesystemAsync() : app.NewFilesystem();
+    await using fsys = typeof app.NewFilesystemAsync === "function" ? await app.NewFilesystemAsync() : app.NewFilesystem();
     fsys.SetContext(ctx);
 
     const dir = (record as unknown as RecordModel).BaseFilesPath();
-    try {
-      if (!(await fsys.IsEmptyDir(dir))) {
-        return null;
-      }
+    if (!(await fsys.IsEmptyDir(dir))) {
+      return null;
+    }
 
-      try {
-        await fsys.Delete(dir);
+    try {
+      await fsys.Delete(dir);
+      return null;
+    } catch (error) {
+      if (error instanceof NotFoundError) {
         return null;
-      } catch (error) {
-        if (error instanceof NotFoundError) {
-          return null;
-        }
-        return error as Error;
       }
-    } finally {
-      await fsys.Close();
+      return error as Error;
     }
   }
 
@@ -704,26 +700,22 @@ export class FileField
       return new Error("uploading files requires the record to have a valid nonempty id");
     }
 
-    const fsys = typeof app.NewFilesystemAsync === "function" ? await app.NewFilesystemAsync() : app.NewFilesystem();
+    await using fsys = typeof app.NewFilesystemAsync === "function" ? await app.NewFilesystemAsync() : app.NewFilesystem();
     fsys.SetContext(ctx);
 
     const succeeded: string[] = [];
-    try {
-      for (const upload of uploads) {
-        try {
-          const path = `${recordModel.BaseFilesPath()}/${upload.Name}`;
-          await fsys.UploadFile(upload, path);
-          succeeded.push(upload.Name);
-        } catch (error) {
-          await this.deleteFilesByNamesList(ctx, app, record, succeeded);
-          return new Error(`failed to upload all files: ${(error as Error).message}`);
-        }
+    for (const upload of uploads) {
+      try {
+        const path = `${recordModel.BaseFilesPath()}/${upload.Name}`;
+        await fsys.UploadFile(upload, path);
+        succeeded.push(upload.Name);
+      } catch (error) {
+        await this.deleteFilesByNamesList(ctx, app, record, succeeded);
+        return new Error(`failed to upload all files: ${(error as Error).message}`);
       }
-
-      return null;
-    } finally {
-      await fsys.Close();
     }
+
+    return null;
   }
 
   private async deleteNewlyUploadedFiles(ctx: unknown, app: App, record: RecordLike): Promise<[string[], Error | null]> {
@@ -758,35 +750,31 @@ export class FileField
       return [filenames, new Error("the record doesn't have an id")];
     }
 
-    const fsys = typeof app.NewFilesystemAsync === "function" ? await app.NewFilesystemAsync() : app.NewFilesystem();
+    await using fsys = typeof app.NewFilesystemAsync === "function" ? await app.NewFilesystemAsync() : app.NewFilesystem();
     fsys.SetContext(ctx);
 
     const failures: Error[] = [];
-    try {
-      for (let i = filenames.length - 1; i >= 0; i -= 1) {
-        const filename = filenames[i];
-        if (!filename || /[\\/]/.test(filename)) {
-          continue;
-        }
-        const path = `${recordModel.BaseFilesPath()}/${filename}`;
-        try {
-          await fsys.Delete(path);
-          filenames.splice(i, 1);
+    for (let i = filenames.length - 1; i >= 0; i -= 1) {
+      const filename = filenames[i];
+      if (!filename || /[\\/]/.test(filename)) {
+        continue;
+      }
+      const path = `${recordModel.BaseFilesPath()}/${filename}`;
+      try {
+        await fsys.Delete(path);
+        filenames.splice(i, 1);
 
-          const thumbsErrors = await fsys.DeletePrefix(`${recordModel.BaseFilesPath()}/thumbs_${filename}/`);
-          if (thumbsErrors.length > 0) {
-            app.Logger().Warn("Failed to delete file thumbs", "error", thumbsErrors);
-          }
-        } catch (error) {
-          if (error instanceof NotFoundError) {
-            filenames.splice(i, 1);
-          } else {
-            failures.push(new Error(`file ${i} (${filename}): ${(error as Error).message}`));
-          }
+        const thumbsErrors = await fsys.DeletePrefix(`${recordModel.BaseFilesPath()}/thumbs_${filename}/`);
+        if (thumbsErrors.length > 0) {
+          app.Logger().Warn("Failed to delete file thumbs", "error", thumbsErrors);
+        }
+      } catch (error) {
+        if (error instanceof NotFoundError) {
+          filenames.splice(i, 1);
+        } else {
+          failures.push(new Error(`file ${i} (${filename}): ${(error as Error).message}`));
         }
       }
-    } finally {
-      await fsys.Close();
     }
 
     if (failures.length > 0) {

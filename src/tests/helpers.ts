@@ -12,12 +12,14 @@ const defaultServerStartAttempts = 5;
 
 type BunServer = ReturnType<typeof Bun.serve>;
 type BunServeOptions = Parameters<typeof Bun.serve>[0];
-
-export async function startTestServer(): Promise<{
+export type StartedServer = {
   server: ReturnType<typeof serve>;
   baseUrl: string;
   cleanup: () => Promise<void>;
-}> {
+  [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+export async function startTestServer(): Promise<StartedServer> {
   const dataDir = await cloneTestData();
   const app = new BaseApp({ dataDir });
   app.bootstrap();
@@ -33,14 +35,22 @@ export async function startTestServer(): Promise<{
 
   const baseUrl = `http://127.0.0.1:${server.port}`;
 
+  let cleaned = false;
+  const cleanup = async () => {
+    if (cleaned) {
+      return;
+    }
+    cleaned = true;
+    await server.stop();
+    app.resetBootstrapState();
+    await removeDirWithRetry(dataDir);
+  };
+
   return {
     server,
     baseUrl,
-    cleanup: async () => {
-      await server.stop();
-      app.resetBootstrapState();
-      await removeDirWithRetry(dataDir);
-    },
+    cleanup,
+    [Symbol.asyncDispose]: cleanup,
   };
 }
 

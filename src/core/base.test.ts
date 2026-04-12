@@ -435,13 +435,11 @@ describe("BaseApp", () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
     const app = new BaseApp({ dataDir });
 
-    const local = app.NewFilesystem();
+    await using local = app.NewFilesystem();
     expect(local).not.toBeNull();
-    await local.Close();
 
-    const localAsync = await app.NewFilesystemAsync();
+    await using localAsync = await app.NewFilesystemAsync();
     expect(localAsync).not.toBeNull();
-    await localAsync.Close();
 
     app.settings().s3.enabled = true;
     let s3Err: Error | null = null;
@@ -467,13 +465,11 @@ describe("BaseApp", () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
     const app = new BaseApp({ dataDir });
 
-    const local = app.NewBackupsFilesystem();
+    await using local = app.NewBackupsFilesystem();
     expect(local).not.toBeNull();
-    await local.Close();
 
-    const localAsync = await app.NewBackupsFilesystemAsync();
+    await using localAsync = await app.NewBackupsFilesystemAsync();
     expect(localAsync).not.toBeNull();
-    await localAsync.Close();
 
     app.settings().backups.s3.enabled = true;
     let s3Err: Error | null = null;

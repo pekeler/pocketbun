@@ -127,7 +127,13 @@ export class TestApp extends BaseApp {
   }
 }
 
-export async function newTestApp(dataDir?: string): Promise<{ app: TestApp; cleanup: () => Promise<void> }> {
+export type ManagedTestApp = {
+  app: TestApp;
+  cleanup: () => Promise<void>;
+  [Symbol.asyncDispose]: () => Promise<void>;
+};
+
+export async function newTestApp(dataDir?: string): Promise<ManagedTestApp> {
   const source = dataDir ?? resolve(fileURLToPath(new URL("./data", import.meta.url)));
   const tempDir = await mkdtemp(join(tmpdir(), "pocketbun-test-"));
   await cp(source, tempDir, { recursive: true });
@@ -138,29 +144,45 @@ export async function newTestApp(dataDir?: string): Promise<{ app: TestApp; clea
   app.settings().logs.maxDays = 0;
   app.bindEventCounters();
 
+  let cleaned = false;
+  const cleanup = async () => {
+    if (cleaned) {
+      return;
+    }
+    cleaned = true;
+    app.resetEventCalls();
+    app.testMailer.reset();
+    app.resetBootstrapState();
+    await removeDirWithRetry(tempDir);
+  };
+
   return {
     app,
-    cleanup: async () => {
-      app.resetEventCalls();
-      app.testMailer.reset();
-      app.resetBootstrapState();
-      await removeDirWithRetry(tempDir);
-    },
+    cleanup,
+    [Symbol.asyncDispose]: cleanup,
   };
 }
 
 // PocketBun-only: upstream Go tests typically start from a fully bootstrapped app.
 // For unit-level ports that don't rely on seeded fixtures/system tables, use this
 // lightweight factory to avoid bootstrap overhead and reduce Windows CI variance.
-export async function newUnbootstrappedTestApp(): Promise<{ app: TestApp; cleanup: () => Promise<void> }> {
+export async function newUnbootstrappedTestApp(): Promise<ManagedTestApp> {
   const app = new TestApp({ dataDir: ".pb_test_unbootstrapped", encryptionEnv: "pb_test_env" });
+
+  let cleaned = false;
+  const cleanup = async () => {
+    if (cleaned) {
+      return;
+    }
+    cleaned = true;
+    app.resetEventCalls();
+    app.testMailer.reset();
+    app.resetBootstrapState();
+  };
 
   return {
     app,
-    cleanup: async () => {
-      app.resetEventCalls();
-      app.testMailer.reset();
-      app.resetBootstrapState();
-    },
+    cleanup,
+    [Symbol.asyncDispose]: cleanup,
   };
 }

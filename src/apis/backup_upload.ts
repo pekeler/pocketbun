@@ -17,35 +17,32 @@ export async function backupUpload(app: App, event: RequestEvent): Promise<Respo
     return badRequest(event, "Failed to load backups filesystem.", error as Error);
   }
 
-  try {
-    const form = new BackupUploadForm(fsys);
-    const contentType = event.request.headers.get("content-type") ?? "";
+  await using managedFsys = fsys;
+  const form = new BackupUploadForm(managedFsys);
+  const contentType = event.request.headers.get("content-type") ?? "";
 
-    if (contentType.includes("multipart/form-data")) {
-      const formData = await parseMultipartFormData(event.request);
-      const file = formData.get("file");
-      if (file && typeof file !== "string") {
-        form.File = await multipartValueToFilesystemFile(file);
-      }
+  if (contentType.includes("multipart/form-data")) {
+    const formData = await parseMultipartFormData(event.request);
+    const file = formData.get("file");
+    if (file && typeof file !== "string") {
+      form.File = await multipartValueToFilesystemFile(file);
     }
-
-    const err = await form.validate();
-    if (err) {
-      return badRequest(event, "An error occurred while validating the submitted data.", err);
-    }
-
-    try {
-      await fsys.UploadFile(form.File!, form.File!.OriginalName);
-    } catch (error) {
-      return badRequest(event, "Failed to upload backup.", error as Error);
-    }
-
-    // we don't retrieve the generated backup file because it may not be
-    // available yet due to the eventually consistent nature of some S3 providers
-    return noContent(event, 204);
-  } finally {
-    await fsys.Close();
   }
+
+  const err = await form.validate();
+  if (err) {
+    return badRequest(event, "An error occurred while validating the submitted data.", err);
+  }
+
+  try {
+    await managedFsys.UploadFile(form.File!, form.File!.OriginalName);
+  } catch (error) {
+    return badRequest(event, "Failed to upload backup.", error as Error);
+  }
+
+  // we don't retrieve the generated backup file because it may not be
+  // available yet due to the eventually consistent nature of some S3 providers
+  return noContent(event, 204);
 }
 
 // -------------------------------------------------------------------
