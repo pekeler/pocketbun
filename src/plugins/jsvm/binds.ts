@@ -1,7 +1,17 @@
 // Ported from pocketbase/plugins/jsvm/binds.go (Bun-native hooks bindings).
 
 import { AsyncLocalStorage } from "node:async_hooks";
-import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync, rmSync, renameSync, truncateSync } from "node:fs";
+import {
+  lstatSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+  mkdirSync,
+  rmSync,
+  renameSync,
+  truncateSync,
+} from "node:fs";
 import {
   mkdir as mkdirAsync,
   readFile as readFileAsync,
@@ -56,6 +66,7 @@ import { AppleClientSecretCreate } from "../../forms/apple_client_secret_create.
 import { RecordUpsert } from "../../forms/record_upsert.ts";
 import { TestEmailSend } from "../../forms/test_email_send.ts";
 import { TestS3Filesystem } from "../../forms/test_s3_filesystem.ts";
+import { globMatch, scanGlobSync } from "../../internal/compat/bun_glob.ts";
 import { ValidationError } from "../../internal/compat/validation.ts";
 import {
   SendRecordAuthAlert,
@@ -1782,17 +1793,119 @@ export function filepathBinds(target: BindTarget): void {
     dir: dirname,
     ext: extname,
     fromSlash: (path: string) => path.split("/").join(sep),
-    glob: (_pattern: string) => [],
+    glob: (pattern: string) => scanGlobSync(pattern),
     isAbs: isAbsolute,
     join,
-    match: () => false,
+    match: (pattern: string, name: string) => globMatch(pattern, name),
     rel: relative,
     split: (path: string) => [dirname(path), basename(path)] as [string, string],
     splitList: (path: string) => path.split(sep),
     toSlash: (path: string) => path.split(sep).join("/"),
-    walk: (_root: string) => [],
-    walkDir: (_root: string) => [],
+    walk: (root: string, fn: (path: string, info: unknown, err: Error | null) => void) => walkPath(root, fn),
+    walkDir: (root: string, fn: (path: string, entry: unknown, err: Error | null) => void) => walkDirPath(root, fn),
   };
+}
+
+function walkPath(root: string, fn: (path: string, info: unknown, err: Error | null) => void): void {
+  const visit = (currentPath: string): void => {
+    let info: ReturnType<typeof lstatSync> | null = null;
+    try {
+      info = lstatSync(currentPath);
+    } catch (error) {
+      fn(currentPath, null, error as Error);
+      return;
+    }
+
+    fn(currentPath, info, null);
+    if (!info.isDirectory()) {
+      return;
+    }
+
+    let entries: Array<{ name: string }> = [];
+    try {
+      entries = readdirSync(currentPath, { withFileTypes: true });
+    } catch (error) {
+      fn(currentPath, info, error as Error);
+      return;
+    }
+
+    sortEntriesLexically(entries);
+    for (const entry of entries) {
+      visit(join(currentPath, entry.name));
+    }
+  };
+
+  visit(root);
+}
+
+function walkDirPath(root: string, fn: (path: string, entry: unknown, err: Error | null) => void): void {
+  let rootInfo: ReturnType<typeof lstatSync> | null = null;
+  try {
+    rootInfo = lstatSync(root);
+  } catch (error) {
+    fn(root, null, error as Error);
+    return;
+  }
+
+  const visit = (currentPath: string, entry: WalkDirEntryLike): void => {
+    fn(currentPath, entry, null);
+    if (!entry.isDirectory()) {
+      return;
+    }
+
+    let entries: WalkDirEntryLike[] = [];
+    try {
+      entries = readdirSync(currentPath, { withFileTypes: true });
+    } catch (error) {
+      fn(currentPath, entry, error as Error);
+      return;
+    }
+
+    sortEntriesLexically(entries);
+    for (const child of entries) {
+      visit(join(currentPath, child.name), child);
+    }
+  };
+
+  visit(root, createWalkDirEntry(root, rootInfo));
+}
+
+type WalkDirEntryLike = {
+  name: string;
+  isBlockDevice: () => boolean;
+  isCharacterDevice: () => boolean;
+  isDirectory: () => boolean;
+  isFIFO: () => boolean;
+  isFile: () => boolean;
+  isSocket: () => boolean;
+  isSymbolicLink: () => boolean;
+};
+
+type WalkDirEntryInfo = NonNullable<ReturnType<typeof lstatSync>>;
+
+function createWalkDirEntry(path: string, info: WalkDirEntryInfo): WalkDirEntryLike {
+  return {
+    name: basename(path) || path,
+    isBlockDevice: () => info.isBlockDevice(),
+    isCharacterDevice: () => info.isCharacterDevice(),
+    isDirectory: () => info.isDirectory(),
+    isFIFO: () => info.isFIFO(),
+    isFile: () => info.isFile(),
+    isSocket: () => info.isSocket(),
+    isSymbolicLink: () => info.isSymbolicLink(),
+  };
+}
+
+function sortEntriesLexically<T extends { name: string }>(entries: T[]): T[] {
+  return entries.sort((left, right) => {
+    if (left.name < right.name) {
+      return -1;
+    }
+    if (left.name > right.name) {
+      return 1;
+    }
+    return 0;
+  });
 }
 
 export function osBinds(target: BindTarget): void {

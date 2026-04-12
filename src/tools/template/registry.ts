@@ -1,8 +1,9 @@
 // Ported from pocketbase/tools/template/registry.go
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { scanGlob, scanGlobSync } from "../../internal/compat/bun_glob.ts";
 import { Store } from "../store/store.ts";
 import { buildRenderer, type TemplateFunc, type TemplateFuncs, type TemplateSource, SafeString, Renderer } from "./renderer.ts";
 
@@ -225,31 +226,11 @@ function resolveFSRoot(fsys: unknown): string {
 }
 
 function resolveFSMatches(root: string, patterns: string[]): string[] {
-  const entries = readdirSync(root, { withFileTypes: true })
-    .filter((entry) => !entry.isDirectory())
-    .map((entry) => entry.name);
-
   const matches: string[] = [];
   let missing = false;
 
   for (const pattern of patterns) {
-    const hasWildcard = pattern.includes("*") || pattern.includes("?") || pattern.includes("[");
-    let found: string[] = [];
-
-    if (!hasWildcard) {
-      try {
-        const full = join(root, pattern);
-        const stat = statSync(full);
-        if (!stat.isDirectory()) {
-          found = [pattern];
-        }
-      } catch {
-        found = [];
-      }
-    } else {
-      const regex = globToRegex(pattern);
-      found = entries.filter((entry) => regex.test(entry));
-    }
+    const found = scanGlobSync(pattern, { cwd: root, absolute: false });
 
     if (found.length === 0) {
       missing = true;
@@ -266,31 +247,11 @@ function resolveFSMatches(root: string, patterns: string[]): string[] {
 }
 
 async function resolveFSMatchesAsync(root: string, patterns: string[]): Promise<string[]> {
-  const entries = (await readdir(root, { withFileTypes: true }))
-    .filter((entry) => !entry.isDirectory())
-    .map((entry) => entry.name);
-
   const matches: string[] = [];
   let missing = false;
 
   for (const pattern of patterns) {
-    const hasWildcard = pattern.includes("*") || pattern.includes("?") || pattern.includes("[");
-    let found: string[] = [];
-
-    if (!hasWildcard) {
-      try {
-        const full = join(root, pattern);
-        const info = await stat(full);
-        if (!info.isDirectory()) {
-          found = [pattern];
-        }
-      } catch {
-        found = [];
-      }
-    } else {
-      const regex = globToRegex(pattern);
-      found = entries.filter((entry) => regex.test(entry));
-    }
+    const found = await scanGlob(pattern, { cwd: root, absolute: false });
 
     if (found.length === 0) {
       missing = true;
@@ -304,10 +265,4 @@ async function resolveFSMatchesAsync(root: string, patterns: string[]): Promise<
   }
 
   return Array.from(new Set(matches));
-}
-
-function globToRegex(glob: string): RegExp {
-  const escaped = glob.replace(/[.+^${}()|\\]/g, "\\$&");
-  const pattern = "^" + escaped.replace(/\*/g, ".*").replace(/\?/g, ".") + "$";
-  return new RegExp(pattern);
 }

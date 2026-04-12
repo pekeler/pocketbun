@@ -1,7 +1,7 @@
 // Ported from pocketbase/tools/template/registry_test.go
 
 import { describe, expect, it } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NewRegistry } from "./registry.ts";
@@ -168,6 +168,55 @@ describe("Registry", () => {
     }
   });
 
+  it("LoadFS supports hierarchical glob patterns", async () => {
+    const r = NewRegistry();
+
+    const dir = await mkdtemp(join(tmpdir(), "template_test_glob"));
+    try {
+      await mkdir(join(dir, "nested"), { recursive: true });
+      await writeFile(join(dir, "base.html"), `Base:{{template "content" .}}`);
+      await writeFile(join(dir, "nested", "content.html"), `{{define "content"}}Content:{{.|raw}}{{end}}`);
+
+      const fsys = { root: dir };
+      const patterns = ["**/*.html"];
+      const key = String(fsys as unknown) + patterns.join(",");
+
+      r.LoadFS(fsys, ...patterns);
+
+      const renderer = r.cache.get(key);
+      expect(renderer).toBeTruthy();
+      expect(renderer?.template).toBeTruthy();
+      expect(renderer?.parseError).toBeNull();
+
+      const result = renderer?.Render("<h1>123</h1>");
+      expect(result).toBe("Base:Content:<h1>123</h1>");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("LoadFS keeps missing-pattern errors when another wildcard matches", async () => {
+    const r = NewRegistry();
+
+    const dir = await mkdtemp(join(tmpdir(), "template_test_glob_missing"));
+    try {
+      await writeFile(join(dir, "base.html"), `Base`);
+
+      const fsys = { root: dir };
+      const patterns = ["**/*.html", "missing*.html"];
+      const key = String(fsys as unknown) + patterns.join(",");
+
+      r.LoadFS(fsys, ...patterns);
+
+      const renderer = r.cache.get(key);
+      expect(renderer).toBeTruthy();
+      expect(renderer?.template).toBeNull();
+      expect(renderer?.parseError).toBeTruthy();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("LoadFSAsync", async () => {
     const r = NewRegistry();
 
@@ -192,6 +241,33 @@ describe("Registry", () => {
       const key = String(fsys as unknown) + files.join(",");
 
       await r.LoadFSAsync(fsys, ...files);
+
+      const renderer = r.cache.get(key);
+      expect(renderer).toBeTruthy();
+      expect(renderer?.template).toBeTruthy();
+      expect(renderer?.parseError).toBeNull();
+
+      const result = renderer?.Render("<h1>123</h1>");
+      expect(result).toBe("Base:Content:<h1>123</h1>");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("LoadFSAsync supports hierarchical glob patterns", async () => {
+    const r = NewRegistry();
+
+    const dir = await mkdtemp(join(tmpdir(), "template_test_glob_async"));
+    try {
+      await mkdir(join(dir, "nested"), { recursive: true });
+      await writeFile(join(dir, "base.html"), `Base:{{template "content" .}}`);
+      await writeFile(join(dir, "nested", "content.html"), `{{define "content"}}Content:{{.|raw}}{{end}}`);
+
+      const fsys = { root: dir };
+      const patterns = ["**/*.html"];
+      const key = String(fsys as unknown) + patterns.join(",");
+
+      await r.LoadFSAsync(fsys, ...patterns);
 
       const renderer = r.cache.get(key);
       expect(renderer).toBeTruthy();

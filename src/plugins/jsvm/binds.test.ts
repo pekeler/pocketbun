@@ -1,9 +1,9 @@
 // Ported from pocketbase/plugins/jsvm/binds_test.go
 
 import { describe, expect, it, setDefaultTimeout } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { buildServeHandler } from "../../apis/serve.ts";
 import { Collection } from "../../core/collection_model.ts";
 import { AutodateField } from "../../core/field_autodate.ts";
@@ -1928,6 +1928,55 @@ server.listen(0, "127.0.0.1", () => {
     const scope: BindScope = {};
     filepathBinds(scope);
     expect(countKeys(scope.$filepath)).toBe(15);
+  });
+
+  it("filepath binds glob, match, walk, and walkDir", async () => {
+    const testDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-filepath-"));
+    try {
+      await mkdir(join(testDir, "alpha", "nested"), { recursive: true });
+      await writeFile(join(testDir, "root.txt"), "root");
+      await writeFile(join(testDir, "alpha", "a.txt"), "a");
+      await writeFile(join(testDir, "alpha", "nested", "n.txt"), "n");
+
+      const scope: BindScope = {};
+      filepathBinds(scope);
+
+      const globMatches = scope.$filepath.glob(join(testDir, "**", "*.txt")).map((path: string) => relative(testDir, path));
+      expect(globMatches).toEqual(["root.txt", join("alpha", "a.txt"), join("alpha", "nested", "n.txt")]);
+
+      expect(scope.$filepath.match(join(testDir, "*.txt"), join(testDir, "root.txt"))).toBe(true);
+      expect(scope.$filepath.match(join(testDir, "*.txt"), join(testDir, "alpha", "a.txt"))).toBe(false);
+
+      const walked: string[] = [];
+      scope.$filepath.walk(testDir, (path: string, info: { isDirectory: () => boolean } | null, err: Error | null) => {
+        expect(err).toBeNull();
+        walked.push(`${relative(testDir, path) || "."}:${info?.isDirectory() ? "dir" : "file"}`);
+      });
+      expect(walked).toEqual([
+        ".:dir",
+        `alpha:dir`,
+        `${join("alpha", "a.txt")}:file`,
+        `${join("alpha", "nested")}:dir`,
+        `${join("alpha", "nested", "n.txt")}:file`,
+        "root.txt:file",
+      ]);
+
+      const walkedDirs: string[] = [];
+      scope.$filepath.walkDir(testDir, (path: string, entry: { isDirectory: () => boolean } | null, err: Error | null) => {
+        expect(err).toBeNull();
+        walkedDirs.push(`${relative(testDir, path) || "."}:${entry?.isDirectory() ? "dir" : "file"}`);
+      });
+      expect(walkedDirs).toEqual([
+        ".:dir",
+        `alpha:dir`,
+        `${join("alpha", "a.txt")}:file`,
+        `${join("alpha", "nested")}:dir`,
+        `${join("alpha", "nested", "n.txt")}:file`,
+        "root.txt:file",
+      ]);
+    } finally {
+      await rm(testDir, { recursive: true, force: true });
+    }
   });
 
   it("os binds count", () => {

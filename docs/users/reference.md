@@ -1244,6 +1244,8 @@ declare namespace $filesystem {
 `$filepath` defines common helpers for manipulating filename
 paths in a way compatible with the target operating system-defined file paths.
 
+PocketBun exposes the same `$filepath` method names as PocketBase, but behavior is not fully identical to Go `path/filepath`. In particular, `glob(...)` / `match(...)` are Bun-backed and support extra patterns such as `**`, while `base(...)`, `split(...)`, `splitList(...)`, `join(...)`, and `rel(...)` have documented edge-case differences. See the differences guide for details.
+
 ```ts
 declare namespace $filepath {
   export let base: filepath.base;

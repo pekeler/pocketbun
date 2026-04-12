@@ -156,6 +156,20 @@ PocketBun `$template` helper supports common PocketBase template patterns.
 
 For closer Go `text/template` parity, install optional `go-text-template`.
 
+### JSVM `$filepath`
+
+PocketBun exposes the same `$filepath` method names as PocketBase, but it does not fully match Go `path/filepath` edge cases.
+
+- `glob(...)` and `match(...)` are backed by Bun's glob engine. Common PocketBase patterns work, and PocketBun also supports Bun-specific patterns such as `**` even though they are outside Go's documented `filepath.Match` syntax.
+- `walk(...)` and `walkDir(...)` now behave like real filesystem traversals and keep lexical depth-first ordering, but the surrounding path helpers follow Bun/Node path semantics in some edge cases.
+- `base(...)`, `split(...)`, `splitList(...)`, `join(...)`, and `rel(...)` have edge-case differences because they follow Bun/Node path helper behavior.
+- In particular, `splitList(...)` is not Go-compatible; it currently splits on the path separator instead of the OS path-list separator.
+- Examples of current edge-case differences:
+  - `base("")` and `base("/")` do not yet match Go `filepath.Base(...)`
+  - `split("foo")` currently yields `[".", "foo"]` instead of `["", "foo"]`
+  - `join()` currently yields `"."` instead of `""`
+  - `rel(path, path)` may yield `""` instead of `"."`
+
 ### JSVM RequestEvent request/response surface
 
 For custom routes, `e` below means the route event parameter passed to `routerAdd(..., (e) => { ... })`.

@@ -4,6 +4,7 @@
 
 - App cron scheduling now uses Bun's native `Bun.cron(...)` callback scheduler, removing PocketBun's old in-process ticker implementation.
 - PocketBun now requires Bun `v1.3.12` or newer; app cron expressions are interpreted in UTC and the old `setInterval(...)` / `setTimezone(...)` cron APIs have been removed.
+- JSVM `$filepath.glob(...)`, `match(...)`, `walk(...)`, and `walkDir(...)` now behave like real filesystem helpers, with the remaining Go `filepath` edge-case differences documented in the user guide; template `LoadFS(...)` supports nested glob patterns via Bun's native glob scanner.
 
 ## 0.36.9-pocketbun.0 - 2026-04-09
 
