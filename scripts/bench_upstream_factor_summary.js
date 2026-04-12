@@ -2,7 +2,7 @@
 // PocketBun-only helper: summarize PocketBun/PocketBase factor range
 // from upstream benchmark markdown result files.
 
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 function usage() {
@@ -97,14 +97,14 @@ function parseGoDurationToNs(raw) {
   return total;
 }
 
-function parseResultFile(pathname) {
-  const lines = readFileSync(pathname, "utf8").split(/\r?\n/);
+async function parseResultFile(pathname) {
+  const file = Bun.file(pathname);
   const scenarios = new Map();
 
   let category = "";
   let pending = null;
 
-  for (const line of lines) {
+  for await (const line of file.readLines()) {
     if (line.startsWith("## ")) {
       category = line.slice(3).trim();
       continue;
@@ -153,12 +153,12 @@ function discoverResultFiles(resultsDir, needle) {
     .sort();
 }
 
-function aggregateScenarioMeans(filePaths) {
+async function aggregateScenarioMeans(filePaths) {
   const aggregates = new Map();
   const nonEmptyFiles = [];
 
   for (const filePath of filePaths) {
-    const scenarios = parseResultFile(filePath);
+    const scenarios = await parseResultFile(filePath);
     if (scenarios.size === 0) {
       continue;
     }
@@ -233,7 +233,7 @@ function formatDurationNs(ns) {
   return `${ns.toFixed(0)}ns`;
 }
 
-function main() {
+async function main() {
   const { resultsDir } = parseArgs(process.argv.slice(2));
 
   const pocketbaseFiles = discoverResultFiles(resultsDir, "pocketbase");
@@ -246,8 +246,8 @@ function main() {
     throw new Error(`no *pocketbun*.md files found in ${resultsDir}`);
   }
 
-  const pocketbase = aggregateScenarioMeans(pocketbaseFiles);
-  const pocketbun = aggregateScenarioMeans(pocketbunFiles);
+  const pocketbase = await aggregateScenarioMeans(pocketbaseFiles);
+  const pocketbun = await aggregateScenarioMeans(pocketbunFiles);
 
   if (pocketbase.nonEmptyFiles.length === 0) {
     throw new Error("no PocketBase files with parseable benchmark rows");
@@ -329,7 +329,7 @@ function main() {
 }
 
 try {
-  main();
+  await main();
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);
