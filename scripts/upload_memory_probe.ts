@@ -9,6 +9,7 @@ import { serve } from "../src/apis/serve.ts";
 import { BaseApp } from "../src/core/base.ts";
 import { NewBaseCollection } from "../src/core/collection_model.ts";
 import { FileField } from "../src/core/field_file.ts";
+import { readStreamText } from "./readable_stream.ts";
 
 const defaultSizesMiB = [64, 256];
 const defaultWarmupSizeMiB = 1;
@@ -213,8 +214,8 @@ async function runUpload(
     }
 
     const exitCode = await exitPromise;
-    const statusCodeText = await new Response(upload.stdout).text();
-    const stderrText = await new Response(upload.stderr).text();
+    const statusCodeText = await readStreamText(upload.stdout);
+    const stderrText = await readStreamText(upload.stderr);
     const statusCode = Number.parseInt(statusCodeText.trim(), 10);
     const responseBody = await readFile(responsePath, "utf8").catch(() => "");
 
@@ -251,7 +252,7 @@ async function waitForServerReady(port: number, child: Bun.Subprocess<"pipe", "p
   const startedAt = Date.now();
   while (Date.now() - startedAt < defaultReadyTimeoutMs) {
     if (child.exitCode !== null) {
-      const stderrText = await new Response(child.stderr).text();
+      const stderrText = await readStreamText(child.stderr);
       throw new Error(`probe server exited early: ${stderrText.trim()}`);
     }
 
@@ -299,7 +300,7 @@ async function sampleRss(pid: number): Promise<number> {
     stderr: "ignore",
     stdin: "ignore",
   });
-  const text = await new Response(proc.stdout).text();
+  const text = await readStreamText(proc.stdout);
   await proc.exited;
 
   const kib = Number.parseInt(text.trim(), 10);

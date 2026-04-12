@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { randomUUID } from "node:crypto";
+import { readStreamText } from "./readable_stream.ts";
 
 type Engine = "pocketbase" | "pocketbun";
 
@@ -222,7 +223,7 @@ async function startServer(engine: Engine): Promise<RunningServer> {
   try {
     await waitForServerReady(`http://127.0.0.1:${port}`, proc);
   } catch (error) {
-    const [stdoutText, stderrText] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+    const [stdoutText, stderrText] = await Promise.all([readStreamText(proc.stdout), readStreamText(proc.stderr)]);
     await proc.exited.catch(() => {});
     await rm(dataDir, { recursive: true, force: true });
     throw new Error(
@@ -269,7 +270,7 @@ async function ensureSuperuser(engine: Engine, dataDir: string): Promise<void> {
   });
 
   const exitCode = await proc.exited;
-  const [stdoutText, stderrText] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+  const [stdoutText, stderrText] = await Promise.all([readStreamText(proc.stdout), readStreamText(proc.stderr)]);
   if (exitCode !== 0) {
     throw new Error(
       `failed to create superuser for ${engine} (exit=${exitCode})\nstdout:\n${stdoutText.trim()}\nstderr:\n${stderrText.trim()}`.trim(),
@@ -539,8 +540,8 @@ async function runUploadRequest(
     sampling = false;
     await sampler;
 
-    const statusCodeText = await new Response(upload.stdout).text();
-    const stderrText = await new Response(upload.stderr).text();
+    const statusCodeText = await readStreamText(upload.stdout);
+    const stderrText = await readStreamText(upload.stderr);
     const statusCode = Number.parseInt(statusCodeText.trim(), 10);
     const responseBody = await readFile(responsePath, "utf8").catch(() => "");
 
@@ -594,7 +595,7 @@ async function sampleRss(pid: number): Promise<number> {
     stderr: "ignore",
     stdin: "ignore",
   });
-  const text = await new Response(proc.stdout).text();
+  const text = await readStreamText(proc.stdout);
   await proc.exited;
 
   const kib = Number.parseInt(text.trim(), 10);
@@ -616,7 +617,7 @@ async function ensurePocketBaseBinary(): Promise<void> {
   });
 
   const exitCode = await proc.exited;
-  const [stdoutText, stderrText] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+  const [stdoutText, stderrText] = await Promise.all([readStreamText(proc.stdout), readStreamText(proc.stderr)]);
   if (exitCode !== 0) {
     throw new Error(
       `failed to build PocketBase (exit=${exitCode})\nstdout:\n${stdoutText.trim()}\nstderr:\n${stderrText.trim()}`.trim(),

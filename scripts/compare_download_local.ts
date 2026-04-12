@@ -11,6 +11,7 @@ import { createServer } from "node:net";
 import { cpus, tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { readStreamText } from "./readable_stream.ts";
 
 type Engine = "pocketbase" | "pocketbun";
 
@@ -221,7 +222,7 @@ async function startServer(engine: Engine): Promise<RunningServer> {
   try {
     await waitForServerReady(`http://127.0.0.1:${port}`, proc);
   } catch (error) {
-    const [stdoutText, stderrText] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+    const [stdoutText, stderrText] = await Promise.all([readStreamText(proc.stdout), readStreamText(proc.stderr)]);
     await proc.exited.catch(() => {});
     await rm(dataDir, { recursive: true, force: true });
     throw new Error(
@@ -268,7 +269,7 @@ async function ensureSuperuser(engine: Engine, dataDir: string): Promise<void> {
   });
 
   const exitCode = await proc.exited;
-  const [stdoutText, stderrText] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+  const [stdoutText, stderrText] = await Promise.all([readStreamText(proc.stdout), readStreamText(proc.stderr)]);
   if (exitCode !== 0) {
     throw new Error(
       `failed to create superuser for ${engine} (exit=${exitCode})\nstdout:\n${stdoutText.trim()}\nstderr:\n${stderrText.trim()}`.trim(),
@@ -375,8 +376,8 @@ async function seedDownloadRecord(baseUrl: string, collectionName: string, fileS
 
     const exitCode = await upload.exited;
     const [statusCodeText, stderrText, responseText] = await Promise.all([
-      new Response(upload.stdout).text(),
-      new Response(upload.stderr).text(),
+      readStreamText(upload.stdout),
+      readStreamText(upload.stderr),
       readFile(responsePath, "utf8"),
     ]);
 
@@ -468,8 +469,8 @@ async function runSingleDownloadProbe(
     const finishedAt = Date.now();
 
     const [statusCodeText, stderrText, downloadedSha256] = await Promise.all([
-      new Response(download.stdout).text(),
-      new Response(download.stderr).text(),
+      readStreamText(download.stdout),
+      readStreamText(download.stderr),
       sha256File(outputPath),
     ]);
 
@@ -539,7 +540,7 @@ async function runBurstDownloadProbe(pid: number, url: string, fileSizeBytes: nu
   const results = await Promise.all(
     workers.map(async (worker) => {
       const exitCode = await worker.exited;
-      const [stdoutText, stderrText] = await Promise.all([new Response(worker.stdout).text(), new Response(worker.stderr).text()]);
+      const [stdoutText, stderrText] = await Promise.all([readStreamText(worker.stdout), readStreamText(worker.stderr)]);
       if (exitCode !== 0) {
         return { ok: false, bytesDownloaded: 0, detail: `curl exit ${exitCode}: ${stderrText.trim()}` };
       }
@@ -659,7 +660,7 @@ async function sampleRss(pid: number): Promise<number> {
     stderr: "ignore",
     stdin: "ignore",
   });
-  const text = await new Response(proc.stdout).text();
+  const text = await readStreamText(proc.stdout);
   await proc.exited;
 
   const kib = Number.parseInt(text.trim(), 10);
@@ -681,7 +682,7 @@ async function ensurePocketBaseBinary(): Promise<void> {
   });
 
   const exitCode = await proc.exited;
-  const [stdoutText, stderrText] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+  const [stdoutText, stderrText] = await Promise.all([readStreamText(proc.stdout), readStreamText(proc.stderr)]);
   if (exitCode !== 0) {
     throw new Error(
       `failed to build PocketBase (exit=${exitCode})\nstdout:\n${stdoutText.trim()}\nstderr:\n${stderrText.trim()}`.trim(),
