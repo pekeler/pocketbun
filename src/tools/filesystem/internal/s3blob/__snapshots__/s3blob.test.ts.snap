@@ -1,0 +1,92 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`s3blob Driver Attributes: driver-attributes 1`] = `
+{
+  "cacheControl": "test_cache",
+  "contentDisposition": "test_disposition",
+  "contentEncoding": "test_encoding",
+  "contentLanguage": "test_language",
+  "contentType": "test_type",
+  "createTime": "0001-01-01T00:00:00Z",
+  "etag": ""ce5be8b6f53645c596306c4572ece521"",
+  "md5": "zlvotvU2RcWWMGxFcuzlIQ==",
+  "metadata": {
+    "abc@": "@test_meta_a",
+    "def": "test_meta_b",
+  },
+  "modTime": "2025-02-01T03:04:05Z",
+  "size": 100,
+}
+`;
+
+exports[`s3blob Driver ListPaged: driver-list-paged-empty options 1`] = `
+{
+  "nextPageToken": "dGVzdF9uZXh0",
+  "objects": [
+    {
+      "isDir": true,
+      "key": "../prefixB",
+      "md5": null,
+      "modTime": "0001-01-01T00:00:00Z",
+      "size": 0,
+    },
+    {
+      "isDir": false,
+      "key": "../prefixB/test/example.txt",
+      "md5": "zlvotvU2RcWWMGxFcuzlIQ==",
+      "modTime": "2025-01-01T01:02:03.123Z",
+      "size": 123,
+    },
+    {
+      "isDir": true,
+      "key": "prefixA",
+      "md5": null,
+      "modTime": "0001-01-01T00:00:00Z",
+      "size": 0,
+    },
+    {
+      "isDir": false,
+      "key": "prefixA/../escape.txt",
+      "md5": null,
+      "modTime": "2025-01-02T01:02:03.123Z",
+      "size": 456,
+    },
+  ],
+}
+`;
+
+exports[`s3blob Driver ListPaged: driver-list-paged-filled options 1`] = `
+{
+  "nextPageToken": "dGVzdF9uZXh0",
+  "objects": [
+    {
+      "isDir": true,
+      "key": "../prefixB",
+      "md5": null,
+      "modTime": "0001-01-01T00:00:00Z",
+      "size": 0,
+    },
+    {
+      "isDir": false,
+      "key": "../prefixB/test/example.txt",
+      "md5": "zlvotvU2RcWWMGxFcuzlIQ==",
+      "modTime": "2025-01-01T01:02:03.123Z",
+      "size": 123,
+    },
+    {
+      "isDir": true,
+      "key": "prefixA",
+      "md5": null,
+      "modTime": "0001-01-01T00:00:00Z",
+      "size": 0,
+    },
+    {
+      "isDir": false,
+      "key": "prefixA/../escape.txt",
+      "md5": null,
+      "modTime": "2025-01-02T01:02:03.123Z",
+      "size": 456,
+    },
+  ],
+}
+`;

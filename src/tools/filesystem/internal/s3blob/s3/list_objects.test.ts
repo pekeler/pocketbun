@@ -1,6 +1,6 @@
 // Ported from pocketbase/tools/filesystem/internal/s3blob/s3/list_objects_test.go
 
-import { describe, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { S3, type ListParams } from "./s3.ts";
 import { BytesBody } from "./s3.ts";
 import { NewClient } from "./tests/client.ts";
@@ -14,7 +14,7 @@ function responseWithBody(body: string) {
 }
 
 describe("S3 ListObjects", () => {
-  it("retrieves list", async () => {
+  it.serial("retrieves list", async () => {
     const listResponse = responseWithBody(`
       <?xml version="1.0" encoding="UTF-8"?>
       <ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
@@ -71,13 +71,7 @@ describe("S3 ListObjects", () => {
 
     const resp = await s3Client.ListObjects(null, params);
 
-    const raw = JSON.stringify(resp);
-    const expected =
-      '{"encodingType":"","name":"example","prefix":"","delimiter":"","continuationToken":"ct","nextContinuationToken":"test_next","startAfter":"example0.txt","commonPrefixes":[{"prefix":"prefixA"},{"prefix":"prefixB"}],"contents":[{"key":"prefixB/test/example.txt","lastModified":"2025-01-01T01:02:03.123Z","size":123,"etag":"etag1"},{"key":"prefixA/escape.txt","lastModified":"2025-01-02T01:02:03.123Z","size":456,"etag":""}],"keyCount":1,"maxKeys":3,"isTruncated":false}';
-
-    if (raw !== expected) {
-      throw new Error(`Expected response\n${expected}\ngot\n${raw}`);
-    }
+    expect(JSON.parse(JSON.stringify(resp))).toMatchSnapshot("response");
 
     const err = httpClient.AssertNoRemaining();
     if (err) {

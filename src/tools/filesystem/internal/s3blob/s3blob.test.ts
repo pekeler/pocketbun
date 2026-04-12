@@ -1,6 +1,6 @@
 // Ported from pocketbase/tools/filesystem/internal/s3blob/s3blob_test.go
 
-import { describe, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { ErrNotFound, type ListOptions, type WriterOptions } from "../../blob/driver.ts";
 import { BytesBody, ResponseError, S3 } from "./s3/s3.ts";
 import { NewClient } from "./s3/tests/client.ts";
@@ -184,7 +184,7 @@ describe("s3blob", () => {
     }
   });
 
-  it("Driver Attributes", async () => {
+  it.serial("Driver Attributes", async () => {
     const httpClient = NewClient({
       Method: "HEAD",
       URL: "https://test_bucket.example.com/..__0x2f__a/",
@@ -213,13 +213,7 @@ describe("s3blob", () => {
     );
 
     const attrs = await drv.Attributes(null, "../a/");
-    const raw = JSON.stringify(attrs);
-    const expected =
-      '{"cacheControl":"test_cache","contentDisposition":"test_disposition","contentEncoding":"test_encoding","contentLanguage":"test_language","contentType":"test_type","metadata":{"abc@":"@test_meta_a","def":"test_meta_b"},"createTime":"0001-01-01T00:00:00Z","modTime":"2025-02-01T03:04:05Z","size":100,"md5":"zlvotvU2RcWWMGxFcuzlIQ==","etag":"\\\"ce5be8b6f53645c596306c4572ece521\\\""}';
-
-    if (raw !== expected) {
-      throw new Error(`Expected attributes\n${expected}\ngot\n${raw}`);
-    }
+    expect(JSON.parse(JSON.stringify(attrs))).toMatchSnapshot("driver-attributes");
 
     const err = httpClient.AssertNoRemaining();
     if (err) {
@@ -227,7 +221,7 @@ describe("s3blob", () => {
     }
   });
 
-  it("Driver ListPaged", async () => {
+  it.serial("Driver ListPaged", async () => {
     const listResponse = () =>
       responseWithBody(`
       <?xml version="1.0" encoding="UTF-8"?>
@@ -258,9 +252,6 @@ describe("s3blob", () => {
       </ListBucketResult>
     `);
 
-    const expectedPage =
-      '{"objects":[{"key":"../prefixB","modTime":"0001-01-01T00:00:00Z","size":0,"md5":null,"isDir":true},{"key":"../prefixB/test/example.txt","modTime":"2025-01-01T01:02:03.123Z","size":123,"md5":"zlvotvU2RcWWMGxFcuzlIQ==","isDir":false},{"key":"prefixA","modTime":"0001-01-01T00:00:00Z","size":0,"md5":null,"isDir":true},{"key":"prefixA/../escape.txt","modTime":"2025-01-02T01:02:03.123Z","size":456,"md5":null,"isDir":false}],"nextPageToken":"dGVzdF9uZXh0"}';
-
     const httpClient = NewClient(
       {
         Method: "GET",
@@ -283,11 +274,10 @@ describe("s3blob", () => {
       }),
     );
 
-    const scenarios: Array<{ name: string; opts: ListOptions; expected: string }> = [
+    const scenarios: Array<{ name: string; opts: ListOptions }> = [
       {
         name: "empty options",
         opts: { Prefix: "", Delimiter: "", PageSize: 0, PageToken: new Uint8Array() },
-        expected: expectedPage,
       },
       {
         name: "filled options",
@@ -297,16 +287,12 @@ describe("s3blob", () => {
           PageSize: 123,
           PageToken: new TextEncoder().encode("test_token"),
         },
-        expected: expectedPage,
       },
     ];
 
     for (const scenario of scenarios) {
       const page = await drv.ListPaged(null, scenario.opts);
-      const raw = JSON.stringify(page);
-      if (raw !== scenario.expected) {
-        throw new Error(`Expected page result\n${scenario.expected}\ngot\n${raw}`);
-      }
+      expect(JSON.parse(JSON.stringify(page))).toMatchSnapshot(`driver-list-paged-${scenario.name}`);
     }
 
     const err = httpClient.AssertNoRemaining();

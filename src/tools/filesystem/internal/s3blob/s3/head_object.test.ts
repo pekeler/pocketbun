@@ -1,6 +1,6 @@
 // Ported from pocketbase/tools/filesystem/internal/s3blob/s3/head_object_test.go
 
-import { describe, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { S3 } from "./s3.ts";
 import { BytesBody } from "./s3.ts";
 import { NewClient } from "./tests/client.ts";
@@ -26,7 +26,7 @@ function responseWithHeaders(headers: Record<string, string | string[]>) {
 }
 
 describe("S3 HeadObject", () => {
-  it("retrieves headers", async () => {
+  it.serial("retrieves headers", async () => {
     const httpClient = NewClient({
       Method: "HEAD",
       URL: "http://test_bucket.example.com/test_key",
@@ -63,13 +63,7 @@ describe("S3 HeadObject", () => {
       req.headers.set("test_header", "test");
     });
 
-    const raw = JSON.stringify(resp);
-    const expected =
-      '{"metadata":{"abc":"test_meta_a","def":"test_meta_b"},"lastModified":"2025-02-01T03:04:05Z","cacheControl":"test_cache","contentDisposition":"test_disposition","contentEncoding":"test_encoding","contentLanguage":"test_language","contentType":"test_type","contentRange":"test_range","etag":"test_etag","contentLength":100}';
-
-    if (raw !== expected) {
-      throw new Error(`Expected attributes\n${expected}\ngot\n${raw}`);
-    }
+    expect(JSON.parse(JSON.stringify(resp))).toMatchSnapshot("response");
 
     const err = httpClient.AssertNoRemaining();
     if (err) {

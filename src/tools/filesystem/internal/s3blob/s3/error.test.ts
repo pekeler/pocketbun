@@ -1,6 +1,6 @@
 // Ported from pocketbase/tools/filesystem/internal/s3blob/s3/error_test.go
 
-import { describe, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { ResponseError } from "./s3.ts";
 
 function parseResponseErrorXml(raw: string): ResponseError {
@@ -19,7 +19,7 @@ function extractXmlTag(xml: string, tag: string): string {
 }
 
 describe("ResponseError", () => {
-  it("serialization", () => {
+  it.serial("serialization", () => {
     const raw = `
       <?xml version="1.0" encoding="UTF-8"?>
       <Error>
@@ -40,13 +40,7 @@ describe("ResponseError", () => {
     respErr.RequestId = parsed.RequestId;
     respErr.Resource = parsed.Resource;
 
-    const jsonStr = JSON.stringify(respErr);
-    const expected =
-      '{"code":"test_code","message":"test_message","requestId":"test_request_id","resource":"test_resource","status":123}';
-
-    if (jsonStr !== expected) {
-      throw new Error(`Expected JSON\n${expected}\ngot\n${jsonStr}`);
-    }
+    expect(JSON.parse(JSON.stringify(respErr))).toMatchSnapshot("serialization");
   });
 
   it("error interface", () => {

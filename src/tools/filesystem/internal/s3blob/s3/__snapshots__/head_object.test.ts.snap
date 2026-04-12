@@ -1,0 +1,19 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`S3 HeadObject retrieves headers: response 1`] = `
+{
+  "cacheControl": "test_cache",
+  "contentDisposition": "test_disposition",
+  "contentEncoding": "test_encoding",
+  "contentLanguage": "test_language",
+  "contentLength": 100,
+  "contentRange": "test_range",
+  "contentType": "test_type",
+  "etag": "test_etag",
+  "lastModified": "2025-02-01T03:04:05Z",
+  "metadata": {
+    "abc": "test_meta_a",
+    "def": "test_meta_b",
+  },
+}
+`;

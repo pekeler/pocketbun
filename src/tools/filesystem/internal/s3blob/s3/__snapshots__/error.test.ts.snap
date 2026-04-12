@@ -1,0 +1,11 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`ResponseError serialization: serialization 1`] = `
+{
+  "code": "test_code",
+  "message": "test_message",
+  "requestId": "test_request_id",
+  "resource": "test_resource",
+  "status": 123,
+}
+`;
