@@ -1,6 +1,6 @@
 // Ported from pocketbase/tools/cron/cron_test.go
 
-import { afterEach, describe, expect, it, setDefaultTimeout } from "bun:test";
+import { describe, expect, it, setDefaultTimeout, spyOn } from "bun:test";
 import type { Job } from "./job.ts";
 import { Cron } from "./cron.ts";
 
@@ -61,13 +61,7 @@ function createFakeBunCron(): {
 
 setDefaultTimeout(15_000);
 
-const originalBunCron = bunWithCron.cron;
-
 describe("Cron", () => {
-  afterEach(() => {
-    bunWithCron.cron = originalBunCron;
-  });
-
   it("uses defaults", () => {
     const c = new Cron();
     const internal = c as unknown as {
@@ -197,7 +191,9 @@ describe("Cron", () => {
 
   it("uses Bun.cron for the default scheduler", () => {
     const fake = createFakeBunCron();
-    bunWithCron.cron = fake.register;
+    using _bunCronSpy = spyOn(bunWithCron, "cron").mockImplementation(fake.register) as unknown as {
+      [Symbol.dispose](): void;
+    };
 
     const c = new Cron();
     let calls = "";

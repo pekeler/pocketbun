@@ -1,6 +1,6 @@
 // Ported from pocketbase/tools/osutils/cmd_test.go
 
-import { afterEach, describe, expect, it } from "bun:test";
+import { describe, expect, it, spyOn } from "bun:test";
 import { YesNoPrompt } from "./cmd.ts";
 
 describe("YesNoPrompt", () => {
@@ -25,38 +25,25 @@ describe("YesNoPrompt", () => {
     { stdin: "invalid|yes", fallback: false, expected: true },
   ];
 
-  const originalPrompt = globalThis.prompt;
-
-  afterEach(() => {
-    if (originalPrompt) {
-      globalThis.prompt = originalPrompt;
-      return;
-    }
-
-    Reflect.deleteProperty(globalThis, "prompt");
-  });
-
   for (const s of scenarios) {
     const name = `${s.stdin}_${s.fallback}`;
 
     it.serial(name, () => {
       const parts = s.stdin === "" ? [""] : s.stdin.split("|");
       let index = 0;
-      const originalWrite = process.stderr.write.bind(process.stderr);
-
-      globalThis.prompt = () => {
+      using _promptSpy = spyOn(globalThis, "prompt").mockImplementation(() => {
         const value = parts[index] ?? "";
         index += 1;
         return value;
+      }) as unknown as { [Symbol.dispose](): void };
+      using _stderrWriteSpy = spyOn(process.stderr, "write").mockImplementation(
+        (() => true) as typeof process.stderr.write,
+      ) as unknown as {
+        [Symbol.dispose](): void;
       };
-      process.stderr.write = (() => true) as typeof process.stderr.write;
 
-      try {
-        const result = YesNoPrompt("test", s.fallback);
-        expect(result).toBe(s.expected);
-      } finally {
-        process.stderr.write = originalWrite;
-      }
+      const result = YesNoPrompt("test", s.fallback);
+      expect(result).toBe(s.expected);
     });
   }
 });

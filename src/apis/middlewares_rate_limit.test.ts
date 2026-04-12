@@ -1,6 +1,6 @@
 // Ported from pocketbase/apis/middlewares_rate_limit_test.go.
 
-import { afterAll, describe, it } from "bun:test";
+import { afterAll, describe, it, spyOn } from "bun:test";
 import { RequestEvent } from "../core/event_request.ts";
 import { newTestApp } from "../tests/app.ts";
 import { Router } from "../tools/router/router.ts";
@@ -92,33 +92,30 @@ describe("middlewares rate limit", () => {
     ];
 
     let fakeNowMs = 10_000;
-    const originalDateNow = Date.now;
-    Date.now = () => fakeNowMs;
+    using _dateNowSpy = spyOn(Date, "now").mockImplementation(() => fakeNowMs) as unknown as {
+      [Symbol.dispose](): void;
+    };
 
-    try {
-      for (const scenario of scenarios) {
-        fakeNowMs += scenario.waitMs;
+    for (const scenario of scenarios) {
+      fakeNowMs += scenario.waitMs;
 
-        const headers = new Headers();
-        if (scenario.authenticated) {
-          const auth = app.FindAuthRecordByEmail("users", "test@example.com");
-          const token = auth.NewAuthToken();
-          headers.set("Authorization", token);
-        }
-
-        const response = await handler(
-          new Request(`http://localhost${scenario.url}`, {
-            method: "GET",
-            headers,
-          }),
-        );
-
-        if (response.status !== scenario.expectedStatus) {
-          throw new Error(`Expected response status ${scenario.expectedStatus}, got ${response.status}`);
-        }
+      const headers = new Headers();
+      if (scenario.authenticated) {
+        const auth = app.FindAuthRecordByEmail("users", "test@example.com");
+        const token = auth.NewAuthToken();
+        headers.set("Authorization", token);
       }
-    } finally {
-      Date.now = originalDateNow;
+
+      const response = await handler(
+        new Request(`http://localhost${scenario.url}`, {
+          method: "GET",
+          headers,
+        }),
+      );
+
+      if (response.status !== scenario.expectedStatus) {
+        throw new Error(`Expected response status ${scenario.expectedStatus}, got ${response.status}`);
+      }
     }
   });
 });
