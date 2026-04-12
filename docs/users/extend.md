@@ -315,6 +315,8 @@ Detected hook names from helper source:
 
 You can register custom routes and middlewares by using the top-level [`routerAdd()`](https://pocketbase.io/jsvm/functions/routerAdd.html) and [`routerUse()`](https://pocketbase.io/jsvm/functions/routerUse.html) functions.
 
+If your custom routes introduce cookie-backed sessions or server-rendered forms, Bun's native `Bun.CSRF.generate(...)` / `Bun.CSRF.verify(...)` helpers can be a useful building block. PocketBun's builtin JSON APIs remain stateless and don't manage CSRF tokens for your custom route layer.
+
 ### Routes
 
 #### Registering new routes
