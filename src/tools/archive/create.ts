@@ -6,7 +6,6 @@ import { dirname, join, posix, relative } from "node:path";
 import { deflateRaw, deflateRawSync } from "node:zlib";
 
 const textEncoder = new TextEncoder();
-const crcTable = buildCrcTable();
 
 // Create creates a new zip archive from src dir content and saves it in dest path.
 //
@@ -398,29 +397,8 @@ function shouldSkip(name: string, skipPaths: string[]): boolean {
   return false;
 }
 
-function buildCrcTable(): Uint32Array {
-  const table = new Uint32Array(256);
-  for (let i = 0; i < 256; i += 1) {
-    let crc = i;
-    for (let j = 0; j < 8; j += 1) {
-      if ((crc & 1) !== 0) {
-        crc = 0xedb88320 ^ (crc >>> 1);
-      } else {
-        crc = crc >>> 1;
-      }
-    }
-    table[i] = crc >>> 0;
-  }
-  return table;
-}
-
 function crc32(data: Uint8Array): number {
-  let crc = 0xffffffff;
-  for (const byte of data) {
-    const index = (crc ^ byte) & 0xff;
-    crc = (crc >>> 8) ^ crcTable[index]!;
-  }
-  return (crc ^ 0xffffffff) >>> 0;
+  return Bun.hash.crc32(data);
 }
 
 async function deflateRawAsync(data: Uint8Array, level: number): Promise<Uint8Array> {

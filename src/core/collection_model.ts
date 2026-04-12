@@ -1341,14 +1341,5 @@ function serializeToken(config: TokenConfigValue, safe: boolean): Record<string,
 }
 
 function crc32Checksum(value: string): string {
-  let crc = 0xffffffff;
-  for (let i = 0; i < value.length; i += 1) {
-    crc ^= value.charCodeAt(i);
-    for (let j = 0; j < 8; j += 1) {
-      const mask = -(crc & 1);
-      crc = (crc >>> 1) ^ (0xedb88320 & mask);
-    }
-  }
-  const result = ~crc >>> 0;
-  return String(result);
+  return String(Bun.hash.crc32(value));
 }
