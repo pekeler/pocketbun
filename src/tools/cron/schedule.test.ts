@@ -9,11 +9,15 @@ describe("Schedule", () => {
       "* * * * *",
       "0 * * * *",
       "59 23 31 12 6",
+      "* * * * 7",
       "*/2 */3 */5 */4 */2",
+      "2/3 * * * *",
       "1,2,5,7,40-50/2 * * * *",
       "* 3,4,8-16/3,7 * * *",
       "* * * 1,4,5-10/2 *",
       "* * * * 1,2-5/2",
+      "0 9 * * MON-FRI",
+      "0 0 1 JAN *",
     ];
 
     for (const cronExpr of validExpressions) {
@@ -38,12 +42,15 @@ describe("Schedule", () => {
     }
   });
 
+  it("normalizes whitespace before storing Bun-valid expressions", () => {
+    expect(NewSchedule("  0\t9  * * MON-FRI ").Expression()).toBe("0 9 * * MON-FRI");
+  });
+
   it("rejects invalid cron expressions", () => {
     const invalidExpressions = [
       "invalid",
       "* * * *",
       "* * * * * *",
-      "2/3 * * * *",
       "-1 * * * *",
       "60 * * * *",
       "* -1 * * *",
@@ -53,7 +60,8 @@ describe("Schedule", () => {
       "* * * 0 *",
       "* * * 13 *",
       "* * * * -1",
-      "* * * * 7",
+      "* * * * FUNDAY",
+      "@reboot",
     ];
 
     for (const cronExpr of invalidExpressions) {

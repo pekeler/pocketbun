@@ -30,8 +30,9 @@ export class Cron {
   // If there is already a job with the provided id, then the old job
   // will be replaced with the new one.
   //
-  // cronExpr is a regular cron expression, eg. "0 */3 * * *" (aka. at minute 0 past every 3rd hour).
-  // Supports standard 5-field cron expressions and macros such as @daily and @hourly.
+  // cronExpr is a Bun cron expression, eg. "0 */3 * * *" (aka. at minute 0 past every 3rd hour).
+  // Supports Bun's 5-field cron grammar, including macros such as @daily/@hourly
+  // and named month/weekday fields.
   Add(jobId: string, cronExpr: string, fn: (() => void) | null): Error | null {
     if (!fn) {
       return new Error("failed to add new cron job: fn must be non-nil function");

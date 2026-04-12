@@ -155,7 +155,7 @@ If a cron job with the specified name already exist, it will be
 replaced with the new one.
 
 Use a cron expression string or supported macro directly, for example
-`*/30 * * * *` or `@daily`.
+`*/30 * * * *`, `0 9 * * MON-FRI`, or `@daily`.
 
 Example:
 
@@ -847,7 +847,7 @@ Example:
 const zone = new Timezone("UTC")
 ```
 
-PocketBun app cron expressions are interpreted in UTC, regardless of the server's local timezone.
+PocketBun app cron expressions are interpreted in UTC, regardless of the server's local timezone. Expression validation follows Bun's 5-field cron parser, including named months/weekdays and Sunday as `7`.
 
 ```ts
 declare class Timezone implements time.Location {

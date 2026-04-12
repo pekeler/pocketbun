@@ -2065,12 +2065,9 @@ Each scheduled job runs in the `serve` command process and must have:
 job
 
 -
-**cron expression** - e.g. `0 0 * * *` (
+**cron expression** - e.g. `0 0 * * *` or `0 9 * * MON-FRI` (
 *
-supports numeric list, steps, ranges or
-
-macros
-
+uses Bun's 5-field cron parser, so named months/weekdays, Sunday as `7`, lists, steps, ranges, and macros such as `@daily` are supported
 *)
 
 -
