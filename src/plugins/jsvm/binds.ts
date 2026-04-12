@@ -2169,15 +2169,10 @@ function canonicalHeaderName(name: string): string {
 function parseCookies(values: string[]): Record<string, { value: string }> {
   const result: Record<string, { value: string }> = {};
   for (const header of values) {
-    const [pair] = header.split(";");
-    if (!pair) {
-      continue;
+    const cookies = new Bun.CookieMap(header);
+    for (const [name, value] of cookies) {
+      result[name] = { value };
     }
-    const [name, value] = pair.split("=");
-    if (!name) {
-      continue;
-    }
-    result[name] = { value: value ?? "" };
   }
   return result;
 }
