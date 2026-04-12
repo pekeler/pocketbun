@@ -18,6 +18,7 @@ When any issue below is fixed upstream:
 | `bun:sqlite` PRAGMA parameter binding docs gap | https://github.com/oven-sh/bun/issues/27480 | open | This is a docs/SQLite-syntax gap, not a Bun runtime fix candidate. PocketBun now uses the table-valued `pragma_table_info(?)` form in `src/core/db_table.ts` so the lookup stays parameterized without inline SQL quoting. |
 | Streaming / temp-file-backed multipart parsing for `Bun.serve` uploads | https://github.com/oven-sh/bun/issues/28188 | open | PocketBun still needs `src/internal/compat/request_form_data.ts` because Bun does not yet expose a native streaming/temp-file-backed multipart server API for large uploads. |
 | `bun:test` `mock()` / `spyOn()` disposal typings | https://github.com/oven-sh/bun/issues/29234 | open | Bun `1.3.12` supports disposable mocks/spies at runtime, but `bun-types/test.d.ts` does not expose `[Symbol.dispose]()` on `Mock` / `MockInstance`, so PocketBun test code still needs `as unknown as { [Symbol.dispose](): void }` casts at `using` sites. |
+| `bun:test` `onTestFinished()` concurrent-test restriction | https://github.com/oven-sh/bun/issues/29236 | open | Bun `1.3.12` throws `Cannot call onTestFinished() here` when called from concurrent tests, even though equivalent per-test cleanup with local `try/finally` works. PocketBun reverted its limited `onTestFinished()` adoption to avoid mixing cleanup styles, and the issue also requests that the `bun-types/test.d.ts` API docs mention the current serial-only restriction explicitly. |
 | Bun native S3 metadata / header parity | https://github.com/oven-sh/bun/issues/17339, https://github.com/oven-sh/bun/issues/19301, https://github.com/oven-sh/bun/issues/16048 | open | A 2026-04-12 spike against Bun `1.3.12` showed that native S3 still can't replace PocketBun's `src/tools/filesystem/internal/s3blob/*` adapter cleanly. PocketBun stores `metadataOriginalName` in S3 object metadata via `src/tools/filesystem/filesystem.ts`, but Bun native S3 still lacks write-side user metadata support (`#17339`) and `stat()` / HEAD readback of response headers and `x-amz-meta-*` (`#19301`). Bun also lacks broader custom S3 header/query passthrough (`#16048`). We did not find an open Bun issue yet for true server-side copy semantics; the spike observed `client.write(dst, client.file(src))` issuing a GET+PUT instead of a native copy-object request. |
 
 ## PocketBun Internal Candidate (Not Filed Yet)
@@ -46,6 +47,7 @@ gh api repos/oven-sh/bun/issues/15589 --jq '[.number, .state, .title, .html_url]
 gh api repos/oven-sh/bun/issues/26740 --jq '[.number, .state, .title, .html_url] | @tsv'
 gh api repos/oven-sh/bun/issues/28188 --jq '[.number, .state, .title, .html_url] | @tsv'
 gh api repos/oven-sh/bun/issues/29234 --jq '[.number, .state, .title, .html_url] | @tsv'
+gh api repos/oven-sh/bun/issues/29236 --jq '[.number, .state, .title, .html_url] | @tsv'
 gh api repos/oven-sh/bun/issues/16048 --jq '[.number, .state, .title, .html_url] | @tsv'
 gh api repos/oven-sh/bun/issues/17339 --jq '[.number, .state, .title, .html_url] | @tsv'
 gh api repos/oven-sh/bun/issues/19301 --jq '[.number, .state, .title, .html_url] | @tsv'
