@@ -12,22 +12,19 @@ type AgentScriptConfig = {
 };
 
 const config: AgentScriptConfig = {
-  description: "Profile the slow create-organizations benchmark path with the in-process inspector profiler.",
+  description: "Measure the slow create-organizations benchmark path without inspector overhead.",
   cmd: [
     "bun",
     "run",
-    "profile:inspector:list",
-    "--",
+    "scripts/measure_records_scenario.ts",
     "--scenario",
     "create-organizations",
     "--duration-ms",
-    "3000",
+    "10000",
     "--concurrency",
     "10",
     "--warmup-requests",
-    "0",
-    "--out",
-    ".tmp/profile-inspector/create-organizations.cpuprofile",
+    "500",
   ],
   cwd: process.cwd(),
   env: process.env,

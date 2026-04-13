@@ -8,7 +8,7 @@
 - Record create/update hot paths now avoid some unnecessary hook-bridge work, duplicate request-body parsing, and unstable rule-query placeholder generation, reducing measured write overhead on common JSON CRUD requests and improving rule-heavy create benchmarks.
 - PocketBun's low-level filesystem, backup, and DBX helpers now support cleaner scoped cleanup with Bun's `using` / `await using` pattern where resource ownership is lexical.
 - Added maintainer profiling commands for Bun CPU/heap markdown reports and targeted `node:inspector` request profiles, including an external load generator for cleaner server-only CPU samples.
-- Added a stable `bun run agent-script` maintainer wrapper so repeated local profiling runs can reuse a single approved command while the script definition is edited in place.
+- Added a stable `bun run agent-script` maintainer wrapper for repeated local profiling and no-inspector throughput probes, so the approved command can stay fixed while the script definition is edited in place.
 - Added a maintainer `bun run test:randomize` command for randomized test-order checks, making it easier to shake out hidden order dependencies and reproduce them with a Bun seed.
 - Maintainer benchmark and memory-probe scripts now use Bun's native `ReadableStream.text()` helpers directly, trimming the old `Response(...)` wrappers from Bun-native tooling.
 - Added public TypeScript regression coverage with Bun's `expectTypeOf()`, helping keep PocketBun's root entrypoint types and lowercase `BaseApp` hook aliases from drifting.
