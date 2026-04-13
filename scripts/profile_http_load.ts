@@ -231,7 +231,7 @@ async function warmup(options: Options, headers: Headers, runTag: string): Promi
 
 async function runLoad(options: Options, headers: Headers, runTag: string): Promise<number> {
   let completed = 0;
-  let nextIndex = 0;
+  let nextIndex = options.warmupRequests;
   const deadline = options.durationMs == null ? null : Date.now() + options.durationMs;
   const totalIterations = options.iterations ?? Number.POSITIVE_INFINITY;
 
@@ -239,6 +239,12 @@ async function runLoad(options: Options, headers: Headers, runTag: string): Prom
     while (true) {
       const index = nextIndex;
       if (index >= totalIterations) {
+        return;
+      }
+      if (
+        (options.scenario === "delete-posts25k" || options.scenario === "delete-posts25k-rule") &&
+        index >= (options.deleteIds?.length ?? 0)
+      ) {
         return;
       }
       if (deadline != null && Date.now() >= deadline) {

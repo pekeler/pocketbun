@@ -172,7 +172,7 @@ export async function prepareScenario(
   if (scenario === "delete-posts25k" || scenario === "delete-posts25k-rule") {
     const rule = scenario === "delete-posts25k-rule" ? "@request.auth.id != ''" : "";
     await setCollectionState(app, "posts25k", { deleteRule: rule });
-    const ids = randomRecordIds(app, "posts25k", iterations ?? 100);
+    const ids = randomRecordIds(app, "posts25k", iterations ?? 25_000);
     const idsFile = await writeIdsFile(ids);
     return {
       label: `DELETE /api/collections/posts25k/records/{id} (deleteRule=${JSON.stringify(rule)})`,
