@@ -242,11 +242,14 @@ function parseBenchBool(value: string): boolean | null {
 // note: the rate limiter is "inlined" because some of the crud actions are also used in the batch APIs
 export function bindRecordCrudApi(app: App, rg: RouterGroup<RequestEvent>): void {
   const group = rg.group("/collections/{collection}/records").unbind(DefaultRateLimitMiddlewareId);
+  const createHook = app.OnRecordCreateRequest();
+  const updateHook = app.OnRecordUpdateRequest();
+  const deleteHook = app.OnRecordDeleteRequest();
   group.get("", (event) => recordsList(app, event));
   group.get("/{id}", (event) => recordView(app, event));
-  group.post("", (event) => recordCreate(app, event)).Bind(dynamicCollectionBodyLimit(""));
-  group.patch("/{id}", (event) => recordUpdate(app, event)).Bind(dynamicCollectionBodyLimit(""));
-  group.delete("/{id}", (event) => recordDelete(app, event));
+  group.post("", (event) => recordCreate(app, event, createHook)).Bind(dynamicCollectionBodyLimit(""));
+  group.patch("/{id}", (event) => recordUpdate(app, event, updateHook)).Bind(dynamicCollectionBodyLimit(""));
+  group.delete("/{id}", (event) => recordDelete(app, event, deleteHook));
 }
 
 async function recordsList(app: App, event: RequestEvent): Promise<Response> {
@@ -454,7 +457,7 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
   }
 }
 
-export async function recordCreate(app: App, event: RequestEvent): Promise<Response> {
+export async function recordCreate(app: App, event: RequestEvent, createHook = app.OnRecordCreateRequest()): Promise<Response> {
   const collectionId = event.params.collection ?? "";
   const collection = findCachedCollection(app, collectionId);
   if (!collection) {
@@ -613,7 +616,6 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
     return event.json(200, targetRecord.publicExport());
   };
 
-  const createHook = app.OnRecordCreateRequest();
   if (createHook.Length() === 0) {
     return finalizeCreate(app, record);
   }
@@ -637,7 +639,7 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
   return event.json(200, record.publicExport());
 }
 
-export async function recordUpdate(app: App, event: RequestEvent): Promise<Response> {
+export async function recordUpdate(app: App, event: RequestEvent, updateHook = app.OnRecordUpdateRequest()): Promise<Response> {
   const collectionId = event.params.collection ?? "";
   const collection = findCachedCollection(app, collectionId);
   if (!collection) {
@@ -755,7 +757,6 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
     return event.json(200, targetRecord.publicExport());
   };
 
-  const updateHook = app.OnRecordUpdateRequest();
   // Deviation: skip hook trigger wiring when there are no handlers.
   // This preserves response semantics while reducing per-request allocations.
   if (updateHook.Length() === 0) {
@@ -778,7 +779,7 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
   return event.json(200, record.publicExport());
 }
 
-export async function recordDelete(app: App, event: RequestEvent): Promise<Response> {
+export async function recordDelete(app: App, event: RequestEvent, deleteHook = app.OnRecordDeleteRequest()): Promise<Response> {
   const collectionId = event.params.collection ?? "";
   const collection = findCachedCollection(app, collectionId);
   if (!collection) {
@@ -833,7 +834,6 @@ export async function recordDelete(app: App, event: RequestEvent): Promise<Respo
     return noContent(event);
   };
 
-  const deleteHook = app.OnRecordDeleteRequest();
   // Deviation: skip hook trigger wiring when there are no handlers.
   // This preserves response semantics while reducing per-request allocations.
   if (deleteHook.Length() === 0) {

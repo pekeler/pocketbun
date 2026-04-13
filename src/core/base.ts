@@ -3034,7 +3034,7 @@ export class BaseApp implements App {
     };
 
     const isCollectionModel = !resolveRecordProxy(model) && model instanceof Collection;
-    const triggerResult = this.OnModelValidate().Trigger(event, (modelEvent) => {
+    const triggerResult = this.#onModelValidate.Trigger(event, (modelEvent) => {
       if (!isCollectionModel) {
         return runValidateNext(modelEvent);
       }
@@ -3067,7 +3067,7 @@ export class BaseApp implements App {
 
     const event = new ModelEvent(this, model, ModelEventTypeValidate);
     event.AllowAsync = false;
-    const result = this.OnModelValidate().Trigger(event, (modelEvent) => {
+    const result = this.#onModelValidate.Trigger(event, (modelEvent) => {
       const recordInfo = resolveRecordProxy(model);
       if (!recordInfo && model instanceof Collection) {
         const original = model.isNew() ? null : this.findCollectionById(model.LastSavedPK());
