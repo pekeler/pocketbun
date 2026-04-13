@@ -75,13 +75,23 @@ export class RecordFieldResolver implements FieldResolver {
         get: () => this.requestInfo?.headers ?? {},
       });
       this.staticRequestInfo.body = this.requestInfo.body;
-      this.staticRequestInfo.auth = null;
-      if (this.requestInfo.auth) {
-        this.staticRequestInfo.auth = this.requestInfo.auth.export({
-          includeHidden: true,
-          ignoreEmailVisibility: true,
-        });
-      }
+      let authExport: Record<string, unknown> | null | undefined = undefined;
+      Object.defineProperty(this.staticRequestInfo, "auth", {
+        enumerable: true,
+        configurable: true,
+        get: () => {
+          if (!this.requestInfo?.auth) {
+            return null;
+          }
+          if (authExport === undefined) {
+            authExport = this.requestInfo.auth.export({
+              includeHidden: true,
+              ignoreEmailVisibility: true,
+            });
+          }
+          return authExport;
+        },
+      });
     }
   }
 

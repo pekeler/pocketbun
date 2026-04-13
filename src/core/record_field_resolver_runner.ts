@@ -160,7 +160,7 @@ class Runner {
     }
 
     if (plainRequestAuthFields.has(this.fieldName)) {
-      return this.resolver.resolveStaticRequestField(...this.activeProps.slice(1));
+      return resolvePlainRequestAuthField(this.resolver, info.auth, this.activeProps[2] ?? "");
     }
 
     const collection = info.auth.collection();
@@ -660,6 +660,50 @@ class Runner {
 
     return result;
   }
+}
+
+function resolvePlainRequestAuthField(
+  resolver: RecordFieldResolver,
+  auth: {
+    id: string;
+    collection(): Collection;
+    Email(): string;
+    EmailVisibility(): boolean;
+    Verified(): boolean;
+  },
+  fieldName: string,
+): ResolverResult {
+  let value: unknown;
+
+  switch (fieldName) {
+    case FieldNameId:
+      value = auth.id;
+      break;
+    case FieldNameCollectionId:
+      value = auth.collection().Id;
+      break;
+    case FieldNameCollectionName:
+      value = auth.collection().Name;
+      break;
+    case FieldNameEmail:
+      value = auth.Email();
+      break;
+    case FieldNameEmailVisibility:
+      value = auth.EmailVisibility();
+      break;
+    case FieldNameVerified:
+      value = auth.Verified();
+      break;
+    default:
+      return { identifier: "NULL", params: [], nullFallback: "auto" };
+  }
+
+  const placeholder = resolver.nextGeneratedName("t");
+  return {
+    identifier: `{:${placeholder}}`,
+    params: [value],
+    nullFallback: "auto",
+  };
 }
 
 function buildJsonPath(parts: string[]): string {

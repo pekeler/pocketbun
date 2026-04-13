@@ -7,14 +7,7 @@ const maxParamNamesCacheEntries = 2048;
 const emptyParamNames = Object.freeze([]) as readonly string[];
 
 function getCachedRewrite(sql: string): string | null {
-  const cached = rewriteCache.get(sql);
-  if (cached == null) {
-    return null;
-  }
-  // refresh insertion order for basic LRU-like behavior
-  rewriteCache.delete(sql);
-  rewriteCache.set(sql, cached);
-  return cached;
+  return rewriteCache.get(sql) ?? null;
 }
 
 function setCachedRewrite(sql: string, rewritten: string): void {
@@ -29,14 +22,7 @@ function setCachedRewrite(sql: string, rewritten: string): void {
 }
 
 function getCachedParamNames(sql: string): readonly string[] | null {
-  const cached = paramNamesCache.get(sql);
-  if (cached == null) {
-    return null;
-  }
-  // refresh insertion order for basic LRU-like behavior
-  paramNamesCache.delete(sql);
-  paramNamesCache.set(sql, cached);
-  return cached;
+  return paramNamesCache.get(sql) ?? null;
 }
 
 function setCachedParamNames(sql: string, names: readonly string[]): void {

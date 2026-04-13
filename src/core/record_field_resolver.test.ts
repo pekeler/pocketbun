@@ -1,6 +1,6 @@
 // Ported from pocketbase/core/record_field_resolver_test.go.
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, spyOn } from "bun:test";
 import type { RequestInfo } from "./event_request.ts";
 import { newTestApp } from "../tests/app.ts";
 import { existInSliceWithRegex } from "../tools/list/list.ts";
@@ -1106,6 +1106,40 @@ describe("record field resolver", () => {
     expect(extractNestedVal(new JSONRaw(`{"a":[{"b":1}]}`), "a", "0", "b")).toBe(1);
     expect(extractNestedVal({ value: { AsMap: () => ({ nested: 123 }) } }, "value", "nested")).toBe(123);
     expect(extractNestedVal({ value: { asMap: () => ({ nested: 456 }) } }, "value", "nested")).toBe(456);
+  });
+
+  it("resolves plain @request.auth fields without exporting the auth record", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const collection = app.FindCollectionByNameOrId("demo1");
+      const authRecord = app.FindRecordById("users", "4q1xlclmfloku33");
+
+      const requestInfo: RequestInfo = {
+        context: "ctx",
+        method: "get",
+        headers: {},
+        query: {},
+        body: {},
+        auth: authRecord,
+      };
+
+      const exportSpy = spyOn(authRecord, "export");
+      try {
+        const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
+
+        const idResult = resolver.Resolve("@request.auth.id");
+        expect(idResult.params).toEqual([authRecord.id]);
+
+        const emailResult = resolver.Resolve("@request.auth.email");
+        expect(emailResult.params).toEqual([authRecord.Email()]);
+
+        expect(exportSpy).not.toHaveBeenCalled();
+      } finally {
+        exportSpy.mockRestore();
+      }
+    } finally {
+      await cleanup();
+    }
   });
 
   it("extractNestedVal rejects prototype keys and non-integer array indexes", () => {

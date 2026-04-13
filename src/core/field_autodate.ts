@@ -3,7 +3,7 @@
 import type { App } from "./app.ts";
 import type { Collection } from "./collection_model.ts";
 import { ValidationErrors, newError } from "../internal/compat/validation.ts";
-import { NowDateTime, ParseDateTime } from "../tools/types/index.ts";
+import { DateTime, NowDateTime, ParseDateTime } from "../tools/types/index.ts";
 import {
   Fields,
   InterceptorActionCreate,
@@ -177,20 +177,16 @@ export class AutodateField implements Field, SetterFinder, RecordInterceptor {
     actionName: string,
     actionFunc: () => Error | null | Promise<Error | null>,
   ): Error | null | Promise<Error | null> {
-    const typed = record as RecordLike & {
-      GetDateTime: (field: string) => { IsZero: () => boolean; Equal: (other: unknown) => boolean };
-      Original: () => RecordLike;
-    };
     switch (actionName) {
       case InterceptorActionCreate:
-        if (this.OnCreate && typed.GetDateTime(this.Name).Equal(this.getLastKnownValue(typed))) {
+        if (this.OnCreate && this.getCurrentValue(record).Equal(this.getLastKnownValue(record))) {
           const now = NowDateTime();
           record.SetRaw(this.Name, now);
           record.SetRaw(autodateLastKnownPrefix + this.Name, now);
         }
         return this.finishIntercept(record, actionFunc);
       case InterceptorActionUpdate:
-        if (this.OnUpdate && typed.GetDateTime(this.Name).Equal(this.getLastKnownValue(typed))) {
+        if (this.OnUpdate && this.getCurrentValue(record).Equal(this.getLastKnownValue(record))) {
           const now = NowDateTime();
           record.SetRaw(this.Name, now);
           record.SetRaw(autodateLastKnownPrefix + this.Name, now);
@@ -226,15 +222,22 @@ export class AutodateField implements Field, SetterFinder, RecordInterceptor {
   }
 
   private getLastKnownValue(record: RecordLike) {
-    const typed = record as RecordLike & {
-      GetDateTime: (field: string) => { IsZero: () => boolean; Equal: (other: unknown) => boolean };
-      Original: () => RecordLike;
-    };
-    const last = typed.GetDateTime(autodateLastKnownPrefix + this.Name);
+    const last = this.asDateTime(record.GetRaw(autodateLastKnownPrefix + this.Name));
     if (!last.IsZero()) {
       return last;
     }
-    return typed.Original().GetDateTime?.(this.Name) ?? last;
+    return this.asDateTime(record.Original?.().GetRaw(this.Name)) ?? last;
+  }
+
+  private getCurrentValue(record: RecordLike) {
+    return this.asDateTime(record.GetRaw(this.Name));
+  }
+
+  private asDateTime(raw: unknown) {
+    if (raw instanceof DateTime) {
+      return raw;
+    }
+    return ParseDateTime(raw);
   }
 }
 
