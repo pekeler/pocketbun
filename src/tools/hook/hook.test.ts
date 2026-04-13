@@ -3,6 +3,9 @@
 import { describe, it } from "bun:test";
 import { Event } from "./event.ts";
 import { Hook } from "./hook.ts";
+import { NewTaggedHook } from "./tagged.ts";
+
+type MockTagsEvent = Event & { tags?: string[]; Tags: () => string[] };
 
 describe("hook", () => {
   it("Bind and trigger", async () => {
@@ -166,6 +169,31 @@ describe("hook", () => {
 
     if (hook.Length() !== 0) {
       throw new Error(`Expected no handlers after UnbindAll, found ${hook.Length()}`);
+    }
+  });
+
+  it("CanTriggerOn respects tagged handlers", () => {
+    const hook = new Hook<MockTagsEvent>();
+
+    if (hook.CanTriggerOn(["demo"])) {
+      throw new Error("Expected empty hook to not match any tags");
+    }
+
+    const tagged = NewTaggedHook(hook, "superusers");
+    tagged.BindFunc(async (event) => event.Next());
+
+    if (hook.CanTriggerOn(["organizations"])) {
+      throw new Error("Expected unrelated tags to not match tagged handlers");
+    }
+
+    if (!hook.CanTriggerOn(["superusers"])) {
+      throw new Error("Expected matching tags to match tagged handlers");
+    }
+
+    hook.BindFunc(async (event) => event.Next());
+
+    if (!hook.CanTriggerOn(["organizations"])) {
+      throw new Error("Expected untagged handlers to match any tag set");
     }
   });
 

@@ -133,7 +133,11 @@ export type ManagedTestApp = {
   [Symbol.asyncDispose]: () => Promise<void>;
 };
 
-export async function newTestApp(dataDir?: string): Promise<ManagedTestApp> {
+type NewTestAppOptions = {
+  bindEventCounters?: boolean;
+};
+
+export async function newTestApp(dataDir?: string, options: NewTestAppOptions = {}): Promise<ManagedTestApp> {
   const source = dataDir ?? resolve(fileURLToPath(new URL("./data", import.meta.url)));
   const tempDir = await mkdtemp(join(tmpdir(), "pocketbun-test-"));
   await cp(source, tempDir, { recursive: true });
@@ -142,7 +146,9 @@ export async function newTestApp(dataDir?: string): Promise<ManagedTestApp> {
   app.bootstrap();
   app.runAllMigrations();
   app.settings().logs.maxDays = 0;
-  app.bindEventCounters();
+  if (options.bindEventCounters !== false) {
+    app.bindEventCounters();
+  }
 
   let cleaned = false;
   const cleanup = async () => {

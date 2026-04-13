@@ -13,6 +13,7 @@ import { PasswordFieldValue } from "../core/field_password.ts";
 import { RecordFieldResolver } from "../core/record_field_resolver.ts";
 import { FieldNamePassword, NewRecord, Record as RecordModel, type RecordData } from "../core/record_model.ts";
 import { RecordUpsert } from "../forms/record_upsert.ts";
+import { readRequestTextAndRebind } from "../internal/compat/request_body.ts";
 import { multipartValueToFilesystemFile, parseMultipartFormData } from "../internal/compat/request_form_data.ts";
 import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";
 import { type File as LocalFile } from "../tools/filesystem/file.ts";
@@ -44,6 +45,7 @@ type ParsedRequestData = {
   data: RecordData;
   files: Map<string, LocalFile[]>;
   error: Error | null;
+  request: RequestLike | null;
 };
 
 type RequestLike = {
@@ -469,60 +471,23 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
   }
 
   const parseMultipartFiles = hasFileUploadFields(collection);
-  let requestInfo: RequestInfo;
+  const requestInfo = fallbackRequestInfo(event);
   let forceMultipartParse = false;
-  const lightweightRequestInfo = parseMultipartFiles ? fallbackRequestInfoForMultipart(event) : null;
+  let preboundBody: Record<string, unknown> | null = null;
+  const lightweightRequestInfo = fallbackRequestInfoForMultipart(event);
   if (lightweightRequestInfo) {
     // PocketBun perf deviation: for file-upload collections, avoid the eager
     // multipart body bind inside event.requestInfo(); parseRequestData() will
     // do the single file-aware multipart parse and then populate requestInfo.body.
-    requestInfo = lightweightRequestInfo;
     event.setRequestInfo(lightweightRequestInfo);
     forceMultipartParse = true;
-  } else {
-    try {
-      requestInfo = await event.requestInfo();
-    } catch (error) {
-      const fallbackInfo = fallbackRequestInfoForMultipart(event);
-      if (fallbackInfo) {
-        if (app.IsDev()) {
-          app
-            .Logger()
-            .Error(
-              "Record create requestInfo fallback for multipart body",
-              "collectionId",
-              collection.id,
-              "contentType",
-              event.request.headers.get("content-type") ?? "",
-              "error",
-              error instanceof Error ? error.message : String(error),
-            );
-        }
-        requestInfo = fallbackInfo;
-        event.setRequestInfo(fallbackInfo);
-        forceMultipartParse = true;
-      } else {
-        if (app.IsDev()) {
-          app
-            .Logger()
-            .Error(
-              "Record create request body parse error",
-              "collectionId",
-              collection.id,
-              "contentType",
-              event.request.headers.get("content-type") ?? "",
-              "error",
-              error instanceof Error ? error.message : String(error),
-              "stack",
-              error instanceof Error ? (error.stack ?? "") : "",
-            );
-        }
-        return badRequest(event, "Failed to read the submitted data.", error as Error);
-      }
-    }
+    preboundBody = lightweightRequestInfo.body;
   }
 
-  const parsed = await parseRequestData(event.request, requestInfo.body, parseMultipartFiles, forceMultipartParse);
+  const parsed = await parseRequestData(event.request, preboundBody, parseMultipartFiles, forceMultipartParse);
+  if (parsed.request) {
+    event.request = parsed.request as Request;
+  }
   if (parsed.error) {
     if (app.IsDev()) {
       app
@@ -542,6 +507,9 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
     return badRequest(event, "Failed to read the submitted data.", parsed.error);
   }
 
+  requestInfo.body = parsed.data;
+  event.setRequestInfo(requestInfo);
+
   const hasSuperuser = Boolean(requestInfo.auth?.isSuperuser());
 
   if (!hasSuperuser && collection.createRule === null) {
@@ -550,7 +518,6 @@ export async function recordCreate(app: App, event: RequestEvent): Promise<Respo
 
   const record = NewRecord(collection);
 
-  requestInfo.body = parsed.data;
   const data = resolveRecordData(record, requestInfo, parsed.files);
   requestInfo.body = data;
 
@@ -692,60 +659,23 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
   }
 
   const parseMultipartFiles = hasFileUploadFields(collection);
-  let requestInfo: RequestInfo;
+  const requestInfo = fallbackRequestInfo(event);
   let forceMultipartParse = false;
-  const lightweightRequestInfo = parseMultipartFiles ? fallbackRequestInfoForMultipart(event) : null;
+  let preboundBody: Record<string, unknown> | null = null;
+  const lightweightRequestInfo = fallbackRequestInfoForMultipart(event);
   if (lightweightRequestInfo) {
     // PocketBun perf deviation: for file-upload collections, avoid the eager
     // multipart body bind inside event.requestInfo(); parseRequestData() will
     // do the single file-aware multipart parse and then populate requestInfo.body.
-    requestInfo = lightweightRequestInfo;
     event.setRequestInfo(lightweightRequestInfo);
     forceMultipartParse = true;
-  } else {
-    try {
-      requestInfo = await event.requestInfo();
-    } catch (error) {
-      const fallbackInfo = fallbackRequestInfoForMultipart(event);
-      if (fallbackInfo) {
-        if (app.IsDev()) {
-          app
-            .Logger()
-            .Error(
-              "Record update requestInfo fallback for multipart body",
-              "collectionId",
-              collection.id,
-              "contentType",
-              event.request.headers.get("content-type") ?? "",
-              "error",
-              error instanceof Error ? error.message : String(error),
-            );
-        }
-        requestInfo = fallbackInfo;
-        event.setRequestInfo(fallbackInfo);
-        forceMultipartParse = true;
-      } else {
-        if (app.IsDev()) {
-          app
-            .Logger()
-            .Error(
-              "Record update request body parse error",
-              "collectionId",
-              collection.id,
-              "contentType",
-              event.request.headers.get("content-type") ?? "",
-              "error",
-              error instanceof Error ? error.message : String(error),
-              "stack",
-              error instanceof Error ? (error.stack ?? "") : "",
-            );
-        }
-        return badRequest(event, "Failed to read the submitted data.", error as Error);
-      }
-    }
+    preboundBody = lightweightRequestInfo.body;
   }
 
-  const parsed = await parseRequestData(event.request, requestInfo.body, parseMultipartFiles, forceMultipartParse);
+  const parsed = await parseRequestData(event.request, preboundBody, parseMultipartFiles, forceMultipartParse);
+  if (parsed.request) {
+    event.request = parsed.request as Request;
+  }
   if (parsed.error) {
     if (app.IsDev()) {
       app
@@ -765,6 +695,9 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
     return badRequest(event, "Failed to read the submitted data.", parsed.error);
   }
 
+  requestInfo.body = parsed.data;
+  event.setRequestInfo(requestInfo);
+
   const hasSuperuser = Boolean(requestInfo.auth?.isSuperuser());
 
   if (!hasSuperuser && collection.updateRule === null) {
@@ -776,7 +709,6 @@ export async function recordUpdate(app: App, event: RequestEvent): Promise<Respo
     return notFound(event, "");
   }
 
-  requestInfo.body = parsed.data;
   let data = resolveRecordData(baseRecord, requestInfo, parsed.files);
   requestInfo.body = data;
 
@@ -931,26 +863,27 @@ async function parseRequestData(
   const rawContentType = request.headers.get("content-type") ?? "";
   const contentType = rawContentType.toLowerCase();
   if (preboundBody && !contentType.includes("multipart/form-data")) {
-    return { data: preboundBody as RecordData, files: emptyUploadedFiles, error: null };
+    return { data: preboundBody as RecordData, files: emptyUploadedFiles, error: null, request: null };
   }
 
   if (!request.body) {
-    return { data: {}, files: emptyUploadedFiles, error: null };
+    return { data: {}, files: emptyUploadedFiles, error: null, request: null };
   }
 
   if (contentType.includes("application/json")) {
-    const text = await request.text();
+    const bound = await readRequestTextAndRebind(request as unknown as Request);
+    const text = bound.text;
     if (text.trim() === "") {
-      return { data: {}, files: emptyUploadedFiles, error: null };
+      return { data: {}, files: emptyUploadedFiles, error: null, request: bound.request };
     }
     try {
       const parsed = JSON.parse(text) as unknown;
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        return { data: {}, files: emptyUploadedFiles, error: new Error("invalid json") };
+        return { data: {}, files: emptyUploadedFiles, error: new Error("invalid json"), request: bound.request };
       }
-      return { data: parsed as RecordData, files: emptyUploadedFiles, error: null };
+      return { data: parsed as RecordData, files: emptyUploadedFiles, error: null, request: bound.request };
     } catch (error) {
-      return { data: {}, files: emptyUploadedFiles, error: error as Error };
+      return { data: {}, files: emptyUploadedFiles, error: error as Error, request: bound.request };
     }
   }
 
@@ -959,7 +892,7 @@ async function parseRequestData(
     if (usePreboundMultipartBody && !parseMultipartFiles) {
       // Deviation: for non-file collections we already have the parsed multipart body from RequestInfo().
       // Skipping the second multipart parse avoids unnecessary overhead and Bun stream edge cases.
-      return { data: preboundBody as RecordData, files: emptyUploadedFiles, error: null };
+      return { data: preboundBody as RecordData, files: emptyUploadedFiles, error: null, request: null };
     }
 
     const files = new Map<string, LocalFile[]>();
@@ -969,7 +902,7 @@ async function parseRequestData(
       // when the original request body has already been touched upstream.
       form = await parseMultipartFormData(request as unknown as Request, { preserveBody: true });
     } catch (error) {
-      return { data: {}, files, error: error as Error };
+      return { data: {}, files, error: error as Error, request: null };
     }
     const raw: Record<string, string[]> = {};
     const iterateErr = await forEachFormDataEntry(form, async (key, value) => {
@@ -988,25 +921,26 @@ async function parseRequestData(
       }
     });
     if (iterateErr) {
-      return { data: {}, files, error: iterateErr };
+      return { data: {}, files, error: iterateErr, request: null };
     }
 
     if (usePreboundMultipartBody) {
-      return { data: preboundBody as RecordData, files, error: null };
+      return { data: preboundBody as RecordData, files, error: null, request: null };
     }
 
     const data: RecordData = {};
     const err = unmarshalRequestData(Object.keys(raw).length === 0 && files.size > 0 ? { [JSONPayloadKey]: [] } : raw, data);
     if (err) {
-      return { data, files, error: err };
+      return { data, files, error: err, request: null };
     }
-    return { data, files, error: null };
+    return { data, files, error: null, request: null };
   }
 
   if (contentType.includes("application/x-www-form-urlencoded")) {
-    const text = await request.text();
+    const bound = await readRequestTextAndRebind(request as unknown as Request);
+    const text = bound.text;
     if (text.trim() === "") {
-      return { data: {}, files: emptyUploadedFiles, error: null };
+      return { data: {}, files: emptyUploadedFiles, error: null, request: bound.request };
     }
     const params = new URLSearchParams(text);
     const raw: Record<string, string[]> = {};
@@ -1016,17 +950,18 @@ async function parseRequestData(
     const data: RecordData = {};
     const err = unmarshalRequestData(raw, data);
     if (err) {
-      return { data, files: emptyUploadedFiles, error: err };
+      return { data, files: emptyUploadedFiles, error: err, request: bound.request };
     }
-    return { data, files: emptyUploadedFiles, error: null };
+    return { data, files: emptyUploadedFiles, error: null, request: bound.request };
   }
 
-  const text = await request.text();
+  const bound = await readRequestTextAndRebind(request as unknown as Request);
+  const text = bound.text;
   if (text.trim() === "") {
-    return { data: {}, files: emptyUploadedFiles, error: null };
+    return { data: {}, files: emptyUploadedFiles, error: null, request: bound.request };
   }
 
-  return { data: {}, files: emptyUploadedFiles, error: new Error("unsupported content type") };
+  return { data: {}, files: emptyUploadedFiles, error: new Error("unsupported content type"), request: bound.request };
 }
 
 async function forEachFormDataEntry(
@@ -1086,12 +1021,7 @@ function hasFileUploadFields(collection: Collection): boolean {
   return false;
 }
 
-function fallbackRequestInfoForMultipart(event: RequestEvent): RequestInfo | null {
-  const contentType = (event.request.headers.get("content-type") ?? "").toLowerCase();
-  if (!contentType.startsWith("multipart/form-data")) {
-    return null;
-  }
-
+function fallbackRequestInfo(event: RequestEvent): RequestInfo {
   const infoContextRaw = event.Get(RequestEventKeyInfoContext);
   const context = typeof infoContextRaw === "string" && infoContextRaw !== "" ? infoContextRaw : RequestInfoContextDefault;
 
@@ -1103,6 +1033,15 @@ function fallbackRequestInfoForMultipart(event: RequestEvent): RequestInfo | nul
     method: event.request.method,
     context,
   };
+}
+
+function fallbackRequestInfoForMultipart(event: RequestEvent): RequestInfo | null {
+  const contentType = (event.request.headers.get("content-type") ?? "").toLowerCase();
+  if (!contentType.startsWith("multipart/form-data")) {
+    return null;
+  }
+
+  return fallbackRequestInfo(event);
 }
 
 function fallbackRequestInfoQuery(searchParams: URLSearchParams): Record<string, string> {

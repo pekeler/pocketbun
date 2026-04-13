@@ -29,6 +29,7 @@
     "docs:rebuild:full": "bun run docs:sync-upstream && bun run docs:rebuild && bun run docs:check",
     "test": "bun test --concurrent",
     "test:randomize": "bun test --concurrent --randomize",
+    "agent-script": "bun run scripts/agent_script.ts",
     "start": "bun run index.ts",
     "typecheck": "bun x tsc -p tsconfig.typecheck.json --noEmit",
     "lint": "oxlint --type-aware src tests",

@@ -138,4 +138,23 @@ describe("tagged hook", () => {
       throw new Error(`Expected 0 handlers, got ${tagged.length()}`);
     }
   });
+
+  it("CanTriggerOn checks underlying hook for untagged wrappers", () => {
+    const base = new Hook<MockTagsEvent>();
+    const global = NewTaggedHook(base);
+
+    if (global.CanTriggerOn(["demo"])) {
+      throw new Error("Expected empty untagged wrapper to report no matching handlers");
+    }
+
+    NewTaggedHook(base, "superusers").BindFunc(async (event) => event.Next());
+
+    if (global.CanTriggerOn(["organizations"])) {
+      throw new Error("Expected unrelated tags to not match through untagged wrapper");
+    }
+
+    if (!global.CanTriggerOn(["superusers"])) {
+      throw new Error("Expected matching tags to match through untagged wrapper");
+    }
+  });
 });

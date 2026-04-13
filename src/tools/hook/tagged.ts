@@ -23,7 +23,7 @@ export class TaggedHook<T extends Tagger> {
 
   CanTriggerOn(tagsToCheck: string[]): boolean {
     if (!this.#tagSet) {
-      return true;
+      return this.#hook.CanTriggerOn(tagsToCheck);
     }
     for (const tag of tagsToCheck) {
       if (this.#tagSet.has(tag)) {

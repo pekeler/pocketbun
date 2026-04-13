@@ -88,6 +88,27 @@ export class Hook<T extends Resolver> {
     return this.#handlers.length;
   }
 
+  CanTriggerOn(tagsToCheck: string[]): boolean {
+    if (this.#handlers.length === 0) {
+      return false;
+    }
+
+    for (const handler of this.#handlers) {
+      const tagSet = handler.__pbTagSet;
+      if (!tagSet || tagSet.size === 0) {
+        return true;
+      }
+
+      for (const tag of tagsToCheck) {
+        if (tagSet.has(tag)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
   Trigger(event: T, ...oneOffHandlerFuncs: HandlerFunc<T>[]): unknown {
     event.setNextFunc(null);
     const handlersLen = this.#handlers.length;
@@ -152,6 +173,10 @@ export class Hook<T extends Resolver> {
 
   length(): number {
     return this.Length();
+  }
+
+  canTriggerOn(tagsToCheck: string[]): boolean {
+    return this.CanTriggerOn(tagsToCheck);
   }
 
   trigger(event: T, ...oneOffHandlerFuncs: HandlerFunc<T>[]): unknown {

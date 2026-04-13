@@ -1,24 +1,39 @@
 #!/usr/bin/env bun
-// PocketBun-only maintainer helper: capture a targeted CPU profile for an in-process records-list load.
+// PocketBun-only maintainer helper: capture a targeted CPU profile for an in-process request load.
 
 import { mkdirSync } from "node:fs";
 import inspector from "node:inspector/promises";
 import { dirname, resolve } from "node:path";
+import { benchmarkSchema } from "./bench_upstream_pocketbun/schema.ts";
 import { serve } from "../src/apis/serve.ts";
 import { CollectionNameSuperusers } from "../src/core/collection_model.ts";
 import { newTestApp } from "../src/tests/app.ts";
 import { retryServerStart } from "../src/tests/helpers.ts";
 
 type AuthMode = "none" | "user" | "superuser";
+type Scenario = "list-records" | "create-organizations" | "create-organizations-rule" | "create-permissions" | "create-permissions-rule";
 
 type Options = {
-  auth: AuthMode;
+  auth: AuthMode | null;
   concurrency: number;
   durationMs: number;
   intervalUs: number | null;
-  out: string;
+  out: string | null;
+  scenario: Scenario;
   url: string;
-  warmupRequests: number;
+  warmupRequests: number | null;
+};
+
+type ManagedApp = Awaited<ReturnType<typeof newTestApp>>["app"];
+type ScenarioRequest = {
+  init?: RequestInit;
+  url: string;
+};
+type ScenarioRunner = {
+  auth: AuthMode;
+  label: string;
+  prepare: (app: ManagedApp) => Promise<void>;
+  request: (baseUrl: string, headers: Headers, index: number) => ScenarioRequest;
 };
 
 function usage(): void {
@@ -26,36 +41,59 @@ function usage(): void {
   bun run scripts/profile_inspector_records_list.ts [options]
 
 Options:
+  --scenario <name>         one of:
+                            list-records
+                            create-organizations
+                            create-organizations-rule
+                            create-permissions
+                            create-permissions-rule
+                            default: list-records
   --url <path>              Request path to profile
+                            only used by list-records
                             default: /api/collections/demo2/records?page=1&perPage=30
   --auth <mode>             one of: none, user, superuser
-                            default: superuser
+                            default: scenario-specific
   --duration-ms <ms>        profile window duration in milliseconds
                             default: 3000
   --concurrency <n>         concurrent in-flight requests
                             default: 16
   --warmup-requests <n>     sequential warmup requests before profiling
-                            default: 50
+                            default: scenario-specific
   --interval-us <n>         optional inspector sampling interval in microseconds
   --out <path>              output .cpuprofile path
-                            default: .tmp/profile-inspector/records-list.cpuprofile
+                            default: .tmp/profile-inspector/<scenario>.cpuprofile
   -h, --help                show help
 `);
 }
 
 function parseArgs(argv: string[]): Options {
   const options: Options = {
-    auth: "superuser",
+    auth: null,
     concurrency: 16,
     durationMs: 3000,
     intervalUs: null,
-    out: resolve(".tmp/profile-inspector/records-list.cpuprofile"),
+    out: null,
+    scenario: "list-records",
     url: "/api/collections/demo2/records?page=1&perPage=30",
-    warmupRequests: 50,
+    warmupRequests: null,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
+    if (arg === "--scenario") {
+      const value = requireValue(argv, ++i, arg);
+      if (
+        value !== "list-records" &&
+        value !== "create-organizations" &&
+        value !== "create-organizations-rule" &&
+        value !== "create-permissions" &&
+        value !== "create-permissions-rule"
+      ) {
+        throw new Error(`invalid --scenario value: ${value}`);
+      }
+      options.scenario = value;
+      continue;
+    }
     if (arg === "--url") {
       options.url = requireValue(argv, ++i, arg);
       continue;
@@ -95,7 +133,19 @@ function parseArgs(argv: string[]): Options {
     throw new Error(`unknown argument: ${arg}`);
   }
 
+  options.auth ??= defaultAuth(options.scenario);
+  options.warmupRequests ??= defaultWarmupRequests(options.scenario);
+  options.out ??= resolve(`.tmp/profile-inspector/${options.scenario}.cpuprofile`);
+
   return options;
+}
+
+function defaultAuth(scenario: Scenario): AuthMode {
+  return scenario === "list-records" ? "superuser" : "none";
+}
+
+function defaultWarmupRequests(scenario: Scenario): number {
+  return scenario === "list-records" ? 50 : 0;
 }
 
 function requireValue(argv: string[], index: number, flag: string): string {
@@ -134,9 +184,15 @@ async function resolveAuthToken(app: Awaited<ReturnType<typeof newTestApp>>["app
   return app.FindAuthRecordByEmail("users", "test@example.com").NewAuthToken();
 }
 
-async function warmup(baseUrl: string, url: string, headers: Headers, warmupRequests: number): Promise<void> {
+async function warmup(
+  baseUrl: string,
+  headers: Headers,
+  warmupRequests: number,
+  runner: ScenarioRunner,
+): Promise<void> {
   for (let i = 0; i < warmupRequests; i += 1) {
-    const response = await fetch(`${baseUrl}${url}`, { headers });
+    const request = runner.request(baseUrl, headers, i);
+    const response = await fetch(request.url, request.init);
     if (!response.ok) {
       throw new Error(`warmup request failed with status ${response.status}`);
     }
@@ -146,17 +202,21 @@ async function warmup(baseUrl: string, url: string, headers: Headers, warmupRequ
 
 async function runLoad(
   baseUrl: string,
-  url: string,
   headers: Headers,
   durationMs: number,
   concurrency: number,
+  runner: ScenarioRunner,
 ): Promise<number> {
   const deadline = Date.now() + durationMs;
   let completed = 0;
+  let nextIndex = 0;
 
   const worker = async () => {
     while (Date.now() < deadline) {
-      const response = await fetch(`${baseUrl}${url}`, { headers });
+      const index = nextIndex;
+      nextIndex += 1;
+      const request = runner.request(baseUrl, headers, index);
+      const response = await fetch(request.url, request.init);
       if (!response.ok) {
         throw new Error(`profile request failed with status ${response.status}`);
       }
@@ -169,25 +229,100 @@ async function runLoad(
   return completed;
 }
 
+async function prepareBenchmarkCreateScenario(app: ManagedApp, collectionName: string, rule: string): Promise<void> {
+  const benchmarkCollections = JSON.parse(benchmarkSchema) as Array<Record<string, unknown>>;
+  const targetCollections = benchmarkCollections.filter((entry) => String(entry.name ?? "") === collectionName);
+  if (targetCollections.length === 0) {
+    throw new Error(`missing benchmark collection ${collectionName}`);
+  }
+
+  const importErr = await app.ImportCollectionsByMarshaledJSON(JSON.stringify(targetCollections), false);
+  if (importErr) {
+    throw importErr;
+  }
+
+  const collection = app.FindCollectionByNameOrId(collectionName);
+  collection.createRule = rule;
+  await app.Save(collection);
+  app.db().exec(`DELETE FROM {{${collection.name}}}`);
+}
+
+function createScenarioRunner(options: Options): ScenarioRunner {
+  const runTag = Date.now().toString(36);
+
+  if (options.scenario === "create-organizations" || options.scenario === "create-organizations-rule") {
+    const rule = options.scenario === "create-organizations-rule" ? "@request.body.name != ''" : "";
+    return {
+      auth: options.auth ?? defaultAuth(options.scenario),
+      label: `POST /api/collections/organizations/records (createRule=${JSON.stringify(rule)})`,
+      prepare: async (app) => {
+        await prepareBenchmarkCreateScenario(app, "organizations", rule);
+      },
+      request: (baseUrl, headers, index) => ({
+        url: `${baseUrl}/api/collections/organizations/records`,
+        init: {
+          method: "POST",
+          headers: new Headers({ ...Object.fromEntries(headers.entries()), "Content-Type": "application/json" }),
+          body: JSON.stringify({ name: `profile-org-${runTag}-${index}` }),
+        },
+      }),
+    };
+  }
+
+  if (options.scenario === "create-permissions" || options.scenario === "create-permissions-rule") {
+    const rule = options.scenario === "create-permissions-rule" ? "@request.body.name != ''" : "";
+    return {
+      auth: options.auth ?? defaultAuth(options.scenario),
+      label: `POST /api/collections/permissions/records (createRule=${JSON.stringify(rule)})`,
+      prepare: async (app) => {
+        await prepareBenchmarkCreateScenario(app, "permissions", rule);
+      },
+      request: (baseUrl, headers, index) => ({
+        url: `${baseUrl}/api/collections/permissions/records`,
+        init: {
+          method: "POST",
+          headers: new Headers({ ...Object.fromEntries(headers.entries()), "Content-Type": "application/json" }),
+          body: JSON.stringify({
+            active: index % 2 === 0,
+            name: `profile-perm-${runTag}-${index}`,
+          }),
+        },
+      }),
+    };
+  }
+
+  return {
+    auth: options.auth ?? defaultAuth(options.scenario),
+    label: `GET ${options.url}`,
+    prepare: async () => {},
+    request: (baseUrl, headers) => ({
+      url: `${baseUrl}${options.url}`,
+      init: { headers },
+    }),
+  };
+}
+
 const options = parseArgs(Bun.argv.slice(2));
+const runner = createScenarioRunner(options);
 mkdirSync(dirname(options.out), { recursive: true });
 
 const session = new inspector.Session();
 session.connect();
 
-await using managed = await newTestApp();
+await using managed = await newTestApp(undefined, { bindEventCounters: false });
 const app = managed.app;
 const server = await retryServerStart(() => serve(app, { httpAddr: "127.0.0.1:0", showStartBanner: false }));
 
 try {
   const baseUrl = `http://127.0.0.1:${server.port}`;
-  const token = await resolveAuthToken(app, options.auth);
+  await runner.prepare(app);
+  const token = await resolveAuthToken(app, runner.auth);
   const headers = new Headers();
   if (token) {
     headers.set("Authorization", token);
   }
 
-  await warmup(baseUrl, options.url, headers, options.warmupRequests);
+  await warmup(baseUrl, headers, options.warmupRequests, runner);
 
   await session.post("Profiler.enable");
   if (options.intervalUs != null) {
@@ -195,7 +330,7 @@ try {
   }
   await session.post("Profiler.start");
 
-  const completedRequests = await runLoad(baseUrl, options.url, headers, options.durationMs, options.concurrency);
+  const completedRequests = await runLoad(baseUrl, headers, options.durationMs, options.concurrency, runner);
 
   const { profile } = await session.post("Profiler.stop");
   await session.post("Profiler.disable");
@@ -203,8 +338,9 @@ try {
 
   console.log(`Inspector profile written to ${options.out}`);
   console.log(`Completed requests: ${completedRequests}`);
-  console.log(`Profiled URL: ${options.url}`);
-  console.log(`Auth mode: ${options.auth}`);
+  console.log(`Scenario: ${options.scenario}`);
+  console.log(`Profiled request: ${runner.label}`);
+  console.log(`Auth mode: ${runner.auth}`);
   console.log(`Concurrency: ${options.concurrency}`);
   console.log(`Duration: ${options.durationMs}ms`);
 } finally {

@@ -4478,6 +4478,9 @@ export class BaseApp implements App {
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
+        if (!onRecordValidateHook.CanTriggerOn(me.Tags())) {
+          return me.Next();
+        }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
           return me.Next();
@@ -4493,8 +4496,8 @@ export class BaseApp implements App {
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
-        // Deviation: skip model->record event conversion when no record create handlers are registered.
-        if (onRecordCreateHook.Length() === 0) {
+        // Deviation: skip model->record event conversion when no record create handlers can run for the current tags.
+        if (!onRecordCreateHook.CanTriggerOn(me.Tags())) {
           return me.Next();
         }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
@@ -4512,8 +4515,8 @@ export class BaseApp implements App {
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
-        // Deviation: skip model->record event conversion when no record create-execute handlers are registered.
-        if (onRecordCreateExecuteHook.Length() === 0) {
+        // Deviation: skip model->record event conversion when no record create-execute handlers can run for the current tags.
+        if (!onRecordCreateExecuteHook.CanTriggerOn(me.Tags())) {
           return me.Next();
         }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
@@ -4531,8 +4534,8 @@ export class BaseApp implements App {
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
-        // Deviation: skip model->record event conversion when no record after-create-success handlers are registered.
-        if (onRecordAfterCreateSuccessHook.Length() === 0) {
+        // Deviation: skip model->record event conversion when no record after-create-success handlers can run for the current tags.
+        if (!onRecordAfterCreateSuccessHook.CanTriggerOn(me.Tags())) {
           return me.Next();
         }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
@@ -4550,8 +4553,8 @@ export class BaseApp implements App {
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
-        // Deviation: skip model->record error event conversion when no record after-create-error handlers are registered.
-        if (onRecordAfterCreateErrorHook.Length() === 0) {
+        // Deviation: skip model->record error event conversion when no record after-create-error handlers can run for the current tags.
+        if (!onRecordAfterCreateErrorHook.CanTriggerOn(me.Tags())) {
           return me.Next();
         }
         const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
@@ -4569,6 +4572,9 @@ export class BaseApp implements App {
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
+        if (!onRecordUpdateHook.CanTriggerOn(me.Tags())) {
+          return me.Next();
+        }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
           return me.Next();
@@ -4584,8 +4590,8 @@ export class BaseApp implements App {
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
-        // Deviation: skip model->record event conversion when no record update-execute handlers are registered.
-        if (onRecordUpdateExecuteHook.Length() === 0) {
+        // Deviation: skip model->record event conversion when no record update-execute handlers can run for the current tags.
+        if (!onRecordUpdateExecuteHook.CanTriggerOn(me.Tags())) {
           return me.Next();
         }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
@@ -4603,8 +4609,8 @@ export class BaseApp implements App {
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
-        // Deviation: skip model->record event conversion when no record after-update-success handlers are registered.
-        if (onRecordAfterUpdateSuccessHook.Length() === 0) {
+        // Deviation: skip model->record event conversion when no record after-update-success handlers can run for the current tags.
+        if (!onRecordAfterUpdateSuccessHook.CanTriggerOn(me.Tags())) {
           return me.Next();
         }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
@@ -4622,8 +4628,8 @@ export class BaseApp implements App {
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
-        // Deviation: skip model->record error event conversion when no record after-update-error handlers are registered.
-        if (onRecordAfterUpdateErrorHook.Length() === 0) {
+        // Deviation: skip model->record error event conversion when no record after-update-error handlers can run for the current tags.
+        if (!onRecordAfterUpdateErrorHook.CanTriggerOn(me.Tags())) {
           return me.Next();
         }
         const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
@@ -4641,8 +4647,8 @@ export class BaseApp implements App {
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
-        // Deviation: skip model->record event conversion when no record delete handlers are registered.
-        if (onRecordDeleteHook.Length() === 0) {
+        // Deviation: skip model->record event conversion when no record delete handlers can run for the current tags.
+        if (!onRecordDeleteHook.CanTriggerOn(me.Tags())) {
           return me.Next();
         }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
@@ -4660,6 +4666,9 @@ export class BaseApp implements App {
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
+        if (!onRecordDeleteExecuteHook.CanTriggerOn(me.Tags())) {
+          return me.Next();
+        }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
         if (!ok || !re) {
           return me.Next();
@@ -4681,8 +4690,8 @@ export class BaseApp implements App {
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
-        // Deviation: skip model->record event conversion when no record after-delete-success handlers are registered.
-        if (onRecordAfterDeleteSuccessHook.Length() === 0) {
+        // Deviation: skip model->record event conversion when no record after-delete-success handlers can run for the current tags.
+        if (!onRecordAfterDeleteSuccessHook.CanTriggerOn(me.Tags())) {
           return me.Next();
         }
         const { event: re, ok } = newRecordEventFromModelEvent(me);
@@ -4700,8 +4709,8 @@ export class BaseApp implements App {
       Id: systemHookIdRecord,
       Priority: -99,
       Func: (me) => {
-        // Deviation: skip model->record error event conversion when no record after-delete-error handlers are registered.
-        if (onRecordAfterDeleteErrorHook.Length() === 0) {
+        // Deviation: skip model->record error event conversion when no record after-delete-error handlers can run for the current tags.
+        if (!onRecordAfterDeleteErrorHook.CanTriggerOn(me.Tags())) {
           return me.Next();
         }
         const { event: re, ok } = newRecordErrorEventFromModelErrorEvent(me);
