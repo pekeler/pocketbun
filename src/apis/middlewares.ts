@@ -205,6 +205,11 @@ export function activityLogger(): Handler<RequestEvent> {
     Id: DefaultActivityLoggerMiddlewareId,
     Priority: DefaultActivityLoggerMiddlewarePriority,
     Func: async (event) => {
+      const logsConfig = event.app.settings().logs;
+      if (logsConfig.maxDays === 0) {
+        return await event.Next();
+      }
+
       event.Set(requestEventKeyExecStart, Date.now());
 
       let result: unknown = null;
@@ -217,9 +222,16 @@ export function activityLogger(): Handler<RequestEvent> {
       }
 
       const response = result instanceof Response ? result : null;
-      const errorInfo = await readResponseError(response);
+      const status = response?.status ?? (thrown ? 500 : 0);
+      const hasError = Boolean(thrown) || status >= 400;
 
-      logRequest(event, response, thrown, errorInfo);
+      if (hasError || event.Get(RequestEventKeySkipSuccessActivityLog) == null) {
+        const level = hasError ? 8 : 0;
+        if (level >= logsConfig.minLevel) {
+          const errorInfo = hasError ? await readResponseError(response) : null;
+          logRequest(event, response, thrown, errorInfo);
+        }
+      }
 
       if (thrown) {
         throw thrown;

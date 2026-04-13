@@ -267,11 +267,31 @@ function parsePattern(pattern: string): Segment[] {
 }
 
 function splitPath(pathname: string): string[] {
-  const trimmed = pathname.replace(/^\/+|\/+$/g, "");
-  if (trimmed === "") {
+  let start = 0;
+  let end = pathname.length;
+
+  while (start < end && pathname.charCodeAt(start) === 47) {
+    start += 1;
+  }
+  while (end > start && pathname.charCodeAt(end - 1) === 47) {
+    end -= 1;
+  }
+
+  if (start === end) {
     return [];
   }
-  return trimmed.split("/");
+
+  const parts: string[] = [];
+  let segmentStart = start;
+  for (let i = start; i < end; i += 1) {
+    if (pathname.charCodeAt(i) !== 47) {
+      continue;
+    }
+    parts.push(pathname.slice(segmentStart, i));
+    segmentStart = i + 1;
+  }
+  parts.push(pathname.slice(segmentStart, end));
+  return parts;
 }
 
 function matchPathStatic(segments: Segment[], parts: string[]): boolean {
