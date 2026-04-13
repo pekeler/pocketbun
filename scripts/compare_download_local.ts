@@ -277,7 +277,7 @@ async function ensureSuperuser(engine: Engine, dataDir: string): Promise<void> {
   }
 }
 
-async function waitForServerReady(baseUrl: string, proc: Bun.Subprocess<"pipe", "pipe", "ignore">): Promise<void> {
+async function waitForServerReady(baseUrl: string, proc: Bun.Subprocess<"ignore", "pipe", "pipe">): Promise<void> {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     if (proc.exitCode !== null) {
@@ -349,7 +349,11 @@ async function createDownloadCollection(
   }
 }
 
-async function seedDownloadRecord(baseUrl: string, collectionName: string, fileSizeBytes: number): Promise<SeededDownloadRecord> {
+async function seedDownloadRecord(
+  baseUrl: string,
+  collectionName: string,
+  fileSizeBytes: number,
+): Promise<SeededDownloadRecord> {
   const tempDir = await mkdtemp(join(tmpdir(), "download-probe-seed-"));
   try {
     const filePath = join(tempDir, `seed-${fileSizeBytes}.bin`);
@@ -394,11 +398,7 @@ async function seedDownloadRecord(baseUrl: string, collectionName: string, fileS
     const recordId = typeof payload.id === "string" ? payload.id : "";
     const rawField = payload[downloadFieldName];
     const fileName =
-      Array.isArray(rawField) && typeof rawField[0] === "string"
-        ? rawField[0]
-        : typeof rawField === "string"
-          ? rawField
-          : "";
+      Array.isArray(rawField) && typeof rawField[0] === "string" ? rawField[0] : typeof rawField === "string" ? rawField : "";
 
     if (!recordId || !fileName) {
       throw new Error(`upload response missing record id or file name: ${responseText.trim()}`);
@@ -438,16 +438,7 @@ async function runSingleDownloadProbe(
   try {
     const outputPath = join(tempDir, "download.bin");
     const download = Bun.spawn({
-      cmd: [
-        "curl",
-        "--silent",
-        "--show-error",
-        "--output",
-        outputPath,
-        "--write-out",
-        "%{http_code}",
-        url,
-      ],
+      cmd: ["curl", "--silent", "--show-error", "--output", outputPath, "--write-out", "%{http_code}", url],
       stdout: "pipe",
       stderr: "pipe",
       stdin: "ignore",
@@ -511,16 +502,7 @@ async function runBurstDownloadProbe(pid: number, url: string, fileSizeBytes: nu
   const beforeBytes = idle.meanBytes;
   const workers = Array.from({ length: parsed.burstConcurrency }, () =>
     Bun.spawn({
-      cmd: [
-        "curl",
-        "--silent",
-        "--show-error",
-        "--output",
-        "/dev/null",
-        "--write-out",
-        "%{http_code}:%{size_download}",
-        url,
-      ],
+      cmd: ["curl", "--silent", "--show-error", "--output", "/dev/null", "--write-out", "%{http_code}:%{size_download}", url],
       stdout: "pipe",
       stderr: "pipe",
       stdin: "ignore",
@@ -570,7 +552,10 @@ async function runBurstDownloadProbe(pid: number, url: string, fileSizeBytes: nu
   const failedRequests = results.length - completedRequests;
   const bytesDownloaded = results.reduce((sum, result) => sum + result.bytesDownloaded, 0);
 
-  const failures = results.filter((result) => !result.ok).map((result) => result.detail).filter(Boolean);
+  const failures = results
+    .filter((result) => !result.ok)
+    .map((result) => result.detail)
+    .filter(Boolean);
   if (failures.length > 0) {
     throw new Error(`burst download failures: ${failures.join("; ")}`);
   }
@@ -607,7 +592,10 @@ async function writePatternFile(path: string, sizeBytes: number): Promise<string
         state ^= state << 5;
         chunk[i] = state & 0xff;
       }
-      writer.write(chunk);
+      const writeResult = writer.write(chunk);
+      if (writeResult instanceof Promise) {
+        await writeResult;
+      }
       hash.update(chunk);
       remaining -= chunk.length;
     }

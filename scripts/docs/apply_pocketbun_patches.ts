@@ -11,10 +11,7 @@ const TARGET_DOCS = [
   "docs/users/reference.md",
 ];
 
-const PRESERVE_POCKETBASE_LINE_PATTERNS: RegExp[] = [
-  /upstream PocketBase/i,
-  /adapted from \[PocketBase docs\]/i,
-];
+const PRESERVE_POCKETBASE_LINE_PATTERNS: RegExp[] = [/upstream PocketBase/i, /adapted from \[PocketBase docs\]/i];
 
 function mapOutsideCodeFences(text: string, mapSegment: (segment: string) => string): string {
   const parts = text.split(/(```[\s\S]*?```)/g);
@@ -97,9 +94,7 @@ function replaceBrandMentionsOutsideCode(text: string): string {
           return line;
         }
 
-        return line
-          .replace(/\bPocketBase\b/g, "PocketBun")
-          .replace(/#([a-z0-9-]*?)pocketbase([a-z0-9-]*)/g, "#$1pocketbun$2");
+        return line.replace(/\bPocketBase\b/g, "PocketBun").replace(/#([a-z0-9-]*?)pocketbase([a-z0-9-]*)/g, "#$1pocketbun$2");
       })
       .join("\n");
   });
@@ -138,9 +133,15 @@ function patchIntroduction(text: string): string {
     /The prebuilt PocketBun executable will create and manage 2 new directories alongside the executable:/g,
     "By default, PocketBun will create and manage 2 new directories in the current working directory:",
   );
-  out = out.replace(/can be used both as Go framework and as standalone application\./g, "can be used as a standalone application and can be extended with JavaScript.");
+  out = out.replace(
+    /can be used both as Go framework and as standalone application\./g,
+    "can be used as a standalone application and can be extended with JavaScript.",
+  );
   out = out.replace(/extend PocketBun with Go or JavaScript/g, "extend PocketBun with JavaScript");
-  out = out.replace(/\[Use PocketBun as Go\/JS framework\]\(#extending-pocketbun\)/g, "[Use PocketBun as JavaScript framework](#extending-pocketbun)");
+  out = out.replace(
+    /\[Use PocketBun as Go\/JS framework\]\(#extending-pocketbun\)/g,
+    "[Use PocketBun as JavaScript framework](#extending-pocketbun)",
+  );
   out = out.replace(/When extending PocketBun with Go\/JSVM/g, "When extending PocketBun with JavaScript hooks");
   out = out.replace(/programmatically via Go\/JS\./g, "programmatically via JavaScript hooks.");
 
@@ -171,10 +172,7 @@ function patchIntroduction(text: string): string {
     "programmatically via [JavaScript](./extend.md#record-operations) Record operations.",
   );
 
-  out = out.replace(
-    /\n-\nDart SDK\n\n\(Web, Mobile, Desktop, CLI\)\n/g,
-    "\n",
-  );
+  out = out.replace(/\n-\nDart SDK\n\n\(Web, Mobile, Desktop, CLI\)\n/g, "\n");
   out = out.replace(
     /When building mobile apps with the JavaScript SDK or Dart SDK you'll have to specify a custom persistence store if you want to preserve the authentication between the various app activities and open\/close state\./g,
     "When building mobile apps with the JavaScript SDK you'll have to specify a custom persistence store if you want to preserve the authentication between the various app activities and open/close state.",
@@ -183,10 +181,7 @@ function patchIntroduction(text: string): string {
     /The SDKs come with a helper async storage implementation that allows you to hook any custom persistent layer \(local file, SharedPreferences, key-value based database, etc\.\)\. Here is a minimal PocketBun SDKs initialization for React Native \(JavaScript\) and Flutter \(Dart\):/g,
     "The SDK comes with a helper async storage implementation that allows you to hook any custom persistent layer (local file, SharedPreferences, key-value based database, etc.). Here is a minimal PocketBun JS SDK initialization for React Native:",
   );
-  out = out.replace(
-    /\ndart=\nimport 'package:pocketbase\/pocketbase\.dart';[\s\S]*?\n\/>\n\n/g,
-    "\n",
-  );
+  out = out.replace(/\ndart=\nimport 'package:pocketbase\/pocketbase\.dart';[\s\S]*?\n\/>\n\n/g, "\n");
 
   out = out.replace(/\.\/pocketbase\b/g, "./pocketbun");
   out = out.replace(/`\.\/pocketbun/g, "`pocketbun");
@@ -232,15 +227,24 @@ function patchGoingToProduction(text: string): string {
     "Upload your app files and anything else required by your application to your remote server",
   );
   out = out.replace(/Start the executable/g, "Start the application");
-  out = out.replace(/\/root\/pb\/pocketbun serve yourdomain\.com/g, "cd /root/pb/myapp && bun run pocketbun serve yourdomain.com");
-  out = out.replace(/sudo setcap 'cap_net_bind_service=\+ep' \/root\/pb\/pocketbun/g, "sudo setcap 'cap_net_bind_service=+ep' $(which bun)");
+  out = out.replace(
+    /\/root\/pb\/pocketbun serve yourdomain\.com/g,
+    "cd /root/pb/myapp && bun run pocketbun serve yourdomain.com",
+  );
+  out = out.replace(
+    /sudo setcap 'cap_net_bind_service=\+ep' \/root\/pb\/pocketbun/g,
+    "sudo setcap 'cap_net_bind_service=+ep' $(which bun)",
+  );
   out = out.replace(/^WorkingDirectory = \/root\/pb(?:\/myapp)+$/gm, "WorkingDirectory = /root/pb/myapp");
   out = out.replace(/^WorkingDirectory = \/root\/pb$/gm, "WorkingDirectory = /root/pb/myapp");
   out = out.replace(
     /^ExecStart\s*=.*pocketbun serve yourdomain\.com$/gm,
     "ExecStart        = cd /root/pb/myapp && bun run pocketbun serve yourdomain.com",
   );
-  out = out.replace(/\/root\/pb\/pocketbun superuser create EMAIL PASS/g, "cd /root/pb/myapp && bun run pocketbun superuser create EMAIL PASS");
+  out = out.replace(
+    /\/root\/pb\/pocketbun superuser create EMAIL PASS/g,
+    "cd /root/pb/myapp && bun run pocketbun superuser create EMAIL PASS",
+  );
   out = out.replace(/`\.\/pocketbun/g, "`pocketbun");
   out = out.replace(/\.\/pocketbun\b/g, "pocketbun");
   out = out.replace(
@@ -264,23 +268,22 @@ function patchExtend(text: string): string {
     "In the PocketBun package API, use `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` as preferred names. `RegisterJSVM*` / `MustRegisterJSVM*` remain available as compatibility aliases.";
   const asyncOverviewNote =
     "Many I/O-heavy APIs also expose Async variants (for example `serveAsync(...)`, `migrateAsync(...)`, and `RegisterHooksPluginAsync(...)`).";
-  const errorsLine =
-    "- Errors are thrown as regular JavaScript exceptions and not returned as explicit error values.";
+  const errorsLine = "- Errors are thrown as regular JavaScript exceptions and not returned as explicit error values.";
   const dbxIntro =
     "To prevent SQL injection attacks, you should use named parameters for any expression value that comes from user input. This could be done using the named `` placeholders in your SQL statement and then define the parameter values for the query with `bind(params)`.";
   const dbxNote =
     "PocketBun rewrites dbx-style named markers for SQLite execution. The logged placeholder syntax can look different from your input query while behavior stays compatible.";
 
-  out = out.replace(
-    /For complete API bindings reference, see \[Extend PocketBun Reference\]\(\.\/reference\.md\)\.\n\n/g,
-    "",
-  );
+  out = out.replace(/For complete API bindings reference, see \[Extend PocketBun Reference\]\(\.\/reference\.md\)\.\n\n/g, "");
 
   out = out.replace(
     /The prebuilt PocketBun v0\.17\+ executable comes with embedded ES5 JavaScript engine \(goja\) which enables you to write custom server-side code using plain JavaScript\./g,
     "PocketBun executes your hooks and custom server code with Bun, allowing you to write server-side logic in JavaScript.",
   );
-  out = out.replace(/inside a `pb_hooks` directory next to your executable\./g, "inside a `pb_hooks` directory in your project.");
+  out = out.replace(
+    /inside a `pb_hooks` directory next to your executable\./g,
+    "inside a `pb_hooks` directory in your project.",
+  );
   out = out.replace(
     /Please note that the embedded JavaScript engine is not a Node\.js or browser environment, meaning that modules that rely on APIs like \*window\*, \*fs\*, \*fetch\*, \*buffer\* or any other runtime specific API not part of the ES5 spec may not work!/g,
     "Please note that the hooks runtime is not a browser environment. Use APIs that are supported by Bun and PocketBun hooks runtime.",
@@ -318,7 +321,10 @@ function patchExtend(text: string): string {
   out = out.replace(/\.\/pocketbase\b/g, "./pocketbun");
   out = out.replace(/\.\/pocketbase hello/g, "./pocketbun hello");
   out = out.replace(/^(\s*)pocketbase\s*$/gm, "$1pocketbun");
-  out = out.replace(/Each scheduled job runs in its own goroutine as part of the `serve` command process/g, "Each scheduled job runs in the `serve` command process");
+  out = out.replace(
+    /Each scheduled job runs in its own goroutine as part of the `serve` command process/g,
+    "Each scheduled job runs in the `serve` command process",
+  );
   out = out.replace(
     /The global \[`\\$apis\.\*`\]\(https:\/\/pocketbase\.io\/jsvm\/modules\/_apis\.html\) object exposes several middlewares that you can use as part of your application\./g,
     apisLine,
@@ -344,7 +350,10 @@ function patchExtend(text: string): string {
   out = out.replace(new RegExp(`\\n${escapeRegExp(hooksPluginNote)}\\n`, "g"), "\n");
   out = out.replace(new RegExp(`\\n${escapeRegExp(asyncOverviewNote)}\\n`, "g"), "\n");
   out = out.replace(
-    new RegExp(`${escapeRegExp(errorsLine)}(?:\\n\\n${escapeRegExp(hooksPluginNote)})?(?:\\n\\n${escapeRegExp(asyncOverviewNote)})?`, "g"),
+    new RegExp(
+      `${escapeRegExp(errorsLine)}(?:\\n\\n${escapeRegExp(hooksPluginNote)})?(?:\\n\\n${escapeRegExp(asyncOverviewNote)})?`,
+      "g",
+    ),
     `${errorsLine}\n\n${hooksPluginNote}\n\n${asyncOverviewNote}`,
   );
   out = out.replace(new RegExp(`\\n${escapeRegExp(asyncApisNote)}\\n`, "g"), "\n");
@@ -373,18 +382,12 @@ function patchWebApis(text: string): string {
   const thumbNote =
     "PocketBun uses Sharp for thumbnail generation, so binary output may differ from upstream. BMP thumbnails are emitted as PNG.";
 
-  out = out.replace(
-    new RegExp(`(${escapeRegExp(thumbBase)})(?:\\s+${escapeRegExp(thumbNote)})+`, "g"),
-    `$1 ${thumbNote}`,
-  );
+  out = out.replace(new RegExp(`(${escapeRegExp(thumbBase)})(?:\\s+${escapeRegExp(thumbNote)})+`, "g"), `$1 ${thumbNote}`);
   out = out.replace(new RegExp(`(?:${escapeRegExp(thumbNote)}\\s*){2,}`, "g"), `${thumbNote} `);
   if (!out.includes(`${thumbBase} ${thumbNote}`)) {
     out = out.replace(thumbBase, `${thumbBase} ${thumbNote}`);
   }
-  out = out.replace(
-    /"status":\s*200,\n(\s*)"message": "API is healthy\."/g,
-    '"code": 200,\n$1"message": "API is healthy."',
-  );
+  out = out.replace(/"status":\s*200,\n(\s*)"message": "API is healthy\."/g, '"code": 200,\n$1"message": "API is healthy."');
 
   return out;
 }

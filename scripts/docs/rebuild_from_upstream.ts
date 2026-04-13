@@ -35,6 +35,14 @@ const LOCAL_SCREENSHOTS_DIR = "docs/assets/upstream/screenshots";
 const fileCache = new Map<string, string>();
 const JSVM_TYPES_PATH = "src/plugins/jsvm/internal/types/generated/types.d.ts";
 
+function capture(match: RegExpMatchArray, index: number, label: string): string {
+  const value = match[index];
+  if (value === undefined) {
+    throw new Error(`Missing ${label}`);
+  }
+  return value;
+}
+
 function dedupe<T>(items: T[]): T[] {
   return [...new Set(items)];
 }
@@ -91,8 +99,8 @@ function parseRouteItemsFromBlock(block: string): RouteItem[] {
 
   const re = /href:\s*"([^"]+)"[\s\S]{0,260}?title:\s*"([^"]+)"/g;
   for (const match of block.matchAll(re)) {
-    const href = match[1];
-    const title = match[2];
+    const href = capture(match, 1, "route href");
+    const title = capture(match, 2, "route title");
 
     if (!href.startsWith("/docs")) {
       continue;
@@ -132,16 +140,14 @@ function extractRelativeImports(relPath: string, content: string): string[] {
   let source = content;
 
   if (relPath.endsWith(".svelte")) {
-    source = [...content.matchAll(/<script[\s\S]*?<\/script>/g)]
-      .map((match) => match[0])
-      .join("\n");
+    source = [...content.matchAll(/<script[\s\S]*?<\/script>/g)].map((match) => match[0]).join("\n");
   }
 
   const specs: string[] = [];
   const importRegex = /(?:import|export)\s+[^;]*?\sfrom\s+["'](\.{1,2}\/[^"']+)["']/g;
 
   for (const match of source.matchAll(importRegex)) {
-    specs.push(match[1]);
+    specs.push(capture(match, 1, `relative import in ${relPath}`));
   }
 
   return dedupe(specs);
@@ -205,13 +211,13 @@ function extractAttr(attrs: string, name: string): string | null {
   const q = new RegExp(`${name}="([^"]+)"`);
   const qMatch = attrs.match(q);
   if (qMatch) {
-    return qMatch[1];
+    return capture(qMatch, 1, `${name} attribute`);
   }
 
-  const braceQuote = new RegExp(`${name}=\{["']([^"']+)["']\}`);
+  const braceQuote = new RegExp(`${name}={["']([^"']+)["']}`);
   const bqMatch = attrs.match(braceQuote);
   if (bqMatch) {
-    return bqMatch[1];
+    return capture(bqMatch, 1, `${name} attribute`);
   }
 
   return null;
@@ -317,7 +323,10 @@ function normalizeSpacing(text: string): string {
     out.push(trimmedLine);
   }
 
-  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return out
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function toAnchor(text: string): string {
@@ -454,9 +463,7 @@ function rewriteUpstreamDocsLink(
     return anchor ? `#${anchor}` : "./";
   }
 
-  return anchor
-    ? `./${pathPosix.basename(target.outputPath)}#${anchor}`
-    : `./${pathPosix.basename(target.outputPath)}`;
+  return anchor ? `./${pathPosix.basename(target.outputPath)}#${anchor}` : `./${pathPosix.basename(target.outputPath)}`;
 }
 
 function rewriteUpstreamDocsLinksInMarkdown(
@@ -480,7 +487,7 @@ function rewriteUpstreamDocsLinksInMarkdown(
     return `<${rewritten}>`;
   });
 
-  out = out.replace(/https?:\/\/pocketbase\.io\/docs\/[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]*/g, (href) => {
+  out = out.replace(/https?:\/\/pocketbase\.io\/docs\/[^\s)>"']*/g, (href) => {
     const rewritten = rewriteUpstreamDocsLink(href, currentOutputPath, linkTargets);
     return rewritten ?? href;
   });
@@ -500,8 +507,8 @@ function extractResponseExamples(scriptContent: string): Array<{ code: string; b
   const seen = new Set<string>();
 
   for (const match of scriptContent.matchAll(/code:\s*([0-9]+)[\s\S]*?body:\s*`([\s\S]*?)`/g)) {
-    const code = match[1].trim();
-    const body = match[2].trim();
+    const code = capture(match, 1, "response example code").trim();
+    const body = capture(match, 2, "response example body").trim();
     const key = `${code}:${body}`;
     if (!seen.has(key)) {
       seen.add(key);
@@ -510,8 +517,8 @@ function extractResponseExamples(scriptContent: string): Array<{ code: string; b
   }
 
   for (const match of scriptContent.matchAll(/code:\s*([0-9]+)[\s\S]*?body:\s*"([^"]*)"/g)) {
-    const code = match[1].trim();
-    const body = match[2].trim();
+    const code = capture(match, 1, "response example code").trim();
+    const body = capture(match, 2, "response example body").trim();
     const key = `${code}:${body}`;
     if (!seen.has(key)) {
       seen.add(key);
@@ -546,12 +553,14 @@ function responseExamplesMarkdown(examples: Array<{ code: string; body: string }
 function fieldsQueryParamRow(prefix = ""): string {
   const normalizedPrefix = prefix.trim();
   const expandExample = normalizedPrefix ? `${normalizedPrefix}expand.relField.name` : "expand.relField.name";
-  const excerptExample = normalizedPrefix ? `${normalizedPrefix}description:excerpt(200,true)` : "description:excerpt(200,true)";
+  const excerptExample = normalizedPrefix
+    ? `${normalizedPrefix}description:excerpt(200,true)`
+    : "description:excerpt(200,true)";
 
   return [
     "<tr>",
     '  <td id="query-page">fields</td>',
-    "  <td><span class=\"label\">String</span></td>",
+    '  <td><span class="label">String</span></td>',
     "  <td>",
     "    <p>Comma separated string of the fields to return in the JSON response <em>(by default returns all fields)</em>. Ex.: <code>?fields=*," +
       expandExample +
@@ -572,7 +581,7 @@ function expandQueryParamRow(): string {
   return [
     "<tr>",
     "  <td>expand</td>",
-    "  <td><span class=\"label\">String</span></td>",
+    '  <td><span class="label">String</span></td>',
     "  <td>",
     "    Auto expand record relations. Ex.: <code>?expand=relField1,relField2.subRelField</code><br />",
     "    Supports up to 6-levels depth nested relations expansion.<br />",
@@ -588,7 +597,7 @@ function skipTotalQueryParamRow(): string {
   return [
     "<tr>",
     '  <td id="query-page">skipTotal</td>',
-    "  <td><span class=\"label\">Boolean</span></td>",
+    '  <td><span class="label">Boolean</span></td>',
     "  <td>",
     "    If it is set the total counts query will be skipped and the response fields <code>totalItems</code> and",
     "    <code>totalPages</code> will have <code>-1</code> value.<br />",
@@ -651,10 +660,18 @@ function stripSvelteArtifacts(text: string): string {
 function dedentCodeBlock(raw: string): string {
   let lines = raw.replace(/\r\n?/g, "\n").split("\n");
 
-  while (lines.length > 0 && !lines[0].trim()) {
+  while (lines.length > 0) {
+    const firstLine = lines[0];
+    if (firstLine === undefined || firstLine.trim()) {
+      break;
+    }
     lines.shift();
   }
-  while (lines.length > 0 && !lines[lines.length - 1]?.trim()) {
+  while (lines.length > 0) {
+    const lastLine = lines.at(-1);
+    if (lastLine === undefined || lastLine.trim()) {
+      break;
+    }
     lines.pop();
   }
   if (lines.length === 0) {
@@ -666,7 +683,7 @@ function dedentCodeBlock(raw: string): string {
     if (!line.trim()) {
       continue;
     }
-    const indent = line.match(/^[\t ]*/)?.[0].length ?? 0;
+    const indent = line.match(/^[\t ]*/)?.[0]?.length ?? 0;
     minIndent = Math.min(minIndent, indent);
   }
 
@@ -675,21 +692,24 @@ function dedentCodeBlock(raw: string): string {
     lines = lines.map((line) => line.replace(dedentPattern, ""));
   }
 
-  return lines.join("\n").replace(/[ \t]+$/gm, "").trim();
+  return lines
+    .join("\n")
+    .replace(/[ \t]+$/gm, "")
+    .trim();
 }
 
 function parseCodeBlockContent(attrs: string): string {
   const inline = attrs.match(/content=\{`([\s\S]*?)`\}/);
   if (inline) {
-    return dedentCodeBlock(inline[1]);
+    return dedentCodeBlock(capture(inline, 1, "inline code block"));
   }
 
   const simple = attrs.match(/content="([^"]*)"/);
   if (simple) {
-    return dedentCodeBlock(simple[1]);
+    return dedentCodeBlock(capture(simple, 1, "simple code block"));
   }
 
-  const chunks = [...attrs.matchAll(/`([\s\S]*?)`/g)].map((m) => dedentCodeBlock(m[1]));
+  const chunks = [...attrs.matchAll(/`([\s\S]*?)`/g)].map((match) => dedentCodeBlock(capture(match, 1, "code chunk")));
   return chunks.join("\n").trim();
 }
 
@@ -758,16 +778,16 @@ function tableToMarkdown(tableHtml: string): string {
   const parsedRows: Array<{ cells: string[]; header: boolean }> = [];
 
   for (const rowMatch of tableHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)) {
-    const rowBody = rowMatch[1];
+    const rowBody = capture(rowMatch, 1, "table row");
     const cells: string[] = [];
     let header = true;
 
     for (const cellMatch of rowBody.matchAll(/<(th|td)[^>]*>([\s\S]*?)<\/\1>/gi)) {
-      const kind = cellMatch[1].toLowerCase();
+      const kind = capture(cellMatch, 1, "table cell kind").toLowerCase();
       if (kind !== "th") {
         header = false;
       }
-      const cell = htmlToInlineMarkdown(cellMatch[2]) || "-";
+      const cell = htmlToInlineMarkdown(capture(cellMatch, 2, "table cell body")) || "-";
       cells.push(cell);
     }
 
@@ -781,8 +801,12 @@ function tableToMarkdown(tableHtml: string): string {
   }
 
   const headerIndex = parsedRows.findIndex((row) => row.header);
-  const headerCells =
-    headerIndex >= 0 ? parsedRows[headerIndex].cells : parsedRows[0].cells.map((_v, i) => `Column ${i + 1}`);
+  const defaultHeaderRow = parsedRows[0];
+  if (!defaultHeaderRow) {
+    return "";
+  }
+  const headerRow = headerIndex >= 0 ? (parsedRows[headerIndex] ?? defaultHeaderRow) : defaultHeaderRow;
+  const headerCells = headerIndex >= 0 ? headerRow.cells : defaultHeaderRow.cells.map((_v, i) => `Column ${i + 1}`);
   const colCount = Math.max(headerCells.length, ...parsedRows.map((row) => row.cells.length));
 
   const normalizeRow = (cells: string[]): string[] => {
@@ -808,7 +832,7 @@ function tableToMarkdown(tableHtml: string): string {
 }
 
 function convertJsHelper(content: string): string {
-  const titles = dedupe([...content.matchAll(/title:\s*"([^"]+)"/g)].map((m) => m[1]));
+  const titles = dedupe([...content.matchAll(/title:\s*"([^"]+)"/g)].map((match) => capture(match, 1, "helper title")));
   const hooks = dedupe([...content.matchAll(/On[A-Z][A-Za-z0-9]+/g)].map((m) => m[0]));
 
   const parts: string[] = [];
@@ -835,9 +859,7 @@ function convertSvelte(content: string): string {
     return `\n${token}\n`;
   };
 
-  const scriptContent = [...content.matchAll(/<script[\s\S]*?<\/script>/g)]
-    .map((match) => match[0])
-    .join("\n");
+  const scriptContent = [...content.matchAll(/<script[\s\S]*?<\/script>/g)].map((match) => match[0]).join("\n");
   const responses = extractResponseExamples(scriptContent);
 
   let text = content;
@@ -847,7 +869,7 @@ function convertSvelte(content: string): string {
 
     const jsMatch = attrs.match(/\bjs=\{`([\s\S]*?)`\}/);
     if (jsMatch) {
-      chunks.push(`\`\`\`js\n${jsMatch[1].trim()}\n\`\`\``);
+      chunks.push(`\`\`\`js\n${capture(jsMatch, 1, "CodeTabs js block").trim()}\n\`\`\``);
     }
 
     if (chunks.length === 0) {
@@ -857,14 +879,17 @@ function convertSvelte(content: string): string {
     return stash(chunks.join("\n\n"));
   });
 
-  text = text.replace(/<div class="api-route[^"]*"[^>]*>\s*<strong[^>]*>([\s\S]*?)<\/strong>\s*<div[^>]*>([\s\S]*?)<\/div>\s*<\/div>/g, (_full, method, path) => {
-    const normalizedMethod = htmlToInlineMarkdown(method).replace(/\s+/g, " ").trim();
-    const normalizedPath = htmlToInlineMarkdown(path).replace(/\s+/g, " ").trim();
-    if (!normalizedMethod && !normalizedPath) {
-      return "";
-    }
-    return stash(`\`${[normalizedMethod, normalizedPath].filter(Boolean).join(" ")}\``);
-  });
+  text = text.replace(
+    /<div class="api-route[^"]*"[^>]*>\s*<strong[^>]*>([\s\S]*?)<\/strong>\s*<div[^>]*>([\s\S]*?)<\/div>\s*<\/div>/g,
+    (_full, method, path) => {
+      const normalizedMethod = htmlToInlineMarkdown(method).replace(/\s+/g, " ").trim();
+      const normalizedPath = htmlToInlineMarkdown(path).replace(/\s+/g, " ").trim();
+      if (!normalizedMethod && !normalizedPath) {
+        return "";
+      }
+      return stash(`\`${[normalizedMethod, normalizedPath].filter(Boolean).join(" ")}\``);
+    },
+  );
 
   text = text.replace(/<FieldsQueryParam([^>]*)\/>/g, (_full, attrs) => {
     const prefix = extractAttr(attrs, "prefix") ?? "";
@@ -990,7 +1015,11 @@ function convertSvelte(content: string): string {
   text = normalizeSpacing(text);
 
   for (let i = stashed.length - 1; i >= 0; i--) {
-    text = text.replaceAll(`@@DOC_STASH_${i}@@`, stashed[i]);
+    const stashedValue = stashed[i];
+    if (stashedValue === undefined) {
+      continue;
+    }
+    text = text.replaceAll(`@@DOC_STASH_${i}@@`, stashedValue);
   }
 
   const responseText = responseExamplesMarkdown(responses);
@@ -1063,7 +1092,7 @@ function parseReferenceDeclarationName(line: string): string | null {
   for (const pattern of patterns) {
     const match = line.match(pattern);
     if (match) {
-      return match[1];
+      return capture(match, 1, "reference declaration name");
     }
   }
 
@@ -1098,6 +1127,9 @@ function readReferenceDeclaration(
 
   for (let i = startIndex; i < lines.length; i++) {
     const line = lines[i];
+    if (line === undefined) {
+      break;
+    }
     const open = (line.match(/\{/g) ?? []).length;
     const close = (line.match(/\}/g) ?? []).length;
     const openParen = (line.match(/\(/g) ?? []).length;
@@ -1137,7 +1169,10 @@ function readReferenceDeclaration(
     }
   }
 
-  const declaration = lines.slice(startIndex, endIndex + 1).join("\n").trim();
+  const declaration = lines
+    .slice(startIndex, endIndex + 1)
+    .join("\n")
+    .trim();
   return { declaration, endIndex };
 }
 
@@ -1149,12 +1184,20 @@ function parseReferenceEntries(typesContent: string): ReferenceEntry[] {
   let lastJsDocEnd = -1;
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+    const currentLine = lines[i];
+    if (currentLine === undefined) {
+      break;
+    }
+    const line = currentLine.trim();
 
     if (line.startsWith("/**")) {
       const start = i;
       let end = i;
-      while (end < lines.length && !lines[end].includes("*/")) {
+      while (end < lines.length) {
+        const jsDocLine = lines[end];
+        if (jsDocLine === undefined || jsDocLine.includes("*/")) {
+          break;
+        }
         end += 1;
       }
       if (end < lines.length) {
@@ -1182,7 +1225,8 @@ function parseReferenceEntries(typesContent: string): ReferenceEntry[] {
     if (lastJsDoc && lastJsDocEnd >= 0) {
       let onlyBlankLines = true;
       for (let j = lastJsDocEnd + 1; j < declarationStart; j++) {
-        if (lines[j].trim() !== "") {
+        const gapLine = lines[j];
+        if (gapLine === undefined || gapLine.trim() !== "") {
           onlyBlankLines = false;
           break;
         }
@@ -1218,11 +1262,7 @@ function referenceKindTitle(kind: ReferenceKind): string {
   }
 }
 
-function buildReferencePage(args: {
-  outputPath: string;
-  permalink?: string;
-  linkTargets: Map<string, DocsLinkTarget>;
-}): void {
+function buildReferencePage(args: { outputPath: string; permalink?: string; linkTargets: Map<string, DocsLinkTarget> }): void {
   const { outputPath, permalink, linkTargets } = args;
 
   if (!existsSync(JSVM_TYPES_PATH)) {
@@ -1339,9 +1379,7 @@ function buildPage(args: {
   });
 
   const sections = sectionsData.map((section) => {
-    return [`## ${section.routeTitle}`, section.sectionBody]
-      .filter(Boolean)
-      .join("\n\n");
+    return [`## ${section.routeTitle}`, section.sectionBody].filter(Boolean).join("\n\n");
   });
 
   let quickLinks = routes.map((bundle) => `- [${bundle.route.title}](#${toAnchor(bundle.route.title)})`);
@@ -1468,9 +1506,7 @@ function syncScreenshotAssetsFromCache(): number {
 
 function main(): void {
   if (!existsSync(CACHE_ROOT)) {
-    throw new Error(
-      `Missing upstream docs cache at ${CACHE_ROOT}. Run: bash scripts/docs/sync_upstream_site_docs.sh`,
-    );
+    throw new Error(`Missing upstream docs cache at ${CACHE_ROOT}. Run: bash scripts/docs/sync_upstream_site_docs.sh`);
   }
 
   mkdirSync("docs", { recursive: true });
@@ -1492,14 +1528,7 @@ function main(): void {
     jsItems,
   });
 
-  const targets = new Set([
-    "introduction",
-    "going-to-production",
-    "web-apis",
-    "extend",
-    "extend-with-javascript",
-    "reference",
-  ]);
+  const targets = new Set(["introduction", "going-to-production", "web-apis", "extend", "extend-with-javascript", "reference"]);
   const only = parseOnlyArg();
   if (only && !targets.has(only)) {
     throw new Error(`Unsupported --only value '${only}'. Expected one of: ${[...targets].join(", ")}`);

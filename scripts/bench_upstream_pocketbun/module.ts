@@ -8,11 +8,11 @@
 
 import { setTimeout as delay } from "node:timers/promises";
 import type { App } from "../../src/core/app.ts";
-import { CollectionNameSuperusers } from "../../src/core/collection_model.ts";
-import type { Record as RecordModel } from "../../src/core/record_model.ts";
-import { NewRecord } from "../../src/core/record_model.ts";
 import type { RequestEvent } from "../../src/core/event_request.ts";
 import type { RecordRequestEvent, ServeEvent } from "../../src/core/events.ts";
+import type { Record as RecordModel } from "../../src/core/record_model.ts";
+import { CollectionNameSuperusers } from "../../src/core/collection_model.ts";
+import { NewRecord } from "../../src/core/record_model.ts";
 import { FireAndForget } from "../../src/tools/routine/routine.ts";
 import { bench, type BenchResult } from "./bench.ts";
 import { BenchRequest } from "./request.ts";
@@ -150,7 +150,7 @@ export class Runner {
     const patch = JSON.parse(JSON.stringify(data)) as Record<string, unknown>;
 
     if (Object.prototype.hasOwnProperty.call(patch, "name")) {
-      collection.name = String(patch.name ?? "");
+      collection.name = toNullableString(patch.name) ?? "";
     }
 
     if (Object.prototype.hasOwnProperty.call(patch, "listRule")) {
@@ -230,7 +230,7 @@ export class Runner {
         }
 
         try {
-          txApp.db().exec(`DELETE FROM {{${collection.name}}}`);
+          txApp.db().query(`DELETE FROM {{${collection.name}}}`).run();
         } catch (error) {
           const err = toError(error);
           return new Error(`resetSchema data delete failure for ${JSON.stringify(collection.name)}: ${err.message}`);
@@ -244,6 +244,7 @@ export class Runner {
   async createOrganizations(): Promise<void> {
     this.write("## Creating organizations (100)");
 
+    let runErr: unknown;
     try {
       const scenarios = [
         { iterations: 50, concurrency: 10, collection: colOrganizations, rule: "" },
@@ -264,31 +265,41 @@ export class Runner {
           `#### Creating ${scenario.iterations} ${scenario.collection} [reqs:${scenario.iterations}, conc:${scenario.concurrency}, rule:\`${JSON.stringify(scenario.rule)}\`]`,
         );
 
-        const result = await bench(async (i) => {
-          const name = `${scenario.collection}${i + total}`;
-          const request = new BenchRequest({
-            Url: `${this.baseUrl}/api/collections/${scenario.collection}/records`,
-            Method: "POST",
-            Body: JSON.stringify({ name }),
-          });
-          await request.Send(null);
-        }, scenario.iterations, scenario.concurrency);
+        const result = await bench(
+          async (i) => {
+            const name = `${scenario.collection}${i + total}`;
+            const request = new BenchRequest({
+              Url: `${this.baseUrl}/api/collections/${scenario.collection}/records`,
+              Method: "POST",
+              Body: JSON.stringify({ name }),
+            });
+            await request.Send(null);
+          },
+          scenario.iterations,
+          scenario.concurrency,
+        );
 
         this.write(result.String());
       }
 
       this.write("");
-    } finally {
-      const resetErr = await this.resetSchema(false);
-      if (resetErr) {
-        throw resetErr;
-      }
+    } catch (error) {
+      runErr = error;
+    }
+
+    const resetErr = await this.resetSchema(false);
+    if (resetErr) {
+      throw resetErr;
+    }
+    if (runErr) {
+      throw runErr;
     }
   }
 
   async createPermissions(): Promise<void> {
     this.write("## Creating permissions (50)");
 
+    let runErr: unknown;
     try {
       const scenarios = [
         { iterations: 25, concurrency: 5, collection: colPermissions, rule: "" },
@@ -309,34 +320,44 @@ export class Runner {
           `#### Creating ${scenario.iterations} ${scenario.collection} [reqs:${scenario.iterations}, conc:${scenario.concurrency}, rule:\`${JSON.stringify(scenario.rule)}\`]`,
         );
 
-        const result = await bench(async (i) => {
-          const name = `${scenario.collection}${i + total}`;
-          const request = new BenchRequest({
-            Url: `${this.baseUrl}/api/collections/${scenario.collection}/records`,
-            Method: "POST",
-            Body: JSON.stringify({
-              name,
-              active: i % 2 === 0,
-            }),
-          });
-          await request.Send(null);
-        }, scenario.iterations, scenario.concurrency);
+        const result = await bench(
+          async (i) => {
+            const name = `${scenario.collection}${i + total}`;
+            const request = new BenchRequest({
+              Url: `${this.baseUrl}/api/collections/${scenario.collection}/records`,
+              Method: "POST",
+              Body: JSON.stringify({
+                name,
+                active: i % 2 === 0,
+              }),
+            });
+            await request.Send(null);
+          },
+          scenario.iterations,
+          scenario.concurrency,
+        );
 
         this.write(result.String());
       }
 
       this.write("");
-    } finally {
-      const resetErr = await this.resetSchema(false);
-      if (resetErr) {
-        throw resetErr;
-      }
+    } catch (error) {
+      runErr = error;
+    }
+
+    const resetErr = await this.resetSchema(false);
+    if (resetErr) {
+      throw resetErr;
+    }
+    if (runErr) {
+      throw runErr;
     }
   }
 
   async createUsers(): Promise<void> {
     this.write("## Creating users (500 - expected to be slow due to passwordHash generation)");
 
+    let runErr: unknown;
     try {
       const permissions = this.randomRecordIds(colPermissions, 999);
       const organizations = this.randomRecordIds(colOrganizations, 999);
@@ -365,39 +386,49 @@ export class Runner {
           `#### Creating ${scenario.iterations} ${scenario.collection} [reqs:${scenario.iterations}, conc:${scenario.concurrency}, rule:\`${JSON.stringify(scenario.rule)}\`]`,
         );
 
-        const result = await bench(async (i) => {
-          const name = `${scenario.collection}${i + total}`;
-          const request = new BenchRequest({
-            Url: `${this.baseUrl}/api/collections/${scenario.collection}/records`,
-            Method: "POST",
-            Body: JSON.stringify({
-              email: `${name}@example.com`,
-              username: name,
-              name,
-              organization: pickRandom(organizations),
-              permissions: [pickRandom(permissions), pickRandom(permissions), pickRandom(permissions)],
-              password: "1234567890",
-              passwordConfirm: "1234567890",
-            }),
-          });
-          await request.Send(null);
-        }, scenario.iterations, scenario.concurrency);
+        const result = await bench(
+          async (i) => {
+            const name = `${scenario.collection}${i + total}`;
+            const request = new BenchRequest({
+              Url: `${this.baseUrl}/api/collections/${scenario.collection}/records`,
+              Method: "POST",
+              Body: JSON.stringify({
+                email: `${name}@example.com`,
+                username: name,
+                name,
+                organization: pickRandom(organizations),
+                permissions: [pickRandom(permissions), pickRandom(permissions), pickRandom(permissions)],
+                password: "1234567890",
+                passwordConfirm: "1234567890",
+              }),
+            });
+            await request.Send(null);
+          },
+          scenario.iterations,
+          scenario.concurrency,
+        );
 
         this.write(result.String());
       }
 
       this.write("");
-    } finally {
-      const resetErr = await this.resetSchema(false);
-      if (resetErr) {
-        throw resetErr;
-      }
+    } catch (error) {
+      runErr = error;
+    }
+
+    const resetErr = await this.resetSchema(false);
+    if (resetErr) {
+      throw resetErr;
+    }
+    if (runErr) {
+      throw runErr;
     }
   }
 
   async createPosts(): Promise<void> {
     this.write("## Creating posts (10k, 25k, 50k, 100k)");
 
+    let runErr: unknown;
     try {
       const { token: userToken } = this.randomUserAuth();
       const types = ["a", "b", "c", "d"];
@@ -455,38 +486,47 @@ export class Runner {
           `#### Creating ${scenario.iterations} ${scenario.collection} [reqs:${scenario.iterations}, conc:${scenario.concurrency}, rule:\`${JSON.stringify(scenario.rule)}\`]`,
         );
 
-        const result = await bench(async (i) => {
-          const name = `${scenario.collection}${i + total}`;
-          const headers: Record<string, string> = {};
-          if (scenario.token !== "") {
-            headers.Authorization = scenario.token;
-          }
+        const result = await bench(
+          async (i) => {
+            const name = `${scenario.collection}${i + total}`;
+            const headers: Record<string, string> = {};
+            if (scenario.token !== "") {
+              headers.Authorization = scenario.token;
+            }
 
-          const request = new BenchRequest({
-            Url: `${this.baseUrl}/api/collections/${scenario.collection}/records`,
-            Method: "POST",
-            Headers: headers,
-            Body: JSON.stringify({
-              title: name,
-              description,
-              public: i % 2 !== 0,
-              type: [pickRandom(types), pickRandom(types)],
-              author: pickRandom(users),
-            }),
-          });
+            const request = new BenchRequest({
+              Url: `${this.baseUrl}/api/collections/${scenario.collection}/records`,
+              Method: "POST",
+              Headers: headers,
+              Body: JSON.stringify({
+                title: name,
+                description,
+                public: i % 2 !== 0,
+                type: [pickRandom(types), pickRandom(types)],
+                author: pickRandom(users),
+              }),
+            });
 
-          await request.Send(null);
-        }, scenario.iterations, scenario.concurrency);
+            await request.Send(null);
+          },
+          scenario.iterations,
+          scenario.concurrency,
+        );
 
         this.write(result.String());
       }
 
       this.write("");
-    } finally {
-      const resetErr = await this.resetSchema(false);
-      if (resetErr) {
-        throw resetErr;
-      }
+    } catch (error) {
+      runErr = error;
+    }
+
+    const resetErr = await this.resetSchema(false);
+    if (resetErr) {
+      throw resetErr;
+    }
+    if (runErr) {
+      throw runErr;
     }
   }
 
@@ -505,17 +545,21 @@ export class Runner {
         `#### ${colUsers} auth with email/pass - ${scenario.comment} [reqs:${scenario.iterations}, conc:${scenario.concurrency}]`,
       );
 
-      const result = await bench(async () => {
-        const request = new BenchRequest({
-          Url: `${this.baseUrl}/api/collections/${colUsers}/auth-with-password`,
-          Method: "POST",
-          Body: JSON.stringify({
-            identity: `${colUsers}0@example.com`,
-            password: "1234567890",
-          }),
-        });
-        await request.Send(null);
-      }, scenario.iterations, scenario.concurrency);
+      const result = await bench(
+        async () => {
+          const request = new BenchRequest({
+            Url: `${this.baseUrl}/api/collections/${colUsers}/auth-with-password`,
+            Method: "POST",
+            Body: JSON.stringify({
+              identity: `${colUsers}0@example.com`,
+              password: "1234567890",
+            }),
+          });
+          await request.Send(null);
+        },
+        scenario.iterations,
+        scenario.concurrency,
+      );
 
       this.write(result.String());
     }
@@ -538,17 +582,21 @@ export class Runner {
 
       this.write(`#### ${colUsers} - ${scenario.comment} [reqs:${scenario.iterations}, conc:${scenario.concurrency}]`);
 
-      const result = await bench(async () => {
-        const request = new BenchRequest({
-          Url: `${this.baseUrl}/api/collections/${colUsers}/auth-refresh`,
-          Method: "POST",
-          Headers: {
-            Authorization: userToken,
-          },
-        });
+      const result = await bench(
+        async () => {
+          const request = new BenchRequest({
+            Url: `${this.baseUrl}/api/collections/${colUsers}/auth-refresh`,
+            Method: "POST",
+            Headers: {
+              Authorization: userToken,
+            },
+          });
 
-        await request.Send(null);
-      }, scenario.iterations, scenario.concurrency);
+          await request.Send(null);
+        },
+        scenario.iterations,
+        scenario.concurrency,
+      );
 
       this.write(result.String());
     }
@@ -559,6 +607,7 @@ export class Runner {
   async listRecords(): Promise<void> {
     this.write("## List records");
 
+    let runErr: unknown;
     try {
       const { user, token: userToken } = this.randomUserAuth();
 
@@ -684,7 +733,8 @@ export class Runner {
             iterations: 100,
             concurrency: 10,
             collection,
-            query: "?perPage=20&expand=author.permissions&fields=id,collectionId,expand.author.id,expand.author.expand.permissions.id",
+            query:
+              "?perPage=20&expand=author.permissions&fields=id,collectionId,expand.author.id,expand.author.expand.permissions.id",
             rule: "",
             indexes: [],
             extraFunc: null,
@@ -917,17 +967,21 @@ export class Runner {
         );
 
         const runBench = async (): Promise<BenchResult> => {
-          return await bench(async () => {
-            const request = new BenchRequest({
-              Url: `${this.baseUrl}/api/collections/${scenario.collection}/records${scenario.query}`,
-              Method: "GET",
-              Headers: {
-                Authorization: userToken,
-              },
-            });
+          return await bench(
+            async () => {
+              const request = new BenchRequest({
+                Url: `${this.baseUrl}/api/collections/${scenario.collection}/records${scenario.query}`,
+                Method: "GET",
+                Headers: {
+                  Authorization: userToken,
+                },
+              });
 
-            await request.Send(null);
-          }, scenario.iterations, scenario.concurrency);
+              await request.Send(null);
+            },
+            scenario.iterations,
+            scenario.concurrency,
+          );
         };
 
         if (scenario.extraFunc) {
@@ -940,11 +994,16 @@ export class Runner {
       }
 
       this.write("");
-    } finally {
-      const resetErr = await this.resetSchema(false);
-      if (resetErr) {
-        throw resetErr;
-      }
+    } catch (error) {
+      runErr = error;
+    }
+
+    const resetErr = await this.resetSchema(false);
+    if (resetErr) {
+      throw resetErr;
+    }
+    if (runErr) {
+      throw runErr;
     }
   }
 
@@ -967,16 +1026,20 @@ export class Runner {
 
       this.write(`#### ${scenario.comment} [reqs:${scenario.iterations}, conc:${scenario.concurrency}]`);
 
-      const result = await bench(async () => {
-        const request = new BenchRequest({
-          Url: `${this.baseUrl}${scenario.path}`,
-          Method: "GET",
-          Headers: {
-            Authorization: superuserToken,
-          },
-        });
-        await request.Send(null);
-      }, scenario.iterations, scenario.concurrency);
+      const result = await bench(
+        async () => {
+          const request = new BenchRequest({
+            Url: `${this.baseUrl}${scenario.path}`,
+            Method: "GET",
+            Headers: {
+              Authorization: superuserToken,
+            },
+          });
+          await request.Send(null);
+        },
+        scenario.iterations,
+        scenario.concurrency,
+      );
 
       this.write(result.String());
     }
@@ -990,8 +1053,20 @@ export class Runner {
     const { token: superuserToken } = this.randomSuperuserAuth();
 
     const scenarios = [
-      { comment: "JS OnRecordBeforeUpdateRequest hook handler", updateCount: 100, concurrency: 10, collection: colPosts10k, tempName: "js" },
-      { comment: "Go OnRecordBeforeUpdateRequest hook handler", updateCount: 100, concurrency: 10, collection: colPosts10k, tempName: "go" },
+      {
+        comment: "JS OnRecordBeforeUpdateRequest hook handler",
+        updateCount: 100,
+        concurrency: 10,
+        collection: colPosts10k,
+        tempName: "js",
+      },
+      {
+        comment: "Go OnRecordBeforeUpdateRequest hook handler",
+        updateCount: 100,
+        concurrency: 10,
+        collection: colPosts10k,
+        tempName: "go",
+      },
     ] as const;
 
     for (const scenario of scenarios) {
@@ -1010,23 +1085,27 @@ export class Runner {
       let benchErr: Error | null = null;
 
       try {
-        result = await bench(async (i) => {
-          const id = idsToUpdate[i];
-          if (!id) {
-            throw new Error(`missing update id at index ${i}`);
-          }
+        result = await bench(
+          async (i) => {
+            const id = idsToUpdate[i];
+            if (!id) {
+              throw new Error(`missing update id at index ${i}`);
+            }
 
-          const request = new BenchRequest({
-            Url: `${this.baseUrl}/api/collections/${scenario.tempName}/records/${id}`,
-            Method: "PATCH",
-            Body: JSON.stringify({ title: "hook_update" }),
-            Headers: {
-              Authorization: superuserToken,
-            },
-          });
+            const request = new BenchRequest({
+              Url: `${this.baseUrl}/api/collections/${scenario.tempName}/records/${id}`,
+              Method: "PATCH",
+              Body: JSON.stringify({ title: "hook_update" }),
+              Headers: {
+                Authorization: superuserToken,
+              },
+            });
 
-          await request.Send(null);
-        }, idsToUpdate.length, scenario.concurrency);
+            await request.Send(null);
+          },
+          idsToUpdate.length,
+          scenario.concurrency,
+        );
       } catch (error) {
         benchErr = toError(error);
       }
@@ -1053,6 +1132,7 @@ export class Runner {
   async deleteRecords(): Promise<void> {
     this.write("## Deleting records");
 
+    let runErr: unknown;
     try {
       const { token: userToken } = this.randomUserAuth();
 
@@ -1119,32 +1199,41 @@ export class Runner {
           `#### deleting ${idsToDelete.length} ${scenario.collection} - ${scenario.comment} [conc:${scenario.concurrency}, rule:\`${JSON.stringify(scenario.rule)}\`]`,
         );
 
-        const result = await bench(async (i) => {
-          const id = idsToDelete[i];
-          if (!id) {
-            throw new Error(`missing delete id at index ${i}`);
-          }
+        const result = await bench(
+          async (i) => {
+            const id = idsToDelete[i];
+            if (!id) {
+              throw new Error(`missing delete id at index ${i}`);
+            }
 
-          const request = new BenchRequest({
-            Url: `${this.baseUrl}/api/collections/${scenario.collection}/records/${id}`,
-            Method: "DELETE",
-            Headers: {
-              Authorization: userToken,
-            },
-          });
+            const request = new BenchRequest({
+              Url: `${this.baseUrl}/api/collections/${scenario.collection}/records/${id}`,
+              Method: "DELETE",
+              Headers: {
+                Authorization: userToken,
+              },
+            });
 
-          await request.Send(null);
-        }, idsToDelete.length, scenario.concurrency);
+            await request.Send(null);
+          },
+          idsToDelete.length,
+          scenario.concurrency,
+        );
 
         this.write(result.String());
       }
 
       this.write("");
-    } finally {
-      const resetErr = await this.resetSchema(false);
-      if (resetErr) {
-        throw resetErr;
-      }
+    } catch (error) {
+      runErr = error;
+    }
+
+    const resetErr = await this.resetSchema(false);
+    if (resetErr) {
+      throw resetErr;
+    }
+    if (runErr) {
+      throw runErr;
     }
   }
 }
@@ -1217,7 +1306,10 @@ export function registerBenchmarkModule(app: App, baseUrl: string): void {
         app.store().remove(benchmarkStartedKey);
       });
 
-      return e.String(200, "Benchmarks started - you can check the results later in the console or in the benchmarks collection.");
+      return e.String(
+        200,
+        "Benchmarks started - you can check the results later in the console or in the benchmarks collection.",
+      );
     });
 
     se.Router.GET("/go", (e: RequestEvent) => {
@@ -1253,7 +1345,14 @@ function toNullableString(value: unknown): string | null {
     return null;
   }
 
-  return String(value);
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+
+  return null;
 }
 
 function toError(value: unknown): Error {

@@ -80,13 +80,7 @@ async function runProbe(config: ProbeConfig): Promise<ProbeResult> {
   const scriptPath = fileURLToPath(import.meta.url);
   const maxUploadMiB = Math.max(config.warmupSizeMiB, ...config.sizesMiB);
   const child = Bun.spawn({
-    cmd: [
-      process.execPath,
-      scriptPath,
-      "--server",
-      `--port=${port}`,
-      `--max-upload-mib=${maxUploadMiB}`,
-    ],
+    cmd: [process.execPath, scriptPath, "--server", `--port=${port}`, `--max-upload-mib=${maxUploadMiB}`],
     stdout: "pipe",
     stderr: "pipe",
     stdin: "ignore",
@@ -248,7 +242,7 @@ async function runUpload(
   }
 }
 
-async function waitForServerReady(port: number, child: Bun.Subprocess<"pipe", "pipe", "ignore">): Promise<void> {
+async function waitForServerReady(port: number, child: Bun.Subprocess<"ignore", "pipe", "pipe">): Promise<void> {
   const startedAt = Date.now();
   while (Date.now() - startedAt < defaultReadyTimeoutMs) {
     if (child.exitCode !== null) {

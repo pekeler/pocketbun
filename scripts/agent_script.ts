@@ -12,7 +12,7 @@ type AgentScriptConfig = {
 };
 
 const config: AgentScriptConfig = {
-  description: "Measure the slow create-organizations-rule benchmark path without inspector overhead.",
+  description: "Measure create-organizations-rule throughput over a fixed duration.",
   cmd: [
     "bun",
     "run",
@@ -20,11 +20,11 @@ const config: AgentScriptConfig = {
     "--scenario",
     "create-organizations-rule",
     "--duration-ms",
-    "20000",
+    "10000",
     "--concurrency",
-    "10",
+    "100",
     "--warmup-requests",
-    "500",
+    "100",
   ],
   cwd: process.cwd(),
   env: process.env,
@@ -41,5 +41,8 @@ const child = Bun.spawn({
   stdio: ["inherit", "inherit", "inherit"],
 });
 
+const start = performance.now();
 const exitCode = await child.exited;
+const elapsedMs = performance.now() - start;
+console.log(`agent-script elapsed: ${elapsedMs.toFixed(2)}ms`);
 process.exit(exitCode);

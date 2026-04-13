@@ -5,13 +5,13 @@
 // simple local apples-to-apples memory comparison in one place so README notes can
 // be backed by a reproducible command.
 
+import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, open, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { cpus } from "node:os";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { randomUUID } from "node:crypto";
 import { readStreamText } from "./readable_stream.ts";
 
 type Engine = "pocketbase" | "pocketbun";
@@ -278,7 +278,7 @@ async function ensureSuperuser(engine: Engine, dataDir: string): Promise<void> {
   }
 }
 
-async function waitForServerReady(baseUrl: string, proc: Bun.Subprocess<"pipe", "pipe", "ignore">): Promise<void> {
+async function waitForServerReady(baseUrl: string, proc: Bun.Subprocess<"ignore", "pipe", "pipe">): Promise<void> {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
     if (proc.exitCode !== null) {
@@ -407,7 +407,12 @@ async function warmupUploadEndpoint(baseUrl: string, collectionName: string): Pr
   await runUploadRequest(baseUrl, collectionName, 1);
 }
 
-async function runLoadProbe(pid: number, baseUrl: string, adminToken: string, collectionName: string): Promise<LoadMeasurement> {
+async function runLoadProbe(
+  pid: number,
+  baseUrl: string,
+  adminToken: string,
+  collectionName: string,
+): Promise<LoadMeasurement> {
   const url = `${baseUrl}/api/collections/${collectionName}/records?page=1&perPage=30`;
   const beforeBytes = await sampleRss(pid);
   const deadline = Date.now() + parsed.loadDurationMs;
@@ -467,7 +472,12 @@ async function runLoadProbe(pid: number, baseUrl: string, adminToken: string, co
   };
 }
 
-async function runUploadProbe(pid: number, baseUrl: string, collectionName: string, sizeMiB: number): Promise<UploadMeasurement> {
+async function runUploadProbe(
+  pid: number,
+  baseUrl: string,
+  collectionName: string,
+  sizeMiB: number,
+): Promise<UploadMeasurement> {
   const idle = await sampleWindow(pid, parsed.idleDurationMs, parsed.sampleIntervalMs);
   const beforeBytes = idle.meanBytes;
   const upload = await runUploadRequest(baseUrl, collectionName, sizeMiB, pid);

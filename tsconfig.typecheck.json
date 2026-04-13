@@ -5,11 +5,10 @@
     "skipLibCheck": false,
     "types": ["bun"]
   },
-  "include": ["index.ts", "src/**/*.ts"],
+  "include": ["index.ts", "src/**/*.ts", "scripts/**/*.ts"],
   "exclude": [
     "dist",
     "node_modules",
-    "scripts",
     "tests",
     "vendor/pocketbase-benchmarks",
     "src/plugins/jsvm/internal/types/generated"

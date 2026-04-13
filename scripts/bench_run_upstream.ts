@@ -26,7 +26,11 @@ const benchmarkTransportModeFile =
 const benchmarkTransportMode = await resolveBenchmarkTransportMode(benchmarkTransportModeFile);
 const benchmarkDebugErrorsFile =
   process.env.POCKETBUN_BENCHMARK_DEBUG_ERRORS_FILE ?? "/tmp/pocketbun-bench-upstream-debug-errors.txt";
-const benchmarkDebugErrors = await resolveBooleanOverride(process.env.POCKETBUN_BENCHMARK_DEBUG_ERRORS, benchmarkDebugErrorsFile, false);
+const benchmarkDebugErrors = await resolveBooleanOverride(
+  process.env.POCKETBUN_BENCHMARK_DEBUG_ERRORS,
+  benchmarkDebugErrorsFile,
+  false,
+);
 const benchmarkWarmupRequestsFile =
   process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS_FILE ?? "/tmp/pocketbun-bench-upstream-warmup-requests.txt";
 const benchmarkWarmupRequests = await resolveIntOverride(
@@ -38,8 +42,7 @@ const machineTag = sanitizeTag(process.env.POCKETBUN_BENCH_MACHINE_TAG ?? "m2-ma
 const timestampTag = createTimestampTag(new Date());
 const resultsDir = process.env.POCKETBUN_BENCH_RESULTS_DIR ?? "benchmarks/results";
 const repoResultFile =
-  process.env.POCKETBUN_BENCHMARK_RESULT_FILE ??
-  join(resultsDir, `${timestampTag}-pocketbase-upstream-${machineTag}.md`);
+  process.env.POCKETBUN_BENCHMARK_RESULT_FILE ?? join(resultsDir, `${timestampTag}-pocketbase-upstream-${machineTag}.md`);
 const latestResultFile = process.env.POCKETBUN_BENCHMARK_RESULT_LATEST_FILE ?? "/tmp/pocketbase-benchmarks-latest.txt";
 
 const serverReadyTimeoutMs = 60_000;
@@ -134,16 +137,16 @@ try {
         ? await runCreateErrorProbe(token)
         : benchmarkRun === "probe:auth-refresh"
           ? await runAuthRefreshProbe(token)
-        : await runCreateLatencyProbe(
-            token,
-            benchmarkRun === "probe:create-organizations"
-              ? "organizations-only"
-              : benchmarkRun === "probe:create-users"
-                ? "users-only"
-                : benchmarkRun === "probe:create-users-upstream"
-                  ? "users-upstream"
-                : "full",
-          );
+          : await runCreateLatencyProbe(
+              token,
+              benchmarkRun === "probe:create-organizations"
+                ? "organizations-only"
+                : benchmarkRun === "probe:create-users"
+                  ? "users-only"
+                  : benchmarkRun === "probe:create-users-upstream"
+                    ? "users-upstream"
+                    : "full",
+            );
 
     const metadataHeader = [
       "# Upstream PocketBase Benchmark Probe",
@@ -189,14 +192,14 @@ try {
     const result = await waitForBenchmarkResult(token, benchmarkRun, benchmarkTimeoutMs);
 
     console.log("\nUpstream benchmark result");
-    console.log(`  tests: ${String(result.tests ?? "")}`);
+    console.log(`  tests: ${formatUnknownText(result.tests)}`);
     if (typeof result.error === "string" && result.error !== "") {
       console.log(`  error: ${result.error}`);
       throw new Error(`upstream benchmark reported error: ${result.error}`);
     }
     console.log("  status: completed");
     console.log("\nResult body:");
-    const resultBody = String(result.result ?? "").trim();
+    const resultBody = formatUnknownText(result.result).trim();
     console.log(resultBody || "(empty)");
 
     const metadataHeader = [
@@ -291,7 +294,10 @@ function mapNodeArchToGoarch(arch: string): string {
 }
 
 function createTimestampTag(date: Date): string {
-  return date.toISOString().replace(/:/g, "-").replace(/\.\d{3}Z$/, "Z");
+  return date
+    .toISOString()
+    .replace(/:/g, "-")
+    .replace(/\.\d{3}Z$/, "Z");
 }
 
 function sanitizeTag(value: string): string {
@@ -589,11 +595,7 @@ async function resolveBooleanOverride(
   return defaultValue;
 }
 
-async function resolveIntOverride(
-  envValue: string | undefined,
-  overrideFile: string,
-  defaultValue: number,
-): Promise<number> {
+async function resolveIntOverride(envValue: string | undefined, overrideFile: string, defaultValue: number): Promise<number> {
   const parsedEnv = parseNonNegativeInt(envValue);
   if (parsedEnv !== null) {
     return parsedEnv;
@@ -805,7 +807,7 @@ async function runCreateErrorProbe(superuserToken: string): Promise<string> {
   }
 
   console.log(
-    `\nRunning upstream create probe (collection=${collection}, reqs=${iterations}, conc=${concurrency}, createRule=\"\")...`,
+    `\nRunning upstream create probe (collection=${collection}, reqs=${iterations}, conc=${concurrency}, createRule="")...`,
   );
 
   let nextIndex = 0;
@@ -824,8 +826,7 @@ async function runCreateErrorProbe(superuserToken: string): Promise<string> {
 
       const payload = {
         title: `${collection}-probe-${i}`,
-        description:
-          "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec sit amet sodales nisl, quis pretium nunc.",
+        description: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec sit amet sodales nisl, quis pretium nunc.",
         public: i % 2 !== 0,
         type: [types[i % types.length], types[(i + 1) % types.length]],
         author: userIds[i % userIds.length] ?? userIds[0] ?? "",
@@ -966,36 +967,36 @@ async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatency
               },
             },
           ]
-      : [
-          {
-            collection: "organizations",
-            rule: "",
-            iterations: 500,
-            concurrency: 10,
-            payload: (index) => ({ name: `probe-org-${runTag}-${index}` }),
-          },
-          {
-            collection: "organizations",
-            rule: "@request.body.name != ''",
-            iterations: 500,
-            concurrency: 10,
-            payload: (index) => ({ name: `probe-org-rule-${runTag}-${index}` }),
-          },
-          {
-            collection: "permissions",
-            rule: "",
-            iterations: 250,
-            concurrency: 5,
-            payload: (index) => ({ name: `probe-perm-${runTag}-${index}`, active: index % 2 === 0 }),
-          },
-          {
-            collection: "permissions",
-            rule: "@request.body.name != ''",
-            iterations: 250,
-            concurrency: 5,
-            payload: (index) => ({ name: `probe-perm-rule-${runTag}-${index}`, active: index % 2 === 0 }),
-          },
-        ];
+        : [
+            {
+              collection: "organizations",
+              rule: "",
+              iterations: 500,
+              concurrency: 10,
+              payload: (index) => ({ name: `probe-org-${runTag}-${index}` }),
+            },
+            {
+              collection: "organizations",
+              rule: "@request.body.name != ''",
+              iterations: 500,
+              concurrency: 10,
+              payload: (index) => ({ name: `probe-org-rule-${runTag}-${index}` }),
+            },
+            {
+              collection: "permissions",
+              rule: "",
+              iterations: 250,
+              concurrency: 5,
+              payload: (index) => ({ name: `probe-perm-${runTag}-${index}`, active: index % 2 === 0 }),
+            },
+            {
+              collection: "permissions",
+              rule: "@request.body.name != ''",
+              iterations: 250,
+              concurrency: 5,
+              payload: (index) => ({ name: `probe-perm-rule-${runTag}-${index}`, active: index % 2 === 0 }),
+            },
+          ];
 
   const results: CreateLatencyResult[] = [];
   for (const scenario of scenarios) {
@@ -1060,10 +1061,10 @@ async function runCreateLatencyScenario(scenario: CreateLatencyScenario): Promis
               `  sample error (${scenario.collection} rule=${JSON.stringify(scenario.rule)}): HTTP ${response.status} ${sample}`,
             );
           } else {
-            response.body?.cancel();
+            discardResponseBody(response);
           }
         } else {
-          response.body?.cancel();
+          discardResponseBody(response);
         }
       } catch (error) {
         errors += 1;
@@ -1122,10 +1123,10 @@ async function runAuthRefreshScenario(scenario: AuthRefreshScenario, authToken: 
             const sample = compactErrorSample(await response.text());
             console.log(`  sample auth-refresh error (${scenario.label}): HTTP ${response.status} ${sample}`);
           } else {
-            response.body?.cancel();
+            discardResponseBody(response);
           }
         } else {
-          response.body?.cancel();
+          discardResponseBody(response);
         }
       } catch (error) {
         errors += 1;
@@ -1179,7 +1180,7 @@ async function runCreateLatencyWarmup(scenario: CreateLatencyScenario, warmupReq
         if (response.status >= 400) {
           errors += 1;
         }
-        response.body?.cancel();
+        discardResponseBody(response);
       } catch {
         errors += 1;
       }
@@ -1365,6 +1366,23 @@ async function ensureProbeAuthIdentity(superuserToken: string): Promise<ProbeAut
 
 function compactErrorSample(raw: string): string {
   return raw.replace(/\s+/g, " ").trim().slice(0, 240);
+}
+
+function discardResponseBody(response: Response): void {
+  void response.body?.cancel();
+}
+
+function formatUnknownText(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  if (value == null) {
+    return "";
+  }
+  return JSON.stringify(value) ?? "";
 }
 
 async function importProbeSchema(token: string): Promise<void> {

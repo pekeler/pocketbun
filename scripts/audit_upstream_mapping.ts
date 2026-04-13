@@ -1,6 +1,6 @@
 // PocketBun-only: audit helper to compare upstream .go files to local TS ports.
 
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const upstreamRoot = join(process.cwd(), ".upstream", "pocketbase");
@@ -45,9 +45,7 @@ function walk(dir: string): string[] {
 
 function mapToTsPath(relPath: string): { expected: string; isTest: boolean } {
   const isTest = relPath.endsWith("_test.go");
-  const tsPath = relPath
-    .replace(/_test\.go$/, ".test.ts")
-    .replace(/\.go$/, ".ts");
+  const tsPath = relPath.replace(/_test\.go$/, ".test.ts").replace(/\.go$/, ".ts");
   return { expected: join(srcRoot, tsPath), isTest };
 }
 
@@ -70,8 +68,7 @@ function main(): void {
     }
   }
 
-  const formatList = (items: Missing[]) =>
-    items.map((item) => `- ${item.upstream} -> ${item.expected}`).join("\n");
+  const formatList = (items: Missing[]) => items.map((item) => `- ${item.upstream} -> ${item.expected}`).join("\n");
 
   console.log(`Missing source files: ${missingSources.length}`);
   if (missingSources.length > 0) {

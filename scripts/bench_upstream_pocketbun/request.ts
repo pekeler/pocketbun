@@ -185,5 +185,9 @@ async function toRequestBody(body: BodyInit | null): Promise<string | null> {
     return Buffer.from(buffer).toString("utf8");
   }
 
-  return String(body);
+  if (typeof body === "number" || typeof body === "boolean" || typeof body === "bigint") {
+    return String(body);
+  }
+
+  return JSON.stringify(body) ?? "";
 }

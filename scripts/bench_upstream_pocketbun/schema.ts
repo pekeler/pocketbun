@@ -26,7 +26,7 @@ export const benchmarkSchema = extractBenchmarkSchema(schemaSource);
 function extractBenchmarkSchema(rawSource: string): string {
   const fullSchemaRaw = extractSchemaJson(rawSource);
   const parsed = JSON.parse(fullSchemaRaw) as Array<Record<string, unknown>>;
-  const filtered = parsed.filter((entry) => benchmarkCollections.has(String(entry.name ?? "")));
+  const filtered = parsed.filter((entry) => benchmarkCollections.has(typeof entry.name === "string" ? entry.name : ""));
   return JSON.stringify(filtered);
 }
 
@@ -43,5 +43,5 @@ function extractSchemaJson(rawSource: string): string {
     throw new Error(`failed to find schema end marker in ${schemaFilePath}`);
   }
 
-  return rawSource.slice(bodyStart, bodyEnd).replaceAll("` + \"`\" + `", "`");
+  return rawSource.slice(bodyStart, bodyEnd).replaceAll('` + "`" + `', "`");
 }

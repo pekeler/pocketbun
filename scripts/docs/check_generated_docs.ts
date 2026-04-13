@@ -8,6 +8,14 @@ type RouteItem = { href: string; title: string };
 
 const CACHE_DOC_LINKS = ".cache/upstream-site-docs/doc_links.js";
 
+function capture(match: RegExpMatchArray, index: number, label: string): string {
+  const value = match[index];
+  if (value === undefined) {
+    throw new Error(`Missing ${label}`);
+  }
+  return value;
+}
+
 function extractArrayBlock(source: string, exportName: string): string {
   const marker = `export const ${exportName}`;
   const markerIndex = source.indexOf(marker);
@@ -44,8 +52,8 @@ function parseRouteItemsFromBlock(block: string): RouteItem[] {
 
   const re = /href:\s*"([^"]+)"[\s\S]{0,260}?title:\s*"([^"]+)"/g;
   for (const match of block.matchAll(re)) {
-    const href = match[1];
-    const title = match[2];
+    const href = capture(match, 1, "route href");
+    const title = capture(match, 2, "route title");
 
     if (!href.startsWith("/docs")) {
       continue;
@@ -101,7 +109,9 @@ function readDocsConfigVersion(): string {
     throw new Error("Missing `pocketbun_version` in docs/_config.yml");
   }
 
-  return match[1].trim().replace(/^['"]|['"]$/g, "");
+  return capture(match, 1, "docs version")
+    .trim()
+    .replace(/^['"]|['"]$/g, "");
 }
 
 function assertDocsVersionMatchesPackageVersion(): void {
@@ -109,9 +119,7 @@ function assertDocsVersionMatchesPackageVersion(): void {
   const docsVersion = readDocsConfigVersion();
 
   if (docsVersion !== packageVersion) {
-    throw new Error(
-      `Docs version mismatch: docs/_config.yml has '${docsVersion}' but package.json has '${packageVersion}'`,
-    );
+    throw new Error(`Docs version mismatch: docs/_config.yml has '${docsVersion}' but package.json has '${packageVersion}'`);
   }
 }
 
@@ -135,7 +143,7 @@ function assertLocalScreenshotLinksExist(docPath: string, content: string): void
   const linked = new Set<string>();
 
   for (const match of content.matchAll(localLinkRegex)) {
-    const rel = match[1];
+    const rel = capture(match, 1, "local screenshot link");
     linked.add(rel);
   }
 

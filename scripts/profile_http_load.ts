@@ -1,13 +1,17 @@
 #!/usr/bin/env bun
 // PocketBun-only maintainer helper: generate HTTP load from a child process for cleaner server CPU profiles.
 
-type Scenario = "list-records" | "create-organizations" | "create-organizations-rule" | "create-permissions" | "create-permissions-rule";
+import { readFileSync } from "node:fs";
+import { defaultUrl, isScenario, type Scenario } from "./profile_scenarios.ts";
 
 type Options = {
+  authorId: string | null;
   authorization: string | null;
   baseUrl: string;
   concurrency: number;
-  durationMs: number;
+  deleteIds: string[] | null;
+  durationMs: number | null;
+  iterations: number | null;
   scenario: Scenario;
   url: string;
   warmupRequests: number;
@@ -20,12 +24,15 @@ type ScenarioRequest = {
 
 function parseArgs(argv: string[]): Options {
   const options: Options = {
+    authorId: null,
     authorization: null,
     baseUrl: "",
     concurrency: 1,
+    deleteIds: null,
     durationMs: 1000,
+    iterations: null,
     scenario: "list-records",
-    url: "/api/collections/demo2/records?page=1&perPage=30",
+    url: defaultUrl("list-records"),
     warmupRequests: 0,
   };
 
@@ -37,16 +44,11 @@ function parseArgs(argv: string[]): Options {
     }
     if (arg === "--scenario") {
       const value = requireValue(argv, ++i, arg);
-      if (
-        value !== "list-records" &&
-        value !== "create-organizations" &&
-        value !== "create-organizations-rule" &&
-        value !== "create-permissions" &&
-        value !== "create-permissions-rule"
-      ) {
+      if (!isScenario(value)) {
         throw new Error(`invalid --scenario value: ${value}`);
       }
       options.scenario = value;
+      options.url = defaultUrl(value);
       continue;
     }
     if (arg === "--authorization") {
@@ -59,6 +61,12 @@ function parseArgs(argv: string[]): Options {
     }
     if (arg === "--duration-ms") {
       options.durationMs = parsePositiveInt(requireValue(argv, ++i, arg), arg);
+      options.iterations = null;
+      continue;
+    }
+    if (arg === "--iterations") {
+      options.iterations = parsePositiveInt(requireValue(argv, ++i, arg), arg);
+      options.durationMs = null;
       continue;
     }
     if (arg === "--concurrency") {
@@ -69,6 +77,14 @@ function parseArgs(argv: string[]): Options {
       options.warmupRequests = parseNonNegativeInt(requireValue(argv, ++i, arg), arg);
       continue;
     }
+    if (arg === "--author-id") {
+      options.authorId = requireValue(argv, ++i, arg);
+      continue;
+    }
+    if (arg === "--ids-file") {
+      options.deleteIds = parseIdsFile(requireValue(argv, ++i, arg));
+      continue;
+    }
     if (arg === "-h" || arg === "--help") {
       console.log(`Usage:
   bun run scripts/profile_http_load.ts --base-url <url> --scenario <name> [options]
@@ -77,8 +93,11 @@ Options:
   --authorization <token>  optional Authorization header value
   --url <path>             list-records request path
   --duration-ms <ms>       load window duration in milliseconds
+  --iterations <n>         fixed number of requests to send instead of a timed window
   --concurrency <n>        concurrent in-flight requests
   --warmup-requests <n>    sequential warmup requests before profiling
+  --author-id <id>         record author id for create-posts scenarios
+  --ids-file <path>        JSON file with delete record ids for delete scenarios
 `);
       process.exit(0);
     }
@@ -87,6 +106,9 @@ Options:
 
   if (!options.baseUrl) {
     throw new Error("missing --base-url");
+  }
+  if (options.durationMs == null && options.iterations == null) {
+    throw new Error("one of --duration-ms or --iterations is required");
   }
 
   return options;
@@ -116,7 +138,37 @@ function parseNonNegativeInt(raw: string, flag: string): number {
   return value;
 }
 
+function parseIdsFile(path: string): string[] {
+  const ids = JSON.parse(readFileSync(path, "utf8")) as unknown;
+  if (!Array.isArray(ids) || ids.some((value) => typeof value !== "string" || value === "")) {
+    throw new Error(`invalid ids payload in ${path}`);
+  }
+  return ids;
+}
+
 function buildRequest(options: Options, headers: Headers, index: number, runTag: string): ScenarioRequest {
+  if (options.scenario === "create-posts10k" || options.scenario === "create-posts10k-rule") {
+    const authorId = options.authorId;
+    if (!authorId) {
+      throw new Error(`scenario ${options.scenario} requires --author-id`);
+    }
+    return {
+      url: `${options.baseUrl}/api/collections/posts10k/records`,
+      init: {
+        method: "POST",
+        headers: new Headers({ ...Object.fromEntries(headers.entries()), "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          title: `profile-post-${runTag}-${index}`,
+          description:
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec sit amet sodales nisl, quis pretium nunc. Suspendisse vel auctor velit, sed luctus lectus. Phasellus rhoncus imperdiet feugiat. Duis et laoreet felis, ut facilisis enim. Quisque aliquet aliquam magna eget eleifend. Duis sed tellus nibh. Nunc ac lacus auctor, scelerisque magna congue, euismod purus. Fusce sollicitudin pharetra egestas. Quisque pulvinar augue nec aliquam placerat. Suspendisse dapibus ornare sodales.",
+          public: index % 2 !== 0,
+          type: [index % 2 === 0 ? "a" : "b", index % 3 === 0 ? "c" : "d"],
+          author: authorId,
+        }),
+      },
+    };
+  }
+
   if (options.scenario === "create-organizations" || options.scenario === "create-organizations-rule") {
     return {
       url: `${options.baseUrl}/api/collections/organizations/records`,
@@ -142,6 +194,24 @@ function buildRequest(options: Options, headers: Headers, index: number, runTag:
     };
   }
 
+  if (options.scenario === "delete-posts25k" || options.scenario === "delete-posts25k-rule") {
+    const deleteIds = options.deleteIds;
+    if (!deleteIds) {
+      throw new Error(`scenario ${options.scenario} requires --ids-file`);
+    }
+    const id = deleteIds[index];
+    if (!id) {
+      throw new Error(`missing delete id for request index ${index}`);
+    }
+    return {
+      url: `${options.baseUrl}/api/collections/posts25k/records/${id}`,
+      init: {
+        method: "DELETE",
+        headers,
+      },
+    };
+  }
+
   return {
     url: `${options.baseUrl}${options.url}`,
     init: { headers },
@@ -160,13 +230,20 @@ async function warmup(options: Options, headers: Headers, runTag: string): Promi
 }
 
 async function runLoad(options: Options, headers: Headers, runTag: string): Promise<number> {
-  const deadline = Date.now() + options.durationMs;
   let completed = 0;
   let nextIndex = 0;
+  const deadline = options.durationMs == null ? null : Date.now() + options.durationMs;
+  const totalIterations = options.iterations ?? Number.POSITIVE_INFINITY;
 
   const worker = async () => {
-    while (Date.now() < deadline) {
+    while (true) {
       const index = nextIndex;
+      if (index >= totalIterations) {
+        return;
+      }
+      if (deadline != null && Date.now() >= deadline) {
+        return;
+      }
       nextIndex += 1;
       const request = buildRequest(options, headers, index, runTag);
       const response = await fetch(request.url, request.init);

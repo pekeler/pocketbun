@@ -1,7 +1,7 @@
 // PocketBun-only: pick a free port for Playwright and launch tests.
 
-import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
+import { createServer } from "node:net";
 
 const port = await new Promise<number>((resolve, reject) => {
   const server = createServer();
