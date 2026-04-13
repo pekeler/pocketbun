@@ -12,15 +12,15 @@ type AgentScriptConfig = {
 };
 
 const config: AgentScriptConfig = {
-  description: "Measure the slow create-organizations benchmark path without inspector overhead.",
+  description: "Measure the slow create-organizations-rule benchmark path without inspector overhead.",
   cmd: [
     "bun",
     "run",
     "scripts/measure_records_scenario.ts",
     "--scenario",
-    "create-organizations",
+    "create-organizations-rule",
     "--duration-ms",
-    "10000",
+    "20000",
     "--concurrency",
     "10",
     "--warmup-requests",

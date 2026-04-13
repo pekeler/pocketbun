@@ -360,14 +360,13 @@ function considerCandidates<E extends RouterEvent>(
 }
 
 function matchMethodScore(method: string, routeMethod: string): number {
-  const normalizedRoute = routeMethod.toUpperCase();
-  if (normalizedRoute === method) {
+  if (routeMethod === method) {
     return 3;
   }
-  if (method === "HEAD" && normalizedRoute === "GET") {
+  if (method === "HEAD" && routeMethod === "GET") {
     return 2;
   }
-  if (normalizedRoute === "") {
+  if (routeMethod === "") {
     return 1;
   }
   return -1;

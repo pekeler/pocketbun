@@ -96,7 +96,9 @@ export class DateTime {
 
   // Sub returns the milliseconds diff by subtracting the specified DateTime from the current one.
   Sub(other: DateTime): number {
-    return this.time().getTime() - other.time().getTime();
+    const left = this.#date?.getTime() ?? 0;
+    const right = other.#date?.getTime() ?? 0;
+    return left - right;
   }
 
   addDate(years: number, months: number, days: number): DateTime {
@@ -120,7 +122,9 @@ export class DateTime {
 
   // After reports whether the current DateTime instance is after u.
   After(other: DateTime): boolean {
-    return this.time().getTime() > other.time().getTime();
+    const left = this.#date?.getTime() ?? 0;
+    const right = other.#date?.getTime() ?? 0;
+    return left > right;
   }
 
   before(other: DateTime): boolean {
@@ -129,7 +133,9 @@ export class DateTime {
 
   // Before reports whether the current DateTime instance is before u.
   Before(other: DateTime): boolean {
-    return this.time().getTime() < other.time().getTime();
+    const left = this.#date?.getTime() ?? 0;
+    const right = other.#date?.getTime() ?? 0;
+    return left < right;
   }
 
   compare(other: DateTime): number {
@@ -141,7 +147,7 @@ export class DateTime {
   // If the current instance is after u, it returns +1.
   // If they're the same, it returns 0.
   Compare(other: DateTime): number {
-    const diff = this.time().getTime() - other.time().getTime();
+    const diff = (this.#date?.getTime() ?? 0) - (other.#date?.getTime() ?? 0);
     if (diff < 0) {
       return -1;
     }
@@ -162,7 +168,7 @@ export class DateTime {
     if (!(other instanceof DateTime)) {
       return false;
     }
-    return this.time().getTime() === other.time().getTime();
+    return (this.#date?.getTime() ?? 0) === (other.#date?.getTime() ?? 0);
   }
 
   unix(): number {
@@ -175,7 +181,7 @@ export class DateTime {
     if (this.isZero()) {
       return -62135596800;
     }
-    return Math.floor(this.time().getTime() / 1000);
+    return Math.floor((this.#date?.getTime() ?? 0) / 1000);
   }
 
   isZero(): boolean {
@@ -188,10 +194,11 @@ export class DateTime {
   }
 
   toString(): string {
-    if (this.isZero()) {
+    const date = this.#date;
+    if (!date || Number.isNaN(date.getTime())) {
       return "";
     }
-    const iso = this.time().toISOString();
+    const iso = date.toISOString();
     return iso.replace("T", " ");
   }
 
@@ -249,7 +256,7 @@ export class DateTime {
       return null;
     }
     if (value instanceof DateTime) {
-      this.#date = value.isZero() ? null : value.time();
+      this.#date = value.#date ? new Date(value.#date.getTime()) : null;
       return null;
     }
     if (typeof value === "string") {

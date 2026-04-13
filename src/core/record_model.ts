@@ -240,7 +240,9 @@ export class Record {
   }
 
   Original(): Record {
-    const original = new Record(this.#collection, {}, true);
+    // Deviation: Original() immediately overwrites the constructor-managed
+    // record state, so avoid the heavier isNew=true field-default initialization.
+    const original = new Record(this.#collection, {}, false);
     original.#data = {};
     original.#originalData = { ...this.#originalData };
     const savedId = typeof original.#originalData.id === "string" ? original.#originalData.id : "";
