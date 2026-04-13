@@ -1025,14 +1025,49 @@ function fallbackRequestInfo(event: RequestEvent): RequestInfo {
   const infoContextRaw = event.Get(RequestEventKeyInfoContext);
   const context = typeof infoContextRaw === "string" && infoContextRaw !== "" ? infoContextRaw : RequestInfoContextDefault;
 
-  return {
-    query: fallbackRequestInfoQuery(event.requestUrl().searchParams),
-    headers: fallbackRequestInfoHeaders(event.request.headers),
+  const info: RequestInfo = {
+    query: {},
+    headers: {},
     body: {},
     auth: event.auth,
     method: event.request.method,
     context,
   };
+
+  let lazyQuery: Record<string, string> | null = null;
+  let lazyHeaders: Record<string, string> | null = null;
+
+  Object.defineProperty(info, "query", {
+    enumerable: true,
+    configurable: true,
+    get: () => {
+      if (lazyQuery) {
+        return lazyQuery;
+      }
+      lazyQuery = fallbackRequestInfoQuery(event.requestUrl().searchParams);
+      return lazyQuery;
+    },
+    set: (value: Record<string, string>) => {
+      lazyQuery = value;
+    },
+  });
+
+  Object.defineProperty(info, "headers", {
+    enumerable: true,
+    configurable: true,
+    get: () => {
+      if (lazyHeaders) {
+        return lazyHeaders;
+      }
+      lazyHeaders = fallbackRequestInfoHeaders(event.request.headers);
+      return lazyHeaders;
+    },
+    set: (value: Record<string, string>) => {
+      lazyHeaders = value;
+    },
+  });
+
+  return info;
 }
 
 function fallbackRequestInfoForMultipart(event: RequestEvent): RequestInfo | null {

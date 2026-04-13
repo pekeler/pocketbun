@@ -10,7 +10,6 @@ import { existInSliceWithRegex, toUniqueStringSlice } from "../tools/list/list.t
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { MultiMatchSubquery } from "../tools/search/multi_match_subquery.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
-import { pseudorandomString } from "../tools/security/random.ts";
 import { JSONRaw } from "../tools/types/json_raw.ts";
 import { replaceWithExpression } from "./record_field_resolver_replace_expr.ts";
 import {
@@ -223,7 +222,7 @@ class Runner {
       DefaultFilterExprLimit,
     );
 
-    const placeholder = `@changed@${name}${pseudorandomString(8)}`;
+    const placeholder = this.resolver.nextGeneratedName(`__changed_${columnify(name)}_`);
 
     return {
       identifier: placeholder,
@@ -235,7 +234,7 @@ class Runner {
 
   processRequestBodyLowerModifier(bodyField: CollectionField): ResolverResult {
     const rawValue = toStringValue(this.resolver.requestInfo?.body[bodyField.name]);
-    const placeholder = `infoLower${bodyField.name}${pseudorandomString(8)}`;
+    const placeholder = this.resolver.nextGeneratedName(`infoLower${columnify(bodyField.name)}_`);
     return {
       identifier: `LOWER({:${placeholder}})`,
       params: [rawValue],
@@ -262,7 +261,7 @@ class Runner {
     const bodyItems = toSlice(this.resolver.requestInfo?.body[bodyField.name]);
     const bodyItemsRaw = JSON.stringify(bodyItems);
 
-    const placeholder = `dataEach${pseudorandomString(8)}`;
+    const placeholder = this.resolver.nextGeneratedName("dataEach");
     const cleanFieldName = columnify(bodyField.name);
     const jeAlias = `__dataEach_je_${cleanFieldName}${this.resolver.joinAliasSuffix}`;
     this.resolver.registerJoin(`json_each({:${placeholder}})`, jeAlias, null, [bodyItemsRaw]);

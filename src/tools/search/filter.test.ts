@@ -268,6 +268,17 @@ describe("search filter", () => {
     }
   });
 
+  it("uses deterministic generated names for equivalent literal filters", () => {
+    const resolver = new SimpleFieldResolver(`^test\\w+$`);
+    const filter = "test1 = 'alpha' || test2 >= 42 || test3 ~ 'beta'";
+
+    const first = buildFilterExpr(filter, resolver, DefaultFilterExprLimit);
+    const second = buildFilterExpr(filter, resolver, DefaultFilterExprLimit);
+
+    expect(first.sql).toBe(second.sql);
+    expect(first.params).toEqual(second.params);
+  });
+
   it("like params wrapping", () => {
     const resolver = new SimpleFieldResolver(`^test\\w+$`);
 

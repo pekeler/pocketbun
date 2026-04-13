@@ -798,6 +798,48 @@ describe("record field resolver", () => {
     }
   });
 
+  it("RecordFieldResolver generates stable SQL for equivalent request and list-rule filters", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const authRecord = app.FindRecordById("users", "4q1xlclmfloku33");
+
+      const requestInfo: RequestInfo = {
+        context: "ctx",
+        method: "get",
+        headers: {
+          a: "123",
+          b: "456",
+        },
+        query: {
+          a: "",
+          b: "123",
+        },
+        body: {
+          number: 10,
+        },
+        auth: authRecord,
+      };
+
+      const collection = app.FindCollectionByNameOrId("demo4");
+      const select = `select {{${collection.name}}}.* from {{${collection.name}}}`;
+
+      const buildSql = (rule: string) => {
+        const resolver = new RecordFieldResolver(app, collection, requestInfo, false);
+        const expr = buildFilterExpr(rule, resolver, DefaultFilterExprLimit);
+        const updated = resolver.UpdateQuery({ select, params: [] });
+        return rewriteQuerySql(appendWhere(updated.select, expr.sql));
+      };
+
+      const requestRule = buildSql("@request.body.number = 10 && @request.headers.a = '123'");
+      expect(buildSql("@request.body.number = 10 && @request.headers.a = '123'")).toBe(requestRule);
+
+      const listRule = buildSql("rel_one_cascade.created > true");
+      expect(buildSql("rel_one_cascade.created > true")).toBe(listRule);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("RecordFieldResolverResolveCollectionFields", async () => {
     const { app, cleanup } = await newTestApp();
     try {

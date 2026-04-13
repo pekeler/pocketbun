@@ -7,7 +7,6 @@ import type { Collection } from "./collection_model.ts";
 import type { RequestInfo } from "./event_request.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { DefaultFilterExprLimit } from "../tools/search/types.ts";
-import { randomString } from "../tools/security/random.ts";
 
 // RecordFieldResolver defines a custom search resolver struct for
 // managing Record model search fields.
@@ -34,6 +33,8 @@ export class RecordFieldResolver implements FieldResolver {
   listRuleJoins: Map<string, Collection> | null;
   joinAliasSuffix: string;
   baseCollectionAlias: string;
+  generatedNameIndex: number;
+  joinAliasIndex: number;
 
   constructor(app: App, baseCollection: Collection, requestInfo: RequestInfo | null, allowHiddenFields: boolean) {
     this.app = app;
@@ -44,6 +45,8 @@ export class RecordFieldResolver implements FieldResolver {
     this.listRuleJoins = null;
     this.joinAliasSuffix = "";
     this.baseCollectionAlias = "";
+    this.generatedNameIndex = 0;
+    this.joinAliasIndex = 0;
     this.allowedFields = [
       "^\\w+[\\w\\.\\:]*$",
       "^\\@request\\.context$",
@@ -158,7 +161,7 @@ export class RecordFieldResolver implements FieldResolver {
 
         const clone = new RecordFieldResolver(this.app, collection, this.requestInfo, true);
         clone.baseCollectionAlias = alias;
-        clone.joinAliasSuffix = randomString(8);
+        clone.joinAliasSuffix = this.nextJoinAliasSuffix();
 
         const expr = buildFilterExpr(`id='' || (\n${collection.listRule}\n)`, clone, DefaultFilterExprLimit);
         if (expr.sql) {
@@ -263,12 +266,24 @@ export class RecordFieldResolver implements FieldResolver {
     }
 
     if (modifier === lowerModifier) {
-      const placeholder = `t${randomString(8)}`;
+      const placeholder = this.nextGeneratedName("t");
       return { identifier: `LOWER({:${placeholder}})`, params: [resultVal], nullFallback: "auto" };
     }
 
-    const placeholder = `t${randomString(8)}`;
+    const placeholder = this.nextGeneratedName("t");
     return { identifier: `{:${placeholder}}`, params: [resultVal], nullFallback: "auto" };
+  }
+
+  nextGeneratedName(prefix: string): string {
+    const index = this.generatedNameIndex;
+    this.generatedNameIndex += 1;
+    return `${prefix}${index.toString(36)}`;
+  }
+
+  nextJoinAliasSuffix(): string {
+    const index = this.joinAliasIndex;
+    this.joinAliasIndex += 1;
+    return `__jr${index.toString(36)}`;
   }
 
   loadCollection(collectionNameOrId: string): Collection | null {

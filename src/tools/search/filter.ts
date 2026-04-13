@@ -6,7 +6,6 @@
 import type { FieldResolver, ResolverResult } from "./field_resolver.ts";
 import type { MultiMatchSubquery } from "./multi_match_subquery.ts";
 import type { SqlExpr } from "./types.ts";
-import { randomString } from "../security/random.ts";
 import { Store } from "../store/store.ts";
 import { resolveIdentifierMacro } from "./identifier_macros.ts";
 import { tokenFunctions, type Token } from "./token_functions.ts";
@@ -79,6 +78,7 @@ export function buildFilterExpr(
 class Builder {
   #resolver: FieldResolver;
   #maxExpressions: number;
+  #generatedNameIndex = 0;
 
   constructor(resolver: FieldResolver, maxExpressions: number) {
     this.#resolver = resolver;
@@ -101,7 +101,7 @@ class Builder {
         this.#maxExpressions -= 1;
         const left = this.resolveToken(node.left);
         const right = this.resolveToken(node.right);
-        return buildComparison(node.op, left, right);
+        return buildComparison(node.op, left, right, this);
       }
       case "token": {
         throw new Error("invalid filter expression");
@@ -133,7 +133,7 @@ class Builder {
     if (token.type === "identifier") {
       const macroValue = resolveIdentifierMacro(token.value);
       if (macroValue !== undefined) {
-        return literalToken(macroValue);
+        return literalToken(macroValue, this);
       }
 
       try {
@@ -168,7 +168,7 @@ class Builder {
       if (!Number.isFinite(value)) {
         throw new Error("invalid numeric literal");
       }
-      return literalToken(value);
+      return literalToken(value, this);
     }
 
     if (token.type === "boolean") {
@@ -179,7 +179,13 @@ class Builder {
       };
     }
 
-    return literalToken(token.value);
+    return literalToken(token.value, this);
+  }
+
+  nextGeneratedName(prefix: string): string {
+    const index = this.#generatedNameIndex;
+    this.#generatedNameIndex += 1;
+    return `${prefix}${index.toString(36)}`;
   }
 }
 
@@ -190,8 +196,8 @@ function toToken(node: TokenNode): Token {
   return node.token;
 }
 
-function literalToken(value: unknown): ResolverResult {
-  const placeholder = `t${randomString(8)}`;
+function literalToken(value: unknown, builder: Builder): ResolverResult {
+  const placeholder = builder.nextGeneratedName("t");
   return {
     identifier: `{:${placeholder}}`,
     params: [value],
@@ -199,11 +205,17 @@ function literalToken(value: unknown): ResolverResult {
   };
 }
 
-function buildComparison(op: string, left: ResolverResult, right: ResolverResult): SqlExpr {
-  return buildComparisonInternal(op, left, right, true);
+function buildComparison(op: string, left: ResolverResult, right: ResolverResult, builder: Builder): SqlExpr {
+  return buildComparisonInternal(op, left, right, true, builder);
 }
 
-function buildComparisonInternal(op: string, left: ResolverResult, right: ResolverResult, allowMultiMatch: boolean): SqlExpr {
+function buildComparisonInternal(
+  op: string,
+  left: ResolverResult,
+  right: ResolverResult,
+  allowMultiMatch: boolean,
+  builder: Builder,
+): SqlExpr {
   const anyMatch = op.startsWith("?");
   const normalized = normalizeOperator(op);
   let expr: SqlExpr;
@@ -245,7 +257,7 @@ function buildComparisonInternal(op: string, left: ResolverResult, right: Resolv
   }
 
   if (allowMultiMatch && !anyMatch) {
-    expr = applyMultiMatch(expr, normalized, left, right);
+    expr = applyMultiMatch(expr, normalized, left, right, builder);
   }
   if (left.afterBuild) {
     expr = left.afterBuild(expr);
@@ -373,31 +385,31 @@ function mergeParams(...params: unknown[][]): unknown[] {
   return params.flatMap((item) => item);
 }
 
-function applyMultiMatch(expr: SqlExpr, op: string, left: ResolverResult, right: ResolverResult): SqlExpr {
+function applyMultiMatch(expr: SqlExpr, op: string, left: ResolverResult, right: ResolverResult, builder: Builder): SqlExpr {
   if (left.multiMatchSubquery && right.multiMatchSubquery) {
-    const mm = buildManyVsMany(op, left, right);
+    const mm = buildManyVsMany(op, left, right, builder);
     return andExpr(expr, mm);
   }
 
   if (left.multiMatchSubquery) {
-    const mm = buildManyVsOne(op, right, left.multiMatchSubquery, left.nullFallback, false);
+    const mm = buildManyVsOne(op, right, left.multiMatchSubquery, left.nullFallback, false, builder);
     return andExpr(expr, mm);
   }
 
   if (right.multiMatchSubquery) {
-    const mm = buildManyVsOne(op, left, right.multiMatchSubquery, right.nullFallback, true);
+    const mm = buildManyVsOne(op, left, right.multiMatchSubquery, right.nullFallback, true, builder);
     return andExpr(expr, mm);
   }
 
   return expr;
 }
 
-function buildManyVsMany(op: string, left: ResolverResult, right: ResolverResult): SqlExpr {
+function buildManyVsMany(op: string, left: ResolverResult, right: ResolverResult, builder: Builder): SqlExpr {
   const leftSub = left.multiMatchSubquery?.build() ?? { sql: "0=1", params: [] };
   const rightSub = right.multiMatchSubquery?.build() ?? { sql: "0=1", params: [] };
 
-  const lAlias = `__ml${randomString(8)}`;
-  const rAlias = `__mr${randomString(8)}`;
+  const lAlias = builder.nextGeneratedName("__ml");
+  const rAlias = builder.nextGeneratedName("__mr");
 
   const whereExpr = buildComparisonInternal(
     op,
@@ -413,6 +425,7 @@ function buildManyVsMany(op: string, left: ResolverResult, right: ResolverResult
       afterBuild: notExpr,
     },
     false,
+    builder,
   );
 
   const sql = `NOT EXISTS (SELECT 1 FROM (${leftSub.sql}) {{${lAlias}}} LEFT JOIN (${rightSub.sql}) {{${rAlias}}} WHERE ${whereExpr.sql})`;
@@ -425,8 +438,9 @@ function buildManyVsOne(
   subQuery: MultiMatchSubquery,
   nullFallback: ResolverResult["nullFallback"],
   inverse: boolean,
+  builder: Builder,
 ): SqlExpr {
-  const alias = `__sm${randomString(8)}`;
+  const alias = builder.nextGeneratedName("__sm");
 
   const r1: ResolverResult = {
     nullFallback,
@@ -441,7 +455,9 @@ function buildManyVsOne(
     nullFallback: otherOperand.nullFallback ?? "auto",
   };
 
-  const whereExpr = inverse ? buildComparisonInternal(op, r2, r1, false) : buildComparisonInternal(op, r1, r2, false);
+  const whereExpr = inverse
+    ? buildComparisonInternal(op, r2, r1, false, builder)
+    : buildComparisonInternal(op, r1, r2, false, builder);
 
   const sub = subQuery.build();
   const sql = `NOT EXISTS (SELECT 1 FROM (${sub.sql}) {{${alias}}} WHERE ${whereExpr.sql})`;

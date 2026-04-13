@@ -25,15 +25,10 @@ type Options = {
 };
 
 type ManagedApp = Awaited<ReturnType<typeof newTestApp>>["app"];
-type ScenarioRequest = {
-  init?: RequestInit;
-  url: string;
-};
 type ScenarioRunner = {
   auth: AuthMode;
   label: string;
   prepare: (app: ManagedApp) => Promise<void>;
-  request: (baseUrl: string, headers: Headers, index: number) => ScenarioRequest;
 };
 
 function usage(): void {
@@ -184,49 +179,51 @@ async function resolveAuthToken(app: Awaited<ReturnType<typeof newTestApp>>["app
   return app.FindAuthRecordByEmail("users", "test@example.com").NewAuthToken();
 }
 
-async function warmup(
-  baseUrl: string,
-  headers: Headers,
-  warmupRequests: number,
-  runner: ScenarioRunner,
-): Promise<void> {
-  for (let i = 0; i < warmupRequests; i += 1) {
-    const request = runner.request(baseUrl, headers, i);
-    const response = await fetch(request.url, request.init);
-    if (!response.ok) {
-      throw new Error(`warmup request failed with status ${response.status}`);
-    }
-    await response.arrayBuffer();
+async function runExternalLoad(baseUrl: string, token: string | null, options: Options): Promise<number> {
+  const cmd = [
+    "bun",
+    "run",
+    "scripts/profile_http_load.ts",
+    "--base-url",
+    baseUrl,
+    "--scenario",
+    options.scenario,
+    "--duration-ms",
+    String(options.durationMs),
+    "--concurrency",
+    String(options.concurrency),
+    "--warmup-requests",
+    String(options.warmupRequests ?? 0),
+  ];
+
+  if (options.scenario === "list-records") {
+    cmd.push("--url", options.url);
   }
-}
+  if (token) {
+    cmd.push("--authorization", token);
+  }
 
-async function runLoad(
-  baseUrl: string,
-  headers: Headers,
-  durationMs: number,
-  concurrency: number,
-  runner: ScenarioRunner,
-): Promise<number> {
-  const deadline = Date.now() + durationMs;
-  let completed = 0;
-  let nextIndex = 0;
+  const child = Bun.spawn({
+    cmd,
+    cwd: process.cwd(),
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "inherit",
+  });
 
-  const worker = async () => {
-    while (Date.now() < deadline) {
-      const index = nextIndex;
-      nextIndex += 1;
-      const request = runner.request(baseUrl, headers, index);
-      const response = await fetch(request.url, request.init);
-      if (!response.ok) {
-        throw new Error(`profile request failed with status ${response.status}`);
-      }
-      await response.arrayBuffer();
-      completed += 1;
-    }
-  };
+  const stdout = await new Response(child.stdout).text();
+  const exitCode = await child.exited;
+  if (exitCode !== 0) {
+    throw new Error(`load client exited with status ${exitCode}`);
+  }
 
-  await Promise.all(Array.from({ length: concurrency }, () => worker()));
-  return completed;
+  const payload = JSON.parse(stdout) as { completedRequests?: unknown };
+  const completedRequests = Number(payload.completedRequests);
+  if (!Number.isFinite(completedRequests) || completedRequests < 0) {
+    throw new Error("load client returned invalid completedRequests value");
+  }
+
+  return completedRequests;
 }
 
 async function prepareBenchmarkCreateScenario(app: ManagedApp, collectionName: string, rule: string): Promise<void> {
@@ -248,8 +245,6 @@ async function prepareBenchmarkCreateScenario(app: ManagedApp, collectionName: s
 }
 
 function createScenarioRunner(options: Options): ScenarioRunner {
-  const runTag = Date.now().toString(36);
-
   if (options.scenario === "create-organizations" || options.scenario === "create-organizations-rule") {
     const rule = options.scenario === "create-organizations-rule" ? "@request.body.name != ''" : "";
     return {
@@ -258,14 +253,6 @@ function createScenarioRunner(options: Options): ScenarioRunner {
       prepare: async (app) => {
         await prepareBenchmarkCreateScenario(app, "organizations", rule);
       },
-      request: (baseUrl, headers, index) => ({
-        url: `${baseUrl}/api/collections/organizations/records`,
-        init: {
-          method: "POST",
-          headers: new Headers({ ...Object.fromEntries(headers.entries()), "Content-Type": "application/json" }),
-          body: JSON.stringify({ name: `profile-org-${runTag}-${index}` }),
-        },
-      }),
     };
   }
 
@@ -277,17 +264,6 @@ function createScenarioRunner(options: Options): ScenarioRunner {
       prepare: async (app) => {
         await prepareBenchmarkCreateScenario(app, "permissions", rule);
       },
-      request: (baseUrl, headers, index) => ({
-        url: `${baseUrl}/api/collections/permissions/records`,
-        init: {
-          method: "POST",
-          headers: new Headers({ ...Object.fromEntries(headers.entries()), "Content-Type": "application/json" }),
-          body: JSON.stringify({
-            active: index % 2 === 0,
-            name: `profile-perm-${runTag}-${index}`,
-          }),
-        },
-      }),
     };
   }
 
@@ -295,10 +271,6 @@ function createScenarioRunner(options: Options): ScenarioRunner {
     auth: options.auth ?? defaultAuth(options.scenario),
     label: `GET ${options.url}`,
     prepare: async () => {},
-    request: (baseUrl, headers) => ({
-      url: `${baseUrl}${options.url}`,
-      init: { headers },
-    }),
   };
 }
 
@@ -317,12 +289,6 @@ try {
   const baseUrl = `http://127.0.0.1:${server.port}`;
   await runner.prepare(app);
   const token = await resolveAuthToken(app, runner.auth);
-  const headers = new Headers();
-  if (token) {
-    headers.set("Authorization", token);
-  }
-
-  await warmup(baseUrl, headers, options.warmupRequests, runner);
 
   await session.post("Profiler.enable");
   if (options.intervalUs != null) {
@@ -330,7 +296,7 @@ try {
   }
   await session.post("Profiler.start");
 
-  const completedRequests = await runLoad(baseUrl, headers, options.durationMs, options.concurrency, runner);
+  const completedRequests = await runExternalLoad(baseUrl, token, options);
 
   const { profile } = await session.post("Profiler.stop");
   await session.post("Profiler.disable");
