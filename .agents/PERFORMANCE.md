@@ -42,9 +42,13 @@ This file is intentionally short and practical. Use it for changes that affect r
      - `bun run profile:cpu -- serve --dev`
      - `bun run profile:heap -- serve --dev`
    - These write Bun's markdown-friendly reports under `.tmp/profile-cpu/` or `.tmp/profile-heap/`.
+   - For a scenario-shaped heap profile around a focused request benchmark, use:
+     - `bun run profile:heap:scenario -- --duration-ms 3000 --concurrency 16`
+   - This writes a Bun heap-prof markdown report plus a scenario summary under `.tmp/profile-heap-scenario/`.
+   - Bun `1.3.12` exposes CPU inspector profiling but not `HeapProfiler.*` at runtime, so use this scenario wrapper instead of looking for an inspector-heap equivalent.
    - For a narrower in-process request profile around a real server load window, use:
-     - `bun run profile:inspector:list -- --duration-ms 3000 --concurrency 16`
-   - This writes a Chrome DevTools-compatible `.cpuprofile` under `.tmp/profile-inspector/`.
+      - `bun run profile:inspector:list -- --duration-ms 3000 --concurrency 16`
+   - The CPU command writes a Chrome DevTools-compatible `.cpuprofile` under `.tmp/profile-inspector/`.
    - For repeat local A/B throughput checks where the command itself should stay stable for approvals, edit `scripts/agent_script.ts` and rerun:
      - `bun run agent-script`
    - The default agent script should point at `scripts/measure_records_scenario.ts`, which starts a temporary app/server and drives the selected benchmark-shaped HTTP scenario without inspector overhead.

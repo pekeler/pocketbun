@@ -1,8 +1,7 @@
 #!/usr/bin/env bun
-// PocketBun-only maintainer helper: capture a targeted CPU profile for an in-process request load.
+// PocketBun-only maintainer helper: run a benchmark-shaped request scenario for Bun heap profiling.
 
 import { mkdirSync } from "node:fs";
-import inspector from "node:inspector/promises";
 import { dirname, resolve } from "node:path";
 import { serve } from "../src/apis/serve.ts";
 import { retryServerStart } from "../src/tests/helpers.ts";
@@ -10,7 +9,6 @@ import {
   finalizeBaseOptions,
   initBaseOptions,
   parseBaseArg,
-  parsePositiveInt,
   requireValue,
   resolveAuthToken,
   runExternalLoad,
@@ -19,12 +17,12 @@ import {
 import { newScenarioApp, prepareScenario } from "./profile_scenarios.ts";
 
 type Options = InspectorScenarioOptions & {
-  intervalUs: number | null;
+  summaryOut: string | null;
 };
 
 function usage(): void {
   console.log(`Usage:
-  bun run scripts/profile_inspector_records_list.ts [options]
+  bun run scripts/profile_heap_scenario.ts [options]
 
 Options:
   --scenario <name>         one of:
@@ -51,17 +49,22 @@ Options:
                             default: 16
   --warmup-requests <n>     sequential warmup requests before profiling
                             default: scenario-specific
-  --interval-us <n>         optional inspector sampling interval in microseconds
-  --out <path>              output .cpuprofile path
-                            default: .tmp/profile-inspector/<scenario>.cpuprofile
+  --summary-out <path>      optional summary JSON path
+                            default: $POCKETBUN_PROFILE_DIR/<scenario>.summary.json
+                                     or .tmp/profile-heap-scenario/<scenario>.summary.json
   -h, --help                show help
 `);
+}
+
+function defaultSummaryPath(scenario: Options["scenario"]): string {
+  const baseDir = process.env.POCKETBUN_PROFILE_DIR || ".tmp/profile-heap-scenario";
+  return resolve(baseDir, `${scenario}.summary.json`);
 }
 
 function parseArgs(argv: string[]): Options {
   const options: Options = {
     ...initBaseOptions("list-records"),
-    intervalUs: null,
+    summaryOut: null,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -75,29 +78,22 @@ function parseArgs(argv: string[]): Options {
       i = nextIndex;
       continue;
     }
-    if (arg === "--interval-us") {
-      options.intervalUs = parsePositiveInt(requireValue(argv, ++i, arg), arg);
-      continue;
-    }
-    if (arg === "--out") {
-      options.out = resolve(requireValue(argv, ++i, arg));
+    if (arg === "--summary-out") {
+      options.summaryOut = resolve(requireValue(argv, ++i, arg));
       continue;
     }
     throw new Error(`unknown argument: ${arg}`);
   }
 
   finalizeBaseOptions(options);
-  options.out ??= resolve(`.tmp/profile-inspector/${options.scenario}.cpuprofile`);
+  options.summaryOut ??= defaultSummaryPath(options.scenario);
 
   return options;
 }
 
 const options = parseArgs(Bun.argv.slice(2));
-const outPath = options.out ?? resolve(`.tmp/profile-inspector/${options.scenario}.cpuprofile`);
-mkdirSync(dirname(outPath), { recursive: true });
-
-const session = new inspector.Session();
-session.connect();
+const summaryOut = options.summaryOut ?? defaultSummaryPath(options.scenario);
+mkdirSync(dirname(summaryOut), { recursive: true });
 
 await using managed = await newScenarioApp(options.scenario);
 const app = managed.app;
@@ -108,20 +104,22 @@ const server = await retryServerStart(() => serve(app, { httpAddr: "127.0.0.1:0"
 try {
   const baseUrl = `http://127.0.0.1:${server.port}`;
   const token = await resolveAuthToken(app, runnerAuth);
-
-  await session.post("Profiler.enable");
-  if (options.intervalUs != null) {
-    await session.post("Profiler.setSamplingInterval", { interval: options.intervalUs });
-  }
-  await session.post("Profiler.start");
-
   const completedRequests = await runExternalLoad(baseUrl, token, options, prepared.extraArgs ?? []);
+  const summary = {
+    auth: runnerAuth,
+    completedRequests,
+    concurrency: options.concurrency,
+    durationMs: options.durationMs,
+    iterations: options.iterations,
+    label: prepared.label,
+    scenario: options.scenario,
+    summaryOut,
+    warmupRequests: options.warmupRequests,
+  };
 
-  const { profile } = await session.post("Profiler.stop");
-  await session.post("Profiler.disable");
-  await Bun.write(outPath, `${JSON.stringify(profile, null, 2)}\n`);
+  await Bun.write(summaryOut, `${JSON.stringify(summary, null, 2)}\n`);
 
-  console.log(`Inspector profile written to ${outPath}`);
+  console.log(`Heap-profile summary written to ${summaryOut}`);
   console.log(`Completed requests: ${completedRequests}`);
   console.log(`Scenario: ${options.scenario}`);
   console.log(`Profiled request: ${prepared.label}`);
@@ -134,7 +132,6 @@ try {
     console.log(`Iterations: ${options.iterations}`);
   }
 } finally {
-  session.disconnect();
   await server.stop();
   await prepared.afterRun?.();
 }

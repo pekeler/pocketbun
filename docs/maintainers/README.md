@@ -14,7 +14,10 @@ Useful maintainer commands:
   Pass `--seed=<number>` after `--` to reproduce a specific run, for example `bun run test:randomize -- --seed=12345`.
 - `bun run build:analyze`: writes Bun bundle analysis reports to `.tmp/build-analysis/meta.md` and `.tmp/build-analysis/meta.json`.
 - `bun run profile:cpu -- serve --dev`: runs the real PocketBun CLI with Bun CPU profiling enabled and writes Chrome + markdown profiles to `.tmp/profile-cpu/`.
-- `bun run profile:heap -- serve --dev`: runs the real PocketBun CLI with Bun heap profiling enabled and writes snapshot + markdown profiles to `.tmp/profile-heap/`.
+- `bun run profile:heap -- serve --dev`: runs the real PocketBun CLI with Bun heap profiling enabled and writes markdown heap reports to `.tmp/profile-heap/`.
+- `bun run profile:heap:scenario -- --duration-ms 3000 --concurrency 16`: runs a benchmark-shaped request scenario under Bun's heap profiler and writes a markdown heap report plus a summary JSON to `.tmp/profile-heap-scenario/`.
+  Use this when you want heap data for the same focused CRUD/list/delete scenarios we use for CPU profiling, without profiling the whole normal CLI workflow.
+  Bun `1.3.12` does not currently support `HeapProfiler.*` through `node:inspector` at runtime, so this is the maintained narrow heap-profiling path.
 - `bun run profile:inspector:list -- --duration-ms 3000 --concurrency 16`: captures a targeted `node:inspector` CPU profile for an in-process authenticated records-list load and writes a `.cpuprofile` to `.tmp/profile-inspector/`.
   Open the resulting `.cpuprofile` in Chrome DevTools or another DevTools-compatible profiler viewer.
 - `bun run agent-script`: stable no-arg wrapper for repeated local probes that need a reusable approved command.

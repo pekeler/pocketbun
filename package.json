@@ -39,6 +39,7 @@
     "build:analyze": "bun build index.ts src/cli.ts --outdir=.tmp/build-analysis --target=bun --format=esm --packages external --metafile=.tmp/build-analysis/meta.json --metafile-md=.tmp/build-analysis/meta.md",
     "profile:cpu": "bash scripts/profile_cpu_md.sh",
     "profile:heap": "bash scripts/profile_heap_md.sh",
+    "profile:heap:scenario": "bash scripts/profile_heap_scenario.sh",
     "profile:inspector:list": "bun run scripts/profile_inspector_records_list.ts",
     "prepack": "bun run build",
     "bench:upstream": "bun run scripts/bench_run_upstream.ts",
