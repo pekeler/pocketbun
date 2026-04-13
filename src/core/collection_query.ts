@@ -11,6 +11,7 @@ import { RelationField } from "./field_relation.ts";
 import { IdentifiersParser, getQueryTableInfo, getQueryTableInfoSync } from "./view.ts";
 
 export const StoreKeyCachedCollections = "pbAppCachedCollections";
+const StoreKeyCachedCollectionsLookup = "pbAppCachedCollectionsLookup";
 
 // CollectionQuery returns a new Collection select query.
 export function CollectionQuery(app: App): SelectQuery {
@@ -56,6 +57,7 @@ export function ReloadCachedCollections(app: App): Error | null {
   try {
     const collections = FindAllCollections(app);
     app.store().set(StoreKeyCachedCollections, collections);
+    app.store().set(StoreKeyCachedCollectionsLookup, buildCachedCollectionsLookup(collections));
     return null;
   } catch (error) {
     return error as Error;
@@ -99,6 +101,15 @@ export function FindCollectionByNameOrId(app: App, nameOrId: string): Collection
 //  - The cache is automatically updated on collections db change (create/update/delete).
 //    To manually reload the cache you can call [ReloadCachedCollections].
 export function FindCachedCollectionByNameOrId(app: App, nameOrId: string): Collection {
+  const lookup = app.store().get(StoreKeyCachedCollectionsLookup) as Map<string, Collection> | undefined;
+  if (lookup instanceof Map && lookup.size > 0) {
+    const cached = lookup.get(nameOrId) ?? lookup.get(nameOrId.toLowerCase());
+    if (cached) {
+      return cached;
+    }
+    throw new Error("collection not found");
+  }
+
   const cached = app.store().get(StoreKeyCachedCollections) as Collection[] | undefined;
   if (!Array.isArray(cached) || cached.length === 0) {
     return FindCollectionByNameOrId(app, nameOrId);
@@ -112,6 +123,15 @@ export function FindCachedCollectionByNameOrId(app: App, nameOrId: string): Coll
   }
 
   throw new Error("collection not found");
+}
+
+function buildCachedCollectionsLookup(collections: Collection[]): Map<string, Collection> {
+  const lookup = new Map<string, Collection>();
+  for (const collection of collections) {
+    lookup.set(collection.id, collection);
+    lookup.set(collection.name.toLowerCase(), collection);
+  }
+  return lookup;
 }
 
 // FindCollectionReferences returns information for all relation fields

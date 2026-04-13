@@ -41,7 +41,6 @@ export class Record {
   #expand: Store<string, unknown> | null = null;
   #hookTags: string[] | null = null;
   #fieldInterceptors: RecordInterceptor[] | null = null;
-  #fieldInterceptorsByAction: Map<string, RecordInterceptor[]> | null = null;
 
   static fromRow(collection: Collection, row: RecordData): Record {
     const record = new Record(collection, {}, false);
@@ -548,24 +547,27 @@ export class Record {
     actionName: string,
     actionFunc: () => Error | null | Promise<Error | null>,
   ): Error | null | Promise<Error | null> {
-    const interceptors = this.#resolveFieldInterceptorsForAction(actionName);
-
+    const interceptors = this.#resolveFieldInterceptors();
     if (interceptors.length === 0) {
       return actionFunc();
     }
 
-    // Keep upstream execution order while avoiding per-interceptor closure wrapping.
+    // Keep upstream execution order while skipping non-matching interceptors inline
+    // instead of allocating action-filtered arrays per record instance.
     let index = interceptors.length - 1;
     const run = (): Error | null | Promise<Error | null> => {
-      if (index < 0) {
-        return actionFunc();
+      while (index >= 0) {
+        const current = interceptors[index];
+        index -= 1;
+        if (!current) {
+          continue;
+        }
+        if (current.CanInterceptAction?.(actionName) === false) {
+          continue;
+        }
+        return current.Intercept(ctx, app, this, actionName, run);
       }
-      const current = interceptors[index];
-      index -= 1;
-      if (!current) {
-        return run();
-      }
-      return current.Intercept(ctx, app, this, actionName, run);
+      return actionFunc();
     };
 
     return run();
@@ -594,33 +596,6 @@ export class Record {
 
     this.#fieldInterceptors = interceptors;
     return interceptors;
-  }
-
-  #resolveFieldInterceptorsForAction(actionName: string): RecordInterceptor[] {
-    const byAction = this.#fieldInterceptorsByAction;
-    if (byAction) {
-      const cached = byAction.get(actionName);
-      if (cached) {
-        return cached;
-      }
-    }
-
-    const interceptors = this.#resolveFieldInterceptors();
-    if (interceptors.length === 0) {
-      return interceptors;
-    }
-
-    // Deviation: cache action-filtered interceptors so write hot paths skip
-    // guaranteed no-op field interceptor calls.
-    const filtered = interceptors.filter((interceptor) => {
-      return interceptor.CanInterceptAction?.(actionName) ?? true;
-    });
-
-    if (!this.#fieldInterceptorsByAction) {
-      this.#fieldInterceptorsByAction = new Map<string, RecordInterceptor[]>();
-    }
-    this.#fieldInterceptorsByAction.set(actionName, filtered);
-    return filtered;
   }
 
   DBExport(): RecordData {

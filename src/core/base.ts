@@ -2484,10 +2484,10 @@ export class BaseApp implements App {
       const executeAction = record.IsNew() ? InterceptorActionCreateExecute : InterceptorActionUpdateExecute;
       const afterSuccess = isNew ? InterceptorActionAfterCreate : InterceptorActionAfterUpdate;
       const afterError = isNew ? InterceptorActionAfterCreateError : InterceptorActionAfterUpdateError;
-      const modelHook = isNew ? this.OnModelCreate() : this.OnModelUpdate();
-      const modelExecuteHook = isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute();
-      const modelAfterSuccessHook = isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess();
-      const modelAfterErrorHook = isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError();
+      const modelHook = isNew ? this.#onModelCreate : this.#onModelUpdate;
+      const modelExecuteHook = isNew ? this.#onModelCreateExecute : this.#onModelUpdateExecute;
+      const modelAfterSuccessHook = isNew ? this.#onModelAfterCreateSuccess : this.#onModelAfterUpdateSuccess;
+      const modelAfterErrorHook = isNew ? this.#onModelAfterCreateError : this.#onModelAfterUpdateError;
 
       const runPersist = async (): Promise<Error | null> =>
         this.runRecordInterceptors(record, executeAction, () => {
@@ -2694,6 +2694,10 @@ export class BaseApp implements App {
       const executeAction = isNew ? InterceptorActionCreateExecute : InterceptorActionUpdateExecute;
       const afterSuccess = isNew ? InterceptorActionAfterCreate : InterceptorActionAfterUpdate;
       const afterError = isNew ? InterceptorActionAfterCreateError : InterceptorActionAfterUpdateError;
+      const modelHook = isNew ? this.#onModelCreate : this.#onModelUpdate;
+      const modelExecuteHook = isNew ? this.#onModelCreateExecute : this.#onModelUpdateExecute;
+      const modelAfterSuccessHook = isNew ? this.#onModelAfterCreateSuccess : this.#onModelAfterUpdateSuccess;
+      const modelAfterErrorHook = isNew ? this.#onModelAfterCreateError : this.#onModelAfterUpdateError;
 
       const runPersist = (): Error | null =>
         this.runRecordInterceptorsSync(record, executeAction, () => {
@@ -2715,19 +2719,16 @@ export class BaseApp implements App {
             }
           }
 
-          const executeResult = (isNew ? this.OnModelCreateExecute() : this.OnModelUpdateExecute()).Trigger(
-            modelEvent,
-            runPersist,
-          );
+          const executeResult = modelExecuteHook.Trigger(modelEvent, runPersist);
           return ensureSyncHookResult(executeResult, "OnModelSaveExecute");
         });
 
-      const saveResult = (isNew ? this.OnModelCreate() : this.OnModelUpdate()).Trigger(modelEvent, runValidatedExecute);
+      const saveResult = modelHook.Trigger(modelEvent, runValidatedExecute);
       const saveErr = ensureSyncHookResult(saveResult, "OnModelSave");
 
       if (saveErr) {
         const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
-        const afterResult = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(errorEvent, () =>
+        const afterResult = modelAfterErrorHook.Trigger(errorEvent, () =>
           this.runRecordInterceptorsSync(record, afterError, () => errorEvent.Error),
         );
         const afterErr = ensureSyncHookResult(afterResult, "OnModelAfterSaveError");
@@ -2741,12 +2742,12 @@ export class BaseApp implements App {
               record.markNew(true);
             }
             const errorEvent = new ModelErrorEvent(modelEvent, txErr);
-            const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(errorEvent, () =>
+            const result = modelAfterErrorHook.Trigger(errorEvent, () =>
               this.runRecordInterceptorsSync(record, afterError, () => errorEvent.Error),
             );
             return ensureSyncHookResult(result, "OnModelAfterSaveError") ?? null;
           }
-          const result = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(modelEvent, () =>
+          const result = modelAfterSuccessHook.Trigger(modelEvent, () =>
             this.runRecordInterceptorsSync(record, afterSuccess, () => null),
           );
           return ensureSyncHookResult(result, "OnModelAfterSaveSuccess") ?? null;
@@ -2754,9 +2755,8 @@ export class BaseApp implements App {
         return null;
       }
 
-      const afterResult = (isNew ? this.OnModelAfterCreateSuccess() : this.OnModelAfterUpdateSuccess()).Trigger(
-        modelEvent,
-        () => this.runRecordInterceptorsSync(record, afterSuccess, () => null),
+      const afterResult = modelAfterSuccessHook.Trigger(modelEvent, () =>
+        this.runRecordInterceptorsSync(record, afterSuccess, () => null),
       );
       const afterErr = ensureSyncHookResult(afterResult, "OnModelAfterSaveSuccess");
       return afterErr ?? null;
