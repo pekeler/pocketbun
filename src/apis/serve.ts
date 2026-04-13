@@ -131,9 +131,12 @@ function buildServeHandlerWithEvent(
       }
       return {
         serveEvent,
-        handler: router.buildHandler(({ request, requestUrl, params, remoteAddress, pattern }) => {
-          return new RequestEvent({ app, request, requestUrl, params, remoteAddress, pattern });
-        }),
+        handler: router.buildHandler(
+          ({ request, requestUrl, params, remoteAddress, remoteAddressResolver, pattern }) => {
+            return new RequestEvent({ app, request, requestUrl, params, remoteAddress, remoteAddressResolver, pattern });
+          },
+          { lazyRemoteAddress: true, lazyRequestUrl: true },
+        ),
       };
     });
   }
@@ -143,9 +146,12 @@ function buildServeHandlerWithEvent(
 
   return {
     serveEvent,
-    handler: router.buildHandler(({ request, requestUrl, params, remoteAddress, pattern }) => {
-      return new RequestEvent({ app, request, requestUrl, params, remoteAddress, pattern });
-    }),
+    handler: router.buildHandler(
+      ({ request, requestUrl, params, remoteAddress, remoteAddressResolver, pattern }) => {
+        return new RequestEvent({ app, request, requestUrl, params, remoteAddress, remoteAddressResolver, pattern });
+      },
+      { lazyRemoteAddress: true, lazyRequestUrl: true },
+    ),
   };
 }
 

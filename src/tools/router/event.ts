@@ -90,6 +90,7 @@ type EventOptions = {
   request: Request;
   params?: Record<string, string>;
   remoteAddress?: string | null;
+  remoteAddressResolver?: (() => string | null) | null;
   next?: NextFunc | null;
   flush?: (() => void) | null;
   requestUrl?: URL;
@@ -112,6 +113,8 @@ export class Event implements Resolver {
   responseHeaders: Headers;
   #next: NextFunc | null;
   #remoteAddress: string | null;
+  #remoteAddressResolved: boolean;
+  #remoteAddressResolver: (() => string | null) | null;
   #data: Store<string, unknown>;
   #written = false;
   #status = 0;
@@ -132,6 +135,8 @@ export class Event implements Resolver {
     };
     this.#next = options.next ?? null;
     this.#remoteAddress = options.remoteAddress ?? null;
+    this.#remoteAddressResolved = !options.remoteAddressResolver;
+    this.#remoteAddressResolver = options.remoteAddressResolver ?? null;
     this.#data = new Store();
     this.#flushHandler = options.flush ?? null;
     if (options.requestUrl) {
@@ -205,7 +210,7 @@ export class Event implements Resolver {
   }
 
   RemoteIP(): string {
-    const raw = this.#remoteAddress ?? "";
+    const raw = this.#resolveRemoteAddress() ?? "";
     if (!raw) {
       return "invalid IP";
     }
@@ -225,6 +230,16 @@ export class Event implements Resolver {
 
   remoteIP(): string {
     return this.RemoteIP();
+  }
+
+  #resolveRemoteAddress(): string | null {
+    if (!this.#remoteAddressResolved) {
+      this.#remoteAddress = this.#remoteAddressResolver?.() ?? null;
+      this.#remoteAddressResolved = true;
+      this.#remoteAddressResolver = null;
+    }
+
+    return this.#remoteAddress;
   }
 
   async FindUploadedFiles(key: string): Promise<FilesystemFile[]> {

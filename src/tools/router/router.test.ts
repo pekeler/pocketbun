@@ -195,4 +195,38 @@ describe("Router", () => {
       expect(calls).toBe(scenario.calls);
     }
   });
+
+  it("can resolve remoteAddress lazily", async () => {
+    const router = new Router<Event>();
+    let requestIpCalls = 0;
+    let seenRemoteIp = "";
+    let seenPathname = "";
+
+    router.GET("/lazy", (event) => {
+      seenRemoteIp = event.RemoteIP();
+      seenPathname = event.requestUrl().pathname;
+      return null;
+    });
+
+    const handler = router.buildHandler(
+      ({ request, params, remoteAddress, remoteAddressResolver }) => ({
+        event: new Event({ request, params, remoteAddress, remoteAddressResolver }),
+      }),
+      { lazyRemoteAddress: true, lazyRequestUrl: true },
+    );
+
+    const req = new Request("http://localhost/lazy");
+    const server = {
+      requestIP() {
+        requestIpCalls += 1;
+        return { address: "127.0.0.1", port: 8090 };
+      },
+    };
+
+    expect(requestIpCalls).toBe(0);
+    await handler(req, server);
+    expect(seenRemoteIp).toBe("127.0.0.1");
+    expect(seenPathname).toBe("/lazy");
+    expect(requestIpCalls).toBe(1);
+  });
 });

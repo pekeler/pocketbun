@@ -16,9 +16,10 @@ type EventFactoryResult<E extends RouterEvent> = E | { event: E; cleanup?: () =>
 
 export type EventFactory<E extends RouterEvent> = (options: {
   request: Request;
-  requestUrl: URL;
+  requestUrl?: URL;
   params: Record<string, string>;
   remoteAddress: string | null;
+  remoteAddressResolver?: (() => string | null) | null;
   pattern: string;
 }) => EventFactoryResult<E>;
 
@@ -66,7 +67,13 @@ type RouteMatch<E extends RouterEvent> = {
 //
 //	http.ListenAndServe("localhost:8090", mux)
 export class Router<E extends RouterEvent> extends RouterGroup<E> {
-  buildHandler(factory: EventFactory<E>): (req: Request, server?: unknown) => Promise<Response> {
+  buildHandler(
+    factory: EventFactory<E>,
+    options: {
+      lazyRemoteAddress?: boolean;
+      lazyRequestUrl?: boolean;
+    } = {},
+  ): (req: Request, server?: unknown) => Promise<Response> {
     if (!this.HasRoute("", "/")) {
       this.Any("/{path...}", () => NewNotFoundError("", null));
     }
@@ -75,11 +82,16 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
     const routeIndex = buildRouteIndex(routes);
 
     return async (req: Request, server?: unknown): Promise<Response> => {
-      const url = new URL(req.url);
+      const rawUrl = req.url;
+      const requestUrl = options.lazyRequestUrl ? undefined : new URL(rawUrl);
       const method = req.method;
-      // Fallback to localhost when no server is available (ex. buildServeHandler tests).
-      const remoteAddress = getRemoteAddress(req, server) ?? "127.0.0.1:0";
-      const parts = splitPath(url.pathname);
+      let pathname: string;
+      if (requestUrl) {
+        pathname = requestUrl.pathname;
+      } else {
+        pathname = extractPathname(rawUrl);
+      }
+      const parts = splitPath(pathname);
       const firstSegment = parts[0] ?? "";
 
       // PocketBun perf deviation (behavior-compatible): avoid per-request candidate list allocations
@@ -104,11 +116,21 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
       }
 
       const { route, params } = bestMatch;
+      let remoteAddress: string | null = null;
+      let remoteAddressResolver: (() => string | null) | null = null;
+      if (options.lazyRemoteAddress) {
+        remoteAddressResolver = () => getRemoteAddress(req, server) ?? "127.0.0.1:0";
+      } else {
+        // Fallback to localhost when no server is available (ex. buildServeHandler tests).
+        remoteAddress = getRemoteAddress(req, server) ?? "127.0.0.1:0";
+      }
+
       const created = factory({
         request: req,
-        requestUrl: url,
+        requestUrl,
         params: params ?? {},
         remoteAddress,
+        remoteAddressResolver,
         pattern: route.pattern,
       });
 
@@ -292,6 +314,30 @@ function splitPath(pathname: string): string[] {
   }
   parts.push(pathname.slice(segmentStart, end));
   return parts;
+}
+
+function extractPathname(rawUrl: string): string {
+  const schemeIndex = rawUrl.indexOf("://");
+  let pathnameStart = 0;
+
+  if (schemeIndex >= 0) {
+    pathnameStart = rawUrl.indexOf("/", schemeIndex + 3);
+    if (pathnameStart === -1) {
+      return "/";
+    }
+  }
+
+  let pathnameEnd = rawUrl.length;
+  const queryIndex = rawUrl.indexOf("?", pathnameStart);
+  if (queryIndex !== -1) {
+    pathnameEnd = queryIndex;
+  }
+  const hashIndex = rawUrl.indexOf("#", pathnameStart);
+  if (hashIndex !== -1 && hashIndex < pathnameEnd) {
+    pathnameEnd = hashIndex;
+  }
+
+  return rawUrl.slice(pathnameStart, pathnameEnd) || "/";
 }
 
 function matchPathStatic(segments: Segment[], parts: string[]): boolean {

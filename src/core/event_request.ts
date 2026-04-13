@@ -45,6 +45,7 @@ export class RequestEvent extends Event {
     request: Request;
     params?: Record<string, string>;
     remoteAddress?: string | null;
+    remoteAddressResolver?: (() => string | null) | null;
     pattern?: string;
     rawHeaders?: Record<string, string[]>;
     requestUrl?: URL;
@@ -53,6 +54,7 @@ export class RequestEvent extends Event {
       request: options.request,
       params: options.params,
       remoteAddress: options.remoteAddress,
+      remoteAddressResolver: options.remoteAddressResolver,
       requestUrl: options.requestUrl,
     });
     this.app = options.app;

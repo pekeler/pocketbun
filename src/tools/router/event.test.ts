@@ -142,6 +142,23 @@ describe("Event", () => {
     }
   });
 
+  it("RemoteIP resolves the remote address lazily", () => {
+    let calls = 0;
+    const event = new Event({
+      request: new Request("http://example.com/"),
+      remoteAddressResolver: () => {
+        calls += 1;
+        return "1.2.3.4:8090";
+      },
+    });
+
+    expect(calls).toBe(0);
+    expect(event.RemoteIP()).toBe("1.2.3.4");
+    expect(calls).toBe(1);
+    expect(event.RemoteIP()).toBe("1.2.3.4");
+    expect(calls).toBe(1);
+  });
+
   it("FindUploadedFiles", async () => {
     const scenarios = [
       { filename: "ab.png", expectedPattern: /^ab\w{10}_\w{10}\.png$/ },
