@@ -246,6 +246,7 @@ type PreparedRunStatement = {
 
 // PocketBun-only: cache record write prepared statements by db+shape to avoid repeated SQL parsing.
 const recordWriteStmtCache = new WeakMap<DbxDatabase, Map<string, PreparedRunStatement>>();
+const systemHookIdRecord = "__pbRecordSystemHook__";
 
 function getPreparedRecordWriteStmt(db: DbxDatabase, key: string, createSql: () => string): PreparedRunStatement {
   let cache = recordWriteStmtCache.get(db);
@@ -2488,7 +2489,18 @@ export class BaseApp implements App {
       const modelExecuteHook = isNew ? this.#onModelCreateExecute : this.#onModelUpdateExecute;
       const modelAfterSuccessHook = isNew ? this.#onModelAfterCreateSuccess : this.#onModelAfterUpdateSuccess;
       const modelAfterErrorHook = isNew ? this.#onModelAfterCreateError : this.#onModelAfterUpdateError;
-
+      const recordHook = isNew ? this.#onRecordCreate : this.#onRecordUpdate;
+      const recordExecuteHook = isNew ? this.#onRecordCreateExecute : this.#onRecordUpdateExecute;
+      const recordAfterSuccessHook = isNew ? this.#onRecordAfterCreateSuccess : this.#onRecordAfterUpdateSuccess;
+      const recordAfterErrorHook = isNew ? this.#onRecordAfterCreateError : this.#onRecordAfterUpdateError;
+      const recordTags = record.HookTags();
+      const skipModelHook = modelHook.HasOnlyHandlerId(systemHookIdRecord) && !recordHook.CanTriggerOn(recordTags);
+      const skipModelExecuteHook =
+        modelExecuteHook.HasOnlyHandlerId(systemHookIdRecord) && !recordExecuteHook.CanTriggerOn(recordTags);
+      const skipModelAfterSuccessHook =
+        modelAfterSuccessHook.HasOnlyHandlerId(systemHookIdRecord) && !recordAfterSuccessHook.CanTriggerOn(recordTags);
+      const skipModelAfterErrorHook =
+        modelAfterErrorHook.HasOnlyHandlerId(systemHookIdRecord) && !recordAfterErrorHook.CanTriggerOn(recordTags);
       const runPersist = async (): Promise<Error | null> =>
         this.runRecordInterceptors(record, executeAction, () => {
           if (this.#hooksEnabled) {
@@ -2509,22 +2521,19 @@ export class BaseApp implements App {
             }
           }
 
-          // Deviation: skip hook trigger wiring when there are no handlers.
-          // This preserves behavior while reducing hot-path allocations in record writes.
-          if (modelExecuteHook.Length() === 0) {
+          if (skipModelExecuteHook) {
             return runPersist();
           }
 
           return (await modelExecuteHook.Trigger(modelEvent, runPersist)) as Error | null;
         });
 
-      const saveErr =
-        modelHook.Length() === 0
-          ? await runValidatedExecute()
-          : ((await modelHook.Trigger(modelEvent, runValidatedExecute)) as Error | null);
+      const saveErr = skipModelHook
+        ? await runValidatedExecute()
+        : ((await modelHook.Trigger(modelEvent, runValidatedExecute)) as Error | null);
 
       if (saveErr) {
-        if (modelAfterErrorHook.Length() === 0) {
+        if (skipModelAfterErrorHook) {
           const afterErr = await this.runRecordInterceptors(record, afterError, () => saveErr);
           return afterErr ?? saveErr;
         }
@@ -2542,7 +2551,7 @@ export class BaseApp implements App {
             if (action === InterceptorActionCreate) {
               record.markNew(true);
             }
-            if (modelAfterErrorHook.Length() === 0) {
+            if (skipModelAfterErrorHook) {
               const result = await this.runRecordInterceptors(record, afterError, () => txErr);
               return result ?? null;
             }
@@ -2554,7 +2563,7 @@ export class BaseApp implements App {
             return result ?? null;
           }
 
-          if (modelAfterSuccessHook.Length() === 0) {
+          if (skipModelAfterSuccessHook) {
             const result = await this.runRecordInterceptors(record, afterSuccess, () => null);
             return result ?? null;
           }
@@ -2567,12 +2576,11 @@ export class BaseApp implements App {
         return null;
       }
 
-      const afterErr =
-        modelAfterSuccessHook.Length() === 0
-          ? await this.runRecordInterceptors(record, afterSuccess, () => null)
-          : ((await modelAfterSuccessHook.Trigger(modelEvent, async () =>
-              this.runRecordInterceptors(record, afterSuccess, () => null),
-            )) as Error | null);
+      const afterErr = skipModelAfterSuccessHook
+        ? await this.runRecordInterceptors(record, afterSuccess, () => null)
+        : ((await modelAfterSuccessHook.Trigger(modelEvent, async () =>
+            this.runRecordInterceptors(record, afterSuccess, () => null),
+          )) as Error | null);
       return afterErr ?? null;
     }
 
@@ -2698,6 +2706,18 @@ export class BaseApp implements App {
       const modelExecuteHook = isNew ? this.#onModelCreateExecute : this.#onModelUpdateExecute;
       const modelAfterSuccessHook = isNew ? this.#onModelAfterCreateSuccess : this.#onModelAfterUpdateSuccess;
       const modelAfterErrorHook = isNew ? this.#onModelAfterCreateError : this.#onModelAfterUpdateError;
+      const recordHook = isNew ? this.#onRecordCreate : this.#onRecordUpdate;
+      const recordExecuteHook = isNew ? this.#onRecordCreateExecute : this.#onRecordUpdateExecute;
+      const recordAfterSuccessHook = isNew ? this.#onRecordAfterCreateSuccess : this.#onRecordAfterUpdateSuccess;
+      const recordAfterErrorHook = isNew ? this.#onRecordAfterCreateError : this.#onRecordAfterUpdateError;
+      const recordTags = record.HookTags();
+      const skipModelHook = modelHook.HasOnlyHandlerId(systemHookIdRecord) && !recordHook.CanTriggerOn(recordTags);
+      const skipModelExecuteHook =
+        modelExecuteHook.HasOnlyHandlerId(systemHookIdRecord) && !recordExecuteHook.CanTriggerOn(recordTags);
+      const skipModelAfterSuccessHook =
+        modelAfterSuccessHook.HasOnlyHandlerId(systemHookIdRecord) && !recordAfterSuccessHook.CanTriggerOn(recordTags);
+      const skipModelAfterErrorHook =
+        modelAfterErrorHook.HasOnlyHandlerId(systemHookIdRecord) && !recordAfterErrorHook.CanTriggerOn(recordTags);
 
       const runPersist = (): Error | null =>
         this.runRecordInterceptorsSync(record, executeAction, () => {
@@ -2719,14 +2739,24 @@ export class BaseApp implements App {
             }
           }
 
+          if (skipModelExecuteHook) {
+            return runPersist();
+          }
+
           const executeResult = modelExecuteHook.Trigger(modelEvent, runPersist);
           return ensureSyncHookResult(executeResult, "OnModelSaveExecute");
         });
 
-      const saveResult = modelHook.Trigger(modelEvent, runValidatedExecute);
-      const saveErr = ensureSyncHookResult(saveResult, "OnModelSave");
+      const saveErr = skipModelHook
+        ? runValidatedExecute()
+        : ensureSyncHookResult(modelHook.Trigger(modelEvent, runValidatedExecute), "OnModelSave");
 
       if (saveErr) {
+        if (skipModelAfterErrorHook) {
+          const afterErr = this.runRecordInterceptorsSync(record, afterError, () => saveErr);
+          return afterErr ?? saveErr;
+        }
+
         const errorEvent = new ModelErrorEvent(modelEvent, saveErr);
         const afterResult = modelAfterErrorHook.Trigger(errorEvent, () =>
           this.runRecordInterceptorsSync(record, afterError, () => errorEvent.Error),
@@ -2741,11 +2771,17 @@ export class BaseApp implements App {
             if (action === InterceptorActionCreate) {
               record.markNew(true);
             }
+            if (skipModelAfterErrorHook) {
+              return this.runRecordInterceptorsSync(record, afterError, () => txErr) ?? null;
+            }
             const errorEvent = new ModelErrorEvent(modelEvent, txErr);
             const result = modelAfterErrorHook.Trigger(errorEvent, () =>
               this.runRecordInterceptorsSync(record, afterError, () => errorEvent.Error),
             );
             return ensureSyncHookResult(result, "OnModelAfterSaveError") ?? null;
+          }
+          if (skipModelAfterSuccessHook) {
+            return this.runRecordInterceptorsSync(record, afterSuccess, () => null) ?? null;
           }
           const result = modelAfterSuccessHook.Trigger(modelEvent, () =>
             this.runRecordInterceptorsSync(record, afterSuccess, () => null),
@@ -2753,6 +2789,10 @@ export class BaseApp implements App {
           return ensureSyncHookResult(result, "OnModelAfterSaveSuccess") ?? null;
         });
         return null;
+      }
+
+      if (skipModelAfterSuccessHook) {
+        return this.runRecordInterceptorsSync(record, afterSuccess, () => null) ?? null;
       }
 
       const afterResult = modelAfterSuccessHook.Trigger(modelEvent, () =>
@@ -4459,7 +4499,6 @@ export class BaseApp implements App {
   }
 
   private registerRecordHooks(): void {
-    const systemHookIdRecord = "__pbRecordSystemHook__";
     const onRecordValidateHook = this.OnRecordValidate();
     const onRecordCreateHook = this.OnRecordCreate();
     const onRecordCreateExecuteHook = this.OnRecordCreateExecute();

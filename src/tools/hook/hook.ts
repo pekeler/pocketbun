@@ -88,6 +88,10 @@ export class Hook<T extends Resolver> {
     return this.#handlers.length;
   }
 
+  HasOnlyHandlerId(id: string): boolean {
+    return this.#handlers.length === 1 && this.#handlers[0]?.Id === id;
+  }
+
   CanTriggerOn(tagsToCheck: string[]): boolean {
     if (this.#handlers.length === 0) {
       return false;
@@ -173,6 +177,10 @@ export class Hook<T extends Resolver> {
 
   length(): number {
     return this.Length();
+  }
+
+  hasOnlyHandlerId(id: string): boolean {
+    return this.HasOnlyHandlerId(id);
   }
 
   canTriggerOn(tagsToCheck: string[]): boolean {

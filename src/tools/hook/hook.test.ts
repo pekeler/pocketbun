@@ -197,6 +197,29 @@ describe("hook", () => {
     }
   });
 
+  it("HasOnlyHandlerId", () => {
+    const hook = new Hook<Event>();
+
+    if (hook.HasOnlyHandlerId("demo")) {
+      throw new Error("Expected empty hook to not match");
+    }
+
+    hook.Bind({
+      Id: "demo",
+      Func: async (event) => event.Next(),
+    });
+
+    if (!hook.HasOnlyHandlerId("demo")) {
+      throw new Error("Expected single matching handler to be detected");
+    }
+
+    hook.BindFunc(async (event) => event.Next());
+
+    if (hook.HasOnlyHandlerId("demo")) {
+      throw new Error("Expected multiple handlers to not match");
+    }
+  });
+
   it("Trigger error propagation", async () => {
     const err = new Error("test");
 
