@@ -28,6 +28,7 @@ type ResolvedRoute<E extends RouterEvent> = {
   pattern: string;
   segments: Segment[];
   hasDynamicSegments: boolean;
+  scoreBase: number;
   hook: Hook<E>;
   action: Handler<E>;
 };
@@ -75,7 +76,7 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
 
     return async (req: Request, server?: unknown): Promise<Response> => {
       const url = new URL(req.url);
-      const method = req.method.toUpperCase();
+      const method = req.method;
       // Fallback to localhost when no server is available (ex. buildServeHandler tests).
       const remoteAddress = getRemoteAddress(req, server) ?? "127.0.0.1:0";
       const parts = splitPath(url.pathname);
@@ -238,6 +239,7 @@ export class Router<E extends RouterEvent> extends RouterGroup<E> {
         pattern,
         segments,
         hasDynamicSegments,
+        scoreBase: computeRouteScoreBase(segments),
         hook,
         action,
       });
@@ -350,7 +352,7 @@ function considerCandidates<E extends RouterEvent>(
       continue;
     }
 
-    const score = computeScore(methodScore, route.segments);
+    const score = methodScore * 1_000_000 + route.scoreBase;
     if (!bestMatch || score > bestMatch.score) {
       bestMatch = { route, params, score };
     }
@@ -372,7 +374,7 @@ function matchMethodScore(method: string, routeMethod: string): number {
   return -1;
 }
 
-function computeScore(methodScore: number, segments: Segment[]): number {
+function computeRouteScoreBase(segments: Segment[]): number {
   let staticSegments = 0;
   let hasWildcard = false;
 
@@ -384,7 +386,7 @@ function computeScore(methodScore: number, segments: Segment[]): number {
     }
   }
 
-  return methodScore * 1_000_000 + staticSegments * 1_000 + segments.length * 10 + (hasWildcard ? 0 : 1);
+  return staticSegments * 1_000 + segments.length * 10 + (hasWildcard ? 0 : 1);
 }
 
 function buildRouteIndex<E extends RouterEvent>(routes: Array<ResolvedRoute<E>>): RouteIndex<E> {

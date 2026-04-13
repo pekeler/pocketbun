@@ -148,6 +148,11 @@ export class RequestEvent extends Event {
         if (lazyQuery) {
           return lazyQuery;
         }
+        const rawUrl = this.request.url;
+        if (!rawUrl.includes("?")) {
+          lazyQuery = {};
+          return lazyQuery;
+        }
         lazyQuery = parseRequestInfoQuery(this.requestUrl().searchParams);
         return lazyQuery;
       },

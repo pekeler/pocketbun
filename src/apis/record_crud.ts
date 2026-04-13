@@ -1044,6 +1044,11 @@ function fallbackRequestInfo(event: RequestEvent): RequestInfo {
       if (lazyQuery) {
         return lazyQuery;
       }
+      const rawUrl = event.request.url;
+      if (!rawUrl.includes("?")) {
+        lazyQuery = {};
+        return lazyQuery;
+      }
       lazyQuery = fallbackRequestInfoQuery(event.requestUrl().searchParams);
       return lazyQuery;
     },

@@ -110,17 +110,17 @@ export class Record {
   }
 
   GetRaw(field: string): unknown {
-    if (field === FieldNameExpand) {
-      return this.Expand();
-    }
-    if (field === FieldNameId) {
-      return this.id;
-    }
     if (Object.prototype.hasOwnProperty.call(this.#data, field)) {
       const value = this.#data[field];
       if (value !== undefined) {
         return value;
       }
+    }
+    if (field === FieldNameId) {
+      return this.id;
+    }
+    if (field === FieldNameExpand) {
+      return this.Expand();
     }
     return this.#originalData[field];
   }
@@ -135,7 +135,7 @@ export class Record {
       return;
     }
     this.#data[field] = value;
-    if (field === "id") {
+    if (field === FieldNameId) {
       this.id = toStringValue(value);
     }
   }

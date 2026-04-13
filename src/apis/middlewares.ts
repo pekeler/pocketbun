@@ -346,7 +346,7 @@ function logRequest(
 
   const url = event.requestUrl();
   const requestUri = `${url.pathname}${url.search}`;
-  const method = event.request.method.toUpperCase();
+  const method = event.request.method;
 
   attrs.push(
     "url",
