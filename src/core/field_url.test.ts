@@ -4,7 +4,12 @@ import { describe, expect, it } from "bun:test";
 import { newUnbootstrappedTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { NewBaseCollection } from "./collection_model.ts";
-import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
+import {
+  testDefaultFieldHelpValidation,
+  testDefaultFieldIdValidation,
+  testDefaultFieldNameValidation,
+  testFieldBaseMethods,
+} from "./field.test.ts";
 import { URLField, FieldTypeURL } from "./field_url.ts";
 import { NewRecord } from "./record_model.ts";
 
@@ -167,6 +172,7 @@ describe("url field", () => {
   it("validate settings", async () => {
     await testDefaultFieldIdValidation(FieldTypeURL);
     await testDefaultFieldNameValidation(FieldTypeURL);
+    await testDefaultFieldHelpValidation(FieldTypeURL);
 
     const { app, cleanup } = await newUnbootstrappedTestApp();
     try {

@@ -5,7 +5,12 @@ import { newTestApp, newUnbootstrappedTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { JSONArray } from "../tools/types/index.ts";
 import { NewBaseCollection, CollectionTypeView } from "./collection_model.ts";
-import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
+import {
+  testDefaultFieldHelpValidation,
+  testDefaultFieldIdValidation,
+  testDefaultFieldNameValidation,
+  testFieldBaseMethods,
+} from "./field.test.ts";
 import { RelationField, FieldTypeRelation } from "./field_relation.ts";
 import { NewRecord } from "./record_model.ts";
 
@@ -398,6 +403,7 @@ describe("relation field", () => {
   it("validate settings", async () => {
     await testDefaultFieldIdValidation(FieldTypeRelation);
     await testDefaultFieldNameValidation(FieldTypeRelation);
+    await testDefaultFieldHelpValidation(FieldTypeRelation);
 
     // Keep full bootstrap here because these scenarios resolve existing fixture collections.
     const { app, cleanup } = await newTestApp();

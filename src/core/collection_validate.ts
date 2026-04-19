@@ -618,9 +618,12 @@ class CollectionValidator {
     }
 
     try {
-      await this.#app.CreateViewFields(value);
+      await this.#app.DryRunView(value, 10);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      let message = error instanceof Error ? error.message : String(error);
+      if (message.length > 500) {
+        message = message.slice(0, 500);
+      }
       return newError("validation_invalid_view_query", `Invalid query - ${message}`);
     }
 
@@ -633,9 +636,14 @@ class CollectionValidator {
     }
 
     try {
+      // Sync validation still relies on the schema inference helper because
+      // PocketBun only exposes DryRunView as an async API.
       this.#app.CreateViewFieldsSync(value);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      let message = error instanceof Error ? error.message : String(error);
+      if (message.length > 500) {
+        message = message.slice(0, 500);
+      }
       return newError("validation_invalid_view_query", `Invalid query - ${message}`);
     }
 

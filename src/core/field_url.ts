@@ -4,7 +4,13 @@ import type { App } from "./app.ts";
 import type { Collection } from "./collection_model.ts";
 import { toStringValue } from "../internal/compat/cast.ts";
 import { ValidationErrors, ErrRequired, newError } from "../internal/compat/validation.ts";
-import { Fields, type Field, defaultFieldIdValidationRule, defaultFieldNameValidationRule } from "./field.ts";
+import {
+  Fields,
+  type Field,
+  defaultFieldHelpValidationRule,
+  defaultFieldIdValidationRule,
+  defaultFieldNameValidationRule,
+} from "./field.ts";
 import { ErrUnsupportedValueType } from "./validators/validators.ts";
 
 export const FieldTypeURL = "url";
@@ -18,6 +24,7 @@ export class URLField implements Field {
   System = false;
   Hidden = false;
   Presentable = false;
+  Help = "";
   ExceptDomains: string[] | null = null;
   OnlyDomains: string[] | null = null;
   Required = false;
@@ -121,6 +128,10 @@ export class URLField implements Field {
     const nameErr = defaultFieldNameValidationRule(this.Name);
     if (nameErr) {
       errors.name = nameErr;
+    }
+    const helpErr = defaultFieldHelpValidationRule(this.Help);
+    if (helpErr) {
+      errors.help = helpErr;
     }
 
     const onlyDomains = Array.isArray(this.OnlyDomains) ? this.OnlyDomains : [];

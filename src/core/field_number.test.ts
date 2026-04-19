@@ -5,7 +5,12 @@ import { newUnbootstrappedTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { Pointer } from "../tools/types/index.ts";
 import { NewBaseCollection } from "./collection_model.ts";
-import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
+import {
+  testDefaultFieldHelpValidation,
+  testDefaultFieldIdValidation,
+  testDefaultFieldNameValidation,
+  testFieldBaseMethods,
+} from "./field.test.ts";
 import { NumberField, FieldTypeNumber } from "./field_number.ts";
 import { NewRecord } from "./record_model.ts";
 
@@ -188,6 +193,7 @@ describe("number field", () => {
   it("validate settings", async () => {
     await testDefaultFieldIdValidation(FieldTypeNumber);
     await testDefaultFieldNameValidation(FieldTypeNumber);
+    await testDefaultFieldHelpValidation(FieldTypeNumber);
 
     const { app, cleanup } = await newUnbootstrappedTestApp();
     try {

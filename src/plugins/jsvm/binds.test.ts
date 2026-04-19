@@ -30,6 +30,16 @@ import { System } from "../../tools/filesystem/filesystem.ts";
 import { ApiError } from "../../tools/router/api_error.ts";
 import { JSONRaw } from "../../tools/types/index.ts";
 import {
+  BindApis,
+  BindCore,
+  BindDbx,
+  BindFilesystem,
+  BindFilepath,
+  BindForms,
+  BindHTTP,
+  BindMails,
+  BindOS,
+  BindSecurity,
   apisBinds,
   appBinds,
   baseBinds,
@@ -308,6 +318,19 @@ function newUnbootstrappedTestApp(): TestApp {
 }
 
 describe("jsvm binds", () => {
+  it("exports upper-camel bind aliases", () => {
+    expect(BindCore).toBe(baseBinds);
+    expect(BindDbx).toBe(dbxBinds);
+    expect(BindSecurity).toBe(securityBinds);
+    expect(BindOS).toBe(osBinds);
+    expect(BindFilepath).toBe(filepathBinds);
+    expect(BindHTTP).toBe(httpClientBinds);
+    expect(BindFilesystem).toBe(filesystemBinds);
+    expect(BindForms).toBe(formsBinds);
+    expect(BindMails).toBe(mailsBinds);
+    expect(BindApis).toBe(apisBinds);
+  });
+
   it("base binds count", () => {
     const scope: BindScope = {};
     baseBinds(scope);

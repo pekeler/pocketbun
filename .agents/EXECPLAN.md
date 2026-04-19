@@ -6,11 +6,11 @@ PLANS.md exists in this repo at .agents/PLANS.md. This ExecPlan must be maintain
 
 ## Purpose / Big Picture
 
-The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.36.9 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
+The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.37.0 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
 
 ## Progress
 
-- Milestone status (2026-03-28):
+- Milestone status (2026-04-19):
   - Milestone 1: complete
   - Milestone 2: complete
   - Milestone 3: complete
@@ -26,7 +26,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 13: complete (PocketBase v0.36.6 upgrade: upstream sync, admin UI refresh, view/list-rule/runtime deltas ported, JSVM `unmarshal(...)` workaround retired, full validation rerun)
   - Milestone 14: complete (PocketBase v0.36.7 upgrade: upstream sync, admin UI refresh, fixed-window rate limiting parity, streaming/temp-file-backed multipart upload handling, large-upload memory remeasurement, and full validation rerun)
   - Milestone 15: complete (PocketBase v0.36.8 upgrade: upstream sync, admin UI refresh, cached-collection OAuth2 serialization parity audit, regression coverage, and full validation rerun)
-  - Milestone 16: in progress (PocketBase v0.36.9 upgrade: upstream sync, admin UI refresh, settings/OAuth2/Discord deltas ported, regression coverage, and full validation rerun)
+  - Milestone 16: complete (PocketBase v0.36.9 upgrade: upstream sync, admin UI refresh, settings/OAuth2/Discord deltas ported, regression coverage, and full validation rerun)
+  - Milestone 17: in progress (PocketBase v0.37.0 upgrade: upstream sync, rewritten admin UI refresh, UI-facing API/core/auth deltas ported, docs/generated artifacts refreshed, and full validation rerun)
 
 ### Maintenance TODOs
 
@@ -58,6 +59,14 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-04-09 18:24Z) Ran `bun run upstream:sync` to refresh `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.36.9`, then audited the upstream compare and confirmed the remaining observable JSVM delta is the `$apis.static(...)` `fs.FS` acceptance/doc refresh in addition to the release-noted settings/OAuth2/Discord changes.
 - [x] (2026-04-09 18:49Z) Ported the `v0.36.9` runtime changes in `src/apis/record_auth_with_oauth2.ts`, `src/tools/auth/discord.ts`, and `src/plugins/jsvm/binds.ts`, refreshed vendored/generated artifacts, and added direct regression coverage in `src/apis/record_auth_with_oauth2.test.ts`, `src/apis/settings.test.ts`, `src/tools/auth/discord.test.ts`, and `src/plugins/jsvm/binds.test.ts`.
 - [x] (2026-04-09 19:18Z) Updated `CHANGELOG.md` with concise `0.36.9-pocketbun.0` user-facing notes and reran the required validation gate successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
+
+### Milestone 17 - PocketBase v0.37.0 upgrade
+
+- [x] (2026-04-19 10:05Z) Confirmed the upstream `v0.37.0` release from the official PocketBase GitHub release metadata and scoped the upgrade to the rewritten Admin UI plus its dependent runtime deltas: `/_/extensions.js` and UI extension file serving, `/api/collections/meta/oauth2-providers`, `/api/collections/meta/dry-run-view`, OAuth2 provider inline SVG logos in `listAuthMethods()`, new settings/field metadata (`accentColor`, field `help`), view dry-run validation, and generated JSVM/docs drift.
+- [x] (2026-04-19 10:18Z) Bumped the compatibility metadata to PocketBase `v0.37.0` / PocketBun `0.37.0-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, and `CHANGELOG.md` so the repository state matches the intended upstream target before syncing.
+- [ ] (2026-04-19 10:18Z) Sync `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.37.0`, then audit the concrete source/test deltas that still need porting.
+- [ ] Port the `v0.37.0` compatibility surface in `src/apis/*`, `src/core/*`, `src/tools/auth/*`, `src/plugins/jsvm/*`, and the related tests so the new Admin UI and API outputs match upstream behavior.
+- [ ] Refresh generated artifacts/docs and rerun the full required validation gate: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
 
 ### Milestone 14 - PocketBase v0.36.7 upgrade
 

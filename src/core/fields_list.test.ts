@@ -346,13 +346,13 @@ describe("FieldsList", () => {
         name: "only the minimum field options",
         data: `[{"id":"123","name":"test1","type":"text","required":true},{"id":"456","name":"test2","type":"bool"}]`,
         expectError: false,
-        expectJSON: `[{"autogeneratePattern":"","hidden":false,"id":"123","max":0,"min":0,"name":"test1","pattern":"","presentable":false,"primaryKey":false,"required":true,"system":false,"type":"text"},{"hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":false,"type":"bool"}]`,
+        expectJSON: `[{"autogeneratePattern":"","help":"","hidden":false,"id":"123","max":0,"min":0,"name":"test1","pattern":"","presentable":false,"primaryKey":false,"required":true,"system":false,"type":"text"},{"help":"","hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":false,"type":"bool"}]`,
       },
       {
         name: "all field options",
-        data: `[{"autogeneratePattern":"","hidden":true,"id":"123","max":12,"min":0,"name":"test1","pattern":"","presentable":true,"primaryKey":false,"required":true,"system":false,"type":"text"},{"hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":true,"type":"bool"}]`,
+        data: `[{"autogeneratePattern":"","help":"abc","hidden":true,"id":"123","max":12,"min":0,"name":"test1","pattern":"","presentable":true,"primaryKey":false,"required":true,"system":false,"type":"text"},{"help":"def","hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":true,"type":"bool"}]`,
         expectError: false,
-        expectJSON: `[{"autogeneratePattern":"","hidden":true,"id":"123","max":12,"min":0,"name":"test1","pattern":"","presentable":true,"primaryKey":false,"required":true,"system":false,"type":"text"},{"hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":true,"type":"bool"}]`,
+        expectJSON: `[{"autogeneratePattern":"","help":"abc","hidden":true,"id":"123","max":12,"min":0,"name":"test1","pattern":"","presentable":true,"primaryKey":false,"required":true,"system":false,"type":"text"},{"help":"def","hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":true,"type":"bool"}]`,
       },
     ];
 
@@ -383,13 +383,13 @@ describe("FieldsList", () => {
         name: "only the minimum field options",
         data: `[{"id":"123","name":"test1","type":"text","required":true},{"id":"456","name":"test2","type":"bool"}]`,
         expectError: false,
-        expectJSON: `[{"autogeneratePattern":"","hidden":false,"id":"123","max":0,"min":0,"name":"test1","pattern":"","presentable":false,"primaryKey":false,"required":true,"system":false,"type":"text"},{"hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":false,"type":"bool"}]`,
+        expectJSON: `[{"autogeneratePattern":"","help":"","hidden":false,"id":"123","max":0,"min":0,"name":"test1","pattern":"","presentable":false,"primaryKey":false,"required":true,"system":false,"type":"text"},{"help":"","hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":false,"type":"bool"}]`,
       },
       {
         name: "all field options",
-        data: `[{"autogeneratePattern":"","hidden":true,"id":"123","max":12,"min":0,"name":"test1","pattern":"","presentable":true,"primaryKey":false,"required":true,"system":false,"type":"text"},{"hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":true,"type":"bool"}]`,
+        data: `[{"autogeneratePattern":"","help":"abc","hidden":true,"id":"123","max":12,"min":0,"name":"test1","pattern":"","presentable":true,"primaryKey":false,"required":true,"system":false,"type":"text"},{"help":"def","hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":true,"type":"bool"}]`,
         expectError: false,
-        expectJSON: `[{"autogeneratePattern":"","hidden":true,"id":"123","max":12,"min":0,"name":"test1","pattern":"","presentable":true,"primaryKey":false,"required":true,"system":false,"type":"text"},{"hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":true,"type":"bool"}]`,
+        expectJSON: `[{"autogeneratePattern":"","help":"abc","hidden":true,"id":"123","max":12,"min":0,"name":"test1","pattern":"","presentable":true,"primaryKey":false,"required":true,"system":false,"type":"text"},{"help":"def","hidden":false,"id":"456","name":"test2","presentable":false,"required":false,"system":true,"type":"bool"}]`,
       },
     ];
 

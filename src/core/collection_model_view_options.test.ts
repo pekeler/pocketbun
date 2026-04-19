@@ -34,6 +34,24 @@ describe("collection view options validate", () => {
         expectedErrors: ["fields", "viewQuery"],
       },
       {
+        name: "view with valid query but empty sample id",
+        collection: () => {
+          const c = NewViewCollection("new_auth");
+          c.ViewQuery = "select '' as id";
+          return c;
+        },
+        expectedErrors: ["viewQuery"],
+      },
+      {
+        name: "view with valid query but duplicated sample id",
+        collection: () => {
+          const c = NewViewCollection("new_auth");
+          c.ViewQuery = "(select 'a' as id union all select 'a' as id union all select 'c' as id)";
+          return c;
+        },
+        expectedErrors: ["viewQuery"],
+      },
+      {
         name: "view with valid query",
         collection: () => {
           const c = NewViewCollection("new_auth");

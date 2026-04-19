@@ -119,6 +119,14 @@ export type ServeInstallerFunc = (
   baseURL: string,
 ) => Error | null | Promise<Error | null>;
 
+export type UIExtension = {
+  // Name is the name of the extension.
+  // It is also used as the public path segment under /_/extensions/{name}/...
+  Name: string;
+  // Deviation: PocketBun models fs.FS-style roots as filesystem path wrappers.
+  FS: string | { root: string };
+};
+
 export class ServeEvent extends Event {
   App: App;
   Router: Router<RequestEvent>;
@@ -126,6 +134,8 @@ export class ServeEvent extends Event {
   CertManager: unknown = null;
   Listener: unknown = null;
   InstallerFunc: ServeInstallerFunc | null = null;
+  // @todo experimental
+  UIExtensions: UIExtension[] = [];
 
   constructor(app: App, router: Router<RequestEvent>) {
     super();

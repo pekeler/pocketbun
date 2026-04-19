@@ -5,7 +5,12 @@ import { newUnbootstrappedTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { DateTime, NowDateTime } from "../tools/types/index.ts";
 import { NewBaseCollection } from "./collection_model.ts";
-import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
+import {
+  testDefaultFieldHelpValidation,
+  testDefaultFieldIdValidation,
+  testDefaultFieldNameValidation,
+  testFieldBaseMethods,
+} from "./field.test.ts";
 import { DateField, FieldTypeDate } from "./field_date.ts";
 import { NewRecord } from "./record_model.ts";
 
@@ -110,6 +115,7 @@ describe("date field", () => {
   it("validate settings", async () => {
     await testDefaultFieldIdValidation(FieldTypeDate);
     await testDefaultFieldNameValidation(FieldTypeDate);
+    await testDefaultFieldHelpValidation(FieldTypeDate);
 
     const { app, cleanup } = await newUnbootstrappedTestApp();
     try {

@@ -22,6 +22,7 @@ import {
   type RecordLike,
   type SetterFinder,
   type SetterFunc,
+  defaultFieldHelpValidationRule,
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
   maxSafeJSONInt,
@@ -88,6 +89,7 @@ export class FileField
   System = false;
   Hidden = false;
   Presentable = false;
+  Help = "";
   MaxSize = 0;
   MaxSelect = 0;
   MimeTypes: string[] | null = null;
@@ -188,6 +190,10 @@ export class FileField
     const nameErr = defaultFieldNameValidationRule(this.Name);
     if (nameErr) {
       errors.name = nameErr;
+    }
+    const helpErr = defaultFieldHelpValidationRule(this.Help);
+    if (helpErr) {
+      errors.help = helpErr;
     }
     if (this.MaxSelect < 0 || this.MaxSelect > maxSafeJSONInt) {
       errors.maxSelect = newError("validation_invalid_max", "Invalid maxSelect value.");

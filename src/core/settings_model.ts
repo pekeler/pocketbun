@@ -15,6 +15,7 @@ export type TrustedProxyConfig = {
 };
 
 export type MetaConfig = {
+  accentColor: string;
   appName: string;
   appURL: string;
   hideControls: boolean;
@@ -174,6 +175,7 @@ export class Settings {
       useLeftmostIP: false,
     };
     this.meta = {
+      accentColor: "#1055c9",
       appName: "Acme",
       appURL: "http://localhost:8090",
       hideControls: false,
@@ -333,6 +335,7 @@ export class Settings {
       },
       s3,
       meta: {
+        accentColor: snapshot.meta.accentColor,
         appName: snapshot.meta.appName,
         appURL: snapshot.meta.appURL,
         senderName: snapshot.meta.senderName,
@@ -383,6 +386,9 @@ export class Settings {
     const meta = raw.meta;
     if (meta && typeof meta === "object") {
       const record = meta as Record<string, unknown>;
+      if (hasOwn(record, "accentColor") && typeof record.accentColor === "string") {
+        this.meta.accentColor = record.accentColor;
+      }
       if (hasOwn(record, "appName") && typeof record.appName === "string") {
         this.meta.appName = record.appName;
       }
@@ -613,6 +619,10 @@ function applyS3Config(target: S3Config, raw: Record<string, unknown>): void {
 
 function validateMeta(meta: MetaConfig): Error | null {
   const errors: Record<string, Error> = {};
+
+  if (meta.accentColor !== "" && !isHexColor(meta.accentColor)) {
+    errors.accentColor = newError("validation_invalid_hex_color", "Must be a valid hex color.");
+  }
 
   const appNameErr = required(meta.appName);
   if (appNameErr) {
@@ -944,6 +954,10 @@ function isURL(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isHexColor(value: string): boolean {
+  return /^#[0-9a-fA-F]{6}$/.test(value);
 }
 
 function isEmail(value: string): boolean {

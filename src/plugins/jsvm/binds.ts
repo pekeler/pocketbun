@@ -2277,6 +2277,17 @@ export function routerBinds(app: App, target: BindTarget): void {
   };
 }
 
+export const BindCore = baseBinds;
+export const BindDbx = dbxBinds;
+export const BindMails = mailsBinds;
+export const BindSecurity = securityBinds;
+export const BindFilesystem = filesystemBinds;
+export const BindFilepath = filepathBinds;
+export const BindOS = osBinds;
+export const BindForms = formsBinds;
+export const BindApis = apisBinds;
+export const BindHTTP = httpClientBinds;
+
 function wrapMiddleware(app: App, middleware: unknown): { Func: (event: unknown) => unknown; Id?: string; Priority?: number } {
   if (middleware instanceof Middleware) {
     return {

@@ -10,6 +10,7 @@ import { ServeEvent } from "../core/events.ts";
 import { Router } from "../tools/router/router.ts";
 import { FireAndForget } from "../tools/routine/routine.ts";
 import { NewRouter, Static, StaticWildcardParam } from "./base.ts";
+import { bindUIExtensions } from "./extensions.ts";
 import { DefaultInstallerFunc, loadInstallerAsync } from "./installer.ts";
 import { RequestEventKeySkipSuccessActivityLog } from "./middlewares.ts";
 import { CORS } from "./middlewares_cors.ts";
@@ -43,8 +44,8 @@ const adminBrandingScriptPath = resolveServeAssetPath(serveModuleDir, [
   "../../src/ui/admin_branding.js",
   "../src/ui/admin_branding.js",
 ]);
-const adminContentSecurityPolicy =
-  "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://127.0.0.1:* https://tile.openstreetmap.org data: blob:; connect-src 'self' http://127.0.0.1:* https://nominatim.openstreetmap.org; script-src 'self' 'sha256-GRUzBA7PzKYug7pqxv5rJaec5bwDCw1Vo6/IXwvD3Tc='";
+const defaultCSP =
+  "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://127.0.0.1:* https://tile.openstreetmap.org data: blob:; connect-src 'self' http://127.0.0.1:* https://nominatim.openstreetmap.org; script-src 'self' http://127.0.0.1:*; frame-src 'none'";
 // Bun currently limits `idleTimeout` to <= 255 seconds.
 const defaultServerIdleTimeoutSeconds = 255;
 // PocketBun deviation: raise Bun's request cap so app/body-limit middleware and
@@ -129,6 +130,7 @@ function buildServeHandlerWithEvent(
       if (!initialized) {
         throw new Error("The OnServe listener was not initialized. Did you forget to call the ServeEvent.Next() method?");
       }
+      bindUIExtensions(serveEvent);
       return {
         serveEvent,
         handler: router.buildHandler(
@@ -143,6 +145,8 @@ function buildServeHandlerWithEvent(
   if (!initialized) {
     throw new Error("The OnServe listener was not initialized. Did you forget to call the ServeEvent.Next() method?");
   }
+
+  bindUIExtensions(serveEvent);
 
   return {
     serveEvent,
@@ -346,7 +350,7 @@ function bindAdminUI(router: Router<RequestEvent>): void {
 
 function setAdminContentSecurityPolicy(event: RequestEvent): void {
   if (!event.responseHeaders.get("Content-Security-Policy")) {
-    event.responseHeaders.set("Content-Security-Policy", adminContentSecurityPolicy);
+    event.responseHeaders.set("Content-Security-Policy", defaultCSP);
   }
 }
 

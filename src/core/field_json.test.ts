@@ -5,7 +5,12 @@ import { newUnbootstrappedTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { JSONRaw } from "../tools/types/index.ts";
 import { NewBaseCollection } from "./collection_model.ts";
-import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
+import {
+  testDefaultFieldHelpValidation,
+  testDefaultFieldIdValidation,
+  testDefaultFieldNameValidation,
+  testFieldBaseMethods,
+} from "./field.test.ts";
 import { JSONField, FieldTypeJSON, DefaultJSONFieldMaxSize } from "./field_json.ts";
 import { NewRecord } from "./record_model.ts";
 
@@ -161,6 +166,7 @@ describe("json field", () => {
   it("validate settings", async () => {
     await testDefaultFieldIdValidation(FieldTypeJSON);
     await testDefaultFieldNameValidation(FieldTypeJSON);
+    await testDefaultFieldHelpValidation(FieldTypeJSON);
 
     const { app, cleanup } = await newUnbootstrappedTestApp();
     try {

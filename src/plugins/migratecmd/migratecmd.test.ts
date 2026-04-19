@@ -42,6 +42,7 @@ migrate((app) => {
     "fields": [
       {
         "autogeneratePattern": "[a-z0-9]{15}",
+        "help": "",
         "hidden": false,
         "id": "text@TEST_RANDOM",
         "max": 15,
@@ -56,6 +57,7 @@ migrate((app) => {
       },
       {
         "cost": 0,
+        "help": "",
         "hidden": true,
         "id": "password@TEST_RANDOM",
         "max": 0,
@@ -69,6 +71,7 @@ migrate((app) => {
       },
       {
         "autogeneratePattern": "[a-zA-Z0-9]{50}",
+        "help": "",
         "hidden": true,
         "id": "text@TEST_RANDOM",
         "max": 60,
@@ -83,6 +86,7 @@ migrate((app) => {
       },
       {
         "exceptDomains": null,
+        "help": "",
         "hidden": false,
         "id": "email@TEST_RANDOM",
         "name": "email",
@@ -93,6 +97,7 @@ migrate((app) => {
         "type": "email"
       },
       {
+        "help": "",
         "hidden": false,
         "id": "bool@TEST_RANDOM",
         "name": "emailVisibility",
@@ -102,6 +107,7 @@ migrate((app) => {
         "type": "bool"
       },
       {
+        "help": "",
         "hidden": false,
         "id": "bool@TEST_RANDOM",
         "name": "verified",
@@ -216,6 +222,7 @@ func init() {
 			"fields": [
 				{
 					"autogeneratePattern": "[a-z0-9]{15}",
+					"help": "",
 					"hidden": false,
 					"id": "text@TEST_RANDOM",
 					"max": 15,
@@ -230,6 +237,7 @@ func init() {
 				},
 				{
 					"cost": 0,
+					"help": "",
 					"hidden": true,
 					"id": "password@TEST_RANDOM",
 					"max": 0,
@@ -243,6 +251,7 @@ func init() {
 				},
 				{
 					"autogeneratePattern": "[a-zA-Z0-9]{50}",
+					"help": "",
 					"hidden": true,
 					"id": "text@TEST_RANDOM",
 					"max": 60,
@@ -257,6 +266,7 @@ func init() {
 				},
 				{
 					"exceptDomains": null,
+					"help": "",
 					"hidden": false,
 					"id": "email@TEST_RANDOM",
 					"name": "email",
@@ -267,6 +277,7 @@ func init() {
 					"type": "email"
 				},
 				{
+					"help": "",
 					"hidden": false,
 					"id": "bool@TEST_RANDOM",
 					"name": "emailVisibility",
@@ -276,6 +287,7 @@ func init() {
 					"type": "bool"
 				},
 				{
+					"help": "",
 					"hidden": false,
 					"id": "bool@TEST_RANDOM",
 					"name": "verified",
@@ -394,6 +406,7 @@ migrate((app) => {
     "fields": [
       {
         "autogeneratePattern": "[a-z0-9]{15}",
+        "help": "",
         "hidden": false,
         "id": "text@TEST_RANDOM",
         "max": 15,
@@ -408,6 +421,7 @@ migrate((app) => {
       },
       {
         "cost": 0,
+        "help": "",
         "hidden": true,
         "id": "password@TEST_RANDOM",
         "max": 0,
@@ -421,6 +435,7 @@ migrate((app) => {
       },
       {
         "autogeneratePattern": "[a-zA-Z0-9]{50}",
+        "help": "",
         "hidden": true,
         "id": "text@TEST_RANDOM",
         "max": 60,
@@ -435,6 +450,7 @@ migrate((app) => {
       },
       {
         "exceptDomains": null,
+        "help": "",
         "hidden": false,
         "id": "email@TEST_RANDOM",
         "name": "email",
@@ -445,6 +461,7 @@ migrate((app) => {
         "type": "email"
       },
       {
+        "help": "",
         "hidden": false,
         "id": "bool@TEST_RANDOM",
         "name": "emailVisibility",
@@ -454,6 +471,7 @@ migrate((app) => {
         "type": "bool"
       },
       {
+        "help": "",
         "hidden": false,
         "id": "bool@TEST_RANDOM",
         "name": "verified",
@@ -571,6 +589,7 @@ func init() {
 			"fields": [
 				{
 					"autogeneratePattern": "[a-z0-9]{15}",
+					"help": "",
 					"hidden": false,
 					"id": "text@TEST_RANDOM",
 					"max": 15,
@@ -585,6 +604,7 @@ func init() {
 				},
 				{
 					"cost": 0,
+					"help": "",
 					"hidden": true,
 					"id": "password@TEST_RANDOM",
 					"max": 0,
@@ -598,6 +618,7 @@ func init() {
 				},
 				{
 					"autogeneratePattern": "[a-zA-Z0-9]{50}",
+					"help": "",
 					"hidden": true,
 					"id": "text@TEST_RANDOM",
 					"max": 60,
@@ -612,6 +633,7 @@ func init() {
 				},
 				{
 					"exceptDomains": null,
+					"help": "",
 					"hidden": false,
 					"id": "email@TEST_RANDOM",
 					"name": "email",
@@ -622,6 +644,7 @@ func init() {
 					"type": "email"
 				},
 				{
+					"help": "",
 					"hidden": false,
 					"id": "bool@TEST_RANDOM",
 					"name": "emailVisibility",
@@ -631,6 +654,7 @@ func init() {
 					"type": "bool"
 				},
 				{
+					"help": "",
 					"hidden": false,
 					"id": "bool@TEST_RANDOM",
 					"name": "verified",
@@ -742,6 +766,7 @@ migrate((app) => {
   // add field
   collection.fields.addAt(8, new Field({
     "autogeneratePattern": "",
+    "help": "",
     "hidden": false,
     "id": "f4_id",
     "max": 0,
@@ -757,6 +782,7 @@ migrate((app) => {
 
   // update field
   collection.fields.addAt(7, new Field({
+    "help": "",
     "hidden": false,
     "id": "f2_id",
     "max": null,
@@ -795,6 +821,7 @@ migrate((app) => {
 
   // add field
   collection.fields.addAt(8, new Field({
+    "help": "",
     "hidden": false,
     "id": "f3_id",
     "name": "f3_name",
@@ -809,6 +836,7 @@ migrate((app) => {
 
   // update field
   collection.fields.addAt(7, new Field({
+    "help": "",
     "hidden": false,
     "id": "f2_id",
     "max": null,
@@ -871,6 +899,7 @@ func init() {
 		// add field
 		if err := collection.Fields.AddMarshaledJSONAt(8, []byte(\`{
 			"autogeneratePattern": "",
+			"help": "",
 			"hidden": false,
 			"id": "f4_id",
 			"max": 0,
@@ -888,6 +917,7 @@ func init() {
 
 		// update field
 		if err := collection.Fields.AddMarshaledJSONAt(7, []byte(\`{
+			"help": "",
 			"hidden": false,
 			"id": "f2_id",
 			"max": null,
@@ -933,6 +963,7 @@ func init() {
 
 		// add field
 		if err := collection.Fields.AddMarshaledJSONAt(8, []byte(\`{
+			"help": "",
 			"hidden": false,
 			"id": "f3_id",
 			"name": "f3_name",
@@ -949,6 +980,7 @@ func init() {
 
 		// update field
 		if err := collection.Fields.AddMarshaledJSONAt(7, []byte(\`{
+			"help": "",
 			"hidden": false,
 			"id": "f2_id",
 			"max": null,

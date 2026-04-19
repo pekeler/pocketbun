@@ -488,7 +488,7 @@ const createScenarios: ApiScenario[] = [
       '"name":"new"',
       '"type":"base"',
       '"system":false',
-      '"fields":[{"autogeneratePattern":"[a-z0-9]{15}","hidden":false,"id":"text3208210256","max":15,"min":15,"name":"id","pattern":"^[a-z0-9]+$","presentable":false,"primaryKey":true,"required":true,"system":true,"type":"text"},{"autogeneratePattern":"","hidden":false,"id":"12345789","max":0,"min":0,"name":"test","pattern":"","presentable":false,"primaryKey":false,"required":false,"system":false,"type":"text"}]',
+      '"fields":[{"autogeneratePattern":"[a-z0-9]{15}","help":"","hidden":false,"id":"text3208210256","max":15,"min":15,"name":"id","pattern":"^[a-z0-9]+$","presentable":false,"primaryKey":true,"required":true,"system":true,"type":"text"},{"autogeneratePattern":"","help":"","hidden":false,"id":"12345789","max":0,"min":0,"name":"test","pattern":"","presentable":false,"primaryKey":false,"required":false,"system":false,"type":"text"}]',
     ],
     expectedEvents: {
       "*": 0,
@@ -534,7 +534,7 @@ const createScenarios: ApiScenario[] = [
       '"name":"emailVisibility"',
       '"name":"verified"',
       '"duration":123',
-      '{"autogeneratePattern":"","hidden":true,"id":"text2504183744","max":0,"min":10,"name":"tokenKey","pattern":"","presentable":false,"primaryKey":false,"required":true,"system":true,"type":"text"}',
+      '{"autogeneratePattern":"","help":"","hidden":true,"id":"text2504183744","max":0,"min":10,"name":"tokenKey","pattern":"","presentable":false,"primaryKey":false,"required":true,"system":true,"type":"text"}',
     ],
     notExpectedContent: ['"secret":"'],
     expectedEvents: {
@@ -712,14 +712,14 @@ const createScenarios: ApiScenario[] = [
       "name":"new",
       "type":"view",
       "fields":[{"type":"text","id":"12345789","name":"ignored!@#$"}],
-      "viewQuery": "select 1 as id from \`${CollectionNameSuperusers}\`"
+      "viewQuery": "select 1 as id from \`${CollectionNameSuperusers}\` limit 1"
     }`,
     headers: { Authorization: superuserToken },
     expectedStatus: 200,
     expectedContent: [
       '"name":"new"',
       '"type":"view"',
-      '"fields":[{"autogeneratePattern":"","hidden":false,"id":"text3208210256","max":0,"min":0,"name":"id","pattern":"^[a-z0-9]+$","presentable":false,"primaryKey":true,"required":true,"system":true,"type":"text"}]',
+      '"fields":[{"autogeneratePattern":"","help":"","hidden":false,"id":"text3208210256","max":0,"min":0,"name":"id","pattern":"^[a-z0-9]+$","presentable":false,"primaryKey":true,"required":true,"system":true,"type":"text"}]',
     ],
     expectedEvents: {
       "*": 0,
@@ -1127,7 +1127,7 @@ const updateScenarios: ApiScenario[] = [
     body: `{
       "name":"view2_update",
       "fields":[{"type":"text","id":"12345789","name":"ignored!@#$"}],
-      "viewQuery": "select 2 as id, created, updated, email from \`${CollectionNameSuperusers}\`"
+      "viewQuery": "select 2 as id, created, updated, email from \`${CollectionNameSuperusers}\` limit 1"
     }`,
     headers: { Authorization: superuserToken },
     expectedStatus: 200,
@@ -1409,6 +1409,138 @@ const truncateScenarios: ApiScenario[] = [
 
 describe("collection truncate API", () => {
   for (const scenario of truncateScenarios) {
+    const name = scenario.name ?? `${scenario.method} ${scenario.url}`;
+    it(name, async () => {
+      await runApiScenario(scenario);
+    });
+  }
+});
+
+const oauth2ProvidersScenarios: ApiScenario[] = [
+  {
+    name: "oauth2 providers unauthorized",
+    method: "GET",
+    url: "/api/collections/meta/oauth2-providers",
+    expectedStatus: 401,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
+  },
+  {
+    name: "oauth2 providers authorized as regular user",
+    method: "GET",
+    url: "/api/collections/meta/oauth2-providers",
+    headers: { Authorization: regularUserToken },
+    expectedStatus: 403,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
+  },
+  {
+    name: "oauth2 providers authorized as superuser",
+    method: "GET",
+    url: "/api/collections/meta/oauth2-providers",
+    headers: { Authorization: superuserToken },
+    expectedStatus: 200,
+    expectedContent: ['"name":"oidc3"', '"displayName":"OIDC"', '"logo":"<svg'],
+    notExpectedContent: ['"order":', '"pkce":', '"scopes":', '"authURL":', '"tokenURL":', '"userInfoURL":'],
+  },
+];
+
+describe("collection oauth2 providers API", () => {
+  for (const scenario of oauth2ProvidersScenarios) {
+    const name = scenario.name ?? `${scenario.method} ${scenario.url}`;
+    it(name, async () => {
+      await runApiScenario(scenario);
+    });
+  }
+});
+
+const dryRunViewScenarios: ApiScenario[] = [
+  {
+    name: "dry run view unauthorized",
+    method: "POST",
+    url: "/api/collections/meta/dry-run-view",
+    body: '{"query":"select 1 as id"}',
+    expectedStatus: 401,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
+  },
+  {
+    name: "dry run view authorized as regular user",
+    method: "POST",
+    url: "/api/collections/meta/dry-run-view",
+    body: '{"query":"select 1 as id"}',
+    headers: { Authorization: regularUserToken },
+    expectedStatus: 403,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
+  },
+  {
+    name: "dry run view authorized as superuser",
+    method: "POST",
+    url: "/api/collections/meta/dry-run-view",
+    body: '{"query":"select 1 as id"}',
+    headers: { Authorization: superuserToken },
+    expectedStatus: 200,
+    expectedContent: ['"fields":[{', '"name":"id"', '"type":"text"', '"sample":[{', '"id":"1"'],
+  },
+  {
+    name: "dry run view empty query",
+    method: "POST",
+    url: "/api/collections/meta/dry-run-view",
+    body: '{"query":""}',
+    headers: { Authorization: superuserToken },
+    expectedStatus: 400,
+    expectedContent: ['"data":{"query":'],
+  },
+  {
+    name: "dry run view query length beyond validator limit",
+    method: "POST",
+    url: "/api/collections/meta/dry-run-view",
+    body: `{"query":"${"a".repeat(5001)}"}`,
+    headers: { Authorization: superuserToken },
+    expectedStatus: 400,
+    expectedContent: ['"data":{"query":'],
+  },
+  {
+    name: "dry run view query length equal to validator limit",
+    method: "POST",
+    url: "/api/collections/meta/dry-run-view",
+    body: `{"query":"select 1 as id${" ".repeat(4986)}"}`,
+    headers: { Authorization: superuserToken },
+    expectedStatus: 200,
+    expectedContent: ['"fields":[{', '"name":"id"', '"type":"text"', '"sample":[', '"id":"1"'],
+  },
+  {
+    name: "dry run view missing ids sample",
+    method: "POST",
+    url: "/api/collections/meta/dry-run-view",
+    body: `{"query":"(select 1 as id union select '' as id)"}`,
+    headers: { Authorization: superuserToken },
+    expectedStatus: 400,
+    expectedContent: ['"data":{}', "Raw error:"],
+  },
+  {
+    name: "dry run view duplicated ids sample",
+    method: "POST",
+    url: "/api/collections/meta/dry-run-view",
+    body: `{"query":"(select 1 as id union all select 1 as id)"}`,
+    headers: { Authorization: superuserToken },
+    expectedStatus: 400,
+    expectedContent: ['"data":{}', "Raw error:"],
+  },
+  {
+    name: "dry run view write query",
+    method: "POST",
+    url: "/api/collections/meta/dry-run-view",
+    body: '{"query":"CREATE TABLE t1(x INT)"}',
+    headers: { Authorization: superuserToken },
+    expectedStatus: 400,
+    expectedContent: ['"data":{}', "Raw error:"],
+  },
+];
+
+describe("collection dry run view API", () => {
+  for (const scenario of dryRunViewScenarios) {
     const name = scenario.name ?? `${scenario.method} ${scenario.url}`;
     it(name, async () => {
       await runApiScenario(scenario);

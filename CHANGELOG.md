@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.36.9-pocketbun.1 (Unreleased)
+## 0.37.0-pocketbun.0 (Unreleased)
+
+- Now compatible with PocketBase `v0.37.0` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0370).
+  - Includes the rewritten PocketBase Admin UI refresh and the new UI-facing compatibility surface it depends on.
 
 - Requires Bun `v1.3.12` or newer; app cron expressions are interpreted in UTC, now follow Bun's wider cron parser, and the old `setInterval(...)` / `setTimezone(...)` cron APIs have been removed.
 - JSVM `$filepath.glob(...)`, `match(...)`, `walk(...)`, and `walkDir(...)` now behave like real filesystem helpers, with the remaining Go `filepath` edge-case differences documented in the user guide; template `LoadFS(...)` supports nested glob patterns via Bun's native glob scanner.

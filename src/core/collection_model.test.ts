@@ -625,22 +625,22 @@ describe("collection model", () => {
         {
           typ: "unknown",
           expected:
-            '{"createRule":"1=3","created":"2024-07-01 01:02:03.456Z","deleteRule":"1=5","fields":[{"hidden":false,"id":"f1_id","name":"f1","presentable":false,"required":false,"system":true,"type":"bool"},{"hidden":false,"id":"f2_id","name":"f2","presentable":false,"required":true,"system":false,"type":"bool"}],"id":"test_id","indexes":["CREATE INDEX idx1 on test_name(id)","CREATE INDEX idx2 on test_name(id)"],"listRule":"1=1","name":"test_name","options":"{}","system":true,"type":"unknown","updateRule":"1=4","updated":"2024-07-01 01:02:03.456Z","viewRule":"1=7"}',
+            '{"createRule":"1=3","created":"2024-07-01 01:02:03.456Z","deleteRule":"1=5","fields":[{"help":"","hidden":false,"id":"f1_id","name":"f1","presentable":false,"required":false,"system":true,"type":"bool"},{"help":"","hidden":false,"id":"f2_id","name":"f2","presentable":false,"required":true,"system":false,"type":"bool"}],"id":"test_id","indexes":["CREATE INDEX idx1 on test_name(id)","CREATE INDEX idx2 on test_name(id)"],"listRule":"1=1","name":"test_name","options":"{}","system":true,"type":"unknown","updateRule":"1=4","updated":"2024-07-01 01:02:03.456Z","viewRule":"1=7"}',
         },
         {
           typ: CollectionTypeBase,
           expected:
-            '{"createRule":"1=3","created":"2024-07-01 01:02:03.456Z","deleteRule":"1=5","fields":[{"hidden":false,"id":"f1_id","name":"f1","presentable":false,"required":false,"system":true,"type":"bool"},{"hidden":false,"id":"f2_id","name":"f2","presentable":false,"required":true,"system":false,"type":"bool"}],"id":"test_id","indexes":["CREATE INDEX idx1 on test_name(id)","CREATE INDEX idx2 on test_name(id)"],"listRule":"1=1","name":"test_name","options":"{}","system":true,"type":"base","updateRule":"1=4","updated":"2024-07-01 01:02:03.456Z","viewRule":"1=7"}',
+            '{"createRule":"1=3","created":"2024-07-01 01:02:03.456Z","deleteRule":"1=5","fields":[{"help":"","hidden":false,"id":"f1_id","name":"f1","presentable":false,"required":false,"system":true,"type":"bool"},{"help":"","hidden":false,"id":"f2_id","name":"f2","presentable":false,"required":true,"system":false,"type":"bool"}],"id":"test_id","indexes":["CREATE INDEX idx1 on test_name(id)","CREATE INDEX idx2 on test_name(id)"],"listRule":"1=1","name":"test_name","options":"{}","system":true,"type":"base","updateRule":"1=4","updated":"2024-07-01 01:02:03.456Z","viewRule":"1=7"}',
         },
         {
           typ: CollectionTypeView,
           expected:
-            '{"createRule":"1=3","created":"2024-07-01 01:02:03.456Z","deleteRule":"1=5","fields":[{"hidden":false,"id":"f1_id","name":"f1","presentable":false,"required":false,"system":true,"type":"bool"},{"hidden":false,"id":"f2_id","name":"f2","presentable":false,"required":true,"system":false,"type":"bool"}],"id":"test_id","indexes":["CREATE INDEX idx1 on test_name(id)","CREATE INDEX idx2 on test_name(id)"],"listRule":"1=1","name":"test_name","options":{"viewQuery":"select 1"},"system":true,"type":"view","updateRule":"1=4","updated":"2024-07-01 01:02:03.456Z","viewRule":"1=7"}',
+            '{"createRule":"1=3","created":"2024-07-01 01:02:03.456Z","deleteRule":"1=5","fields":[{"help":"","hidden":false,"id":"f1_id","name":"f1","presentable":false,"required":false,"system":true,"type":"bool"},{"help":"","hidden":false,"id":"f2_id","name":"f2","presentable":false,"required":true,"system":false,"type":"bool"}],"id":"test_id","indexes":["CREATE INDEX idx1 on test_name(id)","CREATE INDEX idx2 on test_name(id)"],"listRule":"1=1","name":"test_name","options":{"viewQuery":"select 1"},"system":true,"type":"view","updateRule":"1=4","updated":"2024-07-01 01:02:03.456Z","viewRule":"1=7"}',
         },
         {
           typ: CollectionTypeAuth,
           expected:
-            '{"createRule":"1=3","created":"2024-07-01 01:02:03.456Z","deleteRule":"1=5","fields":[{"hidden":false,"id":"f1_id","name":"f1","presentable":false,"required":false,"system":true,"type":"bool"},{"hidden":false,"id":"f2_id","name":"f2","presentable":false,"required":true,"system":false,"type":"bool"}],"id":"test_id","indexes":["CREATE INDEX idx1 on test_name(id)","CREATE INDEX idx2 on test_name(id)"],"listRule":"1=1","name":"test_name","options":{"authRule":null,"manageRule":"1=6","authAlert":{"enabled":false,"emailTemplate":{"subject":"","body":""}},"oauth2":{"providers":null,"mappedFields":{"id":"","name":"","username":"","avatarURL":""},"enabled":false},"passwordAuth":{"enabled":false,"identityFields":null},"mfa":{"enabled":false,"duration":0,"rule":""},"otp":{"enabled":false,"duration":0,"length":0,"emailTemplate":{"subject":"","body":""}},"authToken":{"duration":0},"passwordResetToken":{"duration":0},"emailChangeToken":{"duration":0},"verificationToken":{"duration":0},"fileToken":{"duration":0},"verificationTemplate":{"subject":"","body":""},"resetPasswordTemplate":{"subject":"","body":""},"confirmEmailChangeTemplate":{"subject":"","body":""}},"system":true,"type":"auth","updateRule":"1=4","updated":"2024-07-01 01:02:03.456Z","viewRule":"1=7"}',
+            '{"createRule":"1=3","created":"2024-07-01 01:02:03.456Z","deleteRule":"1=5","fields":[{"help":"","hidden":false,"id":"f1_id","name":"f1","presentable":false,"required":false,"system":true,"type":"bool"},{"help":"","hidden":false,"id":"f2_id","name":"f2","presentable":false,"required":true,"system":false,"type":"bool"}],"id":"test_id","indexes":["CREATE INDEX idx1 on test_name(id)","CREATE INDEX idx2 on test_name(id)"],"listRule":"1=1","name":"test_name","options":{"authRule":null,"manageRule":"1=6","authAlert":{"enabled":false,"emailTemplate":{"subject":"","body":""}},"oauth2":{"providers":null,"mappedFields":{"id":"","name":"","username":"","avatarURL":""},"enabled":false},"passwordAuth":{"enabled":false,"identityFields":null},"mfa":{"enabled":false,"duration":0,"rule":""},"otp":{"enabled":false,"duration":0,"length":0,"emailTemplate":{"subject":"","body":""}},"authToken":{"duration":0},"passwordResetToken":{"duration":0},"emailChangeToken":{"duration":0},"verificationToken":{"duration":0},"fileToken":{"duration":0},"verificationTemplate":{"subject":"","body":""},"resetPasswordTemplate":{"subject":"","body":""},"confirmEmailChangeTemplate":{"subject":"","body":""}},"system":true,"type":"auth","updateRule":"1=4","updated":"2024-07-01 01:02:03.456Z","viewRule":"1=7"}',
         },
       ];
 
@@ -1188,59 +1188,62 @@ describe("collection model", () => {
 
   it("CollectionSaveViewWrapping", async () => {
     const viewName = "test_wrapping";
+    // Note: some queries use "limit 0" because the tested field value could
+    // be empty, which would trigger the extra sample records validation that
+    // is not important for this test.
     const scenarios = [
       {
-        name: "no wrapping - text field",
-        query: "select text as id, bool from demo1",
-        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select text as id, bool from demo1)",
+        name: "no wrapping - id field",
+        query: "select id, bool from demo1",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select id, bool from demo1)",
       },
       {
-        name: "no wrapping - id field",
-        query: "select text as id, bool from demo1",
-        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select text as id, bool from demo1)",
+        name: "no wrapping - text field",
+        query: "select text as id, bool from demo1 limit 0",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select text as id, bool from demo1 limit 0)",
       },
       {
         name: "no wrapping - relation field",
-        query: "select rel_one as id, bool from demo1",
-        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select rel_one as id, bool from demo1)",
+        query: "select rel_one as id, bool from demo1 limit 0",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select rel_one as id, bool from demo1 limit 0)",
       },
       {
         name: "no wrapping - select field",
-        query: "select select_many as id, bool from demo1",
-        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select select_many as id, bool from demo1)",
+        query: "select select_many as id, bool from demo1 limit 0",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select select_many as id, bool from demo1 limit 0)",
       },
       {
         name: "no wrapping - email field",
-        query: "select email as id, bool from demo1",
-        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select email as id, bool from demo1)",
+        query: "select email as id, bool from demo1 limit 0",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select email as id, bool from demo1 limit 0)",
       },
       {
         name: "no wrapping - datetime field",
-        query: "select datetime as id, bool from demo1",
-        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select datetime as id, bool from demo1)",
+        query: "select datetime as id, bool from demo1 limit 0",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select datetime as id, bool from demo1 limit 0)",
       },
       {
         name: "no wrapping - url field",
-        query: "select url as id, bool from demo1",
-        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select url as id, bool from demo1)",
+        query: "select url as id, bool from demo1 limit 0",
+        expected: "CREATE VIEW `test_wrapping` AS SELECT * FROM (select url as id, bool from demo1 limit 0)",
       },
       {
         name: "wrapping - bool field",
-        query: "select bool as id, text as txt, url from demo1",
+        query: "select bool as id, text as txt, url from demo1 limit 0",
         expected:
-          "CREATE VIEW `test_wrapping` AS SELECT * FROM (SELECT CAST(`id` as TEXT) `id`,`txt`,`url` FROM (select bool as id, text as txt, url from demo1))",
+          "CREATE VIEW `test_wrapping` AS SELECT * FROM (SELECT CAST(`id` as TEXT) `id`,`txt`,`url` FROM (select bool as id, text as txt, url from demo1 limit 0))",
       },
       {
         name: "wrapping - bool field (different order)",
-        query: "select text as txt, url, bool as id from demo1",
+        query: "select text as txt, url, bool as id from demo1 limit 0",
         expected:
-          "CREATE VIEW `test_wrapping` AS SELECT * FROM (SELECT `txt`,`url`,CAST(`id` as TEXT) `id` FROM (select text as txt, url, bool as id from demo1))",
+          "CREATE VIEW `test_wrapping` AS SELECT * FROM (SELECT `txt`,`url`,CAST(`id` as TEXT) `id` FROM (select text as txt, url, bool as id from demo1 limit 0))",
       },
       {
         name: "wrapping - json field",
-        query: "select json as id, text, url from demo1",
+        query: "select json as id, text, url from demo1 limit 0",
         expected:
-          "CREATE VIEW `test_wrapping` AS SELECT * FROM (SELECT CAST(`id` as TEXT) `id`,`text`,`url` FROM (select json as id, text, url from demo1))",
+          "CREATE VIEW `test_wrapping` AS SELECT * FROM (SELECT CAST(`id` as TEXT) `id`,`text`,`url` FROM (select json as id, text, url from demo1 limit 0))",
       },
       {
         name: "wrapping - numeric id",

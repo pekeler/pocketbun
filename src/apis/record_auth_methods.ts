@@ -28,6 +28,7 @@ type PasswordResponse = {
 type ProviderInfo = {
   name: string;
   displayName: string;
+  logo: string;
   state: string;
   authURL: string;
   authUrl: string;
@@ -113,6 +114,7 @@ function buildProviderInfo(config: OAuth2ProviderConfig): ProviderInfo | null {
   const info: ProviderInfo = {
     name: config.Name,
     displayName: provider.DisplayName() || config.Name,
+    logo: provider.Logo(),
     state: randomString(30),
     authURL: "",
     authUrl: "",
@@ -146,6 +148,9 @@ function fillLegacyFields(result: AuthMethodsResponse): void {
   result.emailPassword = result.password.enabled && result.password.identityFields.includes("email");
   result.usernamePassword = result.password.enabled && result.password.identityFields.includes("username");
   if (result.oauth2.enabled) {
-    result.authProviders = result.oauth2.providers;
+    result.authProviders = result.oauth2.providers.map((provider) => ({
+      ...provider,
+      logo: "",
+    }));
   }
 }

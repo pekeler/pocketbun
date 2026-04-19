@@ -5,7 +5,12 @@ import { newUnbootstrappedTestApp } from "../tests/app.ts";
 import { testValidationErrors } from "../tests/validation_errors.ts";
 import { JSONArray } from "../tools/types/index.ts";
 import { NewBaseCollection } from "./collection_model.ts";
-import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
+import {
+  testDefaultFieldHelpValidation,
+  testDefaultFieldIdValidation,
+  testDefaultFieldNameValidation,
+  testFieldBaseMethods,
+} from "./field.test.ts";
 import { SelectField, FieldTypeSelect } from "./field_select.ts";
 import { NewRecord } from "./record_model.ts";
 
@@ -293,6 +298,7 @@ describe("select field", () => {
   it("validate settings", async () => {
     await testDefaultFieldIdValidation(FieldTypeSelect);
     await testDefaultFieldNameValidation(FieldTypeSelect);
+    await testDefaultFieldHelpValidation(FieldTypeSelect);
 
     const { app, cleanup } = await newUnbootstrappedTestApp();
     try {

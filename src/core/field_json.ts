@@ -8,6 +8,7 @@ import {
   Fields,
   type Field,
   type MaxBodySizeCalculator,
+  defaultFieldHelpValidationRule,
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
   maxSafeJSONInt,
@@ -28,6 +29,7 @@ export class JSONField implements Field, MaxBodySizeCalculator {
   System = false;
   Hidden = false;
   Presentable = false;
+  Help = "";
   MaxSize = 0;
   Required = false;
 
@@ -142,6 +144,10 @@ export class JSONField implements Field, MaxBodySizeCalculator {
     const nameErr = defaultFieldNameValidationRule(this.Name);
     if (nameErr) {
       errors.name = nameErr;
+    }
+    const helpErr = defaultFieldHelpValidationRule(this.Help);
+    if (helpErr) {
+      errors.help = helpErr;
     }
     if (this.MaxSize < 0 || this.MaxSize > maxSafeJSONInt) {
       errors.maxSize = newError("validation_invalid_max", "Invalid maxSize value.");

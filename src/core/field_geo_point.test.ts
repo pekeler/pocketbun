@@ -4,7 +4,12 @@ import { describe, expect, it } from "bun:test";
 import { newUnbootstrappedTestApp } from "../tests/app.ts";
 import { GeoPoint } from "../tools/types/index.ts";
 import { NewBaseCollection } from "./collection_model.ts";
-import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
+import {
+  testDefaultFieldHelpValidation,
+  testDefaultFieldIdValidation,
+  testDefaultFieldNameValidation,
+  testFieldBaseMethods,
+} from "./field.test.ts";
 import { GeoPointField, FieldTypeGeoPoint } from "./field_geo_point.ts";
 import { NewRecord } from "./record_model.ts";
 
@@ -168,5 +173,6 @@ describe("geoPoint field", () => {
   it("validate settings", async () => {
     await testDefaultFieldIdValidation(FieldTypeGeoPoint);
     await testDefaultFieldNameValidation(FieldTypeGeoPoint);
+    await testDefaultFieldHelpValidation(FieldTypeGeoPoint);
   });
 });

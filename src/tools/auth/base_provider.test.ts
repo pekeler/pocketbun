@@ -35,6 +35,22 @@ describe("auth base provider", () => {
     }
   });
 
+  it("Order", () => {
+    const provider = new BaseProvider();
+
+    if (provider.Order() !== 0) {
+      throw new Error(`Expected order to be 0, got ${provider.Order()}`);
+    }
+  });
+
+  it("Logo", () => {
+    const provider = new BaseProvider();
+
+    if (provider.Logo() !== "") {
+      throw new Error(`Expected logo to be empty, got ${provider.Logo()}`);
+    }
+  });
+
   it("PKCE", () => {
     const provider = new BaseProvider();
 

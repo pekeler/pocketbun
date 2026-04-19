@@ -14,6 +14,7 @@ import {
   type SetterFinder,
   type SetterFunc,
   type RecordInterceptor,
+  defaultFieldHelpValidationRule,
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
   maxSafeJSONInt,
@@ -92,6 +93,7 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
   System = false;
   Hidden = false;
   Presentable = false;
+  Help = "";
   Min = 0;
   Max = 0;
   Pattern = "";
@@ -280,6 +282,10 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     const nameErr = defaultFieldNameValidationRule(this.Name);
     if (nameErr) {
       errors.name = nameErr;
+    }
+    const helpErr = defaultFieldHelpValidationRule(this.Help);
+    if (helpErr) {
+      errors.help = helpErr;
     }
     if (this.PrimaryKey && this.Name !== idColumn) {
       errors.name = newError("validation_invalid_primary_key", 'The primary key must be named "id".');

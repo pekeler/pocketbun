@@ -1,6 +1,7 @@
 // Ported from pocketbase/core/field_test.go
 
 import { expect } from "bun:test";
+import type { Field } from "./field.ts";
 import { ValidationErrors } from "../internal/compat/validation.ts";
 import { newTestApp } from "../tests/app.ts";
 import { NewBaseCollection } from "./collection_model.ts";
@@ -274,6 +275,76 @@ export async function testDefaultFieldNameValidation(fieldType: string): Promise
       const errors = scenario.build().ValidateSettings(null, app, collection);
       const validation = errors instanceof ValidationErrors ? errors.errors : {};
       const hasErr = Boolean(validation.name);
+      expect(hasErr).toBe(scenario.expectError);
+    }
+  } finally {
+    await cleanup();
+  }
+}
+
+export async function testDefaultFieldHelpValidation(fieldType: string): Promise<void> {
+  const { app, cleanup } = await newTestApp();
+  try {
+    const collection = NewBaseCollection("test_collection");
+    type HelpField = Field & { Help?: string };
+
+    const scenarios = [
+      {
+        name: "empty value",
+        build: () => {
+          const factory = Fields[fieldType];
+          if (!factory) {
+            throw new Error(`Missing ${fieldType} field factory`);
+          }
+          return factory() as HelpField;
+        },
+        expectError: false,
+      },
+      {
+        name: "< max limit",
+        build: () => {
+          const factory = Fields[fieldType];
+          if (!factory) {
+            throw new Error(`Missing ${fieldType} field factory`);
+          }
+          const field = factory() as HelpField;
+          field.Help = "abc";
+          return field;
+        },
+        expectError: false,
+      },
+      {
+        name: "= max limit",
+        build: () => {
+          const factory = Fields[fieldType];
+          if (!factory) {
+            throw new Error(`Missing ${fieldType} field factory`);
+          }
+          const field = factory() as HelpField;
+          field.Help = "a".repeat(300);
+          return field;
+        },
+        expectError: false,
+      },
+      {
+        name: "> max limit",
+        build: () => {
+          const factory = Fields[fieldType];
+          if (!factory) {
+            throw new Error(`Missing ${fieldType} field factory`);
+          }
+          const field = factory() as HelpField;
+          field.Help = "a".repeat(301);
+          return field;
+        },
+        expectError: true,
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const errors = scenario.build().ValidateSettings(null, app, collection);
+      const validation = errors instanceof ValidationErrors ? errors.errors : {};
+      const hasErr = Boolean(validation.help);
       expect(hasErr).toBe(scenario.expectError);
     }
   } finally {

@@ -7,7 +7,7 @@ import { JSONEach } from "../tools/dbutils/json.ts";
 import { columnify } from "../tools/inflector/inflector.ts";
 import { pseudorandomString } from "../tools/security/random.ts";
 import { Tokenizer } from "../tools/tokenizer/tokenizer.ts";
-import { Collection, collectionFromRow } from "./collection_model.ts";
+import { Collection, NewViewCollection, collectionFromRow, parseCollectionFields } from "./collection_model.ts";
 import { FieldNameId } from "./field.ts";
 import { BoolField } from "./field_bool.ts";
 import { JSONField } from "./field_json.ts";
@@ -61,17 +61,9 @@ export async function SaveView(app: App, dangerousViewName: string, dangerousSel
       return deleteErr;
     }
 
-    let query = dangerousSelectQuery.trim();
-    query = query.replace(/^;+|;+$/g, "");
+    let query = normalizeViewSelectQuery(dangerousSelectQuery);
     if (!query) {
       return new Error("missing view query");
-    }
-
-    const tk = new Tokenizer(query);
-    tk.separators(";");
-    const parts = tk.scanAll();
-    if (parts.length > 1) {
-      return new Error("multiple statements are not supported");
     }
 
     const viewQuery = `CREATE VIEW {{${trimmedName}}} AS SELECT * FROM (${query})`;
@@ -104,17 +96,9 @@ export function SaveViewSync(app: App, dangerousViewName: string, dangerousSelec
       return deleteErr;
     }
 
-    let query = dangerousSelectQuery.trim();
-    query = query.replace(/^;+|;+$/g, "");
+    let query = normalizeViewSelectQuery(dangerousSelectQuery);
     if (!query) {
       return new Error("missing view query");
-    }
-
-    const tk = new Tokenizer(query);
-    tk.separators(";");
-    const parts = tk.scanAll();
-    if (parts.length > 1) {
-      return new Error("multiple statements are not supported");
     }
 
     const viewQuery = `CREATE VIEW {{${trimmedName}}} AS SELECT * FROM (${query})`;
@@ -144,13 +128,14 @@ export function SaveViewSync(app: App, dangerousViewName: string, dangerousSelec
 // NB! Be aware that this method is vulnerable to SQL injection and the
 // "dangerousSelectQuery" argument must come only from trusted input!
 export async function CreateViewFields(app: App, dangerousSelectQuery: string): Promise<FieldsList> {
+  const normalizedQuery = normalizeViewSelectQuery(dangerousSelectQuery);
   const result = NewFieldsList();
-  const suggested = parseQueryToFields(app, dangerousSelectQuery);
+  const suggested = parseQueryToFields(app, normalizedQuery);
 
   // note wrap in a transaction in case the dangerousSelectQuery contains
   // multiple statements allowing us to rollback on any error
   const txErr = await app.RunInTransaction(async (txApp) => {
-    const info = await getQueryTableInfo(txApp, dangerousSelectQuery);
+    const info = await getQueryTableInfo(txApp, normalizedQuery);
     let hasId = false;
 
     for (const row of info) {
@@ -178,13 +163,14 @@ export async function CreateViewFields(app: App, dangerousSelectQuery: string): 
 }
 
 export function CreateViewFieldsSync(app: App, dangerousSelectQuery: string): FieldsList {
+  const normalizedQuery = normalizeViewSelectQuery(dangerousSelectQuery);
   const result = NewFieldsList();
-  const suggested = parseQueryToFields(app, dangerousSelectQuery);
+  const suggested = parseQueryToFields(app, normalizedQuery);
 
   // note wrap in a transaction in case the dangerousSelectQuery contains
   // multiple statements allowing us to rollback on any error
   const txErr = app.RunInTransactionSync((txApp) => {
-    const info = getQueryTableInfoSync(txApp, dangerousSelectQuery);
+    const info = getQueryTableInfoSync(txApp, normalizedQuery);
     let hasId = false;
 
     for (const row of info) {
@@ -209,6 +195,59 @@ export function CreateViewFieldsSync(app: App, dangerousSelectQuery: string): Fi
   }
 
   return result;
+}
+
+export type DryRunViewResult = {
+  fields: FieldsList;
+  sample: RecordModel[];
+};
+
+export async function DryRunView(app: App, dangerousSelectQuery: string, sampleSize: number): Promise<DryRunViewResult> {
+  const normalizedQuery = normalizeViewSelectQuery(dangerousSelectQuery);
+  if (!normalizedQuery) {
+    throw new Error("missing view query");
+  }
+
+  const fields = await CreateViewFields(app, normalizedQuery);
+  const tempCollection = NewViewCollection(`temp_view_${pseudorandomString(5)}`);
+  tempCollection.Fields = fields;
+  tempCollection.fields = parseCollectionFields(fields.toJSON());
+  tempCollection.system = false;
+  tempCollection.ViewQuery = normalizedQuery;
+
+  for (let i = 0; i < fields.length; i += 1) {
+    const field = fields[i];
+    if (!field) {
+      continue;
+    }
+    const err = field.ValidateSettings(null, app, tempCollection);
+    if (err) {
+      throw new Error(`invalid field "${field.GetName()}" (${i}): ${err.message}`);
+    }
+  }
+
+  const rows = app
+    .db()
+    .query(`SELECT * FROM (${normalizedQuery}) AS {{${tempCollection.name}}} LIMIT ?`)
+    .all(sampleSize) as RecordData[];
+
+  const sample = Array.isArray(rows) ? rows.map((row) => RecordModel.fromRow(tempCollection, row)) : [];
+  const ids = new Set<string>();
+
+  for (const record of sample) {
+    if (!record.Id) {
+      throw new Error("the query could return records with empty or invalid ids");
+    }
+    if (ids.has(record.Id)) {
+      throw new Error("the query could return records with non-unique ids");
+    }
+    ids.add(record.Id);
+  }
+
+  return {
+    fields,
+    sample,
+  };
 }
 
 export function FindRecordByViewFile(
@@ -286,9 +325,23 @@ type QueryField = {
 };
 
 function defaultViewField(name: string): Field {
+  if (name === FieldNameId) {
+    return defaultViewIdField();
+  }
+
   const field = new JSONField();
   field.Name = name;
   field.MaxSize = 1;
+  return field;
+}
+
+function defaultViewIdField(): Field {
+  const field = new TextField();
+  field.Name = FieldNameId;
+  field.System = true;
+  field.Required = true;
+  field.PrimaryKey = true;
+  field.Pattern = "^[a-z0-9]+$";
   return field;
 }
 
@@ -307,13 +360,7 @@ function parseQueryToFields(app: App, selectQuery: string): Map<string, QueryFie
     const colLower = col.original.toLowerCase();
 
     if (col.alias === FieldNameId) {
-      const field = new TextField();
-      field.Name = col.alias;
-      field.System = true;
-      field.Required = true;
-      field.PrimaryKey = true;
-      field.Pattern = "^[a-z0-9]+$";
-      result.set(col.alias, { field, collection: null, original: null });
+      result.set(col.alias, { field: defaultViewIdField(), collection: null, original: null });
       continue;
     }
 
@@ -541,6 +588,22 @@ export function getQueryTableInfoSync(app: App, selectQuery: string) {
   }
 
   return info;
+}
+
+function normalizeViewSelectQuery(dangerousSelectQuery: string): string {
+  const query = dangerousSelectQuery.trim().replace(/^;+|;+$/g, "");
+  if (!query) {
+    return "";
+  }
+
+  const tk = new Tokenizer(query);
+  tk.separators(";");
+  const parts = tk.scanAll();
+  if (parts.length > 1) {
+    throw new Error("multiple statements are not supported");
+  }
+
+  return query;
 }
 
 const joinReplaceRegex =

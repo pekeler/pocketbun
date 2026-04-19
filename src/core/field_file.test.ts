@@ -11,7 +11,12 @@ import { NewFileFromBytes, NewFileFromPath, PathReader, type ReadSeekCloser } fr
 import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { JSONArray } from "../tools/types/json_array.ts";
 import { NewBaseCollection } from "./collection_model.ts";
-import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
+import {
+  testDefaultFieldHelpValidation,
+  testDefaultFieldIdValidation,
+  testDefaultFieldNameValidation,
+  testFieldBaseMethods,
+} from "./field.test.ts";
 import { FieldTypeFile, FileField, DefaultFileFieldMaxSize } from "./field_file.ts";
 import { NewRecord } from "./record_model.ts";
 
@@ -421,6 +426,7 @@ describe("file field", () => {
   it("validate settings", async () => {
     await testDefaultFieldIdValidation(FieldTypeFile);
     await testDefaultFieldNameValidation(FieldTypeFile);
+    await testDefaultFieldHelpValidation(FieldTypeFile);
 
     const { app, cleanup } = await newTestApp();
     try {

@@ -226,6 +226,7 @@ import {
   CreateViewFields,
   CreateViewFieldsSync,
   DeleteView,
+  DryRunView,
   SaveView,
   SaveViewSync,
   FindRecordByViewFile as findRecordByViewFile,
@@ -5008,6 +5009,10 @@ export class BaseApp implements App {
 
   CreateViewFieldsSync(dangerousSelectQuery: string): FieldsList {
     return CreateViewFieldsSync(this, dangerousSelectQuery);
+  }
+
+  async DryRunView(dangerousSelectQuery: string, sampleSize: number) {
+    return DryRunView(this, dangerousSelectQuery, sampleSize);
   }
 
   TableInfo(tableName: string) {

@@ -3,7 +3,12 @@
 import { describe, expect, it } from "bun:test";
 import { newUnbootstrappedTestApp } from "../tests/app.ts";
 import { NewBaseCollection } from "./collection_model.ts";
-import { testDefaultFieldIdValidation, testDefaultFieldNameValidation, testFieldBaseMethods } from "./field.test.ts";
+import {
+  testDefaultFieldHelpValidation,
+  testDefaultFieldIdValidation,
+  testDefaultFieldNameValidation,
+  testFieldBaseMethods,
+} from "./field.test.ts";
 import { BoolField, FieldTypeBool } from "./field_bool.ts";
 import { NewRecord } from "./record_model.ts";
 
@@ -125,5 +130,6 @@ describe("bool field", () => {
   it("validate settings", async () => {
     await testDefaultFieldIdValidation(FieldTypeBool);
     await testDefaultFieldNameValidation(FieldTypeBool);
+    await testDefaultFieldHelpValidation(FieldTypeBool);
   });
 });

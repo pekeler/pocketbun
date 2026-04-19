@@ -77,6 +77,7 @@ describe("record auth methods", () => {
     for (const provider of body.oauth2.providers) {
       expect(typeof provider.name).toBe("string");
       expect(typeof provider.displayName).toBe("string");
+      expect(typeof provider.logo).toBe("string");
       expect(typeof provider.state).toBe("string");
       expect(typeof provider.codeVerifier).toBe("string");
       expect(typeof provider.codeChallenge).toBe("string");
@@ -87,6 +88,8 @@ describe("record auth methods", () => {
     }
 
     expect(body.authProviders.length).toBe(body.oauth2.providers.length);
+    expect(body.oauth2.providers.some((provider: any) => provider.logo.startsWith("<svg"))).toBeTrue();
+    expect(body.authProviders.every((provider: any) => provider.logo === "")).toBeTrue();
     expect(body.emailPassword).toBe(true);
     expect(body.usernamePassword).toBe(true);
   });

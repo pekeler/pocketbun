@@ -16,6 +16,7 @@ import {
   type SetterFunc,
   type DriverValuer,
   type RecordInterceptor,
+  defaultFieldHelpValidationRule,
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
 } from "./field.ts";
@@ -51,6 +52,7 @@ export class PasswordField implements Field, GetterFinder, SetterFinder, DriverV
   System = false;
   Hidden = false;
   Presentable = false;
+  Help = "";
   Pattern = "";
   Min = 0;
   Max = 0;
@@ -170,6 +172,10 @@ export class PasswordField implements Field, GetterFinder, SetterFinder, DriverV
     const nameErr = defaultFieldNameValidationRule(this.Name);
     if (nameErr) {
       errors.name = nameErr;
+    }
+    const helpErr = defaultFieldHelpValidationRule(this.Help);
+    if (helpErr) {
+      errors.help = helpErr;
     }
     if (this.Min < 0 || this.Min > 71) {
       errors.min = newError("validation_invalid_min", "Invalid min value.");

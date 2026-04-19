@@ -138,6 +138,19 @@ export type RecordLike = {
 
 export type CollectionLike = Collection;
 
+export function defaultFieldHelpValidationRule(value: unknown): Error | null {
+  if (typeof value !== "string") {
+    return ErrUnsupportedValueType;
+  }
+  if (value === "") {
+    return null;
+  }
+  if (Array.from(value).length > 300) {
+    return newError("validation_length", "The length must be between 1 and 300.");
+  }
+  return null;
+}
+
 export function defaultFieldIdValidationRule(value: unknown): Error | null {
   if (typeof value !== "string") {
     return ErrUnsupportedValueType;

@@ -570,6 +570,112 @@ describe("view helpers", () => {
     }
   });
 
+  it("DryRunView", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scenarios = [
+        {
+          name: "empty query",
+          query: "",
+          sampleSize: 10,
+          expectError: true,
+          expectFields: null as Record<string, string> | null,
+          expectSampleIds: null as string[] | null,
+        },
+        {
+          name: "non-select query",
+          query: "CREATE TABLE t1(x INT)",
+          sampleSize: 10,
+          expectError: true,
+          expectFields: null,
+          expectSampleIds: null,
+        },
+        {
+          name: "multiple inline select statements",
+          query: "select 'a' as id; select 'b' as id",
+          sampleSize: 10,
+          expectError: true,
+          expectFields: null,
+          expectSampleIds: null,
+        },
+        {
+          name: "select with invalid formatted field name",
+          query: "select 'a' as id, count(*)",
+          sampleSize: 10,
+          expectError: true,
+          expectFields: null,
+          expectSampleIds: null,
+        },
+        {
+          name: "select resolving to records with missing id",
+          query: "(select 'a' as id UNION ALL select null as id UNION ALL select 'c' as id)",
+          sampleSize: 10,
+          expectError: true,
+          expectFields: null,
+          expectSampleIds: null,
+        },
+        {
+          name: "select resolving to records with duplicated ids",
+          query: "(select 'a' as id UNION ALL select 'a' as id UNION ALL select 'c' as id)",
+          sampleSize: 10,
+          expectError: true,
+          expectFields: null,
+          expectSampleIds: null,
+        },
+        {
+          name: "no sample size and valid select query but with invalid records result",
+          query: "(select 'a' as id UNION ALL select 'a' as id UNION ALL select 'c' as id)",
+          sampleSize: 0,
+          expectError: false,
+          expectFields: { id: FieldTypeText },
+          expectSampleIds: [],
+        },
+        {
+          name: "sample size < total select records",
+          query: "(select 'a' as id UNION ALL select 'b' as id UNION ALL select 'c' as id UNION ALL select 'd' as id)",
+          sampleSize: 3,
+          expectError: false,
+          expectFields: { id: FieldTypeText },
+          expectSampleIds: ["a", "b", "c"],
+        },
+      ];
+
+      for (const scenario of scenarios) {
+        let result: Awaited<ReturnType<TestApp["DryRunView"]>> | null = null;
+        let err: Error | null = null;
+
+        try {
+          result = await app.DryRunView(scenario.query, scenario.sampleSize);
+        } catch (error) {
+          err = error as Error;
+        }
+
+        const hasErr = err !== null;
+        expect(hasErr).toBe(scenario.expectError);
+
+        if (hasErr || !result || !scenario.expectFields || !scenario.expectSampleIds) {
+          continue;
+        }
+
+        expect(result.fields.length).toBe(Object.keys(scenario.expectFields).length);
+        for (const [name, typ] of Object.entries(scenario.expectFields)) {
+          const field = result.fields.GetByName(name);
+          expect(field).not.toBeNull();
+          expect(field?.Type()).toBe(typ);
+        }
+
+        expect(result.sample.length).toBe(scenario.expectSampleIds.length);
+        for (let i = 0; i < scenario.expectSampleIds.length; i += 1) {
+          expect(result.sample[i]?.Id).toBe(scenario.expectSampleIds[i]);
+        }
+      }
+
+      ensureNoTempViews(app);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("FindRecordByViewFile", async () => {
     const { app, cleanup } = await newTestApp();
     try {

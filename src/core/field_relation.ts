@@ -13,6 +13,7 @@ import {
   type DriverValuer,
   type SetterFinder,
   type SetterFunc,
+  defaultFieldHelpValidationRule,
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
 } from "./field.ts";
@@ -51,6 +52,7 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
   System = false;
   Hidden = false;
   Presentable = false;
+  Help = "";
   CollectionId = "";
   CascadeDelete = false;
   MinSelect = 0;
@@ -183,6 +185,10 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
     const nameErr = defaultFieldNameValidationRule(this.Name);
     if (nameErr) {
       errors.name = nameErr;
+    }
+    const helpErr = defaultFieldHelpValidationRule(this.Help);
+    if (helpErr) {
+      errors.help = helpErr;
     }
     if (!this.CollectionId) {
       errors.collectionId = newError("validation_missing_rel_collection", "Relation collection is required.");

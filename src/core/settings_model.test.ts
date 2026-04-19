@@ -35,6 +35,7 @@ function newEmptySettings(): Settings {
     useLeftmostIP: false,
   };
   settings.meta = {
+    accentColor: "",
     appName: "",
     appURL: "",
     hideControls: false,
@@ -152,7 +153,7 @@ describe("settings model", () => {
     const rawStr = JSON.stringify(settings);
 
     const expected =
-      '{"smtp":{"enabled":false,"port":0,"host":"","username":"abc","authMethod":"","tls":false,"localName":""},"backups":{"cron":"","cronMaxKeep":0,"s3":{"enabled":false,"bucket":"","region":"","endpoint":"","accessKey":"","forcePathStyle":false}},"s3":{"enabled":false,"bucket":"","region":"","endpoint":"","accessKey":"","forcePathStyle":false},"meta":{"appName":"test123","appURL":"","senderName":"","senderAddress":"","hideControls":false},"rateLimits":{"rules":[],"enabled":false},"trustedProxy":{"headers":[],"useLeftmostIP":false},"batch":{"enabled":false,"maxRequests":0,"timeout":0,"maxBodySize":0},"logs":{"maxDays":0,"minLevel":0,"logIP":false,"logAuthId":false}}';
+      '{"smtp":{"enabled":false,"port":0,"host":"","username":"abc","authMethod":"","tls":false,"localName":""},"backups":{"cron":"","cronMaxKeep":0,"s3":{"enabled":false,"bucket":"","region":"","endpoint":"","accessKey":"","forcePathStyle":false}},"s3":{"enabled":false,"bucket":"","region":"","endpoint":"","accessKey":"","forcePathStyle":false},"meta":{"accentColor":"","appName":"test123","appURL":"","senderName":"","senderAddress":"","hideControls":false},"rateLimits":{"rules":[],"enabled":false},"trustedProxy":{"headers":[],"useLeftmostIP":false},"batch":{"enabled":false,"maxRequests":0,"timeout":0,"maxBodySize":0},"logs":{"maxDays":0,"minLevel":0,"logIP":false,"logAuthId":false}}';
 
     expect(rawStr).toBe(expected);
   });
@@ -189,23 +190,25 @@ describe("settings model", () => {
     const scenarios: Array<{ name: string; config: MetaConfig; expectedErrors: string[] }> = [
       {
         name: "zero values",
-        config: { appName: "", appURL: "", senderName: "", senderAddress: "", hideControls: false },
+        config: { accentColor: "", appName: "", appURL: "", senderName: "", senderAddress: "", hideControls: false },
         expectedErrors: ["appName", "appURL", "senderName", "senderAddress"],
       },
       {
         name: "invalid data",
         config: {
+          accentColor: "#fff",
           appName: "a".repeat(300),
           appURL: "test",
           senderName: "a".repeat(300),
           senderAddress: "invalid_email",
           hideControls: false,
         },
-        expectedErrors: ["appName", "appURL", "senderName", "senderAddress"],
+        expectedErrors: ["accentColor", "appName", "appURL", "senderName", "senderAddress"],
       },
       {
         name: "valid data",
         config: {
+          accentColor: "#ffffff",
           appName: "test",
           appURL: "https://example.com",
           senderName: "test",

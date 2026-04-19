@@ -9,6 +9,7 @@ import {
   type Field,
   type SetterFinder,
   type SetterFunc,
+  defaultFieldHelpValidationRule,
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
 } from "./field.ts";
@@ -32,6 +33,7 @@ export class NumberField implements Field, SetterFinder {
   System = false;
   Hidden = false;
   Presentable = false;
+  Help = "";
   Min: number | null = null;
   Max: number | null = null;
   OnlyInt = false;
@@ -138,6 +140,10 @@ export class NumberField implements Field, SetterFinder {
     const nameErr = defaultFieldNameValidationRule(this.Name);
     if (nameErr) {
       errors.name = nameErr;
+    }
+    const helpErr = defaultFieldHelpValidationRule(this.Help);
+    if (helpErr) {
+      errors.help = helpErr;
     }
 
     const minErr = this.checkOnlyInt(this.Min);

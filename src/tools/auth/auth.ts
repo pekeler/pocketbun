@@ -70,6 +70,8 @@ export function newProviderByName(name: string): Provider {
 
 // Provider defines a common interface for an OAuth2 client.
 export interface Provider {
+  Logo(): string;
+  Order(): number;
   Context(): unknown;
   SetContext(ctx: unknown): void;
   PKCE(): boolean;

@@ -3,6 +3,7 @@
 import type { AuthCodeOption } from "./oauth2.ts";
 import { DateTime } from "../types/index.ts";
 import { AuthUser, type OAuth2Token, type Provider } from "./auth.ts";
+import { oauth2ProviderLogo, oauth2ProviderOrder } from "./provider_metadata.ts";
 
 // BaseProvider defines common fields and methods used by OAuth2 client providers.
 export class BaseProvider implements Provider {
@@ -17,6 +18,14 @@ export class BaseProvider implements Provider {
   #scopes: string[] | null = null;
   #pkce = false;
   #extra: Record<string, unknown> | null = null;
+
+  Logo(): string {
+    return oauth2ProviderLogo(this);
+  }
+
+  Order(): number {
+    return oauth2ProviderOrder(this);
+  }
 
   // Context implements Provider.Context() interface method.
   Context(): unknown {

@@ -73,6 +73,7 @@ import type { RecordQuery } from "./record_query.ts";
 import type { ExpandFetchFunc } from "./record_query_expand.ts";
 import type { Settings } from "./settings_model.ts";
 import type { Store } from "./store.ts";
+import type { DryRunViewResult } from "./view.ts";
 
 export type Logger = SlogLogger;
 
@@ -484,5 +485,6 @@ export interface App {
   // "dangerousSelectQuery" argument must come only from trusted input!
   CreateViewFields(dangerousSelectQuery: string): Promise<FieldsList>;
   CreateViewFieldsSync(dangerousSelectQuery: string): FieldsList;
+  DryRunView(dangerousSelectQuery: string, sampleSize: number): Promise<DryRunViewResult>;
   TableInfo(tableName: string): TableInfoRow[];
 }

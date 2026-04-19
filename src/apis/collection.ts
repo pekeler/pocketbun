@@ -15,6 +15,7 @@ import {
 import { DefaultIdAlphabet } from "../core/db.ts";
 import { CollectionRequestEvent, CollectionsListRequestEvent } from "../core/events.ts";
 import { ValidationError, ValidationErrors } from "../internal/compat/validation.ts";
+import { Providers } from "../tools/auth/index.ts";
 import { Provider } from "../tools/search/provider.ts";
 import { SimpleFieldResolver } from "../tools/search/simple_field_resolver.ts";
 import { randomStringWithAlphabet } from "../tools/security/random.ts";
@@ -83,6 +84,8 @@ export function bindCollectionApi(app: App, rg: RouterGroup<RequestEvent>): void
   group.delete("/{collection}/truncate", (event) => collectionTruncate(app, event));
   group.put("/import", (event) => collectionsImport(app, event));
   group.get("/meta/scaffolds", (event) => collectionScaffolds(app, event));
+  group.get("/meta/oauth2-providers", (event) => collectionListOAuth2Providers(event));
+  group.post("/meta/dry-run-view", (event) => collectionDryRunView(app, event));
 }
 
 async function collectionsList(app: App, event: RequestEvent): Promise<Response> {
@@ -300,6 +303,57 @@ function collectionScaffolds(app: App, event: RequestEvent): Response {
   });
 }
 
+type ProviderListItem = {
+  order: number;
+  name: string;
+  displayName: string;
+  logo: string;
+};
+
+function collectionListOAuth2Providers(event: RequestEvent): Response {
+  const authResponse = requireSuperuser(event);
+  if (authResponse) {
+    return authResponse;
+  }
+
+  const providers = Object.entries(Providers)
+    .map(([name, factory]) => {
+      const provider = factory();
+      return {
+        order: provider.Order(),
+        name,
+        displayName: provider.DisplayName(),
+        logo: provider.Logo(),
+      } satisfies ProviderListItem;
+    })
+    .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
+    .map(({ order: _order, ...provider }) => provider);
+
+  return event.json(200, providers);
+}
+
+async function collectionDryRunView(app: App, event: RequestEvent): Promise<Response> {
+  const authResponse = requireSuperuser(event);
+  if (authResponse) {
+    return authResponse;
+  }
+
+  const data = await readRequestData(event);
+  const query = typeof data.query === "string" ? data.query : "";
+  const formErr = validateDryRunViewQuery(query);
+  if (formErr) {
+    return badRequest(event, "An error occurred while validating the submitted data.", formErr);
+  }
+
+  try {
+    const result = await app.DryRunView(query, 10);
+    return event.json(200, result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return badRequest(event, `Invalid view query. Raw error: \n${message}`);
+  }
+}
+
 function normalizeCollectionRow(row: CollectionRow | Collection): CollectionResponse {
   const collection = row instanceof Collection ? row : collectionFromRow(row);
   const base: CollectionResponse = {
@@ -515,4 +569,16 @@ function noContent(event: RequestEvent): Response {
     status: 204,
     headers: event.responseHeaders,
   });
+}
+
+function validateDryRunViewQuery(query: string): ValidationErrors | null {
+  const errors: Record<string, Error> = {};
+
+  if (!query) {
+    errors.query = new ValidationError("validation_required", "Cannot be blank.");
+  } else if (query.length > 5000) {
+    errors.query = new ValidationError("validation_length_out_of_range", "The length must be between 0 and 5000.");
+  }
+
+  return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
 }

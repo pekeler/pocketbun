@@ -12,6 +12,7 @@ import {
   type MultiValuer,
   type SetterFinder,
   type SetterFunc,
+  defaultFieldHelpValidationRule,
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
 } from "./field.ts";
@@ -50,6 +51,7 @@ export class SelectField implements Field, MultiValuer, DriverValuer, SetterFind
   System = false;
   Hidden = false;
   Presentable = false;
+  Help = "";
   Values: string[] = [];
   MaxSelect = 0;
   Required = false;
@@ -166,6 +168,10 @@ export class SelectField implements Field, MultiValuer, DriverValuer, SetterFind
     const nameErr = defaultFieldNameValidationRule(this.Name);
     if (nameErr) {
       errors.name = nameErr;
+    }
+    const helpErr = defaultFieldHelpValidationRule(this.Help);
+    if (helpErr) {
+      errors.help = helpErr;
     }
 
     if (this.Values.length === 0) {

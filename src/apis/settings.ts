@@ -59,8 +59,10 @@ async function settingsSet(app: App, event: RequestEvent): Promise<Response> {
       return badRequest(event, "An error occurred while saving the new settings.", saveErr);
     }
 
-    const appSettings = app.settings().Clone();
-    return execAfterSuccessTx(true, app, () => event.json(200, appSettings));
+    return execAfterSuccessTx(true, app, () => {
+      const appSettings = app.settings().Clone();
+      return event.json(200, appSettings);
+    });
   });
 
   if (out instanceof Response) {

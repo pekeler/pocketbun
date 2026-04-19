@@ -29,7 +29,7 @@ export function DefaultInstallerFunc(app: App, systemSuperuser: RecordModel, bas
     return error as Error;
   }
 
-  const url = `${baseURL.replace(/\/+$/g, "")}/_/#/pbinstal/${token}`;
+  const url = `${baseURL.replace(/\/+$/g, "")}/_/#/pbinstall/${token}`;
   void LaunchURL(url);
   console.log(
     "\n(!) Launch the URL below in the browser if it hasn't been open already to create your first superuser account:",
