@@ -29,6 +29,18 @@ export {
   type Config as JSVMConfig,
 } from "./src/plugins/jsvm/jsvm.ts";
 export {
+  BindApis,
+  BindCore,
+  BindDbx,
+  BindFilesystem,
+  BindFilepath,
+  BindForms,
+  BindHTTP,
+  BindMails,
+  BindOS,
+  BindSecurity,
+} from "./src/plugins/jsvm/binds.ts";
+export {
   Register as RegisterMigrateCmd,
   MustRegister as MustRegisterMigrateCmd,
   TemplateLangGo,
