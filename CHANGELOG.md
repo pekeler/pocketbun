@@ -1,8 +1,9 @@
 # Changelog
 
-## 0.37.0-pocketbun.1 (Unreleased)
+## 0.37.1-pocketbun.0 (Unreleased)
 
-- TBD
+- Now compatible with PocketBase `v0.37.1` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0371).
+  - Includes the upstream Admin UI hotfixes for number field normalization, opening collections in a new tab with middle click, and setting the collection name in the page title on initial load.
 
 ## 0.37.0-pocketbun.0 - 2026-04-19
 
