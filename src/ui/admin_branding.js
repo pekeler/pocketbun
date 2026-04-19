@@ -1,56 +1,55 @@
 // PocketBun-only: runtime branding script injected into the vendored Admin UI index page.
 (function pocketbunAdminBranding() {
-  const footerReleaseSelector = 'a[href*="github.com/pocketbase/pocketbase/releases"]';
-  const footerLinkId = "pocketbun-footer-link";
   const authLabelId = "pocketbun-auth-label";
   const pocketbunRepoUrl = "https://github.com/pekeler/pocketbun";
+  const pocketbunCreditLink = {
+    href: pocketbunRepoUrl,
+    icon: "ri-github-line",
+    label: "PocketBun",
+  };
 
   function ensureFooterLink() {
-    const releaseLink = document.querySelector(footerReleaseSelector);
-    if (!(releaseLink instanceof HTMLAnchorElement)) {
+    const store = window.app?.store;
+    const creditLinks = store?.creditLinks;
+    if (!Array.isArray(creditLinks)) {
       return;
     }
 
-    const parent = releaseLink.parentElement;
-    if (!parent || parent.querySelector("#" + footerLinkId)) {
+    if (
+      creditLinks.some(
+        (link) =>
+          link && typeof link === "object" && (link.href === pocketbunRepoUrl || link.label === pocketbunCreditLink.label),
+      )
+    ) {
       return;
     }
 
-    const separator = document.createElement("span");
-    separator.textContent = " · ";
-    separator.setAttribute("aria-hidden", "true");
-
-    const link = document.createElement("a");
-    link.id = footerLinkId;
-    link.href = pocketbunRepoUrl;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.title = "PocketBun";
-
-    const text = document.createElement("span");
-    text.className = "txt";
-    text.textContent = "PocketBun";
-    link.appendChild(text);
-
-    parent.appendChild(separator);
-    parent.appendChild(link);
+    store.creditLinks = [...creditLinks, { ...pocketbunCreditLink }];
   }
 
-  function ensureAuthLabel() {
+  function ensureAuthLabel(root = document) {
     if (document.getElementById(authLabelId)) {
       return;
     }
 
-    const logo = document.querySelector("figure.logo");
+    const loginPage =
+      root.querySelector?.('[data-pb="pageSuperuserLogin"]') ??
+      document.querySelector('[data-pb="pageSuperuserLogin"]') ??
+      root;
+    const logo = loginPage.querySelector?.("img.main-logo");
     if (!(logo instanceof HTMLElement)) {
       return;
     }
+
+    const header = logo.closest("header");
+    const insertionTarget = header?.querySelector("h5") ?? logo;
 
     const label = document.createElement("div");
     label.id = authLabelId;
     label.textContent = "PocketBun backend";
     label.style.opacity = "0.7";
-    logo.insertAdjacentElement("afterend", label);
+    label.style.marginTop = "10px";
+    insertionTarget.insertAdjacentElement("afterend", label);
   }
 
   function applyBranding() {
@@ -77,4 +76,7 @@
     subtree: true,
   });
   window.addEventListener("hashchange", queueApply);
+  document.addEventListener("mount:pageSuperuserLogin", (event) => {
+    ensureAuthLabel(event.detail instanceof HTMLElement ? event.detail : document);
+  });
 })();
