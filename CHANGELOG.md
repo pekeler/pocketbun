@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.37.0-pocketbun.0 (Unreleased)
+## 0.37.0-pocketbun.0 - 2026-04-19
 
 - Now compatible with PocketBase `v0.37.0` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0370).
   - Includes the rewritten PocketBase Admin UI refresh and the new UI-facing compatibility surface it depends on.
