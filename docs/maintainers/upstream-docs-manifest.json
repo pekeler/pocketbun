@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-02-13T22:59:42.289Z",
+  "generatedAt": "2026-04-20T19:33:21.306Z",
   "upstreamRepo": "pocketbase/site",
-  "upstreamRef": "master",
+  "upstreamRef": "0a5f331abd1c2783d5cb699c69ec256f67938f66",
   "cacheRoot": ".cache/upstream-site-docs",
   "only": null,
   "categories": {

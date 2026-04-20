@@ -56,42 +56,16 @@ On Windows, HooksWatch restart behavior has no effect.
 
 For most parts, the JavaScript APIs mirror the upstream server APIs with 2 main differences:
 
--
-Go exported method and field names are converted to camelCase, for example:
+- Go exported method and field names are converted to camelCase, for example:
 
-`app.FindRecordById("example", "RECORD_ID")` becomes
-`$app.findRecordById("example", "RECORD_ID")`.
+  `app.FindRecordById("example", "RECORD_ID")` becomes
+  `$app.findRecordById("example", "RECORD_ID")`.
 
 - Errors are thrown as regular JavaScript exceptions and not returned as explicit error values.
 
 In the PocketBun package API, use `RegisterJSVM*` / `MustRegisterJSVM*` as the preferred names for PocketBase JSVM parity. `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain available as aliases.
 
 Many I/O-heavy APIs also expose Async variants (for example `serveAsync(...)`, `migrateAsync(...)`, and `RegisterJSVMAsync(...)`).
-
-#### Global objects
-
-Below is a list with some of the commonly used global objects that are accessible from everywhere:
-
--
-[`__hooks`](https://pocketbase.io/jsvm/variables/__hooks.html)
-- The absolute path to the app `pb_hooks` directory.
-
--
-[`$app`](https://pocketbase.io/jsvm/modules/_app.html) - The current running PocketBun application instance.
-
--
-[`$apis.*`](https://pocketbase.io/jsvm/modules/_apis.html) - API routing helpers and middlewares.
-
--
-[`$os.*`](https://pocketbase.io/jsvm/modules/_os.html) - OS level primitives (deleting directories, executing shell commands, etc.).
-
--
-[`$security.*`](https://pocketbase.io/jsvm/modules/_security.html) - Low level helpers for creating and parsing JWTs, random string generation, AES encryption, etc.
-
--
-And many more - for all exposed APIs, please refer to the
-[JSVM reference docs](https://pocketbase.io/jsvm/index.html).
-
 ### TypeScript declarations and code completion
 
 PocketBun can execute `.pb.ts` files directly, and it also provides builtin **ambient TypeScript declarations** for editor completion and inline docs.
@@ -107,7 +81,6 @@ onBootstrap((event) => {
 ```
 
 If your editor still doesn't provide completion, make sure the hook file uses the `.pb.ts` extension.
-
 ### Caveats and limitations
 
 #### Handlers scope
@@ -148,9 +121,7 @@ Please note that the hooks runtime is not a browser environment. Use APIs that a
 You can load modules either by specifying their local filesystem path or by using their name, which will automatically search in:
 
 - the current working directory (*affects also relative paths*)
-
 - any `node_modules` directory
-
 - any parent `node_modules` directory
 
 In `.pb.ts` files, you can use ESM imports:
@@ -180,15 +151,12 @@ onBootstrap((event) => {
 ```
 
 Loaded modules use a shared registry and mutations should be avoided when possible to prevent concurrency issues.
-
 #### Performance
 
 Performance characteristics in PocketBun depend on your hook workload, I/O patterns and runtime configuration. For CPU-heavy operations, prefer built-in helpers where possible.
-
 #### Runtime limitations
 
 Hooks run in isolated handler contexts, and you should avoid shared mutable state between handlers.
-
 ## Event hooks
 
 You can extend the default PocketBun behavior with custom server-side code using the exposed JavaScript app event hooks.
@@ -313,9 +281,9 @@ Detected hook names from helper source:
 - `OnSettingsUpdateRequest`
 ## Routing
 
-You can register custom routes and middlewares by using the top-level [`routerAdd()`](https://pocketbase.io/jsvm/functions/routerAdd.html) and [`routerUse()`](https://pocketbase.io/jsvm/functions/routerUse.html) functions.
-
 If your custom routes introduce cookie-backed sessions or server-rendered forms, Bun's native `Bun.CSRF.generate(...)` / `Bun.CSRF.verify(...)` helpers can be a useful building block. PocketBun's builtin JSON APIs remain stateless and don't manage CSRF tokens for your custom route layer.
+
+You can register custom routes and middlewares by using the top-level [`routerAdd()`](https://pocketbase.io/jsvm/functions/routerAdd.html) and [`routerUse()`](https://pocketbase.io/jsvm/functions/routerUse.html) functions.
 
 ### Routes
 
@@ -338,6 +306,27 @@ routerAdd("POST", "/api/myapp/settings", (e) => {
 }, $apis.requireAuth())
 ```
 
+#### Route middleware with reusable handlers
+
+To keep middleware reusable, define it once and pass it as an extra `routerAdd(...)` argument:
+
+```ts
+const requireTraceIdMiddleware = (requestEvent) => {
+  if (requestEvent.request.header.get("x-trace-id") === "") {
+    return requestEvent.json(400, { error: "Missing x-trace-id header." });
+  }
+  return requestEvent.next();
+};
+
+routerAdd(
+  "GET",
+  "/hello",
+  (requestEvent) => {
+    return requestEvent.json(200, { message: "Hello!" });
+  },
+  requireTraceIdMiddleware,
+);
+```
 #### Path parameters and matching rules
 
 Because PocketBun routing is based on top of the Go standard router mux, we follow the same pattern matching rules. Below you could find a short overview but for more details please refer to [`net/http.ServeMux`](https://pkg.go.dev/net/http#ServeMux).
@@ -578,28 +567,6 @@ routerAdd("GET", "/hello", (e) => {
 })
 ```
 
-#### Route middleware with reusable handlers
-
-To keep middleware reusable, define it once and pass it as an extra `routerAdd(...)` argument:
-
-```ts
-const requireTraceIdMiddleware = (requestEvent) => {
-  if (requestEvent.request.header.get("x-trace-id") === "") {
-    return requestEvent.json(400, { error: "Missing x-trace-id header." });
-  }
-  return requestEvent.next();
-};
-
-routerAdd(
-  "GET",
-  "/hello",
-  (requestEvent) => {
-    return requestEvent.json(200, { message: "Hello!" });
-  },
-  requireTraceIdMiddleware,
-);
-```
-
 #### Builtin middlewares
 
 The global [`$apis.*`](https://pocketbase.io/jsvm/modules/_apis.html) object exposes several middlewares that you can use as part of your application.
@@ -632,7 +599,6 @@ $apis.gzip()
 // Instructs the activity logger to log only requests that have failed/returned an error.
 $apis.skipSuccessActivityLog()
 ```
-
 #### Default globally registered middlewares
 
 The below list is mostly useful for users that may want to plug their own custom middlewares before/after
@@ -741,15 +707,17 @@ throw new InternalServerError(optMessage, optData)  // 500 ApiError
 
 #### Serving static directory
 
-[`$apis.static()`](https://pocketbase.io/jsvm/functions/_apis.static.html) serves static directory content from `fs.FS` instance.
+[`$apis.static()`](https://pocketbase.io/jsvm/functions/_apis.static.html) serves static directory content from the specified directory path or `fs.FS` value.
 
-Expects the route to have a `` wildcard parameter.
+Expects the route to have a `{path...}` wildcard parameter.
 
 ```js
-// serves static files from the provided dir (if exists)
+// serves static files from a filesystem root
 routerAdd("GET", "/{path...}", $apis.static($os.dirFS("/path/to/public"), false))
-```
 
+// or from a plain directory string
+routerAdd("GET", "/assets/{path...}", $apis.static("/path/to/public", false))
+```
 #### Auth response
 
 [`$apis.recordAuthResponse()`](https://pocketbase.io/jsvm/functions/_apis.recordAuthResponse.html) writes standardized JSON record auth response (aka. token + record data) into the specified request body. Could be used as a return result from a custom auth route.
@@ -2058,8 +2026,6 @@ migrate((app) => {
 
 If you have tasks that need to be performed periodically, you could set up crontab-like jobs with `cronAdd(id, expr, handler)`.
 
-Programmatic cron setup is expression-based: pass the cron expression string or supported macro directly to `cronAdd(...)`.
-
 Each scheduled job runs in the `serve` command process and must have:
 
 -
@@ -2067,9 +2033,12 @@ Each scheduled job runs in the `serve` command process and must have:
 job
 
 -
-**cron expression** - e.g. `0 0 * * *` or `0 9 * * MON-FRI` (
+**cron expression** - e.g. `0 0 * * *` (
 *
-uses Bun's 5-field cron parser, so named months/weekdays, Sunday as `7`, lists, steps, ranges, and macros such as `@daily` are supported
+supports numeric list, steps, ranges or
+
+macros
+
 *)
 
 -

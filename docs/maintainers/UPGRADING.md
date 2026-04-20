@@ -77,13 +77,14 @@ This document describes the upgrade process we follow when PocketBase publishes 
    - If output is wrong/noisy, adjust generator/patch logic in `scripts/docs/rebuild_from_upstream.ts` and/or `scripts/docs/apply_pocketbun_patches.ts`, then rerun.
    - Keep PocketBun-only behavior notes in `docs/users/differences.md` (and summarize in README when relevant).
    - Keep `docs/maintainers/upstream-docs-map.md` current when upstream docs structure changes (new routes/sections).
+   - The upstream docs snapshot is pinned by `pocketbase_site_ref.txt`; do not treat `pocketbase/site@master` as an implicit input anymore.
 
-   Optional (recommended for release traceability):
+   When you intentionally refresh the upstream docs snapshot:
 
        SITE_SHA="$(gh api repos/pocketbase/site/commits/master --jq .sha)"
-       echo "$SITE_SHA"
+       printf '%s\n' "$SITE_SHA" > pocketbase_site_ref.txt
 
-   Record that `SITE_SHA` in the release PR/notes so the docs snapshot can be reproduced later.
+   Then rerun `bun run docs:rebuild:full` and review the generated diff.
 
 7) Fix any breakages.
 

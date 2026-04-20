@@ -34,6 +34,7 @@ const UPSTREAM_SCREENSHOTS_DIR = pathPosix.join(CACHE_ROOT, "static/images/scree
 const LOCAL_SCREENSHOTS_DIR = "docs/assets/upstream/screenshots";
 const fileCache = new Map<string, string>();
 const JSVM_TYPES_PATH = "src/plugins/jsvm/internal/types/generated/types.d.ts";
+const UPSTREAM_SITE_REF_PATH = "pocketbase_site_ref.txt";
 
 function capture(match: RegExpMatchArray, index: number, label: string): string {
   const value = match[index];
@@ -61,6 +62,19 @@ function readCachedFile(relPath: string): string {
     throw new Error(`Missing cached upstream file: ${fullPath}`);
   }
   return readFileSync(fullPath, "utf8");
+}
+
+function readUpstreamSiteRef(): string {
+  if (!existsSync(UPSTREAM_SITE_REF_PATH)) {
+    throw new Error(`Missing ${UPSTREAM_SITE_REF_PATH}`);
+  }
+
+  const value = readFileSync(UPSTREAM_SITE_REF_PATH, "utf8").trim();
+  if (!value) {
+    throw new Error(`Expected a non-empty ref in ${UPSTREAM_SITE_REF_PATH}`);
+  }
+
+  return value;
 }
 
 function extractArrayBlock(source: string, exportName: string): string {
@@ -1603,7 +1617,7 @@ function main(): void {
   const manifest: Record<string, unknown> = {
     generatedAt: new Date().toISOString(),
     upstreamRepo: "pocketbase/site",
-    upstreamRef: "master",
+    upstreamRef: readUpstreamSiteRef(),
     cacheRoot: CACHE_ROOT,
     only: only ?? null,
     categories: {},

@@ -27,7 +27,8 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 14: complete (PocketBase v0.36.7 upgrade: upstream sync, admin UI refresh, fixed-window rate limiting parity, streaming/temp-file-backed multipart upload handling, large-upload memory remeasurement, and full validation rerun)
   - Milestone 15: complete (PocketBase v0.36.8 upgrade: upstream sync, admin UI refresh, cached-collection OAuth2 serialization parity audit, regression coverage, and full validation rerun)
   - Milestone 16: complete (PocketBase v0.36.9 upgrade: upstream sync, admin UI refresh, settings/OAuth2/Discord deltas ported, regression coverage, and full validation rerun)
-  - Milestone 17: in progress (PocketBase v0.37.0 upgrade: upstream sync, rewritten admin UI refresh, UI-facing API/core/auth deltas ported, docs/generated artifacts refreshed, and full validation rerun)
+  - Milestone 17: complete (PocketBase v0.37.0 upgrade: upstream sync, rewritten admin UI refresh, UI-facing API/core/auth deltas ported, docs/generated artifacts refreshed, and full validation rerun)
+  - Milestone 18: complete (PocketBase v0.37.2 upgrade: upstream sync, `v0.37.1..v0.37.2` audit, vendored Admin UI refresh, router file-mapping gap closure, and full validation rerun)
 
 ### Maintenance TODOs
 
@@ -64,9 +65,17 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 
 - [x] (2026-04-19 10:05Z) Confirmed the upstream `v0.37.0` release from the official PocketBase GitHub release metadata and scoped the upgrade to the rewritten Admin UI plus its dependent runtime deltas: `/_/extensions.js` and UI extension file serving, `/api/collections/meta/oauth2-providers`, `/api/collections/meta/dry-run-view`, OAuth2 provider inline SVG logos in `listAuthMethods()`, new settings/field metadata (`accentColor`, field `help`), view dry-run validation, and generated JSVM/docs drift.
 - [x] (2026-04-19 10:18Z) Bumped the compatibility metadata to PocketBase `v0.37.0` / PocketBun `0.37.0-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, and `CHANGELOG.md` so the repository state matches the intended upstream target before syncing.
-- [ ] (2026-04-19 10:18Z) Sync `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.37.0`, then audit the concrete source/test deltas that still need porting.
-- [ ] Port the `v0.37.0` compatibility surface in `src/apis/*`, `src/core/*`, `src/tools/auth/*`, `src/plugins/jsvm/*`, and the related tests so the new Admin UI and API outputs match upstream behavior.
-- [ ] Refresh generated artifacts/docs and rerun the full required validation gate: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
+- [x] (2026-04-19 10:18Z) Synced `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.37.0`, then audited the concrete source/test deltas that still needed porting.
+- [x] (2026-04-19 14:20Z) Ported the `v0.37.0` compatibility surface in `src/apis/*`, `src/core/*`, `src/tools/auth/*`, `src/plugins/jsvm/*`, and the related tests so the new Admin UI and API outputs match upstream behavior.
+- [x] (2026-04-19 15:06Z) Refreshed generated artifacts/docs and reran the full required validation gate successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
+
+### Milestone 18 - PocketBase v0.37.2 upgrade
+
+- [x] (2026-04-20 07:42Z) Bumped the compatibility metadata to PocketBase `v0.37.2` / PocketBun `0.37.2-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, and `CHANGELOG.md`, and corrected the stale docs-site version marker that was still pinned to `0.37.0-pocketbun.0`.
+- [x] (2026-04-20 18:46Z) Synced `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.37.2`, then audited the concrete `v0.37.1..v0.37.2` delta via the GitHub compare API and upstream changelog. The release is UI-only (`ui/src/*`, `ui/dist/*`, and changelog text), with no upstream runtime/API file changes beyond the vendored Admin UI refresh.
+- [x] (2026-04-20 18:58Z) Ran `bun run upstream:audit`, found one non-intentional remaining mapping gap (`tools/router/buffer_with_file.go` + test), ported it into `src/tools/router/buffer_with_file.ts` and `src/tools/router/buffer_with_file.test.ts`, and re-ran the audit to confirm only the intentional `plugins/ghupdate/*` gaps remain.
+- [x] (2026-04-20 19:32Z) Hardened the docs pipeline for the `v0.37.2` tree: higher-divergence `introduction` / `extend` sections are now owned by heading-based overlays, `scripts/docs/check_generated_docs.ts` fails on missing PocketBun-only guidance, the upstream site snapshot is pinned by `pocketbase_site_ref.txt` instead of `pocketbase/site@master`, and the generated JSVM reference source (`src/plugins/jsvm/internal/types/generated/types.d.ts`) was resynced with runtime async helpers so `docs/users/reference.md` regenerates correctly.
+- [x] (2026-04-20 19:15Z) Reran the full required validation gate successfully on the final upgrade tree: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
 
 ### Milestone 14 - PocketBase v0.36.7 upgrade
 
@@ -307,6 +316,10 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Surprises & Discoveries
 
+- Observation: The upstream `v0.37.2` compare window is genuinely UI-only; the release does not touch PocketBase runtime, API, or JSVM source files beyond the vendored UI bundle and changelog text.
+  Evidence: `gh api repos/pocketbase/pocketbase/compare/v0.37.1...v0.37.2 --jq '.files[] | [.status, .filename] | @tsv'` returned only `CHANGELOG.md`, `ui/.env`, `ui/dist/*`, and `ui/src/*` paths.
+- Observation: Running the docs rebuild pipeline against the latest `pocketbase/site` snapshot during this release would have regressed PocketBun-specific guidance in generated docs, because several existing patch-script replacements no longer matched the changed upstream prose.
+  Evidence: the regenerated diffs for `docs/users/extend.md`, `docs/users/introduction.md`, and `docs/users/reference.md` dropped PocketBun-specific notes such as `.pb.ts` support, async helper notes, CSRF guidance, and direct-SQL guidance until those files were restored.
 - Observation: `Bun.Glob.scan({ onlyFiles: false })` is useful for listing both files and directories, but its iteration order is not the same as Go's depth-first lexical `filepath.WalkDir(...)` traversal.
   Evidence: local Bun `1.3.12` probe on `2026-04-12` over `a/`, `a/b/`, and `root.txt` returned `["a", "root.txt", "a/one.txt", "a/b", "a/b/two.txt"]`, while Go-compatible walk order for PocketBun needs `root -> a -> a/... -> root.txt`.
 - Observation: Bun `v1.3.12` ships the in-process `Bun.cron(expr, callback)` scheduler PocketBun needs, but Bun's type packages in this repo do not declare it yet and the runtime only schedules in UTC.
@@ -434,6 +447,12 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Decision Log
 
+- Decision: Keep the `v0.37.2` upgrade scoped to metadata, vendored Admin UI assets, and the small `tools/router/buffer_with_file` file-mapping cleanup instead of hunting for non-existent runtime deltas.
+  Rationale: the upstream compare and release notes show no server/API/JSVM source changes in `v0.37.2`, so widening the patch beyond the actual release surface would only add churn and review risk.
+  Date/Author: 2026-04-20 / Codex
+- Decision: Treat upstream site docs as an explicit pinned input and keep PocketBun-only guidance in owned overlays or local reference sources.
+  Rationale: the prose docs input comes from `pocketbase/site`, not the PocketBase release repo/tag, so syncing `master` made docs drift hard to attribute and impossible to reproduce. Pinning `pocketbase_site_ref.txt`, layering high-divergence prose through heading-based overlays, and checking required PocketBun-only content lets release upgrades distinguish upstream prose changes from local reference drift cleanly.
+  Date/Author: 2026-04-20 / Codex
 - Decision: Use Bun `v1.3.12`'s `Bun.Glob` helpers for actual glob matching, but keep `walk(...)` and `walkDir(...)` on a small explicit traversal.
   Rationale: `Bun.Glob.scan/scanSync` cleanly replaces PocketBun's hand-rolled pattern matcher and finally lets the documented JSVM filepath glob helpers behave like real APIs, but its mixed file/directory iteration order does not match Go's `filepath.Walk` / `WalkDir` depth-first lexical traversal, so explicit directory recursion is the smallest way to preserve the documented walk semantics.
   Date/Author: 2026-04-12 / Codex
@@ -640,6 +659,10 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Outcomes & Retrospective
 
+Milestone 18 is now complete. PocketBun targets PocketBase `v0.37.2`, the vendored Admin UI is refreshed to the upstream `v0.37.2` bundle, the release notes are reflected in `CHANGELOG.md`, and the post-sync audit no longer reports the non-`ghupdate` `tools/router/buffer_with_file` mapping gap. The upstream release itself is UI-only, so no runtime/API production code changes were needed beyond the small router file-mapping cleanup.
+
+The docs/tooling follow-up is also now complete on top of that release tree. The upstream prose snapshot is pinned explicitly in `pocketbase_site_ref.txt`, higher-divergence user-guide sections are layered via heading-based overlays, generated-doc checks now fail if PocketBun-only guidance disappears, and the JSVM reference source (`src/plugins/jsvm/internal/types/generated/types.d.ts`) again matches the runtime async helper surface. Full validation passed on the final kept tree: `bun run docs:rebuild:full`, `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
+
 Milestone 16 is now complete. PocketBun targets PocketBase `v0.36.9`, the vendored Admin UI is refreshed, and the upstream settings/OAuth2/Discord deltas are either ported directly or confirmed to already match PocketBun behavior. The `v0.36.9` upgrade adds guarded OAuth2 avatar downloads for file-field mappings, updates Discord OAuth2 naming to prefer `global_name`, widens JSVM `$apis.static(...)` to accept `$os.dirFS(...)` / `fs.FS`-style roots, and pins the already-correct settings secret persistence path with a direct regression.
 
 Full validation passed after the upgrade: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
@@ -664,7 +687,7 @@ Milestones 1 and 2 are substantially complete, including migrations and auth-awa
 
 ## Context and Orientation
 
-This repository now contains a full Bun-native PocketBase-compatible server targeting PocketBase `v0.36.9`, with the upstream reference synced in `.upstream/pocketbase`, the vendored Admin UI under `vendor/pocketbase-admin-ui/dist`, and the package/version metadata aligned to `0.36.9-pocketbun.0`. The `scripts/upload_memory_probe.ts` helper provides a repeatable way to measure upload RSS on real multipart record-create requests before and after upload-path changes.
+This repository now contains a full Bun-native PocketBase-compatible server targeting PocketBase `v0.37.2`, with the upstream reference synced in `.upstream/pocketbase`, the vendored Admin UI under `vendor/pocketbase-admin-ui/dist`, and the package/version metadata aligned to `0.37.2-pocketbun.0`. The `scripts/upload_memory_probe.ts` helper provides a repeatable way to measure upload RSS on real multipart record-create requests before and after upload-path changes.
 
 PocketBase’s main behavior is organized around an App interface (core.App), a BaseApp implementation, a router with events and middleware, and API binders such as apis/health.go. The Admin UI is served as static assets from ui/dist under the /_/ prefix, while public files in pb_public/ are served at /.
 
@@ -895,3 +918,4 @@ Plan change note: 2026-03-07, completed the PocketBase v0.36.6 upgrade (metadata
 Plan change note: 2026-03-17, reduced idle baseline RSS by lazily requiring optional native modules (`sharp`, filesystem/S3 support, mailer clients, and log writer) after startup attribution showed most of the pre-request gap was module import cost rather than live JS heap; local clean-room CLI serve RSS dropped from about 117 MiB to 96 MiB, and the warmed local comparison moved from about 191 MiB to 177 MiB.
 Plan change note: 2026-03-28, completed the PocketBase v0.36.8 upgrade by syncing upstream/admin UI assets, auditing the tiny compare window, adding cached-collection serialization regression coverage, and recording the clean full validation gate.
 Plan change note: 2026-04-13, improved the benchmark-shaped create hot path by replacing cached-collection linear scans with a reload-time lookup map, removing per-record interceptor action-filter arrays, and using the private untagged model hooks directly inside internal save flows; warmed local `create-organizations` throughput moved from about 293.9k to 299.9k completed requests over 20s while keeping the full validation gate clean.
+Plan change note: 2026-04-20, completed the PocketBase v0.37.2 upgrade by syncing the upstream UI-only release, updating compatibility metadata and changelog notes, porting the missing `tools/router/buffer_with_file` mapping gap, pinning the upstream site-doc ref, hardening generated-doc overlays/checks, resyncing JSVM reference types with runtime async helpers, and rerunning the full validation gate.

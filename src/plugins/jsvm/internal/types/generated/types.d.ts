@@ -692,6 +692,7 @@ interface Timezone extends time.Location {} // merge
  * ```
  *
  * PocketBun app cron expressions are interpreted in UTC, regardless of the server's local timezone.
+ * Expression validation follows Bun's 5-field cron parser, including named months/weekdays and Sunday as `7`.
  *
  * @group PocketBase
  */
@@ -896,6 +897,10 @@ declare namespace $security {
  */
 declare namespace $filesystem {
   let fileFromPath: filesystem.newFileFromPath;
+  /**
+   * PocketBun-only async alternative to fileFromPath.
+   */
+  function fileFromPathAsync(path: string): Promise<filesystem.File>;
   let fileFromBytes: filesystem.newFileFromBytes;
   let fileFromMultipart: filesystem.newFileFromMultipart;
 
@@ -932,6 +937,10 @@ declare namespace $filesystem {
    * ```
    */
   function fileFromURL(url: string, secTimeout?: number): filesystem.File;
+  /**
+   * PocketBun-only async alternative to fileFromURL.
+   */
+  function fileFromURLAsync(url: string, secTimeout?: number): Promise<filesystem.File>;
 }
 
 // -------------------------------------------------------------------
@@ -941,6 +950,11 @@ declare namespace $filesystem {
 /**
  * `$filepath` defines common helpers for manipulating filename
  * paths in a way compatible with the target operating system-defined file paths.
+ *
+ * PocketBun keeps the upstream `$filepath` method names, but behavior is not fully identical to Go `path/filepath`.
+ * In particular, `glob(...)` / `match(...)` are Bun-backed and support extra patterns such as `**`, while
+ * `base(...)`, `split(...)`, `splitList(...)`, `join(...)`, and `rel(...)` have documented edge-case differences.
+ * See the differences guide for details.
  *
  * @group PocketBase
  */
@@ -1002,17 +1016,57 @@ declare namespace $os {
   let getenv: os.getenv;
   let dirFS: os.dirFS;
   let readFile: os.readFile;
+  /**
+   * PocketBun-only async alternative to readFile.
+   */
+  function readFileAsync(name: string): Promise<string | Array<number>>;
   let writeFile: os.writeFile;
+  /**
+   * PocketBun-only async alternative to writeFile.
+   */
+  function writeFileAsync(name: string, data: string | Array<number>): Promise<void>;
   let stat: os.stat;
+  /**
+   * PocketBun-only async alternative to stat.
+   */
+  function statAsync(name: string): Promise<os.FileInfo>;
   let readDir: os.readDir;
+  /**
+   * PocketBun-only async alternative to readDir.
+   */
+  function readDirAsync(name: string): Promise<Array<os.DirEntry>>;
   let tempDir: os.tempDir;
   let truncate: os.truncate;
+  /**
+   * PocketBun-only async alternative to truncate.
+   */
+  function truncateAsync(name: string, size: number): Promise<void>;
   let getwd: os.getwd;
   let mkdir: os.mkdir;
+  /**
+   * PocketBun-only async alternative to mkdir.
+   */
+  function mkdirAsync(name: string): Promise<void>;
   let mkdirAll: os.mkdirAll;
+  /**
+   * PocketBun-only async alternative to mkdirAll.
+   */
+  function mkdirAllAsync(path: string): Promise<void>;
   let rename: os.rename;
+  /**
+   * PocketBun-only async alternative to rename.
+   */
+  function renameAsync(oldPath: string, newPath: string): Promise<void>;
   let remove: os.remove;
+  /**
+   * PocketBun-only async alternative to remove.
+   */
+  function removeAsync(path: string): Promise<void>;
   let removeAll: os.removeAll;
+  /**
+   * PocketBun-only async alternative to removeAll.
+   */
+  function removeAllAsync(path: string): Promise<void>;
   let openRoot: os.openRoot;
   let openInRoot: os.openInRoot;
 }
@@ -1226,6 +1280,28 @@ declare namespace $http {
     // @deprecated please use toString(result.body) instead
     raw: string;
   };
+  /**
+   * PocketBun-only async alternative to send().
+   */
+  function sendAsync(config: {
+    url: string;
+    body?: string | FormData;
+    method?: string; // default to "GET"
+    headers?: { [key: string]: string };
+    timeout?: number; // default to 120
+
+    // @deprecated please use body instead
+    data?: { [key: string]: any };
+  }): Promise<{
+    statusCode: number;
+    headers: { [key: string]: Array<string> };
+    cookies: { [key: string]: http.Cookie };
+    json: any;
+    body: Array<number>;
+
+    // @deprecated please use toString(result.body) instead
+    raw: string;
+  }>;
 }
 
 // -------------------------------------------------------------------

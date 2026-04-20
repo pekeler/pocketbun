@@ -2,6 +2,7 @@
 // This script exists to apply deterministic PocketBun-specific content patches to generated docs.
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 const TARGET_DOCS = [
   "docs/users/introduction.md",
@@ -10,8 +11,100 @@ const TARGET_DOCS = [
   "docs/users/extend.md",
   "docs/users/reference.md",
 ];
+const OVERLAY_ROOT = "scripts/docs/overlays";
 
 const PRESERVE_POCKETBASE_LINE_PATTERNS: RegExp[] = [/upstream PocketBase/i, /adapted from \[PocketBase docs\]/i];
+
+type HeadingSelector = string | string[];
+
+type OverlayOperation =
+  | {
+      mode: "replace-section";
+      heading: HeadingSelector;
+      contentPath: string;
+    }
+  | {
+      mode: "upsert-before-heading";
+      anchorHeading: HeadingSelector;
+      contentPath: string;
+    }
+  | {
+      mode: "upsert-after-section";
+      anchorHeading: HeadingSelector;
+      contentPath: string;
+    }
+  | {
+      mode: "insert-after-heading-line";
+      heading: HeadingSelector;
+      contentPath: string;
+    };
+
+const DOC_OVERLAYS: Record<string, OverlayOperation[]> = {
+  "docs/users/introduction.md": [
+    {
+      mode: "replace-section",
+      heading: "Introduction",
+      contentPath: "introduction/introduction-section.md",
+    },
+    {
+      mode: "replace-section",
+      heading: "Why not htmx, Hotwire/Turbo, Unpoly, etc.",
+      contentPath: "introduction/why-not-htmx.md",
+    },
+  ],
+  "docs/users/extend.md": [
+    {
+      mode: "replace-section",
+      heading: "JavaScript engine",
+      contentPath: "extend/javascript-engine.md",
+    },
+    {
+      mode: "replace-section",
+      heading: "TypeScript declarations and code completion",
+      contentPath: "extend/typescript-declarations.md",
+    },
+    {
+      mode: "replace-section",
+      heading: "Loading modules",
+      contentPath: "extend/loading-modules.md",
+    },
+    {
+      mode: "replace-section",
+      heading: "Performance",
+      contentPath: "extend/performance.md",
+    },
+    {
+      mode: "replace-section",
+      heading: ["Runtime limitations", "Engine limitations"],
+      contentPath: "extend/runtime-limitations.md",
+    },
+    {
+      mode: "insert-after-heading-line",
+      heading: "Routing",
+      contentPath: "extend/routing-note.md",
+    },
+    {
+      mode: "upsert-after-section",
+      anchorHeading: "Registering new routes",
+      contentPath: "extend/route-middleware.md",
+    },
+    {
+      mode: "replace-section",
+      heading: "Builtin middlewares",
+      contentPath: "extend/builtin-middlewares.md",
+    },
+    {
+      mode: "replace-section",
+      heading: "Serving static directory",
+      contentPath: "extend/serving-static-directory.md",
+    },
+    {
+      mode: "upsert-before-heading",
+      anchorHeading: "Executing queries",
+      contentPath: "extend/dbx-or-direct-sqlite.md",
+    },
+  ],
+};
 
 function mapOutsideCodeFences(text: string, mapSegment: (segment: string) => string): string {
   const parts = text.split(/(```[\s\S]*?```)/g);
@@ -32,6 +125,166 @@ function normalizeDocument(text: string): string {
     .replace(/\n{3,}/g, "\n\n")
     .trimEnd()
     .concat("\n");
+}
+
+function normalizeHeadingTitle(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function normalizeHeadingSelector(selector: HeadingSelector): string[] {
+  const list = Array.isArray(selector) ? selector : [selector];
+  return list.map((value) => normalizeHeadingTitle(value));
+}
+
+type HeadingRange = {
+  lines: string[];
+  start: number;
+  end: number;
+};
+
+function findHeadingRange(text: string, selector: HeadingSelector): HeadingRange | null {
+  const needles = new Set(normalizeHeadingSelector(selector));
+  const lines = text.split(/\r?\n/);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    const match = line.match(/^(#{1,6})\s+(.+)$/);
+    if (!match) {
+      continue;
+    }
+
+    const title = normalizeHeadingTitle(match[2] ?? "");
+    if (!needles.has(title)) {
+      continue;
+    }
+
+    const level = match[1]?.length ?? 0;
+    let end = i + 1;
+    while (end < lines.length) {
+      const next = lines[end] ?? "";
+      const nextMatch = next.match(/^(#{1,6})\s+(.+)$/);
+      if (nextMatch && (nextMatch[1]?.length ?? 0) <= level) {
+        break;
+      }
+      end += 1;
+    }
+
+    return { lines, start: i, end };
+  }
+
+  return null;
+}
+
+function replaceSectionByHeading(text: string, heading: HeadingSelector, replacement: string): string {
+  const range = findHeadingRange(text, heading);
+  if (!range) {
+    throw new Error(`Missing heading '${Array.isArray(heading) ? heading.join("' or '") : heading}'`);
+  }
+
+  const replacementLines = replacement.trim().split(/\r?\n/);
+  range.lines.splice(range.start, range.end - range.start, ...replacementLines);
+  return range.lines.join("\n");
+}
+
+function insertBeforeHeading(text: string, heading: HeadingSelector, block: string): string {
+  const range = findHeadingRange(text, heading);
+  if (!range) {
+    throw new Error(`Missing heading '${Array.isArray(heading) ? heading.join("' or '") : heading}'`);
+  }
+
+  const blockLines = block.trim().split(/\r?\n/);
+  range.lines.splice(range.start, 0, ...blockLines, "");
+  return range.lines.join("\n");
+}
+
+function insertAfterSectionByHeading(text: string, heading: HeadingSelector, block: string): string {
+  const range = findHeadingRange(text, heading);
+  if (!range) {
+    throw new Error(`Missing heading '${Array.isArray(heading) ? heading.join("' or '") : heading}'`);
+  }
+
+  const blockLines = block.trim().split(/\r?\n/);
+  range.lines.splice(range.end, 0, "", ...blockLines);
+  return range.lines.join("\n");
+}
+
+function insertAfterHeadingLine(text: string, heading: HeadingSelector, block: string): string {
+  const range = findHeadingRange(text, heading);
+  if (!range) {
+    throw new Error(`Missing heading '${Array.isArray(heading) ? heading.join("' or '") : heading}'`);
+  }
+
+  const blockLines = block.trim().split(/\r?\n/);
+  range.lines.splice(range.start + 1, 0, "", ...blockLines);
+  return range.lines.join("\n");
+}
+
+function readOverlayContent(relPath: string): string {
+  const fullPath = join(OVERLAY_ROOT, relPath);
+  if (!existsSync(fullPath)) {
+    throw new Error(`Missing docs overlay: ${fullPath}`);
+  }
+  return normalizeDocument(readFileSync(fullPath, "utf8")).trim();
+}
+
+function extractFirstHeadingTitle(text: string): string {
+  const match = text.match(/^(#{1,6})\s+(.+)$/m);
+  if (!match) {
+    throw new Error("Overlay content must start with a markdown heading for upsert operations.");
+  }
+
+  return match[2]?.trim() ?? "";
+}
+
+function removeExactBlock(text: string, block: string): string {
+  const trimmed = block.trim();
+  if (!trimmed) {
+    return text;
+  }
+
+  let out = text;
+  while (out.includes(trimmed)) {
+    out = out.replace(trimmed, "").replace(/\n{3,}/g, "\n\n");
+  }
+  return out;
+}
+
+function applyDocOverlays(path: string, text: string): string {
+  const operations = DOC_OVERLAYS[path] ?? [];
+  let out = text;
+
+  for (const operation of operations) {
+    const content = readOverlayContent(operation.contentPath);
+
+    switch (operation.mode) {
+      case "replace-section":
+        out = replaceSectionByHeading(out, operation.heading, content);
+        break;
+      case "upsert-before-heading": {
+        const managedHeading = extractFirstHeadingTitle(content);
+        if (findHeadingRange(out, managedHeading)) {
+          out = replaceSectionByHeading(out, managedHeading, content);
+        } else {
+          out = insertBeforeHeading(out, operation.anchorHeading, content);
+        }
+        break;
+      }
+      case "upsert-after-section": {
+        const managedHeading = extractFirstHeadingTitle(content);
+        if (findHeadingRange(out, managedHeading)) {
+          out = replaceSectionByHeading(out, managedHeading, content);
+        } else {
+          out = insertAfterSectionByHeading(out, operation.anchorHeading, content);
+        }
+        break;
+      }
+      case "insert-after-heading-line":
+        out = insertAfterHeadingLine(removeExactBlock(out, content), operation.heading, content);
+        break;
+    }
+  }
+
+  return out;
 }
 
 function removeSectionByHeading(text: string, heading: string): string {
@@ -440,6 +693,7 @@ function patchFile(path: string, source: string): string {
     out = patchReference(out);
   }
 
+  out = applyDocOverlays(path, out);
   out = patchAttribution(path, out);
 
   return normalizeDocument(out);

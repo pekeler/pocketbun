@@ -34,37 +34,18 @@ After installation, you can start the application by running `pocketbun serve`.
 
 The started web server has the following default routes:
 
--
-
-[`http://127.0.0.1:8090`](http://127.0.0.1:8090)
-- if `pb_public` directory exists, serves the static content from it (html, css, images,
-etc.)
-
--
-
-[`http://127.0.0.1:8090/_/`](http://127.0.0.1:8090/_/)
-- superusers dashboard
-
--
-
-[`http://127.0.0.1:8090/api/`](http://127.0.0.1:8090/api/)
-- REST-ish API
+- [`http://127.0.0.1:8090`](http://127.0.0.1:8090) - if `pb_public` directory exists, serves the static content from it (html, css, images, etc.)
+- [`http://127.0.0.1:8090/_/`](http://127.0.0.1:8090/_/) - superusers dashboard
+- [`http://127.0.0.1:8090/api/`](http://127.0.0.1:8090/api/) - REST-ish API
 
 By default, PocketBun will create and manage 2 new directories in the current working directory:
 
--
-`pb_data` - stores your application data, uploaded files, etc. (usually should be added in
-`.gitignore`).
+- `pb_data` - stores your application data, uploaded files, etc. (usually should be added in `.gitignore`).
+- `pb_migrations` - contains JS migration files with your collection changes (can be safely committed in your repository).
 
--
-`pb_migrations` - contains JS migration files with your collection changes (can be safely
-committed in your repository).
-
-You can even write custom migration scripts. For more info check the
-[JS migrations docs](./extend.md#migrations).
+You can even write custom migration scripts. For more info check the [JS migrations docs](./extend.md#migrations).
 
 You could find all available commands and their options by running `pocketbun --help` or `pocketbun [command] --help`
-
 ## How to use PocketBun
 
 The easiest way to use PocketBun is by interacting with its Web APIs directly from the client-side (e.g. mobile app or browser SPA).
@@ -166,7 +147,6 @@ htmx, Hotwire/Turbo, Unpoly and other similar tools are commonly used for buildi
 It is possible to use them with PocketBun but at the moment I don't recommend it because we lack the necessary helpers and utilities for building SSR-first applications, which means that you might have to create a lot of things on your own such as middlewares for handling cookies or custom authentication endpoints and access controls (*the collection API rules apply only for the builtin JSON routes). Bun's native `Bun.CSRF.generate(...)` / `Bun.CSRF.verify(...)` helpers can reduce the CSRF part of that work for Bun-native custom endpoints, but PocketBun still doesn't ship a built-in SSR middleware stack.
 
 In the future we could eventually provide official SSR support in terms of guides and middlewares for this use case but again - PocketBun wasn't designed with this in mind and you may want to reevaluate the tech stack of your application and switch to a traditional client-side SPA as mentioned earlier or use a different backend solution that might fit better with your use case.
-
 ### Mobile apps auth persistence
 
 When building mobile apps with the JavaScript SDK you'll have to specify a custom persistence store if you want to preserve the authentication between the various app activities and open/close state.

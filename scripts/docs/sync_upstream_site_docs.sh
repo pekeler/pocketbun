@@ -5,9 +5,21 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CACHE_DIR="$ROOT_DIR/.cache/upstream-site-docs"
 TMP_DIR="$ROOT_DIR/.cache/upstream-site-docs-tmp"
+SITE_REF_FILE="$ROOT_DIR/pocketbase_site_ref.txt"
 
 mkdir -p "$TMP_DIR"
 rm -rf "$TMP_DIR"/*
+
+if [[ ! -f "$SITE_REF_FILE" ]]; then
+  echo "Missing docs ref file $SITE_REF_FILE" >&2
+  exit 1
+fi
+
+SITE_REF="$(tr -d '\r\n' < "$SITE_REF_FILE")"
+if [[ -z "$SITE_REF" ]]; then
+  echo "Expected a non-empty docs ref in $SITE_REF_FILE" >&2
+  exit 1
+fi
 
 TREE_LIST="$TMP_DIR/tree_paths.txt"
 
@@ -40,7 +52,7 @@ fetch_content_to_file() {
 }
 
 # 1) Enumerate all upstream docs source files.
-run_with_retry 25 gh api "repos/pocketbase/site/git/trees/master?recursive=1" --jq '.tree[].path' > "$TREE_LIST"
+run_with_retry 25 gh api "repos/pocketbase/site/git/trees/${SITE_REF}?recursive=1" --jq '.tree[].path' > "$TREE_LIST"
 
 # Keep docs source files (Svelte/JS) under src/routes/(app)/docs.
 rg '^src/routes/\(app\)/docs/.*\.(svelte|js)$' "$TREE_LIST" > "$TMP_DIR/docs_files.txt"
@@ -58,7 +70,7 @@ while IFS= read -r repo_path; do
     rel_path="$repo_path"
   fi
 
-  endpoint="repos/pocketbase/site/contents/${repo_path}?ref=master"
+  endpoint="repos/pocketbase/site/contents/${repo_path}?ref=${SITE_REF}"
   out="$TMP_DIR/$rel_path"
   fetch_content_to_file "$endpoint" "$out"
 done < "$TMP_DIR/download_files.txt"
@@ -68,4 +80,4 @@ rm -rf "$CACHE_DIR"
 mkdir -p "$CACHE_DIR"
 cp -R "$TMP_DIR"/. "$CACHE_DIR"/
 
-echo "Cached upstream docs sources in $CACHE_DIR"
+echo "Cached upstream docs sources in $CACHE_DIR (ref $SITE_REF)"

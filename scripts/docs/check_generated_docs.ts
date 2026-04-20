@@ -183,6 +183,7 @@ function main(): void {
   const apiDoc = readFileSync("docs/users/web-apis.md", "utf8");
   const jsDoc = readFileSync("docs/users/extend.md", "utf8");
   const referenceDoc = readFileSync("docs/users/reference.md", "utf8");
+  const differencesDoc = readFileSync("docs/users/differences.md", "utf8");
 
   for (const route of introItems) {
     assertIncludesAny(introDoc, routeTitleVariants(route.title), "docs/users/introduction.md");
@@ -216,6 +217,28 @@ function main(): void {
   assertIncludes(referenceDoc, "`$app`", "docs/users/reference.md");
   assertIncludes(referenceDoc, "`routerAdd`", "docs/users/reference.md");
   assertIncludes(referenceDoc, "`Collection`", "docs/users/reference.md");
+  assertIncludes(introDoc, "`bun add pocketbun`", "docs/users/introduction.md");
+  assertIncludes(introDoc, "`bun create pocketbun my-app`", "docs/users/introduction.md");
+  assertIncludes(introDoc, "`pocketbun serve`", "docs/users/introduction.md");
+  assertIncludes(introDoc, "Bun.CSRF.generate", "docs/users/introduction.md");
+  assertIncludes(jsDoc, "`.pb.ts`", "docs/users/extend.md");
+  assertIncludes(jsDoc, "`RegisterJSVM*` / `MustRegisterJSVM*`", "docs/users/extend.md");
+  assertIncludes(jsDoc, "Route middleware with reusable handlers", "docs/users/extend.md");
+  assertIncludes(jsDoc, "DBX or direct SQLite style?", "docs/users/extend.md");
+  assertIncludes(jsDoc, "$http.sendAsync", "docs/users/extend.md");
+  assertIncludes(jsDoc, "$apis.static()", "docs/users/extend.md");
+  assertIncludes(jsDoc, "Bun.CSRF.generate", "docs/users/extend.md");
+  assertIncludes(referenceDoc, "### unmarshal", "docs/users/reference.md");
+  assertIncludes(referenceDoc, "function fileFromPathAsync(", "docs/users/reference.md");
+  assertIncludes(referenceDoc, "function sendAsync(", "docs/users/reference.md");
+  assertIncludes(referenceDoc, "PocketBun app cron expressions are interpreted in UTC", "docs/users/reference.md");
+  assertIncludes(referenceDoc, "Expression validation follows Bun's 5-field cron parser", "docs/users/reference.md");
+  assertIncludes(referenceDoc, "support extra patterns such as `**`", "docs/users/reference.md");
+  assertIncludes(
+    differencesDoc,
+    "There is no PocketBase-style binary self-update command; update via package manager.",
+    "docs/users/differences.md",
+  );
 
   console.log("Generated docs parity checks passed.");
 }

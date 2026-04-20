@@ -10,7 +10,7 @@ import { TestApp, newTestApp } from "../../tests/app.ts";
 import { Register, RegisterAsync } from "./jsvm.ts";
 
 describe("jsvm loader", () => {
-  it.serial("writes unmarshal declaration in generated types", async () => {
+  it.serial("writes PocketBun reference declarations in generated types", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-"));
     const dataDir = join(rootDir, "pb_data");
     const hooksDir = join(rootDir, "pb_hooks");
@@ -28,7 +28,19 @@ describe("jsvm loader", () => {
       app.bootstrap();
 
       const types = await readFile(join(rootDir, "types.d.ts"), "utf8");
-      expect(types).toContain("declare function unmarshal(data: any, dst: any): void;");
+      const requiredSnippets = [
+        "declare function unmarshal(data: any, dst: any): void;",
+        "function fileFromPathAsync(path: string): Promise<filesystem.File>;",
+        "function fileFromURLAsync(url: string, secTimeout?: number): Promise<filesystem.File>;",
+        "function readFileAsync(name: string): Promise<string | Array<number>>;",
+        "function sendAsync(config:",
+        "PocketBun app cron expressions are interpreted in UTC",
+        "support extra patterns such as `**`",
+      ];
+
+      for (const snippet of requiredSnippets) {
+        expect(types).toContain(snippet);
+      }
     } finally {
       app.resetBootstrapState();
       await rm(rootDir, { recursive: true, force: true });
