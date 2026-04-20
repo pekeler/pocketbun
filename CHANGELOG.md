@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.37.2-pocketbun.0 (Unreleased)
+## 0.37.2-pocketbun.0 - 2026-04-20
 
 - Now compatible with PocketBase `v0.37.2` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0372).
   - Includes the upstream Admin UI fixes for Firefox auto-expanding inputs, dark-theme readability, log attribute rendering, and the Safari popover freeze workaround.
