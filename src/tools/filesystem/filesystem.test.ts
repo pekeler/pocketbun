@@ -614,6 +614,43 @@ describe("filesystem system", () => {
     }
   });
 
+  it("serve suffix range", async () => {
+    const dir = await createTestDir();
+    try {
+      const fsys = NewLocal(dir);
+      const attrs = await fsys.Attributes("image.png");
+      const expectedLength = Math.min(5, attrs.Size);
+      const expectedStart = attrs.Size - expectedLength;
+      const source = new Uint8Array(await Bun.file(join(dir, "image.png")).arrayBuffer());
+      const res = new ResponseRecorder();
+      const err = await fsys.Serve(res, { url: "/", headers: { Range: "bytes=-5" } }, "image.png", "image.png");
+      expect(err).toBeNull();
+      expect(res.statusCode).toBe(206);
+      expect(res.header("Content-Range")).toBe(`bytes ${expectedStart}-${attrs.Size - 1}/${attrs.Size}`);
+      expect(res.header("Content-Length")).toBe(String(expectedLength));
+      expect(res.body()).toEqual(source.subarray(expectedStart));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("serve unsatisfiable range", async () => {
+    const dir = await createTestDir();
+    try {
+      const fsys = NewLocal(dir);
+      const attrs = await fsys.Attributes("image.png");
+      const res = new ResponseRecorder();
+      const err = await fsys.Serve(res, { url: "/", headers: { Range: "bytes=999999-1000000" } }, "image.png", "image.png");
+      expect(err).toBeNull();
+      expect(res.statusCode).toBe(416);
+      expect(res.header("Content-Range")).toBe(`bytes */${attrs.Size}`);
+      expect(res.header("Content-Length")).toBe("0");
+      expect(res.body().length).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("serve response", async () => {
     const dir = await createTestDir();
     try {
@@ -704,16 +741,71 @@ describe("filesystem system", () => {
     }
   });
 
+  it("serve response suffix range", async () => {
+    const dir = await createTestDir();
+    try {
+      const fsys = NewLocal(dir);
+      const attrs = await fsys.Attributes("image.png");
+      const expectedLength = Math.min(5, attrs.Size);
+      const expectedStart = attrs.Size - expectedLength;
+      const source = new Uint8Array(await Bun.file(join(dir, "image.png")).arrayBuffer());
+      const result = await fsys.ServeResponse(
+        new Headers(),
+        { url: "/", headers: { Range: "bytes=-5" } },
+        "image.png",
+        "image.png",
+      );
+      if (result instanceof Error) {
+        throw result;
+      }
+
+      expect(result.status).toBe(206);
+      expect(result.headers.get("Content-Range")).toBe(`bytes ${expectedStart}-${attrs.Size - 1}/${attrs.Size}`);
+      expect(result.headers.get("Content-Length")).toBe(String(expectedLength));
+      expect(new Uint8Array(await result.arrayBuffer())).toEqual(source.subarray(expectedStart));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("serve response unsatisfiable range", async () => {
+    const dir = await createTestDir();
+    try {
+      const fsys = NewLocal(dir);
+      const attrs = await fsys.Attributes("image.png");
+      const result = await fsys.ServeResponse(
+        new Headers(),
+        { url: "/", headers: { Range: "bytes=999999-1000000" } },
+        "image.png",
+        "image.png",
+      );
+      if (result instanceof Error) {
+        throw result;
+      }
+
+      expect(result.status).toBe(416);
+      expect(result.headers.get("Content-Range")).toBe(`bytes */${attrs.Size}`);
+      expect(result.headers.get("Content-Length")).toBe("0");
+      expect((await result.arrayBuffer()).byteLength).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("serve multi range", async () => {
     const dir = await createTestDir();
     try {
       const fsys = NewLocal(dir);
+      const attrs = await fsys.Attributes("image.png");
       const res = new ResponseRecorder();
-      const err = await fsys.Serve(res, { url: "/", headers: { Range: "bytes=0-20, 25-30" } }, "image.png", "image.png");
+      const err = await fsys.Serve(res, { url: "/", headers: { Range: "bytes=0-1, 4-6" } }, "image.png", "image.png");
       expect(err).toBeNull();
       expect(res.statusCode).toBe(206);
       expect(res.header("Content-Type").startsWith("multipart/byteranges; boundary=")).toBe(true);
-      expect(res.body().length).toBe(0);
+      const body = new TextDecoder().decode(res.body());
+      expect(body).toContain(`Content-Range: bytes 0-1/${attrs.Size}`);
+      expect(body).toContain(`Content-Range: bytes 4-6/${attrs.Size}`);
+      expect(res.body().length).toBeGreaterThan(0);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -723,9 +815,10 @@ describe("filesystem system", () => {
     const dir = await createTestDir();
     try {
       const fsys = NewLocal(dir);
+      const attrs = await fsys.Attributes("image.png");
       const result = await fsys.ServeResponse(
         new Headers(),
-        { url: "/", headers: { Range: "bytes=0-20, 25-30" } },
+        { url: "/", headers: { Range: "bytes=0-1, 4-6" } },
         "image.png",
         "image.png",
       );
@@ -735,7 +828,10 @@ describe("filesystem system", () => {
 
       expect(result.status).toBe(206);
       expect(result.headers.get("Content-Type")?.startsWith("multipart/byteranges; boundary=")).toBe(true);
-      expect((await result.arrayBuffer()).byteLength).toBe(0);
+      const body = await result.text();
+      expect(body).toContain(`Content-Range: bytes 0-1/${attrs.Size}`);
+      expect(body).toContain(`Content-Range: bytes 4-6/${attrs.Size}`);
+      expect(body.length).toBeGreaterThan(0);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

@@ -38,11 +38,18 @@ type ServePlan = {
   statusCode: number;
   headers: Headers;
   reader: Awaited<ReturnType<Bucket["NewReader"]>> | null;
-  body: Blob | null;
+  body: Blob | Uint8Array | null;
   startOffset: number;
   length: number;
   cleanup: () => Promise<void>;
 };
+
+type ByteRange = {
+  start: number;
+  end: number;
+};
+
+type ParsedByteRanges = { kind: "ignore" } | { kind: "unsatisfiable" } | { kind: "ranges"; ranges: ByteRange[] };
 
 const inlineServeContentTypes = new Set([
   "image/png",
@@ -79,6 +86,9 @@ const manualExtensionContentTypes: Record<string, string> = {
   ".js": "text/javascript",
   ".mjs": "text/javascript",
 };
+
+const textEncoder = new TextEncoder();
+const multipartByteRangesBoundary = "POCKETBUN_BYTERANGE";
 
 // forceAttachmentParam is the name of the request query parameter to
 // force "Content-Disposition: attachment" header.
@@ -474,8 +484,9 @@ export class System {
   // If the `download` query parameter is used the file will be always served for
   // download no matter of its type (aka. with "Content-Disposition: attachment").
   //
-  // Internally this method uses [http.ServeContent] so Range requests,
-  // If-Match, If-Unmodified-Since, etc. headers are handled transparently.
+  // Range requests are handled here for local and remote filesystems.
+  // Conditional request headers like If-Match / If-Unmodified-Since are not yet
+  // modeled with the same behavior as Go's http.ServeContent.
   async Serve(
     res: {
       statusCode?: number;
@@ -507,6 +518,11 @@ export class System {
       }
 
       if (plan.body) {
+        if (plan.body instanceof Uint8Array) {
+          res.end(plan.body);
+          return null;
+        }
+
         res.end(new Uint8Array(await plan.body.arrayBuffer()));
         return null;
       }
@@ -748,64 +764,79 @@ export class System {
 
     const rangeHeader = req.headers?.Range ?? req.headers?.range;
     const rangeValue = Array.isArray(rangeHeader) ? rangeHeader[0] : rangeHeader;
-    if (rangeValue && rangeValue.startsWith("bytes=")) {
-      const ranges = rangeValue
-        .slice(6)
-        .split(",")
-        .map((part) => part.trim());
-      if (ranges.length > 1) {
-        headers.set("Content-Type", "multipart/byteranges; boundary=BOUNDARY");
+    if (typeof rangeValue === "string" && rangeValue !== "") {
+      const parsedRanges = parseByteRanges(rangeValue, size);
+      if (parsedRanges.kind === "unsatisfiable") {
+        headers.set("Content-Range", `bytes */${size}`);
         headers.set("Content-Length", "0");
         await cleanup();
         return {
-          statusCode: 206,
+          statusCode: 416,
           headers,
           reader: null,
-          body: null,
+          body: new Uint8Array(),
           startOffset: 0,
           length: 0,
           cleanup: async () => {},
         };
       }
 
-      const rangeSpec = ranges[0] ?? "";
-      const [startRaw, endRaw] = rangeSpec.split("-").map((part) => part.trim());
-      const start = startRaw === "" ? 0 : Number(startRaw);
-      const end = endRaw === "" ? size - 1 : Number(endRaw);
-      const safeStart = normalizeRangeStart(start, size);
-      const safeEnd = normalizeRangeEnd(end, size, safeStart);
-      const rangeLength = safeEnd >= safeStart ? safeEnd - safeStart + 1 : 0;
-      headers.set("Content-Range", `bytes ${safeStart}-${safeEnd}/${size}`);
-      headers.set("Content-Length", String(rangeLength));
+      if (parsedRanges.kind === "ranges") {
+        const ranges = parsedRanges.ranges;
+        if (ranges.length === 1) {
+          const singleRange = ranges[0]!;
+          const rangeLength = singleRange.end - singleRange.start + 1;
+          headers.set("Content-Range", `bytes ${singleRange.start}-${singleRange.end}/${size}`);
+          headers.set("Content-Length", String(rangeLength));
 
-      if (localPath) {
-        body = rangeLength > 0 ? Bun.file(localPath).slice(safeStart, safeStart + rangeLength) : null;
-        await cleanup();
-        return {
-          statusCode: 206,
-          headers,
-          reader: null,
-          body,
-          startOffset: safeStart,
-          length: rangeLength,
-          cleanup: async () => {},
-        };
-      }
+          if (localPath) {
+            body = rangeLength > 0 ? Bun.file(localPath).slice(singleRange.start, singleRange.end + 1) : null;
+            await cleanup();
+            return {
+              statusCode: 206,
+              headers,
+              reader: null,
+              body,
+              startOffset: singleRange.start,
+              length: rangeLength,
+              cleanup: async () => {},
+            };
+          }
 
-      try {
-        reader = await this.#bucket.NewReader(this.#ctx, fileKey);
-      } catch (error) {
-        return mapFsError(error);
+          try {
+            reader = await this.#bucket.NewReader(this.#ctx, fileKey);
+          } catch (error) {
+            return mapFsError(error);
+          }
+          return {
+            statusCode: 206,
+            headers,
+            reader,
+            body: null,
+            startOffset: singleRange.start,
+            length: rangeLength,
+            cleanup,
+          };
+        }
+
+        try {
+          const multipartBody = await this.#buildMultipartByteRangesBody(localPath, fileKey, extContentType, size, ranges);
+          headers.set("Content-Type", `multipart/byteranges; boundary=${multipartByteRangesBoundary}`);
+          headers.set("Content-Length", String(multipartBody.length));
+          await cleanup();
+          return {
+            statusCode: 206,
+            headers,
+            reader: null,
+            body: multipartBody,
+            startOffset: 0,
+            length: multipartBody.length,
+            cleanup: async () => {},
+          };
+        } catch (error) {
+          return mapFsError(error);
+        }
       }
-      return {
-        statusCode: 206,
-        headers,
-        reader,
-        body: null,
-        startOffset: safeStart,
-        length: rangeLength,
-        cleanup,
-      };
     }
 
     headers.set("Content-Length", String(size));
@@ -838,6 +869,56 @@ export class System {
       length: size,
       cleanup,
     };
+  }
+
+  async #buildMultipartByteRangesBody(
+    localPath: string | null,
+    fileKey: string,
+    contentType: string,
+    size: number,
+    ranges: ByteRange[],
+  ): Promise<Uint8Array> {
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+
+    for (const range of ranges) {
+      const prefix = textEncoder.encode(
+        `--${multipartByteRangesBoundary}\r\nContent-Type: ${contentType}\r\nContent-Range: bytes ${range.start}-${range.end}/${size}\r\n\r\n`,
+      );
+      const suffix = textEncoder.encode("\r\n");
+      const body = await this.#readRangeBytes(localPath, fileKey, range.start, range.end - range.start + 1);
+      chunks.push(prefix, body, suffix);
+      total += prefix.length + body.length + suffix.length;
+    }
+
+    const closing = textEncoder.encode(`--${multipartByteRangesBoundary}--\r\n`);
+    chunks.push(closing);
+    total += closing.length;
+
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      merged.set(chunk, offset);
+      offset += chunk.length;
+    }
+    return merged;
+  }
+
+  async #readRangeBytes(localPath: string | null, fileKey: string, startOffset: number, length: number): Promise<Uint8Array> {
+    if (length <= 0) {
+      return new Uint8Array();
+    }
+
+    if (localPath) {
+      return new Uint8Array(
+        await Bun.file(localPath)
+          .slice(startOffset, startOffset + length)
+          .arrayBuffer(),
+      );
+    }
+
+    using reader = await this.#bucket.NewRangeReader(this.#ctx, fileKey, startOffset, length);
+    return await reader.readAll();
   }
 }
 
@@ -1166,30 +1247,111 @@ async function readReaderRange(reader: Awaited<ReturnType<Bucket["NewReader"]>>,
   return body;
 }
 
-function normalizeRangeStart(start: number, size: number): number {
-  if (!Number.isFinite(start)) {
-    return 0;
+function parseByteRanges(rangeValue: string, size: number): ParsedByteRanges {
+  if (!rangeValue.startsWith("bytes=")) {
+    return { kind: "ignore" };
   }
-  if (start < 0) {
-    return 0;
+
+  const rawRanges = rangeValue
+    .slice("bytes=".length)
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part !== "");
+  if (rawRanges.length === 0) {
+    return { kind: "ignore" };
   }
-  if (size <= 0) {
-    return 0;
+
+  const ranges: ByteRange[] = [];
+  let foundSyntacticallyValidRange = false;
+
+  for (const rawRange of rawRanges) {
+    const parsed = parseByteRangeSpec(rawRange, size);
+    if (parsed.kind === "invalid") {
+      return { kind: "ignore" };
+    }
+    if (parsed.kind === "unsatisfiable") {
+      foundSyntacticallyValidRange = true;
+      continue;
+    }
+
+    foundSyntacticallyValidRange = true;
+    ranges.push(parsed.range);
   }
-  return Math.min(start, size - 1);
+
+  if (ranges.length > 0) {
+    return { kind: "ranges", ranges };
+  }
+
+  return foundSyntacticallyValidRange ? { kind: "unsatisfiable" } : { kind: "ignore" };
 }
 
-function normalizeRangeEnd(end: number, size: number, safeStart: number): number {
-  if (size <= 0) {
-    return -1;
+function parseByteRangeSpec(
+  rawRange: string,
+  size: number,
+): { kind: "invalid" } | { kind: "unsatisfiable" } | { kind: "range"; range: ByteRange } {
+  const match = /^(\d*)-(\d*)$/.exec(rawRange);
+  if (!match) {
+    return { kind: "invalid" };
   }
-  if (!Number.isFinite(end)) {
-    return size - 1;
+
+  const rawStart = match[1] ?? "";
+  const rawEnd = match[2] ?? "";
+  if (rawStart === "" && rawEnd === "") {
+    return { kind: "invalid" };
   }
-  if (end < safeStart) {
-    return safeStart;
+
+  if (rawStart === "") {
+    const suffixLength = Number(rawEnd);
+    if (!Number.isSafeInteger(suffixLength) || suffixLength < 0) {
+      return { kind: "invalid" };
+    }
+    if (suffixLength === 0) {
+      return { kind: "unsatisfiable" };
+    }
+    if (size <= 0) {
+      return { kind: "unsatisfiable" };
+    }
+
+    const actualLength = Math.min(suffixLength, size);
+    return {
+      kind: "range",
+      range: {
+        start: size - actualLength,
+        end: size - 1,
+      },
+    };
   }
-  return Math.min(end, size - 1);
+
+  const start = Number(rawStart);
+  if (!Number.isSafeInteger(start) || start < 0) {
+    return { kind: "invalid" };
+  }
+  if (start >= size) {
+    return { kind: "unsatisfiable" };
+  }
+
+  if (rawEnd === "") {
+    return {
+      kind: "range",
+      range: {
+        start,
+        end: Math.max(size - 1, start),
+      },
+    };
+  }
+
+  const end = Number(rawEnd);
+  if (!Number.isSafeInteger(end) || end < start) {
+    return { kind: "invalid" };
+  }
+
+  return {
+    kind: "range",
+    range: {
+      start,
+      end: Math.min(end, size - 1),
+    },
+  };
 }
 
 function setHeaderIfMissingHeaders(headers: Headers, key: string, value: string) {

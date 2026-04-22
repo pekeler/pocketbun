@@ -449,6 +449,49 @@ describe("file download", () => {
       await cleanup();
     }
   });
+
+  it("existing image suffix range request", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const handler = buildServeHandler(app);
+      const response = await handler(
+        new Request("http://localhost/api/files/_pb_users_auth_/4q1xlclmfloku33/300_1SEi6Q6U72.png", {
+          headers: { Range: "bytes=-5" },
+        }),
+      );
+
+      expect(response.status).toBe(206);
+      expect(response.headers.get("Content-Range")).toContain(`bytes ${testImg.length - 5}-${testImg.length - 1}/`);
+      expect(response.headers.get("Content-Length")).toBe("5");
+
+      const body = new Uint8Array(await response.arrayBuffer());
+      expect(body.length).toBe(5);
+      for (let i = 0; i < body.length; i += 1) {
+        expect(body[i]).toBe(testImg[testImg.length - body.length + i]);
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("existing image unsatisfiable range request", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const handler = buildServeHandler(app);
+      const response = await handler(
+        new Request("http://localhost/api/files/_pb_users_auth_/4q1xlclmfloku33/300_1SEi6Q6U72.png", {
+          headers: { Range: "bytes=999999-1000000" },
+        }),
+      );
+
+      expect(response.status).toBe(416);
+      expect(response.headers.get("Content-Range")).toBe(`bytes */${testImg.length}`);
+      expect(response.headers.get("Content-Length")).toBe("0");
+      expect((await response.arrayBuffer()).byteLength).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
 });
 
 describe("concurrent thumbs generation", () => {

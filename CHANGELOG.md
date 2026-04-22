@@ -2,7 +2,7 @@
 
 ## 0.37.2-pocketbun.1 (Unreleased)
 
-- TBD
+- File downloads now handle HTTP byte ranges more correctly, including suffix ranges, proper `416 Range Not Satisfiable` responses, and real multipart byte-range responses.
 
 ## 0.37.2-pocketbun.0 - 2026-04-20
 
