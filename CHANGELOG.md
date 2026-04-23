@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.37.3-pocketbun.0 (Unreleased)
+## 0.37.3-pocketbun.0 - 2026-04-23
 
 - Now compatible with PocketBase `v0.37.3` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0373).
   - Includes the upstream Admin UI fixes for total-count reloads on back/forward navigation, TinyMCE floating dialog positioning while scrolling, API rule field wrapping, view-query sample loading feedback, and minor light-theme style polish.
