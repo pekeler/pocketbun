@@ -1,10 +1,10 @@
 // Ported from pocketbase/apis/file.go
 
 import { cpus } from "node:os";
-import type { App } from "../core/app.ts";
 import type { RequestEvent, RequestInfo } from "../core/event_request.ts";
 import type { System } from "../tools/filesystem/filesystem.ts";
 import type { RouterGroup } from "../tools/router/group.ts";
+import { newFilesystemAsync, type App } from "../core/app.ts";
 import { RequestInfoContextProtectedFile } from "../core/event_request.ts";
 import { FileDownloadRequestEvent, FileTokenRequestEvent } from "../core/events.ts";
 import { TokenTypeFile } from "../core/record_tokens.ts";
@@ -146,8 +146,7 @@ class FileApi {
     let fsys: System;
     let releaseFilesystem = false;
     try {
-      fsys =
-        typeof event.app.NewFilesystemAsync === "function" ? await event.app.NewFilesystemAsync() : event.app.NewFilesystem();
+      fsys = await newFilesystemAsync(event.app);
     } catch (error) {
       return internalServerError(event, "Filesystem initialization failure.", error);
     }

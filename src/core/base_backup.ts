@@ -3,12 +3,12 @@
 
 import { mkdir, open, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { App } from "./app.ts";
 import { CreateAsync, ExtractAsync } from "../tools/archive/index.ts";
 import { NewFileFromPathAsync } from "../tools/filesystem/file.ts";
 import { snakecase } from "../tools/inflector/inflector.ts";
 import { MoveDirContentAsync } from "../tools/osutils/dir.ts";
 import { pseudorandomString } from "../tools/security/random.ts";
+import { newBackupsFilesystemAsync, type App } from "./app.ts";
 import { LocalAutocertCacheDirName, LocalBackupsDirName, LocalTempDirName } from "./base_paths.ts";
 import { BackupEvent } from "./events.ts";
 import { StoreKeyActiveBackup } from "./store.ts";
@@ -98,10 +98,7 @@ export async function CreateBackup(app: App, ctx: unknown, name: string): Promis
       // persist the backup in the backups filesystem
       // ---
       try {
-        await using fsys =
-          typeof e.App.NewBackupsFilesystemAsync === "function"
-            ? await e.App.NewBackupsFilesystemAsync()
-            : e.App.NewBackupsFilesystem();
+        await using fsys = await newBackupsFilesystemAsync(e.App);
         fsys.SetContext(e.Context);
         const file = await NewFileFromPathAsync(tempPath);
         file.OriginalName = e.Name;
@@ -178,10 +175,7 @@ export async function RestoreBackup(app: App, ctx: unknown, name: string): Promi
       await mkdir(localTempDir, { recursive: true });
 
       try {
-        await using fsys =
-          typeof e.App.NewBackupsFilesystemAsync === "function"
-            ? await e.App.NewBackupsFilesystemAsync()
-            : e.App.NewBackupsFilesystem();
+        await using fsys = await newBackupsFilesystemAsync(e.App);
         fsys.SetContext(e.Context);
         if (!(await fsys.Exists(name))) {
           return new Error(`missing or invalid backup file ${JSON.stringify(name)} to restore`);
@@ -327,10 +321,7 @@ export function registerAutobackupHooks(app: App): void {
 
         let fsys: ReturnType<App["NewBackupsFilesystem"]>;
         try {
-          fsys =
-            typeof app.NewBackupsFilesystemAsync === "function"
-              ? await app.NewBackupsFilesystemAsync()
-              : app.NewBackupsFilesystem();
+          fsys = await newBackupsFilesystemAsync(app);
         } catch (error) {
           app.Logger().Error("[Backup cron] Failed to initialize the backup filesystem", "error", String(error));
           return;

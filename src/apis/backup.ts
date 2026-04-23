@@ -1,7 +1,7 @@
 // Ported from pocketbase/apis/backup.go
 
-import type { App } from "../core/app.ts";
 import type { RouterGroup } from "../tools/router/group.ts";
+import { newBackupsFilesystemAsync, type App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { TokenTypeFile } from "../core/record_tokens.ts";
 import { StoreKeyActiveBackup } from "../core/store.ts";
@@ -36,8 +36,7 @@ async function backupsList(app: App, event: RequestEvent): Promise<Response> {
 
   let fsys;
   try {
-    fsys =
-      typeof app.NewBackupsFilesystemAsync === "function" ? await app.NewBackupsFilesystemAsync() : app.NewBackupsFilesystem();
+    fsys = await newBackupsFilesystemAsync(app);
   } catch (error) {
     clearTimeout(timeout);
     return badRequest(event, "Failed to load backups filesystem.", error as Error);
@@ -77,8 +76,7 @@ async function backupDownload(app: App, event: RequestEvent): Promise<Response> 
 
   let fsys;
   try {
-    fsys =
-      typeof app.NewBackupsFilesystemAsync === "function" ? await app.NewBackupsFilesystemAsync() : app.NewBackupsFilesystem();
+    fsys = await newBackupsFilesystemAsync(app);
   } catch (error) {
     clearTimeout(timeout);
     return internalServerError(event, "Failed to load backups filesystem.", error as Error);
@@ -119,8 +117,7 @@ async function backupDelete(app: App, event: RequestEvent): Promise<Response> {
 
   let fsys;
   try {
-    fsys =
-      typeof app.NewBackupsFilesystemAsync === "function" ? await app.NewBackupsFilesystemAsync() : app.NewBackupsFilesystem();
+    fsys = await newBackupsFilesystemAsync(app);
   } catch (error) {
     clearTimeout(timeout);
     return internalServerError(event, "Failed to load backups filesystem.", error as Error);
@@ -160,8 +157,7 @@ async function backupRestore(app: App, event: RequestEvent): Promise<Response> {
 
   let fsys;
   try {
-    fsys =
-      typeof app.NewBackupsFilesystemAsync === "function" ? await app.NewBackupsFilesystemAsync() : app.NewBackupsFilesystem();
+    fsys = await newBackupsFilesystemAsync(app);
   } catch (error) {
     clearTimeout(timeout);
     return internalServerError(event, "Failed to load backups filesystem.", error as Error);

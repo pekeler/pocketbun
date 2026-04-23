@@ -1,8 +1,8 @@
 // Ported from pocketbase/apis/backup_upload.go
 
-import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { File } from "../tools/filesystem/file.ts";
+import { newBackupsFilesystemAsync, type App } from "../core/app.ts";
 import { UploadedFileMimeTypeAsync } from "../core/validators/file.ts";
 import { multipartValueToFilesystemFile, parseMultipartFormData } from "../internal/compat/request_form_data.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
@@ -11,8 +11,7 @@ import { badRequest, noContent } from "./api_errors.ts";
 export async function backupUpload(app: App, event: RequestEvent): Promise<Response> {
   let fsys;
   try {
-    fsys =
-      typeof app.NewBackupsFilesystemAsync === "function" ? await app.NewBackupsFilesystemAsync() : app.NewBackupsFilesystem();
+    fsys = await newBackupsFilesystemAsync(app);
   } catch (error) {
     return badRequest(event, "Failed to load backups filesystem.", error as Error);
   }

@@ -501,3 +501,19 @@ export async function bootstrapIfNeededAsync(app: App): Promise<void> {
 
   app.bootstrap();
 }
+
+export async function newFilesystemAsync(app: App): Promise<System> {
+  if (typeof app.NewFilesystemAsync === "function") {
+    return app.NewFilesystemAsync();
+  }
+
+  return app.NewFilesystem();
+}
+
+export async function newBackupsFilesystemAsync(app: App): Promise<System> {
+  if (typeof app.NewBackupsFilesystemAsync === "function") {
+    return app.NewBackupsFilesystemAsync();
+  }
+
+  return app.NewBackupsFilesystem();
+}

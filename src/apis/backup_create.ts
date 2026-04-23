@@ -1,7 +1,7 @@
 // Ported from pocketbase/apis/backup_create.go
 
-import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
+import { newBackupsFilesystemAsync, type App } from "../core/app.ts";
 import { StoreKeyActiveBackup } from "../core/store.ts";
 import { ValidationErrors, newError } from "../internal/compat/validation.ts";
 import { badRequest, noContent } from "./api_errors.ts";
@@ -85,10 +85,7 @@ class BackupCreateForm {
 
     let fsys;
     try {
-      fsys =
-        typeof this.app.NewBackupsFilesystemAsync === "function"
-          ? await this.app.NewBackupsFilesystemAsync()
-          : this.app.NewBackupsFilesystem();
+      fsys = await newBackupsFilesystemAsync(this.app);
     } catch (error) {
       return error as Error;
     }

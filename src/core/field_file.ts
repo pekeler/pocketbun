@@ -1,6 +1,5 @@
 // Ported from pocketbase/core/field_file.go
 
-import type { App } from "./app.ts";
 import type { Collection } from "./collection_model.ts";
 import type { Record as RecordModel } from "./record_model.ts";
 import { toStringValue } from "../internal/compat/cast.ts";
@@ -9,6 +8,7 @@ import { File } from "../tools/filesystem/file.ts";
 import { NotFoundError, ThumbSizeRegex } from "../tools/filesystem/filesystem.ts";
 import { toInterfaceSlice, toUniqueStringSlice } from "../tools/list/list.ts";
 import { JSONArray } from "../tools/types/json_array.ts";
+import { newFilesystemAsync, type App } from "./app.ts";
 import {
   Fields,
   type DriverValuer,
@@ -646,7 +646,7 @@ export class FileField
   }
 
   private async deleteEmptyRecordDir(ctx: unknown, app: App, record: RecordLike): Promise<Error | null> {
-    await using fsys = typeof app.NewFilesystemAsync === "function" ? await app.NewFilesystemAsync() : app.NewFilesystem();
+    await using fsys = await newFilesystemAsync(app);
     fsys.SetContext(ctx);
 
     const dir = (record as unknown as RecordModel).BaseFilesPath();
@@ -706,7 +706,7 @@ export class FileField
       return new Error("uploading files requires the record to have a valid nonempty id");
     }
 
-    await using fsys = typeof app.NewFilesystemAsync === "function" ? await app.NewFilesystemAsync() : app.NewFilesystem();
+    await using fsys = await newFilesystemAsync(app);
     fsys.SetContext(ctx);
 
     const succeeded: string[] = [];
@@ -756,7 +756,7 @@ export class FileField
       return [filenames, new Error("the record doesn't have an id")];
     }
 
-    await using fsys = typeof app.NewFilesystemAsync === "function" ? await app.NewFilesystemAsync() : app.NewFilesystem();
+    await using fsys = await newFilesystemAsync(app);
     fsys.SetContext(ctx);
 
     const failures: Error[] = [];
