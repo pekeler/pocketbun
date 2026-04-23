@@ -7,6 +7,7 @@ import { ValidationErrors, newError, required } from "../internal/compat/validat
 import {
   Fields,
   type Field,
+  type RecordLike,
   defaultFieldHelpValidationRule,
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
@@ -164,10 +165,6 @@ export class EmailField implements Field {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 }
-
-type RecordLike = {
-  GetRaw: (field: string) => unknown;
-};
 
 function isEmail(value: string): boolean {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value);

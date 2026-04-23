@@ -488,3 +488,16 @@ export interface App {
   DryRunView(dangerousSelectQuery: string, sampleSize: number): Promise<DryRunViewResult>;
   TableInfo(tableName: string): TableInfoRow[];
 }
+
+export async function bootstrapIfNeededAsync(app: App): Promise<void> {
+  if (app.isBootstrapped()) {
+    return;
+  }
+
+  if (typeof app.bootstrapAsync === "function") {
+    await app.bootstrapAsync();
+    return;
+  }
+
+  app.bootstrap();
+}

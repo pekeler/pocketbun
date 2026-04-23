@@ -8,6 +8,7 @@ import {
   Fields,
   type Field,
   type MaxBodySizeCalculator,
+  type RecordLike,
   defaultFieldHelpValidationRule,
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
@@ -160,10 +161,6 @@ export class JSONField implements Field, MaxBodySizeCalculator {
     return this.MaxSize > 0 ? this.MaxSize : DefaultJSONFieldMaxSize;
   }
 }
-
-type RecordLike = {
-  GetRaw: (field: string) => unknown;
-};
 
 function isJson(value: string): boolean {
   try {

@@ -7,6 +7,7 @@ import { GeoPoint } from "../tools/types/index.ts";
 import {
   Fields,
   type Field,
+  type RecordLike,
   defaultFieldHelpValidationRule,
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
@@ -135,9 +136,5 @@ export class GeoPointField implements Field {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 }
-
-type RecordLike = {
-  GetRaw: (field: string) => unknown;
-};
 
 Fields[FieldTypeGeoPoint] = () => new GeoPointField();

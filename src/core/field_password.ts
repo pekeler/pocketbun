@@ -12,6 +12,7 @@ import {
   type Field,
   type GetterFinder,
   type GetterFunc,
+  type RecordLike,
   type SetterFinder,
   type SetterFunc,
   type DriverValuer,
@@ -316,10 +317,5 @@ export class PasswordFieldValue {
     return Bun.password.verify(pass, this.Hash);
   }
 }
-
-type RecordLike = {
-  GetRaw: (field: string) => unknown;
-  SetRaw: (field: string, value: unknown) => void;
-};
 
 Fields[FieldTypePassword] = () => new PasswordField();

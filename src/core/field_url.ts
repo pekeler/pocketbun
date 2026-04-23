@@ -7,6 +7,7 @@ import { ValidationErrors, ErrRequired, newError } from "../internal/compat/vali
 import {
   Fields,
   type Field,
+  type RecordLike,
   defaultFieldHelpValidationRule,
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
@@ -157,10 +158,6 @@ export class URLField implements Field {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 }
-
-type RecordLike = {
-  GetRaw: (field: string) => unknown;
-};
 
 function isValidUrl(value: string): boolean {
   try {

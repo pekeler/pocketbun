@@ -8,6 +8,7 @@ import {
   Fields,
   type Field,
   type MaxBodySizeCalculator,
+  type RecordLike,
   defaultFieldHelpValidationRule,
   defaultFieldIdValidationRule,
   defaultFieldNameValidationRule,
@@ -137,9 +138,5 @@ export class EditorField implements Field, MaxBodySizeCalculator {
     return this.MaxSize;
   }
 }
-
-type RecordLike = {
-  GetRaw: (field: string) => unknown;
-};
 
 Fields[FieldTypeEditor] = () => new EditorField();

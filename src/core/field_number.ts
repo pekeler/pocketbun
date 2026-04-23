@@ -7,6 +7,7 @@ import { ValidationErrors, newError, required } from "../internal/compat/validat
 import {
   Fields,
   type Field,
+  type RecordLike,
   type SetterFinder,
   type SetterFunc,
   defaultFieldHelpValidationRule,
@@ -195,10 +196,5 @@ export class NumberField implements Field, SetterFinder {
     return null;
   }
 }
-
-type RecordLike = {
-  GetRaw: (field: string) => unknown;
-  SetRaw: (field: string, value: unknown) => void;
-};
 
 Fields[FieldTypeNumber] = () => new NumberField();

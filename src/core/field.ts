@@ -66,7 +66,7 @@ export interface Field {
   ColumnType(app: unknown): string;
   PrepareValue(record: RecordLike, raw: unknown): unknown;
   ValidateValue(ctx: unknown, app: unknown, record: RecordLike): Error | null;
-  ValidateSettings(ctx: unknown, app: unknown, collection: CollectionLike): Error | null;
+  ValidateSettings(ctx: unknown, app: unknown, collection: Collection): Error | null;
 }
 
 // AsyncFieldValueValidator defines an optional field interface for async
@@ -135,8 +135,6 @@ export type RecordLike = {
   GetDateTime?: (field: string) => { IsZero: () => boolean; Equal: (other: unknown) => boolean };
   Original?: () => RecordLike;
 };
-
-export type CollectionLike = Collection;
 
 export function defaultFieldHelpValidationRule(value: unknown): Error | null {
   if (typeof value !== "string") {

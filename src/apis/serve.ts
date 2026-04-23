@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { App } from "../core/app.ts";
+import { bootstrapIfNeededAsync, type App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { ServeEvent } from "../core/events.ts";
 import { Router } from "../tools/router/router.ts";
@@ -26,7 +26,6 @@ export type ServeConfig = {
   maxRequestBodySize?: number;
 };
 
-type AppWithAsyncBootstrap = App & { bootstrapAsync: () => Promise<void> };
 type BuiltServeHandler = {
   handler: (req: Request, server?: unknown) => Promise<Response>;
   serveEvent: ServeEvent;
@@ -67,19 +66,8 @@ export function resolveServeAssetPath(baseDir: string, relativeCandidates: strin
   return resolve(baseDir, relativeCandidates[0] ?? ".");
 }
 
-function hasAsyncBootstrap(app: App): app is AppWithAsyncBootstrap {
-  return typeof (app as { bootstrapAsync?: unknown }).bootstrapAsync === "function";
-}
-
 async function ensureReady(app: App): Promise<void> {
-  if (!app.isBootstrapped()) {
-    if (hasAsyncBootstrap(app)) {
-      await app.bootstrapAsync();
-    } else {
-      app.bootstrap();
-    }
-  }
-
+  await bootstrapIfNeededAsync(app);
   app.runAllMigrations();
 }
 

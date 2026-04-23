@@ -11,6 +11,7 @@ import {
   InterceptorActionCreate,
   InterceptorActionValidate,
   type Field,
+  type RecordLike,
   type SetterFinder,
   type SetterFunc,
   type RecordInterceptor,
@@ -440,14 +441,6 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
     }
   }
 }
-
-type RecordLike = {
-  GetRaw: (field: string) => unknown;
-  SetRaw: (field: string, value: unknown) => void;
-  IsNew: () => boolean;
-  LastSavedPK: () => string;
-  TableName: () => string;
-};
 
 Fields[FieldTypeText] = () => new TextField();
 

@@ -1,14 +1,8 @@
 // PocketBun-only: library helper to run migrations without CLI commands.
 
-import type { App } from "./app.ts";
+import { bootstrapIfNeededAsync, type App } from "./app.ts";
 
 export type MigrateMode = "all" | "system" | "app";
-
-type AppWithAsyncBootstrap = App & { bootstrapAsync: () => Promise<void> };
-
-function hasAsyncBootstrap(app: App): app is AppWithAsyncBootstrap {
-  return typeof (app as { bootstrapAsync?: unknown }).bootstrapAsync === "function";
-}
 
 export function migrate(app: App, mode: MigrateMode = "all"): void {
   if (!app.isBootstrapped()) {
@@ -31,13 +25,7 @@ export function migrate(app: App, mode: MigrateMode = "all"): void {
 
 // migrateAsync is a PocketBun-only async alternative to migrate().
 export async function migrateAsync(app: App, mode: MigrateMode = "all"): Promise<void> {
-  if (!app.isBootstrapped()) {
-    if (hasAsyncBootstrap(app)) {
-      await app.bootstrapAsync();
-    } else {
-      app.bootstrap();
-    }
-  }
+  await bootstrapIfNeededAsync(app);
 
   switch (mode) {
     case "system":

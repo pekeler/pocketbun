@@ -1,6 +1,6 @@
 // Ported from pocketbase/cmd/superuser.go (includes CLI commands plus library helpers).
 
-import type { App } from "../core/app.ts";
+import { bootstrapIfNeededAsync, type App } from "../core/app.ts";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { NewOTP, type OTP } from "../core/otp_model.ts";
 import { NewRecord, type Record } from "../core/record_model.ts";
@@ -258,21 +258,8 @@ function superuserOTPCommand(app: App): Command {
   return command;
 }
 
-type AppWithAsyncBootstrap = App & { bootstrapAsync: () => Promise<void> };
-
-function hasAsyncBootstrap(app: App): app is AppWithAsyncBootstrap {
-  return typeof (app as { bootstrapAsync?: unknown }).bootstrapAsync === "function";
-}
-
 async function ensureReady(app: App): Promise<void> {
-  if (!app.isBootstrapped()) {
-    if (hasAsyncBootstrap(app)) {
-      await app.bootstrapAsync();
-    } else {
-      app.bootstrap();
-    }
-  }
-
+  await bootstrapIfNeededAsync(app);
   app.runSystemMigrations();
 }
 

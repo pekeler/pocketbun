@@ -1,9 +1,9 @@
 // Ported from pocketbase/tools/search/simple_field_resolver.go
 
-import type { FieldResolver, ResolverResult } from "./field_resolver.ts";
+import type { FieldResolver, QueryUpdate, ResolverResult } from "./field_resolver.ts";
 import { columnify } from "../inflector/inflector.ts";
 
-export type NullFallbackPreference = "auto" | "disabled" | "enforced";
+export type { NullFallbackPreference } from "./field_resolver.ts";
 
 // SimpleFieldResolver defines a generic search resolver that allows
 // only its listed fields to be resolved and take part in a search query.
@@ -16,11 +16,7 @@ export class SimpleFieldResolver implements FieldResolver {
     this.#allowedFields = allowedFields;
   }
 
-  updateQuery(query: { select: string; count?: string; params: unknown[] }): {
-    select: string;
-    count?: string;
-    params: unknown[];
-  } {
+  updateQuery(query: QueryUpdate): QueryUpdate {
     return query;
   }
 

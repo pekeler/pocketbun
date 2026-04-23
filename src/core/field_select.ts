@@ -10,6 +10,7 @@ import {
   type DriverValuer,
   type Field,
   type MultiValuer,
+  type RecordLike,
   type SetterFinder,
   type SetterFunc,
   defaultFieldHelpValidationRule,
@@ -227,10 +228,5 @@ export class SelectField implements Field, MultiValuer, DriverValuer, SetterFind
     return values;
   }
 }
-
-type RecordLike = {
-  GetRaw: (field: string) => unknown;
-  SetRaw: (field: string, value: unknown) => void;
-};
 
 Fields[FieldTypeSelect] = () => new SelectField();

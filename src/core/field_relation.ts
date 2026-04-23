@@ -11,6 +11,7 @@ import {
   type Field,
   type MultiValuer,
   type DriverValuer,
+  type RecordLike,
   type SetterFinder,
   type SetterFunc,
   defaultFieldHelpValidationRule,
@@ -299,11 +300,6 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
     return null;
   }
 }
-
-type RecordLike = {
-  GetRaw: (field: string) => unknown;
-  SetRaw: (field: string, value: unknown) => void;
-};
 
 type FieldIdCandidate = {
   Id?: string;
