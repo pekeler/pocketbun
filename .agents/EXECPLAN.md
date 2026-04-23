@@ -6,11 +6,11 @@ PLANS.md exists in this repo at .agents/PLANS.md. This ExecPlan must be maintain
 
 ## Purpose / Big Picture
 
-The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.37.0 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
+The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.37.3 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
 
 ## Progress
 
-- Milestone status (2026-04-19):
+- Milestone status (2026-04-23):
   - Milestone 1: complete
   - Milestone 2: complete
   - Milestone 3: complete
@@ -29,6 +29,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 16: complete (PocketBase v0.36.9 upgrade: upstream sync, admin UI refresh, settings/OAuth2/Discord deltas ported, regression coverage, and full validation rerun)
   - Milestone 17: complete (PocketBase v0.37.0 upgrade: upstream sync, rewritten admin UI refresh, UI-facing API/core/auth deltas ported, docs/generated artifacts refreshed, and full validation rerun)
   - Milestone 18: complete (PocketBase v0.37.2 upgrade: upstream sync, `v0.37.1..v0.37.2` audit, vendored Admin UI refresh, router file-mapping gap closure, and full validation rerun)
+  - Milestone 19: complete (PocketBase v0.37.3 upgrade: upstream sync, `v0.37.2..v0.37.3` UI-only audit, vendored Admin UI refresh, metadata/changelog bump, and full validation rerun)
 
 ### Maintenance TODOs
 
@@ -76,6 +77,14 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 - [x] (2026-04-20 18:58Z) Ran `bun run upstream:audit`, found one non-intentional remaining mapping gap (`tools/router/buffer_with_file.go` + test), ported it into `src/tools/router/buffer_with_file.ts` and `src/tools/router/buffer_with_file.test.ts`, and re-ran the audit to confirm only the intentional `plugins/ghupdate/*` gaps remain.
 - [x] (2026-04-20 19:32Z) Hardened the docs pipeline for the `v0.37.2` tree: higher-divergence `introduction` / `extend` sections are now owned by heading-based overlays, `scripts/docs/check_generated_docs.ts` fails on missing PocketBun-only guidance, the upstream site snapshot is pinned by `pocketbase_site_ref.txt` instead of `pocketbase/site@master`, and the generated JSVM reference source (`src/plugins/jsvm/internal/types/generated/types.d.ts`) was resynced with runtime async helpers so `docs/users/reference.md` regenerates correctly.
 - [x] (2026-04-20 19:15Z) Reran the full required validation gate successfully on the final upgrade tree: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
+
+### Milestone 19 - PocketBase v0.37.3 upgrade
+
+- [x] (2026-04-23 13:03Z) Audited the upstream `v0.37.2..v0.37.3` delta via the GitHub release API and compare API before syncing local files. The release is UI-only again: `CHANGELOG.md`, `ui/.env`, `ui/dist/*`, `ui/public/libs/tinymce/skins/ui/oxide/skin.min.css`, and `ui/src/*`, with no upstream runtime/API/JSVM source changes to port.
+- [x] (2026-04-23 13:03Z) Bumped the compatibility metadata to PocketBase `v0.37.3` / PocketBun `0.37.3-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, and `CHANGELOG.md`, carrying forward the unreleased byte-range download note under the new compatibility target.
+- [x] (2026-04-23 13:05Z) Synced `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.37.3`, refreshing the vendored Admin UI bundle and TinyMCE skin assets from the new tag.
+- [x] (2026-04-23 13:05Z) Re-ran `bun run upstream:audit` after the sync and confirmed that the only remaining mapping gaps are still the intentionally unported `plugins/ghupdate/*` source and test files.
+- [x] (2026-04-23 13:05Z) Reran the full required validation gate successfully on the final upgrade tree: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
 
 ### Milestone 14 - PocketBase v0.36.7 upgrade
 
@@ -316,6 +325,8 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Surprises & Discoveries
 
+- Observation: The upstream `v0.37.3` compare window is UI-only again; the release does not touch PocketBase runtime, API, or JSVM source files beyond the vendored UI bundle, TinyMCE skin assets, and changelog text.
+  Evidence: `gh api repos/pocketbase/pocketbase/compare/v0.37.2...v0.37.3 --jq '.files[] | [.status, .filename] | @tsv'` returned only `CHANGELOG.md`, `ui/.env`, `ui/dist/*`, `ui/public/libs/tinymce/skins/ui/oxide/skin.min.css`, and `ui/src/*` paths.
 - Observation: The upstream `v0.37.2` compare window is genuinely UI-only; the release does not touch PocketBase runtime, API, or JSVM source files beyond the vendored UI bundle and changelog text.
   Evidence: `gh api repos/pocketbase/pocketbase/compare/v0.37.1...v0.37.2 --jq '.files[] | [.status, .filename] | @tsv'` returned only `CHANGELOG.md`, `ui/.env`, `ui/dist/*`, and `ui/src/*` paths.
 - Observation: Running the docs rebuild pipeline against the latest `pocketbase/site` snapshot during this release would have regressed PocketBun-specific guidance in generated docs, because several existing patch-script replacements no longer matched the changed upstream prose.
@@ -447,6 +458,9 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Decision Log
 
+- Decision: Keep the `v0.37.3` upgrade scoped to compatibility metadata, the vendored Admin UI refresh, and release-note/changelog updates; do not hunt for runtime deltas that are not present.
+  Rationale: the upstream compare and release notes show a UI-only patch, and `bun run upstream:audit` still reports only the already-intentional `plugins/ghupdate/*` mapping gaps after the sync. Expanding the change beyond the actual release surface would add churn without improving compatibility.
+  Date/Author: 2026-04-23 / Codex
 - Decision: Keep the `v0.37.2` upgrade scoped to metadata, vendored Admin UI assets, and the small `tools/router/buffer_with_file` file-mapping cleanup instead of hunting for non-existent runtime deltas.
   Rationale: the upstream compare and release notes show no server/API/JSVM source changes in `v0.37.2`, so widening the patch beyond the actual release surface would only add churn and review risk.
   Date/Author: 2026-04-20 / Codex
@@ -659,6 +673,10 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Outcomes & Retrospective
 
+Milestone 19 is now complete. PocketBun targets PocketBase `v0.37.3`, the vendored Admin UI is refreshed to the upstream `v0.37.3` bundle, the release notes are reflected in `CHANGELOG.md`, and the upstream audit still reports only the intentional `plugins/ghupdate/*` gaps. The upstream release itself is UI-only, so no runtime/API production code changes were needed for this bump.
+
+Full validation passed on the final kept tree: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
+
 Milestone 18 is now complete. PocketBun targets PocketBase `v0.37.2`, the vendored Admin UI is refreshed to the upstream `v0.37.2` bundle, the release notes are reflected in `CHANGELOG.md`, and the post-sync audit no longer reports the non-`ghupdate` `tools/router/buffer_with_file` mapping gap. The upstream release itself is UI-only, so no runtime/API production code changes were needed beyond the small router file-mapping cleanup.
 
 The docs/tooling follow-up is also now complete on top of that release tree. The upstream prose snapshot is pinned explicitly in `pocketbase_site_ref.txt`, higher-divergence user-guide sections are layered via heading-based overlays, generated-doc checks now fail if PocketBun-only guidance disappears, and the JSVM reference source (`src/plugins/jsvm/internal/types/generated/types.d.ts`) again matches the runtime async helper surface. Full validation passed on the final kept tree: `bun run docs:rebuild:full`, `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
@@ -687,7 +705,7 @@ Milestones 1 and 2 are substantially complete, including migrations and auth-awa
 
 ## Context and Orientation
 
-This repository now contains a full Bun-native PocketBase-compatible server targeting PocketBase `v0.37.2`, with the upstream reference synced in `.upstream/pocketbase`, the vendored Admin UI under `vendor/pocketbase-admin-ui/dist`, and the package/version metadata aligned to `0.37.2-pocketbun.0`. The `scripts/upload_memory_probe.ts` helper provides a repeatable way to measure upload RSS on real multipart record-create requests before and after upload-path changes.
+This repository now contains a full Bun-native PocketBase-compatible server targeting PocketBase `v0.37.3`, with the upstream reference synced in `.upstream/pocketbase`, the vendored Admin UI under `vendor/pocketbase-admin-ui/dist`, and the package/version metadata aligned to `0.37.3-pocketbun.0`. The `scripts/upload_memory_probe.ts` helper provides a repeatable way to measure upload RSS on real multipart record-create requests before and after upload-path changes.
 
 PocketBase’s main behavior is organized around an App interface (core.App), a BaseApp implementation, a router with events and middleware, and API binders such as apis/health.go. The Admin UI is served as static assets from ui/dist under the /_/ prefix, while public files in pb_public/ are served at /.
 
@@ -919,3 +937,4 @@ Plan change note: 2026-03-17, reduced idle baseline RSS by lazily requiring opti
 Plan change note: 2026-03-28, completed the PocketBase v0.36.8 upgrade by syncing upstream/admin UI assets, auditing the tiny compare window, adding cached-collection serialization regression coverage, and recording the clean full validation gate.
 Plan change note: 2026-04-13, improved the benchmark-shaped create hot path by replacing cached-collection linear scans with a reload-time lookup map, removing per-record interceptor action-filter arrays, and using the private untagged model hooks directly inside internal save flows; warmed local `create-organizations` throughput moved from about 293.9k to 299.9k completed requests over 20s while keeping the full validation gate clean.
 Plan change note: 2026-04-20, completed the PocketBase v0.37.2 upgrade by syncing the upstream UI-only release, updating compatibility metadata and changelog notes, porting the missing `tools/router/buffer_with_file` mapping gap, pinning the upstream site-doc ref, hardening generated-doc overlays/checks, resyncing JSVM reference types with runtime async helpers, and rerunning the full validation gate.
+Plan change note: 2026-04-23, completed the PocketBase v0.37.3 upgrade by auditing the UI-only `v0.37.2..v0.37.3` compare window, bumping the compatibility metadata to `0.37.3-pocketbun.0`, syncing the upstream reference and vendored Admin UI assets, confirming only the intentional `plugins/ghupdate/*` mapping gaps remain, and rerunning the full validation gate.

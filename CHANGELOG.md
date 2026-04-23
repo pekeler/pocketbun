@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.37.2-pocketbun.1 (Unreleased)
+## 0.37.3-pocketbun.0 (Unreleased)
+
+- Now compatible with PocketBase `v0.37.3` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0373).
+  - Includes the upstream Admin UI fixes for total-count reloads on back/forward navigation, TinyMCE floating dialog positioning while scrolling, API rule field wrapping, view-query sample loading feedback, and minor light-theme style polish.
 
 - File downloads now handle HTTP byte ranges more correctly, including suffix ranges, proper `416 Range Not Satisfiable` responses, and real multipart byte-range responses.
 
