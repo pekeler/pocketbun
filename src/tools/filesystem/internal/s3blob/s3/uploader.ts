@@ -23,7 +23,7 @@ export class Uploader {
 
     this.validateAndNormalize();
 
-    const payload = readAllPayload(this.Payload);
+    const payload = readAllPayload(this.Payload!);
     if (payload.length < this.MinPartSize) {
       await this.singleUpload(ctx, payload, optReqFuncs);
       return;
@@ -110,12 +110,7 @@ export class Uploader {
     const body = new TextDecoder().decode(resp.body.readAll());
     resp.body.close();
 
-    const uploadId = extractXmlTag(body, "UploadId");
-    if (!uploadId) {
-      throw new Error("missing UploadId in multipart init response");
-    }
-
-    this.uploadId = uploadId;
+    this.uploadId = extractXmlTag(body, "UploadId");
   }
 
   private async multipartAbort(ctx: AbortSignal | null, optReqFuncs: Array<(req: HttpRequest) => void>): Promise<void> {
@@ -157,10 +152,7 @@ export class Uploader {
         if (current >= parts.length) {
           return;
         }
-        const part = parts[current];
-        if (!part) {
-          return;
-        }
+        const part = parts[current]!;
         await this.uploadPart(ctx, part.data, part.partNumber, optReqFuncs);
       }
     };
@@ -215,11 +207,7 @@ export class Uploader {
   }
 }
 
-function readAllPayload(payload: Uint8Array | string | Body | null): Uint8Array {
-  if (!payload) {
-    return new Uint8Array();
-  }
-
+function readAllPayload(payload: Uint8Array | string | Body): Uint8Array {
   if (payload instanceof Uint8Array) {
     return payload;
   }
@@ -228,11 +216,7 @@ function readAllPayload(payload: Uint8Array | string | Body | null): Uint8Array 
     return new TextEncoder().encode(payload);
   }
 
-  if (typeof payload.readAll === "function") {
-    return payload.readAll();
-  }
-
-  return new Uint8Array();
+  return payload.readAll();
 }
 
 function extractXmlTag(xml: string, tag: string): string {

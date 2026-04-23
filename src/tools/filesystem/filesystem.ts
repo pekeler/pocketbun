@@ -10,7 +10,7 @@ import { posix } from "node:path";
 import { Bucket, NewBucket } from "./blob/bucket.ts";
 import { ErrNotFound, NotFoundError, type Attributes as BlobAttributes, type WriterOptions } from "./blob/driver.ts";
 import { ErrEOF, isNotFoundError } from "./blob/errors.ts";
-import { BytesReader, File, PathReader, ReadFileReaderBytesAsync, detectMimeTypeFromBytes, normalizeName } from "./file.ts";
+import { BytesReader, File, PathReader, detectMimeTypeFromBytes, normalizeName } from "./file.ts";
 import { New as NewFileBlob, NewAsync as NewFileBlobAsync, TryResolveLocalPath } from "./internal/fileblob/fileblob.ts";
 
 export { ErrNotFound, NotFoundError };
@@ -333,27 +333,31 @@ export class System {
 
   // UploadFile uploads the provided File to the fileKey location.
   async UploadFile(file: File, fileKey: string): Promise<void> {
-    if (!file.Reader) {
-      throw new Error("missing file reader");
-    }
+    const reader = file.Reader!;
 
     let originalName = file.OriginalName;
     if (originalName.length > 255) {
       originalName = originalName.slice(0, 255);
     }
 
-    if (file.Reader instanceof PathReader) {
-      const sample = await readPathSample(file.Reader.Path);
+    if (reader instanceof PathReader) {
+      const sample = await readPathSample(reader.Path);
       const writer = await this.#bucket.NewWriter(
         this.#ctx,
         fileKey,
         makeWriterOptions(detectMimeTypeFromBytes(sample), { [metadataOriginalName]: originalName }),
       );
-      await streamPathToWriterAndClose(file.Reader.Path, writer);
+      await streamPathToWriterAndClose(reader.Path, writer);
       return;
     }
 
-    const content = await ReadFileReaderBytesAsync(file.Reader);
+    const opened = reader.Open();
+    let content: Uint8Array;
+    try {
+      content = opened.readAll();
+    } finally {
+      opened.close();
+    }
     const writer = await this.#bucket.NewWriter(
       this.#ctx,
       fileKey,

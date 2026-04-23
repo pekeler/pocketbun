@@ -1522,17 +1522,11 @@ export class BaseApp implements App {
   }
 
   db(): Database {
-    if (!this.#db) {
-      throw new Error("app is not bootstrapped");
-    }
-    return this.#db;
+    return this.#db!;
   }
 
   auxDb(): Database {
-    if (!this.#auxDb) {
-      throw new Error("app is not bootstrapped");
-    }
-    return this.#auxDb;
+    return this.#auxDb!;
   }
 
   TxInfo(): TxAppInfo | null {

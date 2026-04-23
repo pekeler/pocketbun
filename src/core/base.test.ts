@@ -35,8 +35,7 @@ async function waitForCondition(predicate: () => boolean, timeoutMs: number, ste
 
 function hasDb(getter: () => unknown): boolean {
   try {
-    getter();
-    return true;
+    return getter() != null;
   } catch {
     return false;
   }

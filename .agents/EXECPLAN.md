@@ -33,6 +33,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
 
 ### Maintenance TODOs
 
+- [x] (2026-04-23 13:35Z) Completed an implementation guard sweep against upstream PocketBase and PocketBun-owned internals: removed TS-only invariant guards that upstream does not keep in `src/core/base.ts`, `src/core/log_query.ts`, `src/core/record_proxy.ts`, `src/tools/filesystem/blob/writer.ts`, `src/tools/filesystem/filesystem.ts`, and `src/tools/filesystem/internal/s3blob/s3/uploader.ts`, updated `src/core/base.test.ts` so it no longer pins the removed bootstrap throw behavior, and reran the full required validation gate successfully (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`).
 - [ ] (2026-02-26) Bun workaround retirement sweep: whenever a Bun runtime fix suggests a PocketBun workaround may no longer be needed, attempt removing the workaround behind a focused change and run thorough verification before/after (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`, plus targeted compatibility regression tests for the affected subsystem). Keep the workaround only if compatibility or stability regresses.
 - [x] (2026-04-12 16:28Z) Applied the Bun `v1.3.12` glob follow-up: replaced the template registry's hand-rolled wildcard matcher with shared `Bun.Glob.scan/scanSync` wrappers, implemented the documented JSVM `$filepath.glob(...)`, `match(...)`, `walk(...)`, and `walkDir(...)` helpers instead of returning placeholders, added nested-template-glob and filepath traversal regressions, and reran the full validation gate successfully.
 - [x] (2026-04-12 16:57Z) Assessed explicit resource management with `using` / `await using`: added disposal support only where resources already had clear lexical ownership (filesystem handles, DBX cursors/queries, test app/server/temp-dir helpers, multipart temp storage), converted the production and test sites that became simpler under that model, avoided public `ReadSeekCloser` API churn by keeping the disposal requirement internal to PocketBun call sites, and intentionally left response-lifecycle ownership transfers such as file/backup download streaming on explicit `Close()` callbacks. Full validation passed (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`).
@@ -325,6 +326,8 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Surprises & Discoveries
 
+- Observation: The only regression from the guard sweep was a local test that explicitly asserted the removed `BaseApp.db()` / `auxDb()` bootstrap throw instead of observable bootstrap state.
+  Evidence: `src/core/base.test.ts` failed at `expect(hasDb(() => app.db())).toBe(false)` after the guard removal because `db()` now mirrors upstream by returning the current field reference; updating `hasDb(...)` to check for a non-null builder restored the intended assertion and the full suite passed.
 - Observation: The upstream `v0.37.3` compare window is UI-only again; the release does not touch PocketBase runtime, API, or JSVM source files beyond the vendored UI bundle, TinyMCE skin assets, and changelog text.
   Evidence: `gh api repos/pocketbase/pocketbase/compare/v0.37.2...v0.37.3 --jq '.files[] | [.status, .filename] | @tsv'` returned only `CHANGELOG.md`, `ui/.env`, `ui/dist/*`, `ui/public/libs/tinymce/skins/ui/oxide/skin.min.css`, and `ui/src/*` paths.
 - Observation: The upstream `v0.37.2` compare window is genuinely UI-only; the release does not touch PocketBase runtime, API, or JSVM source files beyond the vendored UI bundle and changelog text.
@@ -458,6 +461,9 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Decision Log
 
+- Decision: Remove only invariant guards that are absent upstream and rely on PocketBun construction or ownership guarantees, while keeping request-boundary and service-boundary validation in place.
+  Rationale: The simplification goal is best served by deleting self-protection between tightly coupled internals such as `BaseApp.db()`, `BaseRecordProxy.ProxyRecord()`, lazy blob writer open/write, direct file upload plumbing, and S3 uploader multipart bookkeeping, without weakening real API/service edge validation where PocketBun still has to defend requests, hooks, or remote service responses.
+  Date/Author: 2026-04-23 / Codex
 - Decision: Keep the `v0.37.3` upgrade scoped to compatibility metadata, the vendored Admin UI refresh, and release-note/changelog updates; do not hunt for runtime deltas that are not present.
   Rationale: the upstream compare and release notes show a UI-only patch, and `bun run upstream:audit` still reports only the already-intentional `plugins/ghupdate/*` mapping gaps after the sync. Expanding the change beyond the actual release surface would add churn without improving compatibility.
   Date/Author: 2026-04-23 / Codex
@@ -672,6 +678,10 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
   Date/Author: 2026-02-02 / Codex
 
 ## Outcomes & Retrospective
+
+The implementation guard sweep is now complete. PocketBun no longer carries several TS-only internal invariant checks that PocketBase does not have, including bootstrap-state guards on `BaseApp.db()` / `auxDb()`, the `BaseRecordProxy.ProxyRecord()` null check, the empty-id fast fail in `findLogById(...)`, lazy blob writer setup guards, the extra file-reader check in `System.UploadFile(...)`, and redundant S3 uploader multipart bookkeeping guards. The retained guard surface is now concentrated on real request/service boundaries rather than internal call chains.
+
+Full validation passed on the final kept tree: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
 
 Milestone 19 is now complete. PocketBun targets PocketBase `v0.37.3`, the vendored Admin UI is refreshed to the upstream `v0.37.3` bundle, the release notes are reflected in `CHANGELOG.md`, and the upstream audit still reports only the intentional `plugins/ghupdate/*` gaps. The upstream release itself is UI-only, so no runtime/API production code changes were needed for this bump.
 
@@ -938,3 +948,4 @@ Plan change note: 2026-03-28, completed the PocketBase v0.36.8 upgrade by syncin
 Plan change note: 2026-04-13, improved the benchmark-shaped create hot path by replacing cached-collection linear scans with a reload-time lookup map, removing per-record interceptor action-filter arrays, and using the private untagged model hooks directly inside internal save flows; warmed local `create-organizations` throughput moved from about 293.9k to 299.9k completed requests over 20s while keeping the full validation gate clean.
 Plan change note: 2026-04-20, completed the PocketBase v0.37.2 upgrade by syncing the upstream UI-only release, updating compatibility metadata and changelog notes, porting the missing `tools/router/buffer_with_file` mapping gap, pinning the upstream site-doc ref, hardening generated-doc overlays/checks, resyncing JSVM reference types with runtime async helpers, and rerunning the full validation gate.
 Plan change note: 2026-04-23, completed the PocketBase v0.37.3 upgrade by auditing the UI-only `v0.37.2..v0.37.3` compare window, bumping the compatibility metadata to `0.37.3-pocketbun.0`, syncing the upstream reference and vendored Admin UI assets, confirming only the intentional `plugins/ghupdate/*` mapping gaps remain, and rerunning the full validation gate.
+Plan change note: 2026-04-23, recorded the implementation guard sweep against upstream behavior, including the removed internal invariant checks, the one test expectation update required by the change, and the clean full validation rerun.

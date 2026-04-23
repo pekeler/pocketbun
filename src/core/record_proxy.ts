@@ -20,10 +20,7 @@ export class BaseRecordProxy implements RecordProxy {
 
   // ProxyRecord returns the proxied Record model.
   ProxyRecord(): Record {
-    if (!this.Record) {
-      throw new Error("missing proxy record");
-    }
-    return this.Record;
+    return this.Record!;
   }
 
   // SetProxyRecord loads the specified record model into the current proxy.

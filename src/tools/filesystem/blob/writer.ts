@@ -107,14 +107,11 @@ export class Writer {
 
       const data = this.#bufChunks ? mergeChunks(this.#bufChunks, this.#bufSize) : new Uint8Array();
       await this.#open(data);
-      const openedWriter = this.#w;
-      if (openedWriter) {
-        try {
-          await openedWriter.close();
-        } catch (err) {
-          const wrapped = wrapError(this.#drv, err as Error, this.#key);
-          throw wrapped ?? err;
-        }
+      try {
+        await this.#w!.close();
+      } catch (err) {
+        const wrapped = wrapError(this.#drv, err as Error, this.#key);
+        throw wrapped ?? err;
       }
     } finally {
       this.#cancel();
@@ -123,12 +120,8 @@ export class Writer {
 
   async #open(data: Uint8Array): Promise<number> {
     const contentType = detectContentType(data);
-    if (!this.#opts) {
-      throw new Error("Writer options missing for lazy writer open");
-    }
-
     try {
-      this.#w = await this.#drv.NewTypedWriter(this.#ctx, this.#key, contentType, this.#opts);
+      this.#w = await this.#drv.NewTypedWriter(this.#ctx, this.#key, contentType, this.#opts!);
     } catch (err) {
       const wrapped = wrapError(this.#drv, err as Error, this.#key);
       if (wrapped) {
@@ -145,13 +138,11 @@ export class Writer {
   }
 
   async #write(data: Uint8Array): Promise<number> {
-    if (!this.#w) {
-      return 0;
+    const writer = this.#w!;
+    if (typeof writer.writeAsync === "function") {
+      return await writer.writeAsync(data);
     }
-    if (typeof this.#w.writeAsync === "function") {
-      return await this.#w.writeAsync(data);
-    }
-    return this.#w.write(data);
+    return writer.write(data);
   }
 }
 

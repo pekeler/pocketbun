@@ -18,10 +18,6 @@ export function logQuery(app: App) {
 }
 
 export function findLogById(app: App, id: string): Log {
-  if (!id) {
-    throw new Error("log id is required");
-  }
-
   const row = logQuery(app).AndWhere(HashExp({ id })).Limit(1).One();
   if (!row) {
     throw new Error("log not found");
