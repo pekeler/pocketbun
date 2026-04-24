@@ -2,7 +2,7 @@
 
 ## 0.37.3-pocketbun.1 (Unreleased)
 
-- TBD
+- Fixed installed package typings so TypeScript consumers can import `pocketbun` without allowing `.ts` import extensions.
 
 ## 0.37.3-pocketbun.0 - 2026-04-23
 

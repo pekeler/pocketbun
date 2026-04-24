@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "noEmit": false,
+    "outDir": "dist/.types-build",
+    "rootDir": ".",
+    "skipLibCheck": false,
+    "types": ["bun"]
+  },
+  "include": ["index.ts"],
+  "exclude": ["dist", "node_modules", "vendor/pocketbase-benchmarks", "src/plugins/jsvm/internal/types/generated"]
+}

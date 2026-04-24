@@ -12,7 +12,7 @@
   },
   "homepage": "https://github.com/pekeler/pocketbun#readme",
   "main": "dist/index.js",
-  "types": "index.ts",
+  "types": "dist/index.d.ts",
   "module": "dist/index.js",
   "type": "module",
   "bin": {
@@ -35,7 +35,8 @@
     "lint": "oxlint --type-aware src tests scripts",
     "format": "oxfmt --check src tests scripts",
     "format:fix": "oxfmt --write src tests scripts",
-    "build": "bun build index.ts src/cli.ts --outdir dist --target bun --format esm --packages external",
+    "build": "bun build index.ts src/cli.ts --outdir dist --target bun --format esm --packages external && bun run build:types",
+    "build:types": "bun x tsc -p tsconfig.types.json && bun run scripts/build_declarations.ts",
     "build:analyze": "bun build index.ts src/cli.ts --outdir=.tmp/build-analysis --target=bun --format=esm --packages external --metafile=.tmp/build-analysis/meta.json --metafile-md=.tmp/build-analysis/meta.md",
     "profile:cpu": "bash scripts/profile_cpu_md.sh",
     "profile:heap": "bash scripts/profile_heap_md.sh",
@@ -45,7 +46,8 @@
     "bench:upstream": "bun run scripts/bench_run_upstream.ts",
     "bench:upstream:pocketbun": "bun run scripts/bench_run_upstream_pocketbun.ts",
     "bench:upstream:factor-summary": "bun scripts/bench_upstream_factor_summary.js",
-    "release:check": "bun run format:fix && bun test --concurrent && bun run typecheck && bun run lint",
+    "typecheck:package": "bun run build && bun run scripts/check_package_types.ts",
+    "release:check": "bun run format:fix && bun test --concurrent && bun run typecheck && bun run typecheck:package && bun run lint",
     "release:dry": "bash scripts/release.sh dry pocketbun",
     "release": "bash scripts/release.sh publish pocketbun",
     "release:create:dry": "bash scripts/release.sh dry create-pocketbun",
@@ -66,7 +68,7 @@
   ],
   "exports": {
     ".": {
-      "types": "./index.ts",
+      "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
   },

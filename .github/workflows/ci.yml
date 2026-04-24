@@ -49,6 +49,9 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Package typecheck
+        run: bun run typecheck:package
+
       - name: Tests
         timeout-minutes: ${{ matrix.tests_timeout_minutes }}
         run: ${{ matrix.test-command }}
