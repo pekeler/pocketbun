@@ -165,13 +165,13 @@ PocketBun persists activity logs through a background worker to reduce main-thre
 
 ## Cron Scheduling
 
-PocketBun app cron scheduling now uses Bun's native `Bun.cron(...)` scheduler and interprets cron expressions in UTC.
+PocketBun app cron scheduling uses Bun's native `Bun.cron(...)` scheduler and interprets cron expressions in UTC.
 
-- the old `$app.cron().setInterval(...)` and `$app.cron().setTimezone(...)` APIs are not available in PocketBun
-- programmatic cron setup remains expression-based; pass the cron string directly to `cronAdd(...)` or `add(...)`
-- cron expression validation now follows Bun's parser, so PocketBun accepts a wider grammar than PocketBase, including named months/weekdays and Sunday as `7`
-- the Admin UI cron management pages do not rely on per-job timezone settings and already assume UTC for built-in backup scheduling
-- if your hook code previously called `setInterval(...)` or `setTimezone(...)`, remove those calls; in-process cron expressions are already interpreted in UTC regardless of the server's local timezone
+- the `$app.cron().setInterval(...)` and `$app.cron().setTimezone(...)` APIs are not available in PocketBun
+- programmatic cron setup is expression-based; pass the cron string directly to `cronAdd(...)` or `add(...)`
+- cron expression validation follows Bun's parser, so PocketBun accepts a wider grammar than PocketBase, including named months/weekdays and Sunday as `7`
+- the Admin UI cron management pages do not rely on per-job timezone settings and assume UTC for built-in backup scheduling
+- if your hook code calls `setInterval(...)` or `setTimezone(...)`, remove those calls; in-process cron expressions are interpreted in UTC regardless of the server's local timezone
 
 ### Thumbnails
 
@@ -190,20 +190,20 @@ For closer Go `text/template` parity, install optional `go-text-template`.
 PocketBun exposes the same `$filepath` method names as PocketBase, but it does not fully match Go `path/filepath` edge cases.
 
 - `glob(...)` and `match(...)` are backed by Bun's glob engine. Common PocketBase patterns work, and PocketBun also supports Bun-specific patterns such as `**` even though they are outside Go's documented `filepath.Match` syntax.
-- `walk(...)` and `walkDir(...)` now behave like real filesystem traversals and keep lexical depth-first ordering, but the surrounding path helpers follow Bun/Node path semantics in some edge cases.
+- `walk(...)` and `walkDir(...)` behave like real filesystem traversals and keep lexical depth-first ordering, but the surrounding path helpers follow Bun/Node path semantics in some edge cases.
 - `base(...)`, `split(...)`, `splitList(...)`, `join(...)`, and `rel(...)` have edge-case differences because they follow Bun/Node path helper behavior.
-- In particular, `splitList(...)` is not Go-compatible; it currently splits on the path separator instead of the OS path-list separator.
-- Examples of current edge-case differences:
-  - `base("")` and `base("/")` do not yet match Go `filepath.Base(...)`
-  - `split("foo")` currently yields `[".", "foo"]` instead of `["", "foo"]`
-  - `join()` currently yields `"."` instead of `""`
+- In particular, `splitList(...)` is not Go-compatible; it splits on the path separator instead of the OS path-list separator.
+- Examples of edge-case differences:
+  - `base("")` and `base("/")` differ from Go `filepath.Base(...)`
+  - `split("foo")` yields `[".", "foo"]` instead of `["", "foo"]`
+  - `join()` yields `"."` instead of `""`
   - `rel(path, path)` may yield `""` instead of `"."`
 
 ### JSVM RequestEvent request/response surface
 
 For custom routes, `e` below means the route event parameter passed to `routerAdd(..., (e) => { ... })`.
 
-PocketBun now supports the common PocketBase custom-route access patterns:
+PocketBun supports the common PocketBase custom-route access patterns:
 
 - `e.response.header().set(...)`
 - `e.request.pathValue(...)` and `e.request.setPathValue(...)`
@@ -211,7 +211,7 @@ PocketBun now supports the common PocketBase custom-route access patterns:
 - `e.request.url.query().get(...)`
 - `e.request.header.get(...)`
 
-Remaining incompatibilities in this area:
+Incompatibilities in this area:
 
 - Go `http.Request` form helpers are not implemented on `e.request` (`formFile`, `parseForm`, `parseMultipartForm`, `formValue`, `postFormValue`).
   - use `e.findUploadedFiles(...)`, `e.bindBody(...)`, or `e.requestInfo().body` instead.
@@ -221,7 +221,7 @@ Remaining incompatibilities in this area:
 ### SQL placeholders and dbx rewriting
 
 PocketBun supports dbx-style query marker rewriting for SQLite helpers.
-Logged placeholder formats can differ while query behavior remains compatible.
+Logged placeholder formats can differ while query behavior is compatible.
 
 ### Dev SQL logging format
 
