@@ -19,7 +19,8 @@ const port = await new Promise<number>((resolve, reject) => {
   });
 });
 
-const env = { ...process.env, POCKETBUN_E2E_PORT: String(port) };
+const env: Record<string, string | undefined> = { ...process.env, POCKETBUN_E2E_PORT: String(port) };
+delete env.NO_COLOR;
 const proc = Bun.spawn({
   cmd: ["playwright", "test"],
   env,
