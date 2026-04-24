@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.37.3-pocketbun.2 (Unreleased)
+
+- TBD
+
 ## 0.37.3-pocketbun.1 - 2026-04-24
 
 - `pocketbun serve` now clearly rejects PocketBase's automatic HTTPS mode and documents the recommended reverse-proxy setup for TLS.
