@@ -1,7 +1,7 @@
 // Ported from pocketbase/cmd/serve.go
 
 import type { App } from "../core/app.ts";
-import { serveAsync } from "../apis/serve.ts";
+import { serveAsync, unsupportedAutomaticHTTPSError } from "../apis/serve.ts";
 import { Command } from "../tools/cli/command.ts";
 
 export function NewServeCommand(app: App, showStartBanner: boolean): Command {
@@ -12,20 +12,17 @@ export function NewServeCommand(app: App, showStartBanner: boolean): Command {
   };
 
   const command = new Command({
-    Use: "serve [domain(s)]",
-    Short: "Starts the web server (default to 127.0.0.1:8090 if no domain is specified)",
+    Use: "serve",
+    Short: "Starts the web server (default to 127.0.0.1:8090)",
     SilenceUsage: true,
   });
 
   command.RunE = async (_cmd, args) => {
-    if (args.length > 0) {
-      if (!state.httpAddr) {
-        state.httpAddr = "0.0.0.0:80";
-      }
-      if (!state.httpsAddr) {
-        state.httpsAddr = "0.0.0.0:443";
-      }
-    } else if (!state.httpAddr) {
+    if (args.length > 0 || state.httpsAddr) {
+      return unsupportedAutomaticHTTPSError();
+    }
+
+    if (!state.httpAddr) {
       state.httpAddr = "127.0.0.1:8090";
     }
 
@@ -61,13 +58,7 @@ export function NewServeCommand(app: App, showStartBanner: boolean): Command {
   command.PersistentFlags().StringSliceVar(state, "allowedOrigins", "origins", ["*"], "CORS allowed domain origins list");
   command
     .PersistentFlags()
-    .StringVar(
-      state,
-      "httpAddr",
-      "http",
-      "",
-      "TCP address to listen for the HTTP server\n(if domain args are specified - default to 0.0.0.0:80, otherwise - default to 127.0.0.1:8090)",
-    );
+    .StringVar(state, "httpAddr", "http", "", "TCP address to listen for the HTTP server\n(default to 127.0.0.1:8090)");
   command
     .PersistentFlags()
     .StringVar(
@@ -75,7 +66,7 @@ export function NewServeCommand(app: App, showStartBanner: boolean): Command {
       "httpsAddr",
       "https",
       "",
-      "TCP address to listen for the HTTPS server\n(if domain args are specified - default to 0.0.0.0:443, otherwise - default to empty string, aka. no TLS)\nThe incoming HTTP traffic also will be auto redirected to the HTTPS version",
+      "unsupported PocketBase automatic HTTPS server address\n(use a reverse proxy such as Caddy, NGINX, or Traefik for TLS termination)",
     );
 
   return command;

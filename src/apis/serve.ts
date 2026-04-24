@@ -19,9 +19,12 @@ import { Gzip } from "./middlewares_gzip.ts";
 // ServeConfig defines a configuration struct for apis.Serve().
 export type ServeConfig = {
   httpAddr?: string;
+  // PocketBun keeps this field for PocketBase API compatibility, but non-empty
+  // values are rejected because automatic HTTPS/ACME serving is not supported.
   httpsAddr?: string;
   showStartBanner?: boolean;
   allowedOrigins?: string[];
+  // See httpsAddr.
   certificateDomains?: string[];
   maxRequestBodySize?: number;
 };
@@ -148,6 +151,8 @@ function buildServeHandlerWithEvent(
 }
 
 export function serve(app: App, config: ServeConfig = {}): ReturnType<typeof Bun.serve> {
+  assertAutomaticHTTPSUnsupported(config);
+
   if (!app.isBootstrapped()) {
     app.bootstrap();
   }
@@ -159,8 +164,25 @@ export function serve(app: App, config: ServeConfig = {}): ReturnType<typeof Bun
 
 // serveAsync is a PocketBun-only async alternative to serve().
 export async function serveAsync(app: App, config: ServeConfig = {}): Promise<ReturnType<typeof Bun.serve>> {
+  assertAutomaticHTTPSUnsupported(config);
   await ensureReady(app);
   return startServerAsync(app, config);
+}
+
+export function unsupportedAutomaticHTTPSError(): Error {
+  return new Error(
+    [
+      "PocketBun does not support PocketBase's automatic HTTPS/Let's Encrypt serve mode.",
+      "Run PocketBun behind a reverse proxy such as Caddy, NGINX, or Traefik and keep PocketBun listening on HTTP.",
+      "Example: pocketbun serve --http 127.0.0.1:8090",
+    ].join(" "),
+  );
+}
+
+function assertAutomaticHTTPSUnsupported(config: ServeConfig): void {
+  if (config.httpsAddr || (config.certificateDomains?.length ?? 0) > 0) {
+    throw unsupportedAutomaticHTTPSError();
+  }
 }
 
 function startServerSync(app: App, config: ServeConfig): ReturnType<typeof Bun.serve> {

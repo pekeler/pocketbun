@@ -2,6 +2,7 @@
 
 ## 0.37.3-pocketbun.1 (Unreleased)
 
+- `pocketbun serve` now clearly rejects PocketBase's automatic HTTPS mode and documents the recommended reverse-proxy setup for TLS.
 - Fixed installed package typings so TypeScript consumers can import `pocketbun` without allowing `.ts` import extensions.
 
 ## 0.37.3-pocketbun.0 - 2026-04-23

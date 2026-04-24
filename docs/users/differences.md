@@ -58,7 +58,10 @@ Use this as a quick migration recipe for an existing PocketBase project.
    - Start: `pocketbun serve --dev`
    - Verify health: `GET /api/health`
    - Verify custom hooks/routes and auth flows you use in production.
-8. Review the sections below for details.
+8. If you used PocketBase's automatic HTTPS mode, put PocketBun behind a reverse proxy.
+   - Run PocketBun on HTTP, for example `pocketbun serve --http 127.0.0.1:8090`.
+   - Terminate HTTPS in Caddy, NGINX, Traefik, a load balancer, or another reverse proxy.
+9. Review the sections below for details.
    - Use this checklist for the quick pass, then check each section in this page only where your app uses that feature.
 
 ## Runtime And Distribution
@@ -130,6 +133,31 @@ PocketBun keeps sync-compatible APIs but adds async alternatives for I/O-heavy p
 | JSVM helpers | `$http.send(...)`, `$os.readFile(...)` | `$http.sendAsync(...)`, `$os.readFileAsync(...)` |
 
 ## Operational Differences
+
+### HTTPS
+
+PocketBase can run a public HTTPS server directly with automatic Let's Encrypt certificates:
+
+- `pocketbase serve example.com`
+- `pocketbase serve --https 0.0.0.0:443`
+
+PocketBun does not include PocketBase's built-in automatic HTTPS/Let's Encrypt server mode. The equivalent PocketBun deployment pattern is to run PocketBun over HTTP and terminate HTTPS in a reverse proxy such as Caddy, NGINX, Traefik, a platform load balancer, or a CDN edge.
+
+Recommended PocketBun backend command:
+
+```sh
+pocketbun serve --http 127.0.0.1:8090
+```
+
+Minimal Caddy example:
+
+```caddyfile
+example.com {
+  reverse_proxy 127.0.0.1:8090
+}
+```
+
+The `pocketbun serve` domain arguments, the `--https` flag, and programmatic `ServeConfig.httpsAddr` / `ServeConfig.certificateDomains` settings are intentionally unsupported and return an explanatory error instead of starting a server.
 
 ### Activity logs
 
@@ -212,6 +240,7 @@ These upstream topics are either intentionally excluded or need reinterpretation
 
 - all `go-*` extension docs pages (PocketBun is JS/TS extension-first)
 - binary self-update workflow for PocketBase executable
+- built-in `serve [domain]` automatic HTTPS instructions; use a reverse proxy for TLS termination instead
 - operational assumptions tied to standalone Go binary path semantics
 - some upstream docs response examples may use slightly different sample keys than runtime output (for example health sample `status` vs runtime `code`)
 
