@@ -23,7 +23,7 @@ export class Gitlab extends BaseProvider {
 
   // FetchAuthUser returns an AuthUser instance based the Gitlab's user api.
   //
-  // API reference: https://docs.gitlab.com/ee/api/users.html#for-admin
+  // API reference: https://docs.gitlab.com/api/users/#retrieve-the-current-user
   override async FetchAuthUser(token: OAuth2Token): Promise<AuthUser> {
     const data = await this.FetchRawUserInfo(token);
     const text = new TextDecoder().decode(data);
@@ -34,13 +34,17 @@ export class Gitlab extends BaseProvider {
       Id: String(extracted.Id),
       Name: extracted.Name,
       Username: extracted.Username,
-      Email: extracted.Email,
       AvatarURL: extracted.AvatarURL,
       RawUser: rawUser,
       AccessToken: resolveTokenString(token, "accessToken", "access_token"),
       RefreshToken: resolveTokenString(token, "refreshToken", "refresh_token"),
     });
     user.Expiry = ParseDateTime(token.expiry ?? null);
+
+    const confirmedAt = parseConfirmedAt(extracted.ConfirmedAt);
+    if (confirmedAt !== null) {
+      user.Email = extracted.Email;
+    }
 
     return user;
   }
@@ -62,6 +66,7 @@ function parseGitlabUser(raw: string): {
   Username: string;
   Email: string;
   AvatarURL: string;
+  ConfirmedAt: string;
   Id: number;
 } {
   const payload = parseRawUser(raw);
@@ -70,6 +75,7 @@ function parseGitlabUser(raw: string): {
     Username: readStringField(payload, "username"),
     Email: readStringField(payload, "email"),
     AvatarURL: readStringField(payload, "avatar_url"),
+    ConfirmedAt: readStringField(payload, "confirmed_at"),
     Id: readInt64Field(payload, "id"),
   };
 }
@@ -94,6 +100,17 @@ function readInt64Field(payload: Record<string, unknown>, key: string): number {
     throw new Error(`invalid gitlab oauth2 payload field ${key}`);
   }
   return value;
+}
+
+function parseConfirmedAt(value: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    return null;
+  }
+  if (/^0001-01-01T00:00:00(?:\.0+)?(?:Z|\+00:00)$/.test(value)) {
+    return null;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function resolveTokenString(token: OAuth2Token, ...keys: string[]): string {

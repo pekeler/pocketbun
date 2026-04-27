@@ -239,4 +239,60 @@ describe("external auth", () => {
       await cleanup();
     }
   });
+
+  it("ExternalAuth clear on verified upgrade", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      {
+        const user = app.FindAuthRecordByEmail("users", "test@example.com");
+        expect(user.Verified()).toBe(false);
+
+        const beforeAuths = app.FindAllExternalAuthsByRecord(user);
+        expect(beforeAuths.length).toBeGreaterThan(0);
+
+        const oldTokenKey = user.TokenKey();
+        const err = await app.Save(user);
+        expect(err).toBeNull();
+
+        expect(user.TokenKey()).toBe(oldTokenKey);
+        const afterAuths = app.FindAllExternalAuthsByRecord(user);
+        expect(afterAuths.length).toBe(beforeAuths.length);
+      }
+
+      {
+        const user = app.FindAuthRecordByEmail("users", "test@example.com");
+        expect(user.Verified()).toBe(false);
+
+        const beforeAuths = app.FindAllExternalAuthsByRecord(user);
+        expect(beforeAuths.length).toBeGreaterThan(0);
+
+        const oldTokenKey = user.TokenKey();
+        user.SetVerified(true);
+        const err = await app.Save(user);
+        expect(err).toBeNull();
+
+        expect(user.TokenKey()).not.toBe(oldTokenKey);
+        const afterAuths = app.FindAllExternalAuthsByRecord(user);
+        expect(afterAuths.length).toBe(0);
+      }
+
+      {
+        const user = app.FindAuthRecordByEmail("users", "test3@example.com");
+        expect(user.Verified()).toBe(true);
+
+        const beforeAuths = app.FindAllExternalAuthsByRecord(user);
+        expect(beforeAuths.length).toBeGreaterThan(0);
+
+        const oldTokenKey = user.TokenKey();
+        const err = await app.Save(user);
+        expect(err).toBeNull();
+
+        expect(user.TokenKey()).toBe(oldTokenKey);
+        const afterAuths = app.FindAllExternalAuthsByRecord(user);
+        expect(afterAuths.length).toBe(beforeAuths.length);
+      }
+    } finally {
+      await cleanup();
+    }
+  });
 });

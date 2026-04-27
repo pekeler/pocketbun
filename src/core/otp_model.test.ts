@@ -212,4 +212,38 @@ describe("otp", () => {
       await cleanup();
     }
   });
+
+  it("OTP clear on token key change", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const user1 = app.FindAuthRecordByEmail("users", "test@example.com");
+      const user2 = app.FindAuthRecordByEmail("users", "test2@example.com");
+
+      const otpsToCreate = [
+        { user: user1, total: 3 },
+        { user: user2, total: 2 },
+      ];
+
+      for (const { user, total } of otpsToCreate) {
+        for (let i = 0; i < total; i += 1) {
+          const otp = NewOTP(app);
+          otp.SetCollectionRef(user.collection().id);
+          otp.SetRecordRef(user.Id);
+          otp.ProxyRecord().SetPassword("123456");
+          const err = await app.Save(otp);
+          expect(err).toBeNull();
+        }
+      }
+
+      expect(await app.Save(user1)).toBeNull();
+
+      user2.RefreshTokenKey();
+      expect(await app.Save(user2)).toBeNull();
+
+      expect(app.FindAllOTPsByRecord(user1).length).toBe(3);
+      expect(app.FindAllOTPsByRecord(user2).length).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
 });

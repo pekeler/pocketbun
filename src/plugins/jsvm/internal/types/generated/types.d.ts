@@ -6589,6 +6589,12 @@ namespace core {
      */
     findFirstExternalAuthByExpr(expr: dbx.Expression): ExternalAuth;
     /**
+     * DeleteAllExternalAuthsByRecord deletes all ExternalAuth models associated with the provided record.
+     *
+     * Returns a combined error with the failed deletes.
+     */
+    deleteAllExternalAuthsByRecord(authRecord: Record): void;
+    /**
      * FindAllMFAsByRecord returns all MFA models linked to the provided auth record.
      */
     findAllMFAsByRecord(authRecord: Record): Array<MFA | undefined>;
@@ -9954,6 +9960,14 @@ namespace core {
      * ExternalAuth model that satisfies the non-nil expression.
      */
     findFirstExternalAuthByExpr(expr: dbx.Expression): ExternalAuth;
+  }
+  interface BaseApp {
+    /**
+     * DeleteAllExternalAuthsByRecord deletes all ExternalAuth models associated with the provided record.
+     *
+     * Returns a combined error with the failed deletes.
+     */
+    deleteAllExternalAuthsByRecord(authRecord: Record): void;
   }
   /**
    * FieldFactoryFunc defines a simple function to construct a specific Field instance.

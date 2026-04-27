@@ -50,7 +50,7 @@ function startGithubServer(config: GithubServerConfig): {
 }
 
 describe("github provider", () => {
-  it("FetchAuthUser maps profile fields and keeps API email when available", async () => {
+  it("FetchAuthUser maps profile fields and always loads verified primary email", async () => {
     const { server, baseUrl, calls } = startGithubServer({
       user: () =>
         Response.json({
@@ -63,7 +63,7 @@ describe("github provider", () => {
       emails: () =>
         Response.json([
           {
-            email: "ignored@example.com",
+            email: "primary@example.com",
             verified: true,
             primary: true,
           },
@@ -84,15 +84,15 @@ describe("github provider", () => {
       expect(user.Id).toBe("123");
       expect(user.Name).toBe("The Octocat");
       expect(user.Username).toBe("octocat");
-      expect(user.Email).toBe("octocat@example.com");
+      expect(user.Email).toBe("primary@example.com");
       expect(user.AvatarURL).toBe("https://example.com/avatar.png");
       expect(user.AccessToken).toBe("access_1");
       expect(user.RefreshToken).toBe("refresh_1");
       expect(user.Expiry.Equal(ParseDateTime(tokenExpiry))).toBe(true);
 
       expect(calls.user).toBe(1);
-      expect(calls.emails).toBe(0);
-      expect(calls.authHeaders[0]).toBe("Bearer access_1");
+      expect(calls.emails).toBe(1);
+      expect(calls.authHeaders).toEqual(["Bearer access_1", "Bearer access_1"]);
     } finally {
       await server.stop();
     }

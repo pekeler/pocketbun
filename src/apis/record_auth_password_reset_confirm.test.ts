@@ -109,6 +109,12 @@ const scenarios: Scenario[] = [
       OnRecordUpdateExecute: 1,
       OnRecordAfterUpdateSuccess: 1,
       OnRecordValidate: 1,
+      OnModelDelete: 2,
+      OnModelDeleteExecute: 2,
+      OnModelAfterDeleteSuccess: 2,
+      OnRecordDelete: 2,
+      OnRecordDeleteExecute: 2,
+      OnRecordAfterDeleteSuccess: 2,
     },
     beforeTest: async (app: TestApp) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
@@ -137,6 +143,11 @@ const scenarios: Scenario[] = [
 
       if (!user.ValidatePassword("1234567!")) {
         throw new Error("Password wasn't changed");
+      }
+
+      const externalAuths = app.FindAllExternalAuthsByRecord(user);
+      if (externalAuths.length > 0) {
+        throw new Error(`Expected all external auths to be cleared, found ${externalAuths.length}`);
       }
     },
   },
@@ -203,6 +214,11 @@ const scenarios: Scenario[] = [
       if (!user.ValidatePassword("1234567!")) {
         throw new Error("Password wasn't changed");
       }
+
+      const externalAuths = app.FindAllExternalAuthsByRecord(user);
+      if (externalAuths.length !== 2) {
+        throw new Error(`Expected 2 external auths, found ${externalAuths.length}`);
+      }
     },
   },
   {
@@ -229,10 +245,18 @@ const scenarios: Scenario[] = [
     },
     beforeTest: async (app: TestApp) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
+      const oldTokenKey = user.TokenKey();
+
       user.SetVerified(true);
-      const err = await app.Save(user);
+      let err = await app.Save(user);
       if (err) {
         throw new Error("Failed to update user verified state");
+      }
+
+      user.SetTokenKey(oldTokenKey);
+      err = await app.Save(user);
+      if (err) {
+        throw new Error(`Failed to restore original user tokenKey: ${err.message}`);
       }
     },
     afterTest: (app: TestApp) => {

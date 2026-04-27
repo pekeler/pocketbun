@@ -359,9 +359,28 @@ async function oauth2Submit(
       const isLoggedAuthRecord =
         loggedRecord && loggedRecord.Id === event.Record.Id && loggedRecord.collection().Id === event.Record.collection().Id;
 
-      if (!isLoggedAuthRecord && event.Record.Email() && !event.Record.Verified()) {
+      // prevent pre-hijacking with password auth
+      //
+      // reset the unverified user password in case the record was precreated by a malicious actor
+      if (!isLoggedAuthRecord && !event.Record.Verified()) {
         await event.Record.SetRandomPasswordAsync();
         needUpdate = true;
+      }
+
+      // prevent pre-hijacking with different OAuth2 provider
+      //
+      // delete all other previous OAuth2 record links for the cases
+      // when the user was precreated by malicious OAuth2 auth with custom payload data
+      //
+      // while this would be also done automatically on unverified -> verified upgrade,
+      // doing it manually here ensures that a single unverified record could have
+      // max 1 OAuth2 link to prevent further abuse when mixed with other auth flows
+      if (!event.Record.Verified()) {
+        const deleteErr = await txApp.DeleteAllExternalAuthsByRecord(event.Record);
+        if (deleteErr) {
+          return deleteErr;
+        }
+        optExternalAuth = null;
       }
 
       if (!event.Record.Email() && authUser.Email) {

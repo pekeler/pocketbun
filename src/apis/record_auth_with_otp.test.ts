@@ -263,6 +263,10 @@ const scenarios: Scenario[] = [
       if (user.Verified()) {
         throw new Error("Expected the user to remain unverified because sentTo != email");
       }
+      const externalAuths = app.FindAllExternalAuthsByRecord(user);
+      if (externalAuths.length !== 2) {
+        throw new Error(`Expected 2 external auths, found ${externalAuths.length}`);
+      }
     },
   },
   {
@@ -307,9 +311,9 @@ const scenarios: Scenario[] = [
       OnModelCreate: 1,
       OnModelCreateExecute: 1,
       OnModelAfterCreateSuccess: 1,
-      OnModelDelete: 1,
-      OnModelDeleteExecute: 1,
-      OnModelAfterDeleteSuccess: 1,
+      OnModelDelete: 3,
+      OnModelDeleteExecute: 3,
+      OnModelAfterDeleteSuccess: 3,
       OnModelUpdate: 1,
       OnModelUpdateExecute: 1,
       OnModelAfterUpdateSuccess: 1,
@@ -317,9 +321,9 @@ const scenarios: Scenario[] = [
       OnRecordCreate: 1,
       OnRecordCreateExecute: 1,
       OnRecordAfterCreateSuccess: 1,
-      OnRecordDelete: 1,
-      OnRecordDeleteExecute: 1,
-      OnRecordAfterDeleteSuccess: 1,
+      OnRecordDelete: 3,
+      OnRecordDeleteExecute: 3,
+      OnRecordAfterDeleteSuccess: 3,
       OnRecordUpdate: 1,
       OnRecordUpdateExecute: 1,
       OnRecordAfterUpdateSuccess: 1,
@@ -328,6 +332,14 @@ const scenarios: Scenario[] = [
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
       if (!user.Verified()) {
         throw new Error("Expected the user to be marked as verified");
+      }
+      const otps = app.FindAllOTPsByRecord(user);
+      if (otps.length > 0) {
+        throw new Error(`Expected all OTPs to be cleared, found ${otps.length}`);
+      }
+      const externalAuths = app.FindAllExternalAuthsByRecord(user);
+      if (externalAuths.length > 0) {
+        throw new Error(`Expected all external auths to be cleared, found ${externalAuths.length}`);
       }
     },
   },

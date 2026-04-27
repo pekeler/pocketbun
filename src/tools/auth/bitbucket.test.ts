@@ -70,10 +70,17 @@ describe("bitbucket provider", () => {
             {
               email: "secondary@example.com",
               is_primary: false,
+              is_confirmed: true,
+            },
+            {
+              email: "unconfirmed@example.com",
+              is_primary: true,
+              is_confirmed: false,
             },
             {
               email: "primary@example.com",
               is_primary: true,
+              is_confirmed: true,
             },
           ],
         }),

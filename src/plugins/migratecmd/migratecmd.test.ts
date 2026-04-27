@@ -129,7 +129,7 @@ migrate((app) => {
     "listRule": "@request.auth.id != '' && 1 > 0 || 'backtick\`test' = 0",
     "manageRule": "1 != 2",
     "mfa": {
-      "duration": 1800,
+      "duration": 600,
       "enabled": false,
       "rule": ""
     },
@@ -309,7 +309,7 @@ func init() {
 			"listRule": "@request.auth.id != '' && 1 > 0 || 'backtick\` + "\`" + \`test' = 0",
 			"manageRule": "1 != 2",
 			"mfa": {
-				"duration": 1800,
+				"duration": 600,
 				"enabled": false,
 				"rule": ""
 			},
@@ -493,7 +493,7 @@ migrate((app) => {
     "listRule": "@request.auth.id != '' && 1 > 0 || 'backtick\`test' = 0",
     "manageRule": "1 != 2",
     "mfa": {
-      "duration": 1800,
+      "duration": 600,
       "enabled": false,
       "rule": ""
     },
@@ -676,7 +676,7 @@ func init() {
 			"listRule": "@request.auth.id != '' && 1 > 0 || 'backtick\` + "\`" + \`test' = 0",
 			"manageRule": "1 != 2",
 			"mfa": {
-				"duration": 1800,
+				"duration": 600,
 				"enabled": false,
 				"rule": ""
 			},

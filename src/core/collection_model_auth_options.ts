@@ -368,7 +368,7 @@ export function createDefaultAuthOptions(): CollectionAuthOptions {
     AuthAlert: normalizeAuthAlertConfig({ enabled: true, emailTemplate: defaultAuthAlertTemplate }),
     OAuth2: normalizeOAuth2Config({ enabled: false }),
     PasswordAuth: normalizePasswordAuthConfig({ enabled: true, identityFields: ["email"] }),
-    MFA: normalizeMFAConfig({ enabled: false, duration: 1800, rule: "" }),
+    MFA: normalizeMFAConfig({ enabled: false, duration: 600, rule: "" }),
     OTP: normalizeOTPConfig({
       enabled: false,
       duration: 180,

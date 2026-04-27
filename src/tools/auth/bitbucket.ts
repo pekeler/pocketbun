@@ -82,7 +82,7 @@ export class Bitbucket extends BaseProvider {
 
     const values = parseBitbucketEmails(await response.text());
     for (const value of values) {
-      if (value.IsPrimary) {
+      if (value.IsPrimary && value.IsConfirmed) {
         return value.Email;
       }
     }
@@ -130,6 +130,7 @@ function parseBitbucketUser(raw: string): {
 function parseBitbucketEmails(raw: string): Array<{
   Email: string;
   IsPrimary: boolean;
+  IsConfirmed: boolean;
 }> {
   const parsed = JSON.parse(raw);
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -150,6 +151,7 @@ function parseBitbucketEmails(raw: string): Array<{
     return {
       Email: readStringField(row, "email"),
       IsPrimary: readBoolField(row, "is_primary"),
+      IsConfirmed: readBoolField(row, "is_confirmed"),
     };
   });
 }

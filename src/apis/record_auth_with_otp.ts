@@ -87,9 +87,24 @@ export async function recordAuthWithOTP(app: App, event: RequestEvent): Promise<
   hookEvent.Record = record;
 
   const out = await app.OnRecordAuthWithOTPRequest().Trigger(hookEvent, async () => {
+    const otpId = otp.Id;
     const otpSentTo = otp.SentTo();
+
+    const deleteErr = await app.Delete(otp);
+    if (deleteErr) {
+      app.Logger().Error("Failed to delete used OTP", "error", deleteErr, "otpId", otp.Id);
+    }
+
     if (!record.Verified() && otpSentTo && record.Email() === otpSentTo) {
       record.SetVerified(true);
+
+      // this is technically not required but we enforce password
+      // reset on verified upgrades in case the OTP is used on its own
+      // since this makes it less error prone to pre-hijacking attacks
+      if (!record.collection().MFA.Enabled) {
+        await record.SetRandomPasswordAsync();
+      }
+
       const saveErr = await app.Save(record);
       if (saveErr) {
         app
@@ -99,16 +114,11 @@ export async function recordAuthWithOTP(app: App, event: RequestEvent): Promise<
             "error",
             saveErr,
             "otpId",
-            otp.Id,
+            otpId,
             "recordId",
             record.Id,
           );
       }
-    }
-
-    const deleteErr = await app.Delete(otp);
-    if (deleteErr) {
-      app.Logger().Error("Failed to delete used OTP", "error", deleteErr, "otpId", otp.Id);
     }
 
     return RecordAuthResponse(event, record, MFAMethodOTP, null);

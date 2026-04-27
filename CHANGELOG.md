@@ -1,8 +1,9 @@
 # Changelog
 
-## 0.37.3-pocketbun.2 (Unreleased)
+## 0.37.4-pocketbun.0 (Unreleased)
 
-- TBD
+- Now compatible with PocketBase `v0.37.4` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0374).
+  - Includes the upstream security fix for OAuth2 account linking, OAuth2 provider updates for Bitbucket/GitHub/GitLab/Gitea-Forgejo, SMTP IPv6 formatting, failed password-auth timing hardening, and the latest Admin UI polish.
 
 ## 0.37.3-pocketbun.1 - 2026-04-24
 

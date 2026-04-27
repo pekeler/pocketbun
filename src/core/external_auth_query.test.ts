@@ -104,4 +104,47 @@ describe("external auth queries", () => {
       await cleanup();
     }
   });
+
+  it("DeleteAllExternalAuthsByRecord", async () => {
+    const { app: testApp, cleanup } = await newTestApp();
+    try {
+      const demo1 = testApp.FindRecordById("demo1", "84nmscqy84lsi1t");
+      const user1 = testApp.FindAuthRecordByEmail("users", "test@example.com");
+      const client1 = testApp.FindAuthRecordByEmail("clients", "test@example.com");
+      const client2 = testApp.FindAuthRecordByEmail("clients", "test2@example.com");
+
+      const scenarios = [
+        { record: demo1, deletedIds: [] as string[] },
+        { record: user1, deletedIds: ["dlmflokuq1xl342", "clmflokuq1xl341"] },
+        { record: client1, deletedIds: ["f1z5b3843pzc964"] },
+        { record: client2, deletedIds: [] as string[] },
+      ];
+
+      for (const scenario of scenarios) {
+        const { app, cleanup: scenarioCleanup } = await newTestApp();
+        try {
+          const record = app.FindRecordById(scenario.record.collection().name, scenario.record.Id);
+          const deletedIds: string[] = [];
+
+          app.OnRecordDelete().BindFunc((event) => {
+            if (event.Record) {
+              deletedIds.push(event.Record.Id);
+            }
+            return event.Next();
+          });
+
+          const err = await app.DeleteAllExternalAuthsByRecord(record);
+          expect(err).toBeNull();
+          expect(deletedIds.length).toBe(scenario.deletedIds.length);
+          for (const id of scenario.deletedIds) {
+            expect(deletedIds.includes(id)).toBe(true);
+          }
+        } finally {
+          await scenarioCleanup();
+        }
+      }
+    } finally {
+      await cleanup();
+    }
+  });
 });

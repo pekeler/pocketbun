@@ -99,6 +99,9 @@ export async function recordAuthWithPassword(app: App, event: RequestEvent): Pro
 
   const out = await app.OnRecordAuthWithPasswordRequest().Trigger(hookEvent, async () => {
     if (!hookEvent.Record || !(await hookEvent.Record.ValidatePasswordAsync(hookEvent.Password))) {
+      if (!hookEvent.Record) {
+        await dummyPasswordCheck(hookEvent.App, hookEvent.Collection);
+      }
       return badRequest(event, "Failed to authenticate.");
     }
 
@@ -145,6 +148,20 @@ function validateAuthWithPasswordForm(form: AuthWithPasswordForm, collection: Co
   }
 
   return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+}
+
+// dummy password check to minimize side-channel attacks
+// (performed with the collection configured field cost)
+async function dummyPasswordCheck(app: App, collection: Collection): Promise<void> {
+  let record: RecordModel;
+  try {
+    record = app.RecordQuery(collection).Limit(1).One() as RecordModel;
+  } catch {
+    return;
+  }
+
+  // the value and result doesn't matter, we just need a constant-time check
+  await record.ValidatePasswordAsync("");
 }
 
 type FindResult = { record: RecordModel | null; error: Error | null };

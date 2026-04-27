@@ -212,4 +212,38 @@ describe("mfa", () => {
       await cleanup();
     }
   });
+
+  it("MFA clear on password change", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const user1 = app.FindAuthRecordByEmail("users", "test@example.com");
+      const user2 = app.FindAuthRecordByEmail("users", "test2@example.com");
+
+      const mfasToCreate = [
+        { user: user1, total: 3 },
+        { user: user2, total: 2 },
+      ];
+
+      for (const { user, total } of mfasToCreate) {
+        for (let i = 0; i < total; i += 1) {
+          const mfa = NewMFA(app);
+          mfa.SetCollectionRef(user.collection().id);
+          mfa.SetRecordRef(user.Id);
+          mfa.SetMethod("password");
+          const err = await app.Save(mfa);
+          expect(err).toBeNull();
+        }
+      }
+
+      expect(await app.Save(user1)).toBeNull();
+
+      await user2.SetRandomPasswordAsync();
+      expect(await app.Save(user2)).toBeNull();
+
+      expect(app.FindAllMFAsByRecord(user1).length).toBe(3);
+      expect(app.FindAllMFAsByRecord(user2).length).toBe(0);
+    } finally {
+      await cleanup();
+    }
+  });
 });

@@ -88,9 +88,32 @@ const scenarios: Scenario[] = [
       OnRecordUpdateExecute: 1,
       OnRecordAfterUpdateSuccess: 1,
       OnRecordValidate: 1,
+      OnModelDelete: 2,
+      OnModelDeleteExecute: 2,
+      OnModelAfterDeleteSuccess: 2,
+      OnRecordDelete: 2,
+      OnRecordDeleteExecute: 2,
+      OnRecordAfterDeleteSuccess: 2,
+    },
+    beforeTest: (app) => {
+      const user = app.FindAuthRecordByEmail("users", "test@example.com");
+      if (user.Verified()) {
+        throw new Error("Expected the user to be unverified before the confirmation");
+      }
+      const externalAuths = app.FindAllExternalAuthsByRecord(user);
+      if (externalAuths.length === 0) {
+        throw new Error("Expected at least one external auth");
+      }
     },
     afterTest: (app) => {
-      app.FindAuthRecordByEmail("users", "change@example.com");
+      const user = app.FindAuthRecordByEmail("users", "change@example.com");
+      if (!user.Verified()) {
+        throw new Error("Expected the user to be verified after the confirmation");
+      }
+      const externalAuths = app.FindAllExternalAuthsByRecord(user);
+      if (externalAuths.length > 0) {
+        throw new Error(`Expected all external auths to be cleared, found ${externalAuths.length}`);
+      }
     },
   },
   {

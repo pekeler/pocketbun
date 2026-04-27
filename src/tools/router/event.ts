@@ -538,6 +538,15 @@ export class Event implements Resolver {
     throw ErrUnsupportedContentType;
   }
 
+  // BindBody reads the request body and binds it to the provided struct pointer.
+  //
+  // Example:
+  //
+  //	data := struct {
+  //	   Title string `json:"title" form:"title"`
+  //	   Total int    `json:"total" form:"total"`
+  //	}{}
+  //	err := e.BindBody(&data)
   async BindBody<T extends object>(target: T): Promise<void> {
     return this.bindBody(target);
   }

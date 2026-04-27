@@ -23,7 +23,7 @@ export class Github extends BaseProvider {
 
   // FetchAuthUser returns an AuthUser instance based the Github's user api.
   //
-  // API reference: https://docs.github.com/en/rest/reference/users#get-the-authenticated-user
+  // API reference: https://docs.github.com/en/rest/users/users?apiVersion=2026-03-10#get-the-authenticated-user
   override async FetchAuthUser(token: OAuth2Token): Promise<AuthUser> {
     const data = await this.FetchRawUserInfo(token);
     const text = new TextDecoder().decode(data);
@@ -34,7 +34,6 @@ export class Github extends BaseProvider {
       Id: String(extracted.Id),
       Name: extracted.Name,
       Username: extracted.Login,
-      Email: extracted.Email,
       AvatarURL: extracted.AvatarURL,
       RawUser: rawUser,
       AccessToken: resolveTokenString(token, "accessToken", "access_token"),
@@ -42,23 +41,22 @@ export class Github extends BaseProvider {
     });
     user.Expiry = ParseDateTime(token.expiry ?? null);
 
-    // In case user has set "Keep my email address private", send an optional
-    // API request to retrieve the verified primary email.
-    if (!user.Email) {
-      user.Email = await this.fetchPrimaryEmail(token);
-    }
+    // always send a primary email request even though the email is
+    // returned in the userinfo endpoint since the API may change and
+    // enterprise setups may have configuration that could allow unverified emails
+    user.Email = await this.fetchVerifiedPrimaryEmail(token);
 
     return user;
   }
 
-  // fetchPrimaryEmail sends an API request to retrieve the verified
+  // fetchVerifiedPrimaryEmail sends an API request to retrieve the verified
   // primary email, in case "Keep my email address private" was set.
   //
   // NB! This method can succeed and still return an empty email.
   // Error responses that are result of insufficient scopes permissions are ignored.
   //
-  // API reference: https://docs.github.com/en/rest/users/emails?apiVersion=2022-11-28
-  private async fetchPrimaryEmail(token: OAuth2Token): Promise<string> {
+  // API reference: https://docs.github.com/en/rest/users/emails?apiVersion=2022-11-28#list-email-addresses-for-the-authenticated-user
+  private async fetchVerifiedPrimaryEmail(token: OAuth2Token): Promise<string> {
     const userInfoURL = this.UserInfoURL();
     if (!userInfoURL) {
       return "";
@@ -107,7 +105,6 @@ function parseRawUser(raw: string): Record<string, unknown> {
 function parseGithubUser(raw: string): {
   Login: string;
   Name: string;
-  Email: string;
   AvatarURL: string;
   Id: number;
 } {
@@ -115,7 +112,6 @@ function parseGithubUser(raw: string): {
   return {
     Login: readStringField(payload, "login"),
     Name: readStringField(payload, "name"),
-    Email: readStringField(payload, "email"),
     AvatarURL: readStringField(payload, "avatar_url"),
     Id: readInt64Field(payload, "id"),
   };

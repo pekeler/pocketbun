@@ -146,6 +146,7 @@ import {
 } from "./events.ts";
 import { CollectionNameExternalAuths, ExternalAuth } from "./external_auth_model.ts";
 import {
+  DeleteAllExternalAuthsByRecord as DeleteAllExternalAuthsByRecordQuery,
   FindAllExternalAuthsByCollection as FindAllExternalAuthsByCollectionQuery,
   FindAllExternalAuthsByRecord as FindAllExternalAuthsByRecordQuery,
   FindFirstExternalAuthByExpr as FindFirstExternalAuthByExprQuery,
@@ -1954,6 +1955,11 @@ export class BaseApp implements App {
   // Ported from pocketbase/core/external_auth_query.go.
   FindFirstExternalAuthByExpr(expr: SqlExpr | Record<string, unknown>): ExternalAuth {
     return FindFirstExternalAuthByExprQuery(this, expr);
+  }
+
+  // Ported from pocketbase/core/external_auth_query.go.
+  async DeleteAllExternalAuthsByRecord(authRecord: RecordModel): Promise<Error | null> {
+    return DeleteAllExternalAuthsByRecordQuery(this, authRecord);
   }
 
   // Ported from pocketbase/core/otp_query.go.
@@ -4818,6 +4824,45 @@ export class BaseApp implements App {
           this.Logger().Warn("Failed to delete expired OTP sessions", "error", error);
         });
     });
+
+    // delete all record OTPs on tokenKey change to minimize the risk of hijacking attacks
+    this.OnRecordUpdateExecute().Bind({
+      Func: (e) => {
+        const record = e.Record;
+        const isAuth = record?.collection().IsAuth() ?? false;
+        // Deviation: capture the original tokenKey before e.Next() because PostScan updates originals during save.
+        const wasNew = isAuth && record ? record.Original().IsNew() : true;
+        const oldTokenKey = isAuth && record ? record.Original().TokenKey() : "";
+
+        const nextResult = e.Next();
+        const handleResult = (err: Error | null) => {
+          if (err || !isAuth || !record) {
+            return err;
+          }
+
+          if (!wasNew && oldTokenKey !== record.TokenKey()) {
+            return e.App.DeleteAllOTPsByRecord(record).then((deleteErr) =>
+              deleteErr
+                ? new Error(
+                    `[${record.collection().Name}] failed to delete all previos OTPs for record ${JSON.stringify(
+                      record.Id,
+                    )}: ${deleteErr.message}`,
+                  )
+                : null,
+            );
+          }
+
+          return null;
+        };
+
+        if (nextResult instanceof Promise) {
+          return nextResult.then((err) => handleResult(err as Error | null));
+        }
+
+        return handleResult(nextResult as Error | null);
+      },
+      Priority: 99,
+    });
   }
 
   private registerMFAHooks(): void {
@@ -4856,34 +4901,16 @@ export class BaseApp implements App {
 
           const newHash = record.GetString(`${FieldNamePassword}:hash`);
           if (oldHash !== newHash) {
-            const deleteResult = e.App.DeleteAllMFAsByRecord(record);
-            if (deleteResult instanceof Promise) {
-              return deleteResult.then((deleteErr) => {
-                if (deleteErr) {
-                  e.App.Logger().Warn(
-                    "Failed to delete all previous mfas",
-                    "error",
-                    deleteErr,
-                    "recordId",
+            return e.App.DeleteAllMFAsByRecord(record).then((deleteErr) => {
+              if (deleteErr) {
+                return new Error(
+                  `[${record.collection().Name}] failed to delete all previos MFAs for record ${JSON.stringify(
                     record.Id,
-                    "collectionId",
-                    record.collection().id,
-                  );
-                }
-                return null;
-              });
-            }
-            if (deleteResult) {
-              e.App.Logger().Warn(
-                "Failed to delete all previous mfas",
-                "error",
-                deleteResult,
-                "recordId",
-                record.Id,
-                "collectionId",
-                record.collection().id,
-              );
-            }
+                  )}: ${deleteErr.message}`,
+                );
+              }
+              return null;
+            });
           }
 
           return null;
@@ -4894,6 +4921,46 @@ export class BaseApp implements App {
         }
 
         return handleResult(nextResult as Error | null);
+      },
+      Priority: 99,
+    });
+
+    // delete all pre-existing external auths on verified upgrade
+    this.OnRecordUpdateExecute().Bind({
+      Func: (e) => {
+        const record = e.Record;
+        if (!record?.collection().IsAuth()) {
+          return e.Next();
+        }
+
+        const hasUpgradedVerified = !record.Original().IsNew() && !record.Original().Verified() && record.Verified();
+        if (!hasUpgradedVerified) {
+          return e.Next();
+        }
+
+        const originalApp = e.App;
+        return e.App.RunInTransaction(async (txApp) => {
+          e.App = txApp;
+          try {
+            const externalAuths = txApp.FindAllExternalAuthsByRecord(record);
+            if (externalAuths.length > 0) {
+              const deleteErr = await txApp.DeleteAllExternalAuthsByRecord(record);
+              if (deleteErr) {
+                return deleteErr;
+              }
+
+              // force refresh tokens reset (if not already)
+              record.RefreshTokenKey();
+            }
+
+            const nextResult = e.Next();
+            return nextResult instanceof Promise
+              ? (((await nextResult) as Error | null) ?? null)
+              : ((nextResult as Error | null) ?? null);
+          } finally {
+            e.App = originalApp;
+          }
+        });
       },
       Priority: 99,
     });

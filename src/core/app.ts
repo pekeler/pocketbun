@@ -264,6 +264,7 @@ export interface App {
   FindAllExternalAuthsByRecord(authRecord: RecordModel): ExternalAuth[];
   FindAllExternalAuthsByCollection(collection: Collection): ExternalAuth[];
   FindFirstExternalAuthByExpr(expr: SqlExpr | Record<string, unknown>): ExternalAuth;
+  DeleteAllExternalAuthsByRecord(authRecord: RecordModel): Promise<Error | null>;
   FindAllOTPsByRecord(authRecord: RecordModel): OTP[];
   FindAllOTPsByCollection(collection: Collection): OTP[];
   FindOTPById(id: string): OTP;

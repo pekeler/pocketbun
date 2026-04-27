@@ -1,6 +1,8 @@
 // Ported from pocketbase/apis/record_auth_with_oauth2_test.go
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import type { Record as RecordModel } from "../core/record_model.ts";
+import type { TestApp } from "../tests/app.ts";
 import { OAuth2ProviderConfig } from "../core/collection_model_auth_options.ts";
 import { RequestInfoContextOAuth2 } from "../core/event_request.ts";
 import { NewExternalAuth } from "../core/external_auth_model.ts";
@@ -70,6 +72,15 @@ const newProviderConfig = (name: string) => {
 
 const setOAuthProviders = (collection: { OAuth2: { Providers: OAuth2ProviderConfig[] | null } }, name: string) => {
   collection.OAuth2.Providers = [newProviderConfig(name)];
+};
+
+const expectOnlyTestExternalAuth = (app: TestApp, user: RecordModel, providerId = "test_id") => {
+  const externalAuths = app.FindAllExternalAuthsByRecord(user);
+  expect(externalAuths).toHaveLength(1);
+  expect(externalAuths[0]?.Provider()).toBe("test");
+  expect(externalAuths[0]?.ProviderId()).toBe(providerId);
+  expect(externalAuths[0]?.RecordRef()).toBe(user.Id);
+  expect(externalAuths[0]?.CollectionRef()).toBe(user.collection().Id);
 };
 
 const originalTestProvider = Providers.test;
@@ -229,20 +240,26 @@ const scenarios: Scenario[] = [
       OnRecordAuthWithOAuth2Request: 1,
       OnRecordAuthRequest: 1,
       OnRecordEnrich: 1,
-      OnModelCreate: 1,
-      OnModelCreateExecute: 1,
-      OnModelAfterCreateSuccess: 1,
-      OnRecordCreate: 1,
-      OnRecordCreateExecute: 1,
-      OnRecordAfterCreateSuccess: 1,
+      OnModelCreate: 2,
+      OnModelCreateExecute: 2,
+      OnModelAfterCreateSuccess: 2,
+      OnRecordCreate: 2,
+      OnRecordCreateExecute: 2,
+      OnRecordAfterCreateSuccess: 2,
       OnModelUpdate: 1,
       OnModelUpdateExecute: 1,
       OnModelAfterUpdateSuccess: 1,
       OnRecordUpdate: 1,
       OnRecordUpdateExecute: 1,
       OnRecordAfterUpdateSuccess: 1,
-      OnModelValidate: 2,
-      OnRecordValidate: 2,
+      OnModelDelete: 3,
+      OnModelDeleteExecute: 3,
+      OnModelAfterDeleteSuccess: 3,
+      OnRecordDelete: 3,
+      OnRecordDeleteExecute: 3,
+      OnRecordAfterDeleteSuccess: 3,
+      OnModelValidate: 3,
+      OnRecordValidate: 3,
     },
     afterTest: (app) => {
       const user = app.FindAuthRecordByEmail("users", "test@example.com");
@@ -256,6 +273,7 @@ const scenarios: Scenario[] = [
       if (devices.length !== 1) {
         throw new Error(`Expected only 1 auth origin to be created, got ${devices.length}`);
       }
+      expectOnlyTestExternalAuth(app, user);
     },
   },
   {
@@ -392,6 +410,12 @@ const scenarios: Scenario[] = [
       OnRecordUpdate: 1,
       OnRecordUpdateExecute: 1,
       OnRecordAfterUpdateSuccess: 1,
+      OnModelDelete: 2,
+      OnModelDeleteExecute: 2,
+      OnModelAfterDeleteSuccess: 2,
+      OnRecordDelete: 2,
+      OnRecordDeleteExecute: 2,
+      OnRecordAfterDeleteSuccess: 2,
       OnModelValidate: 3,
       OnRecordValidate: 3,
     },
@@ -404,6 +428,7 @@ const scenarios: Scenario[] = [
       if (devices.length !== 1) {
         throw new Error(`Expected only 1 auth origin to be created, got ${devices.length}`);
       }
+      expectOnlyTestExternalAuth(app, user);
     },
   },
   {
@@ -461,6 +486,12 @@ const scenarios: Scenario[] = [
       OnRecordCreate: 2,
       OnRecordCreateExecute: 2,
       OnRecordAfterCreateSuccess: 2,
+      OnModelDelete: 2,
+      OnModelDeleteExecute: 2,
+      OnModelAfterDeleteSuccess: 2,
+      OnRecordDelete: 2,
+      OnRecordDeleteExecute: 2,
+      OnRecordAfterDeleteSuccess: 2,
       OnModelValidate: 2,
       OnRecordValidate: 2,
     },
@@ -473,6 +504,7 @@ const scenarios: Scenario[] = [
       if (devices.length !== 1) {
         throw new Error(`Expected only 1 auth origin to be created, got ${devices.length}`);
       }
+      expectOnlyTestExternalAuth(app, user);
     },
   },
   {
@@ -550,6 +582,12 @@ const scenarios: Scenario[] = [
       OnRecordUpdate: 1,
       OnRecordUpdateExecute: 1,
       OnRecordAfterUpdateSuccess: 1,
+      OnModelDelete: 2,
+      OnModelDeleteExecute: 2,
+      OnModelAfterDeleteSuccess: 2,
+      OnRecordDelete: 2,
+      OnRecordDeleteExecute: 2,
+      OnRecordAfterDeleteSuccess: 2,
       OnModelValidate: 3,
       OnRecordValidate: 3,
     },
@@ -562,6 +600,7 @@ const scenarios: Scenario[] = [
       if (devices.length !== 1) {
         throw new Error(`Expected only 1 auth origin to be created, got ${devices.length}`);
       }
+      expectOnlyTestExternalAuth(app, user);
     },
   },
   {
@@ -625,6 +664,12 @@ const scenarios: Scenario[] = [
       OnRecordUpdate: 1,
       OnRecordUpdateExecute: 1,
       OnRecordAfterUpdateSuccess: 1,
+      OnModelDelete: 2,
+      OnModelDeleteExecute: 2,
+      OnModelAfterDeleteSuccess: 2,
+      OnRecordDelete: 2,
+      OnRecordDeleteExecute: 2,
+      OnRecordAfterDeleteSuccess: 2,
       OnModelValidate: 3,
       OnRecordValidate: 3,
     },
@@ -637,6 +682,7 @@ const scenarios: Scenario[] = [
       if (devices.length !== 1) {
         throw new Error(`Expected only 1 auth origin to be created, got ${devices.length}`);
       }
+      expectOnlyTestExternalAuth(app, user);
     },
   },
   {

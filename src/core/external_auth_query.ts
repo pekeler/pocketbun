@@ -43,3 +43,28 @@ export function FindFirstExternalAuthByExpr(app: App, expr: SqlExpr | Record<str
 
   return result;
 }
+
+// DeleteAllExternalAuthsByRecord deletes all ExternalAuth models associated with the provided record.
+//
+// Returns a combined error with the failed deletes.
+export async function DeleteAllExternalAuthsByRecord(app: App, authRecord: RecordModel): Promise<Error | null> {
+  const models = FindAllExternalAuthsByRecord(app, authRecord);
+
+  const errors: Error[] = [];
+  for (const model of models) {
+    const err = await app.Delete(model);
+    if (err) {
+      errors.push(err);
+    }
+  }
+
+  if (errors.length === 0) {
+    return null;
+  }
+
+  if (errors.length === 1) {
+    return errors[0]!;
+  }
+
+  return new Error(errors.map((err) => err.message ?? String(err)).join("\n"));
+}

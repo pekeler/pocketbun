@@ -6,7 +6,7 @@ PLANS.md exists in this repo at .agents/PLANS.md. This ExecPlan must be maintain
 
 ## Purpose / Big Picture
 
-The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.37.3 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
+The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.37.4 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
 
 ## Progress
 
@@ -30,6 +30,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 17: complete (PocketBase v0.37.0 upgrade: upstream sync, rewritten admin UI refresh, UI-facing API/core/auth deltas ported, docs/generated artifacts refreshed, and full validation rerun)
   - Milestone 18: complete (PocketBase v0.37.2 upgrade: upstream sync, `v0.37.1..v0.37.2` audit, vendored Admin UI refresh, router file-mapping gap closure, and full validation rerun)
   - Milestone 19: complete (PocketBase v0.37.3 upgrade: upstream sync, `v0.37.2..v0.37.3` UI-only audit, vendored Admin UI refresh, metadata/changelog bump, and full validation rerun)
+  - Milestone 20: complete (PocketBase v0.37.4 upgrade: upstream sync, security-sensitive OAuth2/password/provider deltas ported, vendored Admin UI refresh, metadata/changelog bump, and full validation rerun)
 
 ### Maintenance TODOs
 
@@ -326,8 +327,25 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 - [x] (2026-02-05 02:10Z) Add local benchmark runners for PocketBun and PocketBase and capture baseline/sweep results.
 - [x] (2026-02-08) Profiled and optimized hot request paths (router matching, middleware overhead) while preserving compatibility.
 
+### Milestone 20 - PocketBase v0.37.4 upgrade
+
+- [x] (2026-04-27 08:50Z) Confirmed the upstream `v0.37.4` release from published release notes. The release includes a security fix for OAuth2 linking, a dummy bcrypt check on failed password auth when registrations are disabled, OAuth2 provider mapping/API updates for Bitbucket/GitHub/GitLab/Gitea-Forgejo, SMTP IPv6 address formatting, `ghupdate.BaseURL`, the usual Admin UI refresh, and dependency churn.
+- [x] (2026-04-27 08:58Z) Bumped the compatibility metadata to PocketBase `v0.37.4` / PocketBun `0.37.4-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, and `CHANGELOG.md`.
+- [x] (2026-04-27 08:58Z) Synced `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.37.4`, then reran `bun run upstream:audit` and confirmed only the intentional `plugins/ghupdate/*` gaps remain.
+- [x] (2026-04-27 09:05Z) Audited the upstream `v0.37.3..v0.37.4` source delta and ported the observable auth/security/provider/runtime changes: failed password auth timing hardening, OTP/MFA/external-auth cleanup hooks, OAuth2 pre-hijacking protections, MFA default duration, JSVM app type surface, and Bitbucket/GitHub/GitLab/Gitea-Forgejo provider mappings.
+- [x] (2026-04-27 09:05Z) Added or adjusted focused regression tests for OTP/MFA/external-auth cleanup, OAuth2 link takeover prevention, verification/password-reset/email-change cleanup, provider email verification handling, and migration-template MFA defaults.
+- [x] (2026-04-27 09:12Z) Ran the required validation gate successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
+
 ## Surprises & Discoveries
 
+- Observation: The `v0.37.4` release is small but security-sensitive; the key observable server deltas are not limited to the OAuth2 endpoint itself.
+  Evidence: the upstream compare changes auth hooks and tests around OTP deletion, MFA deletion, verified-upgrade external-auth deletion, password reset verification, email-change/verification confirmations, and OAuth2 account linking, so PocketBun needed core hook/query updates plus API test updates rather than an endpoint-only patch.
+- Observation: PocketBun did not need a production SMTP IPv6 formatting change for this release.
+  Evidence: upstream fixed string host:port assembly, while PocketBun's SMTP client already passes `{ host, port }` into `net.createConnection(...)` and does not concatenate the address for dialing.
+- Observation: The upstream `ghupdate.BaseURL` change remains outside PocketBun's runtime surface.
+  Evidence: `bun run upstream:audit` still reports only `plugins/ghupdate/*` as missing, matching the documented intentional gap because PocketBun does not ship PocketBase's self-update command.
+- Observation: The new OTP cleanup hook has to capture the original token key before `e.Next()` in PocketBun.
+  Evidence: a focused regression for token-key changes initially failed because PocketBun's save path updates `Original()` during post-scan; capturing `oldTokenKey` before the downstream update mirrors the existing MFA password-hash deviation and makes the cleanup observable.
 - Observation: The only regression from the guard sweep was a local test that explicitly asserted the removed `BaseApp.db()` / `auxDb()` bootstrap throw instead of observable bootstrap state.
   Evidence: `src/core/base.test.ts` failed at `expect(hasDb(() => app.db())).toBe(false)` after the guard removal because `db()` now mirrors upstream by returning the current field reference; updating `hasDb(...)` to check for a non-null builder restored the intended assertion and the full suite passed.
 - Observation: The upstream `v0.37.3` compare window is UI-only again; the release does not touch PocketBase runtime, API, or JSVM source files beyond the vendored UI bundle, TinyMCE skin assets, and changelog text.
@@ -463,6 +481,12 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Decision Log
 
+- Decision: Port the `v0.37.4` auth/security deltas directly, including verified-upgrade external-auth cleanup and OAuth2 pre-hijacking safeguards, instead of documenting a behavior difference.
+  Rationale: these changes are observable through auth results, hook event counts, token invalidation, and persisted external-auth records, and they close security-sensitive upstream behavior gaps. The TypeScript port keeps the same behavior while using PocketBun's async password and cleanup helpers where Bun semantics require it.
+  Date/Author: 2026-04-27 / Codex
+- Decision: Leave `plugins/ghupdate` unported for `v0.37.4` despite the upstream `BaseURL` testability change.
+  Rationale: PocketBun intentionally omits PocketBase's binary self-update command in favor of package-manager upgrades; carrying `ghupdate` solely for a non-exposed helper would create dead compatibility surface.
+  Date/Author: 2026-04-27 / Codex
 - Decision: Remove only invariant guards that are absent upstream and rely on PocketBun construction or ownership guarantees, while keeping request-boundary and service-boundary validation in place.
   Rationale: The simplification goal is best served by deleting self-protection between tightly coupled internals such as `BaseApp.db()`, `BaseRecordProxy.ProxyRecord()`, lazy blob writer open/write, direct file upload plumbing, and S3 uploader multipart bookkeeping, without weakening real API/service edge validation where PocketBun still has to defend requests, hooks, or remote service responses.
   Date/Author: 2026-04-23 / Codex
@@ -681,6 +705,10 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Outcomes & Retrospective
 
+Milestone 20 is now complete. PocketBun targets PocketBase `v0.37.4`, the vendored Admin UI is refreshed to the upstream `v0.37.4` bundle, and the release's auth/security/provider deltas are ported with focused regression coverage. The upgrade adds the upstream OAuth2 pre-hijacking protections, clears stale external auth links on verified upgrades, clears OTP/MFA sessions on token/password changes, preserves the new failed-password dummy bcrypt timing behavior, updates provider email verification handling for Bitbucket/GitHub/GitLab/Gitea-Forgejo, and lowers the default MFA duration to 600 seconds.
+
+Full validation passed on the final kept tree: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
+
 The implementation guard sweep is now complete. PocketBun no longer carries several TS-only internal invariant checks that PocketBase does not have, including bootstrap-state guards on `BaseApp.db()` / `auxDb()`, the `BaseRecordProxy.ProxyRecord()` null check, the empty-id fast fail in `findLogById(...)`, lazy blob writer setup guards, the extra file-reader check in `System.UploadFile(...)`, and redundant S3 uploader multipart bookkeeping guards. The retained guard surface is now concentrated on real request/service boundaries rather than internal call chains.
 
 Full validation passed on the final kept tree: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
@@ -717,7 +745,7 @@ Milestones 1 and 2 are substantially complete, including migrations and auth-awa
 
 ## Context and Orientation
 
-This repository now contains a full Bun-native PocketBase-compatible server targeting PocketBase `v0.37.3`, with the upstream reference synced in `.upstream/pocketbase`, the vendored Admin UI under `vendor/pocketbase-admin-ui/dist`, and the package/version metadata aligned to `0.37.3-pocketbun.0`. The `scripts/upload_memory_probe.ts` helper provides a repeatable way to measure upload RSS on real multipart record-create requests before and after upload-path changes.
+This repository now contains a full Bun-native PocketBase-compatible server targeting PocketBase `v0.37.4`, with the upstream reference synced in `.upstream/pocketbase`, the vendored Admin UI under `vendor/pocketbase-admin-ui/dist`, and the package/version metadata aligned to `0.37.4-pocketbun.0`. The `scripts/upload_memory_probe.ts` helper provides a repeatable way to measure upload RSS on real multipart record-create requests before and after upload-path changes.
 
 PocketBase’s main behavior is organized around an App interface (core.App), a BaseApp implementation, a router with events and middleware, and API binders such as apis/health.go. The Admin UI is served as static assets from ui/dist under the /_/ prefix, while public files in pb_public/ are served at /.
 

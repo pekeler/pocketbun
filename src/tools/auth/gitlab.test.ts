@@ -27,6 +27,7 @@ describe("gitlab provider", () => {
         username: "gitlab-user",
         email: "gitlab@example.com",
         avatar_url: "https://example.com/avatar.png",
+        confirmed_at: "2026-02-12T15:00:00Z",
       }),
     );
 
@@ -63,6 +64,22 @@ describe("gitlab provider", () => {
     expect(user.Username).toBe("");
     expect(user.Email).toBe("");
     expect(user.AvatarURL).toBe("");
+  });
+
+  it("FetchAuthUser keeps email empty when it is not confirmed", async () => {
+    const provider = new GitlabMock(
+      JSON.stringify({
+        id: 456,
+        email: "gitlab@example.com",
+        confirmed_at: "",
+      }),
+    );
+
+    const user = await provider.FetchAuthUser({
+      accessToken: "access_2b",
+    });
+
+    expect(user.Email).toBe("");
   });
 
   it("FetchAuthUser rejects malformed user payload", async () => {
