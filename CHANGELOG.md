@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.37.4-pocketbun.1 (Unreleased)
+## 0.37.4-pocketbun.1 - 2026-04-28
 
 - Generated JS collection migrations now use `const migrationApp = app.forMigrations()` so schema changes skip user hooks while preserving PocketBun system hooks required for collection persistence. Existing generated collection/schema migrations should be updated to use `migrationApp.findCollectionByNameOrId(...)`, `migrationApp.save(collection)`, `migrationApp.delete(collection)`, and `app.forMigrations().importCollections(...)` for snapshots so fresh database replays do not run current business hooks.
   - The docs now explain that this intentionally differs from PocketBase's upstream position and link to Rails' migration guidance for the same replay hazard.
