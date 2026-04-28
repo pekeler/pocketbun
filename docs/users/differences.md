@@ -158,7 +158,7 @@ For generated collection snapshots, use:
 return app.forMigrations().importCollections(snapshot, false)
 ```
 
-Raw SQL/data migrations do not need this helper. Record/settings migrations should keep using the normal app unless you explicitly want to bypass user hooks.
+Raw SQL/data migrations that already operate directly on persisted tables do not need this helper. Do not treat `forMigrations()` as permission to write model-level record/settings migrations; prefer SQL or migration-local data transforms. Only call normal app/model save APIs from a committed migration when replaying today's hooks and validators is the intended behavior.
 
 ## Async API Extensions
 
