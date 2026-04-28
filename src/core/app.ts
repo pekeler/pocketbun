@@ -171,12 +171,16 @@ export interface App {
   AuxSaveNoValidateWithContext(ctx: unknown, model: Model): Promise<Error | null>;
   Delete(model: Model): Promise<Error | null>;
   DeleteWithContext(ctx: unknown, model: Model): Promise<Error | null>;
+  DeleteSync(model: Model): Error | null;
+  DeleteWithContextSync(ctx: unknown, model: Model): Error | null;
   Validate(model: Model): Promise<Error | null>;
   ValidateWithContext(ctx: unknown, model: Model): Promise<Error | null>;
   ValidateSync(model: Model): Error | null;
   TruncateCollection(collection: Collection): Promise<Error | null>;
   ImportCollectionsByMarshaledJSON(rawSliceOfMaps: string | Uint8Array, deleteMissing: boolean): Promise<Error | null>;
   ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Promise<Error | null>;
+  ImportCollectionsByMarshaledJSONSync(rawSliceOfMaps: string | Uint8Array, deleteMissing: boolean): Error | null;
+  ImportCollectionsSync(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Error | null;
   RunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null>;
   // AuxRunInTransaction wraps fn into a transaction for the auxiliary app database.
   AuxRunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null>;
@@ -189,8 +193,8 @@ export interface App {
   UnsafeWithoutHooks(): App;
   // PocketBun deviation: ForMigrations returns a shallow app copy intended for migration code.
   //
-  // It preserves PocketBun system hooks while omitting user hooks registered
-  // after app construction. This follows the migration-safety principle in
+  // It preserves PocketBun's synchronous schema/settings system hooks while
+  // omitting user hooks registered after app construction. This follows the migration-safety principle in
   // https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations.
   ForMigrations(): App;
   forMigrations(): App;

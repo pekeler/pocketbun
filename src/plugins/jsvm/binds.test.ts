@@ -414,6 +414,144 @@ describe("jsvm binds", () => {
     expect(data.b).toBe(456);
   });
 
+  it("base binds unmarshal follows upstream plain object merge semantics", () => {
+    const scope: BindScope = {};
+    baseBinds(scope);
+
+    const data: Record<string, unknown> = {
+      a: 123,
+      nested: { subject: "keep", body: "old" },
+      items: [1, 2, 3],
+      nullable: "value",
+    };
+
+    scope.unmarshal(
+      {
+        b: 456,
+        nested: { body: "changed" },
+        items: [9],
+        nullable: null,
+        omitted: undefined,
+      },
+      data,
+    );
+
+    expect(data.a).toBe(123);
+    expect(data.b).toBe(456);
+    expect(data.nested).toEqual({ body: "changed" });
+    expect(data.items).toEqual([9]);
+    expect(data.nullable).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(data, "omitted")).toBe(false);
+  });
+
+  it("base binds unmarshal delegates to target JSON unmarshal hooks", () => {
+    const scope: BindScope = {};
+    baseBinds(scope);
+    const data = {
+      nested: { subject: "keep", body: "old" },
+      UnmarshalJSON(raw: string): Error | null {
+        const parsed = JSON.parse(raw) as { nested?: { subject?: string; body?: string } };
+        if (Object.prototype.hasOwnProperty.call(parsed.nested ?? {}, "subject")) {
+          this.nested.subject = parsed.nested?.subject ?? "";
+        }
+        if (Object.prototype.hasOwnProperty.call(parsed.nested ?? {}, "body")) {
+          this.nested.body = parsed.nested?.body ?? "";
+        }
+        return null;
+      },
+    };
+
+    scope.unmarshal({ nested: { body: "changed" } }, data);
+
+    expect(data.nested.subject).toBe("keep");
+    expect(data.nested.body).toBe("changed");
+  });
+
+  it("base binds unmarshal propagates target JSON unmarshal errors", () => {
+    const scope: BindScope = {};
+    baseBinds(scope);
+    const data = {
+      UnmarshalJSON(): Error {
+        return new Error("custom unmarshal failure");
+      },
+    };
+
+    expect(() => scope.unmarshal({ a: 123 }, data)).toThrow("custom unmarshal failure");
+  });
+
+  it("base binds unmarshal applies collection JSON semantics", () => {
+    const scope: BindScope = {};
+    baseBinds(scope);
+
+    const collection = new scope.Collection({
+      type: "auth",
+      name: "test_users",
+      authRule: "@request.auth.id != ''",
+      indexes: ["CREATE INDEX idx_old ON test_users (email)"],
+      fields: [
+        { id: "title_id", name: "title", type: "text" },
+        { id: "score_id", name: "score", type: "number", min: 1, max: 10 },
+      ],
+      authAlert: {
+        enabled: true,
+        emailTemplate: {
+          subject: "Original subject",
+          body: "<p>Original body</p>",
+        },
+      },
+      oauth2: {
+        enabled: true,
+        mappedFields: {
+          id: "oauth_id",
+          name: "display_name",
+          username: "handle",
+          avatarURL: "avatar",
+        },
+      },
+      fileToken: {
+        duration: 180,
+      },
+    });
+    const originalFileTokenSecret = collection.fileToken.secret;
+
+    scope.unmarshal(
+      {
+        authRule: null,
+        indexes: ["CREATE INDEX idx_new ON test_users (score)"],
+        fields: [{ id: "flag_id", name: "flag", type: "bool" }],
+        authAlert: {
+          emailTemplate: {
+            body: "<p>Changed body</p>",
+          },
+        },
+        oauth2: {
+          mappedFields: {
+            username: "new_handle",
+          },
+        },
+        fileToken: {
+          duration: 300,
+        },
+      },
+      collection,
+    );
+
+    expect(collection.authRule).toBeNull();
+    expect(collection.indexes).toEqual(["CREATE INDEX idx_new ON test_users (score)"]);
+    expect(collection.fields.getByName("title")).toBeNull();
+    expect(collection.fields.getByName("flag")).not.toBeNull();
+    expect(collection.authAlert.enabled).toBe(true);
+    expect(collection.authAlert.emailTemplate.subject).toBe("Original subject");
+    expect(collection.authAlert.emailTemplate.body).toBe("<p>Changed body</p>");
+    expect(collection.oauth2.enabled).toBe(true);
+    expect(collection.oauth2.mappedFields.id).toBe("oauth_id");
+    expect(collection.oauth2.mappedFields.name).toBe("display_name");
+    expect(collection.oauth2.mappedFields.username).toBe("new_handle");
+    expect(collection.oauth2.mappedFields.avatarURL).toBe("avatar");
+    expect(collection.fileToken.secret).toBe(originalFileTokenSecret);
+    expect(collection.fileToken.duration).toBe(300);
+  });
+
   it("base binds unmarshal applies generated auth option diffs before saving", async () => {
     const { app, cleanup } = await newTestApp();
     try {
@@ -422,12 +560,11 @@ describe("jsvm binds", () => {
       appBinds(scope, app);
 
       const collection = scope.$app.findCollectionByNameOrId("_pb_users_auth_");
+      const originalSubject = collection.authAlert.emailTemplate.subject;
       scope.unmarshal(
         {
           authAlert: {
-            enabled: true,
             emailTemplate: {
-              subject: "Generated auth alert subject",
               body: "<p>Generated auth alert body</p>",
             },
           },
@@ -451,9 +588,47 @@ describe("jsvm binds", () => {
         };
       };
 
-      expect(options.authAlert?.enabled).toBe(true);
-      expect(options.authAlert?.emailTemplate?.subject).toBe("Generated auth alert subject");
+      expect(options.authAlert?.emailTemplate?.subject).toBe(originalSubject);
       expect(options.authAlert?.emailTemplate?.body).toBe("<p>Generated auth alert body</p>");
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("base binds forMigrations keeps app save, delete, and import semantics", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      appBinds(scope, app);
+
+      const migrationApp = scope.$app.forMigrations();
+      const collection = migrationApp.findCollectionByNameOrId("_pb_users_auth_");
+      collection.listRule = "@request.auth.id != ''";
+
+      const result = migrationApp.save(collection);
+      expect(result).toBeNull();
+
+      const saved = app.FindCollectionByNameOrId("_pb_users_auth_");
+      expect(saved.ListRule).toBe("@request.auth.id != ''");
+
+      const importResult = migrationApp.importCollections(
+        [
+          {
+            name: "jsvm_imported",
+            type: "base",
+            fields: [{ name: "title", type: "text" }],
+          },
+        ],
+        false,
+      );
+      expect(importResult).toBeNull();
+
+      const imported = app.FindCollectionByNameOrId("jsvm_imported");
+      expect(imported.Fields.GetByName("title")).not.toBeNull();
+
+      const deleteResult = migrationApp.delete(imported);
+      expect(deleteResult).toBeNull();
+      expect(() => app.FindCollectionByNameOrId("jsvm_imported")).toThrow();
     } finally {
       await cleanup();
     }
@@ -548,9 +723,15 @@ describe("jsvm binds", () => {
     });
 
     expect(collection).toBeInstanceOf(Collection);
+    expect(collection.type).toBe("base");
+    expect(collection.id.startsWith("pbc_")).toBe(true);
     expect(collection.name).toBe("test");
     expect(collection.createRule).toBe("@request.auth.id != ''");
     expect(collection.Fields.GetByName("title")).not.toBeNull();
+
+    const empty = new scope.Collection();
+    expect(empty.type).toBe("");
+    expect(empty.id).toBe("");
   });
 
   it("base binds collection helpers support jsvm-style lower-camel access", () => {

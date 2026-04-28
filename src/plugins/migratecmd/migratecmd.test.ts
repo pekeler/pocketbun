@@ -3,7 +3,7 @@
 import type { Dirent } from "node:fs";
 import { describe, it } from "bun:test";
 import { readFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { NewAuthCollection } from "../../core/collection_model.ts";
 import { OAuth2ProviderConfig } from "../../core/collection_model_auth_options.ts";
 import { RequestEvent } from "../../core/event_request.ts";
@@ -11,8 +11,12 @@ import { CollectionRequestEvent } from "../../core/events.ts";
 import { BoolField } from "../../core/field_bool.ts";
 import { NumberField } from "../../core/field_number.ts";
 import { TextField } from "../../core/field_text.ts";
+import { MigrationsList } from "../../core/migrations_list.ts";
+import { MigrationsRunner } from "../../core/migrations_runner.ts";
 import { newTestApp } from "../../tests/app.ts";
 import { JSONArray, Pointer } from "../../tools/types/index.ts";
+import { appBinds } from "../jsvm/binds.ts";
+import { Register as RegisterJSVM } from "../jsvm/jsvm.ts";
 import { MustRegister, TemplateLangGo, TemplateLangJS } from "./migratecmd.ts";
 
 const createExpectedJS = String.raw`
@@ -1359,6 +1363,129 @@ describe("migratecmd automigrate", () => {
         throw new Error(`Expected 0 files to be generated, got ${files.length}`);
       }
 
+      await cleanup();
+    }
+  });
+
+  it.serial("generated JS collection migrations replay collection and nested auth template changes", async () => {
+    const { app, cleanup } = await newTestApp(undefined, { bindEventCounters: false });
+    const migrationsDir = join(app.DataDir(), "_test_migrations");
+    const hooksDir = join(app.DataDir(), "_test_hooks");
+
+    try {
+      MustRegister(app, null, {
+        TemplateLang: TemplateLangJS,
+        Automigrate: true,
+        Dir: migrationsDir,
+      });
+      app.bootstrap();
+
+      const authCollection = NewAuthCollection("migration_auth_replay");
+      const displayName = new TextField();
+      displayName.Name = "displayName";
+      displayName.Required = true;
+      authCollection.Fields.Add(displayName);
+
+      const subscribed = new BoolField();
+      subscribed.Name = "subscribed";
+      authCollection.Fields.Add(subscribed);
+
+      const requestEvent = new RequestEvent({ app, request: new Request("http://127.0.0.1") });
+      let event = new CollectionRequestEvent(requestEvent, authCollection);
+      let result = await app.OnCollectionCreateRequest().Trigger(event, async (e) => e.App.Save(e.Collection));
+      if (result instanceof Error) {
+        throw new Error(`Failed to create migration replay collection, got ${result.message}`);
+      }
+
+      const updated = app.FindCollectionByNameOrId("migration_auth_replay");
+      const score = new NumberField();
+      score.Name = "score";
+      score.Min = Pointer(1);
+      score.Max = Pointer(5);
+      updated.Fields.Add(score);
+      updated.UpdateRule = Pointer("@request.auth.id != ''");
+
+      event = new CollectionRequestEvent(requestEvent, updated);
+      result = await app.OnCollectionUpdateRequest().Trigger(event, async (e) => e.App.Save(e.Collection));
+      if (result instanceof Error) {
+        throw new Error(`Failed to update migration replay collection, got ${result.message}`);
+      }
+
+      const users = app.FindCollectionByNameOrId("users");
+      const originalAuthAlertSubject = users.AuthAlert.EmailTemplate.Subject;
+      users.AuthAlert.EmailTemplate.Body = "<p>Generated auth alert body-only migration.</p>";
+
+      event = new CollectionRequestEvent(requestEvent, users);
+      result = await app.OnCollectionUpdateRequest().Trigger(event, async (e) => e.App.Save(e.Collection));
+      if (result instanceof Error) {
+        throw new Error(`Failed to update users auth template, got ${result.message}`);
+      }
+
+      const files = await readdir(migrationsDir, { withFileTypes: true });
+      if (files.length !== 3) {
+        throw new Error(`Expected 3 generated migrations, got ${files.length}`);
+      }
+
+      const generatedUsersMigration = files.find((file) => file.name.includes("_updated_users.js"));
+      if (!generatedUsersMigration) {
+        throw new Error("Expected users auth template migration to be generated");
+      }
+      const generatedUsersContent = await readFile(join(migrationsDir, generatedUsersMigration.name), "utf8");
+      if (!generatedUsersContent.includes('"authAlert"') || !generatedUsersContent.includes('"body"')) {
+        throw new Error(`Expected users migration to include authAlert body diff, got:\n${generatedUsersContent}`);
+      }
+      if (generatedUsersContent.includes('"subject"')) {
+        throw new Error(`Expected generated authAlert diff to omit unchanged subject, got:\n${generatedUsersContent}`);
+      }
+
+      const { app: replayApp, cleanup: replayCleanup } = await newTestApp(undefined, { bindEventCounters: false });
+      try {
+        const replayMigrations = new MigrationsList();
+        const registerErr = RegisterJSVM(replayApp, {
+          HooksDir: hooksDir,
+          MigrationsDir: migrationsDir,
+          TypesDir: app.DataDir(),
+          OnInit: (globals) => {
+            globals.migrate = (up: (txApp: typeof replayApp) => void, down?: (txApp: typeof replayApp) => void): void => {
+              const toScriptApp = (txApp: typeof replayApp): typeof replayApp => {
+                const scope: Record<string, unknown> = {};
+                appBinds(scope, txApp);
+                return scope.$app as typeof replayApp;
+              };
+              const fileName = typeof globals.__filename === "string" ? basename(globals.__filename) : "";
+              replayMigrations.register(
+                (txApp) => up(toScriptApp(txApp as typeof replayApp)),
+                down ? (txApp) => down(toScriptApp(txApp as typeof replayApp)) : undefined,
+                fileName,
+              );
+            };
+          },
+        });
+        if (registerErr) {
+          throw registerErr;
+        }
+
+        new MigrationsRunner(replayApp, replayMigrations).Up();
+
+        const replayedAuthCollection = replayApp.FindCollectionByNameOrId("migration_auth_replay");
+        if (!replayedAuthCollection.Fields.GetByName("score")) {
+          throw new Error("Expected generated collection update migration to replay the score field");
+        }
+        if (replayedAuthCollection.UpdateRule !== "@request.auth.id != ''") {
+          throw new Error(`Expected generated collection updateRule to replay, got ${replayedAuthCollection.UpdateRule}`);
+        }
+
+        const replayedUsers = replayApp.FindCollectionByNameOrId("users");
+        if (replayedUsers.AuthAlert.EmailTemplate.Subject !== originalAuthAlertSubject) {
+          throw new Error("Expected authAlert email subject to be preserved while replaying body-only migration");
+        }
+        if (replayedUsers.AuthAlert.EmailTemplate.Body !== "<p>Generated auth alert body-only migration.</p>") {
+          throw new Error("Expected authAlert email body to be updated while replaying generated migration");
+        }
+      } finally {
+        await replayCleanup();
+      }
+    } finally {
       await cleanup();
     }
   });

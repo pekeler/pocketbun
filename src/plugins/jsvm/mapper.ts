@@ -4,6 +4,12 @@ const nameExceptions: Record<string, string> = {
   OAuth2: "oauth2",
 };
 
+const reverseNameExceptions: Record<string, string> = {
+  mfa: "MFA",
+  oauth2: "OAuth2",
+  otp: "OTP",
+};
+
 export function convertGoToJSName(name: string): string {
   if (nameExceptions[name]) {
     return nameExceptions[name] ?? name;
@@ -33,6 +39,14 @@ export function convertGoToJSName(name: string): string {
   }
 
   return `${name.slice(0, 1).toLowerCase()}${name.slice(1)}`;
+}
+
+export function convertJSToGoName(name: string): string {
+  if (reverseNameExceptions[name]) {
+    return reverseNameExceptions[name] ?? name;
+  }
+
+  return `${name.slice(0, 1).toUpperCase()}${name.slice(1)}`;
 }
 
 export class FieldMapper {

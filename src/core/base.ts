@@ -50,7 +50,12 @@ import {
   registerAutobackupHooks as registerAutobackupHooksHelper,
 } from "./base_backup.ts";
 import { LocalAutocertCacheDirName, LocalBackupsDirName, LocalStorageDirName, LocalTempDirName } from "./base_paths.ts";
-import { importCollections, importCollectionsByMarshaledJSON } from "./collection_import.ts";
+import {
+  importCollections,
+  importCollectionsByMarshaledJSON,
+  importCollectionsByMarshaledJSONSync,
+  importCollectionsSync,
+} from "./collection_import.ts";
 import {
   Collection,
   CollectionTypeAuth,
@@ -1528,10 +1533,14 @@ export class BaseApp implements App {
   }
 
   // PocketBun deviation: migration app views skip user hooks while preserving
-  // system hooks, so generated schema migrations remain replayable after app
-  // hook logic changes.
+  // the synchronous system hooks required for schema persistence.
   ForMigrations(): App {
-    return this.cloneWithSharedState();
+    const clone = this.cloneWithSharedState();
+    clone.resetHooks();
+    clone.registerSettingsHooks();
+    clone.registerCollectionHooks();
+    clone.#hooksEnabled = true;
+    return clone;
   }
 
   forMigrations(): App {
@@ -3263,6 +3272,136 @@ export class BaseApp implements App {
     return afterErr ?? null;
   }
 
+  DeleteSync(model: Model): Error | null {
+    const recordInfo = resolveRecordProxy(model);
+    if (recordInfo) {
+      const { record, model: eventModel } = recordInfo;
+      const modelEvent = new ModelEvent(this, eventModel, ModelEventTypeDelete);
+      const action = InterceptorActionDelete;
+      const executeAction = InterceptorActionDeleteExecute;
+      const afterSuccess = InterceptorActionAfterDelete;
+      const afterError = InterceptorActionAfterDeleteError;
+      const modelDeleteHook = this.OnModelDelete();
+      const modelDeleteExecuteHook = this.OnModelDeleteExecute();
+      const modelAfterDeleteSuccessHook = this.OnModelAfterDeleteSuccess();
+      const modelAfterDeleteErrorHook = this.OnModelAfterDeleteError();
+
+      const runDelete = (): Error | null =>
+        this.runRecordInterceptorsSync(record, action, () =>
+          this.runRecordInterceptorsSync(record, executeAction, () => this.deleteRecordSync(record)),
+        );
+      const runDeleteExecute = (): Error | null => {
+        if (modelDeleteExecuteHook.Length() === 0) {
+          return runDelete();
+        }
+
+        return ensureSyncHookResult(modelDeleteExecuteHook.Trigger(modelEvent, runDelete), "OnModelDeleteExecute");
+      };
+      const deleteErr =
+        modelDeleteHook.Length() === 0
+          ? runDeleteExecute()
+          : ensureSyncHookResult(modelDeleteHook.Trigger(modelEvent, runDeleteExecute), "OnModelDelete");
+
+      if (deleteErr) {
+        if (modelAfterDeleteErrorHook.Length() === 0) {
+          const afterErr = this.runRecordInterceptorsSync(record, afterError, () => deleteErr);
+          return afterErr ?? deleteErr;
+        }
+
+        const errorEvent = new ModelErrorEvent(modelEvent, deleteErr);
+        const afterErr = ensureSyncHookResult(
+          modelAfterDeleteErrorHook.Trigger(errorEvent, () =>
+            this.runRecordInterceptorsSync(record, afterError, () => errorEvent.Error),
+          ),
+          "OnModelAfterDeleteError",
+        );
+        return afterErr ?? errorEvent.Error;
+      }
+
+      if (this.#txInfo) {
+        this.#txInfo.OnComplete((txErr) => {
+          if (txErr) {
+            if (modelAfterDeleteErrorHook.Length() === 0) {
+              const result = this.runRecordInterceptorsSync(record, afterError, () => txErr);
+              return result ?? null;
+            }
+
+            const errorEvent = new ModelErrorEvent(modelEvent, txErr);
+            const result = ensureSyncHookResult(
+              modelAfterDeleteErrorHook.Trigger(errorEvent, () =>
+                this.runRecordInterceptorsSync(record, afterError, () => errorEvent.Error),
+              ),
+              "OnModelAfterDeleteError",
+            );
+            return result ?? null;
+          }
+
+          if (modelAfterDeleteSuccessHook.Length() === 0) {
+            const result = this.runRecordInterceptorsSync(record, afterSuccess, () => null);
+            return result ?? null;
+          }
+
+          const result = ensureSyncHookResult(
+            modelAfterDeleteSuccessHook.Trigger(modelEvent, () =>
+              this.runRecordInterceptorsSync(record, afterSuccess, () => null),
+            ),
+            "OnModelAfterDeleteSuccess",
+          );
+          return result ?? null;
+        });
+        return null;
+      }
+
+      const afterErr =
+        modelAfterDeleteSuccessHook.Length() === 0
+          ? this.runRecordInterceptorsSync(record, afterSuccess, () => null)
+          : ensureSyncHookResult(
+              modelAfterDeleteSuccessHook.Trigger(modelEvent, () =>
+                this.runRecordInterceptorsSync(record, afterSuccess, () => null),
+              ),
+              "OnModelAfterDeleteSuccess",
+            );
+      return afterErr ?? null;
+    }
+
+    if (!(model instanceof Collection)) {
+      return this.deleteGenericModelSync(model);
+    }
+
+    const modelEvent = new ModelEvent(this, model, ModelEventTypeDelete);
+    const deleteErr = ensureSyncHookResult(
+      this.OnModelDelete().Trigger(modelEvent, () =>
+        this.OnModelDeleteExecute().Trigger(modelEvent, () => this.deleteCollection(model)),
+      ),
+      "OnModelDelete",
+    );
+    if (deleteErr) {
+      const errorEvent = new ModelErrorEvent(modelEvent, deleteErr);
+      const afterErr = ensureSyncHookResult(
+        this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error),
+        "OnModelAfterDeleteError",
+      );
+      return afterErr ?? errorEvent.Error;
+    }
+    if (this.#txInfo) {
+      this.#txInfo.OnComplete((txErr) => {
+        if (txErr) {
+          const errorEvent = new ModelErrorEvent(modelEvent, txErr);
+          const result = this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error);
+          return ensureSyncHookResult(result, "OnModelAfterDeleteError") ?? null;
+        }
+        const result = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null);
+        return ensureSyncHookResult(result, "OnModelAfterDeleteSuccess") ?? null;
+      });
+      return null;
+    }
+    const afterErr = ensureSyncHookResult(
+      this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null),
+      "OnModelAfterDeleteSuccess",
+    );
+    return afterErr ?? null;
+  }
+
   async RunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null> {
     return RunInTransactionHelper(
       {
@@ -3308,6 +3447,10 @@ export class BaseApp implements App {
     return this.Delete(model);
   }
 
+  DeleteWithContextSync(_ctx: unknown, model: Model): Error | null {
+    return this.DeleteSync(model);
+  }
+
   // TruncateCollection deletes all records associated with the provided collection.
   //
   // The truncate operation is executed in a single transaction,
@@ -3325,6 +3468,10 @@ export class BaseApp implements App {
     return importCollectionsByMarshaledJSON(this, rawSliceOfMaps, deleteMissing);
   }
 
+  ImportCollectionsByMarshaledJSONSync(rawSliceOfMaps: string | Uint8Array, deleteMissing: boolean): Error | null {
+    return importCollectionsByMarshaledJSONSync(this, rawSliceOfMaps, deleteMissing);
+  }
+
   // ImportCollections imports the provided collections data in a single transaction.
   //
   // For existing matching collections, the imported data is unmarshaled on top of the existing model.
@@ -3334,6 +3481,10 @@ export class BaseApp implements App {
   // (this includes their related records data).
   async ImportCollections(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Promise<Error | null> {
     return importCollections(this, toImport, deleteMissing);
+  }
+
+  ImportCollectionsSync(toImport: Array<Record<string, unknown>>, deleteMissing: boolean): Error | null {
+    return importCollectionsSync(this, toImport, deleteMissing);
   }
 
   SyncRecordTableSchema(newCollection: Collection, oldCollection: Collection | null): Promise<Error | null> {
@@ -3713,6 +3864,22 @@ export class BaseApp implements App {
     }, defaultMaxLockRetries);
   }
 
+  private deleteRecordSync(record: RecordModel): Error | null {
+    const pk = record.LastSavedPK();
+    if (!pk) {
+      return new Error("the model can be deleted only if it is existing and has a non-empty primary key");
+    }
+
+    return baseLockRetrySync(() => {
+      try {
+        this.db().run(`delete from {{${record.TableName()}}} where id = ?`, [pk]);
+        return null;
+      } catch (error) {
+        return error as Error;
+      }
+    }, defaultMaxLockRetries);
+  }
+
   private async deleteGenericModel(model: Model): Promise<Error | null> {
     const pk = model.LastSavedPK();
     if (!pk) {
@@ -3754,6 +3921,59 @@ export class BaseApp implements App {
     }
 
     const afterErr = (await this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null)) as Error | null;
+    return afterErr ?? null;
+  }
+
+  private deleteGenericModelSync(model: Model): Error | null {
+    const pk = model.LastSavedPK();
+    if (!pk) {
+      return new Error("the model can be deleted only if it is existing and has a non-empty primary key");
+    }
+
+    const modelEvent = new ModelEvent(this, model, ModelEventTypeDelete);
+
+    const deleteErr = ensureSyncHookResult(
+      this.OnModelDelete().Trigger(modelEvent, () =>
+        this.OnModelDeleteExecute().Trigger(modelEvent, () =>
+          baseLockRetrySync(() => {
+            try {
+              this.db().run(`delete from {{${model.TableName()}}} where [[id]] = ?`, [normalizeDbValue(pk)]);
+              return null;
+            } catch (error) {
+              return error as Error;
+            }
+          }, defaultMaxLockRetries),
+        ),
+      ),
+      "OnModelDelete",
+    );
+
+    if (deleteErr) {
+      const errorEvent = new ModelErrorEvent(modelEvent, deleteErr);
+      const afterErr = ensureSyncHookResult(
+        this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error),
+        "OnModelAfterDeleteError",
+      );
+      return afterErr ?? errorEvent.Error;
+    }
+
+    if (this.#txInfo) {
+      this.#txInfo.OnComplete((txErr) => {
+        if (txErr) {
+          const errorEvent = new ModelErrorEvent(modelEvent, txErr);
+          const result = this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error);
+          return ensureSyncHookResult(result, "OnModelAfterDeleteError") ?? null;
+        }
+        const result = this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null);
+        return ensureSyncHookResult(result, "OnModelAfterDeleteSuccess") ?? null;
+      });
+      return null;
+    }
+
+    const afterErr = ensureSyncHookResult(
+      this.OnModelAfterDeleteSuccess().Trigger(modelEvent, () => null),
+      "OnModelAfterDeleteSuccess",
+    );
     return afterErr ?? null;
   }
 

@@ -10,6 +10,7 @@ PocketBun is a separate open-source project and must **clearly credit PocketBase
 
 ## Repository Guidelines
 - Repo: https://github.com/pekeler/pocketbun
+- Trunk-based development: work directly on `master` unless the repo owner explicitly asks for a branch. Do not create `codex/*` or other task branches by default.
 - GitHub issues/comments/PR comments: use literal multiline strings or `-F - <<'EOF'` (or $'...') for real newlines; never embed "\\n".
 
 ## Top priority: compatibility

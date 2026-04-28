@@ -1,7 +1,7 @@
 // Ported from pocketbase/plugins/jsvm/mapper_test.go
 
 import { describe, expect, it } from "bun:test";
-import { FieldMapper } from "./mapper.ts";
+import { FieldMapper, convertJSToGoName } from "./mapper.ts";
 
 describe("jsvm FieldMapper", () => {
   it("maps Go names to JS names", () => {
@@ -27,6 +27,20 @@ describe("jsvm FieldMapper", () => {
       const methodName = mapper.MethodName(null, { Name: input });
       expect(fieldName).toBe(expected);
       expect(methodName).toBe(expected);
+    }
+  });
+
+  it("maps JS names to Go names for runtime bind access", () => {
+    const scenarios: Array<[string, string]> = [
+      ["test", "Test"],
+      ["createRule", "CreateRule"],
+      ["mfa", "MFA"],
+      ["oauth2", "OAuth2"],
+      ["otp", "OTP"],
+    ];
+
+    for (const [input, expected] of scenarios) {
+      expect(convertJSToGoName(input)).toBe(expected);
     }
   });
 });

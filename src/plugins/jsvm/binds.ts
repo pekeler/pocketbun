@@ -115,7 +115,7 @@ import {
 } from "../../tools/security/random.ts";
 import { JSONRaw, JSONArray, JSONMap, DateTime, NowDateTime } from "../../tools/types/index.ts";
 import { FormData as HooksFormData } from "./form_data.ts";
-import { convertGoToJSName } from "./mapper.ts";
+import { convertGoToJSName, convertJSToGoName } from "./mapper.ts";
 
 const DynamicModelShapeKey = "__pbDynamicModelShape";
 const DynamicModelFactoryKey = "__pbDynamicModelFactory";
@@ -179,7 +179,28 @@ export function appBinds(target: BindTarget, app: App): void {
   defineAppAccessor(target, app);
 }
 
+const appProxyCache = new WeakMap<object, object>();
+const boundValueProxyCache = new WeakMap<object, object>();
+const boundValueTargetCache = new WeakMap<object, object>();
+
+// App is an interface, so app values returned through events or forMigrations()
+// need a runtime check to keep the app-specific sync wrappers.
+function isAppLike(value: unknown): value is App {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "SaveSync" in value &&
+    "RunInTransactionSync" in value &&
+    "FindCollectionByNameOrId" in value
+  );
+}
+
 function wrapApp<T extends object>(app: T): T {
+  const existing = appProxyCache.get(app);
+  if (existing) {
+    return existing as T;
+  }
+
   const saveOverrides: Record<string, { sync: string; async: string; modelArgIndex: number }> = {
     save: { sync: "SaveSync", async: "Save", modelArgIndex: 0 },
     saveNoValidate: { sync: "SaveNoValidateSync", async: "SaveNoValidate", modelArgIndex: 0 },
@@ -192,6 +213,10 @@ function wrapApp<T extends object>(app: T): T {
   };
 
   const syncOverrides: Record<string, string> = {
+    delete: "DeleteSync",
+    deleteWithContext: "DeleteWithContextSync",
+    importCollections: "ImportCollectionsSync",
+    importCollectionsByMarshaledJSON: "ImportCollectionsByMarshaledJSONSync",
     validate: "ValidateSync",
     runInTransaction: "RunInTransactionSync",
     saveView: "SaveViewSync",
@@ -224,7 +249,7 @@ function wrapApp<T extends object>(app: T): T {
     return resolveMappedProperty(target, prop, receiver);
   };
 
-  return new Proxy(app, {
+  const proxy = new Proxy(app, {
     get(target, prop, receiver) {
       const value = resolveAppProperty(target, prop, receiver);
       if (typeof value === "function") {
@@ -236,15 +261,19 @@ function wrapApp<T extends object>(app: T): T {
           if (result instanceof Error) {
             throw result;
           }
-          return wrapBoundValue(result);
+          return isAppLike(result) ? wrapApp(result as object) : wrapBoundValue(result);
         };
       }
-      return wrapBoundValue(value as unknown);
+      return isAppLike(value) ? wrapApp(value as object) : wrapBoundValue(value as unknown);
     },
     set(target, prop, value, receiver) {
       return setMappedProperty(target, prop, value, receiver);
     },
   });
+
+  appProxyCache.set(app, proxy);
+  boundValueTargetCache.set(proxy, app);
+  return proxy as T;
 }
 
 const asyncSaveInterceptorCollections = new WeakSet<object>();
@@ -631,7 +660,7 @@ function queryValuesToJSON(query: URLSearchParams): Record<string, string[]> {
 
 function resolveMappedProperty(target: object, prop: string | symbol, receiver: unknown): unknown {
   if (typeof prop === "string") {
-    const candidate = prop.slice(0, 1).toUpperCase() + prop.slice(1);
+    const candidate = convertJSToGoName(prop);
     if (candidate in target) {
       return (target as Record<string, unknown>)[candidate];
     }
@@ -645,7 +674,7 @@ function resolveMappedProperty(target: object, prop: string | symbol, receiver: 
 function setMappedProperty(target: object, prop: string | symbol, value: unknown, receiver: unknown): boolean {
   const unwrappedValue = unwrapBoundValue(value);
   if (typeof prop === "string") {
-    const candidate = prop.slice(0, 1).toUpperCase() + prop.slice(1);
+    const candidate = convertJSToGoName(prop);
     if (candidate in target) {
       (target as Record<string, unknown>)[candidate] = unwrappedValue;
       return true;
@@ -660,9 +689,6 @@ function setMappedProperty(target: object, prop: string | symbol, value: unknown
 
 // wrapBoundValue maps bound Go-style names to the JS style expected by jsvm scripts
 // (eg. `Fields.Add` <-> `fields.add`) and applies recursively to returned objects.
-const boundValueProxyCache = new WeakMap<object, object>();
-const boundValueTargetCache = new WeakMap<object, object>();
-
 function wrapBoundValue<T>(value: T): T {
   if (!value || (typeof value !== "object" && typeof value !== "function")) {
     return value;
@@ -681,6 +707,10 @@ function wrapBoundValue<T>(value: T): T {
   }
 
   const objectValue = value as unknown as object;
+  if (isAppLike(objectValue)) {
+    return wrapApp(objectValue) as T;
+  }
+
   const existing = boundValueProxyCache.get(objectValue);
   if (existing) {
     return existing as T;
@@ -793,21 +823,32 @@ function sleep(ms: number): void {
 function unmarshal(data: unknown, dst: Record<string, unknown>): void {
   const raw = JSON.stringify(data ?? {});
   const target = unwrapBoundValue(dst);
+  const err = unmarshalJSONIntoTarget(raw, target);
+  if (err) {
+    throw err;
+  }
+}
+
+function unmarshalJSONIntoTarget(raw: string, target: unknown): Error | null {
   if (target && typeof target === "object") {
     const unmarshalJSON = (target as { UnmarshalJSON?: unknown }).UnmarshalJSON;
     if (typeof unmarshalJSON === "function") {
       const err = unmarshalJSON.call(target, raw);
       if (err instanceof Error) {
-        throw err;
+        return err;
       }
-      return;
+      return null;
     }
   }
 
   const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-  for (const [key, value] of Object.entries(parsed)) {
-    target[key] = value;
+  if (target && typeof target === "object" && parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    for (const [key, value] of Object.entries(parsed)) {
+      (target as Record<string, unknown>)[key] = value;
+    }
   }
+
+  return null;
 }
 
 class Context {
@@ -1225,11 +1266,13 @@ export function baseBinds(target: BindTarget): void {
     }
   };
   target.Collection = class CollectionWrapper extends Collection {
-    constructor(values: Record<string, unknown> = {}) {
-      super(values);
-      if (Array.isArray(values.fields)) {
-        this.Fields = NewFieldsList();
-        this.Fields.AddMarshaledJSON(JSON.stringify(values.fields));
+    constructor(values?: Record<string, unknown>) {
+      super();
+      if (values !== undefined) {
+        const err = this.UnmarshalJSON(JSON.stringify(values));
+        if (err) {
+          throw err;
+        }
       }
       return wrapBoundValue(this as unknown as object) as CollectionWrapper;
     }
