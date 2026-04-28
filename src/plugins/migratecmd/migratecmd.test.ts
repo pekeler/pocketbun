@@ -18,6 +18,7 @@ import { MustRegister, TemplateLangGo, TemplateLangJS } from "./migratecmd.ts";
 const createExpectedJS = String.raw`
 /// <reference path="../pb_data/types.d.ts" />
 migrate((app) => {
+  const migrationApp = app.forMigrations();
   const collection = new Collection({
     "authAlert": {
       "emailTemplate": {
@@ -178,11 +179,12 @@ migrate((app) => {
     "viewRule": "id = \"1\""
   });
 
-  return app.save(collection);
+  return migrationApp.save(collection);
 }, (app) => {
-  const collection = app.findCollectionByNameOrId("@TEST_RANDOM");
+  const migrationApp = app.forMigrations();
+  const collection = migrationApp.findCollectionByNameOrId("@TEST_RANDOM");
 
-  return app.delete(collection);
+  return migrationApp.delete(collection);
 })
 `;
 
@@ -378,10 +380,12 @@ func init() {
 const deleteExpectedJS = String.raw`
 /// <reference path="../pb_data/types.d.ts" />
 migrate((app) => {
-  const collection = app.findCollectionByNameOrId("@TEST_RANDOM");
+  const migrationApp = app.forMigrations();
+  const collection = migrationApp.findCollectionByNameOrId("@TEST_RANDOM");
 
-  return app.delete(collection);
+  return migrationApp.delete(collection);
 }, (app) => {
+  const migrationApp = app.forMigrations();
   const collection = new Collection({
     "authAlert": {
       "emailTemplate": {
@@ -542,7 +546,7 @@ migrate((app) => {
     "viewRule": "id = \"1\""
   });
 
-  return app.save(collection);
+  return migrationApp.save(collection);
 })
 `;
 
@@ -738,7 +742,8 @@ func init() {
 const updateExpectedJS = String.raw`
 /// <reference path="../pb_data/types.d.ts" />
 migrate((app) => {
-  const collection = app.findCollectionByNameOrId("@TEST_RANDOM")
+  const migrationApp = app.forMigrations()
+  const collection = migrationApp.findCollectionByNameOrId("@TEST_RANDOM")
 
   // update collection data
   unmarshal({
@@ -795,9 +800,10 @@ migrate((app) => {
     "type": "number"
   }))
 
-  return app.save(collection)
+  return migrationApp.save(collection)
 }, (app) => {
-  const collection = app.findCollectionByNameOrId("@TEST_RANDOM")
+  const migrationApp = app.forMigrations()
+  const collection = migrationApp.findCollectionByNameOrId("@TEST_RANDOM")
 
   // update collection data
   unmarshal({
@@ -849,7 +855,7 @@ migrate((app) => {
     "type": "number"
   }))
 
-  return app.save(collection)
+  return migrationApp.save(collection)
 })
 
 `;

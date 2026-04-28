@@ -6057,6 +6057,12 @@ namespace core {
      */
     unsafeWithoutHooks(): App;
     /**
+     * ForMigrations returns a shallow copy of the current app intended for migration code.
+     *
+     * It preserves PocketBun system hooks while omitting user hooks registered after app construction.
+     */
+    forMigrations(): App;
+    /**
      * Logger returns the default app logger.
      *
      * If the application is not bootstrapped yet, fallbacks to slog.Default().
@@ -7875,6 +7881,12 @@ namespace core {
      * rely on the app hooks to work.
      */
     unsafeWithoutHooks(): App;
+    /**
+     * ForMigrations returns a shallow copy of the current app intended for migration code.
+     *
+     * It preserves PocketBun system hooks while omitting user hooks registered after app construction.
+     */
+    forMigrations(): App;
   }
   interface BaseApp {
     /**

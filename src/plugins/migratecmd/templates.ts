@@ -47,9 +47,10 @@ export function jsSnapshotTemplate(collections: Collection[]): string {
   const template =
     jsTypesDirective +
     `migrate((app) => {
+  const migrationApp = app.forMigrations();
   const snapshot = %s;
 
-  return app.importCollections(snapshot, false);
+  return migrationApp.importCollections(snapshot, false);
 }, (app) => {
   return null;
 })
@@ -70,13 +71,15 @@ export function jsCreateTemplate(collection: Collection): string {
   const template =
     jsTypesDirective +
     `migrate((app) => {
+  const migrationApp = app.forMigrations();
   const collection = new Collection(%s);
 
-  return app.save(collection);
+  return migrationApp.save(collection);
 }, (app) => {
-  const collection = app.findCollectionByNameOrId(%q);
+  const migrationApp = app.forMigrations();
+  const collection = migrationApp.findCollectionByNameOrId(%q);
 
-  return app.delete(collection);
+  return migrationApp.delete(collection);
 })
 `;
 
@@ -95,13 +98,15 @@ export function jsDeleteTemplate(collection: Collection): string {
   const template =
     jsTypesDirective +
     `migrate((app) => {
-  const collection = app.findCollectionByNameOrId(%q);
+  const migrationApp = app.forMigrations();
+  const collection = migrationApp.findCollectionByNameOrId(%q);
 
-  return app.delete(collection);
+  return migrationApp.delete(collection);
 }, (app) => {
+  const migrationApp = app.forMigrations();
   const collection = new Collection(%s);
 
-  return app.save(collection);
+  return migrationApp.save(collection);
 })
 `;
 
@@ -247,17 +252,19 @@ export function jsDiffTemplate(newCollection: Collection | null, oldCollection: 
   const template =
     jsTypesDirective +
     `migrate((app) => {
-  const collection = app.findCollectionByNameOrId(%q)
+  const migrationApp = app.forMigrations()
+  const collection = migrationApp.findCollectionByNameOrId(%q)
 
   %s
 
-  return app.save(collection)
+  return migrationApp.save(collection)
 }, (app) => {
-  const collection = app.findCollectionByNameOrId(%q)
+  const migrationApp = app.forMigrations()
+  const collection = migrationApp.findCollectionByNameOrId(%q)
 
   %s
 
-  return app.save(collection)
+  return migrationApp.save(collection)
 })
 `;
 

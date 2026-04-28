@@ -69,6 +69,35 @@ describe("BaseApp", () => {
     await rm(dataDir, { recursive: true, force: true });
   });
 
+  it("ForMigrations skips custom hooks while collection migrations still persist", async () => {
+    const { app, cleanup } = await newTestApp(undefined, { bindEventCounters: false });
+    try {
+      let customHookCalls = 0;
+      app.OnCollectionUpdate().BindFunc(() => {
+        customHookCalls++;
+        return new Error("custom collection hook failed");
+      });
+
+      const blocked = app.FindCollectionByNameOrId("demo1");
+      blocked.Fields.Add(Object.assign(new TextField(), { Name: "blocked_field" }));
+      const blockedErr = app.SaveSync(blocked);
+      expect(blockedErr?.message).toBe("custom collection hook failed");
+      expect(customHookCalls).toBe(1);
+      expect(app.TableColumns("demo1")).not.toContain("blocked_field");
+
+      const collection = app.FindCollectionByNameOrId("demo1");
+      collection.Fields.Add(Object.assign(new TextField(), { Name: "migration_field" }));
+      const migrationApp = app.ForMigrations();
+
+      const migrationErr = migrationApp.SaveSync(collection);
+      expect(migrationErr).toBeNull();
+      expect(customHookCalls).toBe(1);
+      expect(app.TableColumns("demo1")).toContain("migration_field");
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("BaseAppOnHookAliases", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "pb_base_app_test_data_dir_"));
     const app = new BaseApp({ dataDir });

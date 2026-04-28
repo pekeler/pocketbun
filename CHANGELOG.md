@@ -3,6 +3,7 @@
 ## 0.37.4-pocketbun.1 (Unreleased)
 
 - Fixed generated JS migrations that update auth collection options so `unmarshal(...)` preserves typed collection option models before `app.save(collection)`.
+- Generated JS collection migrations now use `app.forMigrations()` so schema changes skip user hooks while preserving PocketBun system hooks.
 
 ## 0.37.4-pocketbun.0 - 2026-04-27
 

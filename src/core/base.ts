@@ -1499,7 +1499,7 @@ export class BaseApp implements App {
     return this.#txInfo !== null;
   }
 
-  UnsafeWithoutHooks(): App {
+  private cloneWithSharedState(): BaseApp {
     const CloneCtor = this.constructor as typeof BaseApp;
     const clone = new CloneCtor({
       dataDir: this.#dataDir,
@@ -1518,8 +1518,24 @@ export class BaseApp implements App {
     clone.#auxDb = this.#auxDb;
     clone.#logger = this.#logger;
     clone.#txInfo = this.#txInfo;
+    return clone;
+  }
+
+  UnsafeWithoutHooks(): App {
+    const clone = this.cloneWithSharedState();
     clone.resetHooks();
     return clone;
+  }
+
+  // ForMigrations returns a shallow app copy intended for migration code.
+  // It preserves PocketBun system hooks while omitting user hooks registered
+  // after app construction.
+  ForMigrations(): App {
+    return this.cloneWithSharedState();
+  }
+
+  forMigrations(): App {
+    return this.ForMigrations();
   }
 
   db(): Database {
