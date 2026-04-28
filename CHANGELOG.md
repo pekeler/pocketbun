@@ -2,7 +2,7 @@
 
 ## 0.37.4-pocketbun.1 (Unreleased)
 
-- TBD
+- Fixed generated JS migrations that update auth collection options so `unmarshal(...)` preserves typed collection option models before `app.save(collection)`.
 
 ## 0.37.4-pocketbun.0 - 2026-04-27
 

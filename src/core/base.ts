@@ -4240,7 +4240,7 @@ export class BaseApp implements App {
     this.OnCollectionUpdate().Bind({
       Id: systemHookIdSettings,
       Priority: 99,
-      Func: async (event) => {
+      Func: (event) => {
         let oldCollection: Collection;
         try {
           oldCollection = this.FindCachedCollectionByNameOrId(event.Collection?.id ?? "");
@@ -4248,17 +4248,11 @@ export class BaseApp implements App {
           return error as Error;
         }
 
-        const nextResult = event.Next();
-        const nextErr = nextResult instanceof Promise ? await nextResult : (nextResult as Error | null);
-        if (nextErr) {
-          return nextErr;
-        }
+        const syncRenamedRateLimitRules = (): boolean => {
+          if (!event.Collection || oldCollection.name === event.Collection.name) {
+            return false;
+          }
 
-        if (!event.Collection) {
-          return null;
-        }
-
-        if (oldCollection.name !== event.Collection.name) {
           let hasChange = false;
           const rules = this.settings().rateLimits.rules;
           for (const rule of rules) {
@@ -4270,14 +4264,47 @@ export class BaseApp implements App {
 
           if (hasChange) {
             this.settings().rateLimits.rules = rules;
+          }
+
+          return hasChange;
+        };
+
+        const handleNextSync = (nextErr: Error | null): Error | null => {
+          if (nextErr) {
+            return nextErr;
+          }
+
+          if (syncRenamedRateLimitRules()) {
+            const saveErr = this.SaveSync(this.settings());
+            if (saveErr) {
+              return saveErr;
+            }
+          }
+
+          return null;
+        };
+
+        const handleNextAsync = async (nextErr: Error | null): Promise<Error | null> => {
+          if (nextErr) {
+            return nextErr;
+          }
+
+          if (syncRenamedRateLimitRules()) {
             const saveErr = await this.Save(this.settings());
             if (saveErr) {
               return saveErr;
             }
           }
+
+          return null;
+        };
+
+        const nextResult = event.Next();
+        if (isPromiseLike(nextResult)) {
+          return nextResult.then((nextErr) => handleNextAsync(nextErr as Error | null));
         }
 
-        return null;
+        return handleNextSync(nextResult as Error | null);
       },
     });
   }

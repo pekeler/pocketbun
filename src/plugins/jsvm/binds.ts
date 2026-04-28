@@ -792,9 +792,21 @@ function sleep(ms: number): void {
 
 function unmarshal(data: unknown, dst: Record<string, unknown>): void {
   const raw = JSON.stringify(data ?? {});
+  const target = unwrapBoundValue(dst);
+  if (target && typeof target === "object") {
+    const unmarshalJSON = (target as { UnmarshalJSON?: unknown }).UnmarshalJSON;
+    if (typeof unmarshalJSON === "function") {
+      const err = unmarshalJSON.call(target, raw);
+      if (err instanceof Error) {
+        throw err;
+      }
+      return;
+    }
+  }
+
   const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
   for (const [key, value] of Object.entries(parsed)) {
-    dst[key] = value;
+    target[key] = value;
   }
 }
 

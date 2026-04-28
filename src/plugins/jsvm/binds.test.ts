@@ -414,6 +414,51 @@ describe("jsvm binds", () => {
     expect(data.b).toBe(456);
   });
 
+  it("base binds unmarshal applies generated auth option diffs before saving", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      appBinds(scope, app);
+
+      const collection = scope.$app.findCollectionByNameOrId("_pb_users_auth_");
+      scope.unmarshal(
+        {
+          authAlert: {
+            enabled: true,
+            emailTemplate: {
+              subject: "Generated auth alert subject",
+              body: "<p>Generated auth alert body</p>",
+            },
+          },
+        },
+        collection,
+      );
+
+      const saveErr = scope.$app.save(collection);
+      expect(saveErr).toBeNull();
+
+      const row = app.db().query("select options from _collections where id = ?").get("_pb_users_auth_") as {
+        options: string;
+      };
+      const options = JSON.parse(row.options) as {
+        authAlert?: {
+          enabled?: boolean;
+          emailTemplate?: {
+            subject?: string;
+            body?: string;
+          };
+        };
+      };
+
+      expect(options.authAlert?.enabled).toBe(true);
+      expect(options.authAlert?.emailTemplate?.subject).toBe("Generated auth alert subject");
+      expect(options.authAlert?.emailTemplate?.body).toBe("<p>Generated auth alert body</p>");
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("base binds context", () => {
     const scope: BindScope = {};
     baseBinds(scope);
