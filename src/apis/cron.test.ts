@@ -65,6 +65,9 @@ describe("cron api", () => {
 
   it("crons run", async () => {
     const beforeTest = (app: TestApp) => {
+      // Keep the test focused on the manual run endpoint; starting the real
+      // scheduler can add an extra call if the test crosses a minute boundary.
+      app.OnServe().Unbind("__pbCronStart__");
       const err = app.Cron().Add("test", "* * * * *", () => {
         const current = Number(app.store().get("testJobCalls") ?? 0);
         app.store().set("testJobCalls", current + 1);
