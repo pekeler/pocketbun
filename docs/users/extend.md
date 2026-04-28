@@ -1897,6 +1897,8 @@ Both callbacks accept a transactional `app` instance.
 
 For collection/schema changes, use `const migrationApp = app.forMigrations()` before calling collection persistence methods such as `save`, `delete`, or `importCollections`. This skips user hooks while preserving PocketBun system hooks required to save collections and sync record tables. New generated JS collection migrations use this form. This follows the same migration-safety principle explained by Rails in [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations): old migrations should not accidentally depend on current application model behavior.
 
+For record, data, and settings migrations, use SQL. If SQL is not enough, keep the transformation logic inside the migration and work with the persisted data shape. Do not use current app behavior from migrations: no normal record/settings `app.save(...)`, forms, services, or hook-driven helpers.
+
 ### Collections snapshot
 
 The `migrate collections` command generates a full snapshot of your current collections configuration without having to type it manually. Similar to the `migrate create` command, this will generate a new migration file in the `pb_migrations` directory.

@@ -531,6 +531,8 @@ function patchExtend(text: string): string {
     "For collection/schema changes, use `const migrationApp = app.forMigrations()` before calling collection persistence methods such as `save`, `delete`, or `importCollections`. This skips user hooks while preserving PocketBun system hooks required to save collections and sync record tables. New generated JS collection migrations use this form.";
   const migrationAppNote =
     "For collection/schema changes, use `const migrationApp = app.forMigrations()` before calling collection persistence methods such as `save`, `delete`, or `importCollections`. This skips user hooks while preserving PocketBun system hooks required to save collections and sync record tables. New generated JS collection migrations use this form. This follows the same migration-safety principle explained by Rails in [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations): old migrations should not accidentally depend on current application model behavior.";
+  const migrationDataPolicy =
+    "For record, data, and settings migrations, use SQL. If SQL is not enough, keep the transformation logic inside the migration and work with the persisted data shape. Do not use current app behavior from migrations: no normal record/settings `app.save(...)`, forms, services, or hook-driven helpers.";
 
   out = out.replace(/For complete API bindings reference, see \[Extend PocketBun Reference\]\(\.\/reference\.md\)\.\n\n/g, "");
 
@@ -624,8 +626,9 @@ function patchExtend(text: string): string {
       `(${escapeRegExp(migrationCallbacksLine)})(?:\\n\\n(?:${escapeRegExp(oldMigrationAppNote)}|${escapeRegExp(migrationAppNote)}))*`,
       "g",
     ),
-    `$1\n\n${migrationAppNote}`,
+    `$1\n\n${migrationAppNote}\n\n${migrationDataPolicy}`,
   );
+  out = out.replace(new RegExp(`(?:\\n\\n${escapeRegExp(migrationDataPolicy)}){2,}`, "g"), `\n\n${migrationDataPolicy}`);
   out = out.replace(
     /migrate\(\(app\) => \{\n    \/\/ missing default options, system fields like id, email, etc\. are initialized automatically/g,
     "migrate((app) => {\n    const migrationApp = app.forMigrations()\n\n    // missing default options, system fields like id, email, etc. are initialized automatically",

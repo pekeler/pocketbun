@@ -229,6 +229,7 @@ function main(): void {
   assertIncludes(jsDoc, "$apis.static()", "docs/users/extend.md");
   assertIncludes(jsDoc, "Bun.CSRF.generate", "docs/users/extend.md");
   assertIncludes(jsDoc, "app.forMigrations()", "docs/users/extend.md");
+  assertIncludes(jsDoc, "Do not use current app behavior from migrations", "docs/users/extend.md");
   assertIncludes(
     jsDoc,
     "https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations",
@@ -253,6 +254,8 @@ function main(): void {
   );
   assertIncludes(differencesDoc, "Migration Hook Behavior", "docs/users/differences.md");
   assertIncludes(differencesDoc, "app.forMigrations()", "docs/users/differences.md");
+  assertIncludes(differencesDoc, "migrations must be able to run years later", "docs/users/differences.md");
+  assertIncludes(differencesDoc, "Do not use current app behavior from migrations", "docs/users/differences.md");
   assertIncludes(differencesDoc, "PocketBun disagrees for generated schema migrations", "docs/users/differences.md");
   assertIncludes(
     differencesDoc,
