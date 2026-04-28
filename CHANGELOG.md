@@ -2,8 +2,8 @@
 
 ## 0.37.4-pocketbun.1 (Unreleased)
 
-- Fixed generated JS migrations that update auth collection options so `unmarshal(...)` preserves typed collection option models before `app.save(collection)`.
-- Generated JS collection migrations now use `app.forMigrations()` so schema changes skip user hooks while preserving PocketBun system hooks.
+- Generated JS collection migrations now use `const migrationApp = app.forMigrations()` so schema changes skip user hooks while preserving PocketBun system hooks required for collection persistence. Existing generated collection/schema migrations should be updated to use `migrationApp.findCollectionByNameOrId(...)`, `migrationApp.save(collection)`, `migrationApp.delete(collection)`, and `app.forMigrations().importCollections(...)` for snapshots so fresh database replays do not run current business hooks.
+- Fixed generated JS migrations that update auth collection options so `unmarshal(...)` preserves typed collection option models before `migrationApp.save(collection)`.
 
 ## 0.37.4-pocketbun.0 - 2026-04-27
 

@@ -1895,6 +1895,8 @@ In the migration file, you are expected to write your "upgrade" code in the `upF
 
 Both callbacks accept a transactional `app` instance.
 
+For collection/schema changes, use `const migrationApp = app.forMigrations()` before calling collection persistence methods such as `save`, `delete`, or `importCollections`. This skips user hooks while preserving PocketBun system hooks required to save collections and sync record tables. New generated JS collection migrations use this form.
+
 ### Collections snapshot
 
 The `migrate collections` command generates a full snapshot of your current collections configuration without having to type it manually. Similar to the `migrate create` command, this will generate a new migration file in the `pb_migrations` directory.
@@ -1985,6 +1987,8 @@ migrate((app) => {
 // migrations/1687801090_create_clients_collection.js
 
 migrate((app) => {
+    const migrationApp = app.forMigrations()
+
     // missing default options, system fields like id, email, etc. are initialized automatically
     // and will be merged with the provided configuration
     let collection = new Collection({
@@ -2016,10 +2020,12 @@ migrate((app) => {
         ],
     })
 
-    app.save(collection)
+    migrationApp.save(collection)
 }, (app) => {
-    let collection = app.findCollectionByNameOrId("clients")
-    app.delete(collection)
+    const migrationApp = app.forMigrations()
+
+    let collection = migrationApp.findCollectionByNameOrId("clients")
+    migrationApp.delete(collection)
 })
 ```
 ## Jobs scheduling

@@ -19,6 +19,7 @@ Quick links:
 - [CLI Defaults And Paths](#cli-defaults-and-paths)
 - [Hooks Plugin Naming](#hooks-plugin-naming)
 - [Hooks API And Module Loading](#hooks-api-and-module-loading)
+- [Migration Hook Behavior](#migration-hook-behavior)
 - [Async API Extensions](#async-api-extensions)
 - [Operational Differences](#operational-differences)
 - [Cron Scheduling](#cron-scheduling)
@@ -58,6 +59,7 @@ Use this as a quick migration recipe for an existing PocketBase project.
    - Start: `pocketbun serve --dev`
    - Verify health: `GET /api/health`
    - Verify custom hooks/routes and auth flows you use in production.
+   - If you have older generated collection/schema migrations, update them to use `app.forMigrations()` as described below.
 8. If you used PocketBase's automatic HTTPS mode, put PocketBun behind a reverse proxy.
    - Run PocketBun on HTTP, for example `pocketbun serve --http 127.0.0.1:8090`.
    - Terminate HTTPS in Caddy, NGINX, Traefik, a load balancer, or another reverse proxy.
@@ -118,6 +120,43 @@ For code-first `BaseApp` usage:
 
 - built-in route middlewares are available as package exports (for example `RequireGuestOnly`, `SkipSuccessActivityLog`)
 - you can bind them directly in `OnServe` routes with `e.Router.GET(...).Bind(...)`
+
+## Migration Hook Behavior
+
+PocketBase generated collection migrations save collections through the normal app save path. That means custom model/collection hooks can run when old migrations are replayed on a fresh database.
+
+PocketBun generated JS collection migrations use `app.forMigrations()` instead. The returned app view skips user hooks registered after app construction while preserving PocketBun system hooks required for collection persistence, table sync, cache reloads, and view updates.
+
+For older generated collection/schema migrations, update the migration to use a migration app view:
+
+```js
+migrate((app) => {
+  const migrationApp = app.forMigrations()
+
+  const collection = migrationApp.findCollectionByNameOrId("posts")
+  collection.fields.add(new TextField({
+    name: "slug",
+    required: false,
+  }))
+
+  return migrationApp.save(collection)
+}, (app) => {
+  const migrationApp = app.forMigrations()
+
+  const collection = migrationApp.findCollectionByNameOrId("posts")
+  collection.fields.removeByName("slug")
+
+  return migrationApp.save(collection)
+})
+```
+
+For generated collection snapshots, use:
+
+```js
+return app.forMigrations().importCollections(snapshot, false)
+```
+
+Raw SQL/data migrations do not need this helper. Record/settings migrations should keep using the normal app unless you explicitly want to bypass user hooks.
 
 ## Async API Extensions
 

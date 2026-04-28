@@ -187,7 +187,7 @@ export interface App {
   RunInTransactionAsync(fn: (txApp: App) => Promise<Error | null> | Error | null): Promise<Error | null>;
   IsTransactional(): boolean;
   UnsafeWithoutHooks(): App;
-  // ForMigrations returns a shallow app copy intended for migration code.
+  // PocketBun deviation: ForMigrations returns a shallow app copy intended for migration code.
   //
   // It preserves PocketBun system hooks while omitting user hooks registered
   // after app construction.

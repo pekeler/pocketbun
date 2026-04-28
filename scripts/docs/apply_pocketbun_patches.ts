@@ -526,6 +526,9 @@ function patchExtend(text: string): string {
     "To prevent SQL injection attacks, you should use named parameters for any expression value that comes from user input. This could be done using the named `` placeholders in your SQL statement and then define the parameter values for the query with `bind(params)`.";
   const dbxNote =
     "PocketBun rewrites dbx-style named markers for SQLite execution. The logged placeholder syntax can look different from your input query while behavior stays compatible.";
+  const migrationCallbacksLine = "Both callbacks accept a transactional `app` instance.";
+  const migrationAppNote =
+    "For collection/schema changes, use `const migrationApp = app.forMigrations()` before calling collection persistence methods such as `save`, `delete`, or `importCollections`. This skips user hooks while preserving PocketBun system hooks required to save collections and sync record tables. New generated JS collection migrations use this form.";
 
   out = out.replace(/For complete API bindings reference, see \[Extend PocketBun Reference\]\(\.\/reference\.md\)\.\n\n/g, "");
 
@@ -615,6 +618,18 @@ function patchExtend(text: string): string {
     `${apisLine}\n\n${asyncApisNote}`,
   );
   out = out.replace(
+    new RegExp(`(${escapeRegExp(migrationCallbacksLine)})(?:\\n\\n${escapeRegExp(migrationAppNote)})?`, "g"),
+    `$1\n\n${migrationAppNote}`,
+  );
+  out = out.replace(
+    /migrate\(\(app\) => \{\n    \/\/ missing default options, system fields like id, email, etc\. are initialized automatically/g,
+    "migrate((app) => {\n    const migrationApp = app.forMigrations()\n\n    // missing default options, system fields like id, email, etc. are initialized automatically",
+  );
+  out = out.replace(
+    /    app\.save\(collection\)\n\}, \(app\) => \{\n    let collection = app\.findCollectionByNameOrId\("clients"\)\n    app\.delete\(collection\)/g,
+    '    migrationApp.save(collection)\n}, (app) => {\n    const migrationApp = app.forMigrations()\n\n    let collection = migrationApp.findCollectionByNameOrId("clients")\n    migrationApp.delete(collection)',
+  );
+  out = out.replace(
     /myapp\/\n([ \t]+pb_hooks\/\n)([ \t]+views\/[\s\S]*?\n[ \t]+main\.pb\.js\n)pocketbun/g,
     "myapp/\n$1$2    pocketbun",
   );
@@ -648,6 +663,13 @@ function patchWebApis(text: string): string {
 function patchReference(text: string): string {
   let out = text;
   out = out.replace(/: _TygojaDict;/g, ": { [key: string]: any };");
+  const migrateNote = "_Note that this method is available only in pb_migrations context._";
+  const migrationAppNote =
+    "For collection/schema migrations, use `const migrationApp = app.forMigrations()` before collection persistence calls. It skips user hooks while preserving PocketBun system hooks required for collection schema persistence.";
+  out = out.replace(
+    new RegExp(`(${escapeRegExp(migrateNote)})(?:\\n\\n${escapeRegExp(migrationAppNote)})?`, "g"),
+    `$1\n\n${migrationAppNote}`,
+  );
 
   return out;
 }

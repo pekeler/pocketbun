@@ -1527,9 +1527,9 @@ export class BaseApp implements App {
     return clone;
   }
 
-  // ForMigrations returns a shallow app copy intended for migration code.
-  // It preserves PocketBun system hooks while omitting user hooks registered
-  // after app construction.
+  // PocketBun deviation: migration app views skip user hooks while preserving
+  // system hooks, so generated schema migrations remain replayable after app
+  // hook logic changes.
   ForMigrations(): App {
     return this.cloneWithSharedState();
   }

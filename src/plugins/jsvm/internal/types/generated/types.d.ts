@@ -1313,6 +1313,10 @@ declare namespace $http {
  *
  * _Note that this method is available only in pb_migrations context._
  *
+ * For collection/schema migrations, use `const migrationApp = app.forMigrations()`
+ * before collection persistence calls. It skips user hooks while preserving
+ * PocketBun system hooks required for collection schema persistence.
+ *
  * @group PocketBase
  */
 declare function migrate(up: (txApp: CoreApp) => void, down?: (txApp: CoreApp) => void): void;
@@ -6059,7 +6063,8 @@ namespace core {
     /**
      * ForMigrations returns a shallow copy of the current app intended for migration code.
      *
-     * It preserves PocketBun system hooks while omitting user hooks registered after app construction.
+     * It skips user hooks registered after app construction while preserving
+     * PocketBun system hooks required for collection schema persistence.
      */
     forMigrations(): App;
     /**
@@ -7884,7 +7889,8 @@ namespace core {
     /**
      * ForMigrations returns a shallow copy of the current app intended for migration code.
      *
-     * It preserves PocketBun system hooks while omitting user hooks registered after app construction.
+     * It skips user hooks registered after app construction while preserving
+     * PocketBun system hooks required for collection schema persistence.
      */
     forMigrations(): App;
   }
