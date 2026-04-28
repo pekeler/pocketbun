@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.37.4-pocketbun.2 (Unreleased)
+## 0.37.4-pocketbun.2 - 2026-04-28
 
 - Fixed generated JS collection migrations so `app.forMigrations()` keeps synchronous app save, delete, and import behavior during migration replay, while nested auth email template diffs preserve unchanged fields.
 
