@@ -3,7 +3,7 @@
 [![CI](https://github.com/pekeler/pocketbun/actions/workflows/ci.yml/badge.svg)](https://github.com/pekeler/pocketbun/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/pekeler/pocketbun?display_name=tag&sort=semver&color=brightgreen)](https://github.com/pekeler/pocketbun/releases/latest)
 
-PocketBun is a port of [PocketBase](https://pocketbase.io) to Bun.
+PocketBun is a port of [PocketBase](https://pocketbase.io) to TypeScript/Bun.
 
 > PocketBase is an open source Go backend that includes:
 > 
@@ -11,27 +11,18 @@ PocketBun is a port of [PocketBase](https://pocketbase.io) to Bun.
 > - built-in **files and users management**
 > - convenient **Admin dashboard UI**
 > - and simple **REST-ish API**
-
-PocketBase © 2022–present Gani Georgiev. [Project on GitHub](https://github.com/pocketbase/pocketbase).
+>
+> PocketBase © 2022–present Gani Georgiev.
 
 ## Why?
 
-PocketBase is an excellent, well-designed, self-hosted Backend-as-a-Service. You can extend it with Go and JavaScript, but the embedded JS engine has limited ES6/Node compatibility, making complex customizations difficult. Your project may end up with a second backend.
+PocketBase is a well-designed, self-hosted Backend-as-a-Service. You can extend it with Go and JavaScript, but the embedded JS engine has limited ES6/Node compatibility, making customizations difficult.
 
-PocketBun is a semi-automated port to Bun that aims for maximum compatibility with PocketBase’s API and behavior. It's a version of PocketBase that feels more native to JS/TS developers.
-
-Key differences:
-
-- Built on Bun instead of Go
-- No Go extensions (only JavaScript/TypeScript)
-- Full ES6+ compatibility + native npm package support
-- CLI binary is named `pocketbun` (not `pocketbase`)
-- No `update` command; update via package manager
+PocketBun is a semi-automated port that aims for maximum compatibility with PocketBase’s API and behavior while taking full advantage of everything that [Bun has to offer](https://bun.com). It's a version of PocketBase that feels native to JS/TS developers.
 
 ## Warning
-PocketBase is still under active development and NOT recommended for production.
 
-Naturally, the same applies to PocketBun.
+PocketBase is still under active development and NOT recommended for production. Naturally, the same applies to PocketBun.
 
 ## Docs
 
@@ -106,7 +97,7 @@ All tests are passing.
 
 ## Differences
 
-The full differences list is documented [here](https://pekeler.github.io/pocketbun/differences.html), including:
+All differences to PocketBase are documented [here](https://pekeler.github.io/pocketbun/differences.html), including:
 
 - runtime/distribution differences
 - CLI defaults/path resolution differences
