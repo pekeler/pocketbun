@@ -527,8 +527,10 @@ function patchExtend(text: string): string {
   const dbxNote =
     "PocketBun rewrites dbx-style named markers for SQLite execution. The logged placeholder syntax can look different from your input query while behavior stays compatible.";
   const migrationCallbacksLine = "Both callbacks accept a transactional `app` instance.";
-  const migrationAppNote =
+  const oldMigrationAppNote =
     "For collection/schema changes, use `const migrationApp = app.forMigrations()` before calling collection persistence methods such as `save`, `delete`, or `importCollections`. This skips user hooks while preserving PocketBun system hooks required to save collections and sync record tables. New generated JS collection migrations use this form.";
+  const migrationAppNote =
+    "For collection/schema changes, use `const migrationApp = app.forMigrations()` before calling collection persistence methods such as `save`, `delete`, or `importCollections`. This skips user hooks while preserving PocketBun system hooks required to save collections and sync record tables. New generated JS collection migrations use this form. This follows the same migration-safety principle explained by Rails in [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations): old migrations should not accidentally depend on current application model behavior.";
 
   out = out.replace(/For complete API bindings reference, see \[Extend PocketBun Reference\]\(\.\/reference\.md\)\.\n\n/g, "");
 
@@ -618,7 +620,10 @@ function patchExtend(text: string): string {
     `${apisLine}\n\n${asyncApisNote}`,
   );
   out = out.replace(
-    new RegExp(`(${escapeRegExp(migrationCallbacksLine)})(?:\\n\\n${escapeRegExp(migrationAppNote)})?`, "g"),
+    new RegExp(
+      `(${escapeRegExp(migrationCallbacksLine)})(?:\\n\\n(?:${escapeRegExp(oldMigrationAppNote)}|${escapeRegExp(migrationAppNote)}))*`,
+      "g",
+    ),
     `$1\n\n${migrationAppNote}`,
   );
   out = out.replace(
@@ -664,10 +669,15 @@ function patchReference(text: string): string {
   let out = text;
   out = out.replace(/: _TygojaDict;/g, ": { [key: string]: any };");
   const migrateNote = "_Note that this method is available only in pb_migrations context._";
-  const migrationAppNote =
+  const oldMigrationAppNote =
     "For collection/schema migrations, use `const migrationApp = app.forMigrations()` before collection persistence calls. It skips user hooks while preserving PocketBun system hooks required for collection schema persistence.";
+  const migrationAppNote =
+    "For collection/schema migrations, use `const migrationApp = app.forMigrations()` before collection persistence calls. It skips user hooks while preserving PocketBun system hooks required for collection schema persistence. See Rails' [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations) for the same replay hazard.";
   out = out.replace(
-    new RegExp(`(${escapeRegExp(migrateNote)})(?:\\n\\n${escapeRegExp(migrationAppNote)})?`, "g"),
+    new RegExp(
+      `(${escapeRegExp(migrateNote)})(?:\\n\\n(?:${escapeRegExp(oldMigrationAppNote)}|${escapeRegExp(migrationAppNote)}))*`,
+      "g",
+    ),
     `$1\n\n${migrationAppNote}`,
   );
 

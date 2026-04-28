@@ -443,7 +443,7 @@ Migrate defines a single migration upgrade/downgrade action.
 
 _Note that this method is available only in pb_migrations context._
 
-For collection/schema migrations, use `const migrationApp = app.forMigrations()` before collection persistence calls. It skips user hooks while preserving PocketBun system hooks required for collection schema persistence.
+For collection/schema migrations, use `const migrationApp = app.forMigrations()` before collection persistence calls. It skips user hooks while preserving PocketBun system hooks required for collection schema persistence. See Rails' [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations) for the same replay hazard.
 
 ```ts
 declare function migrate(up: (txApp: CoreApp) => void, down?: (txApp: CoreApp) => void): void;

@@ -125,6 +125,8 @@ For code-first `BaseApp` usage:
 
 PocketBase generated collection migrations save collections through the normal app save path. That means custom model/collection hooks can run when old migrations are replayed on a fresh database.
 
+PocketBase does not acknowledge this as a bug; the upstream position is that model save hooks and validations are intentionally part of `save`. PocketBun disagrees for generated schema migrations because historical migrations should not depend on current application/business hooks. This is the same class of replay hazard described by Rails in [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations).
+
 PocketBun generated JS collection migrations use `app.forMigrations()` instead. The returned app view skips user hooks registered after app construction while preserving PocketBun system hooks required for collection persistence, table sync, cache reloads, and view updates.
 
 For older generated collection/schema migrations, update the migration to use a migration app view:

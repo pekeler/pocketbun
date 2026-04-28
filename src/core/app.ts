@@ -190,7 +190,8 @@ export interface App {
   // PocketBun deviation: ForMigrations returns a shallow app copy intended for migration code.
   //
   // It preserves PocketBun system hooks while omitting user hooks registered
-  // after app construction.
+  // after app construction. This follows the migration-safety principle in
+  // https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations.
   ForMigrations(): App;
   forMigrations(): App;
   Logger(): Logger;

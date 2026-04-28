@@ -229,8 +229,18 @@ function main(): void {
   assertIncludes(jsDoc, "$apis.static()", "docs/users/extend.md");
   assertIncludes(jsDoc, "Bun.CSRF.generate", "docs/users/extend.md");
   assertIncludes(jsDoc, "app.forMigrations()", "docs/users/extend.md");
+  assertIncludes(
+    jsDoc,
+    "https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations",
+    "docs/users/extend.md",
+  );
   assertIncludes(referenceDoc, "### unmarshal", "docs/users/reference.md");
   assertIncludes(referenceDoc, "app.forMigrations()", "docs/users/reference.md");
+  assertIncludes(
+    referenceDoc,
+    "https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations",
+    "docs/users/reference.md",
+  );
   assertIncludes(referenceDoc, "function fileFromPathAsync(", "docs/users/reference.md");
   assertIncludes(referenceDoc, "function sendAsync(", "docs/users/reference.md");
   assertIncludes(referenceDoc, "PocketBun app cron expressions are interpreted in UTC", "docs/users/reference.md");
@@ -243,6 +253,12 @@ function main(): void {
   );
   assertIncludes(differencesDoc, "Migration Hook Behavior", "docs/users/differences.md");
   assertIncludes(differencesDoc, "app.forMigrations()", "docs/users/differences.md");
+  assertIncludes(differencesDoc, "PocketBun disagrees for generated schema migrations", "docs/users/differences.md");
+  assertIncludes(
+    differencesDoc,
+    "https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations",
+    "docs/users/differences.md",
+  );
 
   console.log("Generated docs parity checks passed.");
 }

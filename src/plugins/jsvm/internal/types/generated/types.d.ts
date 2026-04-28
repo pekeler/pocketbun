@@ -1315,7 +1315,9 @@ declare namespace $http {
  *
  * For collection/schema migrations, use `const migrationApp = app.forMigrations()`
  * before collection persistence calls. It skips user hooks while preserving
- * PocketBun system hooks required for collection schema persistence.
+ * PocketBun system hooks required for collection schema persistence. See Rails'
+ * [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations)
+ * for the same replay hazard.
  *
  * @group PocketBase
  */
@@ -6065,6 +6067,8 @@ namespace core {
      *
      * It skips user hooks registered after app construction while preserving
      * PocketBun system hooks required for collection schema persistence.
+     * See Rails' [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations)
+     * for the same replay hazard.
      */
     forMigrations(): App;
     /**
@@ -7891,6 +7895,8 @@ namespace core {
      *
      * It skips user hooks registered after app construction while preserving
      * PocketBun system hooks required for collection schema persistence.
+     * See Rails' [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations)
+     * for the same replay hazard.
      */
     forMigrations(): App;
   }
