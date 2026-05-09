@@ -1,7 +1,7 @@
 // Ported from pocketbase/core/notify_watcher.go
 // Deviation: Bun/Node fs.watch replaces upstream fsnotify while preserving the observable reload behavior.
 
-import { mkdirSync, rmSync, watch, writeFileSync, type FSWatcher } from "node:fs";
+import { mkdirSync, readdirSync, rmSync, statSync, watch, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { App } from "./app.ts";
 import type { CollectionEvent, ModelEvent } from "./events.ts";
@@ -11,8 +11,12 @@ import { ParamsKeySettings, ParamsTableName } from "./settings_model.ts";
 
 const systemHookIdNotifyWatcher = "__pbNotifyWatcherSystemHook__";
 
+type NotifyWatcher = {
+  close(): void;
+};
+
 export function registerNotifyWatcherHooks(app: App): void {
-  let notifyWatcher: FSWatcher | null = null;
+  let notifyWatcher: NotifyWatcher | null = null;
 
   const instanceId = `@${pseudorandomString(10)}`;
   const localNotifyDirPath = join(app.dataDir(), LocalNotifyDirName);
@@ -126,10 +130,11 @@ export function registerNotifyWatcherHooks(app: App): void {
   });
 }
 
-function createNotifyDirWatcher(app: App, instanceId: string, localNotifyDirPath: string): FSWatcher {
+function createNotifyDirWatcher(app: App, instanceId: string, localNotifyDirPath: string): NotifyWatcher {
   mkdirSync(localNotifyDirPath, { recursive: true });
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  const seen = new Map<string, string>();
   const stopDebounceTimer = () => {
     if (debounceTimer) {
       clearTimeout(debounceTimer);
@@ -137,8 +142,25 @@ function createNotifyDirWatcher(app: App, instanceId: string, localNotifyDirPath
     }
   };
 
-  const watcher = watch(localNotifyDirPath, (_eventType, rawFilename) => {
-    const filename = rawFilename ? String(rawFilename) : "";
+  const signature = (filename: string): string | null => {
+    try {
+      const stats = statSync(join(localNotifyDirPath, filename));
+      return `${stats.mtimeMs}:${stats.size}`;
+    } catch {
+      return null;
+    }
+  };
+
+  const markSeen = (filename: string): void => {
+    const current = signature(filename);
+    if (current === null) {
+      seen.delete(filename);
+      return;
+    }
+    seen.set(filename, current);
+  };
+
+  const scheduleReload = (filename: string): void => {
     if (!filename || filename.endsWith(instanceId) || !app.isBootstrapped()) {
       return;
     }
@@ -164,7 +186,46 @@ function createNotifyDirWatcher(app: App, instanceId: string, localNotifyDirPath
         }
       }
     }, 50);
+  };
+
+  for (const filename of safeReaddir(localNotifyDirPath)) {
+    markSeen(filename);
+  }
+
+  const watcher = watch(localNotifyDirPath, (_eventType, rawFilename) => {
+    const filename = rawFilename ? basename(String(rawFilename)) : "";
+    if (filename) {
+      markSeen(filename);
+    }
+    scheduleReload(filename);
   });
+
+  const pollTimer = setInterval(() => {
+    const filenames = safeReaddir(localNotifyDirPath);
+    const currentNames = new Set(filenames);
+
+    for (const filename of filenames) {
+      const current = signature(filename);
+      if (current === null) {
+        continue;
+      }
+
+      const previous = seen.get(filename);
+      if (previous === current) {
+        continue;
+      }
+
+      seen.set(filename, current);
+      scheduleReload(filename);
+    }
+
+    for (const filename of seen.keys()) {
+      if (!currentNames.has(filename)) {
+        seen.delete(filename);
+      }
+    }
+  }, 100);
+  pollTimer.unref?.();
 
   watcher.on("error", (error) => {
     stopDebounceTimer();
@@ -176,15 +237,29 @@ function createNotifyDirWatcher(app: App, instanceId: string, localNotifyDirPath
 
   watcher.on("close", stopDebounceTimer);
 
-  return watcher;
+  return {
+    close() {
+      watcher.close();
+      clearInterval(pollTimer);
+      stopDebounceTimer();
+    },
+  };
 }
 
 function writeNotifyFile(app: App, filePath: string): void {
   try {
-    writeFileSync(filePath, "");
+    // Bun/Node fs.watch can coalesce a create+remove pair into a missed event
+    // on macOS, so keep the marker file and rewrite it for later changes.
+    writeFileSync(filePath, `${Date.now()}:${pseudorandomString(6)}`);
   } catch (error) {
     app.Logger().Warn("Failed to write watcher file", "error", error, "file", filePath);
   }
+}
 
-  rmSync(filePath, { force: true });
+function safeReaddir(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
+  }
 }

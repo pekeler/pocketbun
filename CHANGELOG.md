@@ -2,7 +2,7 @@
 
 ## 0.38.0-pocketbun.1 (Unreleased)
 
-- TBD
+- Runtime settings and collection change notifications now reload reliably on macOS even when filesystem watcher events are coalesced.
 
 ## 0.38.0-pocketbun.0 - 2026-05-09
 
