@@ -11,7 +11,7 @@ import { SkipSuccessActivityLog } from "./middlewares.ts";
 import { Gzip } from "./middlewares_gzip.ts";
 
 const defaultCSP =
-  "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://127.0.0.1:* https://tile.openstreetmap.org data: blob:; connect-src 'self' http://127.0.0.1:* https://nominatim.openstreetmap.org; script-src 'self' http://127.0.0.1:*; frame-src 'none'";
+  "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://127.0.0.1:* https://tile.openstreetmap.org data: blob:; connect-src 'self' http://127.0.0.1:* https://nominatim.openstreetmap.org; script-src 'self' http://127.0.0.1:*; frame-ancestors 'none'";
 
 // bindUIExtensions binds the superuser UI extensions routes to the ServeEvent.Router.
 export function bindUIExtensions(serveEvent: ServeEvent): void {

@@ -13599,6 +13599,11 @@ namespace core {
     newFileToken(): string;
   }
   interface settings {
+    /**
+     * SuperuserIPs defines an optional list of the superuser allowed
+     * individual IPs and subnets (in CIDR notation).
+     */
+    superuserIPs: Array<string>;
     smtp: SMTPConfig;
     backups: BackupsConfig;
     s3: S3Config;
@@ -13841,6 +13846,7 @@ namespace core {
   }
   interface RateLimitsConfig {
     rules: Array<RateLimitRule>;
+    excludedIPs: Array<string>;
     enabled: boolean;
   }
   interface RateLimitsConfig {

@@ -1,8 +1,12 @@
 # Changelog
 
-## 0.37.4-pocketbun.3 (Unreleased)
+## 0.38.0-pocketbun.0 (Unreleased)
 
-- TBD
+- Now compatible with PocketBase `v0.38.0` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0380).
+  - Includes upstream `v0.37.5` compatibility fixes for password field change detection, safer email-change confirmation validation, and duplicate relation id handling during record expand.
+  - Adds superuser IP/CIDR allowlists, rate-limit excluded IP/CIDR settings, runtime settings/collection state notifications across app instances, corrected Office document content types, the Admin UI refresh, and the default CSP media-preview fix.
+
+- Synced the vendored Admin UI and generated docs snapshot to the new upstream target.
 
 ## 0.37.4-pocketbun.2 - 2026-04-28
 

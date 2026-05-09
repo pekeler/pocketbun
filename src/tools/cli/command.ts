@@ -299,6 +299,7 @@ export class Command {
   Use = "";
   Short = "";
   Long = "";
+  Example = "";
   Version = "";
   SilenceUsage = false;
   ValidArgs: string[] = [];

@@ -678,7 +678,7 @@ function patchReference(text: string): string {
     "For collection/schema migrations, use `const migrationApp = app.forMigrations()` before collection persistence calls. It skips user hooks while preserving PocketBun system hooks required for collection schema persistence. See Rails' [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations) for the same replay hazard.";
   out = out.replace(
     new RegExp(
-      `(${escapeRegExp(migrateNote)})(?:\\n\\n(?:${escapeRegExp(oldMigrationAppNote)}|${escapeRegExp(migrationAppNote)}))*`,
+      `(${escapeRegExp(migrateNote)})(?:\\n\\n(?:${escapeRegExp(oldMigrationAppNote)}|${escapeRegExp(migrationAppNote)}|For collection/schema migrations[\\s\\S]*?replay hazard\\.))*`,
       "g",
     ),
     `$1\n\n${migrationAppNote}`,

@@ -10,6 +10,7 @@ import {
   RateLimitRuleAudienceGuest,
   type RateLimitRule,
 } from "../core/settings_model.ts";
+import { isIPInList } from "../internal/compat/ip.ts";
 import { Store } from "../tools/store/store.ts";
 import { tooManyRequests } from "./api_errors.ts";
 import { DefaultRateLimitMiddlewareId, DefaultRateLimitMiddlewarePriority } from "./middlewares.ts";
@@ -183,7 +184,11 @@ export function isClientRateLimited(event: RequestEvent, rtId: string): boolean 
 }
 
 function skipRateLimit(event: RequestEvent): boolean {
-  return !event.app.settings().rateLimits.enabled || event.hasSuperuserAuth();
+  return (
+    !event.app.settings().rateLimits.enabled ||
+    event.hasSuperuserAuth() ||
+    isIPInList(event.app.settings().rateLimits.excludedIPs, event.realIP())
+  );
 }
 
 const defaultAuthAudience = [RateLimitRuleAudienceAll, RateLimitRuleAudienceAuth];

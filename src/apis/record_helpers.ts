@@ -10,6 +10,7 @@ import { RecordAuthRequestEvent, RecordEnrichEvent } from "../core/events.ts";
 import { NewMFA } from "../core/mfa_model.ts";
 import { RecordFieldResolver } from "../core/record_field_resolver.ts";
 import { Record as RecordModel } from "../core/record_model.ts";
+import { isIPInList } from "../internal/compat/ip.ts";
 import { SendRecordAuthAlert } from "../mails/record.ts";
 import { buildFilterExpr } from "../tools/search/filter.ts";
 import { DefaultFilterExprLimit, FilterQueryParam, SortQueryParam } from "../tools/search/types.ts";
@@ -84,6 +85,13 @@ export async function RecordAuthResponseWithToken(
   authMethod: string,
   meta: unknown,
 ): Promise<Response> {
+  if (authRecord.isSuperuser()) {
+    const allowedIPs = event.app.settings().superuserIPs;
+    if (allowedIPs.length > 0 && !isIPInList(allowedIPs, event.realIP())) {
+      return forbidden(event, "");
+    }
+  }
+
   const originalRequestInfo = await event.requestInfo();
 
   const [ok, accessErr] = event.app.CanAccessRecord(authRecord, originalRequestInfo, authRecord.collection().AuthRule);

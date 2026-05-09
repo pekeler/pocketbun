@@ -4,8 +4,8 @@ import { cp, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { MailerEvent } from "../core/events.ts";
 import { BaseApp } from "../core/base.ts";
+import { TerminateEvent, type MailerEvent } from "../core/events.ts";
 import { removeDirWithRetry } from "./fs.ts";
 import { TestMailer } from "./mailer.ts";
 
@@ -158,7 +158,7 @@ export async function newTestApp(dataDir?: string, options: NewTestAppOptions = 
     cleaned = true;
     app.resetEventCalls();
     app.testMailer.reset();
-    app.resetBootstrapState();
+    await terminateTestApp(app);
     await removeDirWithRetry(tempDir);
   };
 
@@ -167,6 +167,24 @@ export async function newTestApp(dataDir?: string, options: NewTestAppOptions = 
     cleanup,
     [Symbol.asyncDispose]: cleanup,
   };
+}
+
+async function terminateTestApp(app: TestApp): Promise<void> {
+  if (!app.isBootstrapped()) {
+    app.resetBootstrapState();
+    return;
+  }
+
+  const event = new TerminateEvent(app);
+  const result = app.OnTerminate().Trigger(event, (e) => {
+    e.App.resetBootstrapState();
+    return null;
+  });
+
+  const err = result instanceof Promise ? await result : result;
+  if (err instanceof Error) {
+    throw err;
+  }
 }
 
 // PocketBun-only: upstream Go tests typically start from a fully bootstrapped app.

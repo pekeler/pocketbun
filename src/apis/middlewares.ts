@@ -5,6 +5,7 @@ import type { RequestEvent } from "../core/event_request.ts";
 import type { Handler } from "../tools/hook/hook.ts";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { TokenTypeAuth } from "../core/record_tokens.ts";
+import { isIPInList } from "../internal/compat/ip.ts";
 import { ApiError, apiErrorResponse } from "../tools/router/api_error.ts";
 import { badRequest, forbidden, unauthorized } from "./api_errors.ts";
 
@@ -30,6 +31,9 @@ export const DefaultPanicRecoverMiddlewareId = "pbPanicRecover";
 
 export const DefaultLoadAuthTokenMiddlewarePriority = DefaultRateLimitMiddlewarePriority - 20;
 export const DefaultLoadAuthTokenMiddlewareId = "pbLoadAuthToken";
+
+export const DefaultSuperuserIPsWhitelistMiddlewarePriority = DefaultLoadAuthTokenMiddlewarePriority + 5;
+export const DefaultSuperuserIPsWhitelistMiddlewareId = "pbSuperuserIPsWhitelist";
 
 export const DefaultSecurityHeadersMiddlewarePriority = DefaultRateLimitMiddlewarePriority - 10;
 export const DefaultSecurityHeadersMiddlewareId = "pbSecurityHeaders";
@@ -276,6 +280,27 @@ export function securityHeaders(): Handler<RequestEvent> {
       event.responseHeaders.set("X-XSS-Protection", "1; mode=block");
       event.responseHeaders.set("X-Content-Type-Options", "nosniff");
       event.responseHeaders.set("X-Frame-Options", "SAMEORIGIN");
+      return event.Next();
+    },
+  };
+}
+
+// superuserIPsWhitelist middleware checks the current authenticated superuser IP
+// against the configured SuperuserIPs whitelist setting.
+//
+// This middleware is registered by default for all routes.
+export function superuserIPsWhitelist(): Handler<RequestEvent> {
+  return {
+    Id: DefaultSuperuserIPsWhitelistMiddlewareId,
+    Priority: DefaultSuperuserIPsWhitelistMiddlewarePriority,
+    Func: (event) => {
+      if (event.hasSuperuserAuth()) {
+        const ips = event.app.settings().superuserIPs;
+        if (ips.length > 0 && !isIPInList(ips, event.realIP())) {
+          return forbidden(event, "");
+        }
+      }
+
       return event.Next();
     },
   };

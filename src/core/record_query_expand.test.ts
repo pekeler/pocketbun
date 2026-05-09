@@ -1,6 +1,7 @@
 // Ported from pocketbase/core/record_query_expand_test.go.
 
 import { describe, expect, it } from "bun:test";
+import type { DbxDatabase } from "../tools/dbx/database.ts";
 import type { Collection } from "./collection_model.ts";
 import { newTestApp } from "../tests/app.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
@@ -396,6 +397,30 @@ describe("record expand", () => {
         const result = record.Expand()["demo4_via_rel_one_cascade"];
         expect(result).toBeInstanceOf(RecordModel);
       }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("ExpandRecordsQuerySkipDuplicatedIds", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      // fetch records that are known to have at least 1 common relation between them
+      const records = app.FindRecordsByIds("demo1", ["84nmscqy84lsi1t", "al1h9ijdeojtsjy"]);
+
+      const concurrentQueries: string[] = [];
+      const db = app.db() as DbxDatabase;
+      db.QueryLogFunc = (sql) => {
+        concurrentQueries.push(sql);
+      };
+
+      const failed = app.ExpandRecords(records, ["rel_many"], null);
+      if (Object.keys(failed).length > 0) {
+        throw new Error(`Expected no expand errors, got ${JSON.stringify(failed)}`);
+      }
+
+      expect(concurrentQueries.length).toBe(1);
+      expect(concurrentQueries[0]).toBe("select `users`.* from `users` WHERE `users`.`id` IN (?, ?, ?)");
     } finally {
       await cleanup();
     }

@@ -81,10 +81,20 @@ const inlineServeContentTypes = new Set([
 
 // manualExtensionContentTypes is a map of file extensions to content types.
 const manualExtensionContentTypes: Record<string, string> = {
+  // https://github.com/whatwg/mimesniff/issues/7
   ".svg": "image/svg+xml",
+
+  // https://github.com/gabriel-vasile/mimetype/pull/113
   ".css": "text/css",
+
+  // https://github.com/pocketbase/pocketbase/issues/6597
   ".js": "text/javascript",
   ".mjs": "text/javascript",
+
+  // https://github.com/pocketbase/pocketbase/discussions/7467
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 };
 
 const textEncoder = new TextEncoder();
@@ -752,7 +762,7 @@ export class System {
     }
 
     let extContentType = realContentType;
-    const ext = posix.extname(name);
+    const ext = posix.extname(fileKey);
     if (ext in manualExtensionContentTypes) {
       extContentType = manualExtensionContentTypes[ext] ?? extContentType;
     }

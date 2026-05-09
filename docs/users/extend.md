@@ -38,19 +38,19 @@ You can start by creating `*.pb.js` or `*.pb.ts` file(s) inside a `pb_hooks` dir
 // pb_hooks/main.pb.js
 
 routerAdd("GET", "/hello/{name}", (e) => {
-    let name = e.request.pathValue("name")
+  let name = e.request.pathValue("name");
 
-    return e.json(200, { "message": "Hello " + name })
-})
+  return e.json(200, { message: "Hello " + name });
+});
 
 onRecordAfterUpdateSuccess((e) => {
-    console.log("user updated...", e.record.get("email"))
+  console.log("user updated...", e.record.get("email"));
 
-    e.next()
-}, "users")
+  e.next();
+}, "users");
 ```
 
-* For convenience, when making changes to files inside `pb_hooks`, the process will automatically restart/reload itself (currently supported only on UNIX based platforms). Hook files are loaded per filename sort order.
+- For convenience, when making changes to files inside `pb_hooks`, the process will automatically restart/reload itself (currently supported only on UNIX based platforms). Hook files are loaded per filename sort order.
 
 On Windows, HooksWatch restart behavior has no effect.
 
@@ -120,7 +120,7 @@ Please note that the hooks runtime is not a browser environment. Use APIs that a
 
 You can load modules either by specifying their local filesystem path or by using their name, which will automatically search in:
 
-- the current working directory (*affects also relative paths*)
+- the current working directory (_affects also relative paths_)
 - any `node_modules` directory
 - any parent `node_modules` directory
 
@@ -713,10 +713,10 @@ Expects the route to have a `{path...}` wildcard parameter.
 
 ```js
 // serves static files from a filesystem root
-routerAdd("GET", "/{path...}", $apis.static($os.dirFS("/path/to/public"), false))
+routerAdd("GET", "/{path...}", $apis.static($os.dirFS("/path/to/public"), false));
 
 // or from a plain directory string
-routerAdd("GET", "/assets/{path...}", $apis.static("/path/to/public", false))
+routerAdd("GET", "/assets/{path...}", $apis.static("/path/to/public", false));
 ```
 #### Auth response
 
@@ -798,30 +798,23 @@ The same lookup in dbx style:
 
 ```js
 const user = new DynamicModel({
-    "id": "",
-    "email": "",
-})
+  id: "",
+  email: "",
+});
 
-$app
-    .db()
-    .newQuery("SELECT id, email FROM users WHERE email = {:email} LIMIT 1")
-    .bind({ "email": "test@example.com" })
-    .one(user) // throws on db failure or missing row
+$app.db().newQuery("SELECT id, email FROM users WHERE email = {:email} LIMIT 1").bind({ email: "test@example.com" }).one(user); // throws on db failure or missing row
 ```
 
 The same lookup in direct Bun SQLite style:
 
 ```js
-const row = $app
-    .db()
-    .query("SELECT id, email FROM users WHERE email = ? LIMIT 1")
-    .get("test@example.com")
+const row = $app.db().query("SELECT id, email FROM users WHERE email = ? LIMIT 1").get("test@example.com");
 
 if (!row) {
-    throw new Error("missing row")
+  throw new Error("missing row");
 }
 
-console.log(row.id, row.email)
+console.log(row.id, row.email);
 ```
 
 Main practical differences:

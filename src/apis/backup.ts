@@ -5,6 +5,7 @@ import { newBackupsFilesystemAsync, type App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { TokenTypeFile } from "../core/record_tokens.ts";
 import { StoreKeyActiveBackup } from "../core/store.ts";
+import { isIPInList } from "../internal/compat/ip.ts";
 import { FireAndForget } from "../tools/routine/routine.ts";
 import { ParseDateTime, type DateTime } from "../tools/types/index.ts";
 import { badRequest, forbidden, internalServerError, noContent, notFound } from "./api_errors.ts";
@@ -68,6 +69,11 @@ async function backupDownload(app: App, event: RequestEvent): Promise<Response> 
       throw new Error("insufficient permissions");
     }
   } catch (_error) {
+    return forbidden(event, "Insufficient permissions to access the resource.");
+  }
+
+  const allowedIPs = app.settings().superuserIPs;
+  if (allowedIPs.length > 0 && !isIPInList(allowedIPs, event.realIP())) {
     return forbidden(event, "Insufficient permissions to access the resource.");
   }
 

@@ -131,9 +131,18 @@ function expandRecordsPath(
     return null;
   }
 
+  // extract the unique ids of the relations to expand
+  // (the initial size assumes that most of the relations are single and unique)
+  const existsSet = new Set<string>();
   const relIds: string[] = [];
   for (const record of records) {
-    relIds.push(...record.GetStringSlice(relField.Name));
+    const ids = record.GetStringSlice(relField.Name);
+    for (const id of ids) {
+      if (!existsSet.has(id)) {
+        existsSet.add(id);
+        relIds.push(id);
+      }
+    }
   }
 
   let rels: RecordModel[];

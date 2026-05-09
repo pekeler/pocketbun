@@ -118,4 +118,51 @@ describe("middlewares rate limit", () => {
       }
     }
   });
+
+  it.serial("skips rate limits for excluded IPs", async () => {
+    if (cleanup) {
+      await cleanup();
+      cleanup = null;
+    }
+
+    const setupResult = await setup();
+    cleanup = setupResult.cleanup;
+    const { app, handler } = setupResult;
+
+    app.settings().trustedProxy = {
+      headers: ["x-test-ip"],
+      useLeftmostIP: false,
+    };
+    app.settings().rateLimits.rules = [{ label: "/rate/a", maxRequests: 1, duration: 5 }];
+    app.settings().rateLimits.excludedIPs = ["127.0.0.0/24"];
+
+    for (let i = 0; i < 3; i += 1) {
+      const response = await handler(
+        new Request("http://localhost/rate/a", {
+          method: "GET",
+          headers: { "x-test-ip": "127.0.0.1" },
+        }),
+      );
+
+      if (response.status !== 200) {
+        throw new Error(`Expected excluded IP response status 200, got ${response.status}`);
+      }
+    }
+
+    app.settings().rateLimits.excludedIPs = ["10.0.0.0"];
+    const statuses: number[] = [];
+    for (let i = 0; i < 3; i += 1) {
+      const response = await handler(
+        new Request("http://localhost/rate/a", {
+          method: "GET",
+          headers: { "x-test-ip": "127.0.0.1" },
+        }),
+      );
+      statuses.push(response.status);
+    }
+
+    if (JSON.stringify(statuses) !== JSON.stringify([200, 429, 429])) {
+      throw new Error(`Expected non-excluded statuses [200,429,429], got ${JSON.stringify(statuses)}`);
+    }
+  });
 });

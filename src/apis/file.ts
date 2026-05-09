@@ -9,6 +9,7 @@ import { RequestInfoContextProtectedFile } from "../core/event_request.ts";
 import { FileDownloadRequestEvent, FileTokenRequestEvent } from "../core/events.ts";
 import { TokenTypeFile } from "../core/record_tokens.ts";
 import { toNumberValue } from "../internal/compat/cast.ts";
+import { isIPInList } from "../internal/compat/ip.ts";
 import { existInSlice } from "../tools/list/list.ts";
 import { internalServerError, notFound, unauthorized } from "./api_errors.ts";
 import { RequireAuth } from "./middlewares.ts";
@@ -49,6 +50,7 @@ class FileApi {
   }
 
   async fileToken(event: RequestEvent): Promise<Response> {
+    // extra check for just in case the handler is called in a different context
     if (!event.auth) {
       return unauthorized(event, "Missing auth context.");
     }
@@ -118,6 +120,15 @@ class FileApi {
         authRecord = event.app.FindAuthRecordByToken(token, TokenTypeFile);
       } catch {
         authRecord = null;
+      }
+
+      // reset the auth state if it is superuser and it is not whitelisted
+      // (not critical because file tokens are short-lived but checked nonetheless as an extra precaution)
+      if (authRecord?.isSuperuser()) {
+        const allowedIPs = event.app.settings().superuserIPs;
+        if (allowedIPs.length > 0 && !isIPInList(allowedIPs, event.realIP())) {
+          authRecord = null;
+        }
       }
 
       const requestInfo: RequestInfo = {

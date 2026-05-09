@@ -169,6 +169,7 @@ describe("jwk", () => {
       const scenarios = [
         { name: "error response", kid: "def", expectError: true, contains: [] as string[] },
         { name: "non-matching kid", kid: "missing", expectError: true, contains: [] as string[] },
+        { name: "matching kid (no alg)", kid: "abc", expectError: true, contains: [] as string[] },
         {
           name: "matching kid",
           kid: "def",

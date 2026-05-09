@@ -67,12 +67,12 @@ export async function Fetch(ctx: unknown, jwksURL: string, kid: string): Promise
   const keys = Array.isArray(jwks.keys) ? jwks.keys : [];
   for (const rawKey of keys) {
     const parsed = parseJWK(rawKey);
-    if (parsed.Kid === kid) {
+    if (parsed.Kid === kid && parsed.Alg !== "") {
       return parsed;
     }
   }
 
-  throw new Error(`JWK with kid ${JSON.stringify(kid)} was not found`);
+  throw new Error(`missing JWK with kid ${JSON.stringify(kid)} and non-empty alg`);
 }
 
 // ValidateTokenSignature validates the signature of a token with the

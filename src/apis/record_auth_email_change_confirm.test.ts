@@ -2,6 +2,8 @@
 
 import { describe, it } from "bun:test";
 import { runApiScenario, type ApiScenario } from "../tests/api.ts";
+import { newTestApp } from "../tests/app.ts";
+import { buildServeHandler } from "./serve.ts";
 
 type Scenario = ApiScenario & { todo?: boolean };
 
@@ -42,6 +44,19 @@ const scenarios: Scenario[] = [
     }`,
     expectedStatus: 400,
     expectedContent: ['"data":{', '"token":{', '"code":"validation_invalid_token"'],
+    expectedEvents: { "*": 0 },
+  },
+  {
+    name: "invalid token with existing new email",
+    method: "POST",
+    url: "/api/collections/users/confirm-email-change",
+    body: `{
+      "token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuZXdFbWFpbCI6InRlc3RAZXhhbXBsZS5jb20ifQ.invalid",
+      "password":"1234567890"
+    }`,
+    expectedStatus: 400,
+    expectedContent: ['"data":{', '"token":{', '"code":"validation_invalid_token"'],
+    notExpectedContent: ["validation_existing_token_email", "test@example.com"],
     expectedEvents: { "*": 0 },
   },
   {
@@ -208,4 +223,35 @@ describe("record auth email change confirm", () => {
       await runApiScenario(scenario);
     });
   }
+
+  it("valid token with existing new email reports generic invalid email", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const authRecord = app.FindAuthRecordByEmail("users", "test@example.com");
+      const token = authRecord.NewEmailChangeToken("test@example.com");
+
+      const handler = buildServeHandler(app);
+      const response = await handler(
+        new Request("http://localhost/api/collections/users/confirm-email-change", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token, password: "1234567890" }),
+        }),
+      );
+
+      if (response.status !== 400) {
+        throw new Error(`Expected status 400, got ${response.status}`);
+      }
+
+      const body = await response.text();
+      if (!body.includes('"code":"validation_invalid_token_email"')) {
+        throw new Error(`Expected validation_invalid_token_email, got ${body}`);
+      }
+      if (body.includes("test@example.com")) {
+        throw new Error(`Expected generic duplicate email error, got ${body}`);
+      }
+    } finally {
+      await cleanup();
+    }
+  });
 });

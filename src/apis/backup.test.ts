@@ -365,6 +365,34 @@ const scenarios: ApiScenario[] = [
     expectedEvents: { "*": 0 },
   },
   {
+    name: "backups download with valid superuser file token and whitelisted IP",
+    method: "GET",
+    url: `/api/backups/test1.zip?token=${superuserFileToken}`,
+    headers: { "x-test-ip": "127.0.0.1" },
+    beforeTest: async (app) => {
+      await createTestBackups(app);
+      app.settings().trustedProxy = { headers: ["x-test-ip"], useLeftmostIP: false };
+      app.settings().superuserIPs = ["127.0.0.1"];
+    },
+    expectedStatus: 200,
+    expectedContent: ["storage/", "data.db", "auxiliary.db"],
+    expectedEvents: { "*": 0 },
+  },
+  {
+    name: "backups download with valid superuser file token but non-whitelisted IP",
+    method: "GET",
+    url: `/api/backups/test1.zip?token=${superuserFileToken}`,
+    headers: { "x-test-ip": "127.0.0.1" },
+    beforeTest: async (app) => {
+      await createTestBackups(app);
+      app.settings().trustedProxy = { headers: ["x-test-ip"], useLeftmostIP: false };
+      app.settings().superuserIPs = ["0.0.0.0"];
+    },
+    expectedStatus: 403,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
+  },
+  {
     name: "backups download with valid superuser file token and escaped name",
     method: "GET",
     url: `/api/backups/%40test4.zip?token=${superuserFileToken}`,

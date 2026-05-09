@@ -143,19 +143,6 @@ function parseEmailChangeToken(
     };
   }
 
-  try {
-    const existing = app.FindAuthRecordByEmail(collectionId, newEmail);
-    if (existing) {
-      return {
-        record: null,
-        newEmail: "",
-        error: newError("validation_existing_token_email", `The new email address is already registered: ${newEmail}`),
-      };
-    }
-  } catch {
-    // ignore missing record
-  }
-
   let record: RecordModel | null = null;
   try {
     record = app.FindAuthRecordByToken(token, TokenTypeEmailChange);
@@ -169,6 +156,19 @@ function parseEmailChangeToken(
       newEmail: "",
       error: newError("validation_token_collection_mismatch", "The provided token is for different auth collection."),
     };
+  }
+
+  try {
+    const existing = app.FindAuthRecordByEmail(collectionId, newEmail);
+    if (existing) {
+      return {
+        record: null,
+        newEmail: "",
+        error: newError("validation_invalid_token_email", "The new email address is invalid."),
+      };
+    }
+  } catch {
+    // ignore missing record
   }
 
   return { record, newEmail, error: null };

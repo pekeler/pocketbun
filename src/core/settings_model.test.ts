@@ -30,6 +30,7 @@ import {
 
 function newEmptySettings(): Settings {
   const settings = new Settings();
+  settings.superuserIPs = [];
   settings.trustedProxy = {
     headers: [],
     useLeftmostIP: false,
@@ -83,6 +84,7 @@ function newEmptySettings(): Settings {
   settings.rateLimits = new RateLimitsConfig();
   settings.rateLimits.enabled = false;
   settings.rateLimits.rules = [];
+  settings.rateLimits.excludedIPs = [];
   settings.batch = {
     enabled: false,
     maxRequests: 0,
@@ -153,7 +155,7 @@ describe("settings model", () => {
     const rawStr = JSON.stringify(settings);
 
     const expected =
-      '{"smtp":{"enabled":false,"port":0,"host":"","username":"abc","authMethod":"","tls":false,"localName":""},"backups":{"cron":"","cronMaxKeep":0,"s3":{"enabled":false,"bucket":"","region":"","endpoint":"","accessKey":"","forcePathStyle":false}},"s3":{"enabled":false,"bucket":"","region":"","endpoint":"","accessKey":"","forcePathStyle":false},"meta":{"accentColor":"","appName":"test123","appURL":"","senderName":"","senderAddress":"","hideControls":false},"rateLimits":{"rules":[],"enabled":false},"trustedProxy":{"headers":[],"useLeftmostIP":false},"batch":{"enabled":false,"maxRequests":0,"timeout":0,"maxBodySize":0},"logs":{"maxDays":0,"minLevel":0,"logIP":false,"logAuthId":false}}';
+      '{"superuserIPs":[],"smtp":{"enabled":false,"port":0,"host":"","username":"abc","authMethod":"","tls":false,"localName":""},"backups":{"cron":"","cronMaxKeep":0,"s3":{"enabled":false,"bucket":"","region":"","endpoint":"","accessKey":"","forcePathStyle":false}},"s3":{"enabled":false,"bucket":"","region":"","endpoint":"","accessKey":"","forcePathStyle":false},"meta":{"accentColor":"","appName":"test123","appURL":"","senderName":"","senderAddress":"","hideControls":false},"rateLimits":{"rules":[],"excludedIPs":[],"enabled":false},"trustedProxy":{"headers":[],"useLeftmostIP":false},"batch":{"enabled":false,"maxRequests":0,"timeout":0,"maxBodySize":0},"logs":{"maxDays":0,"minLevel":0,"logIP":false,"logAuthId":false}}';
 
     expect(rawStr).toBe(expected);
   });
@@ -163,6 +165,7 @@ describe("settings model", () => {
     try {
       const s = app.settings();
 
+      s.superuserIPs = ["127.0.0.1", ""];
       s.meta.appName = "";
       s.logs.maxDays = -10;
       s.smtp.enabled = true;
@@ -180,7 +183,7 @@ describe("settings model", () => {
       const err = await app.Validate(s);
       expect(err).not.toBeNull();
 
-      testValidationErrors(err, ["meta", "logs", "smtp", "s3", "backups", "batch", "rateLimits"]);
+      testValidationErrors(err, ["superuserIPs", "meta", "logs", "smtp", "s3", "backups", "batch", "rateLimits"]);
     } finally {
       await cleanup();
     }
@@ -526,17 +529,19 @@ describe("settings model", () => {
         name: "invalid data",
         config: Object.assign(new RateLimitsConfig(), {
           enabled: true,
+          excludedIPs: ["", "127.0.0.1"],
           rules: [
             { label: "/123abc/", duration: 1, maxRequests: 2 },
             { label: "!abc", duration: -1, maxRequests: -1 },
           ],
         }),
-        expectedErrors: ["rules"],
+        expectedErrors: ["rules", "excludedIPs"],
       },
       {
         name: "valid data",
         config: Object.assign(new RateLimitsConfig(), {
           enabled: true,
+          excludedIPs: ["127.0.0.1", "10.0.0.1/20"],
           rules: [
             { label: "123_abc", duration: 1, maxRequests: 2 },
             { label: "/456-abc", duration: 1, maxRequests: 2 },

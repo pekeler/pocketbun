@@ -22,6 +22,7 @@ import {
   loadAuthToken,
   panicRecover,
   securityHeaders,
+  superuserIPsWhitelist,
 } from "./middlewares.ts";
 import { BodyLimit, DefaultMaxBodySize } from "./middlewares_body_limit.ts";
 import { rateLimit } from "./middlewares_rate_limit.ts";
@@ -54,6 +55,7 @@ export function NewRouter(app: App): Router<RequestEvent> {
   pbRouter.Bind(panicRecover());
   pbRouter.Bind(rateLimit());
   pbRouter.Bind(loadAuthToken());
+  pbRouter.Bind(superuserIPsWhitelist());
   pbRouter.Bind(securityHeaders());
   pbRouter.Bind(BodyLimit(DefaultMaxBodySize));
 

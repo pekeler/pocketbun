@@ -3,7 +3,7 @@
 import { newError } from "../../internal/compat/validation.ts";
 import { File, ReadFileReaderBytes, ReadFileReaderSampleBytesAsync } from "../../tools/filesystem/file.ts";
 import { detectMimeTypeFromBytes } from "../../tools/filesystem/file.ts";
-import { ErrUnsupportedValueType } from "./validators.ts";
+import { ErrUnsupportedValueType, cutStr } from "./validators.ts";
 
 // UploadedFileSize checks whether the validated [*filesystem.File]
 // size is no more than the provided maxBytes.
@@ -26,7 +26,7 @@ export function UploadedFileSize(maxBytes: number) {
       return newError(
         "validation_file_size_limit",
         "Failed to upload {{.file}} - the maximum allowed file size is {{.maxSize}} bytes.",
-      ).setParams({ file: file.OriginalName, maxSize: maxBytes });
+      ).setParams({ file: cutStr(file.OriginalName, 300), maxSize: maxBytes });
     }
 
     return null;
@@ -53,7 +53,7 @@ export function UploadedFileMimeType(validTypes: string[]) {
     const file = value as File;
     const baseErr = newError(
       "validation_invalid_mime_type",
-      `Failed to upload ${JSON.stringify(file.OriginalName)} due to unsupported file type.`,
+      `Failed to upload ${JSON.stringify(cutStr(file.OriginalName, 300))} due to unsupported file type.`,
     );
 
     if (validTypes.length === 0) {
@@ -99,7 +99,7 @@ export function UploadedFileMimeTypeAsync(validTypes: string[]) {
     const file = value as File;
     const baseErr = newError(
       "validation_invalid_mime_type",
-      `Failed to upload ${JSON.stringify(file.OriginalName)} due to unsupported file type.`,
+      `Failed to upload ${JSON.stringify(cutStr(file.OriginalName, 300))} due to unsupported file type.`,
     );
 
     if (validTypes.length === 0) {

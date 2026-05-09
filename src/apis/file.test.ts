@@ -72,6 +72,7 @@ type FileScenario = {
   name: string;
   method: string;
   url: string;
+  headers?: Record<string, string>;
   expectedStatus: number;
   expectedBody?: Uint8Array | string[];
   expectedEvents?: Record<string, number>;
@@ -361,6 +362,32 @@ describe("file download", () => {
       expectedEvents: { "*": 0, OnFileDownloadRequest: 1 },
     },
     {
+      name: "protected file - superuser with non-whitelisted IP",
+      method: "GET",
+      url: "/api/files/demo1/al1h9ijdeojtsjy/300_Jsjq7RdBgA.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InN5d2JoZWNuaDQ2cmhtMCIsImV4cCI6MjUyNDYwNDQ2MSwidHlwZSI6ImZpbGUiLCJjb2xsZWN0aW9uSWQiOiJwYmNfMzE0MjYzNTgyMyJ9.Lupz541xRvrktwkrl55p5pPCF77T69ZRsohsIcb2dxc",
+      headers: { "x-test-ip": "127.0.0.1" },
+      beforeTest: (app) => {
+        app.settings().trustedProxy = { headers: ["x-test-ip"], useLeftmostIP: false };
+        app.settings().superuserIPs = ["0.0.0.0"];
+      },
+      expectedStatus: 404,
+      expectedBody: ['"data":{}'],
+      expectedEvents: { "*": 0 },
+    },
+    {
+      name: "protected file - superuser with whitelisted IP",
+      method: "GET",
+      url: "/api/files/demo1/al1h9ijdeojtsjy/300_Jsjq7RdBgA.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InN5d2JoZWNuaDQ2cmhtMCIsImV4cCI6MjUyNDYwNDQ2MSwidHlwZSI6ImZpbGUiLCJjb2xsZWN0aW9uSWQiOiJwYmNfMzE0MjYzNTgyMyJ9.Lupz541xRvrktwkrl55p5pPCF77T69ZRsohsIcb2dxc",
+      headers: { "x-test-ip": "127.0.0.1" },
+      beforeTest: (app) => {
+        app.settings().trustedProxy = { headers: ["x-test-ip"], useLeftmostIP: false };
+        app.settings().superuserIPs = ["127.0.0.1"];
+      },
+      expectedStatus: 200,
+      expectedBody: ["PNG"],
+      expectedEvents: { "*": 0, OnFileDownloadRequest: 1 },
+    },
+    {
       name: "protected file in view (view's View API rule failure)",
       method: "GET",
       url: "/api/files/view1/al1h9ijdeojtsjy/300_Jsjq7RdBgA.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsImV4cCI6MjUyNDYwNDQ2MSwidHlwZSI6ImZpbGUiLCJjb2xsZWN0aW9uSWQiOiJfcGJfdXNlcnNfYXV0aF8ifQ.nSTLuCPcGpWn2K2l-BFkC3Vlzc-ZTDPByYq8dN1oPSo",
@@ -571,7 +598,7 @@ async function runFileScenario(scenario: FileScenario): Promise<void> {
 
     const handler = buildServeHandler(app);
     const requestUrl = new URL(scenario.url, "http://localhost").toString();
-    const response = await handler(new Request(requestUrl, { method: scenario.method }));
+    const response = await handler(new Request(requestUrl, { method: scenario.method, headers: scenario.headers }));
 
     if (response.status !== scenario.expectedStatus) {
       throw new Error(`Expected status ${scenario.expectedStatus}, got ${response.status}`);

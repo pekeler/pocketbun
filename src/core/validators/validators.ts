@@ -26,6 +26,13 @@ export function joinValidationErrors(errorA: Error | null, errorB: Error | null)
   return joinErrors(errorA, errorB);
 }
 
+export function cutStr(str: string, max: number): string {
+  if (str.length > max) {
+    return `${str.slice(0, max)}...`;
+  }
+  return str;
+}
+
 function joinErrors(errA: Error | null, errB: Error | null): Error | null {
   if (!errA && !errB) {
     return null;

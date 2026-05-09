@@ -47,7 +47,7 @@ const adminBrandingScriptPath = resolveServeAssetPath(serveModuleDir, [
   "../src/ui/admin_branding.js",
 ]);
 const defaultCSP =
-  "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://127.0.0.1:* https://tile.openstreetmap.org data: blob:; connect-src 'self' http://127.0.0.1:* https://nominatim.openstreetmap.org; script-src 'self' http://127.0.0.1:*; frame-src 'none'";
+  "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://127.0.0.1:* https://tile.openstreetmap.org data: blob:; connect-src 'self' http://127.0.0.1:* https://nominatim.openstreetmap.org; script-src 'self' http://127.0.0.1:*; frame-ancestors 'none'";
 // Bun currently limits `idleTimeout` to <= 255 seconds.
 const defaultServerIdleTimeoutSeconds = 255;
 // PocketBun deviation: raise Bun's request cap so app/body-limit middleware and

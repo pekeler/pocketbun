@@ -507,4 +507,73 @@ describe("middlewares", () => {
       await runApiScenario(scenario);
     }
   });
+
+  it("superuser IPs whitelist", async () => {
+    const setupWhitelist = (...superuserIPs: string[]) =>
+      bindServeRoute((event) => {
+        event.App.settings().trustedProxy = {
+          headers: ["x-test-ip"],
+          useLeftmostIP: false,
+        };
+        event.App.settings().superuserIPs = superuserIPs;
+        event.Router.get("/my/test", (reqEvent) => reqEvent.String(200, "test123"));
+      });
+
+    const scenarios: ApiScenario[] = [
+      {
+        name: "guest with non-matching IP",
+        method: "GET",
+        url: "/my/test",
+        headers: { "x-test-ip": "127.0.0.1" },
+        beforeTest: setupWhitelist("0.0.0.0"),
+        expectedStatus: 200,
+        expectedContent: ["test123"],
+        expectedEvents: { "*": 0 },
+      },
+      {
+        name: "regular user with non-matching IP",
+        method: "GET",
+        url: "/my/test",
+        headers: { "x-test-ip": "127.0.0.1", Authorization: regularAuthToken },
+        beforeTest: setupWhitelist("0.0.0.0"),
+        expectedStatus: 200,
+        expectedContent: ["test123"],
+        expectedEvents: { "*": 0 },
+      },
+      {
+        name: "superuser with non-matching IP",
+        method: "GET",
+        url: "/my/test",
+        headers: { "x-test-ip": "127.0.0.1", Authorization: superuserToken },
+        beforeTest: setupWhitelist("0.0.0.0"),
+        expectedStatus: 403,
+        expectedContent: ['"data":{}'],
+        expectedEvents: { "*": 0 },
+      },
+      {
+        name: "superuser with matching IP",
+        method: "GET",
+        url: "/my/test",
+        headers: { "x-test-ip": "127.0.0.1", Authorization: superuserToken },
+        beforeTest: setupWhitelist("127.0.0.1"),
+        expectedStatus: 200,
+        expectedContent: ["test123"],
+        expectedEvents: { "*": 0 },
+      },
+      {
+        name: "superuser with matching subnet",
+        method: "GET",
+        url: "/my/test",
+        headers: { "x-test-ip": "127.0.0.1", Authorization: superuserToken },
+        beforeTest: setupWhitelist("127.0.0.0/24"),
+        expectedStatus: 200,
+        expectedContent: ["test123"],
+        expectedEvents: { "*": 0 },
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      await runApiScenario(scenario);
+    }
+  });
 });

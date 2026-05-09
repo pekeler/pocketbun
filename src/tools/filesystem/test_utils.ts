@@ -73,6 +73,9 @@ export async function createTestDir(): Promise<string> {
   await writeFile(join(dir, "style.css"), "");
   await writeFile(join(dir, "main.js"), "");
   await writeFile(join(dir, "main.mjs"), "");
+  await writeFile(join(dir, "dummy.xlsx"), "");
+  await writeFile(join(dir, "dummy.docx"), "");
+  await writeFile(join(dir, "dummy.pptx"), "");
 
   return dir;
 }

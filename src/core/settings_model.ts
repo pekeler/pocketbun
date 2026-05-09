@@ -5,6 +5,7 @@ import { ValidationErrors, newError, required } from "../internal/compat/validat
 import { NewSchedule } from "../tools/cron/schedule.ts";
 import { decrypt } from "../tools/security/encrypt.ts";
 import { JSONRaw } from "../tools/types/json_raw.ts";
+import { IPOrSubnet } from "./validators/string.ts";
 
 export const ParamsTableName = "_params";
 export const ParamsKeySettings = "settings";
@@ -77,10 +78,12 @@ export type RateLimitRule = {
 
 export class RateLimitsConfig {
   rules: RateLimitRule[];
+  excludedIPs: string[];
   enabled: boolean;
 
   constructor() {
     this.enabled = false;
+    this.excludedIPs = [];
     this.rules = [
       { label: "*:auth", maxRequests: 2, duration: 3, audience: RateLimitRuleAudienceAll },
       { label: "*:create", maxRequests: 20, duration: 5, audience: RateLimitRuleAudienceAll },
@@ -141,11 +144,12 @@ export class RateLimitsConfig {
 }
 
 type SettingsSnapshot = {
+  superuserIPs: string[];
   smtp: SMTPConfig;
   backups: BackupsConfig;
   s3: S3Config;
   meta: MetaConfig;
-  rateLimits: { rules: RateLimitRule[]; enabled: boolean };
+  rateLimits: { rules: RateLimitRule[]; excludedIPs: string[]; enabled: boolean };
   trustedProxy: TrustedProxyConfig;
   batch: BatchConfig;
   logs: LogsConfig;
@@ -158,6 +162,9 @@ type SettingsSnapshotJSON = Omit<SettingsSnapshot, "smtp" | "s3" | "backups"> & 
 };
 
 export class Settings {
+  // SuperuserIPs defines an optional list of the superuser allowed
+  // individual IPs and subnets (in CIDR notation).
+  superuserIPs: string[];
   trustedProxy: TrustedProxyConfig;
   meta: MetaConfig;
   smtp: SMTPConfig;
@@ -170,6 +177,7 @@ export class Settings {
 
   constructor() {
     this.#isNew = true;
+    this.superuserIPs = [];
     this.trustedProxy = {
       headers: [],
       useLeftmostIP: false,
@@ -277,6 +285,7 @@ export class Settings {
 
   toRaw(): SettingsSnapshot {
     return {
+      superuserIPs: Array.isArray(this.superuserIPs) ? [...this.superuserIPs] : [],
       smtp: { ...this.smtp },
       backups: {
         cron: this.backups.cron,
@@ -287,6 +296,7 @@ export class Settings {
       meta: { ...this.meta },
       rateLimits: {
         enabled: this.rateLimits.enabled,
+        excludedIPs: Array.isArray(this.rateLimits.excludedIPs) ? [...this.rateLimits.excludedIPs] : [],
         rules: this.rateLimits.rules.map((rule) => ({ ...rule })),
       },
       trustedProxy: {
@@ -327,6 +337,7 @@ export class Settings {
     };
 
     return {
+      superuserIPs: Array.isArray(snapshot.superuserIPs) ? [...snapshot.superuserIPs] : [],
       smtp,
       backups: {
         cron: snapshot.backups.cron,
@@ -344,6 +355,7 @@ export class Settings {
       },
       rateLimits: {
         rules: snapshot.rateLimits.rules.map((rule) => ({ ...rule })),
+        excludedIPs: Array.isArray(snapshot.rateLimits.excludedIPs) ? [...snapshot.rateLimits.excludedIPs] : [],
         enabled: snapshot.rateLimits.enabled,
       },
       trustedProxy: {
@@ -371,6 +383,10 @@ export class Settings {
     }
 
     const raw = value as Record<string, unknown>;
+
+    if (Array.isArray(raw.superuserIPs)) {
+      this.superuserIPs = raw.superuserIPs.filter((entry) => typeof entry === "string");
+    }
 
     const trustedProxy = raw.trustedProxy;
     if (trustedProxy && typeof trustedProxy === "object") {
@@ -490,6 +506,9 @@ export class Settings {
             };
           });
       }
+      if (Array.isArray(record.excludedIPs)) {
+        this.rateLimits.excludedIPs = record.excludedIPs.filter((entry) => typeof entry === "string");
+      }
     }
 
     const batch = raw.batch;
@@ -512,6 +531,11 @@ export class Settings {
 
   PostValidate(_ctx: unknown, _app: unknown): Error | null {
     const errors: Record<string, Error> = {};
+
+    const superuserIPsErr = validateIPOrSubnetList(this.superuserIPs);
+    if (superuserIPsErr) {
+      errors.superuserIPs = superuserIPsErr;
+    }
 
     const metaErr = validateMeta(this.meta);
     if (metaErr) {
@@ -655,6 +679,19 @@ function validateMeta(meta: MetaConfig): Error | null {
   return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
 }
 
+function validateIPOrSubnetList(values: string[]): Error | null {
+  const errors: Record<string, Error> = {};
+  for (let i = 0; i < values.length; i += 1) {
+    const value = values[i] ?? "";
+    const requiredErr = required(value);
+    const ipErr = requiredErr ?? IPOrSubnet(value);
+    if (ipErr) {
+      errors[String(i)] = ipErr;
+    }
+  }
+  return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+}
+
 function validateLogs(logs: LogsConfig): Error | null {
   if (logs.maxDays < 0) {
     return new ValidationErrors({
@@ -795,14 +832,19 @@ function validateBackups(backups: BackupsConfig): Error | null {
 }
 
 function validateRateLimits(rateLimits: RateLimitsConfig): Error | null {
+  const errors: Record<string, Error> = {};
+  const excludedIPsErr = validateIPOrSubnetList(rateLimits.excludedIPs);
+  if (excludedIPsErr) {
+    errors.excludedIPs = excludedIPsErr;
+  }
+
   if (!rateLimits.enabled) {
-    return null;
+    return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
   if (!Array.isArray(rateLimits.rules) || rateLimits.rules.length === 0) {
-    return new ValidationErrors({
-      rules: newError("validation_required", "Cannot be blank."),
-    });
+    errors.rules = newError("validation_required", "Cannot be blank.");
+    return new ValidationErrors(errors);
   }
 
   for (let i = 0; i < rateLimits.rules.length; i += 1) {
@@ -812,20 +854,19 @@ function validateRateLimits(rateLimits: RateLimitsConfig): Error | null {
     }
     const ruleErr = validateRateLimitRule(rule);
     if (ruleErr) {
-      return new ValidationErrors({
-        rules: new ValidationErrors({
-          [String(i)]: ruleErr,
-        }),
+      errors.rules = new ValidationErrors({
+        [String(i)]: ruleErr,
       });
+      return new ValidationErrors(errors);
     }
   }
 
   const conflictErr = checkUniqueRateLimitRules(rateLimits.rules);
   if (conflictErr) {
-    return new ValidationErrors({ rules: conflictErr });
+    errors.rules = conflictErr;
   }
 
-  return null;
+  return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
 }
 
 const rateLimitRuleLabelRegex = /^(\w+ \/[\w/-]*|\/[\w/-]*|\w+:\w+|\*:\w+|\w+)$/;

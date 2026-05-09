@@ -9,7 +9,7 @@ import { snakecase } from "../tools/inflector/inflector.ts";
 import { MoveDirContentAsync } from "../tools/osutils/dir.ts";
 import { pseudorandomString } from "../tools/security/random.ts";
 import { newBackupsFilesystemAsync, type App } from "./app.ts";
-import { LocalAutocertCacheDirName, LocalBackupsDirName, LocalTempDirName } from "./base_paths.ts";
+import { LocalAutocertCacheDirName, LocalBackupsDirName, LocalNotifyDirName, LocalTempDirName } from "./base_paths.ts";
 import { BackupEvent } from "./events.ts";
 import { StoreKeyActiveBackup } from "./store.ts";
 
@@ -45,6 +45,7 @@ export async function CreateBackup(app: App, ctx: unknown, name: string): Promis
     const event = new BackupEvent(app, ctx, name, [
       LocalBackupsDirName,
       LocalTempDirName,
+      LocalNotifyDirName,
       LocalAutocertCacheDirName,
       lostFoundDirName,
     ]);
@@ -160,6 +161,7 @@ export async function RestoreBackup(app: App, ctx: unknown, name: string): Promi
     const event = new BackupEvent(app, ctx, name, [
       LocalBackupsDirName,
       LocalTempDirName,
+      LocalNotifyDirName,
       LocalAutocertCacheDirName,
       lostFoundDirName,
     ]);

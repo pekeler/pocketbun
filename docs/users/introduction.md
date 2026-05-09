@@ -144,7 +144,7 @@ This doesn't mean that using PocketBun with JS SSR is always a "bad thing" but b
 
 htmx, Hotwire/Turbo, Unpoly and other similar tools are commonly used for building server rendered applications but unfortunately they don't play well with the JSON APIs and fully stateless nature of PocketBun.
 
-It is possible to use them with PocketBun but at the moment I don't recommend it because we lack the necessary helpers and utilities for building SSR-first applications, which means that you might have to create a lot of things on your own such as middlewares for handling cookies or custom authentication endpoints and access controls (*the collection API rules apply only for the builtin JSON routes). Bun's native `Bun.CSRF.generate(...)` / `Bun.CSRF.verify(...)` helpers can reduce the CSRF part of that work for Bun-native custom endpoints, but PocketBun still doesn't ship a built-in SSR middleware stack.
+It is possible to use them with PocketBun but at the moment I don't recommend it because we lack the necessary helpers and utilities for building SSR-first applications, which means that you might have to create a lot of things on your own such as middlewares for handling cookies or custom authentication endpoints and access controls (\*the collection API rules apply only for the builtin JSON routes). Bun's native `Bun.CSRF.generate(...)` / `Bun.CSRF.verify(...)` helpers can reduce the CSRF part of that work for Bun-native custom endpoints, but PocketBun still doesn't ship a built-in SSR middleware stack.
 
 In the future we could eventually provide official SSR support in terms of guides and middlewares for this use case but again - PocketBun wasn't designed with this in mind and you may want to reevaluate the tech stack of your application and switch to a traditional client-side SPA as mentioned earlier or use a different backend solution that might fit better with your use case.
 ### Mobile apps auth persistence
@@ -1166,6 +1166,8 @@ For most applications this is fine and reasonably safe because all files have a 
 To do this you can mark the `file` field as *Protected* from its field options in the Dashboard and then request the file with a special **short-lived file token**.
 
 Only requests that satisfy the **View API rule** of the record collection will be able to access or download the protected file(s).
+
+The file token is used to populate the `@request.auth.*` filter fields and it could be optional depending on your View API rule. For example, if a View API rule is an empty string then anyone will have access to the file even when there is no file token.
 
 ```js
 import PocketBase from 'pocketbase';

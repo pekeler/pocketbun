@@ -190,6 +190,7 @@ import {
 } from "./mfa_query.ts";
 import { MigrationsList } from "./migrations_list.ts";
 import { AppMigrations, MigrationsRunner, SystemMigrations } from "./migrations_runner.ts";
+import { registerNotifyWatcherHooks } from "./notify_watcher.ts";
 import { CollectionNameOTPs, OTP } from "./otp_model.ts";
 import {
   DeleteAllOTPsByRecord as DeleteAllOTPsByRecordQuery,
@@ -406,6 +407,7 @@ export class BaseApp implements App {
     this.registerMFAHooks();
     this.registerExternalAuthHooks();
     this.registerAuthOriginHooks();
+    this.registerNotifyWatcherHooks();
     this.#hooksEnabled = true;
   }
 
@@ -5313,6 +5315,10 @@ export class BaseApp implements App {
       },
       Priority: 99,
     });
+  }
+
+  private registerNotifyWatcherHooks(): void {
+    registerNotifyWatcherHooks(this);
   }
 
   async SaveView(dangerousViewName: string, dangerousSelectQuery: string): Promise<Error | null> {

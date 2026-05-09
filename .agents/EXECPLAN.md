@@ -6,11 +6,11 @@ PLANS.md exists in this repo at .agents/PLANS.md. This ExecPlan must be maintain
 
 ## Purpose / Big Picture
 
-The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.37.4 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
+The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.38.0 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
 
 ## Progress
 
-- Milestone status (2026-04-23):
+- Milestone status (2026-05-09):
   - Milestone 1: complete
   - Milestone 2: complete
   - Milestone 3: complete
@@ -31,6 +31,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 18: complete (PocketBase v0.37.2 upgrade: upstream sync, `v0.37.1..v0.37.2` audit, vendored Admin UI refresh, router file-mapping gap closure, and full validation rerun)
   - Milestone 19: complete (PocketBase v0.37.3 upgrade: upstream sync, `v0.37.2..v0.37.3` UI-only audit, vendored Admin UI refresh, metadata/changelog bump, and full validation rerun)
   - Milestone 20: complete (PocketBase v0.37.4 upgrade: upstream sync, security-sensitive OAuth2/password/provider deltas ported, vendored Admin UI refresh, metadata/changelog bump, and full validation rerun)
+  - Milestone 21: complete (PocketBase v0.38.0 upgrade: release-by-release v0.37.5 checkpoint, v0.38.0 upstream sync, superuser IP/rate-limit/runtime-notify/content-type/CSP deltas ported, Admin UI/docs refreshed, and full validation rerun)
 
 ### Maintenance TODOs
 
@@ -336,8 +337,22 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 - [x] (2026-04-27 09:05Z) Added or adjusted focused regression tests for OTP/MFA/external-auth cleanup, OAuth2 link takeover prevention, verification/password-reset/email-change cleanup, provider email verification handling, and migration-template MFA defaults.
 - [x] (2026-04-27 09:12Z) Ran the required validation gate successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
 
+### Milestone 21 - PocketBase v0.38.0 upgrade
+
+- [x] (2026-05-09 16:20Z) Confirmed the upstream `v0.37.5` and `v0.38.0` releases from published release notes and chose a release-by-release porting path so the patch-release fixes stayed isolated from the larger minor-release runtime changes.
+- [x] (2026-05-09 16:37Z) Synced the upstream checkout first to `v0.37.5`, ported the duplicate expand id handling and email-change confirmation validation order/error changes, and added focused regressions for both before moving on to `v0.38.0`.
+- [x] (2026-05-09 16:58Z) Synced `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.38.0`, bumped `pocketbase_tag.txt`, `package.json`, and docs metadata to `0.38.0-pocketbun.0`, and ported the runtime deltas: superuser IP/CIDR allowlists, rate-limit excluded IP/CIDR settings, local notify watcher state reloads, Office document content types, default CSP `frame-ancestors`, JWK non-empty-alg matching, backup exclusions, and `superuser ips` CLI support.
+- [x] (2026-05-09 17:00Z) Refreshed JSVM generated types, vendored Admin UI assets, and the generated docs snapshot pinned by `pocketbase_site_ref.txt`; updated the deterministic docs patcher so the generated reference page does not duplicate the PocketBun migration guidance when upstream prose changes.
+- [x] (2026-05-09 17:04Z) Ran `bun run upstream:audit` and confirmed only the intentional `plugins/ghupdate/*` gaps remain, then reran the required validation gate successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
+
 ## Surprises & Discoveries
 
+- Observation: The two-release upgrade was better handled as a release-by-release port even though the final package target is `v0.38.0`.
+  Evidence: `v0.37.5` changed only a few compatibility-sensitive runtime behaviors, while `v0.38.0` added new settings/API/CLI/runtime notification surfaces. Porting `v0.37.5` first produced focused regressions for duplicate expand ids and email-change confirmation before the broader settings and Admin UI churn landed.
+- Observation: The new notify watcher affects the test harness lifecycle, not just production runtime behavior.
+  Evidence: registering the watcher on every bootstrapped `BaseApp` opens an `fs.watch` handle; `src/tests/app.ts` now triggers `OnTerminate` during cleanup so watchers are closed before temp directories are removed and the test process can exit cleanly.
+- Observation: The generated docs patcher needed a more tolerant migration-note replacement after refreshing the upstream site snapshot.
+  Evidence: `bun run docs:rebuild:full` initially produced a duplicate `app.forMigrations()` paragraph in `docs/users/reference.md`; widening the patcher to recognize line-wrapped generated prose fixed the output and `bun run docs:check` passed.
 - Observation: The `v0.37.4` release is small but security-sensitive; the key observable server deltas are not limited to the OAuth2 endpoint itself.
   Evidence: the upstream compare changes auth hooks and tests around OTP deletion, MFA deletion, verified-upgrade external-auth deletion, password reset verification, email-change/verification confirmations, and OAuth2 account linking, so PocketBun needed core hook/query updates plus API test updates rather than an endpoint-only patch.
 - Observation: PocketBun did not need a production SMTP IPv6 formatting change for this release.
@@ -704,6 +719,10 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
   Date/Author: 2026-02-02 / Codex
 
 ## Outcomes & Retrospective
+
+Milestone 21 is now complete. PocketBun targets PocketBase `v0.38.0`, the vendored Admin UI is refreshed to the upstream `v0.38.0` bundle, and the release's runtime/configuration deltas are ported with focused regression coverage. The upgrade adds superuser IP/CIDR allowlists, rate-limit excluded IP/CIDR settings, local settings/collection notification reloads across app instances, Office document content types, the default CSP media-preview fix, the `superuser ips` CLI helper, JWK non-empty-alg matching, and the `v0.37.5` compatibility fixes for duplicate relation expand ids and email-change confirmation validation.
+
+Full validation passed on the final kept tree: `bun run docs:rebuild`, `bun run docs:check`, `bun run upstream:audit`, `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
 
 Milestone 20 is now complete. PocketBun targets PocketBase `v0.37.4`, the vendored Admin UI is refreshed to the upstream `v0.37.4` bundle, and the release's auth/security/provider deltas are ported with focused regression coverage. The upgrade adds the upstream OAuth2 pre-hijacking protections, clears stale external auth links on verified upgrades, clears OTP/MFA sessions on token/password changes, preserves the new failed-password dummy bcrypt timing behavior, updates provider email verification handling for Bitbucket/GitHub/GitLab/Gitea-Forgejo, and lowers the default MFA duration to 600 seconds.
 

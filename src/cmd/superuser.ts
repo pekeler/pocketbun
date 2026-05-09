@@ -128,6 +128,7 @@ export const superuser = {
   update: superuserUpdate,
   delete: superuserDelete,
   otp: superuserOTP,
+  ips: superuserIPs,
 };
 
 export function NewSuperuserCommand(app: App): Command {
@@ -141,8 +142,23 @@ export function NewSuperuserCommand(app: App): Command {
   command.AddCommand(superuserUpdateCommand(app));
   command.AddCommand(superuserDeleteCommand(app));
   command.AddCommand(superuserOTPCommand(app));
+  command.AddCommand(superuserIPsCommand(app));
 
   return command;
+}
+
+export async function superuserIPs(app: App, ips: string[]): Promise<string[]> {
+  await ensureReady(app);
+
+  const settings = app.settings();
+  settings.superuserIPs = [...ips];
+
+  const err = await app.Save(settings);
+  if (err) {
+    throw err;
+  }
+
+  return [...app.settings().superuserIPs];
 }
 
 function superuserUpsertCommand(app: App): Command {
@@ -252,6 +268,34 @@ function superuserOTPCommand(app: App): Command {
     green("├─ Id:    %s\n", otp.Id);
     green("├─ Pass:  %s\n", password);
     green("└─ Valid: %ds\n\n", otp.Collection().OTP.Duration);
+    return null;
+  };
+
+  return command;
+}
+
+function superuserIPsCommand(app: App): Command {
+  const command = new Command({
+    Use: "ips",
+    Example: "superuser ips 127.0.0.1 10.0.0.0/24",
+    Short:
+      "Updates the superuser IPs whitelist setting (the IPs/subnets arguments must be space separated; leave empty to clear the whitelist restriction)",
+    SilenceUsage: true,
+  });
+
+  command.RunE = async (_cmd, args) => {
+    const ips = await superuserIPs(app, args);
+
+    if (ips.length === 0) {
+      green("Successfully cleared SuperuserIPs setting!\n");
+      return null;
+    }
+
+    bgGreenFgBlack("Successfully updated SuperuserIPs setting:\n");
+    for (let i = 0; i < ips.length; i += 1) {
+      const prefix = i === ips.length - 1 ? "└─" : "├─";
+      green("%s %s\n", prefix, ips[i] ?? "");
+    }
     return null;
   };
 

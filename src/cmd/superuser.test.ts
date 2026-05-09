@@ -3,7 +3,7 @@
 import { describe, expect, it } from "bun:test";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { newTestApp } from "../tests/app.ts";
-import { superuserCreate, superuserDelete, superuserOTP, superuserUpdate, superuserUpsert } from "./superuser.ts";
+import { superuserCreate, superuserDelete, superuserIPs, superuserOTP, superuserUpdate, superuserUpsert } from "./superuser.ts";
 
 describe("superuser helpers", () => {
   it("superuserUpsert", async () => {
@@ -160,6 +160,24 @@ describe("superuser helpers", () => {
         const recordOtps = app.FindAllOTPsByRecord(superuser);
         expect(recordOtps.length).toBe(1);
       }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("superuserIPs", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const invalid = await tryCall(() => superuserIPs(app, ["127.0.0.1", "invalid"]));
+      expect(Boolean(invalid.error)).toBe(true);
+
+      const updated = await superuserIPs(app, ["127.0.0.1", "10.0.0.0/24"]);
+      expect(updated).toEqual(["127.0.0.1", "10.0.0.0/24"]);
+      expect(app.settings().superuserIPs).toEqual(["127.0.0.1", "10.0.0.0/24"]);
+
+      const cleared = await superuserIPs(app, []);
+      expect(cleared).toEqual([]);
+      expect(app.settings().superuserIPs).toEqual([]);
     } finally {
       await cleanup();
     }
