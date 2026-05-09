@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.0-pocketbun.1 (Unreleased)
+
+- TBD
+
 ## 0.38.0-pocketbun.0 - 2026-05-09
 
 - Now compatible with PocketBase `v0.38.0` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0380).
