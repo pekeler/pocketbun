@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.38.0-pocketbun.0 (Unreleased)
+## 0.38.0-pocketbun.0 - 2026-05-09
 
 - Now compatible with PocketBase `v0.38.0` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0380).
   - Includes upstream `v0.37.5` compatibility fixes for password field change detection, safer email-change confirmation validation, and duplicate relation id handling during record expand.
