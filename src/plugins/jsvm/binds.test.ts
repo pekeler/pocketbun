@@ -881,6 +881,8 @@ describe("jsvm binds", () => {
       { date: new scope.DateTime("", "Asia/Tokyo"), expected: nowPart },
       { date: new scope.DateTime("2023-01-01 00:00:00.000Z"), expected: "2023-01-01 00:00:00.000Z" },
       { date: new scope.DateTime("2025-10-26 03:00:00", "invalid"), expected: "2025-10-26 03:00:00.000Z" },
+      { date: new scope.DateTime("2025-01-01 03:00:00", "EET"), expected: "2025-01-01 01:00:00.000Z" },
+      { date: new scope.DateTime("2025-07-01 03:00:00", "EET"), expected: "2025-07-01 00:00:00.000Z" },
       { date: new scope.DateTime("2025-10-26 03:00:00", "Europe/Amsterdam"), expected: "2025-10-26 02:00:00.000Z" },
       { date: new scope.DateTime("2025-10-26 01:00:00", "Europe/Amsterdam"), expected: "2025-10-25 23:00:00.000Z" },
       { date: new scope.DateTime("2025-10-26 01:00:00 +0200", "Asia/Tokyo"), expected: "2025-10-25 23:00:00.000Z" },

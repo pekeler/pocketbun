@@ -950,9 +950,14 @@ class Timezone {
   }
 }
 
+const millisecondsPerHour = 60 * 60 * 1000;
+
 function isValidTimeZone(name: string): boolean {
   if (!name) {
     return false;
+  }
+  if (goTimeZoneAliasOffsetMs(name, new Date()) !== null) {
+    return true;
   }
   try {
     Intl.DateTimeFormat("en-US", { timeZone: name }).format(new Date());
@@ -1021,6 +1026,11 @@ function getTimeZoneParts(
   timeZone: string,
   date: Date,
 ): { year: number; month: number; day: number; hour: number; minute: number; second: number } {
+  const aliasOffset = goTimeZoneAliasOffsetMs(timeZone, date);
+  if (aliasOffset !== null) {
+    return getUtcDateParts(new Date(date.getTime() + aliasOffset));
+  }
+
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone,
     hour12: false,
@@ -1051,9 +1061,51 @@ function getTimeZoneParts(
 }
 
 function getTimeZoneOffsetMs(timeZone: string, date: Date): number {
+  const aliasOffset = goTimeZoneAliasOffsetMs(timeZone, date);
+  if (aliasOffset !== null) {
+    return aliasOffset;
+  }
+
   const parts = getTimeZoneParts(timeZone, date);
   const zoned = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
   return zoned - date.getTime();
+}
+
+function getUtcDateParts(date: Date): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+} {
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+    hour: date.getUTCHours(),
+    minute: date.getUTCMinutes(),
+    second: date.getUTCSeconds(),
+  };
+}
+
+function goTimeZoneAliasOffsetMs(name: string, date: Date): number | null {
+  if (name !== "EET") {
+    return null;
+  }
+
+  // Bun/Linux Intl doesn't expose every tzdb name Go can load. Keep the
+  // upstream JSVM Timezone("EET") behavior with the European EET/EEST rule.
+  const year = date.getUTCFullYear();
+  const dstStart = lastSundayUtcMs(year, 2, 1);
+  const dstEnd = lastSundayUtcMs(year, 9, 1);
+  return date.getTime() >= dstStart && date.getTime() < dstEnd ? 3 * millisecondsPerHour : 2 * millisecondsPerHour;
+}
+
+function lastSundayUtcMs(year: number, month: number, hour: number): number {
+  const date = new Date(Date.UTC(year, month + 1, 0, hour, 0, 0, 0));
+  date.setUTCDate(date.getUTCDate() - date.getUTCDay());
+  return date.getTime();
 }
 
 class Cookie {
