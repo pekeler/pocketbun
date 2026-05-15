@@ -1,7 +1,9 @@
 // Ported from pocketbase/tools/filesystem/filesystem.go
 // Deviation: System methods are async because Bun blob drivers use async I/O.
 // Deviation: GetReuploadableFile buffers file contents to provide a sync FileReader.
-// Deviation: CreateThumb is async because Bun image processing relies on async libraries.
+// Deviation: CreateThumb is async because Bun image processing runs off-thread.
+// Deviation: generated thumbnails are intentionally stored as WebP instead of
+// preserving PocketBase's per-source output formats.
 
 import { mkdirSync } from "node:fs";
 import { mkdir, open } from "node:fs/promises";
@@ -104,19 +106,14 @@ const multipartByteRangesBoundary = "POCKETBUN_BYTERANGE";
 // force "Content-Disposition: attachment" header.
 const forceAttachmentParam = "download";
 
-type SharpModule = typeof import("sharp");
 type S3Module = typeof import("./internal/s3blob/s3/s3.ts");
 type S3BlobModule = typeof import("./internal/s3blob/s3blob.ts");
 
-let sharpFactory: SharpModule | null = null;
 let s3Ctor: S3Module["S3"] | null = null;
 let newS3BlobFactory: S3BlobModule["New"] | null = null;
 
-function getSharp() {
-  if (!sharpFactory) {
-    sharpFactory = requireModule("sharp") as SharpModule;
-  }
-  return sharpFactory;
+function newBunImage(input: ConstructorParameters<typeof Bun.Image>[0]): Bun.Image {
+  return new Bun.Image(input, { autoOrient: true });
 }
 
 function getS3Support(): { S3: S3Module["S3"]; NewS3Blob: S3BlobModule["New"] } {
@@ -665,47 +662,20 @@ export class System {
       }
 
       const originalBytes = await reader.readAll();
-      const sharp = getSharp();
-
-      let transformer = sharp(originalBytes, { failOn: "none" }).rotate();
+      const originalMetadata = await newBunImage(originalBytes).metadata();
+      let transformer = newBunImage(originalBytes);
       if (width === 0 || height === 0) {
-        const targetWidth = width === 0 ? undefined : width;
-        const targetHeight = height === 0 ? undefined : height;
+        const targetWidth = width === 0 ? Math.round((originalMetadata.width * height) / originalMetadata.height) : width;
+        const targetHeight = height === 0 ? Math.round((originalMetadata.height * width) / originalMetadata.width) : height;
         transformer = transformer.resize(targetWidth, targetHeight, { fit: "inside" });
       } else {
-        const fit = resizeType === "f" ? "inside" : "cover";
-        const position = resizeType === "t" ? "north" : resizeType === "b" ? "south" : "centre";
-        transformer = transformer.resize(width, height, { fit, position });
+        const fit = resizeType === "f" ? "inside" : "fill";
+        transformer = transformer.resize(width, height, { fit });
       }
 
-      let outputContentType = originalContentType;
-      let outputFormat: "jpeg" | "png" | "gif" | "tiff";
-      switch (originalContentType) {
-        case "image/jpeg":
-        case "image/jpg":
-          outputFormat = "jpeg";
-          outputContentType = "image/jpeg";
-          break;
-        case "image/gif":
-          outputFormat = "gif";
-          outputContentType = "image/gif";
-          break;
-        case "image/tiff":
-          outputFormat = "tiff";
-          outputContentType = "image/tiff";
-          break;
-        case "image/bmp":
-          // Sharp doesn't output BMP, so fallback to PNG.
-          outputFormat = "png";
-          outputContentType = "image/png";
-          break;
-        default:
-          outputFormat = "png";
-          outputContentType = "image/png";
-          break;
-      }
-
-      const outputBytes = await transformer.toFormat(outputFormat).toBuffer();
+      const outputImage = transformer.webp();
+      const outputContentType = "image/webp";
+      const outputBytes = await outputImage.bytes();
       const writer = await this.#bucket.NewWriter(this.#ctx, thumbKey, makeWriterOptions(outputContentType));
       await writeAllAndClose(writer, outputBytes);
       return null;

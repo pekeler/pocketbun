@@ -15,9 +15,7 @@ describe("cli color output", () => {
     using _stdoutWriteSpy = spyOn(process.stdout, "write").mockImplementation(((chunk: string | Uint8Array) => {
       output += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
       return true;
-    }) as typeof process.stdout.write) as unknown as {
-      [Symbol.dispose](): void;
-    };
+    }) as typeof process.stdout.write);
 
     green("Successfully saved superuser %q!\n", "admin@example.com");
 
@@ -29,9 +27,7 @@ describe("cli color output", () => {
     using _stdoutWriteSpy = spyOn(process.stdout, "write").mockImplementation(((chunk: string | Uint8Array) => {
       output += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
       return true;
-    }) as typeof process.stdout.write) as unknown as {
-      [Symbol.dispose](): void;
-    };
+    }) as typeof process.stdout.write);
 
     green("value: %%q and %q\n", "x");
 

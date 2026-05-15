@@ -92,9 +92,7 @@ describe("middlewares rate limit", () => {
     ];
 
     let fakeNowMs = 10_000;
-    using _dateNowSpy = spyOn(Date, "now").mockImplementation(() => fakeNowMs) as unknown as {
-      [Symbol.dispose](): void;
-    };
+    using _dateNowSpy = spyOn(Date, "now").mockImplementation(() => fakeNowMs);
 
     for (const scenario of scenarios) {
       fakeNowMs += scenario.waitMs;

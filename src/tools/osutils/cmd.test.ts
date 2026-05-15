@@ -35,12 +35,8 @@ describe("YesNoPrompt", () => {
         const value = parts[index] ?? "";
         index += 1;
         return value;
-      }) as unknown as { [Symbol.dispose](): void };
-      using _stderrWriteSpy = spyOn(process.stderr, "write").mockImplementation(
-        (() => true) as typeof process.stderr.write,
-      ) as unknown as {
-        [Symbol.dispose](): void;
-      };
+      });
+      using _stderrWriteSpy = spyOn(process.stderr, "write").mockImplementation((() => true) as typeof process.stderr.write);
 
       const result = YesNoPrompt("test", s.fallback);
       expect(result).toBe(s.expected);

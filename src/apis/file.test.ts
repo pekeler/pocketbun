@@ -579,6 +579,8 @@ describe("concurrent thumbs generation", () => {
         if (!(await fsys.Exists(key))) {
           throw new Error(`Missing thumb ${JSON.stringify(key)}`);
         }
+        const attrs = await fsys.Attributes(key);
+        expect(attrs.ContentType).toBe("image/webp");
       }
     } finally {
       await cleanup();

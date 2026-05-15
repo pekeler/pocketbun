@@ -221,9 +221,12 @@ PocketBun app cron scheduling uses Bun's native `Bun.cron(...)` scheduler and in
 
 ### Thumbnails
 
-PocketBun uses Sharp for image resizing. Output bytes may differ from PocketBase Go image stack.
+PocketBun uses Bun's built-in `Bun.Image` for image resizing. Output bytes may differ from the PocketBase Go image stack.
 
-- BMP thumbnails are emitted as PNG (Sharp limitation).
+- Newly generated thumbnails are intentionally stored as WebP (`Content-Type: image/webp`) for every supported source image format.
+- PocketBase preserves some source formats and falls back to PNG for WebP; PocketBun does not preserve that output-format parity.
+- `WxH`, `WxHt`, and `WxHb` thumbnails follow `Bun.Image` exact-size resize behavior instead of PocketBase's center/top/bottom crop positioning.
+- Thumbnail file keys still follow PocketBase naming, so rely on `Content-Type` instead of the thumb key extension.
 
 ### Templates
 

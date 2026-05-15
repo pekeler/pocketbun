@@ -1,6 +1,6 @@
 # Bun Issue Watchlist (PocketBun)
 
-Last updated: 2026-04-12
+Last updated: 2026-05-15
 
 This file tracks Bun issues that matter for PocketBun compatibility and workaround cleanup.
 
@@ -14,10 +14,9 @@ When any issue below is fixed upstream:
 
 | Area | Issue link | Status | PocketBun impact / note |
 | --- | --- | --- | --- |
-| `Bun.serve` `idleTimeout` capped at 255 | Canonical: https://github.com/oven-sh/bun/issues/15589 (our duplicate: https://github.com/oven-sh/bun/issues/27470, docs follow-up: https://github.com/oven-sh/bun/issues/27479) | canonical open; docs issue closed | We still pin server idle timeout to `255` in `src/apis/serve.ts` (`defaultServerIdleTimeoutSeconds`) and keep realtime SSE comment heartbeats in `src/apis/realtime.ts`. Local Bun `1.3.12` repro still throws `Bun.serve expects idleTimeout to be 255 or less` for `idleTimeout: 300`. |
+| `Bun.serve` `idleTimeout` capped at 255 | Canonical: https://github.com/oven-sh/bun/issues/15589 (our duplicate: https://github.com/oven-sh/bun/issues/27470, docs follow-up: https://github.com/oven-sh/bun/issues/27479) | canonical open; docs issue closed | We still pin server idle timeout to `255` in `src/apis/serve.ts` (`defaultServerIdleTimeoutSeconds`) and keep realtime SSE comment heartbeats in `src/apis/realtime.ts`. Local Bun `1.3.14` repro still throws `Bun.serve expects idleTimeout to be 255 or less` for `idleTimeout: 300`. |
 | `bun:sqlite` PRAGMA parameter binding docs gap | https://github.com/oven-sh/bun/issues/27480 | open | This is a docs/SQLite-syntax gap, not a Bun runtime fix candidate. PocketBun now uses the table-valued `pragma_table_info(?)` form in `src/core/db_table.ts` so the lookup stays parameterized without inline SQL quoting. |
 | Streaming / temp-file-backed multipart parsing for `Bun.serve` uploads | https://github.com/oven-sh/bun/issues/28188 | open | PocketBun still needs `src/internal/compat/request_form_data.ts` because Bun does not yet expose a native streaming/temp-file-backed multipart server API for large uploads. |
-| `bun:test` `mock()` / `spyOn()` disposal typings | https://github.com/oven-sh/bun/issues/29234 | open | Bun `1.3.12` supports disposable mocks/spies at runtime, but `bun-types/test.d.ts` does not expose `[Symbol.dispose]()` on `Mock` / `MockInstance`, so PocketBun test code still needs `as unknown as { [Symbol.dispose](): void }` casts at `using` sites. |
 | `bun:test` `onTestFinished()` concurrent-test restriction | https://github.com/oven-sh/bun/issues/29236 | open | Bun `1.3.12` throws `Cannot call onTestFinished() here` when called from concurrent tests, even though equivalent per-test cleanup with local `try/finally` works. PocketBun reverted its limited `onTestFinished()` adoption to avoid mixing cleanup styles, and the issue also requests that the `bun-types/test.d.ts` API docs mention the current serial-only restriction explicitly. |
 | Bun native S3 metadata / header parity | https://github.com/oven-sh/bun/issues/17339, https://github.com/oven-sh/bun/issues/19301, https://github.com/oven-sh/bun/issues/16048 | open | A 2026-04-12 spike against Bun `1.3.12` showed that native S3 still can't replace PocketBun's `src/tools/filesystem/internal/s3blob/*` adapter cleanly. PocketBun stores `metadataOriginalName` in S3 object metadata via `src/tools/filesystem/filesystem.ts`, but Bun native S3 still lacks write-side user metadata support (`#17339`) and `stat()` / HEAD readback of response headers and `x-amz-meta-*` (`#19301`). Bun also lacks broader custom S3 header/query passthrough (`#16048`). We did not find an open Bun issue yet for true server-side copy semantics; the spike observed `client.write(dst, client.file(src))` issuing a GET+PUT instead of a native copy-object request. |
 
@@ -35,6 +34,7 @@ When any issue below is fixed upstream:
 | Area | Issue link | Status | PocketBun action |
 | --- | --- | --- | --- |
 | Multipart binary truncation at null byte in `Request.formData()` | Canonical: https://github.com/oven-sh/bun/issues/26740 (our duplicate: https://github.com/oven-sh/bun/issues/27478) | closed in Bun `1.3.11` | No dedicated fallback parser workaround remains. Local Bun `1.3.12` repro still preserves `[31,139,8,0]` exactly. |
+| `bun:test` `mock()` / `spyOn()` disposal typings | https://github.com/oven-sh/bun/issues/29234 | closed in Bun `1.3.14` | Updated to `@types/bun` `1.3.14` and removed the PocketBun test casts that were only needed for the old typings. |
 | Windows `Bun.spawnSync` intermittent empty/invalid stdout | https://github.com/oven-sh/bun/issues/27482 | closed | Removed the JSVM sync-fetch retry loop from `src/plugins/jsvm/binds.ts`, restored sync-path coverage in `src/plugins/jsvm/binds.test.ts`, and CI now pins Bun `1.3.13`, which still includes the Windows subprocess pipe fix. |
 | Default idle-timeout behavior for SSE/quiet streams docs clarity | https://github.com/oven-sh/bun/issues/27479 | closed | Bun docs were updated, but the runtime cap from issue `#15589` is still active so the PocketBun server workaround remains. |
 | `bun:sqlite` WAL sidecar cleanup docs/behavior clarity | https://github.com/oven-sh/bun/issues/27481 | closed | Keep the explicit `SQLITE_FCNTL_PERSIST_WAL` call in `src/tools/dbx/connect_pragmas.ts` for deterministic cleanup that matches PocketBase expectations. |
@@ -46,7 +46,6 @@ gh api 'search/issues?q=repo:oven-sh/bun+is:issue+author:pekeler' --jq '.items[]
 gh api repos/oven-sh/bun/issues/15589 --jq '[.number, .state, .title, .html_url] | @tsv'
 gh api repos/oven-sh/bun/issues/26740 --jq '[.number, .state, .title, .html_url] | @tsv'
 gh api repos/oven-sh/bun/issues/28188 --jq '[.number, .state, .title, .html_url] | @tsv'
-gh api repos/oven-sh/bun/issues/29234 --jq '[.number, .state, .title, .html_url] | @tsv'
 gh api repos/oven-sh/bun/issues/29236 --jq '[.number, .state, .title, .html_url] | @tsv'
 gh api repos/oven-sh/bun/issues/16048 --jq '[.number, .state, .title, .html_url] | @tsv'
 gh api repos/oven-sh/bun/issues/17339 --jq '[.number, .state, .title, .html_url] | @tsv'

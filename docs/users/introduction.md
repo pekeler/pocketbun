@@ -1116,7 +1116,7 @@ The above examples use the JSON object data format, but you could also use `Form
 
 Each uploaded file could be accessed by requesting its file url: ` http://127.0.0.1:8090/api/files/COLLECTION_ID_OR_NAME/RECORD_ID/FILENAME `
 
-If your file field has the **Thumb sizes** option, you can get a thumb of the image file by adding the `thumb` query parameter to the url like this: ` http://127.0.0.1:8090/api/files/COLLECTION_ID_OR_NAME/RECORD_ID/FILENAME**?thumb=100x300** ` *Currently limited to jpg, png, gif (its first frame) and partially webp (stored as png).*
+If your file field has the **Thumb sizes** option, you can get a thumb of the image file by adding the `thumb` query parameter to the url like this: ` http://127.0.0.1:8090/api/files/COLLECTION_ID_OR_NAME/RECORD_ID/FILENAME**?thumb=100x300** ` *Currently limited to jpg, png, gif (its first frame) and webp.*
 
 Supported thumb formats:
 
@@ -1129,7 +1129,7 @@ Supported thumb formats:
 
 The original file would be returned, if the requested thumb size is not found or the file is not an image!
 
-PocketBun uses Sharp for thumbnail generation, so binary output may differ from upstream. BMP thumbnails are emitted as PNG.
+PocketBun uses Bun's built-in `Bun.Image` for thumbnail generation. Binary output may differ from upstream, newly generated thumbnails are intentionally stored as WebP (`Content-Type: image/webp`) for every supported source image format, and crop-style thumb variants follow `Bun.Image` exact-size resize behavior instead of PocketBase's crop positioning.
 
 If you already have a Record model instance, the SDKs provide a convenient method to generate a file url by its name.
 

@@ -3,30 +3,16 @@
 import { mkdir, writeFile, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import sharp from "sharp";
 
 const tinyPng = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/6X5l0cAAAAASUVORK5CYII=",
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAADUlEQVR4nGP4////fwAJ+wP9KobjigAAAABJRU5ErkJggg==",
   "base64",
 );
 
-let cachedTinyJpeg: Promise<Uint8Array> | null = null;
-
-async function getTinyJpeg(): Promise<Uint8Array> {
-  if (!cachedTinyJpeg) {
-    cachedTinyJpeg = sharp({
-      create: {
-        width: 1,
-        height: 1,
-        channels: 3,
-        background: { r: 255, g: 255, b: 255 },
-      },
-    })
-      .jpeg()
-      .toBuffer();
-  }
-  return cachedTinyJpeg;
-}
+const tinyJpeg = Buffer.from(
+  "/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAj/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AKpAB//Z",
+  "base64",
+);
 
 const webpBytes = new Uint8Array([
   82, 73, 70, 70, 36, 0, 0, 0, 87, 69, 66, 80, 86, 80, 56, 32, 24, 0, 0, 0, 48, 1, 0, 157, 1, 42, 1, 0, 1, 0, 2, 0, 52, 37, 164,
@@ -57,7 +43,6 @@ export async function createTestDir(): Promise<string> {
   await writeFile(join(dir, "image.png"), tinyPng);
   await writeAttrs(join(dir, "image.png"), "image/png");
 
-  const tinyJpeg = await getTinyJpeg();
   await writeFile(join(dir, "image.jpg"), tinyJpeg);
   await writeAttrs(join(dir, "image.jpg"), "image/jpeg");
 

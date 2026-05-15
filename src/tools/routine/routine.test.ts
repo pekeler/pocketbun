@@ -11,7 +11,7 @@ describe("FireAndForget", () => {
     error.stack = "x".repeat(3000);
     using _warnSpy = spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
       warnings.push(args);
-    }) as unknown as { [Symbol.dispose](): void };
+    });
 
     FireAndForget(() => {
       called = true;

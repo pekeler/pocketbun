@@ -356,7 +356,7 @@ function replaceBrandMentionsOutsideCode(text: string): string {
 function patchIntroduction(text: string): string {
   let out = text;
   const thumbNote =
-    "PocketBun uses Sharp for thumbnail generation, so binary output may differ from upstream. BMP thumbnails are emitted as PNG.";
+    "PocketBun uses Bun's built-in `Bun.Image` for thumbnail generation. Binary output may differ from upstream, newly generated thumbnails are intentionally stored as WebP (`Content-Type: image/webp`) for every supported source image format, and crop-style thumb variants follow `Bun.Image` exact-size resize behavior instead of PocketBase's crop positioning.";
   const thumbBase =
     "The original file would be returned, if the requested thumb size is not found or the file is not an image!";
 
@@ -656,7 +656,7 @@ function patchWebApis(text: string): string {
   const thumbBase =
     "If the thumb size is not defined in the file schema field options or the file resource is not an image (jpg, png, gif, webp), then the original file resource is returned unmodified.";
   const thumbNote =
-    "PocketBun uses Sharp for thumbnail generation, so binary output may differ from upstream. BMP thumbnails are emitted as PNG.";
+    "PocketBun uses Bun's built-in `Bun.Image` for thumbnail generation. Binary output may differ from upstream, newly generated thumbnails are intentionally stored as WebP (`Content-Type: image/webp`) for every supported source image format, and crop-style thumb variants follow `Bun.Image` exact-size resize behavior instead of PocketBase's crop positioning.";
 
   out = out.replace(new RegExp(`(${escapeRegExp(thumbBase)})(?:\\s+${escapeRegExp(thumbNote)})+`, "g"), `$1 ${thumbNote}`);
   out = out.replace(new RegExp(`(?:${escapeRegExp(thumbNote)}\\s*){2,}`, "g"), `${thumbNote} `);

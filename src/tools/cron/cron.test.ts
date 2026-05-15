@@ -10,7 +10,7 @@ type FakeBunCronRegistration = {
   stopCalls: number;
 };
 
-const bunWithCron = Bun as typeof Bun & {
+type FakeBunWithCron = Omit<typeof Bun, "cron"> & {
   cron: (
     cronExpr: string,
     handler: () => void,
@@ -18,6 +18,8 @@ const bunWithCron = Bun as typeof Bun & {
     stop(): void;
   };
 };
+
+const bunWithCron = Bun as unknown as FakeBunWithCron;
 
 function createFakeBunCron(): {
   registrations: FakeBunCronRegistration[];
@@ -191,9 +193,7 @@ describe("Cron", () => {
 
   it("uses Bun.cron for the default scheduler", () => {
     const fake = createFakeBunCron();
-    using _bunCronSpy = spyOn(bunWithCron, "cron").mockImplementation(fake.register) as unknown as {
-      [Symbol.dispose](): void;
-    };
+    using _bunCronSpy = spyOn(bunWithCron, "cron").mockImplementation(fake.register);
 
     const c = new Cron();
     let calls = "";

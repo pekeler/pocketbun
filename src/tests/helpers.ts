@@ -15,6 +15,7 @@ type BunServeOptions = Parameters<typeof Bun.serve>[0];
 export type StartedServer = {
   server: ReturnType<typeof serve>;
   baseUrl: string;
+  dataDir: string;
   cleanup: () => Promise<void>;
   [Symbol.asyncDispose]: () => Promise<void>;
 };
@@ -49,6 +50,7 @@ export async function startTestServer(): Promise<StartedServer> {
   return {
     server,
     baseUrl,
+    dataDir,
     cleanup,
     [Symbol.asyncDispose]: cleanup,
   };

@@ -1,6 +1,8 @@
 // PocketBun-only: end-to-end smoke test for the HTTP server and Admin UI.
 
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { rm } from "node:fs/promises";
+import { join } from "node:path";
 import { startTestServer } from "../helpers.ts";
 
 const superuserToken =
@@ -21,12 +23,14 @@ describe("e2e smoke", () => {
   type StartedServer = Awaited<ReturnType<typeof startTestServer>>;
   let server: StartedServer["server"];
   let baseUrl = "";
+  let dataDir = "";
   let cleanup: StartedServer["cleanup"] | null = null;
 
   beforeAll(async () => {
     const started = await startTestServer();
     server = started.server;
     baseUrl = started.baseUrl;
+    dataDir = started.dataDir;
     cleanup = started.cleanup;
   });
 
@@ -67,10 +71,17 @@ describe("e2e smoke", () => {
     const thumbUrl =
       `${baseUrl}/api/files/demo1/al1h9ijdeojtsjy/300_Jsjq7RdBgA.png` +
       `?token=${encodeURIComponent(tokenBody.token)}&thumb=100x100`;
+    const cachedThumbPath = join(
+      dataDir,
+      "storage/wsmn24bux7wo113/al1h9ijdeojtsjy/thumbs_300_Jsjq7RdBgA.png/100x100_300_Jsjq7RdBgA.png",
+    );
+    await rm(cachedThumbPath, { force: true });
+    await rm(`${cachedThumbPath}.attrs`, { force: true });
+
     const thumbResponse = await fetch(thumbUrl);
 
     expect(thumbResponse.status).toBe(200);
-    expect(thumbResponse.headers.get("content-type") ?? "").toContain("image/png");
+    expect(thumbResponse.headers.get("content-type") ?? "").toContain("image/webp");
 
     const body = new Uint8Array(await thumbResponse.arrayBuffer());
     expect(body.length).toBeGreaterThan(0);
