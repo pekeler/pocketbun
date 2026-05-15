@@ -1,8 +1,9 @@
 # Changelog
 
-## 0.38.0-pocketbun.2 (Unreleased)
+## 0.38.1-pocketbun.0 (Unreleased)
 
-- TBD
+- Now compatible with PocketBase `v0.38.1` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0381).
+  - Includes upstream fixes for realtime auth invalidation after credential/secret changes, collection index normalization, UI extension top-level `await`, and Admin UI validation/error display polish.
 
 ## 0.38.0-pocketbun.1 - 2026-05-09
 

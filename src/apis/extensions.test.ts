@@ -66,7 +66,7 @@ describe("UI extensions main.js API", () => {
       testAppFactory: newExtensionsTestApp,
       afterTest: mainJsSuccessAfterTest,
       expectedStatus: 200,
-      expectedContent: ["(function(){ext1_main})();(function(){ext3_main})();"],
+      expectedContent: ["await (async function(){ext1_main})();await (async function(){ext3_main})();"],
       expectedEvents: { "*": 0 },
     },
   ];

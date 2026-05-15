@@ -418,6 +418,131 @@ describe("realtime auth record events", () => {
       await cleanup();
     }
   });
+
+  it("unsets auth state on tokenKey refresh", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      buildServeHandler(app);
+
+      const authRecord1 = app.FindAuthRecordByEmail("users", "test@example.com");
+      const client = new DefaultClient();
+      client.Set(RealtimeClientAuthKey, authRecord1);
+      app.SubscriptionsBroker().Register(client);
+
+      const authRecord2 = app.FindAuthRecordByEmail("users", "test@example.com");
+      authRecord2.RefreshTokenKey();
+
+      const saveErr = await app.Save(authRecord2);
+      if (saveErr) {
+        throw saveErr;
+      }
+
+      const clientAuth = client.Get(RealtimeClientAuthKey) as RecordModel | null;
+      if (clientAuth != null) {
+        throw new Error(`Expected authRecord to be unset, got ${clientAuth.Email()}`);
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("unsets auth state on auth collection secret change", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      buildServeHandler(app);
+
+      const usersCollection = app.FindCollectionByNameOrId("users");
+      const clientsCollection = app.FindCollectionByNameOrId("clients");
+
+      const authRecord1 = app.FindAuthRecordByEmail(usersCollection, "test@example.com");
+      const client1 = new DefaultClient();
+      client1.Set(RealtimeClientAuthKey, authRecord1);
+
+      const authRecord2 = app.FindAuthRecordByEmail(usersCollection, "test@example.com");
+      const client2 = new DefaultClient();
+      client2.Set(RealtimeClientAuthKey, authRecord2);
+
+      const authRecord3 = app.FindAuthRecordByEmail(clientsCollection, "test@example.com");
+      const client3 = new DefaultClient();
+      client3.Set(RealtimeClientAuthKey, authRecord3);
+
+      app.SubscriptionsBroker().Register(client1);
+      app.SubscriptionsBroker().Register(client2);
+      app.SubscriptionsBroker().Register(client3);
+
+      usersCollection.AuthToken.Secret = "a".repeat(30);
+      const usersSaveErr = await app.Save(usersCollection);
+      if (usersSaveErr) {
+        throw usersSaveErr;
+      }
+
+      clientsCollection.ListRule = null;
+      const clientsSaveErr = await app.Save(clientsCollection);
+      if (clientsSaveErr) {
+        throw clientsSaveErr;
+      }
+
+      if (client1.Get(RealtimeClientAuthKey) != null) {
+        throw new Error("[client1] Expected the auth state to be unset");
+      }
+      if (client2.Get(RealtimeClientAuthKey) != null) {
+        throw new Error("[client2] Expected the auth state to be unset");
+      }
+
+      const auth3 = client3.Get(RealtimeClientAuthKey) as RecordModel | null;
+      if (!auth3 || auth3.Id !== authRecord3.Id) {
+        throw new Error("[client3] Expected the auth state to be left unchanged");
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("unsets auth state on auth collection delete event", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      buildServeHandler(app);
+
+      const usersCollection = app.FindCollectionByNameOrId("users");
+      const clientsCollection = app.FindCollectionByNameOrId("clients");
+
+      const authRecord1 = app.FindAuthRecordByEmail(usersCollection, "test@example.com");
+      const client1 = new DefaultClient();
+      client1.Set(RealtimeClientAuthKey, authRecord1);
+
+      const authRecord2 = app.FindAuthRecordByEmail(usersCollection, "test@example.com");
+      const client2 = new DefaultClient();
+      client2.Set(RealtimeClientAuthKey, authRecord2);
+
+      const authRecord3 = app.FindAuthRecordByEmail(clientsCollection, "test@example.com");
+      const client3 = new DefaultClient();
+      client3.Set(RealtimeClientAuthKey, authRecord3);
+
+      app.SubscriptionsBroker().Register(client1);
+      app.SubscriptionsBroker().Register(client2);
+      app.SubscriptionsBroker().Register(client3);
+
+      const event = new ModelEvent(app, usersCollection, ModelEventTypeDelete);
+      const err = await app.OnModelAfterDeleteSuccess().Trigger(event);
+      if (err) {
+        throw err;
+      }
+
+      if (client1.Get(RealtimeClientAuthKey) != null) {
+        throw new Error("[client1] Expected the auth state to be unset");
+      }
+      if (client2.Get(RealtimeClientAuthKey) != null) {
+        throw new Error("[client2] Expected the auth state to be unset");
+      }
+
+      const auth3 = client3.Get(RealtimeClientAuthKey) as RecordModel | null;
+      if (!auth3 || auth3.Id !== authRecord3.Id) {
+        throw new Error("[client3] Expected the auth state to be left unchanged");
+      }
+    } finally {
+      await cleanup();
+    }
+  });
 });
 
 describe("realtime custom auth model events", () => {

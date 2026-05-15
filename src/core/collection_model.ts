@@ -88,6 +88,7 @@ export class Collection {
   system = false;
   fields: CollectionField[] = [];
   Fields: FieldsList = new FieldsList();
+  // @todo consider changing the indexes field to a "getter" for the sqlite_master table?
   indexes: string[] = [];
   listRule: string | null = null;
   viewRule: string | null = null;

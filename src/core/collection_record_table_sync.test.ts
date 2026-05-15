@@ -227,4 +227,37 @@ describe("collection record table sync", () => {
       await cleanup();
     }
   });
+
+  it("DropIndexWithoutTableName", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const properIndex = "CREATE INDEX `new_test_idx2` ON `new_test` (`test`)";
+      const indexWithoutTableName = "CREATE INDEX `new_test_idx2` ON `` (`test`)";
+
+      const dummyCollection = NewBaseCollection("new_test");
+      const field = new TextField();
+      field.Name = "test";
+      dummyCollection.Fields.Add(field);
+      dummyCollection.indexes = [properIndex];
+
+      const createErr = await app.Save(dummyCollection);
+      expect(createErr).toBeNull();
+
+      // resave without table name but without hooks to avoid the normalizations
+      dummyCollection.indexes[0] = indexWithoutTableName;
+      const unsafeSaveErr = await app.UnsafeWithoutHooks().Save(dummyCollection);
+      expect(unsafeSaveErr).toBeNull();
+
+      const refetched = app.FindCollectionByNameOrId(dummyCollection.Name);
+
+      // resave should normalize the index
+      const saveErr = await app.Save(refetched);
+      expect(saveErr).toBeNull();
+
+      const normalized = app.FindCollectionByNameOrId(refetched.Name);
+      expect(normalized.indexes).toEqual([properIndex]);
+    } finally {
+      await cleanup();
+    }
+  });
 });

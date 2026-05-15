@@ -1282,4 +1282,32 @@ describe("collection model", () => {
       }
     }
   }, 60000);
+
+  it("CollectionSaveIndexesTableNameNormalization", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const dummyCollection = NewBaseCollection("new_test");
+      const field = new TextField();
+      field.Name = "test";
+      dummyCollection.Fields.Add(field);
+      dummyCollection.indexes = [
+        "create index `new_test_idx1` on `` (`test`) where 1=1",
+        "create index `new_test_idx2` on `test` (`test`) where 1=2",
+        "create index `new_test_idx3` on `someting_else` (`test`) where 1=3",
+      ];
+
+      const err = await app.Save(dummyCollection);
+      expect(err).toBeNull();
+
+      const refetched = app.FindCollectionByNameOrId(dummyCollection.Name);
+      expect(refetched.indexes.length).toBe(3);
+
+      for (const raw of refetched.indexes) {
+        const parsed = parseIndex(raw);
+        expect(parsed.tableName).toBe(refetched.Name);
+      }
+    } finally {
+      await cleanup();
+    }
+  });
 });

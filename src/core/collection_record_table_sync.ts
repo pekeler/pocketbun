@@ -167,8 +167,11 @@ export function syncRecordTableSchemaSync(app: App, newCollection: Collection, o
 export function dropCollectionIndexes(app: App, collection: Collection): Error | null {
   for (const index of collection.indexes ?? []) {
     const parsed = parseIndex(index);
+
+    // note: don't check isValid because the index table name may not be populated
+    // (https://github.com/pocketbase/pocketbase/issues/7689)
     if (!parsed.indexName) {
-      continue;
+      return new Error(`failed to drop index - missing index name: ${index}`);
     }
     app.db().run(`drop index if exists \`${parsed.indexName}\``);
   }

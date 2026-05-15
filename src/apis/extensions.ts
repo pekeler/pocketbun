@@ -46,7 +46,7 @@ async function serveExtensionsMain(event: RequestEvent, serveEvent: ServeEvent):
       continue;
     }
 
-    output += `(function(){${mainJs}})();`;
+    output += `await (async function(){${mainJs}})();`;
   }
 
   return event.Stream(200, "text/javascript", output);

@@ -7,3 +7,4 @@ import "./1717233557_v0.23_migrate2.ts";
 import "./1717233558_v0.23_migrate3.ts";
 import "./1717233559_v0.23_migrate4.ts";
 import "./1763020353_update_default_auth_alert_templates.ts";
+import "./1778828400_normalize_indexes.ts";

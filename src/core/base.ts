@@ -16,7 +16,7 @@ import * as slog from "../internal/compat/slog.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { Providers } from "../tools/auth/auth.ts";
 import { Cron } from "../tools/cron/cron.ts";
-import { findSingleColumnUniqueIndex } from "../tools/dbutils/index.ts";
+import { findSingleColumnUniqueIndex, parseIndex } from "../tools/dbutils/index.ts";
 import { JSONEach } from "../tools/dbutils/json.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
 import { HashExp, Not } from "../tools/dbx/expr.ts";
@@ -4021,6 +4021,23 @@ export class BaseApp implements App {
       collection.unsetMissingOAuth2MappedFields();
     }
     collection.updateGeneratedIdIfExists(this);
+
+    // normalize indexes table name
+    for (let i = 0; i < collection.indexes.length; i += 1) {
+      const parsed = parseIndex(collection.indexes[i] ?? "");
+      if (parsed.tableName === collection.name) {
+        continue;
+      }
+
+      parsed.tableName = collection.name;
+
+      const normalized = parsed.build();
+      if (!normalized) {
+        continue; // leave to the model validator to decide whether to return an error
+      }
+
+      collection.indexes[i] = normalized;
+    }
 
     normalizeCollectionFields(collection);
   }

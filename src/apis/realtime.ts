@@ -272,19 +272,24 @@ async function realtimeSetSubscriptions(event: RequestEvent): Promise<Response> 
   return badRequest(event, "", out as Error);
 }
 
-// updateClientsAuth updates the existing clients auth record with the new one (matched by ID).
-function realtimeUpdateClientsAuth(app: App, newAuthRecord: RecordModel): Error | null {
+// realtimeUpdateClientsAuth updates the auth state of all clients related to the provided authRecord.
+//
+// Realtime connections has short lifetime by design, but to minimize abuse
+// if the new record has a different tokenKey (e.g. in case of password reset)
+// the auth state of the related realtime connections is also cleared
+// (aka. they remain active but unauthenticated, allowing to reauthenicate with the next subscription).
+function realtimeUpdateClientsAuth(app: App, authRecord: RecordModel): Error | null {
   const chunks = app.SubscriptionsBroker().ChunkedClients(clientsChunkSize);
 
   for (const chunk of chunks) {
     for (const client of chunk) {
       const clientAuth = client.Get(RealtimeClientAuthKey) as RecordModel | null;
-      if (
-        clientAuth &&
-        clientAuth.Id === newAuthRecord.Id &&
-        clientAuth.collection().name === newAuthRecord.collection().name
-      ) {
-        client.Set(RealtimeClientAuthKey, newAuthRecord);
+      if (clientAuth && clientAuth.Id === authRecord.Id && clientAuth.collection().name === authRecord.collection().name) {
+        if (clientAuth.TokenKey() !== authRecord.TokenKey()) {
+          client.Unset(RealtimeClientAuthKey);
+        } else {
+          client.Set(RealtimeClientAuthKey, authRecord);
+        }
       }
     }
   }
@@ -292,8 +297,8 @@ function realtimeUpdateClientsAuth(app: App, newAuthRecord: RecordModel): Error 
   return null;
 }
 
-// realtimeUnsetClientsAuthState unsets the auth state of all clients that have the provided auth model.
-function realtimeUnsetClientsAuthState(app: App, authModel: Model): Error | null {
+// realtimeUnsetClientsAuthByRecordModelOrProxy unsets the auth state of all clients that have the provided auth model.
+function realtimeUnsetClientsAuthByRecordModelOrProxy(app: App, authModel: Model): Error | null {
   const pk = authModel.PK();
   if (typeof pk !== "string") {
     return null;
@@ -313,7 +318,94 @@ function realtimeUnsetClientsAuthState(app: App, authModel: Model): Error | null
   return null;
 }
 
+// realtimeUnsetClientsAuthByCollection unsets the auth state of all authenticated clients related to the collection.
+function realtimeUnsetClientsAuthByCollection(app: App, collection: Collection): Error | null {
+  const chunks = app.SubscriptionsBroker().ChunkedClients(clientsChunkSize);
+
+  for (const chunk of chunks) {
+    for (const client of chunk) {
+      const clientAuth = client.Get(RealtimeClientAuthKey) as RecordModel | null;
+      if (clientAuth && clientAuth.collection().name === collection.name) {
+        client.Unset(RealtimeClientAuthKey);
+      }
+    }
+  }
+
+  return null;
+}
+
 function bindRealtimeEvents(app: App): void {
+  // reset the clients auth on collection secret change
+  // (@todo with the future tracking of old collections data consider replacing with *AfterUpdateSuccess to account for transaction rollback)
+  app.OnCollectionUpdate().Bind({
+    Func: (e) => {
+      const collection = e.Collection;
+      if (!collection?.IsAuth()) {
+        return e.Next();
+      }
+
+      let cached: Collection | null = null;
+      try {
+        cached = e.App.FindCachedCollectionByNameOrId(collection.Id);
+      } catch {
+        cached = null;
+      }
+
+      const result = e.Next();
+      const handleNext = (nextErr: Error | null): Error | null => {
+        if (nextErr) {
+          return nextErr;
+        }
+
+        if (cached && cached.AuthToken.Secret !== collection.AuthToken.Secret) {
+          const err = realtimeUnsetClientsAuthByCollection(e.App, collection);
+          if (err) {
+            app
+              .Logger()
+              .Warn(
+                "Failed to remove client(s) associated to the changed auth collection",
+                "collectionName",
+                collection.Name,
+                "error",
+                err.message,
+              );
+          }
+        }
+
+        return null;
+      };
+
+      if (result instanceof Promise) {
+        return result.then((err) => handleNext(err as Error | null));
+      }
+      return handleNext(result as Error | null);
+    },
+    Priority: -99,
+  });
+
+  // unset the clients auth on auth collection delete
+  app.OnCollectionAfterDeleteSuccess().Bind({
+    Func: (e) => {
+      if (e.Collection?.IsAuth()) {
+        const err = realtimeUnsetClientsAuthByCollection(e.App, e.Collection);
+        if (err) {
+          app
+            .Logger()
+            .Warn(
+              "Failed to remove client(s) associated to the deleted auth collection",
+              "collectionName",
+              e.Collection.Name,
+              "error",
+              err.message,
+            );
+        }
+      }
+
+      return e.Next();
+    },
+    Priority: -99,
+  });
+
   // update the clients that has auth record association
   app.OnModelAfterUpdateSuccess().Bind({
     Func: (e) => {
@@ -346,7 +438,7 @@ function bindRealtimeEvents(app: App): void {
     Func: (e) => {
       const collection = realtimeResolveRecordCollection(e.App, e.Model as Model);
       if (collection && collection.IsAuth()) {
-        const err = realtimeUnsetClientsAuthState(e.App, e.Model as Model);
+        const err = realtimeUnsetClientsAuthByRecordModelOrProxy(e.App, e.Model as Model);
         if (err) {
           app
             .Logger()

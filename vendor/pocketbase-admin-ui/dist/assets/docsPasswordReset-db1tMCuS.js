@@ -1,4 +1,4 @@
-function e(e){let i=app.utils.getApiExampleURL(),a=[{title:`Request password reset`,content:n},{title:`Confirm password reset`,content:r}],o=store({activeActionIndex:0});return t.div({pbEvent:`apiPreviewPasswordReset`,className:`content`},t.p(null,`Sends ${e.name} password reset email request.`),t.p(null,`On successful password reset all previously issued auth tokens for the specific record will be automatically invalidated.`),app.components.codeBlockTabs({className:`sdk-examples m-t-sm`,historyKey:`pbLastSDK`,tabs:[{title:`JS SDK`,language:`js`,value:`
+function e(e){let i=app.utils.getApiExampleURL(),a=[{title:`Request password reset`,content:n},{title:`Confirm password reset`,content:r}],o=store({activeActionIndex:0});return t.div({pbEvent:`apiPreviewPasswordReset`,className:`content`},t.p(null,`Sends ${e.name} password reset email request.`),t.p(null,`On successful password reset all previously issued auth tokens for the specific record will be invalidated (and the user will be marked as verified if not already).`),app.components.codeBlockTabs({className:`sdk-examples m-t-sm`,historyKey:`pbLastSDK`,tabs:[{title:`JS SDK`,language:`js`,value:`
                         import PocketBase from 'pocketbase';
 
                         const pb = new PocketBase('${i}');
@@ -11,7 +11,8 @@ function e(e){let i=app.utils.getApiExampleURL(),a=[{title:`Request password res
                         // (optional) in your custom confirmation page:
                         // ---
 
-                        // note: after this call all previously issued auth tokens are invalidated
+                        // note: all previous user auth tokens will be invalidated
+                        // (and the user will be marked as verified if not already)
                         await pb.collection('${e.name}').confirmPasswordReset(
                             'RESET_TOKEN',
                             'NEW_PASSWORD',
@@ -30,7 +31,8 @@ function e(e){let i=app.utils.getApiExampleURL(),a=[{title:`Request password res
                         // (optional) in your custom confirmation page:
                         // ---
 
-                        // note: after this call all previously issued auth tokens are invalidated
+                        // note: all previous user auth tokens will be invalidated
+                        // (and the user will be marked as verified if not already)
                         await pb.collection('${e.name}').confirmPasswordReset(
                           'RESET_TOKEN',
                           'NEW_PASSWORD',
@@ -44,6 +46,9 @@ function e(e){let i=app.utils.getApiExampleURL(),a=[{title:`Request password res
                           '${i}/api/collections/${e.name}/request-password-reset'
 
                         # Confirm password reset
+                        #
+                        # note: all previous user auth tokens will be invalidated
+                        # (and the user will be marked as verified if not already)
                         curl -X POST \\
                           -H 'Content-Type:application/json' \\
                           -d '{ "token":"...", "password":"", "passwordConfirm":"" }' \\

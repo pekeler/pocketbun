@@ -1,4 +1,4 @@
-function e(e){let i=app.utils.getApiExampleURL(),a=[{title:`Request email change`,content:n},{title:`Confirm email change`,content:r}],o=store({activeActionIndex:0});return t.div({pbEvent:`apiPreviewEmailChange`,className:`content`},t.p(null,`Sends ${e.name} email change request.`),t.p(null,`On successful email change all previously issued auth tokens for the specific record will be automatically invalidated.`),app.components.codeBlockTabs({className:`sdk-examples m-t-sm`,historyKey:`pbLastSDK`,tabs:[{title:`JS SDK`,language:`js`,value:`
+function e(e){let i=app.utils.getApiExampleURL(),a=[{title:`Request email change`,content:n},{title:`Confirm email change`,content:r}],o=store({activeActionIndex:0});return t.div({pbEvent:`apiPreviewEmailChange`,className:`content`},t.p(null,`Sends ${e.name} email change request.`),t.p(null,`On successful email change all previously issued auth tokens for the specific record will be invalidated (and the user will be marked as verified if not already).`),app.components.codeBlockTabs({className:`sdk-examples m-t-sm`,historyKey:`pbLastSDK`,tabs:[{title:`JS SDK`,language:`js`,value:`
                         import PocketBase from 'pocketbase';
 
                         const pb = new PocketBase('${i}');
@@ -16,7 +16,8 @@ function e(e){let i=app.utils.getApiExampleURL(),a=[{title:`Request email change
                         // (optional) in your custom confirmation page:
                         // ---
 
-                        // note: after this call all previously issued auth tokens are invalidated
+                        // note: all previous user auth tokens will be invalidated
+                        // (and the user will be marked as verified if not already)
                         await pb.collection('${e.name}').confirmEmailChange(
                             'EMAIL_CHANGE_TOKEN',
                             'YOUR_PASSWORD',
@@ -39,7 +40,8 @@ function e(e){let i=app.utils.getApiExampleURL(),a=[{title:`Request email change
                         // (optional) in your custom confirmation page:
                         // ---
 
-                        // note: after this call all previously issued auth tokens are invalidated
+                        // note: all previous user auth tokens will be invalidated
+                        // (and the user will be marked as verified if not already)
                         await pb.collection('${e.name}').confirmEmailChange(
                           'EMAIL_CHANGE_TOKEN',
                           'YOUR_PASSWORD',
@@ -53,6 +55,9 @@ function e(e){let i=app.utils.getApiExampleURL(),a=[{title:`Request email change
                           '${i}/api/collections/${e.name}/request-email-change'
 
                         # Confirm email change
+                        #
+                        # note: all previous user auth tokens will be invalidated
+                        # (and the user will be marked as verified if not already)
                         curl -X POST \\
                           -H 'Content-Type:application/json' \\
                           -d '{ "token":"...", "password":"" }' \\
