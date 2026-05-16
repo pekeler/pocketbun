@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.38.1-pocketbun.1 (Unreleased)
+## 0.38.1-pocketbun.1 - 2026-05-16
 
 - Requires Bun `v1.3.14` or newer; generated file thumbnails now use Bun's built-in `Bun.Image` and are stored as WebP, so PocketBun no longer installs `sharp`.
 - Preserves PocketBase JSVM `Timezone("EET")` behavior on Linux runtimes whose ICU data doesn't expose that tzdb alias directly.
