@@ -40,16 +40,16 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Format check
-        run: bun --no-orphans run format
+        run: bun run format
 
       - name: Lint
-        run: bun --no-orphans run lint
+        run: bun run lint
 
       - name: Typecheck
-        run: bun --no-orphans run typecheck
+        run: bun run typecheck
 
       - name: Package typecheck
-        run: bun --no-orphans run typecheck:package
+        run: bun run typecheck:package
 
       - name: Tests
         timeout-minutes: ${{ matrix.tests_timeout_minutes }}
@@ -74,7 +74,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Install Playwright browsers
-        run: bun --no-orphans run e2e:install
+        run: bun run e2e:install
 
       - name: Playwright E2E
         run: bun run e2e

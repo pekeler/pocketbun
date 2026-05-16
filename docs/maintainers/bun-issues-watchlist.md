@@ -24,7 +24,7 @@ When any issue below is fixed upstream:
 
 - `bun --no-orphans` prevents ephemeral `Bun.serve({ port: 0 })` listeners from starting:
   - 2026-05-16 repro against Bun `1.3.14`: `bun -e 'const s = Bun.serve({ port: 0, fetch() { return new Response("ok"); } }); console.log(s.port); s.stop();'` succeeds, while adding `--no-orphans` fails with `EADDRINUSE`.
-  - keep `--no-orphans` off PocketBun tests and E2E commands until this is fixed because they intentionally use port `0` test servers.
+  - keep `--no-orphans` off PocketBun tests and E2E commands until this is fixed because they intentionally use port `0` test servers; prefer it only for local wrapper scripts where a Bun parent owns long-lived descendants.
 - Multipart parsing after request body has already been touched/consumed:
   - current mitigation: native `Request` objects use request-scoped multipart caching in `src/internal/compat/request_form_data.ts`; non-`Request` doubles still fall back to `clone()` when available.
   - keep under observation; open a dedicated Bun issue if we can produce a stable upstream repro.
