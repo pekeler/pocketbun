@@ -209,7 +209,9 @@ declare function routerAdd(
   method: string,
   path: string,
   handler: (e: core.RequestEvent) => void,
-  ...middlewares: Array<string | ((e: core.RequestEvent) => void) | Middleware>
+  ...middlewares: Array<
+    string | ((e: core.RequestEvent) => void) | Middleware | hook.Handler<core.RequestEvent | undefined>
+  >
 ): void;
 ```
 
@@ -232,7 +234,11 @@ routerUse((e) => {
 _Note that this method is available only in pb_hooks context._
 
 ```ts
-declare function routerUse(...middlewares: Array<string | ((e: core.RequestEvent) => void) | Middleware>): void;
+declare function routerUse(
+  ...middlewares: Array<
+    string | ((e: core.RequestEvent) => void) | Middleware | hook.Handler<core.RequestEvent | undefined>
+  >
+): void;
 ```
 
 ---

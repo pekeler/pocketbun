@@ -2124,6 +2124,13 @@ server.listen(0, "127.0.0.1", () => {
     expect(countKeys(scope)).toBe(2);
   });
 
+  it("router bind typings accept native hook handlers", async () => {
+    const typesSource = await Bun.file(generatedTypesUrl).text();
+    expect(typesSource).toContain(
+      "string | ((e: core.RequestEvent) => void) | Middleware | hook.Handler<core.RequestEvent | undefined>",
+    );
+  });
+
   it("router binds", async () => {
     const { app, cleanup } = await newTestApp();
     try {
