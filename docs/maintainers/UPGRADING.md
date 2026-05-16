@@ -15,6 +15,10 @@ This document describes the upgrade process we follow when PocketBase publishes 
    - If the tag is `vX.Y.Z`, set `version` to `X.Y.Z-pocketbun.0`.
    - If this is a PocketBun-only follow-up without changing the upstream tag, increment the `pocketbun.N` suffix.
 
+   Then verify the unavoidable version sources agree:
+
+       bun run check:versions
+
 3) Review release notes and prepare a diff.
 
    PocketBase keeps release notes in `CHANGELOG.md` and older changelog files in the upstream repo. Before changing code, read the entries for the target tag so you know which areas to double‑check.
@@ -95,6 +99,7 @@ This document describes the upgrade process we follow when PocketBase publishes 
    Run the full validation suite:
 
        bun run format:fix
+       bun run check:versions
        bun run lint
        bun run typecheck
        bun test --only-failures --concurrent

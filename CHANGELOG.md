@@ -3,6 +3,7 @@
 ## 0.38.1-pocketbun.2 (Unreleased)
 
 - JSVM custom routes can now use `$apis.requireAuth()` and the other `$apis` middleware helpers directly without an `unsupported middleware type` error, including in generated TypeScript declarations.
+- Docs no longer carry a separate displayed version that can drift, and `bun run check:versions` now verifies `package.json` against `pocketbase_tag.txt`.
 
 ## 0.38.1-pocketbun.1 - 2026-05-16
 
