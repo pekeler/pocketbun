@@ -15,10 +15,12 @@ describe("jsvm loader", () => {
     const dataDir = join(rootDir, "pb_data");
     const hooksDir = join(rootDir, "pb_hooks");
     const app = new TestApp({ dataDir, encryptionEnv: "pb_test_env" });
+    const previousCwd = process.cwd();
 
     await mkdir(hooksDir, { recursive: true });
 
     try {
+      process.chdir(rootDir);
       const err = Register(app, {
         HooksDir: hooksDir,
         TypesDir: rootDir,
@@ -42,6 +44,7 @@ describe("jsvm loader", () => {
         expect(types).toContain(snippet);
       }
     } finally {
+      process.chdir(previousCwd);
       app.resetBootstrapState();
       await rm(rootDir, { recursive: true, force: true });
     }

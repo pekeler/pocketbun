@@ -57,13 +57,13 @@
     "e2e:install": "playwright install --with-deps"
   },
   "files": [
-    "bin/",
+    "bin/pocketbun",
     "dist/",
-    "src/",
-    "index.ts",
     "README.md",
     "LICENSE.md",
     "pocketbase_tag.txt",
+    "src/plugins/jsvm/internal/types/generated/types.d.ts",
+    "src/ui/admin_branding.js",
     "vendor/pocketbase-admin-ui/dist/",
     "vendor/pocketbase-admin-ui/LICENSE.md"
   ],

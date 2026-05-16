@@ -3,11 +3,11 @@
 // to preserve the same JS-facing bindings and pb_hooks compatibility.
 
 import type { Dirent } from "node:fs";
-import { readdirSync, readFileSync, statSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { App } from "../../core/app.ts";
 import { AppMigrations } from "../../core/migrations_runner.ts";
 import { NewRegistry } from "../../tools/template/registry.ts";
@@ -29,6 +29,7 @@ import {
 } from "./binds.ts";
 
 const typesFileName = "types.d.ts";
+const generatedTypesSourcePath = resolveGeneratedTypesSourcePath(dirname(fileURLToPath(import.meta.url)));
 
 export type Config = {
   OnInit?: (globals: Record<string, unknown>) => void;
@@ -396,17 +397,32 @@ async function filesContentAsync(dirPath: string, pattern: string): Promise<Map<
 }
 
 function refreshTypesFile(typesDir: string): void {
-  const source = join(resolve(process.cwd()), "src/plugins/jsvm/internal/types/generated/types.d.ts");
   const destination = join(typesDir, typesFileName);
-  const data = readFileSync(source, "utf8");
+  const data = readFileSync(generatedTypesSourcePath, "utf8");
   mkdirSync(typesDir, { recursive: true });
   writeFileSync(destination, data);
 }
 
 async function refreshTypesFileAsync(typesDir: string): Promise<void> {
-  const source = join(resolve(process.cwd()), "src/plugins/jsvm/internal/types/generated/types.d.ts");
   const destination = join(typesDir, typesFileName);
-  const data = await readFile(source, "utf8");
+  const data = await readFile(generatedTypesSourcePath, "utf8");
   await mkdir(typesDir, { recursive: true });
   await writeFile(destination, data);
+}
+
+function resolveGeneratedTypesSourcePath(baseDir: string): string {
+  const candidates = [
+    "./internal/types/generated/types.d.ts",
+    "../src/plugins/jsvm/internal/types/generated/types.d.ts",
+    "../../src/plugins/jsvm/internal/types/generated/types.d.ts",
+  ];
+
+  for (const relativePath of candidates) {
+    const candidate = resolve(baseDir, relativePath);
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return resolve(baseDir, candidates[0] ?? ".");
 }
