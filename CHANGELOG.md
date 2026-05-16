@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.1-pocketbun.2 (Unreleased)
+
+- TBD
+
 ## 0.38.1-pocketbun.1 - 2026-05-16
 
 - Requires Bun `v1.3.14` or newer; generated file thumbnails now use Bun's built-in `Bun.Image` and are stored as WebP, so PocketBun no longer installs `sharp`.
