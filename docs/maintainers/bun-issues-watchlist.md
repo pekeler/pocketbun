@@ -1,6 +1,6 @@
 # Bun Issue Watchlist (PocketBun)
 
-Last updated: 2026-05-15
+Last updated: 2026-05-16
 
 This file tracks Bun issues that matter for PocketBun compatibility and workaround cleanup.
 
@@ -18,16 +18,16 @@ When any issue below is fixed upstream:
 | `bun:sqlite` PRAGMA parameter binding docs gap | https://github.com/oven-sh/bun/issues/27480 | open | This is a docs/SQLite-syntax gap, not a Bun runtime fix candidate. PocketBun now uses the table-valued `pragma_table_info(?)` form in `src/core/db_table.ts` so the lookup stays parameterized without inline SQL quoting. |
 | Streaming / temp-file-backed multipart parsing for `Bun.serve` uploads | https://github.com/oven-sh/bun/issues/28188 | open | PocketBun still needs `src/internal/compat/request_form_data.ts` because Bun does not yet expose a native streaming/temp-file-backed multipart server API for large uploads. |
 | `bun:test` `onTestFinished()` concurrent-test restriction | https://github.com/oven-sh/bun/issues/29236 | open | Bun `1.3.12` throws `Cannot call onTestFinished() here` when called from concurrent tests, even though equivalent per-test cleanup with local `try/finally` works. PocketBun reverted its limited `onTestFinished()` adoption to avoid mixing cleanup styles, and the issue also requests that the `bun-types/test.d.ts` API docs mention the current serial-only restriction explicitly. |
-| Bun native S3 metadata / header parity | https://github.com/oven-sh/bun/issues/17339, https://github.com/oven-sh/bun/issues/19301, https://github.com/oven-sh/bun/issues/16048 | open | A 2026-04-12 spike against Bun `1.3.12` showed that native S3 still can't replace PocketBun's `src/tools/filesystem/internal/s3blob/*` adapter cleanly. PocketBun stores `metadataOriginalName` in S3 object metadata via `src/tools/filesystem/filesystem.ts`, but Bun native S3 still lacks write-side user metadata support (`#17339`) and `stat()` / HEAD readback of response headers and `x-amz-meta-*` (`#19301`). Bun also lacks broader custom S3 header/query passthrough (`#16048`). We did not find an open Bun issue yet for true server-side copy semantics; the spike observed `client.write(dst, client.file(src))` issuing a GET+PUT instead of a native copy-object request. |
+| Bun native S3 metadata / header parity | https://github.com/oven-sh/bun/issues/29595, https://github.com/oven-sh/bun/issues/17339, https://github.com/oven-sh/bun/issues/19301, https://github.com/oven-sh/bun/issues/16048 | open | A 2026-04-12 spike against Bun `1.3.12` showed that native S3 still can't replace PocketBun's `src/tools/filesystem/internal/s3blob/*` adapter cleanly. PocketBun stores `metadataOriginalName` in S3 object metadata via `src/tools/filesystem/filesystem.ts`, but Bun native S3 still lacks write-side user metadata support (`#17339`), `stat()` / HEAD readback of response headers and `x-amz-meta-*` (`#19301`), broader custom S3 header/query passthrough (`#16048`), and first-class server-side copy / non-redirect response behavior (`#29595`). |
 
 ## PocketBun Internal Candidate (Not Filed Yet)
 
+- `bun --no-orphans` prevents ephemeral `Bun.serve({ port: 0 })` listeners from starting:
+  - 2026-05-16 repro against Bun `1.3.14`: `bun -e 'const s = Bun.serve({ port: 0, fetch() { return new Response("ok"); } }); console.log(s.port); s.stop();'` succeeds, while adding `--no-orphans` fails with `EADDRINUSE`.
+  - keep `--no-orphans` off PocketBun tests and E2E commands until this is fixed because they intentionally use port `0` test servers.
 - Multipart parsing after request body has already been touched/consumed:
   - current mitigation: native `Request` objects use request-scoped multipart caching in `src/internal/compat/request_form_data.ts`; non-`Request` doubles still fall back to `clone()` when available.
   - keep under observation; open a dedicated Bun issue if we can produce a stable upstream repro.
-- Bun native S3 server-side copy semantics:
-  - 2026-04-12 spike against Bun `1.3.12` observed `client.write(dst, client.file(src))` issuing a source GET followed by a destination PUT rather than a copy-object request.
-  - no open Bun issue found yet; file one if we decide native S3 migration work is worth revisiting soon.
 
 ## Recently Resolved / Retired
 
@@ -35,7 +35,7 @@ When any issue below is fixed upstream:
 | --- | --- | --- | --- |
 | Multipart binary truncation at null byte in `Request.formData()` | Canonical: https://github.com/oven-sh/bun/issues/26740 (our duplicate: https://github.com/oven-sh/bun/issues/27478) | closed in Bun `1.3.11` | No dedicated fallback parser workaround remains. Local Bun `1.3.12` repro still preserves `[31,139,8,0]` exactly. |
 | `bun:test` `mock()` / `spyOn()` disposal typings | https://github.com/oven-sh/bun/issues/29234 | closed in Bun `1.3.14` | Updated to `@types/bun` `1.3.14` and removed the PocketBun test casts that were only needed for the old typings. |
-| Windows `Bun.spawnSync` intermittent empty/invalid stdout | https://github.com/oven-sh/bun/issues/27482 | closed | Removed the JSVM sync-fetch retry loop from `src/plugins/jsvm/binds.ts`, restored sync-path coverage in `src/plugins/jsvm/binds.test.ts`, and CI now pins Bun `1.3.13`, which still includes the Windows subprocess pipe fix. |
+| Windows `Bun.spawnSync` intermittent empty/invalid stdout | https://github.com/oven-sh/bun/issues/27482 | closed | Removed the JSVM sync-fetch retry loop from `src/plugins/jsvm/binds.ts`, restored sync-path coverage in `src/plugins/jsvm/binds.test.ts`, and CI now pins Bun `1.3.14`, which still includes the Windows subprocess pipe fix. |
 | Default idle-timeout behavior for SSE/quiet streams docs clarity | https://github.com/oven-sh/bun/issues/27479 | closed | Bun docs were updated, but the runtime cap from issue `#15589` is still active so the PocketBun server workaround remains. |
 | `bun:sqlite` WAL sidecar cleanup docs/behavior clarity | https://github.com/oven-sh/bun/issues/27481 | closed | Keep the explicit `SQLITE_FCNTL_PERSIST_WAL` call in `src/tools/dbx/connect_pragmas.ts` for deterministic cleanup that matches PocketBase expectations. |
 
@@ -50,4 +50,5 @@ gh api repos/oven-sh/bun/issues/29236 --jq '[.number, .state, .title, .html_url]
 gh api repos/oven-sh/bun/issues/16048 --jq '[.number, .state, .title, .html_url] | @tsv'
 gh api repos/oven-sh/bun/issues/17339 --jq '[.number, .state, .title, .html_url] | @tsv'
 gh api repos/oven-sh/bun/issues/19301 --jq '[.number, .state, .title, .html_url] | @tsv'
+gh api repos/oven-sh/bun/issues/29595 --jq '[.number, .state, .title, .html_url] | @tsv'
 ```
