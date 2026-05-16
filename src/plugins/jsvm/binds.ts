@@ -2407,6 +2407,17 @@ function wrapMiddleware(app: App, middleware: unknown): { Func: (event: unknown)
       Priority: middleware.Priority,
     };
   }
+  if (isHookHandler(middleware)) {
+    return {
+      Func: (event: unknown) =>
+        runWithApp(app, () => {
+          const wrapped = wrapEvent(event as object);
+          return middleware.Func(wrapped);
+        }),
+      Id: middleware.Id,
+      Priority: middleware.Priority,
+    };
+  }
   if (typeof middleware === "function") {
     return {
       Func: (event: unknown) =>
@@ -2417,4 +2428,8 @@ function wrapMiddleware(app: App, middleware: unknown): { Func: (event: unknown)
     };
   }
   throw new Error("unsupported middleware type");
+}
+
+function isHookHandler(value: unknown): value is { Func: (event: unknown) => unknown; Id?: string; Priority?: number } {
+  return value !== null && typeof value === "object" && typeof (value as { Func?: unknown }).Func === "function";
 }

@@ -2179,6 +2179,40 @@ server.listen(0, "127.0.0.1", () => {
     }
   });
 
+  it("router binds accept $apis requireAuth middleware", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      apisBinds(scope);
+      routerBinds(app, scope);
+
+      scope.routerAdd(
+        "GET",
+        "/protected",
+        (e: any) => {
+          return e.json(200, { ok: true });
+        },
+        scope.$apis.requireAuth(),
+      );
+
+      const handler = buildServeHandler(app);
+      const guestResponse = await handler(new Request("http://127.0.0.1/protected"));
+      expect(guestResponse.status).toBe(401);
+
+      const authRecord = app.FindAuthRecordByEmail("users", "test@example.com");
+      const authResponse = await handler(
+        new Request("http://127.0.0.1/protected", {
+          headers: { Authorization: authRecord.NewAuthToken() },
+        }),
+      );
+      expect(authResponse.status).toBe(200);
+      expect(await authResponse.json()).toEqual({ ok: true });
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("filepath binds count", () => {
     const scope: BindScope = {};
     filepathBinds(scope);
