@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.38.1-pocketbun.3 (Unreleased)
+
+- TBD
+
 ## 0.38.1-pocketbun.2 - 2026-05-16
 
 - JSVM custom routes can now use `$apis.requireAuth()` and the other `$apis` middleware helpers directly without an `unsupported middleware type` error, including in generated TypeScript declarations.
