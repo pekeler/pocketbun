@@ -15,6 +15,8 @@ This document describes the upgrade process we follow when PocketBase publishes 
    - If the tag is `vX.Y.Z`, set `version` to `X.Y.Z-pocketbun.0`.
    - If this is a PocketBun-only follow-up without changing the upstream tag, increment the `pocketbun.N` suffix.
 
+   Do this during release preparation, not immediately after the previous release. Between releases, keep `package.json` on the latest published version and collect pending notes under `## Unreleased` in `CHANGELOG.md`.
+
    Then verify the unavoidable version sources agree:
 
        bun run check:versions
@@ -113,3 +115,5 @@ This document describes the upgrade process we follow when PocketBase publishes 
 ## Notes
 
 - The `examples/` directory is PocketBun-specific and does not exist upstream. Keep the example projects runnable after upgrades, but exclude them from upstream mapping audits and avoid treating missing upstream examples as porting gaps.
+- `bash scripts/release.sh publish pocketbun` finalizes either `## Unreleased` or `## X.Y.Z-pocketbun.N (Unreleased)`, publishes the package, creates the tag, and stops there. It does not prepare the next `pocketbun.N` version after publishing.
+- Hosted docs are deployed by `.github/workflows/docs-pages.yml` from PocketBun release tags only. Manual reruns must pass the release tag to avoid publishing docs from unreleased `master` changes.

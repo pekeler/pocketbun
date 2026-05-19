@@ -2,12 +2,14 @@ name: Docs Pages
 
 on:
   push:
-    branches:
-      - master
-    paths:
-      - docs/**
-      - .github/workflows/docs-pages.yml
+    tags:
+      - "v*-pocketbun.*"
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to deploy (for example v0.38.1-pocketbun.2)"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -21,10 +23,24 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      DOCS_REF: ${{ inputs.tag || github.ref_name }}
 
     steps:
+      - name: Validate release ref
+        run: |
+          case "${DOCS_REF}" in
+            v*-pocketbun.*) ;;
+            *)
+              echo "Docs deploys must target a PocketBun release tag, got '${DOCS_REF}'." >&2
+              exit 1
+              ;;
+          esac
+
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DOCS_REF }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

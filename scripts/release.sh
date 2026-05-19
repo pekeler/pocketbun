@@ -75,6 +75,7 @@ ensure_npm_auth() {
 
 changelog_state() {
   local version="$1"
+  local generic_unreleased_header="## Unreleased"
   local unreleased_header="## ${version} (Unreleased)"
   local released_header_prefix="## ${version} - "
 
@@ -83,7 +84,7 @@ changelog_state() {
     exit 1
   fi
 
-  if grep -Fqx "$unreleased_header" CHANGELOG.md; then
+  if grep -Fqx "$generic_unreleased_header" CHANGELOG.md || grep -Fqx "$unreleased_header" CHANGELOG.md; then
     echo "unreleased"
     return 0
   fi
@@ -93,7 +94,7 @@ changelog_state() {
     return 0
   fi
 
-  echo "Release blocked: expected changelog header '$unreleased_header' or released header '${released_header_prefix}YYYY-MM-DD'." >&2
+  echo "Release blocked: expected changelog header '$generic_unreleased_header', '$unreleased_header', or released header '${released_header_prefix}YYYY-MM-DD'." >&2
   exit 1
 }
 
@@ -113,32 +114,6 @@ today_utc() {
   date -u +"%Y-%m-%d"
 }
 
-next_pocketbun_version() {
-  local current="$1"
-  if [[ "$current" =~ ^([0-9]+\.[0-9]+\.[0-9]+-pocketbun\.)([0-9]+)$ ]]; then
-    local prefix="${BASH_REMATCH[1]}"
-    local n="${BASH_REMATCH[2]}"
-    echo "${prefix}$((n + 1))"
-    return 0
-  fi
-
-  echo "Cannot derive next pocketbun version from '${current}'." >&2
-  exit 1
-}
-
-set_package_version() {
-  local file="$1"
-  local version="$2"
-  bun --eval "
-const file = \"$file\";
-const nextVersion = \"$version\";
-const text = await Bun.file(file).text();
-const pkg = JSON.parse(text);
-pkg.version = nextVersion;
-await Bun.write(file, JSON.stringify(pkg, null, 2) + \"\\n\");
-"
-}
-
 finalize_changelog_release() {
   local version="$1"
   local release_date="$2"
@@ -146,33 +121,15 @@ finalize_changelog_release() {
 const file = \"CHANGELOG.md\";
 const version = \"$version\";
 const releaseDate = \"$release_date\";
-const from = \"## \" + version + \" (Unreleased)\";
+const genericFrom = \"## Unreleased\";
+const versionedFrom = \"## \" + version + \" (Unreleased)\";
 const to = \"## \" + version + \" - \" + releaseDate;
 let text = (await Bun.file(file).text()).replace(/\\r\\n/g, \"\\n\");
+const from = text.includes(genericFrom) ? genericFrom : versionedFrom;
 if (!text.includes(from)) {
-  throw new Error(\"Missing changelog header: \" + from);
+  throw new Error(\"Missing changelog header: \" + genericFrom + \" or \" + versionedFrom);
 }
 text = text.replace(from, to);
-await Bun.write(file, text.endsWith(\"\\n\") ? text : text + \"\\n\");
-"
-}
-
-prepend_next_unreleased_changelog_section() {
-  local next_version="$1"
-  bun --eval "
-const file = \"CHANGELOG.md\";
-const nextVersion = \"$next_version\";
-const section = \"## \" + nextVersion + \" (Unreleased)\\n\\n- TBD\\n\\n\";
-let text = (await Bun.file(file).text()).replace(/\\r\\n/g, \"\\n\");
-const marker = \"## \" + nextVersion + \" (Unreleased)\";
-if (text.includes(marker)) {
-  throw new Error(\"Changelog already contains \" + marker);
-}
-const title = \"# Changelog\\n\\n\";
-if (!text.startsWith(title)) {
-  throw new Error(\"Unexpected CHANGELOG.md format: missing '# Changelog' title block.\");
-}
-text = title + section + text.slice(title.length);
 await Bun.write(file, text.endsWith(\"\\n\") ? text : text + \"\\n\");
 "
 }
@@ -206,8 +163,6 @@ release_pocketbun() {
 
   local release_date
   release_date="$(today_utc)"
-  local next_version
-  next_version="$(next_pocketbun_version "$package_version")"
 
   if [[ "$changelog_status" == "unreleased" ]]; then
     echo "==> Finalize release notes for ${package_version}"
@@ -224,13 +179,6 @@ release_pocketbun() {
 
   git tag -m "Release ${package_name}@${package_version}" "$release_tag"
   git push origin "$release_tag"
-
-  echo "==> Start next iteration ${next_version}"
-  set_package_version "$package_json" "$next_version"
-  prepend_next_unreleased_changelog_section "$next_version"
-  git add package.json CHANGELOG.md
-  git commit -m "chore: start ${next_version}"
-  git push
 }
 
 release_create_pocketbun() {

@@ -1,8 +1,9 @@
 # Changelog
 
-## 0.38.1-pocketbun.3 (Unreleased)
+## Unreleased
 
-- TBD
+- Release publishing now leaves `package.json` and `CHANGELOG.md` on the released version instead of automatically starting the next PocketBun patch iteration.
+- Hosted docs now deploy from PocketBun release tags instead of every `docs/` push, so the published docs stay aligned with the latest release.
 
 ## 0.38.1-pocketbun.2 - 2026-05-16
 
