@@ -7,6 +7,7 @@ import type { Client } from "../tools/subscriptions/client.ts";
 import type { Message } from "../tools/subscriptions/message.ts";
 import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 import { DefaultClient } from "../tools/subscriptions/client.ts";
+import { RealtimeClientIPKey } from "./realtime.ts";
 
 type ClientStubs = {
   c1: Client;
@@ -21,7 +22,7 @@ const oauth2Topic = "@oauth2";
 
 const clientStubs: ClientStubs[] = [];
 
-for (let i = 0; i < 11; i += 1) {
+for (let i = 0; i < 12; i += 1) {
   const c1 = new DefaultClient();
 
   const c2 = new DefaultClient();
@@ -65,6 +66,7 @@ const stub7 = mustStub(7);
 const stub8 = mustStub(8);
 const stub9 = mustStub(9);
 const stub10 = mustStub(10);
+const stub11 = mustStub(11);
 
 const checkFailureRedirect = (res: Response) => {
   const location = res.headers.get("Location") ?? "";
@@ -300,6 +302,26 @@ const scenarios: ApiScenario[] = [
       const storedName = app.store().get("@redirect_name_jsoncode");
       if (storedName != null) {
         throw new Error(`Didn't expect stored name, got ${JSON.stringify(storedName)}`);
+      }
+    },
+  },
+  {
+    name: "client with different IP",
+    method: "GET",
+    url: `/api/oauth2-redirect?code=123&state=${stub11.c3.Id()}`,
+    headers: { "x-test-ip": "127.0.0.2" },
+    beforeTest: async (app) => {
+      app.settings().trustedProxy.headers = ["x-test-ip"];
+      stub11.c3.Set(RealtimeClientIPKey, "127.0.0.1");
+      await beforeTestFunc(stub11, {})(app);
+    },
+    expectedStatus: 307,
+    expectedEvents: { "*": 0 },
+    afterTest: async (app, res) => {
+      await afterTestFunc(app);
+      checkFailureRedirect(res);
+      if (stub11.c3.HasSubscription(oauth2Topic)) {
+        throw new Error("Expected oauth2 subscription to be removed");
       }
     },
   },

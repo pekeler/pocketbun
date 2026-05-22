@@ -11,7 +11,7 @@ import { BaseRecordProxy } from "../core/record_proxy.ts";
 import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 import { newTestApp } from "../tests/app.ts";
 import { DefaultClient } from "../tools/subscriptions/client.ts";
-import { RealtimeClientAuthKey } from "./realtime.ts";
+import { RealtimeClientAuthKey, RealtimeClientIPKey } from "./realtime.ts";
 import { buildServeHandler } from "./serve.ts";
 
 const superuserToken =
@@ -27,6 +27,7 @@ describe("realtime connect", () => {
       method: "GET",
       url: "/api/realtime",
       timeoutMs: 100,
+      headers: { "x-test-ip": "127.0.0.2" },
       expectedStatus: 200,
       expectedContent: ["id:", "event:PB_CONNECT", 'data:{"clientId":'],
       expectedEvents: {
@@ -34,9 +35,43 @@ describe("realtime connect", () => {
         OnRealtimeConnectRequest: 1,
         OnRealtimeMessageSend: 1,
       },
+      beforeTest: (app) => {
+        app.settings().trustedProxy.headers = ["x-test-ip"];
+        app.OnRealtimeConnectRequest().BindFunc((event) => {
+          const ip = event.Client?.Get(RealtimeClientIPKey);
+          if (ip !== "127.0.0.2") {
+            throw new Error(`Expected IP "127.0.0.2", got ${JSON.stringify(ip)}`);
+          }
+          return event.Next();
+        });
+      },
       afterTest: (app) => {
         if (Object.keys(app.SubscriptionsBroker().Clients()).length !== 0) {
           throw new Error("Expected the subscribers to be removed after connection close");
+        }
+      },
+    },
+    {
+      name: "max timeout",
+      method: "GET",
+      url: "/api/realtime",
+      timeoutMs: 500,
+      expectedStatus: 200,
+      expectedContent: ["id:", "event:PB_CONNECT", 'data:{"clientId":'],
+      expectedEvents: {
+        "*": 0,
+        OnRealtimeConnectRequest: 1,
+        OnRealtimeMessageSend: 1,
+      },
+      beforeTest: (app) => {
+        app.OnRealtimeConnectRequest().BindFunc((event) => {
+          event.MaxTimeout = 20;
+          return event.Next();
+        });
+      },
+      afterTest: (app) => {
+        if (Object.keys(app.SubscriptionsBroker().Clients()).length !== 0) {
+          throw new Error("Expected the subscribers to be removed after max timeout");
         }
       },
     },
@@ -99,7 +134,8 @@ describe("realtime subscribe", () => {
 
   const resetClient = () => {
     client.Unsubscribe();
-    client.Set(RealtimeClientAuthKey, null);
+    client.Unset(RealtimeClientAuthKey);
+    client.Unset(RealtimeClientIPKey);
   };
 
   const validSubscriptionsLimit = Array.from({ length: 1000 }, (_, i) => JSON.stringify(i));
@@ -175,6 +211,24 @@ describe("realtime subscribe", () => {
       expectedStatus: 400,
       expectedContent: ['"data":{', '"subscriptions":{"1":{"code":"validation_length_too_long"'],
       expectedEvents: { "*": 0 },
+    },
+    {
+      name: "existing client with different IP",
+      method: "POST",
+      url: "/api/realtime",
+      body: `{"clientId":"${client.Id()}","subscriptions":["test"]}`,
+      headers: { "x-test-ip": "127.0.0.2" },
+      expectedStatus: 400,
+      expectedContent: ['"data":{}'],
+      expectedEvents: { "*": 0 },
+      beforeTest: (app) => {
+        app.settings().trustedProxy.headers = ["x-test-ip"];
+        client.Set(RealtimeClientIPKey, "127.0.0.1");
+        app.SubscriptionsBroker().Register(client);
+      },
+      afterTest: () => {
+        resetClient();
+      },
     },
     {
       name: "existing client with valid topic length",

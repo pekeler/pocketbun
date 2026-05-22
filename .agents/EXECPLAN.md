@@ -6,7 +6,7 @@ PLANS.md exists in this repo at .agents/PLANS.md. This ExecPlan must be maintain
 
 ## Purpose / Big Picture
 
-The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.38.0 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
+The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.38.2 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
 
 ## Progress
 
@@ -32,6 +32,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 19: complete (PocketBase v0.37.3 upgrade: upstream sync, `v0.37.2..v0.37.3` UI-only audit, vendored Admin UI refresh, metadata/changelog bump, and full validation rerun)
   - Milestone 20: complete (PocketBase v0.37.4 upgrade: upstream sync, security-sensitive OAuth2/password/provider deltas ported, vendored Admin UI refresh, metadata/changelog bump, and full validation rerun)
   - Milestone 21: complete (PocketBase v0.38.0 upgrade: release-by-release v0.37.5 checkpoint, v0.38.0 upstream sync, superuser IP/rate-limit/runtime-notify/content-type/CSP deltas ported, Admin UI/docs refreshed, and full validation rerun)
+  - Milestone 22: complete (PocketBase v0.38.2 upgrade: upstream sync, realtime max-timeout/IP checks, OAuth2 realtime IP protection, Admin UI refresh, metadata/changelog bump, and full validation rerun)
 
 ### Maintenance TODOs
 
@@ -345,8 +346,21 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 - [x] (2026-05-09 17:00Z) Refreshed JSVM generated types, vendored Admin UI assets, and the generated docs snapshot pinned by `pocketbase_site_ref.txt`; updated the deterministic docs patcher so the generated reference page does not duplicate the PocketBun migration guidance when upstream prose changes.
 - [x] (2026-05-09 17:04Z) Ran `bun run upstream:audit` and confirmed only the intentional `plugins/ghupdate/*` gaps remain, then reran the required validation gate successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
 
+### Milestone 22 - PocketBase v0.38.2 upgrade
+
+- [x] (2026-05-22 05:10Z) Confirmed the upstream `v0.38.2` release from the official GitHub release metadata. The release adds realtime connection max-lifetime handling, extra realtime connected-user IP checks, an Admin UI records-list pagination fix, and Go dependency security updates.
+- [x] (2026-05-22 05:10Z) Bumped compatibility metadata to PocketBase `v0.38.2` / PocketBun `0.38.2-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_data/pocketbun.yml`, and `CHANGELOG.md`.
+- [x] (2026-05-22 05:14Z) Synced `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.38.2`, then audited `v0.38.1..v0.38.2` with the GitHub compare API. Runtime changes were limited to realtime connect/subscription handling, OAuth2 realtime redirect IP protection, and generated JSVM type comments; the remaining changed files were Admin UI assets/changelog/dependency metadata.
+- [x] (2026-05-22 05:24Z) Ported the realtime runtime deltas in `src/apis/realtime.ts`, `src/apis/record_auth_with_oauth2_redirect.ts`, `src/core/events.ts`, and `src/plugins/jsvm/internal/types/generated/types.d.ts`.
+- [x] (2026-05-22 05:24Z) Added focused regression coverage for storing the connected realtime client IP, enforcing the IP check during subscription updates, closing realtime streams on `MaxTimeout`, and rejecting OAuth2 realtime redirects completed from a different IP.
+- [x] (2026-05-22 05:35Z) Ran `bun run upstream:audit`, `bun run format:fix`, `bun run check:versions`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`, and `bun run docs:check` successfully. The upstream audit still reports only the intentional `plugins/ghupdate/*` mapping gap.
+
 ## Surprises & Discoveries
 
+- Observation: The `v0.38.2` runtime delta is security-sensitive but localized to realtime client lifecycle and OAuth2 realtime redirect handoff.
+  Evidence: `gh api repos/pocketbase/pocketbase/compare/v0.38.1...v0.38.2 --jq '.files[] | [.status, .filename] | @tsv'` reported runtime changes only in `apis/realtime.go`, `apis/record_auth_with_oauth2_redirect.go`, `core/events.go`, and their tests/types, while the rest was Admin UI and Go dependency metadata.
+- Observation: PocketBun's Bun-specific SSE keepalive loop needed an explicit max-lifetime timer in addition to the existing idle timer to match upstream `RealtimeConnectRequestEvent.MaxTimeout`.
+  Evidence: the new `realtime connect > max timeout` regression sets `event.MaxTimeout = 20` and now observes the stream closing and the subscription client unregistering without relying on request abort.
 - Observation: The two-release upgrade was better handled as a release-by-release port even though the final package target is `v0.38.0`.
   Evidence: `v0.37.5` changed only a few compatibility-sensitive runtime behaviors, while `v0.38.0` added new settings/API/CLI/runtime notification surfaces. Porting `v0.37.5` first produced focused regressions for duplicate expand ids and email-change confirmation before the broader settings and Admin UI churn landed.
 - Observation: The new notify watcher affects the test harness lifecycle, not just production runtime behavior.
@@ -496,6 +510,9 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Decision Log
 
+- Decision: Keep PocketBun's existing SSE comment keepalive behavior and add upstream's new max-lifetime timer alongside it.
+  Rationale: Bun's server idle-timeout cap still requires comment keepalives for long-lived SSE streams, while upstream `v0.38.2` separately limits total connection lifetime for resource cleanup. Combining both preserves PocketBase observable behavior without regressing Bun transport stability.
+  Date/Author: 2026-05-22 / Codex
 - Decision: Port the `v0.37.4` auth/security deltas directly, including verified-upgrade external-auth cleanup and OAuth2 pre-hijacking safeguards, instead of documenting a behavior difference.
   Rationale: these changes are observable through auth results, hook event counts, token invalidation, and persisted external-auth records, and they close security-sensitive upstream behavior gaps. The TypeScript port keeps the same behavior while using PocketBun's async password and cleanup helpers where Bun semantics require it.
   Date/Author: 2026-04-27 / Codex
@@ -719,6 +736,10 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
   Date/Author: 2026-02-02 / Codex
 
 ## Outcomes & Retrospective
+
+Milestone 22 is now complete. PocketBun targets PocketBase `v0.38.2`, the vendored Admin UI is refreshed to the upstream `v0.38.2` bundle, and the release's realtime security/lifecycle deltas are ported with focused regression coverage. The upgrade adds the `RealtimeConnectRequestEvent.MaxTimeout` JSVM-facing field, default 30-minute realtime max-lifetime handling, connected-client IP storage, subscription update IP checks, and OAuth2 realtime redirect IP protection.
+
+Full validation passed on the final kept tree: `bun run docs:check`, `bun run check:versions`, `bun run upstream:audit`, `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
 
 Milestone 21 is now complete. PocketBun targets PocketBase `v0.38.0`, the vendored Admin UI is refreshed to the upstream `v0.38.0` bundle, and the release's runtime/configuration deltas are ported with focused regression coverage. The upgrade adds superuser IP/CIDR allowlists, rate-limit excluded IP/CIDR settings, local settings/collection notification reloads across app instances, Office document content types, the default CSP media-preview fix, the `superuser ips` CLI helper, JWK non-empty-alg matching, and the `v0.37.5` compatibility fixes for duplicate relation expand ids and email-change confirmation validation.
 
@@ -998,3 +1019,4 @@ Plan change note: 2026-04-13, improved the benchmark-shaped create hot path by r
 Plan change note: 2026-04-20, completed the PocketBase v0.37.2 upgrade by syncing the upstream UI-only release, updating compatibility metadata and changelog notes, porting the missing `tools/router/buffer_with_file` mapping gap, pinning the upstream site-doc ref, hardening generated-doc overlays/checks, resyncing JSVM reference types with runtime async helpers, and rerunning the full validation gate.
 Plan change note: 2026-04-23, completed the PocketBase v0.37.3 upgrade by auditing the UI-only `v0.37.2..v0.37.3` compare window, bumping the compatibility metadata to `0.37.3-pocketbun.0`, syncing the upstream reference and vendored Admin UI assets, confirming only the intentional `plugins/ghupdate/*` mapping gaps remain, and rerunning the full validation gate.
 Plan change note: 2026-04-23, recorded the implementation guard sweep against upstream behavior, including the removed internal invariant checks, the one test expectation update required by the change, and the clean full validation rerun.
+Plan change note: 2026-05-22, completed the PocketBase v0.38.2 upgrade by syncing the upstream reference and vendored Admin UI assets, porting realtime max-timeout and connected-client IP protections, updating generated JSVM types and release metadata, adding focused realtime/OAuth2 redirect regressions, and rerunning the full validation gate.

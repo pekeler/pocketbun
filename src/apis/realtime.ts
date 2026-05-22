@@ -40,6 +40,9 @@ const realtimeSSEKeepaliveIntervalMs = 25 * 1000;
 // RealtimeClientAuthKey is the name of the realtime client store key that holds its auth state.
 export const RealtimeClientAuthKey = "auth";
 
+// RealtimeClientIPKey is the name of the realtime client store key that holds the IP of the connected client.
+export const RealtimeClientIPKey = "pbRealtimeClientIP";
+
 const expandQueryParam = "expand";
 const fieldsQueryParam = "fields";
 
@@ -62,8 +65,12 @@ function realtimeConnect(event: RequestEvent): Response {
   event.responseHeaders.set("X-Accel-Buffering", "no");
 
   const connectEvent = new RealtimeConnectRequestEvent(event);
-  connectEvent.Client = new DefaultClient();
   connectEvent.IdleTimeout = 5 * 60 * 1000;
+  connectEvent.MaxTimeout = 30 * 60 * 1000;
+  connectEvent.Client = new DefaultClient();
+
+  // could be used as an optional cross-reference check in other API endpoints
+  connectEvent.Client.Set(RealtimeClientIPKey, event.realIP());
 
   const stream = new ReadableStream<Uint8Array>({
     start: async (controller) => {
@@ -111,7 +118,7 @@ function realtimeConnect(event: RequestEvent): Response {
 
         ce.App.SubscriptionsBroker().Register(client);
         try {
-          ce.App.Logger().Debug("Realtime connection established.", "clientId", client.Id());
+          ce.App.Logger().Debug("Realtime connection established", "clientId", client.Id());
 
           const connectMsgEvent = new RealtimeMessageEvent(ce.RequestEvent);
           connectMsgEvent.Client = client;
@@ -237,6 +244,22 @@ async function realtimeSetSubscriptions(event: RequestEvent): Promise<Response> 
     return notFound(event, "Missing or invalid client id.");
   }
 
+  // for just in case to prevent someone changing a guest subscription
+  //
+  // note1: this is an extra precaution against clientId bruteforce attempts
+  // for installations allowing longer realtime connections duration
+  //
+  // note2: custom registered clients (aka. those without IP in the store)
+  // are excluded from the check for backward compatibility
+  const clientIP = client.Get(RealtimeClientIPKey);
+  if (typeof clientIP === "string" && clientIP !== "" && clientIP !== event.realIP()) {
+    return badRequest(
+      event,
+      "Invalid realtime client.",
+      new Error("the subscription request IP doesn't match with the realtime client IP"),
+    );
+  }
+
   const clientAuth = client.Get(RealtimeClientAuthKey) as RecordModel | null;
   if (clientAuth && !isSameAuth(clientAuth, event.auth)) {
     return forbidden(event, "The current and the previous request authorization don't match.");
@@ -260,7 +283,7 @@ async function realtimeSetSubscriptions(event: RequestEvent): Promise<Response> 
     // subscribe to the new subscriptions
     e.Client.Subscribe(...e.Subscriptions);
 
-    e.App.Logger().Debug("Realtime subscriptions updated.", "clientId", e.Client.Id(), "subscriptions", e.Subscriptions);
+    e.App.Logger().Debug("Realtime subscriptions updated", "clientId", e.Client.Id(), "subscriptions", e.Subscriptions);
 
     return execAfterSuccessTx(true, e.App, () => noContent(event, 204));
   });
@@ -1029,6 +1052,11 @@ async function waitForRealtimeMessages(event: RealtimeConnectRequestEvent, write
     }
   }, realtimeSSEKeepaliveIntervalMs);
 
+  let maxTimer: ReturnType<typeof setTimeout> | null = null;
+  const maxPromise = new Promise<{ type: "max" }>((resolve) => {
+    maxTimer = setTimeout(() => resolve({ type: "max" }), event.MaxTimeout);
+  });
+
   try {
     while (true) {
       let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1038,7 +1066,7 @@ async function waitForRealtimeMessages(event: RealtimeConnectRequestEvent, write
 
       const nextPromise = iterator.next().then((result) => ({ type: "message" as const, result }));
 
-      const winner = await Promise.race([abortPromise, idlePromise, nextPromise]);
+      const winner = await Promise.race([abortPromise, maxPromise, idlePromise, nextPromise]);
 
       if (idleTimer) {
         clearTimeout(idleTimer);
@@ -1046,6 +1074,11 @@ async function waitForRealtimeMessages(event: RealtimeConnectRequestEvent, write
 
       if (winner.type === "idle") {
         event.App.Logger().Debug("Realtime connection closed (idle timeout)", "clientId", client.Id());
+        return;
+      }
+
+      if (winner.type === "max") {
+        event.App.Logger().Debug("Realtime connection closed (max timeout)", "clientId", client.Id());
         return;
       }
 
@@ -1082,6 +1115,9 @@ async function waitForRealtimeMessages(event: RealtimeConnectRequestEvent, write
       }
     }
   } finally {
+    if (maxTimer) {
+      clearTimeout(maxTimer);
+    }
     clearInterval(keepaliveTimer);
   }
 }

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.38.2-pocketbun.0 - 2026-05-22
+
+- Now compatible with PocketBase `v0.38.2` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0382).
+  - Adds upstream realtime connection max-lifetime handling, extra realtime connected-user IP checks, and the Admin UI records-list pagination fix.
+
 - Release publishing now leaves `package.json` and `CHANGELOG.md` on the released version instead of automatically starting the next PocketBun patch iteration.
 - Hosted docs now deploy from PocketBun release tags instead of every `docs/` push, so the published docs stay aligned with the latest release.
 

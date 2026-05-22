@@ -4,6 +4,7 @@ import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import { readRequestTextAndRebind } from "../internal/compat/request_body.ts";
 import { Message } from "../tools/subscriptions/message.ts";
+import { RealtimeClientIPKey } from "./realtime.ts";
 
 const oauth2SubscriptionTopic = "@oauth2";
 const oauth2RedirectFailurePath = "../_/#/auth/oauth2-redirect-failure";
@@ -40,6 +41,20 @@ export async function oauth2SubscriptionRedirect(app: App, event: RequestEvent):
   }
 
   client.Unsubscribe(oauth2SubscriptionTopic);
+
+  // additional check to minimize the risk of XSRF attack vectors
+  //
+  // note: custom registered clients (aka. those without IP in the store)
+  // are excluded from the check for backward compatibility
+  const clientIP = client.Get(RealtimeClientIPKey);
+  if (typeof clientIP === "string" && clientIP !== "" && clientIP !== event.realIP()) {
+    app
+      .Logger()
+      .Debug(
+        "The client IP that completed the authentication is different from the one that initialized the OAuth2 realtime connection",
+      );
+    return redirectResponse(redirectStatusCode, oauth2RedirectFailurePath);
+  }
 
   if (data.AppleUser && !data.Error && data.Code) {
     const nameErr = parseAndStoreAppleRedirectName(app, oauth2RedirectAppleNameStoreKeyPrefix + data.Code, data.AppleUser);
