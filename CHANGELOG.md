@@ -2,8 +2,7 @@
 
 ## Unreleased
 
-- Release automation now recognizes an existing dated changelog section before finalizing `## Unreleased`, preventing duplicate release headers.
-- Hosted docs now deploy after the GitHub Release workflow succeeds instead of directly from tag pushes.
+- Hardened release process.
 
 ## 0.38.2-pocketbun.0 - 2026-05-22
 

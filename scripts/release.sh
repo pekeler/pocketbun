@@ -9,6 +9,10 @@ usage() {
 Usage:
   bash scripts/release.sh dry <pocketbun|create-pocketbun>
   bash scripts/release.sh publish <pocketbun|create-pocketbun>
+
+Environment:
+  POCKETBUN_RELEASE_CI_WAIT_SECONDS  Seconds to wait for GitHub CI before publishing (default: 1800)
+  POCKETBUN_RELEASE_CI_POLL_SECONDS  Seconds between GitHub CI checks (default: 30)
 USAGE
 }
 
@@ -71,6 +75,101 @@ ensure_npm_auth() {
   fi
   echo "Run 'npm login' (or set/refresh NPM_TOKEN) and retry." >&2
   exit 1
+}
+
+ensure_gh_cli() {
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "Release blocked: GitHub CLI ('gh') is required to verify CI before publishing." >&2
+    exit 1
+  fi
+}
+
+ci_state_for_sha() {
+  local sha="$1"
+  local runs_json
+
+  if ! runs_json="$(gh run list --workflow ci.yml --commit "$sha" --limit 20 --json databaseId,status,conclusion,url 2>&1)"; then
+    echo "Release blocked: unable to query GitHub CI runs for ${sha}." >&2
+    echo "$runs_json" >&2
+    exit 1
+  fi
+
+  bun --eval '
+const runs = JSON.parse(await Bun.stdin.text());
+const fields = (state, run) =>
+  [state, run?.databaseId ?? "", run?.status ?? "", run?.conclusion ?? "", run?.url ?? ""].join("\t");
+const success = runs.find((run) => run.status === "completed" && run.conclusion === "success");
+const active = runs.find((run) => run.status !== "completed");
+const latest = runs[0];
+
+if (success) {
+  console.log(fields("success", success));
+} else if (active) {
+  console.log(fields("active", active));
+} else if (latest) {
+  console.log(fields("failed", latest));
+} else {
+  console.log(fields("missing"));
+}
+' <<< "$runs_json"
+}
+
+ensure_successful_ci_for_head() {
+  ensure_gh_cli
+
+  local sha
+  local wait_seconds
+  local poll_seconds
+  local deadline
+  sha="$(git rev-parse HEAD)"
+  wait_seconds="${POCKETBUN_RELEASE_CI_WAIT_SECONDS:-1800}"
+  poll_seconds="${POCKETBUN_RELEASE_CI_POLL_SECONDS:-30}"
+  deadline=$((SECONDS + wait_seconds))
+
+  echo "==> Verify GitHub CI passed for ${sha}"
+
+  while true; do
+    local state
+    local run_id
+    local status
+    local conclusion
+    local url
+    IFS=$'\t' read -r state run_id status conclusion url <<< "$(ci_state_for_sha "$sha")"
+
+    case "$state" in
+      success)
+        echo "CI passed: ${url}"
+        return 0
+        ;;
+      active)
+        if ((SECONDS >= deadline)); then
+          echo "Release blocked: CI did not finish within ${wait_seconds}s for ${sha}." >&2
+          echo "Latest run ${run_id}: ${status} ${url}" >&2
+          exit 1
+        fi
+        echo "CI ${status} for ${sha}; waiting ${poll_seconds}s..."
+        sleep "$poll_seconds"
+        ;;
+      failed)
+        echo "Release blocked: CI did not pass for ${sha}." >&2
+        echo "Latest run ${run_id}: ${status}/${conclusion}" >&2
+        echo "$url" >&2
+        exit 1
+        ;;
+      missing)
+        if ((SECONDS >= deadline)); then
+          echo "Release blocked: no CI run appeared within ${wait_seconds}s for ${sha}." >&2
+          exit 1
+        fi
+        echo "No CI run found for ${sha}; waiting ${poll_seconds}s..."
+        sleep "$poll_seconds"
+        ;;
+      *)
+        echo "Release blocked: unknown CI state '${state}' for ${sha}." >&2
+        exit 1
+        ;;
+    esac
+  done
 }
 
 release_changelog_section_count() {
@@ -138,6 +237,11 @@ publish_package() {
   popd >/dev/null
 }
 
+push_release_head() {
+  echo "==> Push current release commit"
+  git push
+}
+
 today_utc() {
   date -u +"%Y-%m-%d"
 }
@@ -197,12 +301,13 @@ release_pocketbun() {
     finalize_changelog_release "$package_version" "$release_date"
     git add CHANGELOG.md
     git commit -m "chore(release): ${package_version}"
-    git push
   else
     echo "==> Release notes for ${package_version} already finalized; continuing."
   fi
 
   validate_release_changelog_section "$package_version"
+  push_release_head
+  ensure_successful_ci_for_head
 
   echo "==> Publish ${package_name}@${package_version}"
   publish_package "$ROOT_DIR" 0
@@ -236,6 +341,9 @@ release_create_pocketbun() {
     echo "Dry-run complete."
     return 0
   fi
+
+  push_release_head
+  ensure_successful_ci_for_head
 
   echo "==> Publish ${package_name}@${package_version}"
   publish_package "$package_dir" 0
