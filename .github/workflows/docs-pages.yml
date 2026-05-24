@@ -1,9 +1,11 @@
 name: Docs Pages
 
 on:
-  push:
-    tags:
-      - "v*-pocketbun.*"
+  workflow_run:
+    workflows:
+      - Release
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       tag:
@@ -22,9 +24,10 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v') && contains(github.event.workflow_run.head_branch, '-pocketbun.'))
     runs-on: ubuntu-latest
     env:
-      DOCS_REF: ${{ inputs.tag || github.ref_name }}
+      DOCS_REF: ${{ inputs.tag || github.event.workflow_run.head_branch }}
 
     steps:
       - name: Validate release ref

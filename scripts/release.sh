@@ -73,6 +73,34 @@ ensure_npm_auth() {
   exit 1
 }
 
+release_changelog_section_count() {
+  local version="$1"
+  awk -v prefix="## ${version} - " '
+    index($0, prefix) == 1 { count++ }
+    END { print count + 0 }
+  ' CHANGELOG.md
+}
+
+validate_release_changelog_section() {
+  local version="$1"
+  local count
+  count="$(release_changelog_section_count "$version")"
+  if [[ "$count" -ne 1 ]]; then
+    echo "Release blocked: expected exactly one CHANGELOG.md release section for ${version}, found ${count}." >&2
+    exit 1
+  fi
+
+  if ! awk -v prefix="## ${version} - " '
+    index($0, prefix) == 1 { in_section = 1; next }
+    in_section && /^## / { exit }
+    in_section && /[^[:space:]]/ { found = 1 }
+    END { exit found ? 0 : 1 }
+  ' CHANGELOG.md; then
+    echo "Release blocked: CHANGELOG.md release section for ${version} is empty." >&2
+    exit 1
+  fi
+}
+
 changelog_state() {
   local version="$1"
   local generic_unreleased_header="## Unreleased"
@@ -84,13 +112,13 @@ changelog_state() {
     exit 1
   fi
 
-  if grep -Fqx "$generic_unreleased_header" CHANGELOG.md || grep -Fqx "$unreleased_header" CHANGELOG.md; then
-    echo "unreleased"
+  if grep -Fq "$released_header_prefix" CHANGELOG.md; then
+    echo "released"
     return 0
   fi
 
-  if grep -Fq "$released_header_prefix" CHANGELOG.md; then
-    echo "released"
+  if grep -Fqx "$generic_unreleased_header" CHANGELOG.md || grep -Fqx "$unreleased_header" CHANGELOG.md; then
+    echo "unreleased"
     return 0
   fi
 
@@ -173,6 +201,8 @@ release_pocketbun() {
   else
     echo "==> Release notes for ${package_version} already finalized; continuing."
   fi
+
+  validate_release_changelog_section "$package_version"
 
   echo "==> Publish ${package_name}@${package_version}"
   publish_package "$ROOT_DIR" 0

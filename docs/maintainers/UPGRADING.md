@@ -115,5 +115,5 @@ This document describes the upgrade process we follow when PocketBase publishes 
 ## Notes
 
 - The `examples/` directory is PocketBun-specific and does not exist upstream. Keep the example projects runnable after upgrades, but exclude them from upstream mapping audits and avoid treating missing upstream examples as porting gaps.
-- `bash scripts/release.sh publish pocketbun` finalizes either `## Unreleased` or `## X.Y.Z-pocketbun.N (Unreleased)`, publishes the package, creates the tag, and stops there. It does not prepare the next `pocketbun.N` version after publishing.
-- Hosted docs are deployed by `.github/workflows/docs-pages.yml` from PocketBun release tags only. Manual reruns must pass the release tag to avoid publishing docs from unreleased `master` changes.
+- `bash scripts/release.sh publish pocketbun` finalizes either `## Unreleased` or `## X.Y.Z-pocketbun.N (Unreleased)`, validates that the final changelog has exactly one non-empty section for the package version, publishes the package, and pushes the release tag. It does not prepare the next `pocketbun.N` version after publishing.
+- Hosted docs are deployed by `.github/workflows/docs-pages.yml` after the GitHub Release workflow succeeds for a PocketBun release tag. Manual reruns must pass the release tag to avoid publishing docs from unreleased `master` changes.

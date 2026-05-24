@@ -40,9 +40,10 @@ jobs:
           version="${tag_name#v}"
           section_file="/tmp/pocketbun-release-section.md"
           notes_file="/tmp/pocketbun-release-notes.md"
+          section_count="$(awk -v prefix="## ${version} - " 'index($0, prefix) == 1 { count++ } END { print count + 0 }' CHANGELOG.md)"
 
-          if ! grep -q "^## ${version} - " CHANGELOG.md; then
-            echo "Missing CHANGELOG.md section for ${version}" >&2
+          if [[ "${section_count}" -ne 1 ]]; then
+            echo "Expected exactly one CHANGELOG.md section for ${version}, found ${section_count}." >&2
             exit 1
           fi
 
