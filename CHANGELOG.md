@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.38.2-pocketbun.0 - 2026-05-24
 
 ## 0.38.2-pocketbun.0 - 2026-05-22
 
