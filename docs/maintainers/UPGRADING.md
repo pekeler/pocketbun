@@ -13,7 +13,7 @@ This document describes the upgrade process we follow when PocketBase publishes 
    Set `package.json` to the matching version using the PocketBun scheme:
 
    - If the tag is `vX.Y.Z`, set `version` to `X.Y.Z-pocketbun.0`.
-   - If this is a PocketBun-only follow-up without changing the upstream tag, increment the `pocketbun.N` suffix.
+   - If this is a PocketBun-only follow-up without changing the upstream tag, `bash scripts/release.sh publish pocketbun` will increment the `pocketbun.N` suffix when the current package version is already published.
 
    Do this during release preparation, not immediately after the previous release. Between releases, keep `package.json` on the latest published version and collect pending notes under `## Unreleased` in `CHANGELOG.md`.
 
@@ -115,6 +115,6 @@ This document describes the upgrade process we follow when PocketBase publishes 
 ## Notes
 
 - The `examples/` directory is PocketBun-specific and does not exist upstream. Keep the example projects runnable after upgrades, but exclude them from upstream mapping audits and avoid treating missing upstream examples as porting gaps.
-- `bash scripts/release.sh publish pocketbun` finalizes either `## Unreleased` or `## X.Y.Z-pocketbun.N (Unreleased)`, validates that the final changelog has exactly one non-empty section for the package version, pushes the current release commit, waits for successful GitHub CI on that exact commit, publishes the package, and pushes the release tag. It does not prepare the next `pocketbun.N` version after publishing.
+- `bash scripts/release.sh publish pocketbun` first prepares the next unpublished `pocketbun.N` version if the current package version already exists on npm, finalizes either `## Unreleased` or `## X.Y.Z-pocketbun.N (Unreleased)`, validates that the final changelog has exactly one non-empty section for the package version, pushes the current release commit, waits for successful GitHub CI on that exact commit, publishes the package, and pushes the release tag. It does not prepare the next `pocketbun.N` version after publishing.
 - `bash scripts/release.sh publish create-pocketbun` also pushes the current release commit and waits for successful GitHub CI on that exact commit before publishing or tagging.
 - Hosted docs are deployed by `.github/workflows/docs-pages.yml` after the GitHub Release workflow succeeds for a PocketBun release tag. Manual reruns must pass the release tag to avoid publishing docs from unreleased `master` changes.

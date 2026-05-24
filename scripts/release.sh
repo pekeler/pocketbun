@@ -33,11 +33,31 @@ ensure_clean_tree() {
 ensure_unpublished() {
   local name="$1"
   local version="$2"
-  if npm view "${name}@${version}" version >/dev/null 2>&1; then
+  if [[ "$(npm_package_version_state "$name" "$version")" == "published" ]]; then
     echo "Release blocked: ${name}@${version} already exists on npm." >&2
     echo "Bump package.json version first." >&2
     exit 1
   fi
+}
+
+npm_package_version_state() {
+  local name="$1"
+  local version="$2"
+  local output
+
+  if output="$(npm view "${name}@${version}" version 2>&1)"; then
+    echo "published"
+    return 0
+  fi
+
+  if grep -Eq '(^|[[:space:]])(E404|404)([[:space:]]|$)' <<< "$output"; then
+    echo "missing"
+    return 0
+  fi
+
+  echo "Release blocked: unable to check npm for ${name}@${version}." >&2
+  echo "$output" >&2
+  exit 1
 }
 
 ensure_tag_missing() {
@@ -237,6 +257,75 @@ publish_package() {
   popd >/dev/null
 }
 
+set_package_version() {
+  local version="$1"
+  bun --eval "
+const file = \"package.json\";
+const version = \"$version\";
+const data = JSON.parse(await Bun.file(file).text());
+data.version = version;
+await Bun.write(file, JSON.stringify(data, null, 2) + \"\\n\");
+"
+}
+
+retarget_versioned_unreleased_changelog() {
+  local from_version="$1"
+  local to_version="$2"
+  bun --eval "
+const file = \"CHANGELOG.md\";
+const from = \"## ${from_version} (Unreleased)\";
+const to = \"## ${to_version} (Unreleased)\";
+let text = (await Bun.file(file).text()).replace(/\\r\\n/g, \"\\n\");
+if (text.includes(from)) {
+  text = text.replace(from, to);
+  await Bun.write(file, text.endsWith(\"\\n\") ? text : text + \"\\n\");
+}
+"
+}
+
+prepare_next_pocketbun_version() {
+  local package_name="$1"
+  local package_version="$2"
+  local changelog_status="$3"
+  local package_base
+  local package_suffix
+  local candidate_version
+  local candidate_suffix
+
+  if [[ "$changelog_status" != "unreleased" ]]; then
+    return 0
+  fi
+
+  if [[ "$(npm_package_version_state "$package_name" "$package_version")" == "missing" ]]; then
+    return 0
+  fi
+
+  if [[ ! "$package_version" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-pocketbun\.([0-9]+)$ ]]; then
+    echo "Release blocked: cannot auto-bump non-PocketBun version '${package_version}'." >&2
+    exit 1
+  fi
+
+  package_base="${BASH_REMATCH[1]}"
+  package_suffix="${BASH_REMATCH[2]}"
+  candidate_suffix=$((package_suffix + 1))
+
+  while true; do
+    candidate_version="${package_base}-pocketbun.${candidate_suffix}"
+    if [[ "$(npm_package_version_state "$package_name" "$candidate_version")" == "missing" ]]; then
+      break
+    fi
+    candidate_suffix=$((candidate_suffix + 1))
+  done
+
+  echo "==> Prepare ${package_name}@${candidate_version}"
+  echo "${package_name}@${package_version} already exists on npm; using next unpublished PocketBun patch."
+  set_package_version "$candidate_version"
+  retarget_versioned_unreleased_changelog "$package_version" "$candidate_version"
+  bun run docs:version
+  git add package.json docs/_data/pocketbun.yml CHANGELOG.md
+  git commit -m "chore: prepare ${candidate_version}"
+}
+
 push_release_head() {
   echo "==> Push current release commit"
   git push
@@ -276,12 +365,16 @@ release_pocketbun() {
 
   package_name="$(json_field "$package_json" "name")"
   package_version="$(json_field "$package_json" "version")"
-  release_tag="v${package_version}"
   changelog_status="$(changelog_state "$package_version")"
 
   if [[ "$mode" == "publish" ]]; then
     ensure_npm_auth
+    prepare_next_pocketbun_version "$package_name" "$package_version" "$changelog_status"
   fi
+
+  package_version="$(json_field "$package_json" "version")"
+  release_tag="v${package_version}"
+  changelog_status="$(changelog_state "$package_version")"
 
   ensure_unpublished "$package_name" "$package_version"
   ensure_tag_missing "$release_tag"
