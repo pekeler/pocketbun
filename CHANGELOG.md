@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.38.2-pocketbun.1 - 2026-05-25
 
 - Hardened release process.
 
