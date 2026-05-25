@@ -245,6 +245,11 @@ changelog_state() {
   exit 1
 }
 
+has_unreleased_changelog() {
+  local version="$1"
+  grep -Fqx "## Unreleased" CHANGELOG.md || grep -Fqx "## ${version} (Unreleased)" CHANGELOG.md
+}
+
 publish_package() {
   local dir="$1"
   local dry="$2"
@@ -286,13 +291,12 @@ if (text.includes(from)) {
 prepare_next_pocketbun_version() {
   local package_name="$1"
   local package_version="$2"
-  local changelog_status="$3"
   local package_base
   local package_suffix
   local candidate_version
   local candidate_suffix
 
-  if [[ "$changelog_status" != "unreleased" ]]; then
+  if ! has_unreleased_changelog "$package_version"; then
     return 0
   fi
 
@@ -365,11 +369,10 @@ release_pocketbun() {
 
   package_name="$(json_field "$package_json" "name")"
   package_version="$(json_field "$package_json" "version")"
-  changelog_status="$(changelog_state "$package_version")"
 
   if [[ "$mode" == "publish" ]]; then
     ensure_npm_auth
-    prepare_next_pocketbun_version "$package_name" "$package_version" "$changelog_status"
+    prepare_next_pocketbun_version "$package_name" "$package_version"
   fi
 
   package_version="$(json_field "$package_json" "version")"
