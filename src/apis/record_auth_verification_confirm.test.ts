@@ -116,6 +116,64 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: "valid token (disabled password auth)",
+    method: "POST",
+    url: "/api/collections/users/confirm-verification",
+    body: `{
+      "token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsImV4cCI6MjUyNDYwNDQ2MSwidHlwZSI6InZlcmlmaWNhdGlvbiIsImNvbGxlY3Rpb25JZCI6Il9wYl91c2Vyc19hdXRoXyIsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSJ9.SetHpu2H-x-q4TIUz-xiQjwi7MNwLCLvSs4O0hUSp0E"
+    }`,
+    expectedStatus: 204,
+    expectedEvents: {
+      "*": 0,
+      OnRecordConfirmVerificationRequest: 1,
+      OnModelUpdate: 1,
+      OnModelValidate: 1,
+      OnModelUpdateExecute: 1,
+      OnModelAfterUpdateSuccess: 1,
+      OnRecordUpdate: 1,
+      OnRecordValidate: 1,
+      OnRecordUpdateExecute: 1,
+      OnRecordAfterUpdateSuccess: 1,
+      OnModelDelete: 2,
+      OnModelDeleteExecute: 2,
+      OnModelAfterDeleteSuccess: 2,
+      OnRecordDelete: 2,
+      OnRecordDeleteExecute: 2,
+      OnRecordAfterDeleteSuccess: 2,
+    },
+    beforeTest: async (app) => {
+      const user = app.FindAuthRecordByEmail("users", "test@example.com");
+      user.collection().PasswordAuth.Enabled = false;
+      const saveErr = await app.Save(user.collection());
+      if (saveErr) {
+        throw saveErr;
+      }
+      if (user.Verified()) {
+        throw new Error("Expected the user to be unverified before the confirmation");
+      }
+      if (!user.ValidatePassword("1234567890")) {
+        throw new Error("Expected password to be valid");
+      }
+      const externalAuths = app.FindAllExternalAuthsByRecord(user);
+      if (externalAuths.length === 0) {
+        throw new Error("Expected at least one external auth");
+      }
+    },
+    afterTest: (app) => {
+      const user = app.FindAuthRecordByEmail("users", "test@example.com");
+      if (!user.Verified()) {
+        throw new Error("Expected the user to be verified after the confirmation");
+      }
+      if (user.ValidatePassword("1234567890")) {
+        throw new Error("Expected the user password to be reset");
+      }
+      const externalAuths = app.FindAllExternalAuthsByRecord(user);
+      if (externalAuths.length > 0) {
+        throw new Error(`Expected all external auths to be cleared, found ${externalAuths.length}`);
+      }
+    },
+  },
+  {
     name: "valid token (already verified)",
     method: "POST",
     url: "/api/collections/users/confirm-verification",

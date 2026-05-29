@@ -6,7 +6,7 @@ PLANS.md exists in this repo at .agents/PLANS.md. This ExecPlan must be maintain
 
 ## Purpose / Big Picture
 
-The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.38.2 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
+The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.39.0 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
 
 ## Progress
 
@@ -33,6 +33,7 @@ The goal is to deliver a Bun-native PocketBase-compatible server that behaves li
   - Milestone 20: complete (PocketBase v0.37.4 upgrade: upstream sync, security-sensitive OAuth2/password/provider deltas ported, vendored Admin UI refresh, metadata/changelog bump, and full validation rerun)
   - Milestone 21: complete (PocketBase v0.38.0 upgrade: release-by-release v0.37.5 checkpoint, v0.38.0 upstream sync, superuser IP/rate-limit/runtime-notify/content-type/CSP deltas ported, Admin UI/docs refreshed, and full validation rerun)
   - Milestone 22: complete (PocketBase v0.38.2 upgrade: upstream sync, realtime max-timeout/IP checks, OAuth2 realtime IP protection, Admin UI refresh, metadata/changelog bump, and full validation rerun)
+  - Milestone 23: complete (PocketBase v0.39.0 upgrade: upstream sync, Admin UI refresh, SQL console API, autobackup alerts, auth/default-template deltas, docs refresh, and full validation rerun)
 
 ### Maintenance TODOs
 
@@ -355,8 +356,22 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 - [x] (2026-05-22 05:24Z) Added focused regression coverage for storing the connected realtime client IP, enforcing the IP check during subscription updates, closing realtime streams on `MaxTimeout`, and rejecting OAuth2 realtime redirects completed from a different IP.
 - [x] (2026-05-22 05:35Z) Ran `bun run upstream:audit`, `bun run format:fix`, `bun run check:versions`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`, and `bun run docs:check` successfully. The upstream audit still reports only the intentional `plugins/ghupdate/*` mapping gap.
 
+### Milestone 23 - PocketBase v0.39.0 upgrade
+
+- [x] (2026-05-29 08:46Z) Confirmed the upstream `v0.39.0` release from the official GitHub release API. The release adds an Admin UI SQL console under Settings > Debug, automated-backup error email alerts for superusers, logs/records list UI improvements, registered `oidc2` and `oidc3` option fields, default email template text updates, and dependency churn.
+- [x] (2026-05-29 08:46Z) Bumped compatibility metadata to PocketBase `v0.39.0` / PocketBun `0.39.0-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, docs metadata, and `CHANGELOG.md`.
+- [x] (2026-05-29 08:49Z) Ran `bun run upstream:sync` to refresh `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist`, then audited the `v0.38.2..v0.39.0` source delta for runtime/API/JSVM changes that need TypeScript ports.
+- [x] (2026-05-29 08:58Z) Ported required runtime changes and focused regression tests, keeping behavior compatible with upstream PocketBase.
+- [x] (2026-05-29 09:07Z) Refreshed generated artifacts/docs and reran the required validation gate before review.
+
 ## Surprises & Discoveries
 
+- Observation: The `v0.39.0` runtime surface is small but includes a new superuser-only Admin UI SQL execution API, not only vendored UI churn.
+  Evidence: the upstream compare adds `apis/sql.go` / `apis/sql_test.go` and wires `/api/sql` from `apis/base.go`; PocketBun now has `src/apis/sql.ts` and `src/apis/sql.test.ts` covering auth, validation, write rollback, row limits, and multi-statement read/write behavior.
+- Observation: Bun SQLite's preferred `run(...)` API handles multi-statement writes, but `query(...)` returns the first result for multi-statement reads while upstream returns the last.
+  Evidence: the TypeScript port uses `db.run(...)` for write SQL inside the existing transaction wrapper and splits read SQL outside strings/comments so previous read statements execute for side effects and the response uses the last statement's result.
+- Observation: Refreshing generated docs for `v0.39.0` exposed another docs patch idempotence edge around PocketBun-specific thumbnail and migration notes.
+  Evidence: repeated `bun run docs:patch` initially duplicated notes in `docs/users/extend.md` and `docs/users/reference.md`; `scripts/docs/apply_pocketbun_patches.ts` now normalizes existing PocketBase/PocketBun variants, and a rerun reports `Applied deterministic PocketBun docs patches (0/5 files changed)`.
 - Observation: The `v0.38.2` runtime delta is security-sensitive but localized to realtime client lifecycle and OAuth2 realtime redirect handoff.
   Evidence: `gh api repos/pocketbase/pocketbase/compare/v0.38.1...v0.38.2 --jq '.files[] | [.status, .filename] | @tsv'` reported runtime changes only in `apis/realtime.go`, `apis/record_auth_with_oauth2_redirect.go`, `core/events.go`, and their tests/types, while the rest was Admin UI and Go dependency metadata.
 - Observation: PocketBun's Bun-specific SSE keepalive loop needed an explicit max-lifetime timer in addition to the existing idle timer to match upstream `RealtimeConnectRequestEvent.MaxTimeout`.
@@ -510,6 +525,12 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
 
 ## Decision Log
 
+- Decision: Keep the new SQL API scoped to the upstream superuser route and preserve the upstream result JSON shape, while using Bun's non-deprecated SQLite APIs.
+  Rationale: Bun's `Database.exec(...)` is now deprecated in favor of `run(...)`, but the Admin UI SQL console needs upstream-compatible multi-statement behavior, transaction rollback, and last-result read semantics. `db.run(...)` preserves multi-statement write behavior, while read SQL is split only to select the last statement result that upstream returns.
+  Date/Author: 2026-05-29 / Codex
+- Decision: Leave the `plugins/ghupdate` mapping gap unchanged for the `v0.39.0` upgrade.
+  Rationale: `bun run upstream:audit` still reports only `plugins/ghupdate/*`, which is an intentional omission because PocketBun does not ship PocketBase's binary self-update command.
+  Date/Author: 2026-05-29 / Codex
 - Decision: Keep PocketBun's existing SSE comment keepalive behavior and add upstream's new max-lifetime timer alongside it.
   Rationale: Bun's server idle-timeout cap still requires comment keepalives for long-lived SSE streams, while upstream `v0.38.2` separately limits total connection lifetime for resource cleanup. Combining both preserves PocketBase observable behavior without regressing Bun transport stability.
   Date/Author: 2026-05-22 / Codex
@@ -736,6 +757,10 @@ Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_mem
   Date/Author: 2026-02-02 / Codex
 
 ## Outcomes & Retrospective
+
+Milestone 23 is now complete. PocketBun targets PocketBase `v0.39.0`, the vendored Admin UI is refreshed to the upstream `v0.39.0` bundle, and the release's runtime deltas are ported with focused regression coverage. The upgrade adds the superuser SQL console endpoint, automated-backup failure alerts to superusers, the verification-confirm password-reset guard when password auth is disabled, updated default auth token durations, refreshed auth email template text, regenerated docs, and deterministic docs patcher fixes.
+
+Full validation passed on the final kept tree: `bun run docs:rebuild:full`, `bun run docs:check`, `bun run check:versions`, `bun run upstream:audit`, `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`. The upstream audit still reports only the intentional `plugins/ghupdate/*` mapping gap.
 
 Milestone 22 is now complete. PocketBun targets PocketBase `v0.38.2`, the vendored Admin UI is refreshed to the upstream `v0.38.2` bundle, and the release's realtime security/lifecycle deltas are ported with focused regression coverage. The upgrade adds the `RealtimeConnectRequestEvent.MaxTimeout` JSVM-facing field, default 30-minute realtime max-lifetime handling, connected-client IP storage, subscription update IP checks, and OAuth2 realtime redirect IP protection.
 

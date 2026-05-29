@@ -357,6 +357,8 @@ function patchIntroduction(text: string): string {
   let out = text;
   const thumbNote =
     "PocketBun uses Bun's built-in `Bun.Image` for thumbnail generation. Binary output may differ from upstream, newly generated thumbnails are intentionally stored as WebP (`Content-Type: image/webp`) for every supported source image format, and crop-style thumb variants follow `Bun.Image` exact-size resize behavior instead of PocketBase's crop positioning.";
+  const thumbNoteAny =
+    /PocketBun uses Bun's built-in `Bun\.Image` for thumbnail generation\. Binary output may differ from upstream, newly generated thumbnails are intentionally stored as WebP \(`Content-Type: image\/webp`\) for every supported source image format, and crop-style thumb variants follow `Bun\.Image` exact-size resize behavior instead of PocketB(?:ase|un)'s crop positioning\./g;
   const thumbBase =
     "The original file would be returned, if the requested thumb size is not found or the file is not an image!";
 
@@ -440,9 +442,15 @@ function patchIntroduction(text: string): string {
   out = out.replace(/`\.\/pocketbun/g, "`pocketbun");
   out = out.replace(/\.\/pocketbun\b/g, "pocketbun");
   out = out.replace(
+    /Currently limited to jpg, png, gif \(its first frame\) and partially webp \(stored as png\)\./g,
+    "Currently limited to jpg, png, gif (its first frame) and webp.",
+  );
+  out = out.replace(thumbNoteAny, thumbNote);
+  out = out.replace(
     new RegExp(`${escapeRegExp(thumbBase)}(?:\\n\\n${escapeRegExp(thumbNote)})?`, "g"),
     `${thumbBase}\n\n${thumbNote}`,
   );
+  out = out.replace(new RegExp(`(?:${escapeRegExp(thumbNote)}\\s*){2,}`, "g"), `${thumbNote}\n\n`);
 
   return out;
 }
@@ -527,10 +535,11 @@ function patchExtend(text: string): string {
   const dbxNote =
     "PocketBun rewrites dbx-style named markers for SQLite execution. The logged placeholder syntax can look different from your input query while behavior stays compatible.";
   const migrationCallbacksLine = "Both callbacks accept a transactional `app` instance.";
+  const migrationSafetySuffix =
+    " This follows the same migration-safety principle explained by Rails in [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations): old migrations should not accidentally depend on current application model behavior.";
   const oldMigrationAppNote =
     "For collection/schema changes, use `const migrationApp = app.forMigrations()` before calling collection persistence methods such as `save`, `delete`, or `importCollections`. This skips user hooks while preserving PocketBun system hooks required to save collections and sync record tables. New generated JS collection migrations use this form.";
-  const migrationAppNote =
-    "For collection/schema changes, use `const migrationApp = app.forMigrations()` before calling collection persistence methods such as `save`, `delete`, or `importCollections`. This skips user hooks while preserving PocketBun system hooks required to save collections and sync record tables. New generated JS collection migrations use this form. This follows the same migration-safety principle explained by Rails in [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations): old migrations should not accidentally depend on current application model behavior.";
+  const migrationAppNote = `${oldMigrationAppNote}${migrationSafetySuffix}`;
   const migrationDataPolicy =
     "For record, data, and settings migrations, use SQL. If SQL is not enough, keep the transformation logic inside the migration and work with the persisted data shape. Do not use current app behavior from migrations: no normal record/settings `app.save(...)`, forms, services, or hook-driven helpers.";
 
@@ -622,8 +631,12 @@ function patchExtend(text: string): string {
     `${apisLine}\n\n${asyncApisNote}`,
   );
   out = out.replace(
+    new RegExp(`\\n\\n${escapeRegExp(migrationDataPolicy)}(?:${escapeRegExp(migrationSafetySuffix)})?`, "g"),
+    "",
+  );
+  out = out.replace(
     new RegExp(
-      `(${escapeRegExp(migrationCallbacksLine)})(?:\\n\\n(?:${escapeRegExp(oldMigrationAppNote)}|${escapeRegExp(migrationAppNote)}))*`,
+      `(${escapeRegExp(migrationCallbacksLine)})(?:\\n\\n${escapeRegExp(oldMigrationAppNote)}(?:${escapeRegExp(migrationSafetySuffix)})*)*`,
       "g",
     ),
     `$1\n\n${migrationAppNote}\n\n${migrationDataPolicy}`,
@@ -657,7 +670,10 @@ function patchWebApis(text: string): string {
     "If the thumb size is not defined in the file schema field options or the file resource is not an image (jpg, png, gif, webp), then the original file resource is returned unmodified.";
   const thumbNote =
     "PocketBun uses Bun's built-in `Bun.Image` for thumbnail generation. Binary output may differ from upstream, newly generated thumbnails are intentionally stored as WebP (`Content-Type: image/webp`) for every supported source image format, and crop-style thumb variants follow `Bun.Image` exact-size resize behavior instead of PocketBase's crop positioning.";
+  const thumbNoteAny =
+    /PocketBun uses Bun's built-in `Bun\.Image` for thumbnail generation\. Binary output may differ from upstream, newly generated thumbnails are intentionally stored as WebP \(`Content-Type: image\/webp`\) for every supported source image format, and crop-style thumb variants follow `Bun\.Image` exact-size resize behavior instead of PocketB(?:ase|un)'s crop positioning\./g;
 
+  out = out.replace(thumbNoteAny, thumbNote);
   out = out.replace(new RegExp(`(${escapeRegExp(thumbBase)})(?:\\s+${escapeRegExp(thumbNote)})+`, "g"), `$1 ${thumbNote}`);
   out = out.replace(new RegExp(`(?:${escapeRegExp(thumbNote)}\\s*){2,}`, "g"), `${thumbNote} `);
   if (!out.includes(`${thumbBase} ${thumbNote}`)) {
@@ -672,13 +688,14 @@ function patchReference(text: string): string {
   let out = text;
   out = out.replace(/: _TygojaDict;/g, ": { [key: string]: any };");
   const migrateNote = "_Note that this method is available only in pb_migrations context._";
+  const migrationSafetySuffix =
+    " See Rails' [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations) for the same replay hazard.";
   const oldMigrationAppNote =
     "For collection/schema migrations, use `const migrationApp = app.forMigrations()` before collection persistence calls. It skips user hooks while preserving PocketBun system hooks required for collection schema persistence.";
-  const migrationAppNote =
-    "For collection/schema migrations, use `const migrationApp = app.forMigrations()` before collection persistence calls. It skips user hooks while preserving PocketBun system hooks required for collection schema persistence. See Rails' [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations) for the same replay hazard.";
+  const migrationAppNote = `${oldMigrationAppNote}${migrationSafetySuffix}`;
   out = out.replace(
     new RegExp(
-      `(${escapeRegExp(migrateNote)})(?:\\n\\n(?:${escapeRegExp(oldMigrationAppNote)}|${escapeRegExp(migrationAppNote)}|For collection/schema migrations[\\s\\S]*?replay hazard\\.))*`,
+      `(${escapeRegExp(migrateNote)})(?:\\n\\n${escapeRegExp(oldMigrationAppNote)}(?:${escapeRegExp(migrationSafetySuffix)})*)*`,
       "g",
     ),
     `$1\n\n${migrationAppNote}`,

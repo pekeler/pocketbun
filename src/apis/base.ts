@@ -30,6 +30,7 @@ import { bindRealtimeApi } from "./realtime.ts";
 import { bindRecordAuthApi } from "./record_auth.ts";
 import { bindRecordCrudApi } from "./record_crud.ts";
 import { bindSettingsApi } from "./settings.ts";
+import { bindSQLApi } from "./sql.ts";
 
 // StaticWildcardParam is the name of Static handler wildcard parameter.
 export const StaticWildcardParam = "path";
@@ -71,6 +72,7 @@ export function NewRouter(app: App): Router<RequestEvent> {
   bindBatchApi(app, apiGroup);
   bindRealtimeApi(app, apiGroup);
   bindHealthApi(app, apiGroup);
+  bindSQLApi(app, apiGroup);
 
   return pbRouter;
 }

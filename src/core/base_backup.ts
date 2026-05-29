@@ -12,6 +12,7 @@ import { newBackupsFilesystemAsync, type App } from "./app.ts";
 import { LocalAutocertCacheDirName, LocalBackupsDirName, LocalNotifyDirName, LocalTempDirName } from "./base_paths.ts";
 import { BackupEvent } from "./events.ts";
 import { StoreKeyActiveBackup } from "./store.ts";
+import { sendSystemAlertToAllSuperusers } from "./system_alert.ts";
 
 // @todo consider removing after backups refactoring
 const lostFoundDirName = "lost+found";
@@ -314,6 +315,15 @@ export function registerAutobackupHooks(app: App): void {
         const backupErr = await app.CreateBackup(null, name);
         if (backupErr) {
           app.Logger().Error("[Backup cron] Failed to create backup", "name", name, "error", backupErr.message);
+
+          const alertError = await sendSystemAlertToAllSuperusers(
+            app,
+            "Autobackup failure",
+            `Failed to create/upload automated backup. Raw error:\n${backupErr.message}`,
+          );
+          if (alertError) {
+            app.Logger().Warn("[Backup cron] Failed to send backup error alerts", "name", name, "error", alertError.message);
+          }
         }
 
         const maxKeep = app.settings().backups.cronMaxKeep;

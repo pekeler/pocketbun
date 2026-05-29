@@ -15,6 +15,7 @@ export const defaultVerificationTemplate = {
 <p>
   <a class="btn" href="${EmailPlaceholderAppURL}/_/#/auth/confirm-verification/${EmailPlaceholderToken}" target="_blank" rel="noopener">Verify</a>
 </p>
+<p><i>If you didn't recently register, please ignore this email.</i></p>
 <p>
   Thanks,<br/>
   ${EmailPlaceholderAppName} team
@@ -28,7 +29,7 @@ export const defaultResetPasswordTemplate = {
 <p>
   <a class="btn" href="${EmailPlaceholderAppURL}/_/#/auth/confirm-password-reset/${EmailPlaceholderToken}" target="_blank" rel="noopener">Reset password</a>
 </p>
-<p><i>If you didn't ask to reset your password, you can ignore this email.</i></p>
+<p><i>If you didn't ask to reset your password, please ignore this email.</i></p>
 <p>
   Thanks,<br/>
   ${EmailPlaceholderAppName} team
@@ -42,7 +43,7 @@ export const defaultConfirmEmailChangeTemplate = {
 <p>
   <a class="btn" href="${EmailPlaceholderAppURL}/_/#/auth/confirm-email-change/${EmailPlaceholderToken}" target="_blank" rel="noopener">Confirm new email</a>
 </p>
-<p><i>If you didn't ask to change your email address, you can ignore this email.</i></p>
+<p><i>If you didn't ask to change your email address, please ignore this email.</i></p>
 <p>
   Thanks,<br/>
   ${EmailPlaceholderAppName} team

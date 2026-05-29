@@ -49,6 +49,14 @@ export async function recordConfirmVerification(app: App, event: RequestEvent): 
   const out = await app.OnRecordConfirmVerificationRequest().Trigger(hookEvent, async () => {
     if (!wasVerified) {
       record.SetVerified(true);
+
+      // similar to the OTP auth, we enforce an extra password reset
+      // guard as this way is less prone to pre-hijacking attacks
+      // in case the password auth is eventually enabled later
+      if (!record.collection().PasswordAuth.Enabled) {
+        record.SetRandomPassword();
+      }
+
       const saveErr = await app.Save(record);
       if (saveErr) {
         return badRequest(event, "An error occurred while saving the verified state.", saveErr);

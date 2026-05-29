@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.39.0-pocketbun.0 - 2026-05-29
+
+- Now compatible with PocketBase `v0.39.0` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0390).
+  - Adds the upstream Admin UI SQL console, automated-backup error alerts for superusers, logs/records list polish, OIDC option field registration, refreshed default email template text, and dependency updates.
+
 ## 0.38.2-pocketbun.1 - 2026-05-25
 
 - Hardened release process.
