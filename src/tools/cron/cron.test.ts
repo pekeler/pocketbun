@@ -191,7 +191,7 @@ describe("Cron", () => {
     expect(calls).toBe("ab");
   });
 
-  it("uses Bun.cron for the default scheduler", () => {
+  it("uses Bun.cron for the default scheduler", async () => {
     const fake = createFakeBunCron();
     using _bunCronSpy = spyOn(bunWithCron, "cron").mockImplementation(fake.register);
 
@@ -212,6 +212,7 @@ describe("Cron", () => {
 
     fake.registrations[1]?.handler();
     fake.registrations[0]?.handler();
+    await nextMicrotask();
     expect(calls).toBe("ba");
 
     c.Add("a", "3 * * * *", () => {
@@ -225,10 +226,38 @@ describe("Cron", () => {
     expect(fake.registrations[1]?.stopCalls).toBe(1);
 
     fake.registrations[2]?.handler();
+    await nextMicrotask();
     expect(calls).toBe("baA");
 
     c.Stop();
     expect(fake.registrations[2]?.stopCalls).toBe(1);
     expect(c.HasStarted()).toBe(false);
   });
+
+  it("recovers cron job panics", async () => {
+    const fake = createFakeBunCron();
+    using _bunCronSpy = spyOn(bunWithCron, "cron").mockImplementation(fake.register);
+    using _warnSpy = spyOn(console, "warn").mockImplementation(() => {});
+
+    const c = new Cron();
+    let calls = 0;
+
+    c.Add("panic", "* * * * *", () => {
+      calls += 1;
+      throw new Error("test panic");
+    });
+
+    c.Start();
+
+    expect(fake.registrations.length).toBe(1);
+    expect(() => fake.registrations[0]?.handler()).not.toThrow();
+    await nextMicrotask();
+
+    expect(calls).toBe(1);
+    expect(_warnSpy).toHaveBeenCalled();
+  });
 });
+
+function nextMicrotask(): Promise<void> {
+  return new Promise((resolve) => queueMicrotask(resolve));
+}

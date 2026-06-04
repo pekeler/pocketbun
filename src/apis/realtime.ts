@@ -758,6 +758,20 @@ function realtimeBroadcastRecord(
           // which exact fields the client subscription requested or has permissions to access
           const cleanRecord = record.Fresh();
 
+          // -------------------------------------------
+          // @todo consider with the refactoring whether
+          // the default enriching used by the regular APIs
+          // can be reused here too to avoid eventual future
+          // discrepencies in the record event data
+          //
+          // https://github.com/pocketbase/pocketbase/issues/7721
+          // -------------------------------------------
+
+          // enable hidden fields for superuser subscribers
+          if (requestInfo.auth?.isSuperuser()) {
+            cleanRecord.Unhide(...collection.Fields.FieldNames());
+          }
+
           // trigger the enrich hooks
           const enrichErr = triggerRecordEnrichHooks(app, requestInfo, [cleanRecord], () => {
             // apply expand

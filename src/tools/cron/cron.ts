@@ -1,5 +1,6 @@
 // Ported from pocketbase/tools/cron/cron.go
 
+import { FireAndForget } from "../routine/routine.ts";
 import { Job } from "./job.ts";
 import { NewSchedule } from "./schedule.ts";
 
@@ -110,7 +111,7 @@ export class Cron {
     this.handles.set(
       job.Id(),
       bunWithCron.cron(job.Expression(), () => {
-        job.Run();
+        FireAndForget(() => job.Run());
       }),
     );
   }

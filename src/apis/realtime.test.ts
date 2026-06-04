@@ -1,11 +1,12 @@
 // Ported from pocketbase/apis/realtime_test.go.
 
 import { describe, it } from "bun:test";
-import { NewBaseCollection } from "../core/collection_model.ts";
+import { CollectionNameSuperusers, NewBaseCollection } from "../core/collection_model.ts";
 import { GenerateDefaultRandomId } from "../core/db.ts";
 import { BaseModel } from "../core/db_model.ts";
 import { ModelEvent, ModelEventTypeDelete, ModelEventTypeUpdate } from "../core/events.ts";
 import { AutodateField } from "../core/field_autodate.ts";
+import { TextField } from "../core/field_text.ts";
 import { NewRecord, Record as RecordModel } from "../core/record_model.ts";
 import { BaseRecordProxy } from "../core/record_proxy.ts";
 import { runApiScenario, type ApiScenario } from "../tests/api.ts";
@@ -473,6 +474,88 @@ describe("realtime auth record events", () => {
     }
   });
 
+  it("sends hidden record fields to superuser subscribers", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      buildServeHandler(app);
+
+      const testCollection = NewBaseCollection("test_realtime");
+      testCollection.listRule = "@request.auth.id != ''";
+      testCollection.Fields.Add(
+        Object.assign(new TextField(), { Name: "public" }),
+        Object.assign(new TextField(), { Name: "hidden", Hidden: true }),
+      );
+
+      const collectionSaveErr = await app.Save(testCollection);
+      if (collectionSaveErr) {
+        throw collectionSaveErr;
+      }
+
+      const testSubscription = testCollection.name + "/*";
+
+      const guestClient = new DefaultClient();
+      guestClient.Subscribe(testSubscription);
+      app.SubscriptionsBroker().Register(guestClient);
+
+      const regular = app.FindAuthRecordByEmail("users", "test@example.com");
+      const regularClient = new DefaultClient();
+      regularClient.Set(RealtimeClientAuthKey, regular);
+      regularClient.Subscribe(testSubscription);
+      app.SubscriptionsBroker().Register(regularClient);
+
+      const superuser = app.FindAuthRecordByEmail(CollectionNameSuperusers, "test@example.com");
+      const superuserClient = new DefaultClient();
+      superuserClient.Set(RealtimeClientAuthKey, superuser);
+      superuserClient.Subscribe(testSubscription);
+      app.SubscriptionsBroker().Register(superuserClient);
+
+      const enrichCalls: Record<string, number> = {};
+      app.OnRecordEnrich().BindFunc((event) => {
+        const id = event.RequestInfo?.auth?.Id ?? "";
+        enrichCalls[id] = (enrichCalls[id] ?? 0) + 1;
+        return event.Next();
+      });
+
+      const regularMessagePromise = nextMessageData(regularClient, 3000);
+      const superuserMessagePromise = nextMessageData(superuserClient, 3000);
+
+      const testRecord = NewRecord(testCollection);
+      testRecord.Set("public", "test1");
+      testRecord.Set("hidden", "test2");
+      const recordSaveErr = await app.Save(testRecord);
+      if (recordSaveErr) {
+        throw recordSaveErr;
+      }
+
+      const [regularMessageData, superuserMessageData] = await Promise.all([regularMessagePromise, superuserMessagePromise]);
+
+      if (Object.keys(enrichCalls).length !== 2) {
+        throw new Error("Expected 2 enrich hook calls, got " + Object.keys(enrichCalls).length);
+      }
+      if (enrichCalls[regular.Id] !== 1) {
+        throw new Error("Expected exactly 1 regular user enrich hook call, got " + (enrichCalls[regular.Id] ?? 0));
+      }
+      if (enrichCalls[superuser.Id] !== 1) {
+        throw new Error("Expected exactly 1 superuser enrich hook call, got " + (enrichCalls[superuser.Id] ?? 0));
+      }
+
+      const scenarios: Record<string, boolean> = {
+        "regular message public field should exist": regularMessageData.includes('"public":'),
+        "regular message hidden field should NOT exist": !regularMessageData.includes('"hidden":'),
+        "superuser message public field should exist": superuserMessageData.includes('"public":'),
+        "superuser message hidden field should exist": superuserMessageData.includes('"hidden":'),
+      };
+
+      for (const [name, valid] of Object.entries(scenarios)) {
+        if (!valid) {
+          throw new Error(name);
+        }
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("unsets auth state on tokenKey refresh", async () => {
     const { app, cleanup } = await newTestApp();
     try {
@@ -883,6 +966,18 @@ describe("realtime record resolve", () => {
     }
   });
 });
+
+async function nextMessageData(client: DefaultClient, timeoutMs: number): Promise<string> {
+  const iterator = client.Channel()[Symbol.asyncIterator]();
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error("Timed out waiting for realtime message")), timeoutMs);
+  });
+  const result = await Promise.race([iterator.next(), timeoutPromise]);
+  if (result.done) {
+    throw new Error("Realtime message channel closed");
+  }
+  return new TextDecoder().decode(result.value.Data);
+}
 
 async function collectNotifications(clients: DefaultClient[], timeoutMs: number): Promise<Record<string, string[]>> {
   const decoder = new TextDecoder();

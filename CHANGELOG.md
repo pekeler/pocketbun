@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.39.1-pocketbun.0 - 2026-06-04
+
+- Now compatible with PocketBase `v0.39.1` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0391) (upstream commit `5631d9b1`).
+  - Includes upstream realtime hidden-field delivery for superuser subscribers, cron panic recovery, and Admin UI multiple-select wrapping fixes.
+
 ## 0.39.0-pocketbun.0 - 2026-05-29
 
 - Now compatible with PocketBase `v0.39.0` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0390).
