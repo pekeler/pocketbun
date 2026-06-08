@@ -72,7 +72,7 @@ type RunSQLResult = {
   rows: unknown[][];
 };
 
-const knownWriteQueryPrefixes = ["INSERT", "CREATE", "UPDATE", "DELETE", "DROP", "DETACH"];
+const knownWriteQueryPrefixes = ["INSERT", "CREATE", "UPDATE", "DELETE", "DROP", "DETACH", "ALTER", "REPLACE"];
 
 async function executeQuery(app: App, query: string, maxRows: number): Promise<RunSQLResult> {
   query = query.trim();

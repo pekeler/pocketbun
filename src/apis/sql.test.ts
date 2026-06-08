@@ -121,6 +121,47 @@ const scenarios: ApiScenario[] = [
     expectedEvents: { "*": 0 },
   },
   {
+    name: "alter write query",
+    method: "POST",
+    url: "/api/sql",
+    body: `{"query":"alter table test_sql_table add column name text"}`,
+    headers: { Authorization: superuserToken },
+    beforeTest: (app) => {
+      app.db().run("create table test_sql_table(id int primary key)");
+    },
+    afterTest: (app) => {
+      const row = app.db().query("select name from pragma_table_info('test_sql_table') where name = 'name'").get() as {
+        name?: string;
+      } | null;
+      if (row?.name !== "name") {
+        throw new Error(`Missing expected new "test_sql_table.name" column`);
+      }
+    },
+    expectedStatus: 200,
+    expectedContent: [`"execTime":`, `"affectedRows":0`, `"columns":[]`, `"rows":[]`],
+    expectedEvents: { "*": 0 },
+  },
+  {
+    name: "replace write query",
+    method: "POST",
+    url: "/api/sql",
+    body: `{"query":"replace into test_sql_table(id, name) values(1, 'updated')"}`,
+    headers: { Authorization: superuserToken },
+    beforeTest: (app) => {
+      app.db().run("create table test_sql_table(id int primary key, name text)");
+      app.db().run("insert into test_sql_table(id, name) values(1, 'initial')");
+    },
+    afterTest: (app) => {
+      const row = app.db().query("select name from test_sql_table where id = 1").get() as { name?: string } | null;
+      if (row?.name !== "updated") {
+        throw new Error(`Expected REPLACE query to update row, got: ${row?.name ?? ""}`);
+      }
+    },
+    expectedStatus: 200,
+    expectedContent: [`"execTime":`, `"affectedRows":1`, `"columns":[]`, `"rows":[]`],
+    expectedEvents: { "*": 0 },
+  },
+  {
     name: "multiple write queries (transaction rollback)",
     method: "POST",
     url: "/api/sql",

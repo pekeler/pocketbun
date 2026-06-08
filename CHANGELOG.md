@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.39.2-pocketbun.0 - 2026-06-08
+
+- Now compatible with PocketBase `v0.39.2` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0392) (upstream commit `aee115a9`).
+  - Includes upstream Admin UI fixes for records-list sorting, date-input editing, SQL console affected-rows display, and SQL console `ALTER`/`REPLACE` write-query handling.
+
 ## 0.39.1-pocketbun.0 - 2026-06-04
 
 - Now compatible with PocketBase `v0.39.1` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0391) (upstream commit `5631d9b1`).
