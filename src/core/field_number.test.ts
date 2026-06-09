@@ -259,24 +259,46 @@ describe("number field", () => {
           expectErrors: [],
         },
         {
-          name: "min > max",
+          name: "min > max (0)",
           build: () =>
             Object.assign(new NumberField(), {
               Id: "test",
               Name: "test",
               Min: Pointer(2.0),
-              Max: Pointer(1.0),
+              Max: Pointer(0.0),
             }),
           expectErrors: ["max"],
         },
         {
-          name: "min <= max",
+          name: "min (0) > max",
+          build: () =>
+            Object.assign(new NumberField(), {
+              Id: "test",
+              Name: "test",
+              Min: Pointer(0.0),
+              Max: Pointer(-1.0),
+            }),
+          expectErrors: ["max"],
+        },
+        {
+          name: "min == max",
           build: () =>
             Object.assign(new NumberField(), {
               Id: "test",
               Name: "test",
               Min: Pointer(2.0),
               Max: Pointer(2.0),
+            }),
+          expectErrors: [],
+        },
+        {
+          name: "min < max",
+          build: () =>
+            Object.assign(new NumberField(), {
+              Id: "test",
+              Name: "test",
+              Min: Pointer(2.0),
+              Max: Pointer(3.0),
             }),
           expectErrors: [],
         },

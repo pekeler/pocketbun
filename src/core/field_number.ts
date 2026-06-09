@@ -157,6 +157,7 @@ export class NumberField implements Field, SetterFinder {
       errors.max = maxErr;
     }
 
+    // similar to validation.Min but doesn't ignore zero values
     if (this.Min != null && this.Max != null && this.Max < this.Min) {
       errors.max = newError("validation_min_number_constraint", `Must be larger than ${this.Min}`);
     }

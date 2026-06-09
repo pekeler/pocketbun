@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.39.3-pocketbun.0 - 2026-06-09
+
+- Now compatible with PocketBase `v0.39.3` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0393) (upstream commit `465cfb5`).
+  - Includes upstream Admin UI fixes for file field `maxSelect` changes, top-modal record save shortcuts, number field settings validation, and normalized field settings validation messages/tooltips.
+
 ## 0.39.2-pocketbun.0 - 2026-06-08
 
 - Now compatible with PocketBase `v0.39.2` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0392) (upstream commit `aee115a9`).
