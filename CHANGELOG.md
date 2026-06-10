@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Reduced duplicate dev-mode SQL logs during server startup.
 - Clarified how to create collections in JSVM migrations.
 
 ## 0.39.3-pocketbun.0 - 2026-06-09

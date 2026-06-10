@@ -71,7 +71,7 @@ export function resolveServeAssetPath(baseDir: string, relativeCandidates: strin
 
 async function ensureReady(app: App): Promise<void> {
   await bootstrapIfNeededAsync(app);
-  app.runAllMigrations();
+  app.runAppMigrations();
 }
 
 export function buildServeHandler(app: App, config: ServeConfig = {}): (req: Request, server?: unknown) => Promise<Response> {
@@ -157,7 +157,7 @@ export function serve(app: App, config: ServeConfig = {}): ReturnType<typeof Bun
     app.bootstrap();
   }
 
-  app.runAllMigrations();
+  app.runAppMigrations();
 
   return startServerSync(app, config);
 }

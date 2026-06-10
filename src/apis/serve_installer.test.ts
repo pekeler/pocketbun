@@ -1,13 +1,51 @@
 // PocketBun-only: verifies installer initialization wiring in the Bun serve path.
 
 import { describe, expect, it } from "bun:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { BaseApp } from "../core/base.ts";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
+import { SystemMigrations } from "../core/migrations_runner.ts";
 import { newTestApp } from "../tests/app.ts";
 import { retryServerStart } from "../tests/helpers.ts";
 import { findOrCreateInstallerSuperuserAsync } from "./installer.ts";
 import { buildServeHandler, serveAsync } from "./serve.ts";
 
 describe("serve installer", () => {
+  it.serial("serveAsync does not rerun system migrations after bootstrap", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pocketbun-serve-migrations-"));
+    const app = new BaseApp({ dataDir, isDev: true });
+    const originalWrite = Reflect.get(process.stderr, "write") as typeof process.stderr.write;
+    let stderr = "";
+
+    app.OnServe().Bind({
+      Id: "__pbTestSkipInstaller__",
+      Priority: 9999,
+      Func: (event) => {
+        event.InstallerFunc = null;
+        return event.Next();
+      },
+    });
+
+    process.stderr.write = ((chunk: string | Uint8Array) => {
+      stderr += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk);
+      return true;
+    }) as typeof process.stderr.write;
+
+    try {
+      const server = await retryServerStart(() => serveAsync(app, { httpAddr: "127.0.0.1:0", showStartBanner: false }));
+      await server.stop();
+    } finally {
+      process.stderr.write = originalWrite;
+      app.resetBootstrapState();
+      await rm(dataDir, { recursive: true, force: true });
+    }
+
+    const appliedChecks = stderr.match(/select 1 as found from _migrations where file = \? limit 1/g) ?? [];
+    expect(appliedChecks.length).toBe(SystemMigrations.Items().length);
+  });
+
   it("supports async OnServe hooks in serveAsync", async () => {
     const { app, cleanup } = await newTestApp();
     try {
@@ -15,6 +53,7 @@ describe("serve installer", () => {
         Id: "__pbTestAsyncOnServeHook__",
         Func: async (event) => {
           await Bun.sleep(1);
+          event.InstallerFunc = null;
           event.Router.get("/__pb_async_on_serve", (reqEvent) => reqEvent.String(200, "ok"));
           return event.Next();
         },
