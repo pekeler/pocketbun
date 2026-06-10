@@ -1812,6 +1812,10 @@ let collection = new Collection({
 $app.save(collection)
 ```
 
+The `newCollection(...)`, `newBaseCollection(...)`, `newViewCollection(...)`, and `newAuthCollection(...)` helpers are available as top-level JSVM globals, not as `$app` methods. In migrations, create the collection with `new Collection(...)` or one of those global helpers, then use `app.forMigrations().save(collection)` to persist it.
+
+Base collections initialize only the `id` system record field by default. Add `autodate` fields such as `created` and `updated` explicitly when your records need timestamps.
+
 ### Update existing collection
 
 ```js
@@ -1888,6 +1892,8 @@ In the migration file, you are expected to write your "upgrade" code in the `upF
 Both callbacks accept a transactional `app` instance.
 
 For collection/schema changes, use `const migrationApp = app.forMigrations()` before calling collection persistence methods such as `save`, `delete`, or `importCollections`. This skips user hooks while preserving PocketBun system hooks required to save collections and sync record tables. New generated JS collection migrations use this form. This follows the same migration-safety principle explained by Rails in [Using Models in Your Migrations](https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations): old migrations should not accidentally depend on current application model behavior.
+
+`app.forMigrations()` returns an app view for persistence and lookup methods; it does not namespace the top-level collection constructor helpers. Use `new Collection(...)` or global helpers like `newBaseCollection(...)`, not `migrationApp.newBaseCollection(...)`.
 
 For record, data, and settings migrations, use SQL. If SQL is not enough, keep the transformation logic inside the migration and work with the persisted data shape. Do not use current app behavior from migrations: no normal record/settings `app.save(...)`, forms, services, or hook-driven helpers.
 

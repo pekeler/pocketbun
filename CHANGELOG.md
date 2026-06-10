@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Clarified how to create collections in JSVM migrations.
+
 ## 0.39.3-pocketbun.0 - 2026-06-09
 
 - Now compatible with PocketBase `v0.39.3` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0393) (upstream commit `465cfb5`).

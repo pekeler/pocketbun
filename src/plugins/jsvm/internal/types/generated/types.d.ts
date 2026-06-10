@@ -421,6 +421,44 @@ declare class Collection implements core.Collection {
   constructor(data?: Partial<Collection>);
 }
 
+/**
+ * newCollection initializes and returns a new Collection model with the specified type and name.
+ *
+ * It is a top-level JSVM global, not an `$app` method. In migrations, persist the returned
+ * collection with `app.forMigrations().save(collection)`.
+ *
+ * @group PocketBase
+ */
+declare function newCollection(typ: "base" | "auth" | "view" | string, name: string, ...optId: string[]): core.Collection;
+
+/**
+ * newBaseCollection initializes and returns a new "base" Collection model.
+ *
+ * It is a top-level JSVM global, not an `$app` method. Base collections initialize only the `id`
+ * system record field by default; add `autodate` fields explicitly if records need timestamps.
+ *
+ * @group PocketBase
+ */
+declare function newBaseCollection(name: string, ...optId: string[]): core.Collection;
+
+/**
+ * newViewCollection initializes and returns a new "view" Collection model.
+ *
+ * It is a top-level JSVM global, not an `$app` method.
+ *
+ * @group PocketBase
+ */
+declare function newViewCollection(name: string, ...optId: string[]): core.Collection;
+
+/**
+ * newAuthCollection initializes and returns a new "auth" Collection model.
+ *
+ * It is a top-level JSVM global, not an `$app` method.
+ *
+ * @group PocketBase
+ */
+declare function newAuthCollection(name: string, ...optId: string[]): core.Collection;
+
 interface FieldsList extends core.FieldsList {} // merge
 /**
  * FieldsList model class, usually used to define the Collection.fields.

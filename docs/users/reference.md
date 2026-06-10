@@ -584,6 +584,8 @@ const collection = new Collection({
 })
 ```
 
+Top-level helper constructors such as `newBaseCollection("articles")` are also available. They are globals, not `$app` methods.
+
 ```ts
 declare class Collection implements core.Collection {
   constructor(data?: Partial<Collection>);

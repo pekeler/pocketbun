@@ -745,6 +745,34 @@ describe("jsvm binds", () => {
     expect(users.type).toBe("auth");
     expect(users.Fields.getByName("name")).not.toBeNull();
     expect(users.listRule).toBe("@request.auth.id != ''");
+
+    const posts = scope.newBaseCollection("posts");
+    expect(posts.type).toBe("base");
+    expect(posts.Fields.map((field: { GetName: () => string }) => field.GetName())).toEqual(["id"]);
+  });
+
+  it("base bind typings declare collection helper globals", async () => {
+    const typesSource = await Bun.file(generatedTypesUrl).text();
+
+    expect(typesSource).toContain("declare function newCollection(");
+    expect(typesSource).toContain("declare function newBaseCollection(");
+    expect(typesSource).toContain("declare function newViewCollection(");
+    expect(typesSource).toContain("declare function newAuthCollection(");
+  });
+
+  it("forMigrations does not namespace collection helper globals", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      appBinds(scope, app);
+
+      const migrationApp = scope.$app.forMigrations();
+      expect(typeof scope.newBaseCollection).toBe("function");
+      expect(migrationApp.newBaseCollection).toBeUndefined();
+    } finally {
+      await cleanup();
+    }
   });
 
   it("base binds fields list", () => {
