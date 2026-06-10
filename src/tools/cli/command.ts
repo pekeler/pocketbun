@@ -563,12 +563,17 @@ export class Command {
   private printHelp(): void {
     const lines: string[] = [];
 
-    if (this.Short) {
-      lines.push(this.Short, "");
+    const description = this.Long || this.Short;
+    if (description) {
+      lines.push(description.trimEnd(), "");
     }
 
     lines.push("Usage:");
     lines.push(`  ${this.Use}${this.hasVisibleChildren() ? " [command]" : ""}`);
+
+    if (this.Example) {
+      lines.push("", "Examples:", this.Example.trimEnd());
+    }
 
     const visibleChildren = this.#children.filter((child) => !child.Hidden);
     if (visibleChildren.length > 0) {

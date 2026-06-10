@@ -60,6 +60,46 @@ describe("Command", () => {
     expect(out).toContain("serve");
   });
 
+  it("Execute prints long help text when available", async () => {
+    const root = new Command({
+      Use: "pocketbun",
+      Short: "short description",
+      Long: "long description\nwith details\n",
+    });
+
+    let out = "";
+    root.SetOut({
+      write: (chunk: string) => {
+        out += chunk;
+      },
+    });
+
+    const err = await root.Execute(["--help"]);
+    expect(err).toBeNull();
+    expect(out.startsWith("long description\nwith details\n\nUsage:")).toBeTrue();
+    expect(out).not.toContain("short description");
+  });
+
+  it("Execute prints command examples when available", async () => {
+    const root = new Command({
+      Use: "pocketbun",
+      Short: "pocketbun CLI",
+      Example: "pocketbun serve --http 127.0.0.1:8090",
+    });
+
+    let out = "";
+    root.SetOut({
+      write: (chunk: string) => {
+        out += chunk;
+      },
+    });
+
+    const err = await root.Execute(["--help"]);
+    expect(err).toBeNull();
+    expect(out).toContain("Examples:");
+    expect(out).toContain("pocketbun serve --http 127.0.0.1:8090");
+  });
+
   it("Execute prints help for bare root command with subcommands", async () => {
     const root = new Command({ Use: "pocketbun", Short: "pocketbun CLI" });
     root.AddCommand(new Command({ Use: "serve", Short: "Starts the web server" }));

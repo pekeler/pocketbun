@@ -164,6 +164,7 @@ export async function superuserIPs(app: App, ips: string[]): Promise<string[]> {
 function superuserUpsertCommand(app: App): Command {
   const command = new Command({
     Use: "upsert",
+    Example: "superuser upsert test@example.com 1234567890",
     Short: "Creates, or updates if email exists, a single superuser",
     SilenceUsage: true,
   });
@@ -185,6 +186,7 @@ function superuserUpsertCommand(app: App): Command {
 function superuserCreateCommand(app: App): Command {
   const command = new Command({
     Use: "create",
+    Example: "superuser create test@example.com 1234567890",
     Short: "Creates a new superuser",
     SilenceUsage: true,
   });
@@ -206,6 +208,7 @@ function superuserCreateCommand(app: App): Command {
 function superuserUpdateCommand(app: App): Command {
   const command = new Command({
     Use: "update",
+    Example: "superuser update test@example.com 1234567890",
     Short: "Changes the password of a single superuser",
     SilenceUsage: true,
   });
@@ -227,6 +230,7 @@ function superuserUpdateCommand(app: App): Command {
 function superuserDeleteCommand(app: App): Command {
   const command = new Command({
     Use: "delete",
+    Example: "superuser delete test@example.com",
     Short: "Deletes an existing superuser",
     SilenceUsage: true,
   });
@@ -253,6 +257,7 @@ function superuserDeleteCommand(app: App): Command {
 function superuserOTPCommand(app: App): Command {
   const command = new Command({
     Use: "otp",
+    Example: "superuser otp test@example.com",
     Short: "Creates a new OTP for the specified superuser",
     SilenceUsage: true,
   });

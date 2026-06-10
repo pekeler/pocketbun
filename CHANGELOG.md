@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed command help output so `migrate --help` lists supported actions and superuser commands show examples.
 - Reduced duplicate dev-mode SQL logs during server startup.
 - Clarified how to create collections in JSVM migrations.
 

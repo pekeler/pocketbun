@@ -3,9 +3,45 @@
 import { describe, expect, it } from "bun:test";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { newTestApp } from "../tests/app.ts";
-import { superuserCreate, superuserDelete, superuserIPs, superuserOTP, superuserUpdate, superuserUpsert } from "./superuser.ts";
+import { Command } from "../tools/cli/command.ts";
+import {
+  NewSuperuserCommand,
+  superuserCreate,
+  superuserDelete,
+  superuserIPs,
+  superuserOTP,
+  superuserUpdate,
+  superuserUpsert,
+} from "./superuser.ts";
 
 describe("superuser helpers", () => {
+  it("superuser command help includes examples", async () => {
+    const { app, cleanup } = await newTestApp();
+    const root = new Command({ Use: "pocketbun" });
+    try {
+      root.AddCommand(NewSuperuserCommand(app));
+
+      const [upsertCmd, _args, findErr] = root.Find(["superuser", "upsert"]);
+      if (findErr) {
+        throw findErr;
+      }
+
+      let out = "";
+      upsertCmd.SetOut({
+        write: (chunk: string) => {
+          out += chunk;
+        },
+      });
+
+      const err = await root.Execute(["superuser", "upsert", "--help"]);
+      expect(err).toBeNull();
+      expect(out).toContain("Examples:");
+      expect(out).toContain("superuser upsert test@example.com 1234567890");
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("superuserUpsert", async () => {
     const { app, cleanup } = await newTestApp();
     try {

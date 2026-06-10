@@ -1,7 +1,7 @@
 // Ported from pocketbase/plugins/migratecmd/migratecmd_test.go
 
 import type { Dirent } from "node:fs";
-import { describe, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { readFile, readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { NewAuthCollection } from "../../core/collection_model.ts";
@@ -14,6 +14,7 @@ import { TextField } from "../../core/field_text.ts";
 import { MigrationsList } from "../../core/migrations_list.ts";
 import { MigrationsRunner } from "../../core/migrations_runner.ts";
 import { newTestApp } from "../../tests/app.ts";
+import { Command } from "../../tools/cli/command.ts";
 import { JSONArray, Pointer } from "../../tools/types/index.ts";
 import { appBinds } from "../jsvm/binds.ts";
 import { Register as RegisterJSVM } from "../jsvm/jsvm.ts";
@@ -1011,6 +1012,37 @@ func init() {
 `;
 
 describe("migratecmd automigrate", () => {
+  it("migrate help includes supported positional commands", async () => {
+    const { app, cleanup } = await newTestApp();
+    const root = new Command({ Use: "pocketbun" });
+    try {
+      MustRegister(app, root, {
+        TemplateLang: TemplateLangJS,
+        Automigrate: false,
+      });
+
+      const [migrateCmd, _args, findErr] = root.Find(["migrate"]);
+      if (findErr) {
+        throw findErr;
+      }
+
+      let out = "";
+      migrateCmd.SetOut({
+        write: (chunk: string) => {
+          out += chunk;
+        },
+      });
+
+      const err = await root.Execute(["migrate", "--help"]);
+      expect(err).toBeNull();
+      expect(out).toContain("Supported arguments are:");
+      expect(out).toContain("- down [number] - reverts the last [number] applied migrations");
+      expect(out).toContain("- history-sync  - ensures that the _migrations history table");
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("collection create", async () => {
     const scenarios = [
       { lang: TemplateLangJS, expectedTemplate: createExpectedJS },
