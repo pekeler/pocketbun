@@ -333,7 +333,7 @@ describe("record CRUD list", () => {
       url: "/api/collections/demo3/records",
       headers: { Authorization: clientsUserToken },
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo3");
+        const collection = app.findCollectionByNameOrIdOrNull("demo3");
         if (!collection) {
           throw new Error("Missing demo3 collection");
         }
@@ -368,7 +368,7 @@ describe("record CRUD list", () => {
       url: "/api/collections/demo3/records?filter=title~'test'",
       headers: { Authorization: clientsUserToken },
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo3");
+        const collection = app.findCollectionByNameOrIdOrNull("demo3");
         if (!collection) {
           throw new Error("Missing demo3 collection");
         }
@@ -388,7 +388,7 @@ describe("record CRUD list", () => {
       url: "/api/collections/demo3/records?filter=title~'test'",
       headers: { Authorization: superuserToken },
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo3");
+        const collection = app.findCollectionByNameOrIdOrNull("demo3");
         if (!collection) {
           throw new Error("Missing demo3 collection");
         }
@@ -1364,7 +1364,7 @@ describe("record CRUD delete", () => {
       afterTest: async (app) => {
         await ensureDeletedFiles(app, "_pb_users_auth_", "4q1xlclmfloku33");
 
-        const collection = app.findCollectionByNameOrId("users");
+        const collection = app.findCollectionByNameOrIdOrNull("users");
         if (!collection) {
           throw new Error("Failed to load users collection");
         }
@@ -1473,11 +1473,11 @@ describe("record CRUD delete", () => {
       },
       afterTest: async (app) => {
         const recId = "84nmscqy84lsi1t";
-        const demo1 = app.findCollectionByNameOrId("demo1");
+        const demo1 = app.findCollectionByNameOrIdOrNull("demo1");
         if (!demo1) {
           throw new Error("Failed to load demo1 collection");
         }
-        const rec = app.findRecordById(demo1, recId);
+        const rec = app.findRecordByIdOrNull(demo1, recId);
         if (rec) {
           throw new Error(`Expected record ${recId} to be cascade deleted`);
         }
@@ -1791,7 +1791,7 @@ describe("record CRUD create", () => {
         "Content-Type": createMultipartRuleFail.contentType,
       },
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo3");
+        const collection = app.findCollectionByNameOrIdOrNull("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
         }
@@ -1814,7 +1814,7 @@ describe("record CRUD create", () => {
         "Content-Type": createMultipartRulePass.contentType,
       },
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo3");
+        const collection = app.findCollectionByNameOrIdOrNull("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
         }
@@ -2220,7 +2220,7 @@ describe("record CRUD create", () => {
       }`,
       headers: { Authorization: clientsUserToken },
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo3");
+        const collection = app.findCollectionByNameOrIdOrNull("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
         }
@@ -2270,7 +2270,7 @@ describe("record CRUD create", () => {
       }`,
       headers: { Authorization: superuserToken },
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo3");
+        const collection = app.findCollectionByNameOrIdOrNull("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
         }
@@ -2354,7 +2354,7 @@ describe("record CRUD create", () => {
       url: "/api/collections/demo1/records",
       body: new Uint8Array(DefaultMaxBodySize + 5 + 20 + 2 + 1),
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo1");
+        const collection = app.findCollectionByNameOrIdOrNull("demo1");
         if (!collection) {
           throw new Error("failed to find demo1 collection");
         }
@@ -2380,7 +2380,7 @@ describe("record CRUD create", () => {
       url: "/api/collections/demo1/records",
       body: new Uint8Array(DefaultMaxBodySize + 5 + 20 + 2),
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo1");
+        const collection = app.findCollectionByNameOrIdOrNull("demo1");
         if (!collection) {
           throw new Error("failed to find demo1 collection");
         }
@@ -2674,7 +2674,7 @@ describe("record CRUD update", () => {
         "Content-Type": updateMultipartRuleFail.contentType,
       },
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo3");
+        const collection = app.findCollectionByNameOrIdOrNull("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
         }
@@ -2697,7 +2697,7 @@ describe("record CRUD update", () => {
         "Content-Type": updateMultipartRulePass.contentType,
       },
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo3");
+        const collection = app.findCollectionByNameOrIdOrNull("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
         }
@@ -3022,7 +3022,7 @@ describe("record CRUD update", () => {
         "name":"test"
       }`,
       beforeTest: async (app) => {
-        const nologin = app.findCollectionByNameOrId("nologin");
+        const nologin = app.findCollectionByNameOrIdOrNull("nologin");
         if (!nologin) {
           throw new Error("missing nologin collection");
         }
@@ -3080,7 +3080,7 @@ describe("record CRUD update", () => {
         "oldPassword":"1234567890"
       }`,
       beforeTest: async (app) => {
-        const nologin = app.findCollectionByNameOrId("nologin");
+        const nologin = app.findCollectionByNameOrIdOrNull("nologin");
         if (!nologin) {
           throw new Error("missing nologin collection");
         }
@@ -3140,7 +3140,7 @@ describe("record CRUD update", () => {
       }`,
       headers: { Authorization: clientsUserToken },
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo3");
+        const collection = app.findCollectionByNameOrIdOrNull("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
         }
@@ -3189,7 +3189,7 @@ describe("record CRUD update", () => {
       }`,
       headers: { Authorization: superuserToken },
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo3");
+        const collection = app.findCollectionByNameOrIdOrNull("demo3");
         if (!collection) {
           throw new Error("failed to find demo3 collection");
         }
@@ -3273,7 +3273,7 @@ describe("record CRUD update", () => {
       url: "/api/collections/demo1/records/imy661ixudk5izi",
       body: new Uint8Array(DefaultMaxBodySize + 5 + 20 + 2 + 1),
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo1");
+        const collection = app.findCollectionByNameOrIdOrNull("demo1");
         if (!collection) {
           throw new Error("failed to find demo1 collection");
         }
@@ -3299,7 +3299,7 @@ describe("record CRUD update", () => {
       url: "/api/collections/demo1/records/imy661ixudk5izi",
       body: new Uint8Array(DefaultMaxBodySize + 5 + 20 + 2),
       beforeTest: async (app) => {
-        const collection = app.findCollectionByNameOrId("demo1");
+        const collection = app.findCollectionByNameOrIdOrNull("demo1");
         if (!collection) {
           throw new Error("failed to find demo1 collection");
         }

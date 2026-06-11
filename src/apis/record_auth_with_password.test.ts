@@ -15,7 +15,7 @@ type Scenario = ApiScenario;
 type FieldCollateMap = Record<string, string>;
 
 const updateIdentityIndex = (collectionIdOrName: string, fieldCollateMap: FieldCollateMap) => async (app: TestApp) => {
-  const collection = app.findCollectionByNameOrId(collectionIdOrName);
+  const collection = app.findCollectionByNameOrIdOrNull(collectionIdOrName);
   if (!collection) {
     throw new Error(`Missing collection ${collectionIdOrName}`);
   }
@@ -368,7 +368,7 @@ const scenarios: Scenario[] = [
     url: "/api/collections/users/auth-with-password",
     body: '{"identity":"test@example.com","password":"1234567890"}',
     beforeTest: async (app) => {
-      const users = app.findCollectionByNameOrId("users");
+      const users = app.findCollectionByNameOrIdOrNull("users");
       if (!users) {
         throw new Error("Missing users collection");
       }

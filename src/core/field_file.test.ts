@@ -325,7 +325,7 @@ describe("file field", () => {
         {
           name: "existing files > MaxSelect",
           field: Object.assign(new FileField(), { Name: "file_many", MaxSize: 999, MaxSelect: 2 }),
-          record: () => app.findRecordById(app.findCollectionByNameOrId("demo1")!, "84nmscqy84lsi1t")!,
+          record: () => app.findRecordByIdOrNull(app.findCollectionByNameOrIdOrNull("demo1")!, "84nmscqy84lsi1t")!,
           expectError: true,
         },
         {
@@ -336,14 +336,14 @@ describe("file field", () => {
             MaxSelect: 5,
             MimeTypes: ["a", "b"],
           }),
-          record: () => app.findRecordById(app.findCollectionByNameOrId("demo1")!, "84nmscqy84lsi1t")!,
+          record: () => app.findRecordByIdOrNull(app.findCollectionByNameOrIdOrNull("demo1")!, "84nmscqy84lsi1t")!,
           expectError: false,
         },
         {
           name: "existing + new file > MaxSelect (5+2)",
           field: Object.assign(new FileField(), { Name: "file_many", MaxSize: 999, MaxSelect: 6 }),
           record: () => {
-            const record = app.findRecordById(app.findCollectionByNameOrId("demo1")!, "84nmscqy84lsi1t")!;
+            const record = app.findRecordByIdOrNull(app.findCollectionByNameOrIdOrNull("demo1")!, "84nmscqy84lsi1t")!;
             record.Set("file_many+", [f1, f2]);
             return record;
           },
@@ -353,7 +353,7 @@ describe("file field", () => {
           name: "existing + new file <= MaxSelect (5+2)",
           field: Object.assign(new FileField(), { Name: "file_many", MaxSize: 999, MaxSelect: 7 }),
           record: () => {
-            const record = app.findRecordById(app.findCollectionByNameOrId("demo1")!, "84nmscqy84lsi1t")!;
+            const record = app.findRecordByIdOrNull(app.findCollectionByNameOrIdOrNull("demo1")!, "84nmscqy84lsi1t")!;
             record.Set("file_many+", [f1, f2]);
             return record;
           },
@@ -363,7 +363,7 @@ describe("file field", () => {
           name: "existing + new filename",
           field: Object.assign(new FileField(), { Name: "file_many", MaxSize: 999, MaxSelect: 99 }),
           record: () => {
-            const record = app.findRecordById(app.findCollectionByNameOrId("demo1")!, "84nmscqy84lsi1t")!;
+            const record = app.findRecordByIdOrNull(app.findCollectionByNameOrIdOrNull("demo1")!, "84nmscqy84lsi1t")!;
             record.Set("file_many+", "test123.png");
             return record;
           },
@@ -577,7 +577,7 @@ describe("file field", () => {
       const f2 = NewFileFromBytes(new TextEncoder().encode("test"), "f2");
       f2.Name = "f2";
 
-      const record = app.findRecordById(app.findCollectionByNameOrId("demo3")!, "lcl9d87w22ml6jy")!;
+      const record = app.findRecordByIdOrNull(app.findCollectionByNameOrIdOrNull("demo3")!, "lcl9d87w22ml6jy")!;
       record.Set("files+", [f1, f2]);
       record.Set("files-", "test_FLurQTgrY8.txt");
 
@@ -698,7 +698,7 @@ describe("file field", () => {
   it("intercept", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const demo1 = app.findCollectionByNameOrId("demo1");
+      const demo1 = app.findCollectionByNameOrIdOrNull("demo1");
       if (!demo1) {
         throw new Error("Missing demo1 collection");
       }
@@ -764,7 +764,7 @@ describe("file field", () => {
   it("intercept tx", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const demo1 = app.findCollectionByNameOrId("demo1");
+      const demo1 = app.findCollectionByNameOrIdOrNull("demo1");
       if (!demo1) {
         throw new Error("Missing demo1 collection");
       }

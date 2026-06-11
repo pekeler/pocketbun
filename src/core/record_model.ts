@@ -2,7 +2,7 @@
 
 import type { DriverValuer, Field, GetterFinder, RecordInterceptor, SetterFinder } from "./field.ts";
 import type { FileField } from "./field_file.ts";
-import { toBoolValue, toStringValue } from "../internal/compat/cast.ts";
+import { toBoolValue, toNumberValue, toStringValue } from "../internal/compat/cast.ts";
 import { toUniqueStringSlice } from "../tools/list/list.ts";
 import { Store } from "../tools/store/store.ts";
 import { GeoPoint, ParseDateTime } from "../tools/types/index.ts";
@@ -101,11 +101,11 @@ export class Record {
     this.#data.id = this.id;
   }
 
-  get(field: string): unknown {
+  getRawDataValue(field: string): unknown {
     return this.#data[field];
   }
 
-  getBool(field: string): boolean {
+  getRawDataBool(field: string): boolean {
     return Boolean(this.#data[field]);
   }
 
@@ -125,6 +125,10 @@ export class Record {
     return this.#originalData[field];
   }
 
+  getRaw(field: string): unknown {
+    return this.GetRaw(field);
+  }
+
   SetRaw(field: string, value: unknown): void {
     if (field === FieldNameExpand) {
       if (value && typeof value === "object") {
@@ -138,6 +142,10 @@ export class Record {
     if (field === FieldNameId) {
       this.id = toStringValue(value);
     }
+  }
+
+  setRaw(field: string, value: unknown): void {
+    this.SetRaw(field, value);
   }
 
   IsNew(): boolean {
@@ -177,16 +185,48 @@ export class Record {
     return this.GetRaw(field);
   }
 
+  get(field: string): unknown {
+    return this.Get(field);
+  }
+
   GetBool(field: string): boolean {
     return toBoolValue(this.Get(field));
+  }
+
+  getBool(field: string): boolean {
+    return this.GetBool(field);
   }
 
   GetString(field: string): string {
     return toStringValue(this.Get(field));
   }
 
+  getString(field: string): string {
+    return this.GetString(field);
+  }
+
+  GetInt(field: string): number {
+    return Math.trunc(toNumberValue(this.Get(field)));
+  }
+
+  getInt(field: string): number {
+    return this.GetInt(field);
+  }
+
+  GetFloat(field: string): number {
+    return toNumberValue(this.Get(field));
+  }
+
+  getFloat(field: string): number {
+    return this.GetFloat(field);
+  }
+
   GetDateTime(field: string) {
     return ParseDateTime(this.Get(field));
+  }
+
+  getDateTime(field: string) {
+    return this.GetDateTime(field);
   }
 
   GetGeoPoint(field: string): GeoPoint {
@@ -195,8 +235,16 @@ export class Record {
     return point;
   }
 
+  getGeoPoint(field: string): GeoPoint {
+    return this.GetGeoPoint(field);
+  }
+
   GetStringSlice(field: string): string[] {
     return toUniqueStringSlice(this.Get(field));
+  }
+
+  getStringSlice(field: string): string[] {
+    return this.GetStringSlice(field);
   }
 
   Set(field: string, value: unknown): void {

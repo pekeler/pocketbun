@@ -41,10 +41,10 @@ describe("external auth queries", () => {
   it("FindAllExternalAuthsByCollection", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const demo1 = app.findCollectionByNameOrId("demo1");
-      const superusers = app.findCollectionByNameOrId(CollectionNameSuperusers);
-      const clients = app.findCollectionByNameOrId("clients");
-      const users = app.findCollectionByNameOrId("users");
+      const demo1 = app.findCollectionByNameOrIdOrNull("demo1");
+      const superusers = app.findCollectionByNameOrIdOrNull(CollectionNameSuperusers);
+      const clients = app.findCollectionByNameOrIdOrNull("clients");
+      const users = app.findCollectionByNameOrIdOrNull("users");
 
       if (!demo1 || !superusers || !clients || !users) {
         throw new Error("Missing expected collections");

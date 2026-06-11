@@ -695,7 +695,7 @@ const scenarios: Scenario[] = [
       redirectURL: "https://example.com",
     }),
     beforeTest: async (app) => {
-      const collection = app.findCollectionByNameOrId("users");
+      const collection = app.findCollectionByNameOrIdOrNull("users");
       if (!collection) {
         throw new Error("Missing users collection");
       }
@@ -751,7 +751,7 @@ const scenarios: Scenario[] = [
       },
     }),
     beforeTest: async (app) => {
-      const collection = app.findCollectionByNameOrId("users");
+      const collection = app.findCollectionByNameOrIdOrNull("users");
       if (!collection) {
         throw new Error("Missing users collection");
       }
@@ -790,7 +790,7 @@ const scenarios: Scenario[] = [
       },
     }),
     beforeTest: async (app) => {
-      const collection = app.findCollectionByNameOrId("users");
+      const collection = app.findCollectionByNameOrIdOrNull("users");
       if (!collection) {
         throw new Error("Missing users collection");
       }
@@ -838,7 +838,7 @@ const scenarios: Scenario[] = [
       },
     }),
     beforeTest: async (app) => {
-      const collection = app.findCollectionByNameOrId("users");
+      const collection = app.findCollectionByNameOrIdOrNull("users");
       if (!collection) {
         throw new Error("Missing users collection");
       }
@@ -911,7 +911,7 @@ const scenarios: Scenario[] = [
       },
     }),
     beforeTest: async (app) => {
-      const collection = app.findCollectionByNameOrId("users");
+      const collection = app.findCollectionByNameOrIdOrNull("users");
       if (!collection) {
         throw new Error("Missing users collection");
       }
@@ -977,7 +977,7 @@ const scenarios: Scenario[] = [
         throw new Error("Missing avatar server");
       }
 
-      const collection = app.findCollectionByNameOrId("users");
+      const collection = app.findCollectionByNameOrIdOrNull("users");
       if (!collection) {
         throw new Error("Missing users collection");
       }
@@ -1047,7 +1047,7 @@ const scenarios: Scenario[] = [
       redirectURL: "https://example.com",
     }),
     beforeTest: async (app) => {
-      const collection = app.findCollectionByNameOrId("users");
+      const collection = app.findCollectionByNameOrIdOrNull("users");
       if (!collection) {
         throw new Error("Missing users collection");
       }
@@ -1117,7 +1117,7 @@ const scenarios: Scenario[] = [
         throw new Error("Missing avatar server");
       }
 
-      const collection = app.findCollectionByNameOrId("users");
+      const collection = app.findCollectionByNameOrIdOrNull("users");
       if (!collection) {
         throw new Error("Missing users collection");
       }
@@ -1187,7 +1187,7 @@ const scenarios: Scenario[] = [
       redirectURL: "https://example.com",
     }),
     beforeTest: async (app) => {
-      const collection = app.findCollectionByNameOrId("users");
+      const collection = app.findCollectionByNameOrIdOrNull("users");
       if (!collection) {
         throw new Error("Missing users collection");
       }
@@ -1264,7 +1264,7 @@ const scenarios: Scenario[] = [
       redirectURL: "https://example.com",
     }),
     beforeTest: async (app) => {
-      const collection = app.findCollectionByNameOrId("users");
+      const collection = app.findCollectionByNameOrIdOrNull("users");
       if (!collection) {
         throw new Error("Missing users collection");
       }
@@ -1428,7 +1428,7 @@ const scenarios: Scenario[] = [
       redirectURL: "https://example.com",
     }),
     beforeTest: async (app) => {
-      const collection = app.findCollectionByNameOrId("users");
+      const collection = app.findCollectionByNameOrIdOrNull("users");
       if (!collection) {
         throw new Error("Missing users collection");
       }
@@ -1462,7 +1462,7 @@ const scenarios: Scenario[] = [
       redirectURL: "https://example.com",
     }),
     beforeTest: async (app) => {
-      const collection = app.findCollectionByNameOrId("users");
+      const collection = app.findCollectionByNameOrIdOrNull("users");
       if (!collection) {
         throw new Error("Missing users collection");
       }

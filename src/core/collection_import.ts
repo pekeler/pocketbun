@@ -70,7 +70,7 @@ export async function importCollections(
       identifier = typeof data.name === "string" ? data.name : "";
     }
 
-    const existing = identifier ? app.findCollectionByNameOrId(identifier) : null;
+    const existing = identifier ? app.findCollectionByNameOrIdOrNull(identifier) : null;
     const imported = existing ? (app.findCollectionById(existing.id) ?? existing) : new Collection();
     const normalizedData = normalizeImportedCollectionData(data, deleteMissing);
 
@@ -186,7 +186,7 @@ export function importCollectionsSync(
       identifier = typeof data.name === "string" ? data.name : "";
     }
 
-    const existing = identifier ? app.findCollectionByNameOrId(identifier) : null;
+    const existing = identifier ? app.findCollectionByNameOrIdOrNull(identifier) : null;
     const imported = existing ? (app.findCollectionById(existing.id) ?? existing) : new Collection();
     const normalizedData = normalizeImportedCollectionData(data, deleteMissing);
 

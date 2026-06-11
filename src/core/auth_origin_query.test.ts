@@ -36,9 +36,9 @@ describe("auth origin queries", () => {
   it("FindAllAuthOriginsByCollection", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const demo1 = app.findCollectionByNameOrId("demo1");
-      const superusers = app.findCollectionByNameOrId(CollectionNameSuperusers);
-      const clients = app.findCollectionByNameOrId("clients");
+      const demo1 = app.findCollectionByNameOrIdOrNull("demo1");
+      const superusers = app.findCollectionByNameOrIdOrNull(CollectionNameSuperusers);
+      const clients = app.findCollectionByNameOrIdOrNull("clients");
 
       if (!demo1 || !superusers || !clients) {
         throw new Error("Missing expected collections");

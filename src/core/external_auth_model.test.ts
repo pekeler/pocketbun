@@ -128,7 +128,7 @@ describe("external auth", () => {
   it("ExternalAuth PreValidate", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const externalAuthsCol = app.findCollectionByNameOrId(CollectionNameExternalAuths);
+      const externalAuthsCol = app.findCollectionByNameOrIdOrNull(CollectionNameExternalAuths);
       if (!externalAuthsCol) {
         throw new Error("Missing external auths collection");
       }

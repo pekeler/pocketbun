@@ -422,7 +422,7 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
 
       record = RecordModel.fromRow(collection, row as RecordData);
     } else {
-      record = app.findRecordById(collection, recordId);
+      record = app.findRecordByIdOrNull(collection, recordId);
       if (!record) {
         return notFound(event, "");
       }
@@ -717,7 +717,7 @@ export async function recordUpdate(app: App, event: RequestEvent, updateHook = a
     return forbidden(event, "Only superusers can perform this action.");
   }
 
-  const baseRecord = app.findRecordById(collection, recordId);
+  const baseRecord = app.findRecordByIdOrNull(collection, recordId);
   if (!baseRecord) {
     return notFound(event, "");
   }
@@ -822,7 +822,7 @@ export async function recordDelete(app: App, event: RequestEvent, deleteHook = a
   if (!hasSuperuser && collection.deleteRule && collection.deleteRule !== "") {
     record = findRecordForRule(app, collection, recordId, collection.deleteRule, requestInfo);
   } else {
-    record = app.findRecordById(collection, recordId);
+    record = app.findRecordByIdOrNull(collection, recordId);
   }
 
   if (!record) {

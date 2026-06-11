@@ -128,7 +128,7 @@ describe("otp", () => {
   it("OTP PreValidate", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const otpsCol = app.findCollectionByNameOrId(CollectionNameOTPs);
+      const otpsCol = app.findCollectionByNameOrIdOrNull(CollectionNameOTPs);
       expect(otpsCol).toBeTruthy();
       if (!otpsCol) {
         return;

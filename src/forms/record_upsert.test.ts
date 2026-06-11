@@ -14,12 +14,12 @@ describe("RecordUpsert", () => {
   it("loads record data", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const demo1Col = app.findCollectionByNameOrId("demo1");
+      const demo1Col = app.findCollectionByNameOrIdOrNull("demo1");
       if (!demo1Col) {
         throw new Error("Missing demo1 collection");
       }
 
-      const usersCol = app.findCollectionByNameOrId("users");
+      const usersCol = app.findCollectionByNameOrIdOrNull("users");
       if (!usersCol) {
         throw new Error("Missing users collection");
       }
@@ -164,7 +164,7 @@ describe("RecordUpsert", () => {
 
   it("dry submit failure", async () => {
     const runTest = async (testApp: App) => {
-      const col = testApp.findCollectionByNameOrId("demo1");
+      const col = testApp.findCollectionByNameOrIdOrNull("demo1");
       if (!col) {
         throw new Error("Missing demo1 collection");
       }
@@ -234,7 +234,7 @@ describe("RecordUpsert", () => {
 
   it("dry submit create success", async () => {
     const runTest = async (testApp: App) => {
-      const col = testApp.findCollectionByNameOrId("demo1");
+      const col = testApp.findCollectionByNameOrIdOrNull("demo1");
       if (!col) {
         throw new Error("Missing demo1 collection");
       }
@@ -307,7 +307,7 @@ describe("RecordUpsert", () => {
 
   it("dry submit update success", async () => {
     const runTest = async (testApp: App) => {
-      const col = testApp.findCollectionByNameOrId("demo1");
+      const col = testApp.findCollectionByNameOrIdOrNull("demo1");
       if (!col) {
         throw new Error("Missing demo1 collection");
       }
@@ -376,14 +376,14 @@ describe("RecordUpsert", () => {
   it("submit validations", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const demo2Col = app.findCollectionByNameOrId("demo2");
+      const demo2Col = app.findCollectionByNameOrIdOrNull("demo2");
       if (!demo2Col) {
         throw new Error("Missing demo2 collection");
       }
 
       const demo2Rec = app.FindRecordById(demo2Col, "llvuca81nly1qls");
 
-      const usersCol = app.findCollectionByNameOrId("users");
+      const usersCol = app.findCollectionByNameOrIdOrNull("users");
       if (!usersCol) {
         throw new Error("Missing users collection");
       }
@@ -669,7 +669,7 @@ describe("RecordUpsert", () => {
   it("submit failure", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const col = app.findCollectionByNameOrId("demo1");
+      const col = app.findCollectionByNameOrIdOrNull("demo1");
       if (!col) {
         throw new Error("Missing demo1 collection");
       }
@@ -723,7 +723,7 @@ describe("RecordUpsert", () => {
   it("submit success", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const col = app.findCollectionByNameOrId("demo1");
+      const col = app.findCollectionByNameOrIdOrNull("demo1");
       if (!col) {
         throw new Error("Missing demo1 collection");
       }
@@ -778,7 +778,7 @@ describe("RecordUpsert", () => {
     it("new user without password", async () => {
       const { app, cleanup } = await newTestApp();
       try {
-        const users = app.findCollectionByNameOrId("users");
+        const users = app.findCollectionByNameOrIdOrNull("users");
         if (!users) {
           throw new Error("Missing users collection");
         }
@@ -796,7 +796,7 @@ describe("RecordUpsert", () => {
     it("new user with manual password", async () => {
       const { app, cleanup } = await newTestApp();
       try {
-        const users = app.findCollectionByNameOrId("users");
+        const users = app.findCollectionByNameOrIdOrNull("users");
         if (!users) {
           throw new Error("Missing users collection");
         }
@@ -818,7 +818,7 @@ describe("RecordUpsert", () => {
     it("new user with random password", async () => {
       const { app, cleanup } = await newTestApp();
       try {
-        const users = app.findCollectionByNameOrId("users");
+        const users = app.findCollectionByNameOrIdOrNull("users");
         if (!users) {
           throw new Error("Missing users collection");
         }
@@ -840,7 +840,7 @@ describe("RecordUpsert", () => {
     it("update user with no password change", async () => {
       const { app, cleanup } = await newTestApp();
       try {
-        const users = app.findCollectionByNameOrId("users");
+        const users = app.findCollectionByNameOrIdOrNull("users");
         if (!users) {
           throw new Error("Missing users collection");
         }
@@ -867,7 +867,7 @@ describe("RecordUpsert", () => {
     it("update user with manual password change", async () => {
       const { app, cleanup } = await newTestApp();
       try {
-        const users = app.findCollectionByNameOrId("users");
+        const users = app.findCollectionByNameOrIdOrNull("users");
         if (!users) {
           throw new Error("Missing users collection");
         }
@@ -896,7 +896,7 @@ describe("RecordUpsert", () => {
     it("update user with random password change", async () => {
       const { app, cleanup } = await newTestApp();
       try {
-        const users = app.findCollectionByNameOrId("users");
+        const users = app.findCollectionByNameOrIdOrNull("users");
         if (!users) {
           throw new Error("Missing users collection");
         }

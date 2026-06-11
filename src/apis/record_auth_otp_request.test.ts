@@ -24,7 +24,7 @@ const scenarios: Scenario[] = [
     url: "/api/collections/users/request-otp",
     body: '{"email":"test@example.com"}',
     beforeTest: async (app: TestApp) => {
-      const usersCol = app.findCollectionByNameOrId("users");
+      const usersCol = app.findCollectionByNameOrIdOrNull("users");
       if (!usersCol) {
         throw new Error("Missing users collection");
       }

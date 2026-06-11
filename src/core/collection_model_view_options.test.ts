@@ -63,7 +63,7 @@ describe("collection view options validate", () => {
       {
         name: "update view query",
         collection: (app: Awaited<ReturnType<typeof newTestApp>>["app"]) => {
-          const c = app.findCollectionByNameOrId("view2");
+          const c = app.findCollectionByNameOrIdOrNull("view2");
           if (!c) {
             throw new Error("Missing view2 collection");
           }

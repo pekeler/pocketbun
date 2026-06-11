@@ -55,12 +55,12 @@ describe("text field", () => {
     // Keep full bootstrap here because this scenario reads seeded demo1 fixtures.
     const { app, cleanup } = await newTestApp();
     try {
-      const collection = app.findCollectionByNameOrId("demo1");
+      const collection = app.findCollectionByNameOrIdOrNull("demo1");
       if (!collection) {
         throw new Error("Missing demo1 collection");
       }
 
-      const existingRecord = app.findFirstRecordByFilter(collection, "id != ''");
+      const existingRecord = app.findFirstRecordByFilterOrNull(collection, "id != ''");
       if (!existingRecord) {
         throw new Error("Missing demo1 record");
       }

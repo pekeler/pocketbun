@@ -634,6 +634,59 @@ describe("jsvm binds", () => {
     }
   });
 
+  it("app binds wrap transaction callback app with JSVM names", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      appBinds(scope, app);
+
+      const txErr = scope.$app.runInTransaction((txApp: BindScope) => {
+        expect(typeof txApp.findCollectionByNameOrId).toBe("function");
+        expect(typeof txApp.findRecordsByFilter).toBe("function");
+        expect(typeof txApp.save).toBe("function");
+        expect(typeof txApp.FindRecordsByFilter).toBe("function");
+
+        const collection = txApp.findCollectionByNameOrId("demo1");
+        expect(collection.name).toBe("demo1");
+
+        const records = txApp.findRecordsByFilter("demo1", "id = '84nmscqy84lsi1t'", "", 1, 0);
+        const upperRecords = txApp.FindRecordsByFilter("demo1", "id = '84nmscqy84lsi1t'", "", 1, 0);
+        expect(records.length).toBe(1);
+        expect(upperRecords.length).toBe(1);
+
+        const record = records[0];
+        expect(typeof record.getString).toBe("function");
+        expect(typeof record.getDateTime).toBe("function");
+        expect(typeof record.GetString).toBe("function");
+        expect(record.getString("text")).toBe("test");
+        expect(record.GetString("text")).toBe("test");
+
+        const created = record.getDateTime("created");
+        const updated = record.GetDateTime("updated");
+        expect(typeof created.isZero).toBe("function");
+        expect(typeof created.before).toBe("function");
+        expect(typeof created.after).toBe("function");
+        expect(typeof created.compare).toBe("function");
+        expect(typeof created.IsZero).toBe("function");
+        expect(created.isZero()).toBe(false);
+        expect(created.compare(updated)).toBeLessThanOrEqual(0);
+
+        expect(txApp.save(collection)).toBeNull();
+
+        const nestedErr = txApp.runInTransaction((innerTxApp: BindScope) => {
+          expect(typeof innerTxApp.findRecordsByFilter).toBe("function");
+          return null;
+        });
+        expect(nestedErr).toBeNull();
+
+        return null;
+      });
+      expect(txErr).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("base binds context", () => {
     const scope: BindScope = {};
     baseBinds(scope);
@@ -702,6 +755,13 @@ describe("jsvm binds", () => {
       expect(record2).toBeInstanceOf(RecordModel);
       expect(record2.collection().Name).toBe("users");
       expect(record2.Email()).toBe("test@example.com");
+      expect(record2.get("email")).toBe("test@example.com");
+      expect(record2.getBool("emailVisibility")).toBe(false);
+      expect(record2.getString("email")).toBe("test@example.com");
+      expect(record2.getInt("emailVisibility")).toBe(0);
+      expect(record2.getFloat("emailVisibility")).toBe(0);
+      expect(record2.getDateTime("missing").isZero()).toBe(true);
+      expect(record2.GetString("email")).toBe("test@example.com");
 
       const record3 = new scope.Record(collection, { password: "secret123" });
       const password = record3.GetRaw("password");

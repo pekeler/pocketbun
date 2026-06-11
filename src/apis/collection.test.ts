@@ -784,7 +784,7 @@ const createScenarios: ApiScenario[] = [
     }`,
     headers: { Authorization: superuserToken },
     beforeTest: async (app) => {
-      const demo1 = app.findCollectionByNameOrId("demo1");
+      const demo1 = app.findCollectionByNameOrIdOrNull("demo1");
       if (!demo1) {
         throw new Error("missing demo1 collection");
       }
@@ -1191,7 +1191,7 @@ const updateScenarios: ApiScenario[] = [
     }`,
     headers: { Authorization: superuserToken },
     beforeTest: async (app) => {
-      const demo1 = app.findCollectionByNameOrId("demo1");
+      const demo1 = app.findCollectionByNameOrIdOrNull("demo1");
       if (!demo1) {
         throw new Error("missing demo1 collection");
       }

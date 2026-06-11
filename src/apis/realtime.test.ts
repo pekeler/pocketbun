@@ -815,7 +815,7 @@ describe("realtime record resolve", () => {
       {
         name: "core.Record",
         op: async (testApp) => {
-          const collection = testApp.findCollectionByNameOrId(testCollectionName);
+          const collection = testApp.findCollectionByNameOrIdOrNull(testCollectionName);
           if (!collection) {
             throw new Error("Missing test collection");
           }
@@ -842,7 +842,7 @@ describe("realtime record resolve", () => {
       {
         name: "core.RecordProxy",
         op: async (testApp) => {
-          const collection = testApp.findCollectionByNameOrId(testCollectionName);
+          const collection = testApp.findCollectionByNameOrIdOrNull(testCollectionName);
           if (!collection) {
             throw new Error("Missing test collection");
           }

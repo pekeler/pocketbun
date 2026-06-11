@@ -128,7 +128,7 @@ describe("mfa", () => {
   it("MFA PreValidate", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const mfasCol = app.findCollectionByNameOrId(CollectionNameMFAs);
+      const mfasCol = app.findCollectionByNameOrIdOrNull(CollectionNameMFAs);
       expect(mfasCol).toBeTruthy();
       if (!mfasCol) {
         return;

@@ -114,7 +114,7 @@ export class AutodateField implements Field, SetterFinder, RecordInterceptor {
     let oldOnCreate = this.OnCreate;
     let oldOnUpdate = this.OnUpdate;
 
-    const oldCollection = app.findCollectionByNameOrId(collection.id);
+    const oldCollection = app.findCollectionByNameOrIdOrNull(collection.id);
     if (oldCollection) {
       const oldField = oldCollection.Fields.GetById(this.Id);
       if (oldField instanceof AutodateField) {

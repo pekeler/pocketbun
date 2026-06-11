@@ -95,7 +95,7 @@ class FileApi {
       return notFound(event, "");
     }
 
-    const record = event.app.findRecordById(collection, recordId);
+    const record = event.app.findRecordByIdOrNull(collection, recordId);
     if (!record) {
       return notFound(event, "");
     }

@@ -1678,12 +1678,20 @@ export class BaseApp implements App {
     }
 
     const rule = buildRecordFilterExpr(filters);
-    const record = this.findRecordById(collection, id, rule);
+    const record = this.findRecordByIdOrNull(collection, id, rule);
     if (!record) {
       throw new Error("record not found");
     }
 
     return record;
+  }
+
+  findRecordById(
+    collectionModelOrIdentifier: Collection | string,
+    id: string,
+    ...filters: Array<RecordQueryFilter | null | undefined>
+  ): RecordModel {
+    return this.FindRecordById(collectionModelOrIdentifier, id, ...filters);
   }
 
   FindRecordByViewFile(
@@ -1867,6 +1875,14 @@ export class BaseApp implements App {
     return records[0]!;
   }
 
+  findFirstRecordByFilter(
+    collectionModelOrIdentifier: Collection | string,
+    filter: string,
+    ...params: Array<Record<string, unknown>>
+  ): RecordModel {
+    return this.FindFirstRecordByFilter(collectionModelOrIdentifier, filter, ...params);
+  }
+
   CountRecords(
     collectionModelOrIdentifier: Collection | string,
     ...exprs: Array<SqlExpr | Record<string, unknown> | null | undefined>
@@ -1938,7 +1954,7 @@ export class BaseApp implements App {
   }
 
   FindAuthRecordByToken(token: string, ...validTypes: string[]): RecordModel {
-    return this.findAuthRecordByToken(token, validTypes);
+    return this.findAuthRecordByTokenWithTypes(token, validTypes);
   }
 
   FindAuthRecordByEmail(collectionModelOrIdentifier: Collection | string, email: string): RecordModel {
@@ -2059,7 +2075,11 @@ export class BaseApp implements App {
     return DeleteAllAuthOriginsByRecordQuery(this, authRecord);
   }
 
-  findAuthRecordByToken(token: string, validTypes: string[] = []): RecordModel {
+  findAuthRecordByToken(token: string, ...validTypes: string[]): RecordModel {
+    return this.FindAuthRecordByToken(token, ...validTypes);
+  }
+
+  findAuthRecordByTokenWithTypes(token: string, validTypes: string[] = []): RecordModel {
     if (token === "") {
       throw new Error("missing token");
     }
@@ -2106,6 +2126,10 @@ export class BaseApp implements App {
     return FindCollectionByNameOrIdQuery(this, identifier);
   }
 
+  findCollectionByNameOrId(identifier: string): Collection {
+    return this.FindCollectionByNameOrId(identifier);
+  }
+
   FindCachedCollectionReferences(collection: Collection, ...excludeIds: string[]): Map<Collection, Field[]> {
     return FindCachedCollectionReferencesQuery(this, collection, ...excludeIds);
   }
@@ -2128,7 +2152,7 @@ export class BaseApp implements App {
     return collectionFromRow(row);
   }
 
-  findCollectionByNameOrId(identifier: string): Collection | null {
+  findCollectionByNameOrIdOrNull(identifier: string): Collection | null {
     const row = this.db()
       .query(
         "select id, name, system, type, fields, indexes, listRule, viewRule, createRule, updateRule, deleteRule, options, created, updated from _collections where id = ? or lower(name) = lower(?)",
@@ -2146,7 +2170,7 @@ export class BaseApp implements App {
     return FindCachedCollectionByNameOrIdQuery(this, identifier);
   }
 
-  findRecordById(collection: Collection, id: string, rule: SqlExpr | null = null): RecordModel | null {
+  findRecordByIdOrNull(collection: Collection, id: string, rule: SqlExpr | null = null): RecordModel | null {
     const table = collection.name;
     if (!isSafeIdentifier(table)) {
       throw new Error(`unsafe table name ${table}`);
@@ -2169,7 +2193,7 @@ export class BaseApp implements App {
     return RecordModel.fromRow(collection, row as RecordData);
   }
 
-  findFirstRecordByFilter(
+  findFirstRecordByFilterOrNull(
     collectionOrIdentifier: Collection | string,
     filter: string,
     ...params: SQLQueryBindings[]
@@ -3582,7 +3606,7 @@ export class BaseApp implements App {
       if (collection.Id === record.collection().Id) {
         continue;
       }
-      const existing = this.findRecordById(collection, record.Id);
+      const existing = this.findRecordByIdOrNull(collection, record.Id);
       if (existing) {
         return new ValidationErrors({
           id: newError("validation_invalid_auth_id", "Invalid or duplicated auth record id."),

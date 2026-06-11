@@ -25,7 +25,7 @@ describe("record helpers", () => {
       const demo1Records = baseApp.FindRecordsByIds("demo1", ["al1h9ijdeojtsjy", "84nmscqy84lsi1t"]);
       const demo5Records = baseApp.FindRecordsByIds("demo5", ["la4y2w4o98acwuj", "qjeql998mtp1azp"]);
 
-      const demo4 = baseApp.findCollectionByNameOrId("demo4");
+      const demo4 = baseApp.findCollectionByNameOrIdOrNull("demo4");
       if (!demo4) {
         throw new Error("Missing demo4 collection");
       }

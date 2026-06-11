@@ -42,10 +42,10 @@ describe("otp queries", () => {
       const stubErr = await StubOTPRecords(app);
       expect(stubErr).toBeNull();
 
-      const demo1 = app.findCollectionByNameOrId("demo1");
-      const superusers = app.findCollectionByNameOrId(CollectionNameSuperusers);
-      const clients = app.findCollectionByNameOrId("clients");
-      const users = app.findCollectionByNameOrId("users");
+      const demo1 = app.findCollectionByNameOrIdOrNull("demo1");
+      const superusers = app.findCollectionByNameOrIdOrNull(CollectionNameSuperusers);
+      const clients = app.findCollectionByNameOrIdOrNull("clients");
+      const users = app.findCollectionByNameOrIdOrNull("users");
 
       if (!demo1 || !superusers || !clients || !users) {
         throw new Error("missing collections");
@@ -197,7 +197,7 @@ describe("otp queries", () => {
     await checkDeletedIds(["user1_0", "superuser2_2", "superuser2_4"]);
 
     await checkDeletedIds(["user1_0", "superuser2_2", "superuser2_4", "superuser3_1"], async (app) => {
-      const superusers = app.findCollectionByNameOrId(CollectionNameSuperusers);
+      const superusers = app.findCollectionByNameOrIdOrNull(CollectionNameSuperusers);
       if (!superusers) {
         throw new Error("missing superusers collection");
       }

@@ -598,7 +598,7 @@ export class FileField
   private getLatestOldValue(app: App, record: RecordLike): unknown {
     const recordModel = record as unknown as RecordModel;
     if (!record.IsNew()) {
-      const latest = app.findRecordById(recordModel.collection(), record.LastSavedPK());
+      const latest = app.findRecordByIdOrNull(recordModel.collection(), record.LastSavedPK());
       if (latest) {
         return latest.GetRaw(this.Name);
       }

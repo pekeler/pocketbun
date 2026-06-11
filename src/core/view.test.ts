@@ -679,7 +679,7 @@ describe("view helpers", () => {
   it("FindRecordByViewFile", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const prevCollection = app.findCollectionByNameOrId("demo1");
+      const prevCollection = app.findCollectionByNameOrIdOrNull("demo1");
       if (!prevCollection) {
         throw new Error("Missing demo1 collection");
       }

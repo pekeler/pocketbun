@@ -211,7 +211,7 @@ describe("relation field", () => {
     // Keep full bootstrap here because relation validation needs seeded demo1 fixtures.
     const { app, cleanup } = await newTestApp();
     try {
-      const demo1 = app.findCollectionByNameOrId("demo1");
+      const demo1 = app.findCollectionByNameOrIdOrNull("demo1");
       if (!demo1) {
         throw new Error("Missing demo1 collection");
       }
@@ -408,7 +408,7 @@ describe("relation field", () => {
     // Keep full bootstrap here because these scenarios resolve existing fixture collections.
     const { app, cleanup } = await newTestApp();
     try {
-      const demo1 = app.findCollectionByNameOrId("demo1");
+      const demo1 = app.findCollectionByNameOrIdOrNull("demo1");
       if (!demo1) {
         throw new Error("Missing demo1 collection");
       }

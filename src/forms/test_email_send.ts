@@ -85,7 +85,7 @@ export class TestEmailSend {
       collectionIdOrName = CollectionNameSuperusers;
     }
 
-    const collection = this.app.findCollectionByNameOrId(collectionIdOrName);
+    const collection = this.app.findCollectionByNameOrIdOrNull(collectionIdOrName);
     if (!collection) {
       return new Error("Missing or invalid auth collection.");
     }
@@ -123,7 +123,7 @@ export class TestEmailSend {
       return null;
     }
 
-    const collection = this.app.findCollectionByNameOrId(value);
+    const collection = this.app.findCollectionByNameOrIdOrNull(value);
     if (!collection || !collection.IsAuth()) {
       return newError("validation_invalid_auth_collection", "Must be a valid auth collection id or name.");
     }

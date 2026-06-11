@@ -460,7 +460,7 @@ function parseQueryToFields(app: App, selectQuery: string): Map<string, QueryFie
       continue;
     }
 
-    const tempCollection = app.findCollectionByNameOrId(collection.id);
+    const tempCollection = app.findCollectionByNameOrIdOrNull(collection.id);
     if (!tempCollection) {
       throw new Error(`missing expected collection ${collection.id}`);
     }
@@ -490,7 +490,7 @@ function cloneField(field: Field): Field {
 
 function getCollectionByModelOrIdentifier(app: App, value: Collection | string): Collection | null {
   if (typeof value === "string") {
-    return app.findCollectionByNameOrId(value);
+    return app.findCollectionByNameOrIdOrNull(value);
   }
 
   if (value instanceof Collection) {

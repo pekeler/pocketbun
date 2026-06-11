@@ -15,7 +15,7 @@ describe("RecordQuery", () => {
   it("handles different collection inputs", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const collection = app.findCollectionByNameOrId("demo1");
+      const collection = app.findCollectionByNameOrIdOrNull("demo1");
       if (!collection) {
         throw new Error("Missing demo1 collection");
       }
@@ -70,7 +70,7 @@ describe("RecordQuery", () => {
     try {
       class MockProxy extends BaseRecordProxy {}
 
-      const collection = app.findCollectionByNameOrId("demo1");
+      const collection = app.findCollectionByNameOrIdOrNull("demo1");
       if (!collection) {
         throw new Error("Missing demo1 collection");
       }
@@ -98,7 +98,7 @@ describe("RecordQuery", () => {
     try {
       class MockProxy extends BaseRecordProxy {}
 
-      const collection = app.findCollectionByNameOrId("demo1");
+      const collection = app.findCollectionByNameOrIdOrNull("demo1");
       if (!collection) {
         throw new Error("Missing demo1 collection");
       }
@@ -897,7 +897,7 @@ describe("FindAuthRecordByEmail", () => {
     for (const scenario of scenarios) {
       const { app, cleanup } = await newTestApp();
       try {
-        const collection = app.findCollectionByNameOrId(scenario.collectionIdOrName);
+        const collection = app.findCollectionByNameOrIdOrNull(scenario.collectionIdOrName);
         if (collection) {
           const [emailIndex, ok] = findSingleColumnUniqueIndex(collection.indexes, FieldNameEmail);
           if (ok && emailIndex.columns[0]) {

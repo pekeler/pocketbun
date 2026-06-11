@@ -102,7 +102,7 @@ describe("autodate field", () => {
     // Keep full bootstrap here because this reads the seeded _superusers collection.
     const { app, cleanup } = await newTestApp();
     try {
-      const superusers = app.findCollectionByNameOrId("_superusers");
+      const superusers = app.findCollectionByNameOrIdOrNull("_superusers");
       if (!superusers) {
         throw new Error("missing superusers collection");
       }
@@ -291,12 +291,12 @@ describe("autodate field", () => {
     // Keep full bootstrap here because this scenario updates a seeded demo2 fixture record.
     const { app, cleanup } = await newTestApp();
     try {
-      const collection = app.findCollectionByNameOrId("demo2");
+      const collection = app.findCollectionByNameOrIdOrNull("demo2");
       if (!collection) {
         throw new Error("missing demo2 collection");
       }
 
-      const record = app.findRecordById(collection, "llvuca81nly1qls");
+      const record = app.findRecordByIdOrNull(collection, "llvuca81nly1qls");
       if (!record) {
         throw new Error("missing demo2 record");
       }

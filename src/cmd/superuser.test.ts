@@ -157,7 +157,7 @@ describe("superuser helpers", () => {
   it("superuserOTP", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const superusersCollection = app.findCollectionByNameOrId(CollectionNameSuperusers);
+      const superusersCollection = app.findCollectionByNameOrIdOrNull(CollectionNameSuperusers);
       if (!superusersCollection) {
         throw new Error("missing superusers collection");
       }

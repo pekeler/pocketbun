@@ -125,7 +125,7 @@ describe("RequestEvent", () => {
   it("requestInfo", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const userCol = app.findCollectionByNameOrId("users");
+      const userCol = app.findCollectionByNameOrIdOrNull("users");
       expect(userCol).toBeTruthy();
       if (!userCol) {
         return;
@@ -218,7 +218,7 @@ describe("RequestEvent", () => {
   it("setRequestInfo preloads cached request info", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const userCol = app.findCollectionByNameOrId("users");
+      const userCol = app.findCollectionByNameOrIdOrNull("users");
       expect(userCol).toBeTruthy();
       if (!userCol) {
         return;

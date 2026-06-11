@@ -119,7 +119,7 @@ For `pb_hooks` module loading:
 For code-first `BaseApp` usage:
 
 - built-in route middlewares are available as package exports (for example `RequireGuestOnly`, `SkipSuccessActivityLog`)
-- you can bind them directly in `OnServe` routes with `e.Router.GET(...).Bind(...)`
+- you can bind them directly in `onServe` routes with `e.Router.GET(...).bind(...)`
 
 ## Migration Hook Behavior
 

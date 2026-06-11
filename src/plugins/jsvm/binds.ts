@@ -218,9 +218,13 @@ function wrapApp<T extends object>(app: T): T {
     importCollections: "ImportCollectionsSync",
     importCollectionsByMarshaledJSON: "ImportCollectionsByMarshaledJSONSync",
     validate: "ValidateSync",
-    runInTransaction: "RunInTransactionSync",
     saveView: "SaveViewSync",
     createViewFields: "CreateViewFieldsSync",
+  };
+
+  const transactionOverrides: Record<string, string> = {
+    runInTransaction: "RunInTransactionSync",
+    auxRunInTransaction: "AuxRunInTransactionSync",
   };
 
   const resolveAppProperty = (target: object, prop: string | symbol, receiver: unknown): unknown => {
@@ -238,6 +242,20 @@ function wrapApp<T extends object>(app: T): T {
             }
             return (syncMethod as (...input: unknown[]) => unknown).apply(target, args);
           };
+        }
+      }
+
+      const transactionOverride = transactionOverrides[key];
+      if (transactionOverride && transactionOverride in target) {
+        const txMethod = (target as Record<string, unknown>)[transactionOverride];
+        if (typeof txMethod === "function") {
+          return (fn: unknown) =>
+            (txMethod as (callback: (txApp: App) => unknown) => unknown).call(target, (txApp: App) => {
+              if (typeof fn !== "function") {
+                return null;
+              }
+              return (fn as (txApp: App) => unknown)(wrapApp(txApp as unknown as object) as App);
+            });
         }
       }
 

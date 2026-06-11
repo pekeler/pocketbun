@@ -207,9 +207,9 @@ export interface App {
   LogsStats(expr: SqlExpr | null): LogsStatsItem[];
   DeleteOldLogs(createdBefore: Date): Error | null;
   RecordQuery(collectionModelOrIdentifier: Collection | string | null | undefined): RecordQuery;
-  findAuthRecordByToken(token: string, validTypes?: string[]): RecordModel;
   findCollectionById(id: string): Collection | null;
-  findCollectionByNameOrId(identifier: string): Collection | null;
+  findCollectionByNameOrIdOrNull(identifier: string): Collection | null;
+  findCollectionByNameOrId(identifier: string): Collection;
   FindCollectionByNameOrId(identifier: string): Collection;
   FindCachedCollectionByNameOrId(identifier: string): Collection;
   FindAllCollections(...collectionTypes: string[]): Collection[];
@@ -229,7 +229,12 @@ export interface App {
   Vacuum(): Error | null;
   AuxVacuum(): Error | null;
   IsCollectionNameUnique(name: string, excludeId?: string): boolean;
-  findRecordById(collection: Collection, id: string, rule?: SqlExpr | null): RecordModel | null;
+  findRecordByIdOrNull(collection: Collection, id: string, rule?: SqlExpr | null): RecordModel | null;
+  findRecordById(
+    collectionModelOrIdentifier: Collection | string,
+    id: string,
+    ...filters: Array<RecordQueryFilter | null | undefined>
+  ): RecordModel;
   FindRecordById(
     collectionModelOrIdentifier: Collection | string,
     id: string,
@@ -291,11 +296,17 @@ export interface App {
   FindAuthOriginById(id: string): AuthOrigin;
   FindAuthOriginByRecordAndFingerprint(authRecord: RecordModel, fingerprint: string): AuthOrigin;
   DeleteAllAuthOriginsByRecord(authRecord: RecordModel): Promise<Error | null>;
-  findFirstRecordByFilter(
-    collectionOrIdentifier: Collection | string,
+  findFirstRecordByFilterOrNull(
+    collectionModelOrIdentifier: Collection | string,
     filter: string,
     ...params: SQLQueryBindings[]
   ): RecordModel | null;
+  findFirstRecordByFilter(
+    collectionModelOrIdentifier: Collection | string,
+    filter: string,
+    ...params: Array<Record<string, unknown>>
+  ): RecordModel;
+  findAuthRecordByToken(token: string, ...validTypes: string[]): RecordModel;
   OnBootstrap(): Hook<BootstrapEvent>;
   OnServe(): Hook<ServeEvent>;
   OnTerminate(): Hook<TerminateEvent>;

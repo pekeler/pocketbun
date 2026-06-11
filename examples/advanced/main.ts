@@ -42,11 +42,11 @@ RegisterMigrateCmd(app, null, {
   TemplateLang: TemplateLangJS,
 });
 
-app.OnServe().Bind({
+app.onServe().bind({
   Func: (e: ServeEvent) => {
     e.Router.GET("/hello-from-main", (requestEvent) => {
       return requestEvent.JSON(200, { message: "Hello from BaseApp route." });
-    }).Bind(RequireGuestOnly());
+    }).bind(RequireGuestOnly());
 
     if (!e.Router.HasRoute("GET", "/{path...}")) {
       e.Router.GET("/{path...}", Static(publicDir, true));

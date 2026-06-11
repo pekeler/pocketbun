@@ -115,7 +115,7 @@ describe("auth origin", () => {
   it("AuthOrigin PreValidate", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      const originsCol = app.findCollectionByNameOrId(CollectionNameAuthOrigins);
+      const originsCol = app.findCollectionByNameOrIdOrNull(CollectionNameAuthOrigins);
       if (!originsCol) {
         throw new Error("Missing auth origins collection");
       }

@@ -1,4 +1,4 @@
-# Port PocketBase to Bun in Staged, Test-Verified Slices
+# Remove JSVM Lowercase Name Collisions Before Exposing the Public Hook API
 
 This ExecPlan is a living document. The sections Progress, Surprises & Discoveries, Decision Log, and Outcomes & Retrospective must be kept up to date as work proceeds.
 
@@ -6,1042 +6,116 @@ PLANS.md exists in this repo at .agents/PLANS.md. This ExecPlan must be maintain
 
 ## Purpose / Big Picture
 
-The goal is to deliver a Bun-native PocketBase-compatible server that behaves like upstream PocketBase v0.39.0 for routes, response shapes, auth, realtime, and error formats. After completing the early milestones, a user should be able to run the PocketBun server, see the Admin UI at /_/, confirm /api/health responds exactly like PocketBase, and use the same client SDKs and Admin UI without changes. Each milestone ends with a concrete, observable behavior and tests that fail before the change and pass after.
+PocketBase's JavaScript hook runtime, called JSVM in this repository, exposes JavaScript-friendly lowercase method names such as `$app.findRecordsByFilter(...)`, `$app.runInTransaction(...)`, and `record.getString(...)`. PocketBun accidentally made the TypeScript core mostly expose Go-style uppercase method names and also added some lowercase internal helper methods with different semantics. That means directly adding public lowercase JSVM methods could collide with private helper names and silently choose the wrong behavior.
+
+After this change, PocketBun will have no private/internal `App` helper methods whose names collide with the generated JSVM public app method names. Then the JSVM public API can expose lowercase methods consistently while retaining uppercase aliases for users who already wrote hooks against earlier PocketBun releases. A human can see this working by running a hook-style regression test that calls lowercase app, record, and DateTime methods inside a transaction callback; those calls should work and match the generated `types.d.ts` declarations.
 
 ## Progress
 
-- Milestone status (2026-05-09):
-  - Milestone 1: complete
-  - Milestone 2: complete
-  - Milestone 3: complete
-  - Milestone 4: complete
-  - Milestone 5: complete
-  - Milestone 6: complete (CI + e2e + docs/examples + upgrade + full audit)
-  - Milestone 7: complete (performance sprint paused intentionally)
-  - Milestone 8: complete (post-release compatibility gaps closed)
-  - Milestone 9: complete (PocketBun docs program shipped: `docs/users/index.md`, `docs/users/introduction.md`, `docs/users/going-to-production.md`, `docs/users/web-apis.md`, `docs/users/extend.md`, `docs/users/reference.md`, `docs/users/differences.md`, with deterministic sync/rebuild/patch/check tooling and vendored screenshot assets)
-  - Milestone 10: complete (PocketBase v0.36.3 upgrade: upstream sync, admin UI refresh, v0.36.3 compatibility deltas ported, docs pipeline rerun)
-  - Milestone 11: complete (PocketBase v0.36.4 upgrade: upstream sync, admin UI refresh, middleware/JSVM compatibility deltas ported, docs version gate fixed, full validation rerun)
-  - Milestone 12: complete (non-DBX compatibility shim audit + hardening with direct regression coverage and full validation gate)
-  - Milestone 13: complete (PocketBase v0.36.6 upgrade: upstream sync, admin UI refresh, view/list-rule/runtime deltas ported, JSVM `unmarshal(...)` workaround retired, full validation rerun)
-  - Milestone 14: complete (PocketBase v0.36.7 upgrade: upstream sync, admin UI refresh, fixed-window rate limiting parity, streaming/temp-file-backed multipart upload handling, large-upload memory remeasurement, and full validation rerun)
-  - Milestone 15: complete (PocketBase v0.36.8 upgrade: upstream sync, admin UI refresh, cached-collection OAuth2 serialization parity audit, regression coverage, and full validation rerun)
-  - Milestone 16: complete (PocketBase v0.36.9 upgrade: upstream sync, admin UI refresh, settings/OAuth2/Discord deltas ported, regression coverage, and full validation rerun)
-  - Milestone 17: complete (PocketBase v0.37.0 upgrade: upstream sync, rewritten admin UI refresh, UI-facing API/core/auth deltas ported, docs/generated artifacts refreshed, and full validation rerun)
-  - Milestone 18: complete (PocketBase v0.37.2 upgrade: upstream sync, `v0.37.1..v0.37.2` audit, vendored Admin UI refresh, router file-mapping gap closure, and full validation rerun)
-  - Milestone 19: complete (PocketBase v0.37.3 upgrade: upstream sync, `v0.37.2..v0.37.3` UI-only audit, vendored Admin UI refresh, metadata/changelog bump, and full validation rerun)
-  - Milestone 20: complete (PocketBase v0.37.4 upgrade: upstream sync, security-sensitive OAuth2/password/provider deltas ported, vendored Admin UI refresh, metadata/changelog bump, and full validation rerun)
-  - Milestone 21: complete (PocketBase v0.38.0 upgrade: release-by-release v0.37.5 checkpoint, v0.38.0 upstream sync, superuser IP/rate-limit/runtime-notify/content-type/CSP deltas ported, Admin UI/docs refreshed, and full validation rerun)
-  - Milestone 22: complete (PocketBase v0.38.2 upgrade: upstream sync, realtime max-timeout/IP checks, OAuth2 realtime IP protection, Admin UI refresh, metadata/changelog bump, and full validation rerun)
-  - Milestone 23: complete (PocketBase v0.39.0 upgrade: upstream sync, Admin UI refresh, SQL console API, autobackup alerts, auth/default-template deltas, docs refresh, and full validation rerun)
-
-### Maintenance TODOs
-
-- [x] (2026-04-23 14:28Z) Evaluated two follow-up simplification sweeps. Kept the repeated `ValidateSettings()` scaffolding in the field ports because it mirrors upstream PocketBase's per-file validation structure and has no meaningful performance upside to justify diverging. Applied the safe subset of the sync/async sweep instead: centralized PocketBun-only optional filesystem fallbacks into `src/core/app.ts` (`newFilesystemAsync()` / `newBackupsFilesystemAsync()`), updated the backup/file/file-field callers to use those helpers, added direct helper coverage in `src/core/app.test.ts`, and reran the full validation gate successfully (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`).
-- [x] (2026-04-23 14:08Z) Completed an internal-type simplification sweep: centralized async bootstrap-on-demand into `src/core/app.ts`, removed repeated field-local `RecordLike` aliases across the core field implementations in favor of the shared field contract, dropped the redundant `CollectionLike` alias from `src/core/field.ts`, and de-duplicated the `NullFallbackPreference` / `QueryUpdate` typing in `src/tools/search/simple_field_resolver.ts`. Full validation passed (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`).
-- [x] (2026-04-23 13:35Z) Completed an implementation guard sweep against upstream PocketBase and PocketBun-owned internals: removed TS-only invariant guards that upstream does not keep in `src/core/base.ts`, `src/core/log_query.ts`, `src/core/record_proxy.ts`, `src/tools/filesystem/blob/writer.ts`, `src/tools/filesystem/filesystem.ts`, and `src/tools/filesystem/internal/s3blob/s3/uploader.ts`, updated `src/core/base.test.ts` so it no longer pins the removed bootstrap throw behavior, and reran the full required validation gate successfully (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`).
-- [ ] (2026-02-26) Bun workaround retirement sweep: whenever a Bun runtime fix suggests a PocketBun workaround may no longer be needed, attempt removing the workaround behind a focused change and run thorough verification before/after (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`, plus targeted compatibility regression tests for the affected subsystem). Keep the workaround only if compatibility or stability regresses.
-- [x] (2026-04-12 16:28Z) Applied the Bun `v1.3.12` glob follow-up: replaced the template registry's hand-rolled wildcard matcher with shared `Bun.Glob.scan/scanSync` wrappers, implemented the documented JSVM `$filepath.glob(...)`, `match(...)`, `walk(...)`, and `walkDir(...)` helpers instead of returning placeholders, added nested-template-glob and filepath traversal regressions, and reran the full validation gate successfully.
-- [x] (2026-04-12 16:57Z) Assessed explicit resource management with `using` / `await using`: added disposal support only where resources already had clear lexical ownership (filesystem handles, DBX cursors/queries, test app/server/temp-dir helpers, multipart temp storage), converted the production and test sites that became simpler under that model, avoided public `ReadSeekCloser` API churn by keeping the disposal requirement internal to PocketBun call sites, and intentionally left response-lifecycle ownership transfers such as file/backup download streaming on explicit `Close()` callbacks. Full validation passed (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`).
-- [x] (2026-04-12 13:12Z) Applied the Bun `v1.3.12` maintenance sweep: replaced the old in-process cron ticker in `src/tools/cron/cron.ts` with Bun's native `Bun.cron(...)` callback scheduler, removed the old `SetInterval(...)` and `SetTimezone(...)` APIs so app cron scheduling is explicitly Bun-driven and UTC-only, collapsed `src/tools/cron/schedule.ts` from a local due-checking engine to validation/normalization only, pruned dead internal cron surface (`Job.Schedule()` and the `tools/cron` schedule re-export), clarified the supported expression-based setup path in docs/types, raised the declared minimum Bun version to `>=1.3.12` across the package/examples/CI, refreshed changelog/docs metadata, and reran focused cron coverage plus the full validation gate (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`) successfully.
-- [x] (2026-04-13 10:45Z) Resumed the performance sprint around the worst upstream-benchmark regressions (`create-organizations`, `create-permissions`, and their rule-bearing variants). Added a stable no-arg `bun run agent-script` wrapper plus a child-process HTTP load generator for cleaner inspector profiles, then kept only the measured wins: record CRUD fallback `RequestInfo` now lazily materializes `query`/`headers` like the main event path, and filter / record-field-resolver SQL generation now uses deterministic placeholder and join-alias names instead of per-request randomness. On this host those changes improved the focused local profiles from roughly `43,487 -> 45,894` completed requests / 3s on `create-organizations`, `45,796 -> 48,655` on the cleaned plain-create follow-up, and `34,939 -> 40,707` on `create-organizations-rule`, while reverted experiments (for example `DateTime` and body-limit caches) failed to produce meaningful wins.
-- [x] (2026-04-13 10:55Z) Tightened the local performance workflow after discovering that the inspector-based completed-request counts were too noisy for fine-grained A/B decisions. Added `scripts/measure_records_scenario.ts`, repointed the stable `bun run agent-script` wrapper at that no-inspector throughput probe, documented the workflow in maintainer docs, and dropped the speculative CORS `Vary` micro-optimization when the warmed runs failed to show a convincing benefit.
-- [x] (2026-04-13 11:15Z) Kept the next small-but-clean record-write wins after the follow-up profiles: CRUD routes now capture the untagged record request hooks once at bind time instead of re-fetching them per request, and the internal validation path now uses the private model-validate hook directly. On this host that moved the warmed `create-organizations` probe from roughly `299.9k` to `304.2k` completed requests / 20s, while a broader record-enrich plumbing experiment was reverted because it added complexity without a convincing cross-scenario gain.
-- [x] (2026-04-13 14:05Z) Continued the same create-write sweep and kept only the changes that stayed clean under repeated A/B runs. Router route-score metadata is now precomputed once during build instead of recomputed per request, request-info query getters now skip `URL` parsing when there is no query string, and `Record.GetRaw()` / `SetRaw()` favor the plain field path before the rarer `id` / `expand` branches. On this host the warmed `create-organizations` probe moved from about `294.2k` completed requests / 20s on the post-`9bd3b691` baseline to roughly `301.6k`, while the rule-bearing variant stayed in the existing `270k..271k` band. Reverted misses in this slice included a broader hook-tag fast path, lazy router URL handoff, and another CORS `Vary` experiment.
-- [x] (2026-04-13 12:20Z) Continued the create-rule write-path sweep with the no-inspector probe and kept only the changes that either simplified hot code or produced measurable wins. `DateTime` now avoids internal `Date` cloning for comparisons/stringification, `Route` method matching no longer uppercases already-normalized route methods on every candidate check, and `Record.Original()` no longer pays the cost of constructing a throwaway is-new record state before overwriting it. On the warmed `create-organizations-rule` probe these changes moved the local band from roughly `252,398..256,512` completed requests / 20s to `261,897..263,180`, while retried CORS and create-rule-context experiments were dropped again.
-- [x] (2026-02-27) Applied the workaround-retirement sweep to multipart parsing: removed fallback multipart reconstruction from `src/internal/compat/request_form_data.ts`, updated direct helper tests to assert native `Request.formData()` behavior, removed the synthetic batch fallback regression, and re-ran full validation (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`) successfully.
-- [x] (2026-03-07 08:36Z) Applied the workaround-retirement sweep to JSVM generated types: removed the PocketBun-only `unmarshal(...)` typing-gap docs note, synced the declaration/signature to upstream `v0.36.6`, and re-ran focused + full validation successfully.
-- [x] (2026-03-19 10:45Z) Applied the Bun `v1.3.11` maintenance sweep: confirmed locally that `Request.formData()` no longer truncates null-byte multipart files while `Bun.serve({ idleTimeout: 300 })` still fails, removed the retired Windows `spawnSync` retry workaround from `src/plugins/jsvm/binds.ts`, restored sync-path coverage in `src/plugins/jsvm/binds.test.ts`, switched `src/core/db_table.ts` to parameterized `pragma_table_info(?)` queries, refreshed the Bun watchlist, updated CI to Bun `1.3.11`, and raised the declared minimum Bun version to `>=1.3.11` across the root package plus scaffolding/examples.
-
-### Milestone 15 - PocketBase v0.36.8 upgrade
-
-- [x] (2026-03-28 10:43Z) Confirmed the upstream `v0.36.8` release from the official PocketBase GitHub release metadata and scoped the expected runtime delta to the cached-collection OAuth2 client-secret serialization fix plus the usual vendored Admin UI refresh and dependency drift audit.
-- [x] (2026-03-28 10:43Z) Bumped the compatibility metadata to PocketBase `v0.36.8` / PocketBun `0.36.8-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, and `CHANGELOG.md` so the repository state matches the intended upstream target before syncing.
-- [x] (2026-03-28 10:43Z) Ran `bun run upstream:sync` to refresh `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.36.8`, then audited the official compare (`v0.36.7...v0.36.8`) and confirmed the only substantive runtime delta is the cached-collection OAuth2 serialization fix, plus a tiny already-ported impersonation error-return fix, regenerated JSVM types, and dependency/UI churn.
-- [x] (2026-03-28 10:43Z) Confirmed PocketBun's `src/core/collection_model.ts` serializer already avoids the upstream mutation bug by projecting OAuth2 providers into fresh plain objects, and added direct regression coverage in `src/core/collection_model.test.ts` (`CollectionSerializeNotModifyingCachedCollection`) to pin that behavior on cached collections.
-- [x] (2026-03-28 10:49Z) Ran the required validation gate on the final `v0.36.8` tree successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
-
-### Milestone 16 - PocketBase v0.36.9 upgrade
-
-- [x] (2026-04-09 18:06Z) Confirmed the upstream `v0.36.9` release from the official PocketBase GitHub release metadata and scoped the expected runtime delta to the SMTP password clear-persistence fix, extra OAuth2 avatar-download network safety checks, the Discord `AuthUser.Name` `global_name` mapping, the usual vendored Admin UI refresh, and generated JSVM/docs drift.
-- [x] (2026-04-09 18:06Z) Bumped the compatibility metadata to PocketBase `v0.36.9` / PocketBun `0.36.9-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, and `docs/_config.yml` so the repository state matches the intended upstream target before syncing.
-- [x] (2026-04-09 18:24Z) Ran `bun run upstream:sync` to refresh `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.36.9`, then audited the upstream compare and confirmed the remaining observable JSVM delta is the `$apis.static(...)` `fs.FS` acceptance/doc refresh in addition to the release-noted settings/OAuth2/Discord changes.
-- [x] (2026-04-09 18:49Z) Ported the `v0.36.9` runtime changes in `src/apis/record_auth_with_oauth2.ts`, `src/tools/auth/discord.ts`, and `src/plugins/jsvm/binds.ts`, refreshed vendored/generated artifacts, and added direct regression coverage in `src/apis/record_auth_with_oauth2.test.ts`, `src/apis/settings.test.ts`, `src/tools/auth/discord.test.ts`, and `src/plugins/jsvm/binds.test.ts`.
-- [x] (2026-04-09 19:18Z) Updated `CHANGELOG.md` with concise `0.36.9-pocketbun.0` user-facing notes and reran the required validation gate successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
-
-### Milestone 17 - PocketBase v0.37.0 upgrade
-
-- [x] (2026-04-19 10:05Z) Confirmed the upstream `v0.37.0` release from the official PocketBase GitHub release metadata and scoped the upgrade to the rewritten Admin UI plus its dependent runtime deltas: `/_/extensions.js` and UI extension file serving, `/api/collections/meta/oauth2-providers`, `/api/collections/meta/dry-run-view`, OAuth2 provider inline SVG logos in `listAuthMethods()`, new settings/field metadata (`accentColor`, field `help`), view dry-run validation, and generated JSVM/docs drift.
-- [x] (2026-04-19 10:18Z) Bumped the compatibility metadata to PocketBase `v0.37.0` / PocketBun `0.37.0-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, and `CHANGELOG.md` so the repository state matches the intended upstream target before syncing.
-- [x] (2026-04-19 10:18Z) Synced `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.37.0`, then audited the concrete source/test deltas that still needed porting.
-- [x] (2026-04-19 14:20Z) Ported the `v0.37.0` compatibility surface in `src/apis/*`, `src/core/*`, `src/tools/auth/*`, `src/plugins/jsvm/*`, and the related tests so the new Admin UI and API outputs match upstream behavior.
-- [x] (2026-04-19 15:06Z) Refreshed generated artifacts/docs and reran the full required validation gate successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
-
-### Milestone 18 - PocketBase v0.37.2 upgrade
-
-- [x] (2026-04-20 07:42Z) Bumped the compatibility metadata to PocketBase `v0.37.2` / PocketBun `0.37.2-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, and `CHANGELOG.md`, and corrected the stale docs-site version marker that was still pinned to `0.37.0-pocketbun.0`.
-- [x] (2026-04-20 18:46Z) Synced `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.37.2`, then audited the concrete `v0.37.1..v0.37.2` delta via the GitHub compare API and upstream changelog. The release is UI-only (`ui/src/*`, `ui/dist/*`, and changelog text), with no upstream runtime/API file changes beyond the vendored Admin UI refresh.
-- [x] (2026-04-20 18:58Z) Ran `bun run upstream:audit`, found one non-intentional remaining mapping gap (`tools/router/buffer_with_file.go` + test), ported it into `src/tools/router/buffer_with_file.ts` and `src/tools/router/buffer_with_file.test.ts`, and re-ran the audit to confirm only the intentional `plugins/ghupdate/*` gaps remain.
-- [x] (2026-04-20 19:32Z) Hardened the docs pipeline for the `v0.37.2` tree: higher-divergence `introduction` / `extend` sections are now owned by heading-based overlays, `scripts/docs/check_generated_docs.ts` fails on missing PocketBun-only guidance, the upstream site snapshot is pinned by `pocketbase_site_ref.txt` instead of `pocketbase/site@master`, and the generated JSVM reference source (`src/plugins/jsvm/internal/types/generated/types.d.ts`) was resynced with runtime async helpers so `docs/users/reference.md` regenerates correctly.
-- [x] (2026-04-20 19:15Z) Reran the full required validation gate successfully on the final upgrade tree: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
-
-### Milestone 19 - PocketBase v0.37.3 upgrade
-
-- [x] (2026-04-23 13:03Z) Audited the upstream `v0.37.2..v0.37.3` delta via the GitHub release API and compare API before syncing local files. The release is UI-only again: `CHANGELOG.md`, `ui/.env`, `ui/dist/*`, `ui/public/libs/tinymce/skins/ui/oxide/skin.min.css`, and `ui/src/*`, with no upstream runtime/API/JSVM source changes to port.
-- [x] (2026-04-23 13:03Z) Bumped the compatibility metadata to PocketBase `v0.37.3` / PocketBun `0.37.3-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, and `CHANGELOG.md`, carrying forward the unreleased byte-range download note under the new compatibility target.
-- [x] (2026-04-23 13:05Z) Synced `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.37.3`, refreshing the vendored Admin UI bundle and TinyMCE skin assets from the new tag.
-- [x] (2026-04-23 13:05Z) Re-ran `bun run upstream:audit` after the sync and confirmed that the only remaining mapping gaps are still the intentionally unported `plugins/ghupdate/*` source and test files.
-- [x] (2026-04-23 13:05Z) Reran the full required validation gate successfully on the final upgrade tree: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
-
-### Milestone 14 - PocketBase v0.36.7 upgrade
-
-- [x] (2026-03-17) Audited the upstream `v0.36.6..v0.36.7` delta after capturing the `v0.36.6` upload-memory baseline; scoped the PocketBun work to the fixed-window rate limiter changes, refreshed generated JSVM types, the vendored Admin UI update, and a PocketBun-specific upload-path memory fix so the new upstream upload-memory note could be matched in practice.
-- [x] (2026-03-17) Added a repeatable local measurement script at `scripts/upload_memory_probe.ts` that starts PocketBun on temporary data, drives multipart uploads through a real record-create endpoint, and samples server RSS before/during/after the upload.
-- [x] (2026-03-17) Captured clean pre-upgrade RSS baselines on fresh server processes: idle after warmup is ~135.8 MiB for the 64 MiB run and ~136.6 MiB for the 112 MiB run; 64 MiB upload peaks at ~667.2 MiB RSS (+531.4 MiB), and 112 MiB upload peaks at ~1125.7 MiB RSS (+989.1 MiB).
-- [x] (2026-03-17) Confirmed the current server hard-stops larger multipart bodies before PocketBun upload handling: 128 MiB and 256 MiB probe uploads returned HTTP 413 because PocketBun currently inherits Bun's default `maxRequestBodySize` limit.
-- [x] (2026-03-17) Recorded the current code-path explanation for the RSS shape: `src/apis/record_crud.ts` parses multipart from `request.clone()` and then materializes each uploaded file via `await fileLike.arrayBuffer()` + `NewFileFromBytes(...)`, which is consistent with the large multi-copy RSS spikes measured above.
-- [x] (2026-03-17) Bumped PocketBun to PocketBase `v0.36.7` / `0.36.7-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, and `CHANGELOG.md`, then ran `bun run upstream:sync` to refresh `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist`.
-- [x] (2026-03-17) Ported the upstream fixed-window rate limiter semantics in `src/apis/middlewares_rate_limit.ts` and rewrote `src/apis/middlewares_rate_limit.test.ts` to use deterministic mocked time so the new window behavior is pinned directly.
-- [x] (2026-03-17) Replaced the multipart upload hot path with a request-scoped streaming/temp-file-backed parser in `src/internal/compat/request_form_data.ts`, switched record/batch/backup upload call sites to consume temp-file-backed filesystem files instead of `arrayBuffer()` copies, and added async request cleanup in `src/tools/router/event.ts` + `src/tools/router/router.ts` to remove the temporary spooled files after each request.
-- [x] (2026-03-17) Raised PocketBun's default Bun request-body cap to `4 GiB` in `src/apis/serve.ts` so large uploads now reach PocketBun's upload handlers instead of failing at Bun's old default `128 MiB` ceiling.
-- [x] (2026-03-17) Captured clean post-upgrade RSS measurements on fresh server processes: `64 MiB` upload peaks at ~233.1 MiB RSS from ~125.8 MiB idle (+107.3 MiB), `112 MiB` peaks at ~262.1 MiB from ~129.0 MiB idle (+133.1 MiB), `256 MiB` peaks at ~364.7 MiB from ~125.9 MiB idle (+238.8 MiB), and `512 MiB` peaks at ~410.9 MiB from ~129.0 MiB idle (+281.9 MiB). All four uploads now return HTTP 200.
-- [x] (2026-03-17) Ran the full required validation gate successfully on the final `v0.36.7` tree: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
-- [x] (2026-03-17) Followed up on the remaining upload RSS gap after the first local PocketBase-vs-PocketBun comparison: isolated the persistence side as inexpensive (`~+23 MiB` for saving a path-backed `512 MiB` file), confirmed the remaining cost sits in HTTP multipart ingress, and reproduced much lower minimal-server parser RSS after switching the delimiter scan to native `Buffer.indexOf(...)`.
-- [x] (2026-03-17) Removed the eager multipart body parse from `recordCreate`/`recordUpdate` for collections with file fields by pre-populating a lightweight `RequestInfo` via the existing multipart fallback helper and forcing the real file-aware multipart parse only once in `parseRequestData()`.
-- [x] (2026-03-17) Re-ran focused multipart/CRUD regression coverage plus the full required gate after the ingress follow-up (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`) successfully.
-- [x] (2026-03-17) Captured updated post-follow-up upload RSS on fresh direct-serve probes: `256 MiB` now peaks at ~273.1 MiB RSS from ~126.7 MiB idle (`+146.4 MiB`) and `512 MiB` peaks at ~282.0 MiB from ~125.6 MiB idle (`+156.3 MiB`) in the best fresh-process runs on this host. Repeated local CLI-vs-PocketBase comparison runs still show Bun-side `512 MiB` variance, with PocketBun upload deltas ranging from roughly `+178 MiB` to `+320 MiB` locally.
-- [x] (2026-03-17) Added end-to-end multipart byte-integrity coverage in `src/apis/record_crud.test.ts`, narrowed async MIME validation to sample-only reads for path-backed uploads in `src/core/validators/file.ts`, and released the multipart request-body reader lock after parsing in `src/internal/compat/request_form_data.ts`; the full validation gate passed again, but fresh RSS probes remain noisy and the remaining large-upload gap is still unresolved.
-- [x] (2026-03-17) Replaced multipart temp-file writes in `src/internal/compat/request_form_data.ts` with Bun's native `FileSink`, reran focused multipart coverage plus the full required gate successfully, and remeasured upload RSS. Fresh-process probes now land around `+26 MiB` for `256 MiB` uploads and `+32-34 MiB` for `512 MiB` uploads on this host; the local `scripts/compare_memory_local.ts` comparison now shows PocketBun upload deltas of `+22.8 MiB` (`64 MiB`), `+25.9 MiB` (`256 MiB`), and `+27.1 MiB` (`512 MiB`) versus PocketBase at roughly `+85-86 MiB`, while PocketBun idle RSS remains materially higher.
-- [x] (2026-03-17) Added `scripts/compare_download_local.ts` for local PocketBase-vs-PocketBun file-download RSS/throughput comparisons with byte-integrity verification. On this host, `64 KiB` downloads are essentially at parity, but large PocketBun downloads show severe RSS growth and lower throughput: `64 MiB` single/burst-x4 peak deltas measure about `+132.4 MiB` / `+195.8 MiB` vs PocketBase `~0-1 MiB`, and `256 MiB` single/burst-x4 land around `+440.8 MiB` / `+775.7 MiB` vs PocketBase `~0-1 MiB`, which is consistent with the current `src/apis/file.ts` `ResponseRecorder` path still buffering streamed file bodies in memory before Bun begins socket egress.
-- [x] (2026-03-17 11:33:54 UTC) Replaced the file/backup download recorder path with pull-based `System.ServeResponse(...)` streaming, added direct filesystem and file-API range regressions, and reran the local download probe. Large-download memory dropped sharply on this host: PocketBun `64 MiB` single/burst-x4 now measures about `+38.0 MiB` / `+4.8 MiB` and `256 MiB` single/burst-x4 about `+68.6 MiB` / `+15.0 MiB`, down from the earlier `+132.4/+195.8 MiB` and `+440.8/+775.7 MiB` respectively, while byte-integrity remained intact.
-- [x] (2026-03-17 12:00:57 UTC) Added a native local-storage fast path via `Bun.file(...)` bodies for full and single-range file/backup downloads, reran focused file/backup coverage, and remeasured with the same local probe. On this host, PocketBun now lands in the same ballpark as PocketBase for download RSS too: `64 MiB` single/burst-x4 about `+0.0 MiB` / `+0.3 MiB` and `256 MiB` single/burst-x4 about `+0.0 MiB` / `+0.1 MiB`, with SHA-256 integrity still matching exactly.
-- [x] (2026-03-17 12:41:33 UTC) Reverted the broader `src/core/base.ts` baseline-memory lazy-loading experiment and kept only the localized `src/tools/filesystem/filesystem.ts` lazy-loading for `sharp` and S3 support. Fresh measurements show the narrower change retains nearly all of the useful baseline win on this host: a clean-room `serveAsync` milestone now lands around `97.9 MiB` RSS, and the local PocketBase-vs-PocketBun warmup comparison is about `80.0 MiB` idle / `492.3 MiB` load peak for PocketBase versus `178.3 MiB` idle / `271.1 MiB` load peak for PocketBun, with upload memory/performance remaining at roughly `+21.5/+24.0/+26.8 MiB` and `34.7/112.2/169.2 MiB/s` for `64/256/512 MiB`.
-
-### Milestone 13 - PocketBase v0.36.6 upgrade
-
-- [x] (2026-03-07 08:36Z) Audited the upstream `v0.36.5..v0.36.6` delta and scoped the PocketBun work to the observable runtime changes: view `OnlyInt` inference, empty-relation-safe list-rule joins, `Store.GetOrSet` overwrite protection, `FireAndForget()` stack cap, regenerated JSVM types, and vendored Admin UI refresh.
-- [x] (2026-03-07 08:36Z) Bumped the compatibility metadata to PocketBase `v0.36.6` / PocketBun `0.36.6-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, `README.md`, and `CHANGELOG.md`.
-- [x] (2026-03-07 08:36Z) Synced `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.36.6`.
-- [x] (2026-03-07 08:36Z) Ported the runtime deltas in `src/core/view.ts`, `src/core/record_field_resolver.ts`, `src/tools/store/store.ts`, `src/tools/routine/routine.ts`, and `src/plugins/jsvm/internal/types/generated/types.d.ts`.
-- [x] (2026-03-07 08:36Z) Added or updated regression coverage in `src/core/view.test.ts`, `src/core/record_field_resolver.test.ts`, `src/tools/store/store.test.ts`, `src/tools/routine/routine.test.ts`, and `src/plugins/jsvm/jsvm.test.ts`.
-- [x] (2026-03-07 08:36Z) Ran focused upgrade verification (`bun test --concurrent src/core/view.test.ts src/core/record_field_resolver.test.ts src/tools/store/store.test.ts src/tools/routine/routine.test.ts src/plugins/jsvm/jsvm.test.ts`) and the full required gate (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`) successfully.
-
-### Milestone 12 - Non-DBX compatibility shim hardening
-
-- [x] (2026-02-26 07:16Z) Audited non-DBX runtime compatibility shims and direct test coverage. Identified shim modules with no dedicated tests: `src/internal/compat/cast.ts`, `src/internal/compat/request_body.ts`, `src/internal/compat/slog.ts`, and `src/internal/compat/validation.ts`.
-- [x] (2026-02-26 07:16Z) Scoped this milestone to runtime shims only, excluding `src/internal/compat/request_form_data.ts` (already covered by `request_form_data.test.ts`) and `src/types/go-text-template.d.ts` (type-only declaration shim).
-- [x] (2026-02-26 07:20Z) Added dedicated regression tests for all listed runtime shims and locked behavior/edge cases in: `src/internal/compat/cast.test.ts`, `src/internal/compat/request_body.test.ts`, `src/internal/compat/slog.test.ts`, and `src/internal/compat/validation.test.ts`.
-- [x] (2026-02-26 07:20Z) Confirmed no runtime behavior mismatches were found while hardening shim coverage; no production shim logic changes were required in this sweep.
-- [x] (2026-02-26 07:20Z) Ran full required validation gate successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
-
-### Milestone 8 - Post-release compatibility gaps
-
-- [x] (2026-02-12 13:09Z) Confirmed current high-priority parity gaps from code + upstream audit (mailer senders simplified; additional partial areas noted in search/template/random subsystems), while keeping `plugins/ghupdate` as an intentional package-distribution divergence.
-- [x] (2026-02-12 13:14Z) Stabilized flaky Windows timeout in `src/core/collection_validate.test.ts` by raising the per-test timeout budget for the long multi-scenario validation sweep from the default 30s to 120s.
-- [x] Reconfirmed `plugins/ghupdate` remains intentionally unported because PocketBun is distributed via package managers, not as a self-updating standalone binary.
-- [x] (2026-02-12 15:08Z) Replaced no-op mail senders with functional behavior-compatible implementations in `src/tools/mailer/sendmail.ts` and `src/tools/mailer/smtp.ts`, added send-path coverage in `src/tools/mailer/mailer.test.ts`/`src/tools/mailer/smtp.test.ts`, and aligned OTP mail flow to await async mailer sends.
-- [x] (2026-02-12 14:00Z) Closed the remaining `record_field_resolver` parity gap by removing the stale partial-port marker, aligning `extractNestedVal` with upstream `JSONRaw`/map-extractor semantics and strict array-index parsing, and adding regression tests that pin those behaviors.
-- [x] (2026-02-12 14:07Z) Tightened template compatibility in `src/tools/template/renderer.ts` by extending the internal parser with Go-style function-call syntax, pipeline args, literal tokens, and optional-context `template` includes, plus forced-internal regression coverage in `src/tools/template/renderer.test.ts`.
-- [x] (2026-02-12 14:07Z) Closed the remaining `random_by_regex` subset gap for PocketBase pattern usage by adding support for `(?:...)` groups, inverse escape classes (`\\D`, `\\W`, `\\S`), and escaped shorthand classes inside character classes (e.g. `[a-z\\d]`), with regression scenarios in `src/tools/security/random_by_regex.test.ts`.
-- [x] (2026-02-12 14:07Z) Updated README Differences so the post-Milestone 8 intentional deviations are documented once (`$template` fallback behavior and regex autogeneration scope).
-
-### Milestone 9 - Documentation Program
-
-- [x] (2026-02-13) Shipped the PocketBun docs information architecture with dedicated pages for index, introduction, production, web APIs, JS extension guide, JSVM reference, and PocketBun differences.
-- [x] (2026-02-13) Added deterministic upstream docs tooling (`scripts/docs/sync_upstream_site_docs.sh`, `scripts/docs/rebuild_from_upstream.ts`, `scripts/docs/apply_pocketbun_patches.ts`, `scripts/docs/check_generated_docs.ts`).
-- [x] (2026-02-13) Added docs QA guardrails for section parity and screenshot link integrity.
-- [x] (2026-02-13) Switched generated screenshot usage from upstream hotlinks to vendored local assets under `docs/assets/upstream/screenshots/`.
-- [x] (2026-02-13) Captured ongoing maintainer workflow and source mapping in `docs/maintainers/upstream-docs-map.md`.
-
-### Performance TODOs (paused; optimization sprint closed 2026-02-08)
-
-- [x] (2026-02-06) Re-run profiling after the fire-and-forget log worker changes; top slices now are router/middleware chain, db.get/db.all, pbGzip, records_list.query/hook (log hooks no longer dominate).
-- [x] (2026-02-06) Bench logs disabled vs enabled: logs still add ~0.34–0.40ms on records_list endpoints.
-- [x] (2026-02-06) A/B flatten vs values[] in log worker messages: flatten is slightly faster (kept).
-- [x] (2026-02-06) Compare PocketBun vs PocketBase on same bench config after latest log changes (see perf notes in work log).
-- [x] (2026-02-06) Expand local benchmark suite with write-path coverage (`bench_db_write`) on both PocketBun and PocketBase runners.
-- [x] (2026-02-06) Remove duplicate request URL parsing on the hot path by threading the router-parsed URL into `Event`/`RequestEvent` (`router.buildHandler` -> `requestUrl` option).
-- [x] (2026-02-06) Optimize `skipTotal` provider path by avoiding count-SQL construction when totals are disabled and by reusing parsed `URLSearchParams` (no `.toString()` + reparse in list handlers).
-- [x] (2026-02-08) Deferred: revisit log batching alternatives only if logging becomes the dominant bottleneck again (for example worker-side multi-row INSERT), but avoid extra complexity without measurable wins.
-- [x] (2026-02-06) Re-profile record list sub-steps (hook/enrich/hydrate/query/response) with logs disabled and optimize highest-cost controllable slice (no-handler hook wiring).
-- [x] (2026-02-06) Replace non-profile `Hook.Trigger` closure-chain setup with a cursor-driven single `next` runner to reduce per-request middleware/hook allocation churn.
-- [x] (2026-02-06) Concurrency sweep after log changes (1/4/16/32/64); captured records_list and skip_total scaling.
-- [x] (2026-02-08) Deferred (low priority): stabilize upstream baseline measurements by running the upstream suite on a dedicated server and/or increasing scenario durations/iterations (short create scenarios show high run-to-run variance on VM/laptop environments).
-- [x] (2026-02-08) Deferred by scope: keep admin UI optimizations low priority unless they also help non-admin endpoints.
-- [x] (2026-02-06) Continue request-info/header normalization and event JSON/response allocation work (completed: header snakecase cache, JSON `fields` lookup cache, and non-exception response status fast path).
-- [x] (2026-02-06) Reduce router match-path allocations by iterating method buckets directly (no per-request candidate slice) and skipping params map allocation for static matches.
-- [x] (2026-02-06) Investigated and fixed `bench_db_write` bottleneck: `BaseApp.bootstrap()` was opening DBs directly with `new DbxDatabase(...)`, bypassing `DefaultDBConnect` PRAGMAs (`WAL`, `synchronous=NORMAL`, etc.); switched bootstrap to `DefaultDBConnect`.
-- [x] (2026-02-06) Retro-audited all performance commits since 2026-02-05 (range `2d077507..06a95f89`) and added inline `PocketBun perf deviation` markers where missing (router matching, response path, hook trigger fast path, request header normalization cache, provider skipTotal fast path, bootstrap DB connect path).
-- [x] (2026-02-06) Added a no-join fast path in `RecordFieldResolver.updateQuery`, reduced allocation churn in `search.Provider.exec`, and switched list hydration from `map()` to indexed assignment; reran profile + A/B benches.
-- [x] (2026-02-06) Vendored upstream `pocketbase/benchmarks` into `vendor/pocketbase-benchmarks` (synced via `bun run upstream:sync:benchmarks`) and added a fixed local runner (`bun run bench:upstream`) for repeatable full-suite baselines.
-- [x] (2026-02-06) Ran the full upstream benchmark suite locally via the new wrapper and captured baseline/anomaly signals for follow-up PocketBun work.
-- [x] (2026-02-06) Ported the upstream benchmark app logic into a PocketBun-native module (`scripts/bench_upstream_pocketbun/*`) and added a fixed runner command (`bun run bench:upstream:pocketbun`).
-- [x] (2026-02-06) Executed the full PocketBun-native benchmark suite and saved output to `/tmp/pocketbun-benchmarks-latest.txt`.
-- [x] (2026-02-07) Root-caused upstream high-concurrency create errors on macOS to benchmark requester connection churn (per-request `http.Client` plus non-drained response bodies) and patched the local copied benchmark source in `scripts/bench_run_upstream.ts` to use a shared transport and always drain response bodies; `run=create` now completes with `Errors: 0` across all post-create scenarios.
-- [x] (2026-02-07) Reworked the PocketBun-native upstream benchmark requester (`scripts/bench_upstream_pocketbun/request.ts`) to use a shared keep-alive Node HTTP/HTTPS transport with lightweight retries, eliminating per-request `fetch` overhead as the dominant bottleneck in long create scenarios.
-- [x] (2026-02-07) Reduced write-path request-info overhead by replacing `request.clone().json()` in `RequestEvent` with a direct JSON bind path that caches parsed bodies and rebinds `request` for reread compatibility.
-- [x] (2026-02-07) Updated PocketBun-native benchmark requester `Send(nil)` behavior to skip response text decoding (cancel body only), matching upstream semantics more closely and reducing client overhead.
-- [x] (2026-02-07) Re-ran upstream `run=create` for PocketBase and PocketBun after the request-body optimization to capture fresh end-to-end deltas (`2026-02-07T12-42-16Z-*`).
-- [x] (2026-02-07) Added focused upstream-shape users probe mode (`probe:create-users-upstream`) to both upstream and PocketBun benchmark runners for faster high-concurrency user-create iteration.
-- [x] (2026-02-07) Added `probe:create-errors` support to the PocketBun benchmark runner to mirror the upstream posts25k create-error probe.
-- [x] (2026-02-08) Resolved: JS hook benchmark error anomaly no longer reproduces after requester/harness fixes; latest paired full runs report `Errors: 0` for both JS and Go hook scenarios.
-- [x] (2026-02-08) Closed current performance optimization phase after 3x PocketBase + 3x PocketBun upstream runs on Hetzner CCX13; remaining work moved to deferred follow-ups.
-
-Performance notes (2026-02-06): the benchmark suite now includes `bench_db_write` (`POST /_bench/db_write`) and query metrics are opt-in (`POCKETBUN_BENCH_QUERY_METRICS=1`) to avoid default measurement overhead. The major write-path regression was traced to bootstrap DB initialization bypassing `DefaultDBConnect`; after fixing that, sequential runs at concurrency=32/duration=15000ms are: PocketBun `bench_db_write` ~0.94ms avg / 33,981 rps vs PocketBase ~1.05ms / 30,486 rps. Read-paths also improved with proper PRAGMAs: PocketBun `records_list` ~2.94ms and `records_list_skip_total` ~2.15ms vs PocketBase ~2.31ms / ~1.31ms. After request URL reuse plus provider `skipTotal` fast paths (same bench config, logs disabled), latest run shows PocketBun ahead on write/list paths and essentially at skip-total parity: PocketBun `bench_db_write` ~1.03ms / 31,100 rps vs PocketBase ~1.36ms / 23,493 rps; `records_list` ~2.57ms / 12,445 rps vs ~2.97ms / 10,778 rps; `records_list_skip_total` ~1.77ms / 18,078 rps vs ~1.78ms / 17,992 rps. After hook/request-info/router/response-path optimizations and fresh paired logs-disabled runs (same config), PocketBun remains clearly faster on write and near parity on full list, while PocketBase still leads skip-total reads: PocketBun `bench_db_write` ~0.94ms / 34,017 rps vs PocketBase ~1.04ms / 30,804 rps; `records_list` ~2.41ms / 13,266 rps vs ~2.40ms / 13,332 rps; `records_list_skip_total` ~1.64ms / 19,515 rps vs ~1.27ms / 25,103 rps. The no-join/provider/hydration allocation reductions improved internal profile slices slightly (`records_list.query` ~0.0230ms -> ~0.0224ms, `records_list.total` ~0.0333ms -> ~0.0325ms at 5s profile runs) but did not materially change external `records_list_skip_total` latency (still ~1.8ms in local runs), indicating the remaining gap is outside those list-handler allocations. The newest hook-trigger cursor fast path improves the middleware-inclusive profile average (`router.total` ~0.0273ms -> ~0.0221ms in the latest profile sample) and nudges API list throughput up in logs-disabled 15s runs (`records_list` ~13,266 -> ~13,602 rps; `records_list_skip_total` ~19,515 -> ~20,092 rps), while keeping PocketBun ahead on `bench_db_write` (~34,904 vs PocketBase ~30,439 rps) and `records_list` (~13,602 vs ~13,110 rps). We now also have the full upstream benchmark harness vendored (`vendor/pocketbase-benchmarks`) and runnable through a fixed command (`bun run bench:upstream`); the runner is configured to persist full result output to `/tmp/pocketbase-benchmarks-latest.txt` on each run. Initial local full-suite baselines surfaced high error counts in large high-concurrency create scenarios and near-total failures in JS route scenarios; the create-error issue is now explained and mitigated locally by patching the copied benchmark requester to reuse transport connections and drain response bodies before close (preventing client-side `connect: can't assign requested address` exhaustion on macOS loopback runs).
-Performance notes (2026-02-06, PocketBun-native upstream module): `bun run bench:upstream:pocketbun` now runs the full `create,auth,search,custom,delete` matrix inside PocketBun and writes results to `/tmp/pocketbun-benchmarks-latest.txt`. In the first complete run, create/auth/search/delete scenarios were stable with zero request errors (including high-concurrency post creates), JS route scenarios no longer showed the near-total failure pattern seen in upstream-local runs, and one anomaly remains: the JS-tagged hook case (`JS OnRecordBeforeUpdateRequest hook handler`) returned `100/100` errors while the Go-tagged hook case returned `0/100`.
-Performance notes (2026-02-07): create-path profiling showed `request_info.body` as a dominant controllable slice. After switching JSON request-info binding to a direct cached path in `RequestEvent` (and rebinding `request` for reread behavior), profile `request_info.body` dropped from ~0.126ms to ~0.012ms avg in create-organizations probes, and `record_create.total` dropped from ~0.333ms to ~0.195ms. Probe latency improved from roughly ~20–23ms (organizations no-rule, warmup=0) to ~11–13ms. With warmup=100 requests, organizations probes are now PocketBun ~6.58ms / ~7.50ms vs PocketBase ~3.21ms / ~3.99ms (rules: `""` and `@request.body.name != ''`). In full upstream `run=create` reruns, PocketBun improved materially across create scenarios (eg. organizations no-rule `35.5ms -> 19.1ms`, permissions no-rule `18.2ms -> 5.1ms`, posts100k no-rule `11.44s -> 5.45s`) while still trailing PocketBase.
-Performance notes (2026-02-07, follow-up probes): upstream-shape users create probes (`250 req / 50 conc`) now show PocketBun ahead in this local environment (`~1.69–1.71s` vs PocketBase `~3.50–3.74s` for the two user create-rule variants). Heavy posts create-error probes (`posts25k`, `12500 req / 500 conc`) are near parity with zero errors on both sides (PocketBun `~1089ms`, PocketBase `~1027ms`). Remaining measurable create gap is concentrated in short organizations/permissions scenarios, where PocketBun is currently about `1.6x–1.8x` slower in warmed probe runs.
-Performance notes (2026-02-07, requester-path correction): after replacing PocketBun-native benchmark `Request.Send` with a shared keep-alive transport path, full `run=create` timings improved dramatically in the highest-volume scenarios (eg. users no-rule `~17.9s -> ~1.79s`, users rule `~14.9s -> ~1.80s`, posts100k no-rule `~12.3s -> ~6.30s`) with `Errors: 0` preserved. This indicates a substantial share of the earlier delta came from benchmark requester overhead rather than server-side create handler execution.
-Performance notes (2026-02-08, pause point): with three full upstream runs each on Hetzner CCX13 for PocketBase and PocketBun, the mean-per-scenario comparison currently ranges from about `0.17x` to `4.36x` for PocketBun/PocketBase, with geometric mean about `0.61x` (PocketBun faster overall on this setup). The team decided to pause optimization work here and continue with other priorities unless future regressions or release-blocking gaps appear.
-Performance notes (2026-03-17, local RSS spot-check): added `scripts/compare_memory_local.ts` to compare PocketBase vs PocketBun memory locally on idle, authenticated list load, and multipart uploads. On this M2 Max macOS host (`Bun 1.3.10`, PocketBase `v0.36.7`, PocketBun `0.36.7-pocketbun.0`), idle RSS after warmup measured about `42.7 MiB` for PocketBase vs `152.2 MiB` for PocketBun; a 10s authenticated list load (`GET /api/collections/{load_probe}/records?page=1&perPage=30`, concurrency `32`, 250 seeded records) peaked around `503.9 MiB` for PocketBase vs `277.8 MiB` for PocketBun; upload peak deltas above idle were about `89.6/89.3/87.6 MiB` for PocketBase (`64/256/512 MiB` files) and `114.0/373.8/266.3 MiB` for PocketBun. These numbers are explicitly local and directional, and the script writes the full JSON report to `/tmp/pocketbun-memory-compare-local.json`.
-
-- [x] (2026-02-06) Threaded router-parsed URL into `Event`/`RequestEvent` and validated compatibility against upstream request usage (`*http.Request.URL` reuse in Go).
-- [x] (2026-02-06) Re-ran full required validation gate: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`.
-- [x] (2026-02-06) Re-ran both benchmark runners with logs disabled (`bench:local` and `bench:pocketbase`) to refresh deltas after URL-path optimization.
-- [x] (2026-02-06) Re-ran both benchmark runners with logs disabled after provider `skipTotal` optimization and parsed-params reuse to refresh deltas.
-- [x] (2026-02-06) Re-ran profiling + logs-disabled benchmark pair after hook/request-info/router/response-path optimizations and recorded fresh deltas.
-- [x] (2026-02-07) Continued the async runtime I/O slices by removing sync fd open/temp-create/close calls from fileblob async paths (`NewRangeReader`, `NewTypedWriter`, async writer close) while preserving the sync-compatible reader/writer methods.
-- [x] (2026-02-07) Switched shipped examples (`examples/base`, `examples/simple`, `examples/advanced`) to async-first startup (`MustRegisterAsync`/`RegisterJSVMAsync`, `serveAsync`) and removed early manual bootstrap in advanced example so JSVM bootstrap hooks execute in the intended order.
-- [x] (2026-02-07) Added async settings reload plumbing (`ReloadSettingsAsync` in `settings_query`, `reloadSettingsAsync`/`ReloadSettingsAsync` in `BaseApp` + `App` interface), switched `bootstrapAsync` to use it, and updated `OnSettingsReload` logger hook chaining to support async downstream handlers without dropping cleanup work.
-- [x] (2026-02-07) Removed serial per-file `stat` + `readFile` work from JSVM async loader startup by switching `filesContentAsync` to `readdir(..., { withFileTypes: true })` and ordered concurrent reads.
-- [x] (2026-02-07) Removed serial async template file reads in `Registry.LoadFilesAsync` / `Registry.LoadFSAsync` by switching to ordered `Promise.all` source loading.
-- [x] (2026-02-07) Reduced async archive I/O overhead by parallelizing per-file `lstat` + `readFile` in `CreateAsync` and memoizing recursive `mkdir` calls in `ExtractAsync` to avoid redundant directory creation churn.
-- [x] (2026-02-07) Switched async auth/runtime paths that validate passwords (`record_auth_with_otp`, `record_auth_email_change_confirm`, `RecordUpsert` old-password checks) to `ValidatePasswordAsync` to avoid sync bcrypt verification blocking.
-- [x] (2026-02-07) Added `Record.SetPasswordAsync` / `Record.SetRandomPasswordAsync` and migrated async API/CLI call sites (`record_auth_password_reset_confirm`, `record_auth_otp_request`, `record_auth_with_oauth2`, `cmd/superuser`) to avoid sync bcrypt hashing on async paths.
-- [x] (2026-02-07) Added async installer helper alternatives (`findOrCreateInstallerSuperuserAsync`, `loadInstallerAsync`) and tests, preserving upstream-compatible sync installer helpers while avoiding sync password hashing/save on async installer flows.
-- [x] (2026-02-07) Reduced sync startup filesystem syscall count by removing redundant `existsSync` checks in sync bootstrap/JSVM temp/types paths and relying on recursive `mkdir*` semantics instead.
-- [x] (2026-02-07) Wired serve-path installer initialization to the new async installer helper (`ServeEvent.InstallerFunc` now runs in `serve`/`serveAsync` via `loadInstallerAsync`) and added a dedicated serve installer test.
-- [x] (2026-02-07) Split serve handler/server startup into sync+async paths so `serveAsync` can await async `OnServe` hooks while preserving upstream-compatible sync behavior in `buildServeHandler`/`serve`; added coverage for both supported and rejected async-hook scenarios.
-- [x] (2026-02-07) Removed synchronous disk reads from `System.UploadFile` when `File.Reader` is path-backed by adding an async `PathReader` fast path (`readFile(...)`) and a regression test to ensure the sync `Open().readAll()` fallback is not used for local path uploads.
-- [x] (2026-02-07) Added `FormData.toMultipartAsync()` for JSVM async HTTP sends, wired `$http.sendAsync` to it, and added regression coverage that path-backed files avoid sync `Open().readAll()` reads in async paths.
-- [x] (2026-02-07) Added shared filesystem reader helpers (`ReadFileReaderBytes*`) and switched async call sites (`System.UploadFile`, JSVM multipart async send, batch multipart re-encoding) to the centralized async fast path for path-backed files.
-- [x] (2026-02-07) Added async uploaded-file MIME validator support (`UploadedFileMimeTypeAsync`) and switched async backup upload validation to it, with regression coverage for path-backed readers avoiding sync `Open()` in async validation flow.
-- [x] (2026-02-07) Optimized file-path reader hot paths by removing eager full-file reads in `NewFileFromPathAsync`, adding sample-based extension detection helpers (`detectExtensionAsync` + sync helper parity), switching `PathReader.Open()` to fd-backed streaming reads (closer to upstream), and adding regression coverage that async path-backed detection avoids sync `Open()`.
-- [x] (2026-02-07) Added a non-buffering filesystem reader API (`System.GetReaderAsync`) and switched backup S3 restore temp-zip writes to chunked stream copy instead of eager `readAll()` buffering.
-- [x] (2026-02-07) Removed synchronous zlib work from archive async paths by switching `CreateAsync` and `ExtractAsync` to async raw deflate/inflate helpers.
-- [x] (2026-02-07) Optimized path-backed upload hot paths by streaming `System.UploadFile` from disk in chunks (instead of full-file buffering) and making writer helpers handle partial writes safely.
-- [x] (2026-02-07) Hardened local blob writer internals to drain full write buffers in both sync and async driver writers, preventing partial-write truncation risk under high I/O pressure.
-- [x] (2026-02-07) Removed eager file buffering from `System.Serve` by streaming blob reader chunks (including single-range responses) directly into response writers, with recorder updates to accept streamed chunks in file/backup API paths.
-- [x] (2026-02-07) Removed final response re-buffering in file/backup API download recorders by switching them from chunk-accumulation to stream-backed `Response` bodies.
-- [x] (2026-02-07) Removed final response chunk concatenation from `WrapStdHandler`/`WrapStdMiddleware` writer path by switching `BufferedResponseWriter` in `apis/base.ts` to stream-backed `Response` bodies.
-- [x] (2026-02-07) Added a no-copy fast path in `mergeEventHeaders` so wrapped handlers now return the original `Response` when there are no missing event headers to merge.
-
-- [x] (2026-01-30 16:36Z) Read AGENTS.md and captured repository rules and compatibility priorities.
-- [x] (2026-01-30 16:36Z) Surveyed .upstream/pocketbase tree to understand major subsystems and reference files.
-- [x] (2026-01-30 16:57Z) Align repository versioning and scaffolding with the pinned PocketBase tag.
-- [x] (2026-01-30 17:04Z) Implement the first compatibility slice (router + health + static UI) and add tests.
-- [x] (2026-01-30 18:46Z) Add SQLite bootstrap, auth token verification, and test data cloning for auth-aware health responses.
-- [x] (2026-01-30 18:49Z) Load trusted proxy settings from the settings param row during bootstrap.
-- [x] (2026-01-30 18:55Z) Add migrations runner with _migrations table initialization and list-based execution.
-- [x] (2026-01-30 19:13Z) Port the initial system migration and add a migrations test covering table creation and migration history.
-- [x] (2026-01-30 21:24Z) Port the aux logs migration and extend migrations tests to cover _logs creation.
-- [x] (2026-01-30 23:05Z) Port the v0.23 migration chain and auth alert template update, adding AES-GCM decrypt support for legacy settings.
-- [x] (2026-01-30 23:58Z) Add read-only collections list/view endpoints with superuser auth, paging, sorting, and basic filter support plus tests.
-- [x] (2026-01-30 23:45Z) Replace the minimal collections search parsing with a full search toolkit (inflector, filter parser, sort, provider) and integrate it into the collections list endpoint.
-- [x] (2026-01-31 00:38Z) Add dbx-style identifier rewrite support for bun:sqlite and revert search SQL generation to upstream `[[...]]` quoting; add tests for the rewrite.
-- [x] (2026-01-31 01:04Z) Add a DbxDatabase wrapper to apply the rewrite to all SQL queries and ensure the rewriter skips SQL comments.
-- [x] (2026-01-31 01:18Z) Add attach helper for existing Database instances and tests verifying idempotent patching.
-- [x] (2026-01-31 01:26Z) Add a dbx tools index export to surface DbxDatabase, rewrite, and attach helpers.
-- [x] (2026-01-31 01:34Z) Re-export dbx helpers from the public entrypoint for external consumers.
-- [x] (2026-01-31 01:40Z) Document dbx helper exports and usage in README.
-- [x] (2026-01-31 02:15Z) Add superuser-only records list/view endpoints using the search provider with basic record export and tests.
-- [x] (2026-01-31 03:10Z) Apply list/view rules for non-superusers via RecordFieldResolver and add rule-based record list/view tests.
-- [x] (2026-01-31 11:58Z) Port multi-match joins for RecordFieldResolver and add dbutils index parsing + tokenizer support.
-- [x] (2026-01-31 12:08Z) Extend collection models with indexes and resolve typecheck/lint issues; document migration SQL deviations.
-- [x] (2026-01-31 12:16Z) Align record list count handling with upstream (_rowid_ for non-views) and apply view rule joins.
-- [x] (2026-01-31 12:37Z) Block superuser-only filter/sort fields in list queries for non-superusers and add tests.
-- [x] (2026-01-31 13:00Z) Port core field types/validators and initial field implementations (text, bool, date, email, password, relation, json) plus JSON/Date helpers and regex-based random generator.
-- [x] (2026-01-31 13:58Z) Port upstream validator/field tests and align validation, field helpers, and record/collection utilities to match upstream behavior.
-- [x] (2026-01-31 14:22Z) Port db/equal validators with upstream tests and export them from the validators barrel.
-- [x] (2026-01-31 14:28Z) Port number field with upstream tests and add numeric casting helpers/pointer alias for parity.
-- [x] (2026-01-31 14:54Z) Port select/url/editor/geoPoint/autodate fields + GeoPoint type and tests; register field factories for JSON parsing and ensure record exports include ids.
-- [x] (2026-01-31 16:50Z) Port filesystem helpers, file field + validators, and associated tests; align record default values and transactional file cleanup with upstream behavior.
-- [x] (2026-01-31 17:04Z) Replace thumbnail placeholder with real image resizing using Sharp and align CreateThumb behavior with upstream.
-- [x] (2026-01-31 19:05Z) Add initial record CRUD write endpoints (create/update/delete) with request data parsing, record modifiers/auth helpers, and core record model tests.
-- [x] (2026-01-31 20:25Z) Add initial collection CRUD endpoints (create/update/delete/truncate/import/scaffolds), basic collection persistence, and partial API tests.
-- [x] (2026-01-31 21:15Z) Port collection options/view helpers and validation, add db table info helpers, and wire BaseApp view/table methods.
-- [x] (2026-01-31 21:58Z) Port tools/hook tests (event/hook/tagged) to lock hook behavior with upstream.
-- [x] (2026-01-31 22:07Z) Port security crypto helpers (S256Challenge/MD5/SHA/HS) with upstream tests.
-- [x] (2026-01-31 22:18Z) Extend random-by-regex to support negated classes/flags guard and port security random tests.
-- [x] (2026-01-31 22:32Z) Extend BaseProvider with auth URL building and port base provider tests.
-- [x] (2026-01-31 23:10Z) Register all OAuth2 provider defaults and port upstream auth provider tests.
-- [x] (2026-01-31 23:45Z) Port record token generation helpers, add FindAuthRecordByEmail/FindRecordById wrappers, and add record token tests.
-- [x] (2026-01-31 23:58Z) Add record query filter helpers, extend FindRecordById with optional filters, and port record query tests for FindRecordById/FindAuthRecordByToken/FindAuthRecordByEmail.
-- [x] (2026-02-01 00:45Z) Port RecordQuery, record query find helpers (FindRecordsByIds/All/Filter/Count/CanAccessRecord), add dbx expression helpers, and fix JSON path building for record filters.
-- [x] (2026-02-01 02:35Z) Port auth origin model/query + tests, add record-proxy validation support, and wire auth-origin hooks for password change cleanup.
-- [x] (2026-02-01 05:40Z) Port cron scheduler utilities + tests and add OTP/MFA models, queries, hooks, and stubs with SaveNoValidate support.
-- [x] (2026-02-01 06:25Z) Port record auth methods endpoint + tests (rate limit scenarios left as TODO until middleware is ported).
-- [x] (2026-02-01 08:20Z) Port record auth with password + auth refresh endpoints, mailer stubs/templates, record expand helpers, and auth tests (rate limit scenarios left as TODO).
-- [x] (2026-02-01 09:40Z) Port record auth impersonate endpoint + tests and OAuth2 redirect tests with subscription notifications.
-- [x] (2026-02-01 11:20Z) Port record auth with OAuth2 create flow, align record validation/hook ordering with upstream, and complete OAuth2 auth test coverage (rate limit scenarios still TODO).
-- [x] (2026-02-01 16:30Z) Port rate limiting middleware + settings rules, update router hook chaining and request pattern tracking, and complete rate limit auth tests.
-- [x] (2026-02-01 18:10Z) Port view helpers (save/delete/create fields + FindRecordByViewFile), align collection default new-state handling, and add upstream view tests.
-- [x] (2026-02-01 20:10Z) Port file API (token + download + thumb generation), add file request hooks, and port upstream file API tests.
-- [x] (2026-02-01 22:35Z) Port batch API (internal requests + body limit), add picker fields/excerpt modifiers with tests, and align record enrich + cascade delete behavior to upstream.
-- [x] (2026-02-01 22:50Z) Port logs API (list/view/stats), log model/query helpers, activity logger middleware, and add log query/API tests with a SelectQuery shim.
-- [x] (2026-02-01 23:45Z) Port settings API (list/update/test s3/email/apple secret), add settings forms/tests, and align settings JSON to omit secrets with corresponding hooks/events.
-- [x] (2026-02-02 01:15Z) Port backups API + archive/osutils helpers, align zip output with Go (data descriptor + extended timestamps), and add backup/archive tests.
-- [x] (2026-02-02 03:20Z) Port realtime API (SSE) + model support, add realtime tests, and align hook event propagation with upstream.
-- [x] (2026-02-02 09:10Z) Port record CRUD view + delete tests, fix list/view selection to avoid join column collisions, add delete file cleanup hook, and unwrap hook responses for tx overrides.
-- [x] (2026-02-02 10:48Z) Port record CRUD create/update tests and add manage-rule access checks for auth record create/update.
-- [x] (2026-02-02 13:30Z) Port collection CRUD/import API tests and align collection behaviors (auth options merge, field validation codes, hook firing).
-- [x] (2026-02-02 15:51Z) Implement pb_hooks loading/tests (added loader tests and aligned hook/migration loading behavior).
-- [x] (2026-02-02 16:45Z) Port store/list helper tests and align Store missing-key zero value handling with upstream semantics.
-- [x] (2026-02-02 17:02Z) Port inflector, tokenizer, and dbutils helper tests; add singularize + dbutils alias parsing support.
-- [x] (2026-02-02 19:25Z) Port router event helpers/tests, align API error mapping and hook response handling, and add rereadable reader coverage.
-- [x] (2026-02-02 20:05Z) Port RequestEvent tests and align RealIP handling with raw header values for proxy scenarios.
-- [x] (2026-02-02 21:05Z) Port migrations list/runner tests, add caller filename detection, and align applied-migrations filtering with upstream.
-- [x] (2026-02-02 21:45Z) Port middleware auth and body limit tests to cover panic recover and auth gate behavior.
-- [x] (2026-02-02 22:40Z) Port apis base/cron modules (WrapStdHandler/Middleware, Static, MustSubFS, cron routes) plus tests; start cron on serve and add DB optimize/log cleanup jobs.
-- [x] (2026-02-02 22:15Z) Port record_helpers tests and align MFA expiry duration units with upstream.
-- [x] (2026-02-02 22:20Z) Port record auth origin CRUD API tests.
-- [x] (2026-02-02 22:39Z) Port external auth/MFA/OTP/superuser record CRUD tests, register superuser hooks, and align delete error propagation.
-- [x] (2026-02-02 22:57Z) Port mails/record tests and add JWK fetch/signature validation utilities with tests.
-- [x] (2026-02-02 23:20Z) Tighten serve parity with CORS middleware, admin UI cache/CSP headers, and gzip support.
-- [x] (2026-02-02 23:54Z) Port s3blob driver + internal S3 client/uploader, align list/signing behavior, and add upstream S3/s3blob tests.
-- [x] (2026-02-03 07:31Z) Port blob bucket/reader/writer and fileblob driver foundations for local storage compatibility.
-- [x] (2026-02-03 18:10Z) Wrap model create/update/delete DB writes with lock retry handling to match upstream baseLockRetry behavior.
-- [x] (2026-02-03 12:57Z) Port tools/search tests (filter/provider/sort/token functions/simple resolver/identifier macros/multi-match) and align filter parsing + LIKE wrapping to upstream behavior.
-- [x] (2026-02-03 12:57Z) Port tools/types tests (DateTime/JSONRaw/JSONMap/JSONArray) and align DateTime + JSON* helper semantics with upstream Scan/Value/Marshal behavior.
-- [x] (2026-02-03 13:04Z) Port tools/security encrypt/jwt tests, align AES-GCM key handling with Go (128/192/256), and expose claims on parseUnverifiedJWT errors.
-- [x] (2026-02-04 21:10Z) Restore 1:1 file mapping where practical by un-merging merged TS files and adding missing upstream files/tests (completed: analysis of missing files/tests, merged-header rule, low-risk un-merges like api_error_aliases/router error/collection_import + auth_origin/otp/mfa/external_auth query splits, base_backup helper extraction + base_paths constants, db_connect helper, syscall stub, core renames to match upstream (base/collection_model/record_model/settings_model), record_model_auth extraction, record_field_resolver_replace_expr + db_connect_nodefaultdriver + syscall_wasm stubs, collection_import + collection_record_table_sync extraction, settings_query extraction, added modernc/ui/embed/installer/jsvm pool/types stubs, collection_query module + tests + DbxDatabase query logging, db_tx module + tests, db_retry/db_builder modules with tests for db_retry, and tools/search + tools/types + tools/security + tools/osutils + tools/logger + tools/mailer + tools/routine tests).
-- [x] (2026-02-04 22:40Z) Add PocketBase-compatible CLI entrypoint (serve/superuser/migrate) and register migratecmd/jsvm like upstream example, then port CLI tests (pocketbase_test, migratecmd_test).
-- [x] (2026-02-04 21:10Z) Documented SQL placeholder index differences (unused empty-string params are dropped) in README for debugging parity expectations.
-- [x] (2026-02-03 20:05Z) Port tools/osutils cmd/run modules and tests, and align MoveDirContent mkdir/rollback behavior with upstream.
-- [x] (2026-02-03 21:05Z) Port tools/logger log/batch handler + tests and add a minimal slog compat shim for structured logging parity.
-- [x] (2026-02-03 22:10Z) Port tools/template registry/renderer + tests, wire $template into JS hooks/migrations, and document JS-friendly templating guidance.
-- [x] (2026-02-03 22:21Z) Port remaining tools/types Pointer test, add core settings_query + record_model_superusers + db tests, and wire ValidateWithContext in BaseApp.
-- [x] (2026-02-03 22:51Z) Port core base/base_backup/db_table/record_query_expand/fields_list tests, add FieldsList Scan/Value/MarshalJSON helpers, expose TableColumns/DeleteTable/Vacuum/AuxHasTable on BaseApp, and validate S3 config before NewFilesystem/NewBackupsFilesystem.
-- [x] (2026-02-03 23:05Z) Port tools/mailer html2text + smtp login auth + mailer tests for address formatting and mime detection.
-- [x] (2026-02-03 23:20Z) Port tools/routine FireAndForget test and align async recovery behavior.
-- [x] (2026-02-04 00:50Z) Port collection import + record table sync tests and implement single↔multiple normalization during table schema sync.
-- [x] (2026-02-04 23:55Z) Un-merged S3 client implementation into per-file modules (error/copy/delete/get/head/list/uploader) and kept s3.ts as the s3.go wrapper with delegated methods.
-- [x] (2026-02-04 23:59Z) Add a GitHub Actions CI workflow that runs format, lint, typecheck, and tests, and surface the workflow status in README.
-- [x] (2026-02-04 23:59Z) Add end-to-end tests that start the server and confirm the Admin UI and basic API endpoints respond successfully.
-- [x] (2026-02-04 23:59Z) Add a short README quick-start example and a minimal runnable example under examples/simple.
-- [x] (2026-02-04 23:59Z) Define the upgrade workflow doc with release notes + git diff instructions.
-- [x] (2026-02-04 23:59Z) Upgrade to PocketBase v0.36.2 (sync upstream, bump versions, reconcile diffs, and update docs/tests).
-- [x] (2026-02-13 23:55Z) Upgrade to PocketBase v0.36.3 (sync upstream, bump versions, port S3/event/types deltas, rerun docs pipeline, and validate).
-- [x] (2026-02-17 23:22Z) Upgrade to PocketBase v0.36.4 (sync upstream, bump versions, port auth-header/JSVM filesystem deltas, rerun docs pipeline checks, and validate).
-- [x] (2026-02-04 23:59Z) Snapshot .upstream/pocketbase as v0.36.1, sync upstream to v0.36.2, and bump package.json to 0.36.2-pocketbun.0.
-- [x] (2026-02-04 23:59Z) Ran a full port audit against upstream v0.36.2; only missing files are ghupdate plugin sources/tests (intentional and documented).
-- [x] (2026-02-04 23:59Z) Add an advanced example under examples/ that demonstrates core features (auth, CRUD, files, realtime, hooks, and CLI usage).
-- [x] (2026-02-05 00:15Z) Add Playwright-based e2e tests with a dedicated web server script and CI coverage.
-- [x] (2026-02-05 02:10Z) Add local benchmark runners for PocketBun and PocketBase and capture baseline/sweep results.
-- [x] (2026-02-08) Profiled and optimized hot request paths (router matching, middleware overhead) while preserving compatibility.
-
-### Milestone 20 - PocketBase v0.37.4 upgrade
-
-- [x] (2026-04-27 08:50Z) Confirmed the upstream `v0.37.4` release from published release notes. The release includes a security fix for OAuth2 linking, a dummy bcrypt check on failed password auth when registrations are disabled, OAuth2 provider mapping/API updates for Bitbucket/GitHub/GitLab/Gitea-Forgejo, SMTP IPv6 address formatting, `ghupdate.BaseURL`, the usual Admin UI refresh, and dependency churn.
-- [x] (2026-04-27 08:58Z) Bumped the compatibility metadata to PocketBase `v0.37.4` / PocketBun `0.37.4-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_config.yml`, and `CHANGELOG.md`.
-- [x] (2026-04-27 08:58Z) Synced `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.37.4`, then reran `bun run upstream:audit` and confirmed only the intentional `plugins/ghupdate/*` gaps remain.
-- [x] (2026-04-27 09:05Z) Audited the upstream `v0.37.3..v0.37.4` source delta and ported the observable auth/security/provider/runtime changes: failed password auth timing hardening, OTP/MFA/external-auth cleanup hooks, OAuth2 pre-hijacking protections, MFA default duration, JSVM app type surface, and Bitbucket/GitHub/GitLab/Gitea-Forgejo provider mappings.
-- [x] (2026-04-27 09:05Z) Added or adjusted focused regression tests for OTP/MFA/external-auth cleanup, OAuth2 link takeover prevention, verification/password-reset/email-change cleanup, provider email verification handling, and migration-template MFA defaults.
-- [x] (2026-04-27 09:12Z) Ran the required validation gate successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
-
-### Milestone 21 - PocketBase v0.38.0 upgrade
-
-- [x] (2026-05-09 16:20Z) Confirmed the upstream `v0.37.5` and `v0.38.0` releases from published release notes and chose a release-by-release porting path so the patch-release fixes stayed isolated from the larger minor-release runtime changes.
-- [x] (2026-05-09 16:37Z) Synced the upstream checkout first to `v0.37.5`, ported the duplicate expand id handling and email-change confirmation validation order/error changes, and added focused regressions for both before moving on to `v0.38.0`.
-- [x] (2026-05-09 16:58Z) Synced `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.38.0`, bumped `pocketbase_tag.txt`, `package.json`, and docs metadata to `0.38.0-pocketbun.0`, and ported the runtime deltas: superuser IP/CIDR allowlists, rate-limit excluded IP/CIDR settings, local notify watcher state reloads, Office document content types, default CSP `frame-ancestors`, JWK non-empty-alg matching, backup exclusions, and `superuser ips` CLI support.
-- [x] (2026-05-09 17:00Z) Refreshed JSVM generated types, vendored Admin UI assets, and the generated docs snapshot pinned by `pocketbase_site_ref.txt`; updated the deterministic docs patcher so the generated reference page does not duplicate the PocketBun migration guidance when upstream prose changes.
-- [x] (2026-05-09 17:04Z) Ran `bun run upstream:audit` and confirmed only the intentional `plugins/ghupdate/*` gaps remain, then reran the required validation gate successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
-
-### Milestone 22 - PocketBase v0.38.2 upgrade
-
-- [x] (2026-05-22 05:10Z) Confirmed the upstream `v0.38.2` release from the official GitHub release metadata. The release adds realtime connection max-lifetime handling, extra realtime connected-user IP checks, an Admin UI records-list pagination fix, and Go dependency security updates.
-- [x] (2026-05-22 05:10Z) Bumped compatibility metadata to PocketBase `v0.38.2` / PocketBun `0.38.2-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, `docs/_data/pocketbun.yml`, and `CHANGELOG.md`.
-- [x] (2026-05-22 05:14Z) Synced `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist` to upstream `v0.38.2`, then audited `v0.38.1..v0.38.2` with the GitHub compare API. Runtime changes were limited to realtime connect/subscription handling, OAuth2 realtime redirect IP protection, and generated JSVM type comments; the remaining changed files were Admin UI assets/changelog/dependency metadata.
-- [x] (2026-05-22 05:24Z) Ported the realtime runtime deltas in `src/apis/realtime.ts`, `src/apis/record_auth_with_oauth2_redirect.ts`, `src/core/events.ts`, and `src/plugins/jsvm/internal/types/generated/types.d.ts`.
-- [x] (2026-05-22 05:24Z) Added focused regression coverage for storing the connected realtime client IP, enforcing the IP check during subscription updates, closing realtime streams on `MaxTimeout`, and rejecting OAuth2 realtime redirects completed from a different IP.
-- [x] (2026-05-22 05:35Z) Ran `bun run upstream:audit`, `bun run format:fix`, `bun run check:versions`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`, and `bun run docs:check` successfully. The upstream audit still reports only the intentional `plugins/ghupdate/*` mapping gap.
-
-### Milestone 23 - PocketBase v0.39.0 upgrade
-
-- [x] (2026-05-29 08:46Z) Confirmed the upstream `v0.39.0` release from the official GitHub release API. The release adds an Admin UI SQL console under Settings > Debug, automated-backup error email alerts for superusers, logs/records list UI improvements, registered `oidc2` and `oidc3` option fields, default email template text updates, and dependency churn.
-- [x] (2026-05-29 08:46Z) Bumped compatibility metadata to PocketBase `v0.39.0` / PocketBun `0.39.0-pocketbun.0` in `pocketbase_tag.txt`, `package.json`, docs metadata, and `CHANGELOG.md`.
-- [x] (2026-05-29 08:49Z) Ran `bun run upstream:sync` to refresh `.upstream/pocketbase` and `vendor/pocketbase-admin-ui/dist`, then audited the `v0.38.2..v0.39.0` source delta for runtime/API/JSVM changes that need TypeScript ports.
-- [x] (2026-05-29 08:58Z) Ported required runtime changes and focused regression tests, keeping behavior compatible with upstream PocketBase.
-- [x] (2026-05-29 09:07Z) Refreshed generated artifacts/docs and reran the required validation gate before review.
+- [x] (2026-06-11T16:40:24Z) Removed the interrupted quick transaction-proxy patch so this work starts from a clean tree.
+- [x] (2026-06-11T16:40:24Z) Replaced the old broad porting ExecPlan with this focused plan.
+- [x] (2026-06-11T16:40:24Z) Audited generated JSVM declarations against current runtime/core lowercase methods and identified the dangerous semantic collisions: app lookup helpers and record raw `get`/`getBool`.
+- [x] (2026-06-11T16:40:24Z) Renamed internal/private core helpers that collide with JSVM public app method names, updated internal call sites, and ran `bun run typecheck` successfully.
+- [x] (2026-06-11T16:40:24Z) Added lowercase public JSVM-compatible app/record aliases for the collision-prone names after the internal helpers were renamed.
+- [x] (2026-06-11T16:40:24Z) Added regression tests for lowercase app, record, and DateTime access in `pb_hooks`-style code, including transaction callback `txApp`.
+- [x] (2026-06-11T16:40:24Z) Ran the required validation gate: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
 
 ## Surprises & Discoveries
 
-- Observation: The `v0.39.0` runtime surface is small but includes a new superuser-only Admin UI SQL execution API, not only vendored UI churn.
-  Evidence: the upstream compare adds `apis/sql.go` / `apis/sql_test.go` and wires `/api/sql` from `apis/base.go`; PocketBun now has `src/apis/sql.ts` and `src/apis/sql.test.ts` covering auth, validation, write rollback, row limits, and multi-statement read/write behavior.
-- Observation: Bun SQLite's preferred `run(...)` API handles multi-statement writes, but `query(...)` returns the first result for multi-statement reads while upstream returns the last.
-  Evidence: the TypeScript port uses `db.run(...)` for write SQL inside the existing transaction wrapper and splits read SQL outside strings/comments so previous read statements execute for side effects and the response uses the last statement's result.
-- Observation: Refreshing generated docs for `v0.39.0` exposed another docs patch idempotence edge around PocketBun-specific thumbnail and migration notes.
-  Evidence: repeated `bun run docs:patch` initially duplicated notes in `docs/users/extend.md` and `docs/users/reference.md`; `scripts/docs/apply_pocketbun_patches.ts` now normalizes existing PocketBase/PocketBun variants, and a rerun reports `Applied deterministic PocketBun docs patches (0/5 files changed)`.
-- Observation: The `v0.38.2` runtime delta is security-sensitive but localized to realtime client lifecycle and OAuth2 realtime redirect handoff.
-  Evidence: `gh api repos/pocketbase/pocketbase/compare/v0.38.1...v0.38.2 --jq '.files[] | [.status, .filename] | @tsv'` reported runtime changes only in `apis/realtime.go`, `apis/record_auth_with_oauth2_redirect.go`, `core/events.go`, and their tests/types, while the rest was Admin UI and Go dependency metadata.
-- Observation: PocketBun's Bun-specific SSE keepalive loop needed an explicit max-lifetime timer in addition to the existing idle timer to match upstream `RealtimeConnectRequestEvent.MaxTimeout`.
-  Evidence: the new `realtime connect > max timeout` regression sets `event.MaxTimeout = 20` and now observes the stream closing and the subscription client unregistering without relying on request abort.
-- Observation: The two-release upgrade was better handled as a release-by-release port even though the final package target is `v0.38.0`.
-  Evidence: `v0.37.5` changed only a few compatibility-sensitive runtime behaviors, while `v0.38.0` added new settings/API/CLI/runtime notification surfaces. Porting `v0.37.5` first produced focused regressions for duplicate expand ids and email-change confirmation before the broader settings and Admin UI churn landed.
-- Observation: The new notify watcher affects the test harness lifecycle, not just production runtime behavior.
-  Evidence: registering the watcher on every bootstrapped `BaseApp` opens an `fs.watch` handle; `src/tests/app.ts` now triggers `OnTerminate` during cleanup so watchers are closed before temp directories are removed and the test process can exit cleanly.
-- Observation: The generated docs patcher needed a more tolerant migration-note replacement after refreshing the upstream site snapshot.
-  Evidence: `bun run docs:rebuild:full` initially produced a duplicate `app.forMigrations()` paragraph in `docs/users/reference.md`; widening the patcher to recognize line-wrapped generated prose fixed the output and `bun run docs:check` passed.
-- Observation: The `v0.37.4` release is small but security-sensitive; the key observable server deltas are not limited to the OAuth2 endpoint itself.
-  Evidence: the upstream compare changes auth hooks and tests around OTP deletion, MFA deletion, verified-upgrade external-auth deletion, password reset verification, email-change/verification confirmations, and OAuth2 account linking, so PocketBun needed core hook/query updates plus API test updates rather than an endpoint-only patch.
-- Observation: PocketBun did not need a production SMTP IPv6 formatting change for this release.
-  Evidence: upstream fixed string host:port assembly, while PocketBun's SMTP client already passes `{ host, port }` into `net.createConnection(...)` and does not concatenate the address for dialing.
-- Observation: The upstream `ghupdate.BaseURL` change remains outside PocketBun's runtime surface.
-  Evidence: `bun run upstream:audit` still reports only `plugins/ghupdate/*` as missing, matching the documented intentional gap because PocketBun does not ship PocketBase's self-update command.
-- Observation: The new OTP cleanup hook has to capture the original token key before `e.Next()` in PocketBun.
-  Evidence: a focused regression for token-key changes initially failed because PocketBun's save path updates `Original()` during post-scan; capturing `oldTokenKey` before the downstream update mirrors the existing MFA password-hash deviation and makes the cleanup observable.
-- Observation: The only regression from the guard sweep was a local test that explicitly asserted the removed `BaseApp.db()` / `auxDb()` bootstrap throw instead of observable bootstrap state.
-  Evidence: `src/core/base.test.ts` failed at `expect(hasDb(() => app.db())).toBe(false)` after the guard removal because `db()` now mirrors upstream by returning the current field reference; updating `hasDb(...)` to check for a non-null builder restored the intended assertion and the full suite passed.
-- Observation: The upstream `v0.37.3` compare window is UI-only again; the release does not touch PocketBase runtime, API, or JSVM source files beyond the vendored UI bundle, TinyMCE skin assets, and changelog text.
-  Evidence: `gh api repos/pocketbase/pocketbase/compare/v0.37.2...v0.37.3 --jq '.files[] | [.status, .filename] | @tsv'` returned only `CHANGELOG.md`, `ui/.env`, `ui/dist/*`, `ui/public/libs/tinymce/skins/ui/oxide/skin.min.css`, and `ui/src/*` paths.
-- Observation: The upstream `v0.37.2` compare window is genuinely UI-only; the release does not touch PocketBase runtime, API, or JSVM source files beyond the vendored UI bundle and changelog text.
-  Evidence: `gh api repos/pocketbase/pocketbase/compare/v0.37.1...v0.37.2 --jq '.files[] | [.status, .filename] | @tsv'` returned only `CHANGELOG.md`, `ui/.env`, `ui/dist/*`, and `ui/src/*` paths.
-- Observation: Running the docs rebuild pipeline against the latest `pocketbase/site` snapshot during this release would have regressed PocketBun-specific guidance in generated docs, because several existing patch-script replacements no longer matched the changed upstream prose.
-  Evidence: the regenerated diffs for `docs/users/extend.md`, `docs/users/introduction.md`, and `docs/users/reference.md` dropped PocketBun-specific notes such as `.pb.ts` support, async helper notes, CSRF guidance, and direct-SQL guidance until those files were restored.
-- Observation: `Bun.Glob.scan({ onlyFiles: false })` is useful for listing both files and directories, but its iteration order is not the same as Go's depth-first lexical `filepath.WalkDir(...)` traversal.
-  Evidence: local Bun `1.3.12` probe on `2026-04-12` over `a/`, `a/b/`, and `root.txt` returned `["a", "root.txt", "a/one.txt", "a/b", "a/b/two.txt"]`, while Go-compatible walk order for PocketBun needs `root -> a -> a/... -> root.txt`.
-- Observation: Bun `v1.3.12` ships the in-process `Bun.cron(expr, callback)` scheduler PocketBun needs, but Bun's type packages in this repo do not declare it yet and the runtime only schedules in UTC.
-  Evidence: local Bun `1.3.12` probes on `2026-04-12` show `typeof Bun.cron === "function"` with handle methods `stop/ref/unref`, successful registration for `* * * * *`, `@hourly`, `0 9 * * MON-FRI`, and `0 0 * * 7`, while `node_modules/bun-types/bun.d.ts` contains no `cron` declaration and the Bun `v1.3.12` blog explicitly documents the callback scheduler as UTC-only.
-- Observation: PocketBun already handled the upstream SMTP password clear-persistence bug correctly because settings persistence serializes `settings.toRaw()` directly instead of reusing the redacted response JSON path.
-  Evidence: `src/core/base.ts` still writes `JSON.stringify(settings.toRaw())`, and the new `src/apis/settings.test.ts` regression now verifies that PATCH `/api/settings` persists `"smtp.password"`, `"s3.secret"`, and `"backups.s3.secret"` while still redacting them from the API response.
-- Observation: The local sandbox cannot rely on public internet access for avatar-download success scenarios, so the new OAuth2 avatar safety coverage had to be split between a real loopback-blocked API scenario and a stubbed helper success test.
-  Evidence: `src/apis/record_auth_with_oauth2.test.ts` now keeps the real local `127.0.0.1` avatar server and asserts the file-field mapping stays empty, while the exported `safeFileFromURL(...)` helper is covered directly with stubbed public-IP lookup/fetch inputs.
-- Observation: The upstream `v0.36.8` cached-collection OAuth2 client-secret bug does not reproduce in PocketBun because `serializeOAuth2(...)` already maps providers into new plain objects instead of mutating the stored provider configs.
-  Evidence: the targeted regression `CollectionSerializeNotModifyingCachedCollection` in `src/core/collection_model.test.ts` passes after calling `app.FindCachedCollectionByNameOrId("users")`, assigning non-empty token/provider secrets, and verifying `collection.MarshalJSON()` redacts the output without changing the cached model values.
-- Observation: Bun `1.3.11` fixes the small multipart null-byte corruption bug, but the global `Bun.serve` `idleTimeout` cap is still unchanged.
-  Evidence: local repro on `2026-03-19` with Bun `1.3.11` preserved multipart bytes `[31,139,8,0]` exactly via `request.formData()`, while a separate `Bun.serve({ idleTimeout: 300, ... })` repro still threw `TypeError [ERR_INVALID_ARG_TYPE]: Bun.serve expects idleTimeout to be 255 or less`.
-- Observation: PocketBun did not need inline SQL quoting for table-info helpers; Bun `1.3.11` cleanly supports the parameterized table-valued `pragma_table_info(?)` form.
-  Evidence: local repro `db.query("select * from pragma_table_info(?)").all("demo")` on Bun `1.3.11` returned the expected schema rows, and the new quoted-table regression in `src/core/db_table.test.ts` passes with `tableName === "we'ird"`.
-- Observation: The large multi-copy upload RSS spikes were caused by PocketBun's own multipart/file-materialization path, not just Bun's request-body limit, and a temp-file-backed parser removes that pathological growth.
-  Evidence: before the refactor, fresh probe runs peaked at about `667.2 MiB` RSS for a `64 MiB` upload and `1125.7 MiB` for a `112 MiB` upload; after replacing `request.clone()` + `arrayBuffer()` + `NewFileFromBytes(...)` with streaming temp-file spooling, the same probe reports peaks of about `233.1 MiB` and `262.1 MiB` respectively.
-- Observation: Raising Bun's request-body cap was necessary to expose PocketBun's real large-upload behavior, but it was not sufficient by itself; the multipart pipeline had to stop materializing extra full-file copies to make large uploads viable.
-  Evidence: prior to the serve change, `scripts/upload_memory_probe.ts` returned HTTP 413 for `128 MiB` and `256 MiB`; after `src/apis/serve.ts` began passing a `4 GiB` `maxRequestBodySize` and the upload path switched to temp-file-backed handling, `256 MiB` and `512 MiB` uploads both returned HTTP 200 with peak RSS deltas of about `+238.8 MiB` and `+281.9 MiB`.
-- Observation: Upstream `v0.36.7` rate limiting uses a fixed-window counter, so tests that only asserted second-level expiry behavior were too weak to distinguish it from the earlier sliding-ish PocketBun behavior.
-  Evidence: `src/apis/middlewares_rate_limit.test.ts` now mocks `Date.now()` directly and asserts that requests just after a new window boundary are accepted, which fails under the old implementation and passes with the ported upstream logic.
-- Observation: Upstream PocketBase `v0.36.6` now includes the global JSVM `unmarshal(...)` declaration in the generated ambient types, so the local PocketBun docs note/workaround from the earlier compatibility release became unnecessary.
-  Evidence: `.upstream/pocketbase/plugins/jsvm/internal/types/generated/types.d.ts` now declares `unmarshal(data: any, dst: any): void`, and PocketBun now mirrors that upstream declaration in `src/plugins/jsvm/internal/types/generated/types.d.ts`.
-- Observation: The `v0.36.6` list-rule join fix is not just cosmetic; without the extra `id='' || (...)` guard, OR-ed client-side filters against missing relations evaluate too strictly and hide rows that upstream now returns.
-  Evidence: upstream `core/record_field_resolver.go` now builds `id='' || (\nRULE\n)` for list-rule join filters, and the matching regression expectations in `src/core/record_field_resolver.test.ts` now include the `id='' OR ...` clause.
-- Observation: View field inference needs to distinguish integer-only numeric expressions from general numbers to match the new upstream schema generation behavior.
-  Evidence: `src/core/view.test.ts` now includes `CreateViewFieldsWithNumberOnlyInt`, which expects `OnlyInt=true` for `count(...)`, `cast(... as int)`, and `cast(... as integer)`, but not for `total(...)`, `real`, `decimal`, or `numeric`.
-- Observation: Four non-DBX runtime compatibility shims in `src/internal/compat/` had no dedicated direct tests, despite being used across many auth/request/validation paths.
-  Evidence: coverage scan found missing direct test files for `cast.ts`, `request_body.ts`, `slog.ts`, and `validation.ts`, while `request_form_data.ts` already had dedicated tests.
-- Observation: The `v0.36.4` docs pipeline run failed on the generated docs parity gate until `docs/_config.yml` was bumped to the new package version.
-  Evidence: `bun run docs:rebuild:full` failed in `docs:check` with `docs/_config.yml has '0.36.3-pocketbun.0' but package.json has '0.36.4-pocketbun.0'`; updating `pocketbun_version` and rerunning `bun run docs:check` passed.
-- Observation: Upstream now accepts `Authorization: Bearer` prefixes case-insensitively, and its API test harness trims header values before request execution.
-  Evidence: Upstream `apis/middlewares.go` switched to case-insensitive `Bearer ` matching and `tests/api.go` now uses `strings.TrimSpace(v)`; PocketBun mirrored both in `src/apis/middlewares.ts` and `src/tests/api.ts`, with added regression coverage in `src/apis/middlewares.test.ts`.
-- Observation: The upstream mapping audit still reports missing `plugins/ghupdate` source and test files in PocketBun by design.
-  Evidence: `bun run upstream:audit` reports missing `plugins/ghupdate/release.go`, `plugins/ghupdate/ghupdate.go`, `plugins/ghupdate/release_test.go`, and `plugins/ghupdate/ghupdate_test.go`, and README documents `update` command removal for package-manager upgrades.
-- Observation: Mail sender parity gap is now closed with real send implementations (sendmail exec path and SMTP protocol path), including hooks and send-path regression coverage.
-  Evidence: `src/tools/mailer/sendmail.ts` now resolves/invokes a sendmail executable and serializes RFC-style headers/body, `src/tools/mailer/smtp.ts` now performs SMTP connect/auth/send/quit with MIME message assembly, and tests `src/tools/mailer/mailer.test.ts` + `src/tools/mailer/smtp.test.ts` cover observable payload/auth behavior.
-- Observation: Template and regex helper parity debt from Milestone 8 is now reduced to documented intentional scope limits rather than untracked implementation gaps.
-  Evidence: `src/tools/template/renderer.ts` now supports function calls/literals/pipeline args/template includes in internal mode, `src/tools/security/random_by_regex.ts` now supports non-capturing groups and inverse/common escape classes, and README documents remaining intentional scope constraints once.
-- Observation: `extractNestedVal` had drifted from upstream behavior by missing `JSONRaw`/map-extractor traversal and by accepting non-integer array indexes (`"1a"`), which could silently return incorrect `@request.*` rule values.
-  Evidence: `src/core/record_field_resolver_runner.ts` now adds explicit `JSONRaw` parsing, `AsMap`/`asMap` extraction, own-key lookups, and strict `^\d+$` array index validation, with regression tests in `src/core/record_field_resolver.test.ts`.
-- Observation: `collection validate > scenarios` can exceed Bun’s default 30s per-test timeout on Windows CI because it runs a large scenario matrix in one `it` and creates/tears down a fresh app for each scenario.
-  Evidence: GitHub Actions run `21947420598` (job `63388614447`) failed with `(fail) collection validate > scenarios [30078.00ms]` and no assertion mismatch, only timeout.
-- Observation: Cross-scenario factor spread stayed wide (`~0.17x..4.36x` PocketBun/PocketBase), but a 3x/3x run set with per-scenario means showed PocketBun faster on most scenarios in the current Hetzner setup.
-  Evidence: paired upstream benchmark summaries on 2026-02-08 show 132/150 scenarios with PocketBun lower `Completed` time, despite a few strong PocketBase-favoring create outliers.
-- Observation: `net/http` in upstream PocketBase parses URL once and reuses `req.URL`, while our Bun path was reparsing with `new URL(req.url)` in both router and event-level helpers.
-  Evidence: `.upstream/pocketbase/tools/router/router.go` passes `*http.Request` through the event factory, and `.upstream/pocketbase/core/event_request.go` reads `e.Request.URL.Query()` directly.
-- Observation: the advanced example bootstrapped `BaseApp` before JSVM registration, so JSVM bootstrap hook work (like types refresh) could be skipped in that example flow.
-  Evidence: `examples/advanced/main.ts` called `app.bootstrap()` before `RegisterJSVM(...)`; this was changed to register first and use `serveAsync(...)` to bootstrap.
-- Observation: Provider `skipTotal` still built/updated count SQL strings even though totals were disabled; this was avoidable CPU work on the hot path.
-  Evidence: `src/tools/search/provider.ts` built `countSql` and ran `buildCountQuery(...)` before the `skipTotal` branch.
-- Observation: Reusing parsed `URLSearchParams` and skipping count-query construction moved `records_list_skip_total` to near parity in the latest run.
-  Evidence: logs-disabled run at concurrency=32/duration=15000ms: PocketBun `records_list_skip_total` ~1.77ms / 18,078 rps vs PocketBase ~1.78ms / 17,992 rps.
-- Observation: Router matching was still paying avoidable allocation costs (candidate slice building and params map creation for static routes).
-  Evidence: after iterating route buckets directly and avoiding params-map allocation for static matches, profile `router.match` average improved from ~0.0029ms to ~0.0026ms.
-- Observation: Event response-path cleanup (cached JSON `fields` lookup and non-exception status handling) preserved behavior but didn’t materially reduce JSON serialization cost.
-  Evidence: `src/tools/router/event.test.ts` still passes non-standard status scenarios (123/234), while profile `event.json` remained ~0.0038ms avg before/after.
-- Observation: Some non-obvious perf deviations from the 2026-02-05..2026-02-06 optimization window were not explicitly marked and could be accidentally dropped during upstream syncs.
-  Evidence: retro audit of commits since 2026-02-05 identified missing markers in router/event/hook/request/provider/base hot-path changes; inline `PocketBun perf deviation` comments were added.
-- Observation: `OnSettingsReload` logger middleware assumed synchronous downstream handlers and would short-circuit cleanup behavior when downstream returned a Promise.
-  Evidence: the new async settings reload test initially failed (`asyncHookDone` remained false) because the logger hook returned early on Promise from `event.Next()`; switching it to Promise chaining restored awaited behavior.
-- Observation: `serveAsync` previously shared the sync `buildServeHandler` initialization path, so async `OnServe` hooks were effectively unsupported despite an async serve entrypoint.
-  Evidence: adding a dedicated async `OnServe` test (`src/apis/serve_installer.test.ts`) required splitting serve startup into sync/async builder paths and preserving a sync-only error path for `buildServeHandler`.
-- Observation: `System.UploadFile` used a synchronous reader path even in async runtime flow when given `NewFileFromPath(...)` files, which could block on local disk reads.
-  Evidence: `src/tools/filesystem/filesystem.ts` now detects `PathReader` and uses `readFile(...)`, and the new regression test (`upload file prefers async disk reads for path-backed readers`) fails if sync `Open()` is invoked.
-- Observation: JSVM async HTTP client sends were still using sync multipart file reads, including disk-backed hook files, which can block the event loop under async hook load.
-  Evidence: `src/plugins/jsvm/form_data.ts` now provides `toMultipartAsync()` with a `PathReader` async fast path (`readFile(...)`), `$http.sendAsync` uses it, and the regression test (`toMultipartAsync prefers async disk reads for path-backed readers`) fails if sync `Open()` is called.
-- Observation: File-reader byte extraction logic had started diverging across modules, and batch multipart re-encoding still opened readers synchronously inside an async flow.
-  Evidence: `src/tools/filesystem/file.ts` now owns `ReadFileReaderBytes`/`ReadFileReaderBytesAsync`, and `src/tools/filesystem/filesystem.ts`, `src/plugins/jsvm/form_data.ts`, and `src/apis/batch.ts` now call the shared async helper; new tests in `src/tools/filesystem/file.test.ts` assert path-backed async reads bypass sync `Open()`.
-- Observation: Backup upload validation was async overall but still called the sync MIME validator, leaving a sync reader-open path inside an async request flow.
-  Evidence: `src/core/validators/file.ts` now provides `UploadedFileMimeTypeAsync` (using `ReadFileReaderBytesAsync`), `src/apis/backup_upload.ts` awaits it, and `src/core/validators/file.test.ts` now asserts path-backed async MIME validation succeeds even when `PathReader.Open` is forced to throw.
-- Observation: No-join `updateQuery`/provider allocation trims reduced profiled internal list-handler CPU slightly, but end-to-end `records_list_skip_total` remained effectively unchanged in local benchmark runs.
-  Evidence: profile averages moved modestly (`records_list.query` ~0.0230ms -> ~0.0224ms; `records_list.total` ~0.0333ms -> ~0.0325ms), while benchmarked `records_list_skip_total` stayed around ~1.78–1.80ms.
-- Observation: Replacing non-profile hook closure-chain construction with a cursor-driven `next` reduced middleware-inclusive router cost and gave a small but consistent improvement on list-path throughput.
-  Evidence: latest profile sample shows `router.total` avg ~0.0221ms (down from ~0.0273ms in earlier samples), and logs-disabled 15s runs moved `records_list` to ~13,602 rps (from ~13,266) and `records_list_skip_total` to ~20,092 rps (from ~19,515).
-- Observation: The upstream `pocketbase/benchmarks` full-suite local run reports heavy error counts in large create scenarios at conc=500.
-  Evidence: in latest run, `create posts25k` and above showed thousands of failed requests (eg. `posts100k` create reported 29,697/50,000 errors), while auth/search/delete phases were mostly error-free.
-- Observation: The upstream suite’s JS route benchmark scenarios are currently failing almost entirely in local runs while Go-route scenarios pass.
-  Evidence: latest run reported JS route errors of 496/500, 497/500, and 500/500 for high/medium/no-concurrency cases, while all equivalent Go-route cases reported 0 errors.
-- Observation: Importing the full upstream benchmark schema directly in PocketBun failed because system collection rule updates (eg. `_externalAuths.deleteRule`) are blocked by collection validation.
-  Evidence: initial PocketBun-native runner attempts failed during `resetSchema` with `validation_collection_system_rule_change` for `_externalAuths`.
-- Observation: The PocketBun-native full benchmark run removed the earlier create/JS-route failure pattern, but surfaced a new JS-hook-only failure.
-  Evidence: in `bun run bench:upstream:pocketbun`, create/search/delete and all custom route scenarios completed with `Errors: 0`, while `JS OnRecordBeforeUpdateRequest hook handler` reported `Errors: 100` and the Go hook variant reported `Errors: 0`.
-- Observation: JSON request binding via `request.clone().json()` had a disproportionately large cost on write-heavy request paths.
-  Evidence: create-probe profiling before/after the direct JSON bind path showed `request_info.body` ~0.126ms -> ~0.012ms and `record_create.total` ~0.333ms -> ~0.195ms.
-- Observation: Warmup size materially changes perceived short-scenario create latency and narrows apparent PocketBun/PocketBase gaps.
-  Evidence: organizations probe with warmup=0 measured roughly PocketBun ~11–13ms vs PocketBase ~4–6ms, while warmup=100 measured ~6.6–7.5ms vs ~3.2–4.0ms.
-- Observation: With the current create-path optimizations, the largest historical create deltas are no longer in high-concurrency user/posts probes.
-  Evidence: `probe:create-users-upstream` measured PocketBun ~1.69–1.71s vs PocketBase ~3.50–3.74s, and `probe:create-errors` (posts25k, 12.5k req, conc=500) measured PocketBun ~1089ms vs PocketBase ~1027ms, both at zero errors.
-- Observation: The PocketBun-native full upstream-port benchmark still had significant requester-side overhead in long create runs, even after server-side create-path improvements.
-  Evidence: switching `scripts/bench_upstream_pocketbun/request.ts` from per-request `fetch` to a shared keep-alive transport reduced full `run=create` users/posts timings by multiple seconds while keeping error counts at zero (eg. users no-rule `~17.9s -> ~1.79s`, posts100k no-rule `~12.3s -> ~6.30s`).
-- Observation: package.json version is 0.0.0 but pocketbase_tag.txt is v0.36.1, so SemVer compatibility is not yet encoded.
-  Evidence: package.json and pocketbase_tag.txt in the repo root.
-- Observation: vendor/pocketbase-admin-ui/dist exists but there is no adjacent license file in vendor/pocketbase-admin-ui/.
-  Evidence: vendor/pocketbase-admin-ui initially contained only dist/; added vendor/pocketbase-admin-ui/LICENSE.md.
-- Observation: binding to a local TCP port from tests failed in the sandbox without escalation.
-  Evidence: bun test initially failed with EPERM on listen; with escalated permissions, TCP-based tests pass.
-- Observation: upstream test tokens map to auth collections stored in the seeded test data database.
-  Evidence: regular user token claims collectionId _pb_users_auth_ (users table), superuser token claims pbc_3142635823 (_superusers table).
-- Observation: legacy settings migration expects AES-256-GCM decryption of encrypted params values.
-  Evidence: upstream migration attempts to decrypt the old settings value before JSON decode.
-- Observation: bun:sqlite does not accept PocketBase/dbx-style double-square-bracket identifier quoting (`[[name]]`).
-  Evidence: executing `select [[name]] from t` in bun:sqlite raises "unrecognized token: ]", while `[name]` works.
-- Observation: Bun ships native S3 bindings that may be a better long-term fit than a Go-style S3 client port for performance and integration.
-  Evidence: Bun runtime capabilities (to be evaluated alongside the current s3blob driver).
-- Observation: dbx placeholder rewrites should not touch SQL comments to avoid altering commented-out fragments.
-  Evidence: added dbx quoting tests that preserve `[[...]]`/`{{...}}` inside `--` and `/* */` comments.
-- Observation: record validation order must match upstream so hook counters and auth flow tests behave as expected.
-  Evidence: upstream auth tests expect hook counters to reflect validation failures, which required validation to run before model execute hooks in BaseApp.
-- Observation: collection model validations were not firing OnCollectionValidate until Save used App.Validate for collections.
-  Evidence: collection API tests reported OnCollectionValidate=0 while OnModelValidate was firing.
-- Observation: field name validation errors in TS differed from upstream ozzo-validation codes.
-  Evidence: collection create/update tests expected validation_not_in_invalid/validation_match_invalid but received validation_invalid_field_name.
-- Observation: picker field selection must stop recursive pruning once a field is fully matched, and excluded HTML tag contents must be ignored.
-  Evidence: upstream picker tests failed until exact field matches skipped recursion and excerpt stripping skipped script/style contents.
-- Observation: expanded records require enrich hooks even for superusers to match upstream counts.
-  Evidence: batch tests expecting OnRecordEnrich 5 vs. 2 when expanded records were not enriched for superusers.
-- Observation: Go’s archive/zip writer emits data descriptors and extended timestamp extra fields (UT), affecting byte-for-byte zip size expectations.
-  Evidence: archive create test expected 544 bytes; matching required UT extra + data descriptor and deflate best-speed semantics.
-- Observation: The repo has fewer TypeScript files than upstream Go files; a mapping scan shows 95 upstream .go files without direct TS counterparts (44 tests, 51 non-tests), with gaps in core/tools/plugins/apis.
-  Evidence: `rg --files -g '*.go' .upstream/pocketbase | wc -l` → 440 vs `rg --files -g '*.ts' src | wc -l` → 388; mapping scan reports 44 missing tests and 51 missing non-tests.
-- Observation: DateTime parsing treats numeric inputs as seconds even when provided as a float (eg. `1.0` → `1970-01-01 00:00:01.000Z`), matching cast.ToTime behavior.
-  Evidence: DateTime Scan test scenario for `1.0` expects `1970-01-01 00:00:01.000Z`.
-- Observation: Post-upgrade audit against v0.36.2 only reports missing ghupdate plugin files/tests, which are intentionally removed.
-  Evidence: `bun run upstream:audit` reported missing `plugins/ghupdate/*` only.
+- Observation: The broad audit found many lowercase `BaseApp` method names that also appear in generated JSVM declarations, but most are already intended public aliases with matching semantics, such as hook registration methods. The real dangerous app collisions were `findCollectionByNameOrId`, `findRecordById`, `findFirstRecordByFilter`, and `findAuthRecordByToken`.
+  Evidence: After the rename audit, those names remain only as public aliases; the nullable helpers are now named `findCollectionByNameOrIdOrNull`, `findRecordByIdOrNull`, `findFirstRecordByFilterOrNull`, and `findAuthRecordByTokenWithTypes`.
+
+- Observation: `Record.get` and `Record.getBool` existed as lowercase raw `#data` accessors even though generated JSVM declarations define `get` and `getBool` as normalized record methods. They now delegate to `Get` and `GetBool`; raw internal access is explicitly named `getRawDataValue` and `getRawDataBool`.
+  Evidence: `bun run typecheck` passed after the rename.
 
 ## Decision Log
 
-- Decision: Keep the new SQL API scoped to the upstream superuser route and preserve the upstream result JSON shape, while using Bun's non-deprecated SQLite APIs.
-  Rationale: Bun's `Database.exec(...)` is now deprecated in favor of `run(...)`, but the Admin UI SQL console needs upstream-compatible multi-statement behavior, transaction rollback, and last-result read semantics. `db.run(...)` preserves multi-statement write behavior, while read SQL is split only to select the last statement result that upstream returns.
-  Date/Author: 2026-05-29 / Codex
-- Decision: Leave the `plugins/ghupdate` mapping gap unchanged for the `v0.39.0` upgrade.
-  Rationale: `bun run upstream:audit` still reports only `plugins/ghupdate/*`, which is an intentional omission because PocketBun does not ship PocketBase's binary self-update command.
-  Date/Author: 2026-05-29 / Codex
-- Decision: Keep PocketBun's existing SSE comment keepalive behavior and add upstream's new max-lifetime timer alongside it.
-  Rationale: Bun's server idle-timeout cap still requires comment keepalives for long-lived SSE streams, while upstream `v0.38.2` separately limits total connection lifetime for resource cleanup. Combining both preserves PocketBase observable behavior without regressing Bun transport stability.
-  Date/Author: 2026-05-22 / Codex
-- Decision: Port the `v0.37.4` auth/security deltas directly, including verified-upgrade external-auth cleanup and OAuth2 pre-hijacking safeguards, instead of documenting a behavior difference.
-  Rationale: these changes are observable through auth results, hook event counts, token invalidation, and persisted external-auth records, and they close security-sensitive upstream behavior gaps. The TypeScript port keeps the same behavior while using PocketBun's async password and cleanup helpers where Bun semantics require it.
-  Date/Author: 2026-04-27 / Codex
-- Decision: Leave `plugins/ghupdate` unported for `v0.37.4` despite the upstream `BaseURL` testability change.
-  Rationale: PocketBun intentionally omits PocketBase's binary self-update command in favor of package-manager upgrades; carrying `ghupdate` solely for a non-exposed helper would create dead compatibility surface.
-  Date/Author: 2026-04-27 / Codex
-- Decision: Remove only invariant guards that are absent upstream and rely on PocketBun construction or ownership guarantees, while keeping request-boundary and service-boundary validation in place.
-  Rationale: The simplification goal is best served by deleting self-protection between tightly coupled internals such as `BaseApp.db()`, `BaseRecordProxy.ProxyRecord()`, lazy blob writer open/write, direct file upload plumbing, and S3 uploader multipart bookkeeping, without weakening real API/service edge validation where PocketBun still has to defend requests, hooks, or remote service responses.
-  Date/Author: 2026-04-23 / Codex
-- Decision: Keep the `v0.37.3` upgrade scoped to compatibility metadata, the vendored Admin UI refresh, and release-note/changelog updates; do not hunt for runtime deltas that are not present.
-  Rationale: the upstream compare and release notes show a UI-only patch, and `bun run upstream:audit` still reports only the already-intentional `plugins/ghupdate/*` mapping gaps after the sync. Expanding the change beyond the actual release surface would add churn without improving compatibility.
-  Date/Author: 2026-04-23 / Codex
-- Decision: Keep the `v0.37.2` upgrade scoped to metadata, vendored Admin UI assets, and the small `tools/router/buffer_with_file` file-mapping cleanup instead of hunting for non-existent runtime deltas.
-  Rationale: the upstream compare and release notes show no server/API/JSVM source changes in `v0.37.2`, so widening the patch beyond the actual release surface would only add churn and review risk.
-  Date/Author: 2026-04-20 / Codex
-- Decision: Treat upstream site docs as an explicit pinned input and keep PocketBun-only guidance in owned overlays or local reference sources.
-  Rationale: the prose docs input comes from `pocketbase/site`, not the PocketBase release repo/tag, so syncing `master` made docs drift hard to attribute and impossible to reproduce. Pinning `pocketbase_site_ref.txt`, layering high-divergence prose through heading-based overlays, and checking required PocketBun-only content lets release upgrades distinguish upstream prose changes from local reference drift cleanly.
-  Date/Author: 2026-04-20 / Codex
-- Decision: Use Bun `v1.3.12`'s `Bun.Glob` helpers for actual glob matching, but keep `walk(...)` and `walkDir(...)` on a small explicit traversal.
-  Rationale: `Bun.Glob.scan/scanSync` cleanly replaces PocketBun's hand-rolled pattern matcher and finally lets the documented JSVM filepath glob helpers behave like real APIs, but its mixed file/directory iteration order does not match Go's `filepath.Walk` / `WalkDir` depth-first lexical traversal, so explicit directory recursion is the smallest way to preserve the documented walk semantics.
-  Date/Author: 2026-04-12 / Codex
-- Decision: Move PocketBun's in-process cron scheduling fully to Bun `v1.3.12`'s native `Bun.cron(...)` callback API and fail fast for the older custom-interval and non-UTC-timezone knobs.
-  Rationale: The point of the migration is to delete PocketBun-owned scheduler machinery, not keep a second scheduler alive beside Bun's. Bun's callback scheduler only supports the standard cron cadence in UTC, so the smallest honest port is to rely on `Bun.cron(...)` directly and reject unsupported interval/timezone customizations instead of carrying fallback ticker code that undermines the simplification.
-  Date/Author: 2026-04-12 / Codex
-- Decision: Keep PocketBun's custom HTTP+SigV4 S3 adapter instead of switching to Bun's native S3 client for now.
-  Rationale: A 2026-04-12 spike against Bun `1.3.12` found that native S3 still lacks write-side user metadata support (`oven-sh/bun#17339`), readback of response headers / `x-amz-meta-*` values from `stat()` (`oven-sh/bun#19301`), and broader custom S3 header/query passthrough (`oven-sh/bun#16048`). PocketBun relies on those features for richer blob attributes and for persisting `metadataOriginalName` in S3 object metadata. The same spike also observed `client.write(dst, client.file(src))` issuing a GET+PUT instead of a native server-side copy-object request, so migrating would add compatibility glue rather than remove it.
-  Date/Author: 2026-04-12 / Codex
-- Decision: Do not replicate upstream's `SMTPConfig` JSON marshaler workaround in PocketBun; keep the existing settings persistence path and add regression coverage instead.
-  Rationale: PocketBun persists settings through `saveSettings(...)` and `toRaw()` rather than through the redacted response serializer, so the upstream Go struct-tag fix would add churn without changing runtime behavior. The API regression is sufficient to lock the already-correct behavior.
-  Date/Author: 2026-04-09 / Codex
-- Decision: Port the upstream `$apis.static(...)` `fs.FS` acceptance and generated type update as part of the `v0.36.9` bump even though the release notes only call out documentation.
-  Rationale: The compare shows an observable JSVM API widening in `plugins/jsvm/binds.go`, and PocketBun already models `fs.FS`-style values as `{ root: string }`, so accepting that shape keeps the documented hook API aligned with upstream at low cost.
-  Date/Author: 2026-04-09 / Codex
-- Decision: Implement OAuth2 avatar-download safety in JS with upfront DNS/IP validation plus manual redirect validation instead of trying to emulate Go's dial-time socket controls exactly.
-  Rationale: Bun/JS does not expose the same post-connect socket hook that upstream uses to guard against DNS rebinding, so the smallest practical compatibility port is to validate each resolved host and redirect target before fetch while documenting the runtime constraint inline.
-  Date/Author: 2026-04-09 / Codex
-- Decision: Do not port upstream's `Collection.MarshalJSON()` deep-copy change into `src/core/collection_model.ts`; add a direct cached-collection regression test instead.
-  Rationale: PocketBun's serializer was already structurally immune to the mutation bug because it builds fresh serialized provider records, so copying production logic that solves a Go slice-aliasing problem would add noise without changing behavior. The regression test is enough to lock parity and guard against future serializer refactors.
-  Date/Author: 2026-03-28 / Codex
-- Decision: Retire the JSVM sync-fetch retry loop and Windows async-only test detour, and move CI to Bun `1.3.11` in the same change.
-  Rationale: Bun `v1.3.11` explicitly includes the Windows subprocess pipe fix that maps to the original `Bun.spawnSync` symptom, so keeping retry/backoff logic in both runtime code and tests would preserve stale complexity and latency while continuing to test against the wrong Bun version.
-  Date/Author: 2026-03-19 / Codex
-- Decision: Replace the inline-quoted `pragma_table_info(...)` SQL in `src/core/db_table.ts` with the parameterized table-valued `pragma_table_info(?)` form.
-  Rationale: The issue we filed (`#27480`) was a docs/syntax gap, not a Bun runtime limitation; the parameterized select form works on Bun `1.3.11`, removes manual SQL quoting, and more accurately documents the real constraint (`PRAGMA table_info(?)` is invalid SQLite syntax).
-  Date/Author: 2026-03-19 / Codex
-- Decision: Treat Bun's default `128 MiB` request-body cap as part of the pre-upgrade baseline and measure successful uploads on fresh server processes just below that ceiling before touching the `v0.36.7` sync.
-  Rationale: PocketBun started `Bun.serve(...)` without overriding `maxRequestBodySize`, so larger uploads did not reach PocketBun's multipart/record-file pipeline at all; clean below-limit RSS measurements were needed to separate the Bun transport ceiling from PocketBun's own upload memory behavior.
-  Date/Author: 2026-03-17 / Codex
-- Decision: Fix PocketBun upload memory behavior by introducing a request-scoped streaming/temp-file-backed multipart parser and converting uploaded parts into filesystem files by path, with explicit request cleanup, instead of trying to shave copies off the existing `request.clone()` + `arrayBuffer()` path.
-  Rationale: The measured RSS deltas showed the old path was fundamentally buffering multiple full copies of the same upload; switching the representation to temp-file-backed uploaded parts removes the largest source of memory amplification while staying behavior-compatible for downstream PocketBun file handling.
-  Date/Author: 2026-03-17 / Codex
-- Decision: Raise PocketBun's default Bun `maxRequestBodySize` to `4 GiB` as part of the `v0.36.7` upload work.
-  Rationale: Keeping Bun's old default `128 MiB` cap would continue to reject large uploads before PocketBun's now-fixed upload path runs, which would make the memory improvement unobservable to users and keep PocketBun behind upstream on practical upload support.
-  Date/Author: 2026-03-17 / Codex
-- Decision: Port upstream `v0.36.7` rate limiting as a fixed-window counter and lock the behavior with mocked-time regression tests.
-  Rationale: The release delta is observable at request boundaries, and mocked time is the simplest way to make the distinction deterministic without introducing brittle sleep-based tests.
-  Date/Author: 2026-03-17 / Codex
-- Decision: For the `v0.36.6` upgrade, port the observable runtime deltas directly and retire the local JSVM `unmarshal(...)` typing-gap workaround instead of preserving a PocketBun-only docs divergence.
-  Rationale: Upstream now ships the ambient declaration, so keeping the older workaround note would document a difference that no longer exists; the remaining release delta is small and maps cleanly to existing PocketBun ports (`view`, `record_field_resolver`, `store`, `routine`, generated types, and admin UI assets).
-  Date/Author: 2026-03-07 / Codex
-- Decision: Scope the post-DBX shim hardening sweep to runtime compatibility shims under `src/internal/compat` (`cast`, `request_body`, `slog`, `validation`) and complete each with direct regression coverage.
-  Rationale: These are PocketBun-owned behavior bridges with no upstream source-of-truth tests and no direct local tests, so they represent the highest risk of hidden compatibility drift.
-  Date/Author: 2026-02-26 / Codex
-- Decision: For the `v0.36.4` upgrade, port the observable runtime/API deltas (case-insensitive auth header parsing, JSVM `$filesystem.s3`/`$filesystem.local`, and test-harness header trimming) while preserving existing PocketBun async filesystem helper extensions.
-  Rationale: This keeps behavior aligned with upstream where it is user-visible, avoids unnecessary churn in PocketBun-only async APIs, and keeps the release diff focused on compatibility-critical changes.
-  Date/Author: 2026-02-17 / Codex
-- Decision: Keep `plugins/ghupdate` intentionally out of scope for PocketBun while focusing Milestone 8 on runtime parity gaps that affect package users (mailer send paths and documented partial subsystems).
-  Rationale: PocketBun is distributed and upgraded through package managers; shipping a self-updating binary command is not part of the product model and is already documented as a known difference.
-  Date/Author: 2026-02-12 / Codex
-- Decision: Keep `SMTPClient.Send` async and update OTP send flow to await `Mailer.Send(...)` results explicitly.
-  Rationale: Bun/JS networking uses async socket I/O for SMTP, so parity requires real async send behavior while preserving upstream-visible outcomes (successful sends and propagated errors).
-  Date/Author: 2026-02-12 / Codex
-- Decision: Mirror upstream `extractNestedVal` traversal rules by adding `JSONRaw` + map-extractor handling and strict array index validation, and pin these cases in resolver tests.
-  Rationale: This removes subtle rule-evaluation drift in `@request.*` filters while keeping the broader resolver port mechanically aligned with upstream behavior.
-  Date/Author: 2026-02-12 / Codex
-- Decision: For the `collection validate` matrix test, increase the per-test timeout budget to 120s instead of splitting the scenario table into many smaller tests right now.
-  Rationale: This is a minimal, behavior-preserving stabilization for an existing Windows-only timeout flake and avoids a large mechanical test rewrite during the parity debt milestone.
-  Date/Author: 2026-02-12 / Codex
-- Decision: Pause active performance optimization work and move remaining items to deferred follow-ups unless new regressions or release-blocking gaps appear.
-  Rationale: after a long measured optimization pass and a fresh 3x/3x upstream benchmark comparison on Hetzner CCX13, current results are acceptable for now and effort is better spent on broader project priorities.
-  Date/Author: 2026-02-08 / Codex
-- (2026-02-04) Reversed the earlier "no CLI" decision: PocketBun now includes a CLI script compatible with the PocketBase binary to ease migration, so cmd/serve + migratecmd + pocketbase CLI tests are now in scope.
-- Decision: Reuse the router-parsed URL by extending router event factory options with `requestUrl` and threading it into `Event`/`RequestEvent`.
-  Rationale: This matches upstream’s single parsed-request URL model and removes duplicate `new URL(...)` allocations on hot request paths without changing behavior.
-  Date/Author: 2026-02-06 / Codex
-- Decision: Keep shipped examples async-first by using JSVM async registration and `serveAsync` instead of explicit sync bootstrap/serve calls.
-  Rationale: Examples are the primary user-facing entrypoint and should model non-blocking startup and correct hook registration order in PocketBun.
-  Date/Author: 2026-02-07 / Codex
-- Decision: Keep `ReloadSettings()` behavior-compatible and add `ReloadSettingsAsync()` as a PocketBun-only superset API, then update the built-in settings-reload logger hook to chain async downstream handlers.
-  Rationale: This preserves upstream sync semantics for existing call sites while making async startup paths truly async and preventing internal settings-reload hooks from dropping async work.
-  Date/Author: 2026-02-07 / Codex
-- Decision: Add a provider API that consumes pre-parsed `URLSearchParams` and bypass count-query construction when `skipTotal` is enabled.
-  Rationale: Request URLs are already parsed at router/event level; avoiding query-string reserialization/reparse and unused count SQL work reduces hot-path overhead while preserving upstream response semantics.
-  Date/Author: 2026-02-06 / Codex
-- Decision: Iterate router candidate buckets directly during matching and skip params allocation for static-route matches.
-  Rationale: This removes per-request temporary array/object churn on a hot path while preserving route scoring and compatibility behavior.
-  Date/Author: 2026-02-06 / Codex
-- Decision: Replace exception-driven response construction with a status-range branch in `Event.buildResponse`, while keeping fallback support for non-standard status codes.
-  Rationale: Avoiding `try/catch` on the normal response path reduces overhead and still matches upstream-compatible behavior validated by router event tests.
-  Date/Author: 2026-02-06 / Codex
-- Decision: Mark all non-obvious behavior-compatible performance deviations with short inline `PocketBun perf deviation` comments and keep them cross-referenced in this ExecPlan.
-  Rationale: This lowers the risk of accidentally removing important optimizations during future upstream merges while keeping compatibility intent explicit.
-  Date/Author: 2026-02-06 / Codex
-- Decision: Keep the no-join resolver/provider/hydration allocation reductions even without large benchmark delta because they are behavior-compatible, low-risk, and measurably reduce profiled handler CPU.
-  Rationale: The change set is small and upstream-compatible in observable behavior, and it trims hot-path allocations while we continue searching for larger wins.
-  Date/Author: 2026-02-06 / Codex
-- Decision: Keep the non-profile cursor-based `Hook.Trigger` runner as the default fast path.
-  Rationale: It preserves upstream-compatible hook ordering/`event.Next()` behavior but removes per-request closure-chain allocations in the default middleware path, producing measurable router/list throughput gains.
-  Date/Author: 2026-02-06 / Codex
-- Decision: Vendor and run the full upstream `pocketbase/benchmarks` suite via fixed wrapper commands before porting scenarios into PocketBun internals.
-  Rationale: This gives us a reproducible baseline and a richer workload matrix (create/auth/search/custom/delete) to identify optimization targets beyond our custom microbench harness while honoring the stable-command approval workflow.
-  Date/Author: 2026-02-06 / Codex
-- Decision: Keep the PocketBun-native benchmark runner schema sourced from the upstream benchmark file, but filter it to benchmark-required collections only.
-  Rationale: PocketBun currently rejects some system-collection rule updates in the upstream benchmark schema import path; filtering to the benchmark workload collections preserves scenario coverage and unblocks full-suite execution while we investigate full-system schema import parity separately.
-  Date/Author: 2026-02-06 / Codex
-- Decision: Use direct JSON request binding in `RequestEvent` (cache parsed body + rebuild `request`) instead of `request.clone().json()` on the hot request-info path.
-  Rationale: This preserves bind/read semantics for downstream handlers while removing a measurable request-body parse overhead in create/update flows.
-  Date/Author: 2026-02-07 / Codex
+- Decision: Rename internal/private helpers before adding or broadening public lowercase JSVM methods.
+  Rationale: Some current lowercase helpers, such as `BaseApp.findCollectionByNameOrId`, are internal nullable helpers, while JSVM's generated public method with the same name should have the upstream `FindCollectionByNameOrId` behavior. Renaming internals first prevents public aliases from accidentally preserving the wrong behavior.
+  Date/Author: 2026-06-11 / Codex
 
-- Decision: Structure the port as incremental, end-to-end slices that always end in runnable behavior with tests, starting with /api/health and static Admin UI.
-  Rationale: Early behavioral parity and tests reduce drift and make later ports safer.
-  Date/Author: 2026-01-30 / Codex
-- Decision: Prefer mechanical 1:1 ports of upstream files and architecture; avoid bespoke abstractions unless Bun/TS requires a shim.
-  Rationale: Keeping structure aligned with upstream maximizes compatibility and lowers long-term maintenance cost.
-  Date/Author: 2026-01-31 / Codex
-- Decision: Keep a 1:1 file mapping with upstream PocketBase wherever reasonable, but introduce src/internal/compat for Go-like primitives.
-  Rationale: This matches AGENTS.md guidance and keeps the codebase upstream-syncable.
-  Date/Author: 2026-01-30 / Codex
-- Decision: Use Bun built-ins (Bun.serve, bun:sqlite, WebCrypto) as defaults and only add dependencies when a direct Bun/Web API is insufficient.
-  Rationale: Bun-first approach is required and reduces maintenance.
-  Date/Author: 2026-01-30 / Codex
-- Decision: Clone upstream tests/data into a temporary directory for TCP-based tests.
-  Rationale: Matches PocketBase testing behavior and keeps seeded auth tokens valid without re-seeding logic.
-  Date/Author: 2026-01-30 / Codex
-- Decision: Use node:crypto HMAC verification for JWT parsing to keep auth verification synchronous and dependency-free.
-  Rationale: Bun supports node:crypto and it avoids adding a JWT dependency while preserving HS256 behavior.
-  Date/Author: 2026-01-30 / Codex
-- Decision: Implement a minimal migrations registry/runner that records applied files in _migrations without porting all migrations yet.
-  Rationale: It preserves migration history semantics and unblocks bootstrapping while we port the full migration set incrementally.
-  Date/Author: 2026-01-30 / Codex
-- Decision: Port the v0.23 migration chain using raw SQL/JSON manipulation instead of full model APIs.
-  Rationale: The full collection model/validation stack is not yet ported, but we still need to preserve upgrade behavior for pre-v0.23 databases.
-  Date/Author: 2026-01-30 / Codex
-- Decision: Implement a lightweight, collection-specific search parser (page/perPage/sort/filter) before porting the full search toolkit.
-  Rationale: It unlocks the collections list endpoint with upstream-like behavior while deferring the heavier fexpr-based filter engine port.
-  Date/Author: 2026-01-30 / Codex
-- Decision: Port the full search toolkit (inflector, filter parser, sort, provider) and switch collections list to use it.
-  Rationale: This aligns query parsing with upstream behavior and reduces future refactors as record endpoints come online.
-  Date/Author: 2026-01-30 / Codex
-- Decision: Use single-bracket identifier quoting (`[name]`) in search SQL instead of dbx-style `[[name]]`.
-  Rationale: bun:sqlite rejects the double-bracket syntax, and single brackets preserve SQLite-compatible quoting while keeping behavior aligned.
-  Date/Author: 2026-01-30 / Codex
-- Decision: Defer multi-match subquery handling in the search filter engine until record field resolvers are ported.
-  Rationale: collections list uses only simple fields, so it is safe to stub multi-match while we prioritize core CRUD and auth flows.
-  Date/Author: 2026-01-30 / Codex
-- Decision: Implement a dbx placeholder rewrite layer (`[[...]]`, `{{...}}`) and return search SQL generation to upstream `[[...]]` quoting.
-  Rationale: dbx-style placeholders are part of the PocketBase query surface and must be supported even though bun:sqlite only accepts single-bracket or quoted identifiers.
-  Date/Author: 2026-01-31 / Codex
-- Decision: Centralize dbx placeholder rewriting in a DbxDatabase wrapper and skip comment regions in the rewriter.
-  Rationale: applying the rewrite at the database boundary ensures coverage for all raw queries while preserving comment content.
-  Date/Author: 2026-01-31 / Codex
-- Decision: Provide an attach helper that monkey-patches an existing bun:sqlite Database instance with dbx placeholder rewriting.
-  Rationale: some callers may construct Database instances outside BaseApp, and we still need dbx placeholder compatibility without changing their construction flow.
-  Date/Author: 2026-01-31 / Codex
-- Decision: Gate record list/view behind superuser auth until list/view rule parsing and request-auth-aware filtering are ported.
-  Rationale: it preserves safety and admin compatibility while we implement the full record rule/resolver stack.
-  Date/Author: 2026-01-31 / Codex
-- Decision: Mirror default field values into new record data to emulate Go's `store.GetOk` fallback semantics for missing keys in JS objects.
-  Rationale: ensures `GetRaw` and validation see upstream-equivalent defaults even when JS objects omit keys.
-  Date/Author: 2026-01-31 / Codex
-- Decision: Use Sharp for thumbnail generation and expose CreateThumb as async in the Bun port.
-  Rationale: Bun-compatible image decoding/resizing libraries are async; Sharp provides the closest feature parity to the Go imaging stack.
-  Date/Author: 2026-01-31 / Codex
-- Decision: Land initial record write endpoints without hooks/forms/manage-access features while documenting the deviation.
-  Rationale: Enables incremental API progress and test coverage while larger hook/form infrastructure is still being ported.
-  Date/Author: 2026-01-31 / Codex
-- Decision: Implement a minimal collection save/delete path with basic validation and schema sync, deferring full collection options, view query handling, and single↔multiple field migrations.
-  Rationale: Unblocks collection CRUD endpoints and basic tests while the full collection model/options/hook stack is ported.
-  Date/Author: 2026-01-31 / Codex
-- Decision: Run record validation before OnModelCreateExecute/OnModelUpdateExecute to mirror upstream hook ordering during auth/record flows.
-  Rationale: Upstream tests (OAuth2 auth flows) rely on hook counters and side effects that only match when validation happens before model execute hooks.
-  Date/Author: 2026-02-01 / Codex
-- Decision: Apply picker semantics exactly as upstream, including short-circuiting recursive field pruning on exact matches and treating excluded tag contents as non-text in excerpts.
-  Rationale: Upstream picker tests enforce these behaviors and they affect public fields selection.
-  Date/Author: 2026-02-01 / Codex
-- Decision: Always run enrich hooks for expanded records regardless of auth role.
-  Rationale: Upstream expand flow enriches related records even for superusers, and hook counters depend on it.
-  Date/Author: 2026-02-01 / Codex
-- Decision: Emit zip entries with data descriptors and extended timestamp extras (UT) and use best-speed deflate semantics to match upstream archive output.
-  Rationale: Tests and behavior depend on the exact zip structure produced by Go’s archive/zip with flate.BestSpeed.
-  Date/Author: 2026-02-02 / Codex
-- Decision: Use App.Validate() inside collection saves so OnModelValidate/OnCollectionValidate fire consistently.
-  Rationale: Upstream hook counters expect validation hooks on both success and failure paths.
-  Date/Author: 2026-02-02 / Codex
-- Decision: Map field name validation errors to required/length/match/not-in codes to match ozzo-validation output.
-  Rationale: Upstream tests assert specific validation codes for reserved/system field names.
-  Date/Author: 2026-02-02 / Codex
-- Decision: Align JSONRaw/JSONMap/JSONArray/DateTime helpers with upstream Scan/Value/Marshal behavior.
-  Rationale: Upstream tools/types tests depend on Scan/Value/Marshal JSON behavior; matching them keeps dbx and type utility semantics in sync with PocketBase.
-  Date/Author: 2026-02-03 / Codex
-- Decision: Select AES-GCM algorithm based on key length (128/192/256) to match Go's aes.NewCipher behavior.
-  Rationale: Go accepts 16/24/32 byte keys; choosing the corresponding AES-GCM variant preserves compatibility for non-32-byte keys.
-  Date/Author: 2026-02-03 / Codex
-- Decision: Merge auth option updates instead of replacing defaults during collection updates/imports.
-  Rationale: Upstream binding merges partial option payloads; replacing caused missing identity fields and failed validations.
-  Date/Author: 2026-02-02 / Codex
-- Decision: Restore 1:1 file mapping by splitting merged TS modules into upstream-named files where feasible, and list all upstream source files in headers when a merge must remain.
-  Rationale: Closer structural parity reduces future sync/upgrade friction and clarifies provenance for merged ports.
-  Date/Author: 2026-02-03 / Codex
-- Decision: Order the next phase as CI + e2e tests first, then docs/examples, then the upgrade process + upgrade to v0.36.2, then a full port audit, then the advanced example.
-  Rationale: CI and e2e tests provide safety nets for the upgrade, docs/examples stay accurate after the version bump, and the audit should reflect the upgraded baseline before the advanced example is finalized.
-  Date/Author: 2026-02-04 / Codex
-- Decision: Base upgrades on release notes plus a tag-to-tag git diff from a temporary clone, while keeping the checked-out upstream snapshot free of .git to avoid IDE confusion.
-  Rationale: Release notes highlight intentional behavior changes, and a full diff captures unmentioned source/test changes; keeping .upstream clean avoids accidental IDE operations.
-  Date/Author: 2026-02-04 / Codex
-- Decision: Infer Store missing-key zero values from provided data or explicit zeroValue when available.
-  Rationale: Go maps return a type-specific zero value, which TypeScript cannot infer for empty stores.
-  Date/Author: 2026-02-02 / Codex
-- Decision: Convert Go regex inline flags and replacement syntax when porting inflector singularize rules to JS.
-  Rationale: JavaScript RegExp doesn't support Go's (?i) inline flags or ${1} replacement syntax.
-  Date/Author: 2026-02-02 / Codex
+- Decision: Keep uppercase methods as backward-compatible aliases after lowercase JSVM names are made available.
+  Rationale: PocketBun has already shipped releases where hook authors could use uppercase methods, so removing them would break existing users even though lowercase is the upstream PocketBase JSVM API.
+  Date/Author: 2026-06-11 / Codex
 
 ## Outcomes & Retrospective
 
-Milestone 23 is now complete. PocketBun targets PocketBase `v0.39.0`, the vendored Admin UI is refreshed to the upstream `v0.39.0` bundle, and the release's runtime deltas are ported with focused regression coverage. The upgrade adds the superuser SQL console endpoint, automated-backup failure alerts to superusers, the verification-confirm password-reset guard when password auth is disabled, updated default auth token durations, refreshed auth email template text, regenerated docs, and deterministic docs patcher fixes.
-
-Full validation passed on the final kept tree: `bun run docs:rebuild:full`, `bun run docs:check`, `bun run check:versions`, `bun run upstream:audit`, `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`. The upstream audit still reports only the intentional `plugins/ghupdate/*` mapping gap.
-
-Milestone 22 is now complete. PocketBun targets PocketBase `v0.38.2`, the vendored Admin UI is refreshed to the upstream `v0.38.2` bundle, and the release's realtime security/lifecycle deltas are ported with focused regression coverage. The upgrade adds the `RealtimeConnectRequestEvent.MaxTimeout` JSVM-facing field, default 30-minute realtime max-lifetime handling, connected-client IP storage, subscription update IP checks, and OAuth2 realtime redirect IP protection.
-
-Full validation passed on the final kept tree: `bun run docs:check`, `bun run check:versions`, `bun run upstream:audit`, `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
-
-Milestone 21 is now complete. PocketBun targets PocketBase `v0.38.0`, the vendored Admin UI is refreshed to the upstream `v0.38.0` bundle, and the release's runtime/configuration deltas are ported with focused regression coverage. The upgrade adds superuser IP/CIDR allowlists, rate-limit excluded IP/CIDR settings, local settings/collection notification reloads across app instances, Office document content types, the default CSP media-preview fix, the `superuser ips` CLI helper, JWK non-empty-alg matching, and the `v0.37.5` compatibility fixes for duplicate relation expand ids and email-change confirmation validation.
-
-Full validation passed on the final kept tree: `bun run docs:rebuild`, `bun run docs:check`, `bun run upstream:audit`, `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
-
-Milestone 20 is now complete. PocketBun targets PocketBase `v0.37.4`, the vendored Admin UI is refreshed to the upstream `v0.37.4` bundle, and the release's auth/security/provider deltas are ported with focused regression coverage. The upgrade adds the upstream OAuth2 pre-hijacking protections, clears stale external auth links on verified upgrades, clears OTP/MFA sessions on token/password changes, preserves the new failed-password dummy bcrypt timing behavior, updates provider email verification handling for Bitbucket/GitHub/GitLab/Gitea-Forgejo, and lowers the default MFA duration to 600 seconds.
-
-Full validation passed on the final kept tree: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
-
-The implementation guard sweep is now complete. PocketBun no longer carries several TS-only internal invariant checks that PocketBase does not have, including bootstrap-state guards on `BaseApp.db()` / `auxDb()`, the `BaseRecordProxy.ProxyRecord()` null check, the empty-id fast fail in `findLogById(...)`, lazy blob writer setup guards, the extra file-reader check in `System.UploadFile(...)`, and redundant S3 uploader multipart bookkeeping guards. The retained guard surface is now concentrated on real request/service boundaries rather than internal call chains.
-
-Full validation passed on the final kept tree: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
-
-Milestone 19 is now complete. PocketBun targets PocketBase `v0.37.3`, the vendored Admin UI is refreshed to the upstream `v0.37.3` bundle, the release notes are reflected in `CHANGELOG.md`, and the upstream audit still reports only the intentional `plugins/ghupdate/*` gaps. The upstream release itself is UI-only, so no runtime/API production code changes were needed for this bump.
-
-Full validation passed on the final kept tree: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
-
-Milestone 18 is now complete. PocketBun targets PocketBase `v0.37.2`, the vendored Admin UI is refreshed to the upstream `v0.37.2` bundle, the release notes are reflected in `CHANGELOG.md`, and the post-sync audit no longer reports the non-`ghupdate` `tools/router/buffer_with_file` mapping gap. The upstream release itself is UI-only, so no runtime/API production code changes were needed beyond the small router file-mapping cleanup.
-
-The docs/tooling follow-up is also now complete on top of that release tree. The upstream prose snapshot is pinned explicitly in `pocketbase_site_ref.txt`, higher-divergence user-guide sections are layered via heading-based overlays, generated-doc checks now fail if PocketBun-only guidance disappears, and the JSVM reference source (`src/plugins/jsvm/internal/types/generated/types.d.ts`) again matches the runtime async helper surface. Full validation passed on the final kept tree: `bun run docs:rebuild:full`, `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
-
-Milestone 16 is now complete. PocketBun targets PocketBase `v0.36.9`, the vendored Admin UI is refreshed, and the upstream settings/OAuth2/Discord deltas are either ported directly or confirmed to already match PocketBun behavior. The `v0.36.9` upgrade adds guarded OAuth2 avatar downloads for file-field mappings, updates Discord OAuth2 naming to prefer `global_name`, widens JSVM `$apis.static(...)` to accept `$os.dirFS(...)` / `fs.FS`-style roots, and pins the already-correct settings secret persistence path with a direct regression.
-
-Full validation passed after the upgrade: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
-
-Milestone 15 is now complete. PocketBun targets PocketBase `v0.36.8`, the vendored Admin UI is refreshed, and the upstream cached-collection OAuth2 client-secret serialization fix has been audited directly against PocketBun's serializer. No production serializer change was needed because `src/core/collection_model.ts` was already building fresh serialized OAuth2 provider records instead of mutating cached provider configs, but the new regression `CollectionSerializeNotModifyingCachedCollection` now locks that behavior explicitly. Full validation passed after the upgrade (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`).
-
-Bun `v1.3.11` maintenance sweep is now complete. PocketBun’s Bun watchlist has been refreshed against the current upstream issue state, CI now pins Bun `1.3.11`, the retired Windows JSVM sync-fetch retry workaround is gone, `src/core/db_table.ts` now uses the parameterized table-valued pragma form instead of manual SQL quoting, and the declared minimum Bun version has been raised to `>=1.3.11` across the root package plus scaffolding/examples so published expectations match the runtime fixes PocketBun now relies on. Local repros on `2026-03-19` confirmed that `Request.formData()` byte truncation is fixed in Bun `1.3.11`, while the global `Bun.serve` `idleTimeout > 255` limitation remains and still justifies the server-side timeout cap in PocketBun.
-
-Bun `v1.3.12` maintenance sweep is now complete. PocketBun’s in-process cron scheduling path now uses Bun’s native `Bun.cron(...)` callback scheduler instead of the old minute-alignment loop, while the public cron job registry and admin API listing/manual-run behavior remain intact. The old `SetInterval(...)` and `SetTimezone(...)` APIs have been removed so app cron scheduling is Bun-driven and always UTC, `src/tools/cron/schedule.ts` now only validates/normalizes cron expressions for settings and job registration, the remaining dead cron-only internals have been pruned, the supported programmatic setup path is documented as expression-based `add(...)` / `cronAdd(...)`, the root package/examples/CI all declare Bun `>=1.3.12`, and the new cron coverage directly verifies the Bun-backed path with a stubbed `Bun.cron`. Full validation passed after the sweep: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
-
-The Bun `v1.3.12` glob follow-up is now complete as well. Template registry `LoadFS(...)` / `LoadFSAsync(...)` now use shared `Bun.Glob.scan/scanSync` wrappers, which makes nested patterns such as `**/*.html` work instead of being limited to the top-level directory, and the previously placeholder JSVM `$filepath.glob(...)`, `match(...)`, `walk(...)`, and `walkDir(...)` bindings now provide real filesystem behavior with regression coverage. Full validation passed after the follow-up: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
-
-Milestone 14 is now complete. PocketBun targets PocketBase `v0.36.7`, the vendored Admin UI is refreshed, the upstream fixed-window rate limiter behavior is ported, and the multipart upload path has been rewritten around request-scoped streaming/temp-file-backed parsing so uploaded files no longer need to be materialized as multiple in-memory copies. PocketBun now also passes an explicit `4 GiB` `maxRequestBodySize` to Bun so large uploads reach the PocketBun handlers instead of failing at the old Bun default ceiling.
-
-The before/after RSS measurements show the upload-memory problem is no longer release-blocking. Fresh pre-upgrade runs on `v0.36.6` measured idle RSS around `136 MiB`, with a `64 MiB` upload peaking around `667 MiB` RSS and a `112 MiB` upload peaking around `1126 MiB`. Fresh post-upgrade runs on `v0.36.7` measured idle RSS around `126-129 MiB`, with peaks around `233 MiB` for `64 MiB`, `262 MiB` for `112 MiB`, `365 MiB` for `256 MiB`, and `411 MiB` for `512 MiB`. That leaves large-upload RSS deltas at or below the upload size in the larger-file runs, and `256 MiB` plus `512 MiB` uploads now complete successfully with HTTP 200 instead of failing at `413`.
-
-Full validation passed after the upgrade and upload-path refactor: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
-
-Milestone 13 is now complete. PocketBun targets PocketBase `v0.36.6`, the vendored Admin UI is refreshed, the upstream runtime deltas for view schema inference and list-rule join filtering are ported, and the temporary JSVM `unmarshal(...)` typing workaround from the earlier `v0.36.5` cycle has been retired because upstream now generates that declaration directly. Full validation passed after the upgrade (`bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`).
-
-Milestones 1 and 2 are substantially complete, including migrations and auth-aware health responses. Batch API and picker fields are now aligned with upstream. Backups API and archive tooling are now ported with tests. Realtime (SSE) support is now ported with tests. Collection CRUD/import parity is now in place. pb_hooks/pb_migrations loader coverage is now in place via dedicated jsvm loader tests. Milestone 11 (`v0.36.4` upgrade) is now complete with upstream sync, admin UI refresh, middleware/JSVM compatibility delta ports, and docs/version gate updates. Milestone 12 is also complete: all non-DBX runtime compatibility shims in `src/internal/compat` now have dedicated regression coverage (`cast`, `request_body`, `slog`, `validation`) and the full validation gate passes cleanly. The current performance optimization sprint is now paused after completing the planned profiling and hot-path work; latest 3x/3x upstream benchmark runs on Hetzner CCX13 show PocketBun/PocketBase factors ranging roughly `0.17x..4.36x` with geometric mean around `0.61x`, and remaining performance tasks are intentionally deferred unless new regressions appear.
+Implemented the safer sequence requested by the repo owner. Internal nullable app helpers no longer occupy generated JSVM public method names, record raw accessors no longer use `get`/`getBool`, and transaction callback `txApp` values are wrapped so lowercase JSVM methods work in the same path where the bug was observed. Uppercase aliases remain available. Validation passed with `bun run format:fix`, `bun test --concurrent` (1848 pass, 0 fail), `bun run typecheck`, and `bun run lint`.
 
 ## Context and Orientation
 
-This repository now contains a full Bun-native PocketBase-compatible server targeting PocketBase `v0.37.4`, with the upstream reference synced in `.upstream/pocketbase`, the vendored Admin UI under `vendor/pocketbase-admin-ui/dist`, and the package/version metadata aligned to `0.37.4-pocketbun.0`. The `scripts/upload_memory_probe.ts` helper provides a repeatable way to measure upload RSS on real multipart record-create requests before and after upload-path changes.
+PocketBun is a TypeScript/Bun port of PocketBase. Upstream PocketBase is written in Go, but its JavaScript hooks use lowercase JavaScript-style method names through a Goja field-name mapper. In this repository, `src/plugins/jsvm/internal/types/generated/types.d.ts` is the generated declaration file copied into `pb_data/types.d.ts` for hook authors. That file advertises lowercase methods.
 
-PocketBase’s main behavior is organized around an App interface (core.App), a BaseApp implementation, a router with events and middleware, and API binders such as apis/health.go. The Admin UI is served as static assets from ui/dist under the /_/ prefix, while public files in pb_public/ are served at /.
+The JSVM runtime binding layer is implemented in `src/plugins/jsvm/binds.ts`. It currently wraps app/event/record values with JavaScript `Proxy` objects that map lowercase property reads back to uppercase TypeScript methods. This proxy approach works for some values, but it is fragile when raw core objects escape the wrapper, such as transaction callback `txApp` values.
 
-The port must be Bun-only, use TypeScript, preserve observable behavior, and keep upstream license notices for any copied code or assets. For every ported subsystem or endpoint, add tests in Bun (bun test) that pin expected behavior.
+The core app interface is declared in `src/core/app.ts` and implemented by `src/core/base.ts`. That implementation currently contains both uppercase PocketBase-port methods, such as `FindCollectionByNameOrId`, and lowercase internal helper methods, such as `findCollectionByNameOrId`, that may have nullable or lower-level behavior. Lowercase helpers with public JSVM names must be renamed before direct public aliases are added.
+
+Record methods live in `src/core/record_model.ts`. The public JSVM declarations include `record.getString(...)`, `record.getDateTime(...)`, and similar lowercase names. DateTime methods live in `src/tools/types/datetime.ts`; this class already has both lowercase and uppercase method forms for many methods.
 
 ## Plan of Work
 
-Milestone 1 delivers a runnable server that serves /api/health and the Admin UI, using a minimal router and RequestEvent port, plus tests that validate the guest health response and static file delivery. This will also align versioning and .gitignore with PocketBase expectations. The work is primarily in new TypeScript files mirroring upstream packages and in package.json.
+First, run an audit that extracts public method names from `src/plugins/jsvm/internal/types/generated/types.d.ts` and compares them with lowercase method declarations in the core runtime files. The most important type is `App`, because `$app` and transaction callback apps are central to hook code. Record and DateTime should also be checked because they are mentioned by users and commonly returned through app methods.
 
-Milestone 2 brings in the BaseApp bootstrap flow, settings, store, and SQLite persistence via bun:sqlite. It also introduces system migrations and minimal auth loading so /api/health returns superuser fields when a valid superuser token is provided. This requires porting core settings, record, and token utilities from upstream and adding tests.
+Second, rename internal `App` helpers that collide with generated JSVM method names and have different semantics. The new names should clearly communicate that they are nullable/internal helpers. For example, `findCollectionByNameOrId` should become something like `findCollectionByNameOrIdOrNull`, and `findRecordById` should become something like `findRecordByIdOrNull`. Update `src/core/app.ts`, `src/core/base.ts`, and every call site found by `rg`.
 
-Milestone 3 ports collections, records, and auth APIs, enabling CRUD and email/password auth compatible with PocketBase. This includes file storage basics and response shapes, and extends tests with upstream-compatible scenarios.
+Third, run focused tests around collection and record lookup behavior to prove the rename did not change internals. Use existing tests that already exercise these helpers, then run typecheck to catch missed call sites.
 
-Milestone 4 ports realtime (SSE) subscriptions, hook system, and hook loading from pb_hooks/, and completes server features like backups and admin operations needed by the Admin UI. Tests for SSE and hook effects are added.
+Fourth, after collisions are removed, expose lowercase JSVM methods in the runtime in a way that matches generated types. If direct aliases are added to core classes, uppercase aliases must remain. If the binding proxy remains part of the solution, transaction callback apps and any other escaped raw values must still be wrapped before hook code sees them.
 
-Each milestone keeps files 1:1 with upstream where possible, adds a header comment linking to the upstream file path (no version/hash; pocketbase_tag.txt is the source of truth), and includes Bun tests that verify behavior against upstream tests.
+Fifth, add regression tests in `src/plugins/jsvm/binds.test.ts` that use hook-style lowercase names for app methods, record methods, and DateTime methods. The regression must include `$app.runInTransaction((txApp) => { ... })` because that is the path that exposed the mismatch.
 
-Plan update (2026-02-01): recorded the batch + picker milestone, added related discoveries and decisions, and narrowed the remaining APIs list to exclude batch.
-Plan update (2026-02-02): recorded backups + archive/osutils progress, plus the zip output discovery/decision, and updated the outcomes to reflect backups completion.
-Plan update (2026-02-02): recorded collection CRUD/import parity work, added validation/merge/hook decisions, and clarified remaining pb_hooks scope.
-Plan update (2026-02-17): recorded Milestone 11 (`v0.36.4`) upgrade completion, including runtime parity deltas and docs version gate alignment.
-Plan update (2026-03-19): recorded the Bun `v1.3.11` maintenance sweep, including local repro results, JSVM sync-fetch workaround retirement, parameterized `pragma_table_info(?)` cleanup, watchlist refresh, CI pin update, and minimum-Bun-version bump.
-Plan update (2026-04-09): recorded Milestone 16 (`v0.36.9`) upgrade completion, including the admin UI refresh, OAuth2 avatar safety port, Discord `global_name` mapping, `$apis.static(...)` JSVM compatibility update, settings-secret persistence audit, changelog refresh, and full validation evidence.
-Plan update (2026-04-12): recorded the Bun `v1.3.12` maintenance sweep, including the `Bun.cron(...)` migration for default in-process scheduling, removal of the old `setInterval(...)` and `setTimezone(...)` cron APIs in favor of Bun-driven always-UTC scheduling, collapse of the old local schedule-matching code to validation-only, pruning of dead cron-only helpers, docs/type clarifications that cron setup is expression-based, metadata/version-floor updates, focused cron regressions, and the full validation rerun.
+Finally, update `CHANGELOG.md` under `Unreleased` with a concise user-facing note, format the code, and run the full required validation gate.
 
 ## Concrete Steps
 
-Work in /Users/pekeler/Projects/pocketbun for all commands.
+Work from `/Users/pekeler/Projects/pocketbun`.
 
-Milestone 1 steps. First align versioning and repo hygiene, then add the minimal runtime.
+Run the audit with small Bun or shell commands that only read the repository. Prefer committing the audit as a temporary local command only if it becomes useful for future maintenance; otherwise keep it as terminal evidence in this plan.
 
-- Update package.json version to 0.36.1-pocketbun.0 and add scripts for bun test and bun run.
-- Add pb_data/, pb_migrations/, and pb_hooks/ to .gitignore.
-- Copy PocketBase’s MIT license text to vendor/pocketbase-admin-ui/LICENSE.md.
-- Replace index.ts with a library entry that exports PocketBase from src/pocketbase.ts.
-- Create src/ directory structure mirroring upstream: src/apis, src/core, src/tools/router, src/internal/compat, src/ui, src/tests.
-- Port apis/health.go to src/apis/health.ts with a header comment linking to upstream.
-- Port core/event_request.go into src/core/event_request.ts with RealIP, RequestInfo parsing, and HasSuperuserAuth.
-- Implement a minimal router in src/tools/router that can register GET routes, mount a group prefix, and dispatch based on path and method.
-- Implement apis/serve.ts for a Bun.serve server that handles /api/*, /_/* (Admin UI), and / (pb_public) in the same order.
-- Add tests in tests/health.test.ts and tests/admin_ui.test.ts that start the server on a random port and hit /api/health and /_/.
+Use `rg` to find call sites before each rename. After editing, run:
 
-Example commands to run for Milestone 1:
+    bun run format:fix
+    bun test --concurrent
+    bun run typecheck
+    bun run lint
 
-    cd /Users/pekeler/Projects/pocketbun
-    bun test
+Focused tests that are expected to be useful before the full gate are:
 
-Milestone 2 steps. Add bootstrapping, settings, and persistence.
-
-- Create src/core/app.ts and src/core/base_app.ts to mirror core.App and core.BaseApp in a minimal usable form.
-- Add src/core/settings.ts with TrustedProxy defaults matching upstream.
-- Implement src/internal/compat/time.ts for durations, src/internal/compat/errors.ts for error wrapping, and src/internal/compat/sync.ts for a simple async mutex, only as needed by ported files.
-- Introduce bun:sqlite usage in src/core/db.ts and set up pb_data/ creation in BaseApp.Bootstrap().
-- Port relevant migrations from .upstream/pocketbase/migrations into src/migrations as TypeScript-runner equivalents, keeping SQL identical.
-- Add auth token parsing to load superuser auth in RequestEvent, sufficient for /api/health to include canBackup, realIP, and possibleProxyHeader.
-- Extend health tests to cover superuser response once auth is in place.
-
-Milestone 3 steps. Port collections/records and auth APIs.
-
-- Extend the collections API to support list/view (superuser-only) with paging and filtering; keep error responses JSON-compatible with upstream.
-- Port core record, collection, and DAO equivalents from upstream core/.
-- Port record rule evaluation by translating core/record_field_resolver.go + core/record_field_resolver_runner.go (and any helpers) directly, then use them in records list/view instead of ad-hoc rule handling.
-- Implement CRUD endpoints in src/apis/record and src/apis/collection to match response shapes and errors.
-- Port auth endpoints from upstream apis/record_auth and related core token logic.
-- Add file storage helpers for uploads in pb_data/storage.
-- Add regression tests mirroring upstream tests for record CRUD and auth flows.
-
-Milestone 4 steps. Port realtime, hooks, and remaining server behaviors.
-
-- Implement subscriptions broker and SSE endpoints to match PocketBase realtime protocol.
-- Port hook system and make pb_hooks/ loading work with TS/ESM.
-- Add backups and installer logic as needed by Admin UI.
-- Add tests for realtime subscribe/unsubscribe and hook-triggered behaviors.
-
-Milestone 5 steps. Restore 1:1 file mapping and port remaining upstream tests.
-
-Describe any merged module and decide whether to un-merge it. When un-merging, create upstream-named TypeScript files that contain the logic formerly embedded in merged files, and route callers to those new files. When a merge must remain (for example, a class split that would require invasive refactors), keep the merged file but update its top header comment to list all upstream source paths it contains. Use the upstream .go filename-to-TS mapping rule: `foo/bar/baz.go` → `src/foo/bar/baz.ts` and `foo/bar/baz_test.go` → `src/foo/bar/baz.test.ts`.
-
-Port missing upstream tests in-place under the same directory as their source code, matching the upstream file names. If a test depends on missing functionality, note the gap in `Progress` and add a stub test that fails with a clear TODO until the feature is implemented.
-
-For any new files added to satisfy mapping, add the required “ported from” header comment that names the upstream file(s). For any remaining merged files, list all upstream files in the header comment.
-
-Milestone 6 steps. Add CI, end-to-end tests, docs/examples, and the upgrade workflow (then perform the upgrade to v0.36.2), followed by a full port audit and an advanced example.
-
-- Add a GitHub Actions workflow in .github/workflows/ci.yml. Use the official Bun setup action, install dependencies, and run the same four commands required before commits: bun run format, bun run lint, bun run typecheck, and bun test --only-failures --concurrent. The workflow should run on push and pull_request. Update README.md to include a status badge for this workflow near the top.
-- Add end-to-end tests that start the server on a random local port and verify that:
-  - GET /_/ returns HTML that looks like the Admin UI index.
-  - GET /api/health returns a 200 JSON payload with the expected shape.
-  Put these tests under tests/e2e or a new src/tests/e2e folder and include a header comment explaining there is no upstream test for these and why they exist.
-- Add a short, minimal README example showing how to start the server and call a basic endpoint. Keep it runnable with Bun. Also add examples/simple with a minimal script and a README that shows how to run it.
-- Define an upgrade workflow document (for example `docs/maintainers/UPGRADING.md`) that spells out the exact steps to move to a new upstream version, including reading upstream release notes, using a tag-to-tag git diff from a temporary clone, updating pocketbase_tag.txt and package.json to X.Y.Z-pocketbun.0, running bun run upstream:sync, refreshing vendor/pocketbase-admin-ui/dist + LICENSE, running the mapping audit to find missing files/tests, fixing breakages, and updating README compatibility notes. Then execute this workflow to upgrade to v0.36.2 and ensure tests pass.
-- Perform a full port audit against upstream v0.36.2 using a scripted file mapping (for example via rg) to identify any missing .go/.go test files, and add TODOs in `.agents/EXECPLAN.md` or a dedicated tracking file. Include a brief summary in Progress and Surprises & Discoveries.
-- Add examples/advanced that demonstrates the major features the Bun port supports (auth, CRUD, files, realtime, hooks, and CLI usage). Keep it runnable and documented, and ensure it avoids any intentionally documented incompatibilities.
-
-Milestone 7 steps. Performance investigation and optimization (Bun vs PocketBase).
-
-- Maintain a small local benchmark suite (PocketBun + PocketBase) for /api/health, /_/ and records list.
-- Run a short concurrency sweep and capture baseline throughput/latency for comparison.
-- Identify and address the hottest request-path overhead (router matching, repeated URL parsing, middleware overhead) without changing observable behavior.
-- Re-run the benchmark suite and document the deltas.
+    bun test src/plugins/jsvm/binds.test.ts --concurrent
+    bun test src/core/base.test.ts src/core/record_query.test.ts --concurrent
 
 ## Validation and Acceptance
 
-Milestone 1 is accepted when running bun test passes and a manual request to /api/health returns a 200 JSON payload with code 200, message "API is healthy.", and data as an empty object for guest requests. The Admin UI must be served at /_/ and return index.html from vendor/pocketbase-admin-ui/dist.
+Acceptance requires all of the following:
 
-Milestone 2 is accepted when a superuser token causes /api/health to return data containing canBackup, realIP, and possibleProxyHeader, and bun test includes a test that fails before the auth change and passes after.
+The generated TypeScript declaration examples are true at runtime in hook-style bindings: `$app.findRecordsByFilter(...)`, `$app.runInTransaction(...)`, `$app.save(...)`, `$app.findCollectionByNameOrId(...)`, `record.getString(...)`, `record.getDateTime(...)`, and `dateTime.isZero()`, `dateTime.before(...)`, `dateTime.after(...)`, `dateTime.compare(...)` all exist and work.
 
-Milestone 3 is accepted when CRUD and auth tests pass and match upstream response shapes, including error formats and paging semantics.
+Uppercase aliases such as `$app.FindRecordsByFilter(...)` and `record.GetString(...)` still work for backward compatibility.
 
-Milestone 4 is accepted when SSE tests pass, hook loading works from pb_hooks/, and Admin UI functionality that relies on realtime and hooks works in a manual smoke test.
+Internal nullable helpers no longer occupy public JSVM method names on `BaseApp` or `App`.
 
-Milestone 6 is accepted when CI runs on GitHub Actions and the README badge updates to green, e2e tests prove /_/ and /api/health respond correctly, the README and examples directories contain runnable minimal and advanced examples, the upgrade workflow document exists and the project is upgraded to PocketBase v0.36.2 with package.json version 0.36.2-pocketbun.0, and a post-upgrade port audit identifies any remaining gaps.
+The full validation gate passes: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
 
 ## Idempotence and Recovery
 
-Running bun run upstream:sync is safe to repeat; it replaces vendor/pocketbase-admin-ui/dist with upstream ui/dist and re-checks out the tag from pocketbase_tag.txt. If a migration or bootstrap step fails, remove the local pb_data/ directory and re-run the bootstrap for a clean start. The plan expects additive changes; avoid deleting existing behavior unless a later milestone explicitly replaces it.
+All planned edits are source-code renames and additive compatibility aliases. Running the audit and test commands repeatedly is safe. If a rename causes many failures, use `git diff` to inspect only the current task's files and adjust call sites rather than reverting unrelated work. Do not use destructive git commands. Because no changes are staged or committed at the start of this plan, recovery is to manually reverse the current task diff with `apply_patch` if needed.
 
 ## Artifacts and Notes
 
-Expected upstream sync output:
-
-    PocketBase checked out: v0.36.1 (abcdef1)
-
-Expected /api/health guest response in Milestone 1:
-
-    HTTP/1.1 200 OK
-    {
-      "code": 200,
-      "message": "API is healthy.",
-      "data": {}
-    }
+The interrupted quick patch was removed before this plan began. `git status --short` was clean at 2026-06-11T16:40:24Z.
 
 ## Interfaces and Dependencies
 
-In src/tools/router/router.ts, define a minimal router interface that can grow toward upstream behavior:
+No new runtime dependency is expected. The affected interfaces are:
 
-    export type Handler<E> = (event: E) => Response | Promise<Response> | void | Promise<void>;
+`src/core/app.ts`: internal nullable helpers should use names that cannot be confused with JSVM public names. Public uppercase compatibility methods stay.
 
-    export class Router<E> {
-      get(path: string, handler: Handler<E>): this;
-      group(prefix: string): RouterGroup<E>;
-      buildHandler(): (req: Request) => Promise<Response>;
-    }
+`src/core/base.ts`: implements the renamed internal helpers and any public lowercase JSVM aliases after collisions are removed.
 
-    export class RouterGroup<E> {
-      get(path: string, handler: Handler<E>): this;
-      group(prefix: string): RouterGroup<E>;
-    }
+`src/plugins/jsvm/binds.ts`: must continue to provide hook globals and may keep proxy mapping, but it must not let raw transaction apps or returned records lose lowercase JSVM names.
 
-In src/tools/router/event.ts, define the request event base used by core.RequestEvent:
+`src/plugins/jsvm/binds.test.ts`: must contain regression coverage for lowercase JSVM names and uppercase compatibility aliases.
 
-    export class Event {
-      request: Request;
-      responseHeaders: Headers;
-      params: Record<string, string>;
-      next(): Promise<void>;
-      json(status: number, body: unknown): Response;
-      bindBody<T extends object>(target: T): Promise<void>;
-      remoteIP(): string;
-    }
+Revision note 2026-06-11: Created focused plan after the repo owner rejected a quick proxy-only fix and requested internal renames before public lowercase JSVM API exposure.
 
-In src/core/event_request.ts, define RequestEvent to match upstream behaviors used by health:
-
-    export class RequestEvent extends Event {
-      app: App;
-      auth: Record | null;
-      realIP(): string;
-      hasSuperuserAuth(): boolean;
-      requestInfo(): Promise<RequestInfo>;
-    }
-
-In src/core/app.ts, define the minimal App interface used by Milestone 1 and expanded in Milestone 2:
-
-    export interface App {
-      dataDir(): string;
-      encryptionEnv(): string;
-      settings(): Settings;
-      store(): Store<string, unknown>;
-      isBootstrapped(): boolean;
-      bootstrap(): void;
-    }
-
-Dependencies must prefer Bun built-ins: Bun.serve for HTTP and bun:sqlite for SQLite. Any new dependency must be justified and small; if JWT is needed before WebCrypto helpers are mature, prefer a single well-maintained library and record the decision in the Decision Log.
-
-Plan change note: 2026-01-30, created initial ExecPlan based on AGENTS.md and the .upstream/pocketbase tree to guide the first full porting effort.
-Plan change note: 2026-01-30, marked versioning/scaffolding complete and added the Admin UI license copy step after addressing the missing license file.
-Plan change note: 2026-01-30, completed the initial router/health/admin UI slice and updated progress to reflect the new tests and server scaffolding.
-Plan change note: 2026-01-30, recorded the sandbox socket restriction and retained TCP-based tests with escalated test runs.
-Plan change note: 2026-01-30, added SQLite-backed auth token verification and test data cloning to support auth-aware health tests.
-Plan change note: 2026-01-30, added minimal settings load from the settings param row during bootstrap.
-Plan change note: 2026-01-30, added a minimal migrations runner and list registry to track applied migrations.
-Plan change note: 2026-01-30, ported the initial system migration and added tests to verify it applies on a fresh data dir.
-Plan change note: 2026-01-30, ported the aux logs migration and updated tests to assert the aux _logs table exists.
-Plan change note: 2026-01-30, ported the v0.23 system migrations and auth alert template update, adding AES-GCM settings decryption support for legacy databases.
-Plan change note: 2026-01-30, added read-only collections list/view endpoints with superuser auth and a minimal search parser to unlock collections listing before full search tooling is ported.
-Plan change note: 2026-01-30, replaced the minimal collections search parser with the ported search toolkit and adjusted identifier quoting to `[name]` for bun:sqlite compatibility.
-Plan change note: 2026-01-31, added dbx identifier placeholder rewriting so we can keep upstream `[[...]]` quoting while remaining compatible with bun:sqlite.
-Plan change note: 2026-01-31, moved dbx placeholder rewriting into a DbxDatabase wrapper and taught the rewriter to ignore SQL comments.
-Plan change note: 2026-01-31, added an attach helper to retrofit dbx placeholder rewriting onto existing Database instances with tests for idempotency.
-Plan change note: 2026-01-31, added a dbx tools index export to surface DbxDatabase and rewrite helpers.
-Plan change note: 2026-01-31, exported dbx helpers from the package entrypoint to make them available to external consumers.
-Plan change note: 2026-01-31, documented dbx helper exports and example usage in README for external consumers.
-Plan change note: 2026-01-31, added superuser-only record list/view endpoints with basic record export and tests.
-Plan change note: 2026-01-31, reaffirmed mechanical upstream porting and updated Milestone 3 to port record field resolver/rule handling directly.
-Plan change note: 2026-01-31, ported a minimal RecordFieldResolver for list/view rule filtering; relation joins and advanced modifiers remain to be ported.
-Plan change note: 2026-01-31, recorded progress on collection options/view helpers and collection validation plus BaseApp view/table wiring.
-Plan change note: 2026-02-01, recorded OAuth2 auth create flow progress and the validation/hook ordering alignment required by upstream tests.
-Plan change note: 2026-02-02, recorded collection CRUD/import parity completion, updated discovery/decision logs, and narrowed remaining work to pb_hooks loading/tests.
-Plan change note: 2026-02-03, added the 1:1 file mapping/missing tests milestone and recorded the file-count discrepancy plus mapping scan results.
-Plan change note: 2026-02-03, recorded tools/search + tools/types test ports and helper parity updates during the 1:1 file mapping milestone.
-Plan change note: 2026-02-03, recorded tools/security encrypt/jwt test ports and AES-GCM key handling alignment.
-Plan change note: 2026-02-04, removed the ghupdate self-update plugin/command because PocketBun is distributed as a package; documented package-manager updates in README.
-Plan change note: 2026-02-04, added Milestone 6 for CI, e2e tests, docs/examples, the v0.36.2 upgrade workflow, and a post-upgrade port audit.
-Plan change note: 2026-02-04, split the S3 client merge into per-file modules while keeping s3.ts as the s3.go entrypoint with delegated methods.
-Plan change note: 2026-02-06, continued Milestone 7 by threading router-parsed URLs into Event/RequestEvent, re-running full validation and both benchmark runners, and updating the performance TODOs with the remaining skip-total gap focus.
-Plan change note: 2026-02-06, continued Milestone 7 by adding provider parsed-params APIs and a `skipTotal` count-query fast path, updating list/log/collection call sites, validating with full checks, and re-running both benchmark runners.
-Plan change note: 2026-02-12, added Milestone 8 post-release compatibility debt tracking (mailer senders and partial subsystem parity), and stabilized flaky Windows `collection validate > scenarios` timeout failures by setting that test’s timeout to 120s.
-Plan change note: 2026-02-12, reverted a mistaken `plugins/ghupdate` reintroduction and reaffirmed the intentional package-manager update model (no self-update command/plugin in PocketBun).
-Plan change note: 2026-02-12, completed mailer sender parity by replacing `sendmail`/`smtp` no-op implementations with real send paths, adding SMTP/sendmail behavior tests, and awaiting async mail send result in OTP flow.
-Plan change note: 2026-02-12, closed the record field resolver parity gap by aligning nested value extraction with upstream (`JSONRaw`/map extractors/strict array indexes), removing the stale partial marker, and adding regression coverage.
-Plan change note: 2026-02-12, closed the remaining template and random-by-regex Milestone 8 gaps, then updated README differences for the remaining intentional fallback scope.
-Plan change note: 2026-02-12, added Milestone 9 planning pointer for a dedicated PocketBun docs program.
-Plan change note: 2026-02-13, completed Milestone 9 docs delivery, removed the temporary docs-specific ExecPlan file, and consolidated maintainer guidance in `docs/maintainers/upstream-docs-map.md`.
-Plan change note: 2026-02-17, completed the PocketBase v0.36.4 upgrade (sync, version bumps, middleware/JSVM parity ports, docs version gate fix, and full validation) and updated the living sections accordingly.
-Plan change note: 2026-02-26, added Milestone 12 with a concrete non-DBX shim list (`cast`, `request_body`, `slog`, `validation`) and execution checklist to close direct-coverage gaps end-to-end.
-Plan change note: 2026-02-26, completed Milestone 12 by adding direct regression tests for all listed runtime shims and recording a full clean validation gate run.
-Plan change note: 2026-03-07, completed the PocketBase v0.36.6 upgrade (metadata bump, upstream/admin UI sync, view/list-rule/runtime parity ports, JSVM `unmarshal(...)` workaround retirement, and full validation) and updated the living sections accordingly.
-Plan change note: 2026-03-17, reduced idle baseline RSS by lazily requiring optional native modules (`sharp`, filesystem/S3 support, mailer clients, and log writer) after startup attribution showed most of the pre-request gap was module import cost rather than live JS heap; local clean-room CLI serve RSS dropped from about 117 MiB to 96 MiB, and the warmed local comparison moved from about 191 MiB to 177 MiB.
-Plan change note: 2026-03-28, completed the PocketBase v0.36.8 upgrade by syncing upstream/admin UI assets, auditing the tiny compare window, adding cached-collection serialization regression coverage, and recording the clean full validation gate.
-Plan change note: 2026-04-13, improved the benchmark-shaped create hot path by replacing cached-collection linear scans with a reload-time lookup map, removing per-record interceptor action-filter arrays, and using the private untagged model hooks directly inside internal save flows; warmed local `create-organizations` throughput moved from about 293.9k to 299.9k completed requests over 20s while keeping the full validation gate clean.
-Plan change note: 2026-04-20, completed the PocketBase v0.37.2 upgrade by syncing the upstream UI-only release, updating compatibility metadata and changelog notes, porting the missing `tools/router/buffer_with_file` mapping gap, pinning the upstream site-doc ref, hardening generated-doc overlays/checks, resyncing JSVM reference types with runtime async helpers, and rerunning the full validation gate.
-Plan change note: 2026-04-23, completed the PocketBase v0.37.3 upgrade by auditing the UI-only `v0.37.2..v0.37.3` compare window, bumping the compatibility metadata to `0.37.3-pocketbun.0`, syncing the upstream reference and vendored Admin UI assets, confirming only the intentional `plugins/ghupdate/*` mapping gaps remain, and rerunning the full validation gate.
-Plan change note: 2026-04-23, recorded the implementation guard sweep against upstream behavior, including the removed internal invariant checks, the one test expectation update required by the change, and the clean full validation rerun.
-Plan change note: 2026-05-22, completed the PocketBase v0.38.2 upgrade by syncing the upstream reference and vendored Admin UI assets, porting realtime max-timeout and connected-client IP protections, updating generated JSVM types and release metadata, adding focused realtime/OAuth2 redirect regressions, and rerunning the full validation gate.
+Revision note 2026-06-11: Completed the implementation and validation. The plan now records the audit findings, renamed helpers, regression coverage, and full validation results.

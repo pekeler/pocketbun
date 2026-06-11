@@ -93,7 +93,7 @@ export async function main(): Promise<void> {
 
   // static route to serves files from the provided public dir
   // (if publicDir exists and the route path is not already defined)
-  app.OnServe().Bind({
+  app.onServe().bind({
     Func: (e: ServeEvent) => {
       if (!e.Router.HasRoute("GET", "/{path...}")) {
         e.Router.GET("/{path...}", Static(flags.publicDir, flags.indexFallback));
