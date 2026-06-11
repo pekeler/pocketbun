@@ -10,29 +10,22 @@ import { Command } from "../../tools/cli/command.ts";
 import { snakecase } from "../../tools/inflector/inflector.ts";
 import { YesNoPrompt } from "../../tools/osutils/cmd.ts";
 import { automigrateOnCollectionChange } from "./automigrate.ts";
-import {
-  TemplateLangGo,
-  TemplateLangJS,
-  goBlankTemplate,
-  goSnapshotTemplate,
-  jsBlankTemplate,
-  jsSnapshotTemplate,
-} from "./templates.ts";
+import { TemplateLangJS, jsBlankTemplate, jsSnapshotTemplate, unsupportedTemplateLangError } from "./templates.ts";
 export { TemplateLangGo, TemplateLangJS } from "./templates.ts";
 
 // Config defines the config options of the migratecmd plugin.
 export type Config = {
   // Dir specifies the directory with the user defined migrations.
   //
-  // If not set it fallbacks to a relative "pb_data/../pb_migrations" (for js)
-  // or "pb_data/../migrations" (for go) directory.
+  // If not set it fallbacks to a relative "pb_data/../pb_migrations" directory.
   Dir?: string;
 
   // Automigrate specifies whether to enable automigrations.
   Automigrate?: boolean;
 
-  // TemplateLang specifies the template language to use when
-  // generating migrations - js or go (default).
+  // TemplateLang specifies the template language to use when generating migrations.
+  // PocketBun supports only JavaScript migration templates. TemplateLangGo remains
+  // exported as a legacy sentinel, but Register rejects it.
   TemplateLang?: string;
 };
 
@@ -50,15 +43,15 @@ export function Register(app: App, rootCmd: Command | null, config: Config): Err
   const normalized: Config = { ...config };
 
   if (!normalized.TemplateLang) {
-    normalized.TemplateLang = TemplateLangGo;
+    normalized.TemplateLang = TemplateLangJS;
+  }
+
+  if (normalized.TemplateLang !== TemplateLangJS) {
+    return unsupportedTemplateLangError(normalized.TemplateLang);
   }
 
   if (!normalized.Dir) {
-    if (normalized.TemplateLang === TemplateLangJS) {
-      normalized.Dir = join(app.DataDir(), "../pb_migrations");
-    } else {
-      normalized.Dir = join(app.DataDir(), "../migrations");
-    }
+    normalized.Dir = join(app.DataDir(), "../pb_migrations");
   }
 
   const plugin = new MigrateCmdPlugin(app, normalized);
@@ -154,8 +147,12 @@ export class MigrateCmdPlugin {
 
     const name = args[0] ?? "";
     const dir = this.config.Dir ?? "";
+    const templateLang = this.config.TemplateLang ?? TemplateLangJS;
+    if (templateLang !== TemplateLangJS) {
+      return { fileName: "", error: unsupportedTemplateLangError(templateLang) };
+    }
 
-    const filename = `${Math.floor(Date.now() / 1000)}_${snakecase(name)}.${this.config.TemplateLang}`;
+    const filename = `${Math.floor(Date.now() / 1000)}_${snakecase(name)}.${templateLang}`;
 
     const resultFilePath = join(dir, filename);
 
@@ -170,11 +167,7 @@ export class MigrateCmdPlugin {
     // get default create template
     if (!template) {
       try {
-        if (this.config.TemplateLang === TemplateLangJS) {
-          template = jsBlankTemplate();
-        } else {
-          template = goBlankTemplate(dir);
-        }
+        template = jsBlankTemplate();
       } catch (error) {
         return { fileName: "", error: new Error(`failed to resolve create template: ${String(error)}`) };
       }
@@ -218,11 +211,7 @@ export class MigrateCmdPlugin {
 
     let template = "";
     try {
-      if (this.config.TemplateLang === TemplateLangJS) {
-        template = jsSnapshotTemplate(models);
-      } else {
-        template = goSnapshotTemplate(this.config.Dir ?? "", models);
-      }
+      template = jsSnapshotTemplate(models);
     } catch (error) {
       return { fileName: "", error: new Error(`failed to resolve template: ${String(error)}`) };
     }

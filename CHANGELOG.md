@@ -4,6 +4,7 @@
 
 - Fixed command help output so `migrate --help` lists supported actions and superuser commands show examples.
 - Fixed JSVM hook runtime aliases so lowercase app, record, and DateTime methods match the generated `pb_data/types.d.ts` declarations, including transaction callback `txApp` values, while preserving uppercase aliases for existing PocketBun hooks.
+- Changed migration generation to JavaScript-only: omitted `TemplateLang` now generates `.js` files by default, and explicit Go template generation now fails fast instead of producing migrations PocketBun cannot run.
 - Reduced duplicate dev-mode SQL logs during server startup.
 - Clarified how to create collections in JSVM migrations.
 

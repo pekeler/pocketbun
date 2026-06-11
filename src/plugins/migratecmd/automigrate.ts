@@ -7,7 +7,7 @@ import type { Collection } from "../../core/collection_model.ts";
 import type { CollectionRequestEvent } from "../../core/events.ts";
 import type { Config } from "./migratecmd.ts";
 import { DefaultMigrationsTable } from "../../core/migrations_runner.ts";
-import { ErrEmptyTemplate, TemplateLangJS, goDiffTemplate, jsDiffTemplate } from "./templates.ts";
+import { ErrEmptyTemplate, TemplateLangJS, jsDiffTemplate, unsupportedTemplateLangError } from "./templates.ts";
 
 export type PluginContext = {
   app: App;
@@ -63,13 +63,14 @@ export async function automigrateOnCollectionChange(
   }
 
   const dir = p.config.Dir ?? "";
+  const templateLang = p.config.TemplateLang ?? TemplateLangJS;
+  if (templateLang !== TemplateLangJS) {
+    return unsupportedTemplateLangError(templateLang);
+  }
+
   let template = "";
   try {
-    if (p.config.TemplateLang === TemplateLangJS) {
-      template = jsDiffTemplate(newCollection, oldCollection);
-    } else {
-      template = goDiffTemplate(dir, newCollection, oldCollection);
-    }
+    template = jsDiffTemplate(newCollection, oldCollection);
   } catch (error) {
     if (error === ErrEmptyTemplate) {
       return null; // no changes
@@ -86,7 +87,7 @@ export async function automigrateOnCollectionChange(
     action = `updated_${normalizeCollectionName(oldCollection.name)}`;
   }
 
-  const fileName = `${Math.floor(Date.now() / 1000)}_${action}.${p.config.TemplateLang}`;
+  const fileName = `${Math.floor(Date.now() / 1000)}_${action}.${templateLang}`;
   const filePath = join(dir, fileName);
 
   const txErr = await p.app.RunInTransaction(async (txApp) => {
