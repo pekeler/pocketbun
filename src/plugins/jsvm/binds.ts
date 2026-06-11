@@ -115,7 +115,7 @@ import {
 } from "../../tools/security/random.ts";
 import { JSONRaw, JSONArray, JSONMap, DateTime, NowDateTime } from "../../tools/types/index.ts";
 import { FormData as HooksFormData } from "./form_data.ts";
-import { convertGoToJSName, convertJSToGoName } from "./mapper.ts";
+import { convertGoToJSName } from "./mapper.ts";
 
 const DynamicModelShapeKey = "__pbDynamicModelShape";
 const DynamicModelFactoryKey = "__pbDynamicModelFactory";
@@ -149,23 +149,12 @@ function runWithApp<T>(app: App, fn: () => T | Promise<T>): T | Promise<T> {
 }
 
 function defineAppAccessor(target: BindTarget, app: App): void {
-  const proxyCache = new WeakMap<object, object>();
-  const getProxy = (value: App): object => {
-    const existing = proxyCache.get(value as object);
-    if (existing) {
-      return existing;
-    }
-    const proxy = wrapApp(value as object);
-    proxyCache.set(value as object, proxy);
-    return proxy;
-  };
-
   Object.defineProperty(target, "$app", {
     configurable: true,
     enumerable: false,
     get() {
       const current = hooksStorage.getStore() ?? app;
-      return getProxy(current);
+      return wrapApp(current as unknown as object);
     },
     set(value) {
       if (value) {
@@ -179,8 +168,9 @@ export function appBinds(target: BindTarget, app: App): void {
   defineAppAccessor(target, app);
 }
 
-const appProxyCache = new WeakMap<object, object>();
-const boundValueProxyCache = new WeakMap<object, object>();
+const appFacadeCache = new WeakMap<object, object>();
+const eventFacadeCache = new WeakMap<object, object>();
+const boundValueFacadeCache = new WeakMap<object, object>();
 const boundValueTargetCache = new WeakMap<object, object>();
 
 // App is an interface, so app values returned through events or forMigrations()
@@ -195,103 +185,105 @@ function isAppLike(value: unknown): value is App {
   );
 }
 
+const appSaveOverrides: Record<string, { sync: string; async: string; modelArgIndex: number }> = {
+  save: { sync: "SaveSync", async: "Save", modelArgIndex: 0 },
+  saveNoValidate: { sync: "SaveNoValidateSync", async: "SaveNoValidate", modelArgIndex: 0 },
+  saveWithContext: { sync: "SaveWithContextSync", async: "SaveWithContext", modelArgIndex: 1 },
+  saveNoValidateWithContext: {
+    sync: "SaveNoValidateWithContextSync",
+    async: "SaveNoValidateWithContext",
+    modelArgIndex: 1,
+  },
+};
+
+const appSyncOverrides: Record<string, string> = {
+  delete: "DeleteSync",
+  deleteWithContext: "DeleteWithContextSync",
+  importCollections: "ImportCollectionsSync",
+  importCollectionsByMarshaledJSON: "ImportCollectionsByMarshaledJSONSync",
+  validate: "ValidateSync",
+  saveView: "SaveViewSync",
+  createViewFields: "CreateViewFieldsSync",
+};
+
+const appTransactionOverrides: Record<string, string> = {
+  runInTransaction: "RunInTransactionSync",
+  auxRunInTransaction: "AuxRunInTransactionSync",
+};
+
+type FacadeOptions = {
+  protectedNames?: Set<string | symbol>;
+};
+
 function wrapApp<T extends object>(app: T): T {
-  const existing = appProxyCache.get(app);
+  const existing = appFacadeCache.get(app);
   if (existing) {
     return existing as T;
   }
 
-  const saveOverrides: Record<string, { sync: string; async: string; modelArgIndex: number }> = {
-    save: { sync: "SaveSync", async: "Save", modelArgIndex: 0 },
-    saveNoValidate: { sync: "SaveNoValidateSync", async: "SaveNoValidate", modelArgIndex: 0 },
-    saveWithContext: { sync: "SaveWithContextSync", async: "SaveWithContext", modelArgIndex: 1 },
-    saveNoValidateWithContext: {
-      sync: "SaveNoValidateWithContextSync",
-      async: "SaveNoValidateWithContext",
-      modelArgIndex: 1,
-    },
-  };
+  const facade = Object.create(app) as T & Record<string, unknown>;
+  const protectedNames = new Set<string | symbol>();
 
-  const syncOverrides: Record<string, string> = {
-    delete: "DeleteSync",
-    deleteWithContext: "DeleteWithContextSync",
-    importCollections: "ImportCollectionsSync",
-    importCollectionsByMarshaledJSON: "ImportCollectionsByMarshaledJSONSync",
-    validate: "ValidateSync",
-    saveView: "SaveViewSync",
-    createViewFields: "CreateViewFieldsSync",
-  };
+  appFacadeCache.set(app, facade);
+  boundValueTargetCache.set(facade, app);
 
-  const transactionOverrides: Record<string, string> = {
-    runInTransaction: "RunInTransactionSync",
-    auxRunInTransaction: "AuxRunInTransactionSync",
-  };
+  defineAppOverrides(facade, app, protectedNames);
+  defineFacadeMembers(facade, app, { protectedNames });
 
-  const resolveAppProperty = (target: object, prop: string | symbol, receiver: unknown): unknown => {
-    if (typeof prop === "string") {
-      const key = prop.slice(0, 1).toLowerCase() + prop.slice(1);
-      const saveOverride = saveOverrides[key];
-      if (saveOverride && saveOverride.sync in target) {
-        const syncMethod = (target as Record<string, unknown>)[saveOverride.sync];
-        const asyncMethod = (target as Record<string, unknown>)[saveOverride.async];
-        if (typeof syncMethod === "function") {
-          return (...args: unknown[]) => {
-            const model = args[saveOverride.modelArgIndex];
-            if (typeof asyncMethod === "function" && hasAsyncSaveInterceptors(model)) {
-              return normalizeAsyncErrorResult((asyncMethod as (...input: unknown[]) => unknown).apply(target, args));
-            }
-            return (syncMethod as (...input: unknown[]) => unknown).apply(target, args);
-          };
-        }
-      }
+  return facade as T;
+}
 
-      const transactionOverride = transactionOverrides[key];
-      if (transactionOverride && transactionOverride in target) {
-        const txMethod = (target as Record<string, unknown>)[transactionOverride];
-        if (typeof txMethod === "function") {
-          return (fn: unknown) =>
-            (txMethod as (callback: (txApp: App) => unknown) => unknown).call(target, (txApp: App) => {
-              if (typeof fn !== "function") {
-                return null;
-              }
-              return (fn as (txApp: App) => unknown)(wrapApp(txApp as unknown as object) as App);
-            });
-        }
-      }
-
-      const override = syncOverrides[key];
-      if (override && override in target) {
-        return (target as Record<string, unknown>)[override];
-      }
+function defineAppOverrides(facade: Record<string, unknown>, app: object, protectedNames: Set<string | symbol>): void {
+  for (const [name, override] of Object.entries(appSaveOverrides)) {
+    const syncMethod = (app as Record<string, unknown>)[override.sync];
+    if (typeof syncMethod !== "function") {
+      continue;
     }
-    return resolveMappedProperty(target, prop, receiver);
-  };
 
-  const proxy = new Proxy(app, {
-    get(target, prop, receiver) {
-      const value = resolveAppProperty(target, prop, receiver);
-      if (typeof value === "function") {
-        return (...args: unknown[]) => {
-          const result = (value as (...args: unknown[]) => unknown).apply(
-            target,
-            args.map((arg) => unwrapBoundValue(arg)),
-          );
-          if (result instanceof Error) {
-            throw result;
-          }
-          return isAppLike(result) ? wrapApp(result as object) : wrapBoundValue(result);
-        };
-      }
-      return isAppLike(value) ? wrapApp(value as object) : wrapBoundValue(value as unknown);
-    },
-    set(target, prop, value, receiver) {
-      return setMappedProperty(target, prop, value, receiver);
-    },
-  });
+    protectedNames.add(name);
+    defineFacadeMethod(facade, name, (...args: unknown[]) => {
+      const unwrappedArgs = args.map((arg) => unwrapBoundValue(arg));
+      const model = unwrappedArgs[override.modelArgIndex];
+      const asyncMethod = (app as Record<string, unknown>)[override.async];
+      const result =
+        typeof asyncMethod === "function" && hasAsyncSaveInterceptors(model)
+          ? normalizeAsyncErrorResult((asyncMethod as (...input: unknown[]) => unknown).apply(app, unwrappedArgs))
+          : (syncMethod as (...input: unknown[]) => unknown).apply(app, unwrappedArgs);
 
-  appProxyCache.set(app, proxy);
-  boundValueTargetCache.set(proxy, app);
-  return proxy as T;
+      return wrapInvocationResult(result);
+    });
+  }
+
+  for (const [name, methodName] of Object.entries(appSyncOverrides)) {
+    const method = (app as Record<string, unknown>)[methodName];
+    if (typeof method !== "function") {
+      continue;
+    }
+
+    protectedNames.add(name);
+    defineFacadeMethod(facade, name, (...args: unknown[]) =>
+      invokeBoundFunction(app, method as (...input: unknown[]) => unknown, args),
+    );
+  }
+
+  for (const [name, methodName] of Object.entries(appTransactionOverrides)) {
+    const method = (app as Record<string, unknown>)[methodName];
+    if (typeof method !== "function") {
+      continue;
+    }
+
+    protectedNames.add(name);
+    defineFacadeMethod(facade, name, (fn: unknown) => {
+      const result = (method as (callback: (txApp: App) => unknown) => unknown).call(app, (txApp: App) => {
+        if (typeof fn !== "function") {
+          return null;
+        }
+        return (fn as (txApp: App) => unknown)(wrapApp(txApp as unknown as object) as App);
+      });
+
+      return wrapInvocationResult(result);
+    });
+  }
 }
 
 const asyncSaveInterceptorCollections = new WeakSet<object>();
@@ -351,31 +343,33 @@ function isPromiseLike(value: unknown): value is Promise<unknown> {
 }
 
 function wrapEvent<T extends object>(event: T): T {
-  return new Proxy(event, {
-    get(target, prop, receiver) {
-      if (prop === "request" && isRouteRequestContext(target)) {
-        return wrapRouteRequest(target);
-      }
+  const existing = eventFacadeCache.get(event);
+  if (existing) {
+    return existing as T;
+  }
 
-      const value = resolveMappedProperty(target, prop, receiver);
-      if (typeof value === "function") {
-        return (...args: unknown[]) => {
-          const result = (value as (...args: unknown[]) => unknown).apply(
-            target,
-            args.map((arg) => unwrapBoundValue(arg)),
-          );
-          if (result instanceof Error) {
-            throw result;
-          }
-          return wrapBoundValue(result);
-        };
-      }
-      return wrapBoundValue(value as unknown);
-    },
-    set(target, prop, value, receiver) {
-      return setMappedProperty(target, prop, value, receiver);
-    },
-  });
+  const facade = Object.create(event) as T & Record<string, unknown>;
+  const protectedNames = new Set<string | symbol>();
+
+  eventFacadeCache.set(event, facade);
+  boundValueTargetCache.set(facade, event);
+
+  if (isRouteRequestContext(event)) {
+    protectedNames.add("request");
+    Object.defineProperty(facade, "request", {
+      configurable: true,
+      enumerable: true,
+      get() {
+        return wrapRouteRequest(event);
+      },
+      set(value) {
+        event.request = unwrapBoundValue(value) as Request;
+      },
+    });
+  }
+
+  defineFacadeMembers(facade, event, { protectedNames });
+  return facade as T;
 }
 
 type RouteRequestContext = {
@@ -404,90 +398,9 @@ function wrapRouteRequest(event: RouteRequestContext): object {
     return cached;
   }
 
-  // Keep explicit setPathValue overrides raw so pathValue can roundtrip "%"-containing values.
-  // Lazily initialized to avoid per-request allocation when setPathValue is unused.
-  let overriddenPathValues: Map<string, string> | null = null;
-
-  const proxy = new Proxy(event.request, {
-    get(_target, prop, _receiver) {
-      const request = event.request;
-
-      if (prop === "header") {
-        return wrapHeaderValues(request.headers);
-      }
-
-      if (prop === "url") {
-        return wrapRouteRequestURL(event);
-      }
-
-      if (prop === "pathValue") {
-        return (name: string): string => {
-          const key = toPrimitiveString(name);
-          if (overriddenPathValues?.has(key)) {
-            return overriddenPathValues.get(key) ?? "";
-          }
-
-          const raw = event.params?.[key] ?? "";
-          if (raw === "") {
-            return "";
-          }
-
-          // Fast path: avoid decode work when route param has no escape sequences.
-          if (!raw.includes("%")) {
-            return raw;
-          }
-
-          try {
-            return decodeURIComponent(raw);
-          } catch {
-            return raw;
-          }
-        };
-      }
-
-      if (prop === "setPathValue") {
-        return (name: string, value: string): void => {
-          const key = toPrimitiveString(name);
-          const normalizedValue = toPrimitiveString(value);
-          if (!event.params) {
-            event.params = {};
-          }
-          event.params[key] = normalizedValue;
-          if (!overriddenPathValues) {
-            overriddenPathValues = new Map<string, string>();
-          }
-          overriddenPathValues.set(key, normalizedValue);
-        };
-      }
-
-      if (prop === "raw") {
-        return request;
-      }
-
-      const mapped = resolveMappedProperty(request as unknown as object, prop, request);
-      if (typeof mapped === "function") {
-        return (...args: unknown[]) => {
-          const result = mapped.apply(
-            request,
-            args.map((arg) => unwrapBoundValue(arg)),
-          );
-          if (result instanceof Error) {
-            throw result;
-          }
-          return wrapBoundValue(result);
-        };
-      }
-
-      return wrapBoundValue(mapped);
-    },
-    set(_target, prop, value, _receiver) {
-      const request = event.request;
-      return setMappedProperty(request as unknown as object, prop, value, request);
-    },
-  });
-
-  requestCompatCache.set(eventObject, proxy);
-  return proxy;
+  const adapter = new RouteRequestCompat(event);
+  requestCompatCache.set(eventObject, adapter);
+  return adapter;
 }
 
 function wrapRouteRequestURL(event: RouteRequestContext): object {
@@ -497,57 +410,9 @@ function wrapRouteRequestURL(event: RouteRequestContext): object {
     return cached;
   }
 
-  const proxy = new Proxy(
-    {},
-    {
-      get(_target, prop) {
-        const requestUrl = getRouteRequestURL(event);
-
-        if (prop === "path") {
-          return requestUrl.pathname;
-        }
-
-        if (prop === "query") {
-          return () => wrapQueryValues(requestUrl.searchParams);
-        }
-
-        if (prop === "rawQuery") {
-          return requestUrl.search.startsWith("?") ? requestUrl.search.slice(1) : requestUrl.search;
-        }
-
-        if (prop === "scheme") {
-          return requestUrl.protocol.replace(/:$/, "");
-        }
-
-        if (prop === "string" || prop === "toString") {
-          return () => requestUrl.toString();
-        }
-
-        const value = Reflect.get(requestUrl as unknown as object, prop, requestUrl);
-        if (typeof value === "function") {
-          return (...args: unknown[]) => {
-            const result = value.apply(
-              requestUrl,
-              args.map((arg) => unwrapBoundValue(arg)),
-            );
-            if (result instanceof Error) {
-              throw result;
-            }
-            return wrapBoundValue(result);
-          };
-        }
-
-        return wrapBoundValue(value);
-      },
-      set(_target, prop, value) {
-        const requestUrl = getRouteRequestURL(event);
-        return Reflect.set(requestUrl as unknown as object, prop, unwrapBoundValue(value), requestUrl);
-      },
-    },
-  );
-
-  requestUrlCompatCache.set(eventObject, proxy);
-  return proxy;
+  const adapter = new RouteRequestURLCompat(event);
+  requestUrlCompatCache.set(eventObject, adapter);
+  return adapter;
 }
 
 function getRouteRequestURL(event: RouteRequestContext): URL {
@@ -565,35 +430,356 @@ function wrapHeaderValues(headers: Headers): object {
     return cached;
   }
 
-  const proxy = new Proxy(headers, {
-    get(target, prop, receiver) {
-      if (prop === "get") {
-        return (name: string): string => target.get(toPrimitiveString(name)) ?? "";
-      }
+  const adapter = new HeaderValuesCompat(headers);
+  headersCompatCache.set(headersObject, adapter);
+  return adapter;
+}
 
-      if (prop === "values") {
-        return (name: string): string[] => splitHeaderValues(target.get(toPrimitiveString(name)));
-      }
+class RouteRequestCompat {
+  private readonly event: RouteRequestContext;
+  // Keep explicit setPathValue overrides raw so pathValue can roundtrip "%"-containing values.
+  // Lazily initialized to avoid per-request allocation when setPathValue is unused.
+  private overriddenPathValues: Map<string, string> | null = null;
 
-      if (prop === "toJSON") {
-        return () => headerValuesToJSON(target);
-      }
+  constructor(event: RouteRequestContext) {
+    this.event = event;
+  }
 
-      const value = Reflect.get(target as unknown as object, prop, receiver);
-      if (typeof value === "function") {
-        return (...args: unknown[]) =>
-          value.apply(
-            target,
-            args.map((arg) => unwrapBoundValue(arg)),
-          );
-      }
+  private get request(): Request {
+    return this.event.request;
+  }
 
-      return wrapBoundValue(value);
-    },
-  });
+  get header(): object {
+    return wrapHeaderValues(this.request.headers);
+  }
 
-  headersCompatCache.set(headersObject, proxy);
-  return proxy;
+  get headers(): Headers {
+    return this.request.headers;
+  }
+
+  get url(): object {
+    return wrapRouteRequestURL(this.event);
+  }
+
+  get raw(): Request {
+    return this.request;
+  }
+
+  get method(): string {
+    return this.request.method;
+  }
+
+  get body(): ReadableStream<Uint8Array> | null {
+    return this.request.body;
+  }
+
+  get bodyUsed(): boolean {
+    return this.request.bodyUsed;
+  }
+
+  get cache(): unknown {
+    return (this.request as unknown as { cache: unknown }).cache;
+  }
+
+  get credentials(): unknown {
+    return (this.request as unknown as { credentials: unknown }).credentials;
+  }
+
+  get destination(): unknown {
+    return (this.request as unknown as { destination: unknown }).destination;
+  }
+
+  get integrity(): string {
+    return this.request.integrity;
+  }
+
+  get keepalive(): boolean {
+    return this.request.keepalive;
+  }
+
+  get mode(): unknown {
+    return (this.request as unknown as { mode: unknown }).mode;
+  }
+
+  get redirect(): unknown {
+    return (this.request as unknown as { redirect: unknown }).redirect;
+  }
+
+  get referrer(): string {
+    return this.request.referrer;
+  }
+
+  get referrerPolicy(): unknown {
+    return (this.request as unknown as { referrerPolicy: unknown }).referrerPolicy;
+  }
+
+  get signal(): AbortSignal {
+    return this.request.signal;
+  }
+
+  pathValue(name: string): string {
+    const key = toPrimitiveString(name);
+    if (this.overriddenPathValues?.has(key)) {
+      return this.overriddenPathValues.get(key) ?? "";
+    }
+
+    const raw = this.event.params?.[key] ?? "";
+    if (raw === "") {
+      return "";
+    }
+
+    // Fast path: avoid decode work when route param has no escape sequences.
+    if (!raw.includes("%")) {
+      return raw;
+    }
+
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  }
+
+  setPathValue(name: string, value: string): void {
+    const key = toPrimitiveString(name);
+    const normalizedValue = toPrimitiveString(value);
+    if (!this.event.params) {
+      this.event.params = {};
+    }
+    this.event.params[key] = normalizedValue;
+    if (!this.overriddenPathValues) {
+      this.overriddenPathValues = new Map<string, string>();
+    }
+    this.overriddenPathValues.set(key, normalizedValue);
+  }
+
+  arrayBuffer(): Promise<ArrayBuffer> {
+    return this.request.arrayBuffer();
+  }
+
+  blob(): Promise<Blob> {
+    return this.request.blob();
+  }
+
+  bytes(): Promise<Uint8Array> {
+    const bytes = (this.request as Request & { bytes?: () => Promise<Uint8Array> }).bytes;
+    if (typeof bytes === "function") {
+      return bytes.call(this.request);
+    }
+    return this.request.arrayBuffer().then((buffer) => new Uint8Array(buffer));
+  }
+
+  clone(): unknown {
+    return this.request.clone();
+  }
+
+  formData(): Promise<unknown> {
+    const formData = (this.request as unknown as Record<"formData", () => Promise<unknown>>)["formData"];
+    return formData.call(this.request);
+  }
+
+  json(): Promise<unknown> {
+    return this.request.json();
+  }
+
+  text(): Promise<string> {
+    return this.request.text();
+  }
+}
+
+class RouteRequestURLCompat {
+  private readonly event: RouteRequestContext;
+
+  constructor(event: RouteRequestContext) {
+    this.event = event;
+  }
+
+  private get url(): URL {
+    return getRouteRequestURL(this.event);
+  }
+
+  get path(): string {
+    return this.url.pathname;
+  }
+
+  set path(value: string) {
+    this.url.pathname = toPrimitiveString(value);
+  }
+
+  get rawQuery(): string {
+    const search = this.url.search;
+    return search.startsWith("?") ? search.slice(1) : search;
+  }
+
+  set rawQuery(value: string) {
+    const raw = toPrimitiveString(value);
+    this.url.search = raw === "" || raw.startsWith("?") ? raw : `?${raw}`;
+  }
+
+  get scheme(): string {
+    return this.url.protocol.replace(/:$/, "");
+  }
+
+  set scheme(value: string) {
+    const raw = toPrimitiveString(value);
+    this.url.protocol = raw.endsWith(":") ? raw : `${raw}:`;
+  }
+
+  get hash(): string {
+    return this.url.hash;
+  }
+
+  set hash(value: string) {
+    this.url.hash = toPrimitiveString(value);
+  }
+
+  get host(): string {
+    return this.url.host;
+  }
+
+  set host(value: string) {
+    this.url.host = toPrimitiveString(value);
+  }
+
+  get hostname(): string {
+    return this.url.hostname;
+  }
+
+  set hostname(value: string) {
+    this.url.hostname = toPrimitiveString(value);
+  }
+
+  get href(): string {
+    return this.url.href;
+  }
+
+  set href(value: string) {
+    this.url.href = toPrimitiveString(value);
+  }
+
+  get origin(): string {
+    return this.url.origin;
+  }
+
+  get password(): string {
+    return this.url.password;
+  }
+
+  set password(value: string) {
+    this.url.password = toPrimitiveString(value);
+  }
+
+  get pathname(): string {
+    return this.url.pathname;
+  }
+
+  set pathname(value: string) {
+    this.url.pathname = toPrimitiveString(value);
+  }
+
+  get port(): string {
+    return this.url.port;
+  }
+
+  set port(value: string) {
+    this.url.port = toPrimitiveString(value);
+  }
+
+  get protocol(): string {
+    return this.url.protocol;
+  }
+
+  set protocol(value: string) {
+    this.url.protocol = toPrimitiveString(value);
+  }
+
+  get search(): string {
+    return this.url.search;
+  }
+
+  set search(value: string) {
+    this.url.search = toPrimitiveString(value);
+  }
+
+  get searchParams(): URLSearchParams {
+    return this.url.searchParams;
+  }
+
+  get username(): string {
+    return this.url.username;
+  }
+
+  set username(value: string) {
+    this.url.username = toPrimitiveString(value);
+  }
+
+  query(): object {
+    return wrapQueryValues(this.url.searchParams);
+  }
+
+  string(): string {
+    return this.url.toString();
+  }
+
+  toJSON(): string {
+    return this.url.toJSON();
+  }
+
+  toString(): string {
+    return this.url.toString();
+  }
+}
+
+class HeaderValuesCompat {
+  private readonly headers: Headers;
+
+  constructor(headers: Headers) {
+    this.headers = headers;
+  }
+
+  append(name: string, value: string): void {
+    this.headers.append(toPrimitiveString(name), toPrimitiveString(value));
+  }
+
+  delete(name: string): void {
+    this.headers.delete(toPrimitiveString(name));
+  }
+
+  entries(): ReturnType<Headers["entries"]> {
+    return this.headers.entries();
+  }
+
+  forEach(callback: Parameters<Headers["forEach"]>[0], thisArg?: unknown): void {
+    return this.headers.forEach(callback, thisArg);
+  }
+
+  get(name: string): string {
+    return this.headers.get(toPrimitiveString(name)) ?? "";
+  }
+
+  has(name: string): boolean {
+    return this.headers.has(toPrimitiveString(name));
+  }
+
+  keys(): ReturnType<Headers["keys"]> {
+    return this.headers.keys();
+  }
+
+  set(name: string, value: string): void {
+    this.headers.set(toPrimitiveString(name), toPrimitiveString(value));
+  }
+
+  toJSON(): Record<string, string[]> {
+    return headerValuesToJSON(this.headers);
+  }
+
+  values(name: string): string[] {
+    return splitHeaderValues(this.headers.get(toPrimitiveString(name)));
+  }
+
+  [Symbol.iterator](): ReturnType<Headers[typeof Symbol.iterator]> {
+    return this.headers[Symbol.iterator]();
+  }
 }
 
 function splitHeaderValues(raw: string | null): string[] {
@@ -624,41 +810,81 @@ function wrapQueryValues(query: URLSearchParams): object {
     return cached;
   }
 
-  const proxy = new Proxy(query, {
-    get(target, prop, receiver) {
-      if (prop === "get") {
-        return (name: string): string => target.get(toPrimitiveString(name)) ?? "";
-      }
+  const adapter = new QueryValuesCompat(query);
+  queryCompatCache.set(queryObject, adapter);
+  return adapter;
+}
 
-      if (prop === "toJSON") {
-        return () => queryValuesToJSON(target);
-      }
+class QueryValuesCompat {
+  private readonly query: URLSearchParams;
 
-      if (prop === "string" || prop === "toString") {
-        return () => target.toString();
-      }
+  constructor(query: URLSearchParams) {
+    this.query = query;
+  }
 
-      if (prop === "del") {
-        return (name: string): void => {
-          target.delete(toPrimitiveString(name));
-        };
-      }
+  append(name: string, value: string): void {
+    this.query.append(toPrimitiveString(name), toPrimitiveString(value));
+  }
 
-      const value = Reflect.get(target as unknown as object, prop, receiver);
-      if (typeof value === "function") {
-        return (...args: unknown[]) =>
-          value.apply(
-            target,
-            args.map((arg) => unwrapBoundValue(arg)),
-          );
-      }
+  delete(name: string): void {
+    this.query.delete(toPrimitiveString(name));
+  }
 
-      return wrapBoundValue(value);
-    },
-  });
+  del(name: string): void {
+    this.query.delete(toPrimitiveString(name));
+  }
 
-  queryCompatCache.set(queryObject, proxy);
-  return proxy;
+  entries(): ReturnType<URLSearchParams["entries"]> {
+    return this.query.entries();
+  }
+
+  forEach(callback: (value: string, key: string, parent: URLSearchParams) => void, thisArg?: unknown): void {
+    return this.query.forEach(callback, thisArg);
+  }
+
+  get(name: string): string {
+    return this.query.get(toPrimitiveString(name)) ?? "";
+  }
+
+  getAll(name: string): string[] {
+    return this.query.getAll(toPrimitiveString(name));
+  }
+
+  has(name: string): boolean {
+    return this.query.has(toPrimitiveString(name));
+  }
+
+  keys(): ReturnType<URLSearchParams["keys"]> {
+    return this.query.keys();
+  }
+
+  set(name: string, value: string): void {
+    this.query.set(toPrimitiveString(name), toPrimitiveString(value));
+  }
+
+  sort(): void {
+    this.query.sort();
+  }
+
+  string(): string {
+    return this.query.toString();
+  }
+
+  toJSON(): Record<string, string[]> {
+    return queryValuesToJSON(this.query);
+  }
+
+  toString(): string {
+    return this.query.toString();
+  }
+
+  values(): ReturnType<URLSearchParams["values"]> {
+    return this.query.values();
+  }
+
+  [Symbol.iterator](): ReturnType<URLSearchParams[typeof Symbol.iterator]> {
+    return this.query[Symbol.iterator]();
+  }
 }
 
 function queryValuesToJSON(query: URLSearchParams): Record<string, string[]> {
@@ -676,35 +902,6 @@ function queryValuesToJSON(query: URLSearchParams): Record<string, string[]> {
   return out;
 }
 
-function resolveMappedProperty(target: object, prop: string | symbol, receiver: unknown): unknown {
-  if (typeof prop === "string") {
-    const candidate = convertJSToGoName(prop);
-    if (candidate in target) {
-      return (target as Record<string, unknown>)[candidate];
-    }
-  }
-  if (Reflect.has(target, prop)) {
-    return Reflect.get(target, prop, receiver);
-  }
-  return undefined;
-}
-
-function setMappedProperty(target: object, prop: string | symbol, value: unknown, receiver: unknown): boolean {
-  const unwrappedValue = unwrapBoundValue(value);
-  if (typeof prop === "string") {
-    const candidate = convertJSToGoName(prop);
-    if (candidate in target) {
-      (target as Record<string, unknown>)[candidate] = unwrappedValue;
-      return true;
-    }
-  }
-  if (Reflect.has(target, prop)) {
-    return Reflect.set(target, prop, unwrappedValue, receiver);
-  }
-  (target as Record<string, unknown>)[String(prop)] = unwrappedValue;
-  return true;
-}
-
 // wrapBoundValue maps bound Go-style names to the JS style expected by jsvm scripts
 // (eg. `Fields.Add` <-> `fields.add`) and applies recursively to returned objects.
 function wrapBoundValue<T>(value: T): T {
@@ -712,7 +909,7 @@ function wrapBoundValue<T>(value: T): T {
     return value;
   }
 
-  if (value instanceof Error || value instanceof Promise || value instanceof Date || value instanceof RegExp) {
+  if (value instanceof Error || isPromiseLike(value) || value instanceof Date || value instanceof RegExp) {
     return value;
   }
 
@@ -720,7 +917,14 @@ function wrapBoundValue<T>(value: T): T {
     return value;
   }
 
-  if (value instanceof Request || value instanceof Response || value instanceof Headers || value instanceof FormData) {
+  if (
+    value instanceof Request ||
+    value instanceof Response ||
+    value instanceof Headers ||
+    value instanceof URL ||
+    value instanceof URLSearchParams ||
+    value instanceof FormData
+  ) {
     return value;
   }
 
@@ -729,44 +933,188 @@ function wrapBoundValue<T>(value: T): T {
     return wrapApp(objectValue) as T;
   }
 
-  const existing = boundValueProxyCache.get(objectValue);
+  if (Array.isArray(value)) {
+    exposeArrayElements(value as unknown[]);
+    if (Object.getPrototypeOf(value) === Array.prototype) {
+      return value;
+    }
+  }
+
+  const existing = boundValueFacadeCache.get(objectValue);
   if (existing) {
     return existing as T;
   }
 
-  const proxy = new Proxy(objectValue, {
-    get(target, prop, receiver) {
-      const mapped = resolveMappedProperty(target, prop, receiver);
-      if (typeof mapped === "function") {
-        return (...args: unknown[]) => {
-          const result = mapped.apply(
-            target,
-            args.map((arg) => unwrapBoundValue(arg)),
-          );
-          if (result instanceof Error) {
-            throw result;
-          }
-          return wrapBoundValue(result);
-        };
-      }
-      return wrapBoundValue(mapped);
-    },
-    set(target, prop, nextValue, receiver) {
-      return setMappedProperty(target, prop, nextValue, receiver);
-    },
-  });
-
-  boundValueProxyCache.set(objectValue, proxy);
-  boundValueTargetCache.set(proxy, objectValue);
-  return proxy as T;
+  const facade = Object.create(objectValue) as object;
+  boundValueFacadeCache.set(objectValue, facade);
+  boundValueTargetCache.set(facade, objectValue);
+  defineFacadeMembers(facade, objectValue);
+  return facade as T;
 }
 
 function unwrapBoundValue<T>(value: T): T {
   if (!value || (typeof value !== "object" && typeof value !== "function")) {
     return value;
   }
+
   const target = boundValueTargetCache.get(value as unknown as object);
-  return (target ?? (value as unknown as object)) as T;
+  if (target) {
+    return target as T;
+  }
+
+  if (Array.isArray(value)) {
+    unwrapArrayElements(value as unknown[]);
+    return value;
+  }
+
+  return value;
+}
+
+function exposeArrayElements(values: unknown[]): void {
+  for (let i = 0; i < values.length; i += 1) {
+    values[i] = wrapBoundValue(values[i]);
+  }
+}
+
+function unwrapArrayElements(values: unknown[]): void {
+  for (let i = 0; i < values.length; i += 1) {
+    values[i] = unwrapBoundValue(values[i]);
+  }
+}
+
+function defineFacadeMembers(facade: object, target: object, options: FacadeOptions = {}): void {
+  let source: object | null = target;
+  while (source && source !== Object.prototype) {
+    for (const key of Reflect.ownKeys(source)) {
+      if (key === "constructor" || options.protectedNames?.has(key)) {
+        continue;
+      }
+
+      const descriptor = Object.getOwnPropertyDescriptor(source, key);
+      if (!descriptor) {
+        continue;
+      }
+
+      defineForwardingMember(facade, target, key, key, descriptor, {
+        override: false,
+        protectedNames: options.protectedNames,
+      });
+
+      if (typeof key !== "string") {
+        continue;
+      }
+
+      const jsName = convertGoToJSName(key);
+      if (jsName === key || options.protectedNames?.has(jsName)) {
+        continue;
+      }
+
+      defineForwardingMember(facade, target, jsName, key, descriptor, {
+        override: true,
+        protectedNames: options.protectedNames,
+      });
+    }
+    source = Object.getPrototypeOf(source);
+  }
+}
+
+function defineForwardingMember(
+  facade: object,
+  target: object,
+  exposedKey: string | symbol,
+  sourceKey: string | symbol,
+  descriptor: PropertyDescriptor,
+  options: { override: boolean; protectedNames?: Set<string | symbol> },
+): void {
+  if (options.protectedNames?.has(exposedKey)) {
+    return;
+  }
+
+  const existing = Object.getOwnPropertyDescriptor(facade, exposedKey);
+  if (existing && !options.override) {
+    return;
+  }
+  if (existing && existing.configurable === false) {
+    return;
+  }
+
+  const enumerable = descriptor.enumerable === true;
+  if ("value" in descriptor && typeof descriptor.value === "function") {
+    defineFacadeMethod(facade as Record<string | symbol, unknown>, exposedKey, (...args: unknown[]) =>
+      invokeBoundFunction(target, descriptor.value as (...input: unknown[]) => unknown, args, sourceKey),
+    );
+    return;
+  }
+
+  Object.defineProperty(facade, exposedKey, {
+    configurable: true,
+    enumerable,
+    get() {
+      const value = Reflect.get(target, sourceKey, target);
+      return wrapBoundValue(value);
+    },
+    set(value) {
+      const unwrapped = unwrapBoundValue(value);
+      if (descriptor.set || Reflect.has(target, sourceKey)) {
+        Reflect.set(target, sourceKey, unwrapped, target);
+        return;
+      }
+      (target as Record<string, unknown>)[String(sourceKey)] = unwrapped;
+    },
+  });
+}
+
+function defineFacadeMethod(
+  facade: Record<string | symbol, unknown>,
+  key: string | symbol,
+  method: (...args: unknown[]) => unknown,
+): void {
+  Object.defineProperty(facade, key, {
+    configurable: true,
+    enumerable: false,
+    writable: true,
+    value: method,
+  });
+}
+
+function invokeBoundFunction(
+  target: object,
+  method: (...args: unknown[]) => unknown,
+  args: unknown[],
+  sourceKey?: string | symbol,
+): unknown {
+  const result = method.apply(
+    target,
+    args.map((arg) => unwrapBoundValue(arg)),
+  );
+
+  if (Array.isArray(target) && typeof sourceKey === "string" && shouldReturnPlainArray(sourceKey) && Array.isArray(result)) {
+    return Array.from(result, (item) => wrapBoundValue(item));
+  }
+
+  return wrapInvocationResult(result);
+}
+
+function shouldReturnPlainArray(methodName: string): boolean {
+  return (
+    methodName === "concat" ||
+    methodName === "filter" ||
+    methodName === "flat" ||
+    methodName === "flatMap" ||
+    methodName === "map" ||
+    methodName === "slice" ||
+    methodName === "splice" ||
+    methodName === "toReversed" ||
+    methodName === "toSorted" ||
+    methodName === "toSpliced"
+  );
+}
+
+function wrapInvocationResult(result: unknown): unknown {
+  if (result instanceof Error) {
+    throw result;
+  }
+  return wrapBoundValue(result);
 }
 
 function toBytes(raw: unknown, _maxReaderBytes = DefaultMaxBodySize): number[] {

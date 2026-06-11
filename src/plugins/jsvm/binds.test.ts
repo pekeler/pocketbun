@@ -331,6 +331,11 @@ describe("jsvm binds", () => {
     expect(BindApis).toBe(apisBinds);
   });
 
+  it("does not use Proxy wrappers for JSVM compatibility bindings", async () => {
+    const source = await Bun.file(new URL("./binds.ts", import.meta.url)).text();
+    expect(source).not.toContain("new Proxy");
+  });
+
   it("base binds count", () => {
     const scope: BindScope = {};
     baseBinds(scope);
