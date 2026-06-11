@@ -3,7 +3,7 @@
 import { promisify } from "node:util";
 import { gzip as gzipCallback } from "node:zlib";
 import type { RequestEvent } from "../core/event_request.ts";
-import type { Handler } from "../tools/hook/hook.ts";
+import type { BoundHandler } from "../tools/hook/hook.ts";
 
 export const DefaultGzipMiddlewareId = "pbGzip";
 
@@ -14,11 +14,11 @@ export type GzipConfig = {
 
 const gzipAsync = promisify(gzipCallback);
 
-export function Gzip(): Handler<RequestEvent> {
+export function Gzip(): BoundHandler<RequestEvent> {
   return GzipWithConfig({});
 }
 
-export function GzipWithConfig(config: GzipConfig): Handler<RequestEvent> {
+export function GzipWithConfig(config: GzipConfig): BoundHandler<RequestEvent> {
   const resolved: GzipConfig = { ...config };
 
   let level = resolved.Level ?? 0;

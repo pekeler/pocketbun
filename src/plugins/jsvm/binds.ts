@@ -1180,14 +1180,38 @@ function sameSiteValue(mode: number): string {
 }
 
 class Middleware {
-  Func: (event: unknown) => unknown;
-  Priority?: number;
-  Id?: string;
+  func: (event: unknown) => unknown;
+  priority?: number;
+  id?: string;
 
   constructor(func: (event: unknown) => unknown, priority?: number, id?: string) {
-    this.Func = func;
-    this.Priority = priority;
-    this.Id = id;
+    this.func = func;
+    this.priority = priority;
+    this.id = id;
+  }
+
+  get Func(): (event: unknown) => unknown {
+    return this.func;
+  }
+
+  set Func(value: (event: unknown) => unknown) {
+    this.func = value;
+  }
+
+  get Priority(): number | undefined {
+    return this.priority;
+  }
+
+  set Priority(value: number | undefined) {
+    this.priority = value;
+  }
+
+  get Id(): string | undefined {
+    return this.id;
+  }
+
+  set Id(value: string | undefined) {
+    this.id = value;
   }
 }
 
@@ -2093,13 +2117,13 @@ export function apisBinds(target: BindTarget): void {
 
       throw new Error("$apis.static expects the first argument to be either a plain string path or fs.FS value");
     },
-    requireGuestOnly: RequireGuestOnly,
-    requireAuth: RequireAuth,
-    requireSuperuserAuth: RequireSuperuserAuth,
-    requireSuperuserOrOwnerAuth: RequireSuperuserOrOwnerAuth,
-    skipSuccessActivityLog: SkipSuccessActivityLog,
-    gzip: Gzip,
-    bodyLimit: BodyLimit,
+    requireGuestOnly: () => exposeHookHandler(RequireGuestOnly()),
+    requireAuth: (...optCollectionNames: string[]) => exposeHookHandler(RequireAuth(...optCollectionNames)),
+    requireSuperuserAuth: () => exposeHookHandler(RequireSuperuserAuth()),
+    requireSuperuserOrOwnerAuth: (ownerIdPathParam: string) => exposeHookHandler(RequireSuperuserOrOwnerAuth(ownerIdPathParam)),
+    skipSuccessActivityLog: () => exposeHookHandler(SkipSuccessActivityLog()),
+    gzip: () => exposeHookHandler(Gzip()),
+    bodyLimit: (limitBytes: number) => exposeHookHandler(BodyLimit(limitBytes)),
     recordAuthResponse: RecordAuthResponse,
     enrichRecord: EnrichRecord,
     enrichRecords: EnrichRecords,
@@ -2112,6 +2136,57 @@ export function apisBinds(target: BindTarget): void {
   target.UnauthorizedError = NewUnauthorizedError;
   target.TooManyRequestsError = NewTooManyRequestsError;
   target.InternalServerError = NewInternalServerError;
+}
+
+function exposeHookHandler<T>(handler: { Func: (event: T) => unknown; Id?: string; Priority?: number }): {
+  func: (event: T) => unknown;
+  id?: string;
+  priority?: number;
+  Func: (event: T) => unknown;
+  Id?: string;
+  Priority?: number;
+} {
+  const exposed = {
+    func: handler.Func,
+    id: handler.Id,
+    priority: handler.Priority,
+  } as {
+    func: (event: T) => unknown;
+    id?: string;
+    priority?: number;
+    Func: (event: T) => unknown;
+    Id?: string;
+    Priority?: number;
+  };
+
+  Object.defineProperties(exposed, {
+    Func: {
+      get() {
+        return this.func;
+      },
+      set(value: (event: T) => unknown) {
+        this.func = value;
+      },
+    },
+    Id: {
+      get() {
+        return this.id;
+      },
+      set(value: string | undefined) {
+        this.id = value;
+      },
+    },
+    Priority: {
+      get() {
+        return this.priority;
+      },
+      set(value: number | undefined) {
+        this.priority = value;
+      },
+    },
+  });
+
+  return exposed;
 }
 
 export function httpClientBinds(target: BindTarget): void {
@@ -2419,21 +2494,33 @@ function wrapMiddleware(app: App, middleware: unknown): { Func: (event: unknown)
       Func: (event: unknown) =>
         runWithApp(app, () => {
           const wrapped = wrapEvent(event as object);
-          return middleware.Func(wrapped);
+          return middleware.func(wrapped);
         }),
-      Id: middleware.Id,
-      Priority: middleware.Priority,
+      Id: middleware.id,
+      Priority: middleware.priority,
     };
   }
   if (isHookHandler(middleware)) {
+    const handler = middleware as {
+      func?: (event: unknown) => unknown;
+      id?: string;
+      priority?: number;
+      Func?: (event: unknown) => unknown;
+      Id?: string;
+      Priority?: number;
+    };
+    const fn = handler.func ?? handler.Func;
+    if (typeof fn !== "function") {
+      throw new Error("unsupported middleware type");
+    }
     return {
       Func: (event: unknown) =>
         runWithApp(app, () => {
           const wrapped = wrapEvent(event as object);
-          return middleware.Func(wrapped);
+          return fn(wrapped);
         }),
-      Id: middleware.Id,
-      Priority: middleware.Priority,
+      Id: handler.id ?? handler.Id,
+      Priority: handler.priority ?? handler.Priority,
     };
   }
   if (typeof middleware === "function") {
@@ -2448,6 +2535,17 @@ function wrapMiddleware(app: App, middleware: unknown): { Func: (event: unknown)
   throw new Error("unsupported middleware type");
 }
 
-function isHookHandler(value: unknown): value is { Func: (event: unknown) => unknown; Id?: string; Priority?: number } {
-  return value !== null && typeof value === "object" && typeof (value as { Func?: unknown }).Func === "function";
+function isHookHandler(value: unknown): value is {
+  func?: (event: unknown) => unknown;
+  id?: string;
+  priority?: number;
+  Func?: (event: unknown) => unknown;
+  Id?: string;
+  Priority?: number;
+} {
+  if (value === null || typeof value !== "object") {
+    return false;
+  }
+  const handler = value as { func?: unknown; Func?: unknown };
+  return typeof handler.func === "function" || typeof handler.Func === "function";
 }

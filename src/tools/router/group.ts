@@ -1,7 +1,8 @@
 // Ported from pocketbase/tools/router/group.go
 
 import type { Resolver } from "../hook/event.ts";
-import type { Handler as HookHandler } from "../hook/hook.ts";
+import type { BoundHandler, Handler as HookHandler } from "../hook/hook.ts";
+import { normalizeHandler } from "../hook/hook.ts";
 import { Route, type Handler } from "./route.ts";
 
 // RouterGroup represents a collection of routes and other sub groups
@@ -11,7 +12,7 @@ export class RouterGroup<T extends Resolver> {
   children: Array<RouterGroup<T> | Route<T>> = [];
 
   Prefix = "";
-  Middlewares: Array<HookHandler<T>> = [];
+  Middlewares: Array<BoundHandler<T>> = [];
 
   Group(prefix: string): RouterGroup<T> {
     const group = new RouterGroup<T>();
@@ -28,10 +29,11 @@ export class RouterGroup<T extends Resolver> {
   }
 
   Bind(...middlewares: Array<HookHandler<T>>): this {
-    this.Middlewares.push(...middlewares);
+    const boundMiddlewares = middlewares.map((middleware) => normalizeHandler(middleware));
+    this.Middlewares.push(...boundMiddlewares);
 
     if (this.excludedMiddlewares) {
-      for (const middleware of middlewares) {
+      for (const middleware of boundMiddlewares) {
         if (middleware.Id) {
           this.excludedMiddlewares.delete(middleware.Id);
         }

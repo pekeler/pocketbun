@@ -2,7 +2,7 @@
 
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
-import type { Handler } from "../tools/hook/hook.ts";
+import type { BoundHandler } from "../tools/hook/hook.ts";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { TokenTypeAuth } from "../core/record_tokens.ts";
 import { isIPInList } from "../internal/compat/ip.ts";
@@ -48,7 +48,7 @@ export const DefaultRequireSameCollectionContextAuthMiddlewareId = "pbRequireSam
 // Authorization header.
 //
 // This middleware is the opposite of [apis.RequireAuth()].
-export function RequireGuestOnly(): Handler<RequestEvent> {
+export function RequireGuestOnly(): BoundHandler<RequestEvent> {
   return {
     Id: DefaultRequireGuestOnlyMiddlewareId,
     Func: (event) => {
@@ -69,7 +69,7 @@ export function RequireGuestOnly(): Handler<RequestEvent> {
 //
 //	apis.RequireAuth()                      // any auth collection
 //	apis.RequireAuth("_superusers", "users") // only the listed auth collections
-export function RequireAuth(...optCollectionNames: string[]): Handler<RequestEvent> {
+export function RequireAuth(...optCollectionNames: string[]): BoundHandler<RequestEvent> {
   return {
     Id: DefaultRequireAuthMiddlewareId,
     Func: requireAuth(optCollectionNames),
@@ -92,7 +92,7 @@ function requireAuth(optCollectionNames: string[]): (event: RequestEvent) => unk
 
 // RequireSuperuserAuth middleware requires a request to have
 // a valid superuser Authorization header.
-export function RequireSuperuserAuth(): Handler<RequestEvent> {
+export function RequireSuperuserAuth(): BoundHandler<RequestEvent> {
   return {
     Id: DefaultRequireSuperuserAuthMiddlewareId,
     Func: requireAuth([CollectionNameSuperusers]),
@@ -105,7 +105,7 @@ export function RequireSuperuserAuth(): Handler<RequestEvent> {
 // This middleware is similar to [apis.RequireAuth()] but
 // for the auth record token expects to have the same id as the path
 // parameter ownerIdPathParam (default to "id" if empty).
-export function RequireSuperuserOrOwnerAuth(ownerIdPathParam: string): Handler<RequestEvent> {
+export function RequireSuperuserOrOwnerAuth(ownerIdPathParam: string): BoundHandler<RequestEvent> {
   return {
     Id: DefaultRequireSuperuserOrOwnerAuthMiddlewareId,
     Func: (event) => {
@@ -132,7 +132,7 @@ export function RequireSuperuserOrOwnerAuth(ownerIdPathParam: string): Handler<R
 // RequireSameCollectionContextAuth middleware requires a request to have
 // a valid record Authorization header and the auth record's collection to
 // match the one from the route path parameter (default to "collection" if collectionParam is empty).
-export function RequireSameCollectionContextAuth(collectionPathParam: string): Handler<RequestEvent> {
+export function RequireSameCollectionContextAuth(collectionPathParam: string): BoundHandler<RequestEvent> {
   return {
     Id: DefaultRequireSameCollectionContextAuthMiddlewareId,
     Func: (event) => {
@@ -164,7 +164,7 @@ export function RequireSameCollectionContextAuth(collectionPathParam: string): H
 }
 
 // loadAuthToken attempts to load the auth context based on the "Authorization: TOKEN" header value.
-export function loadAuthToken(): Handler<RequestEvent> {
+export function loadAuthToken(): BoundHandler<RequestEvent> {
   return {
     Id: DefaultLoadAuthTokenMiddlewareId,
     Priority: DefaultLoadAuthTokenMiddlewarePriority,
@@ -204,7 +204,7 @@ export function loadAuthToken(): Handler<RequestEvent> {
 //
 // Users can attach the [apis.SkipSuccessActivityLog()] middleware if
 // you want to log only the failed requests.
-export function activityLogger(): Handler<RequestEvent> {
+export function activityLogger(): BoundHandler<RequestEvent> {
   return {
     Id: DefaultActivityLoggerMiddlewareId,
     Priority: DefaultActivityLoggerMiddlewarePriority,
@@ -247,7 +247,7 @@ export function activityLogger(): Handler<RequestEvent> {
 }
 
 // panicRecover returns a default panic-recover handler.
-export function panicRecover(): Handler<RequestEvent> {
+export function panicRecover(): BoundHandler<RequestEvent> {
   return {
     Id: DefaultPanicRecoverMiddlewareId,
     Priority: DefaultPanicRecoverMiddlewarePriority,
@@ -272,7 +272,7 @@ export function panicRecover(): Handler<RequestEvent> {
 // securityHeaders middleware adds common security headers to the response.
 //
 // This middleware is registered by default for all routes.
-export function securityHeaders(): Handler<RequestEvent> {
+export function securityHeaders(): BoundHandler<RequestEvent> {
   return {
     Id: DefaultSecurityHeadersMiddlewareId,
     Priority: DefaultSecurityHeadersMiddlewarePriority,
@@ -289,7 +289,7 @@ export function securityHeaders(): Handler<RequestEvent> {
 // against the configured SuperuserIPs whitelist setting.
 //
 // This middleware is registered by default for all routes.
-export function superuserIPsWhitelist(): Handler<RequestEvent> {
+export function superuserIPsWhitelist(): BoundHandler<RequestEvent> {
   return {
     Id: DefaultSuperuserIPsWhitelistMiddlewareId,
     Priority: DefaultSuperuserIPsWhitelistMiddlewarePriority,
@@ -308,7 +308,7 @@ export function superuserIPsWhitelist(): Handler<RequestEvent> {
 
 // SkipSuccessActivityLog is a helper middleware that instructs the global
 // activity logger to log only requests that have failed/returned an error.
-export function SkipSuccessActivityLog(): Handler<RequestEvent> {
+export function SkipSuccessActivityLog(): BoundHandler<RequestEvent> {
   return {
     Id: DefaultSkipSuccessActivityLogMiddlewareId,
     Func: (event) => {

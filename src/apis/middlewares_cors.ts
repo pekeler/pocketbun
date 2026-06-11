@@ -1,7 +1,7 @@
 // Ported from pocketbase/apis/middlewares_cors.go
 
 import type { RequestEvent } from "../core/event_request.ts";
-import type { Handler } from "../tools/hook/hook.ts";
+import type { BoundHandler } from "../tools/hook/hook.ts";
 import { DefaultActivityLoggerMiddlewarePriority } from "./middlewares.ts";
 
 export const DefaultCorsMiddlewareId = "pbCors";
@@ -29,7 +29,7 @@ export const DefaultCORSConfig: Required<
   MaxAge: 0,
 };
 
-export function CORS(config: CORSConfig): Handler<RequestEvent> {
+export function CORS(config: CORSConfig): BoundHandler<RequestEvent> {
   const resolved: CORSConfig = { ...config };
 
   if (!resolved.AllowOrigins || resolved.AllowOrigins.length === 0) {

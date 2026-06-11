@@ -205,8 +205,8 @@ describe("hook", () => {
     }
 
     hook.Bind({
-      Id: "demo",
-      Func: async (event) => event.Next(),
+      id: "demo",
+      func: async (event) => event.Next(),
     });
 
     if (!hook.HasOnlyHandlerId("demo")) {
@@ -264,10 +264,11 @@ describe("hook", () => {
     let calls = "";
 
     const id0 = hook.bind({
-      Func: async (event) => {
+      func: async (event) => {
         calls += "0";
         return event.Next();
       },
+      priority: -1,
     });
     hook.bindFunc(async (event) => {
       calls += "1";

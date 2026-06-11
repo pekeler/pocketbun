@@ -43,7 +43,7 @@ RegisterMigrateCmd(app, null, {
 });
 
 app.onServe().bind({
-  Func: (e: ServeEvent) => {
+  func: (e: ServeEvent) => {
     e.Router.GET("/hello-from-main", (requestEvent) => {
       return requestEvent.JSON(200, { message: "Hello from BaseApp route." });
     }).bind(RequireGuestOnly());
@@ -53,7 +53,7 @@ app.onServe().bind({
     }
     return e.Next();
   },
-  Priority: 999,
+  priority: 999,
 });
 
 await serveAsync(app, { httpAddr: "127.0.0.1:8090" });

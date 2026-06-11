@@ -122,15 +122,15 @@ describe("Route", () => {
       return null;
     });
     route.bind({
-      Id: "test1",
-      Func: () => {
+      id: "test1",
+      func: () => {
         calls += "b";
         return null;
       },
     });
     route.bind({
-      Id: "test2",
-      Func: () => {
+      id: "test2",
+      func: () => {
         calls += "c";
         return null;
       },

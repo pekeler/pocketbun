@@ -945,6 +945,12 @@ describe("jsvm binds", () => {
 
     const middleware = new scope.Middleware(() => {}, 10, "test");
     expect(middleware).toBeTruthy();
+    expect(middleware.func).toBeTypeOf("function");
+    expect(middleware.priority).toBe(10);
+    expect(middleware.id).toBe("test");
+    expect(middleware.Func).toBe(middleware.func);
+    expect(middleware.Priority).toBe(10);
+    expect(middleware.Id).toBe("test");
   });
 
   it("base binds timezone", () => {
@@ -1282,6 +1288,23 @@ console.log(new URL(server.url).port);`);
     apisBinds(scope);
     expect(countKeys(scope)).toBe(8);
     expect(countKeys(scope.$apis)).toBe(11);
+  });
+
+  it("apis middleware helpers expose lowercase handler fields", () => {
+    const scope: BindScope = {};
+    apisBinds(scope);
+
+    const authMiddleware = scope.$apis.requireAuth();
+    expect(authMiddleware.func).toBeTypeOf("function");
+    expect(authMiddleware.id).toBe("pbRequireAuth");
+    expect(authMiddleware.Func).toBe(authMiddleware.func);
+    expect(authMiddleware.Id).toBe("pbRequireAuth");
+
+    const gzipMiddleware = scope.$apis.gzip();
+    expect(gzipMiddleware.func).toBeTypeOf("function");
+    expect(gzipMiddleware.id).toBe("pbGzip");
+    expect(gzipMiddleware.Func).toBe(gzipMiddleware.func);
+    expect(gzipMiddleware.Id).toBe("pbGzip");
   });
 
   it("apis binds api error", () => {
@@ -2269,6 +2292,51 @@ server.listen(0, "127.0.0.1", () => {
         expect(result.globalMiddlewareCalls).toBe(scenario.globalCalls);
         expect(response.status).toBe(scenario.code);
       }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("router binds accept lowercase hook handler middleware", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const calls: string[] = [];
+
+      const scope: BindScope = {};
+      baseBinds(scope);
+      routerBinds(app, scope);
+
+      scope.routerUse({
+        id: "global",
+        priority: -1,
+        func: (e: any) => {
+          calls.push("global");
+          return e.next();
+        },
+      });
+
+      scope.routerAdd(
+        "GET",
+        "/lowercase-middleware",
+        (e: any) => {
+          calls.push("handler");
+          return e.json(200, { ok: true });
+        },
+        {
+          id: "route",
+          priority: -2,
+          func: (e: any) => {
+            calls.push("route");
+            return e.next();
+          },
+        },
+      );
+
+      const handler = buildServeHandler(app);
+      const response = await handler(new Request("http://127.0.0.1/lowercase-middleware"));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ ok: true });
+      expect(calls).toEqual(["route", "global", "handler"]);
     } finally {
       await cleanup();
     }

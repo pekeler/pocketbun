@@ -1,7 +1,8 @@
 // Ported from pocketbase/tools/router/route.go
 
 import type { Resolver } from "../hook/event.ts";
-import type { Handler as HookHandler } from "../hook/hook.ts";
+import type { BoundHandler, Handler as HookHandler } from "../hook/hook.ts";
+import { normalizeHandler } from "../hook/hook.ts";
 
 export type Handler<E> = (event: E) => unknown;
 
@@ -11,7 +12,7 @@ export class Route<T extends Resolver> {
   Action: Handler<T>;
   Method: string;
   Path: string;
-  Middlewares: Array<HookHandler<T>> = [];
+  Middlewares: Array<BoundHandler<T>> = [];
 
   constructor(method: string, path: string, action: Handler<T>) {
     this.Method = method.toUpperCase();
@@ -27,10 +28,11 @@ export class Route<T extends Resolver> {
   }
 
   Bind(...middlewares: Array<HookHandler<T>>): this {
-    this.Middlewares.push(...middlewares);
+    const boundMiddlewares = middlewares.map((middleware) => normalizeHandler(middleware));
+    this.Middlewares.push(...boundMiddlewares);
 
     if (this.excludedMiddlewares) {
-      for (const middleware of middlewares) {
+      for (const middleware of boundMiddlewares) {
         if (middleware.Id) {
           this.excludedMiddlewares.delete(middleware.Id);
         }

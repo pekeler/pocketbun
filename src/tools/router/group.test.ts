@@ -128,6 +128,41 @@ describe("RouterGroup", () => {
     expect(group.excludedMiddlewares?.has("test3")).toBe(true);
   });
 
+  it("lowercase aliases", () => {
+    const group = new RouterGroup<Event>();
+    group.excludedMiddlewares = new Set(["test2"]);
+    let calls = "";
+
+    group.bindFunc(() => {
+      calls += "a";
+      return null;
+    });
+    group.bind({
+      id: "test1",
+      func: () => {
+        calls += "b";
+        return null;
+      },
+    });
+    group.bind({
+      id: "test2",
+      func: () => {
+        calls += "c";
+        return null;
+      },
+    });
+
+    group.unbind("test1");
+
+    expect(group.Middlewares.length).toBe(2);
+    for (const handler of group.Middlewares) {
+      handler.Func(null as unknown as Event);
+    }
+    expect(calls).toBe("ac");
+    expect(group.excludedMiddlewares?.has("test1")).toBe(true);
+    expect(group.excludedMiddlewares?.has("test2")).toBe(false);
+  });
+
   it("Route", () => {
     const group = new RouterGroup<Event>();
     const sub = group.Group("sub");

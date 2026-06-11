@@ -54,7 +54,7 @@ export class TaggedHook<T extends Tagger> {
     }
 
     const taggedHandler = {
-      Func: fn,
+      func: fn,
       __pbTagSet: this.#tagSet,
     } as Handler<T> & { __pbTagSet?: Set<string> | null };
     return this.#hook.Bind(taggedHandler);

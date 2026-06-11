@@ -2,7 +2,7 @@
 
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
-import type { Handler } from "../tools/hook/hook.ts";
+import type { BoundHandler } from "../tools/hook/hook.ts";
 import { type MaxBodySizeCalculator } from "../core/field.ts";
 import { readRequestBytesAndRebind } from "../internal/compat/request_body.ts";
 import { DefaultRateLimitMiddlewarePriority } from "./middlewares.ts";
@@ -18,7 +18,7 @@ export const DefaultBodyLimitMiddlewarePriority = DefaultRateLimitMiddlewarePrio
 //
 // Otherwise, if the request body size exceeds the configured limitBytes,
 // it sends 413 error response.
-export function BodyLimit(limitBytes: number): Handler<RequestEvent> {
+export function BodyLimit(limitBytes: number): BoundHandler<RequestEvent> {
   return {
     Id: DefaultBodyLimitMiddlewareId,
     Priority: DefaultBodyLimitMiddlewarePriority,
@@ -32,7 +32,7 @@ export function BodyLimit(limitBytes: number): Handler<RequestEvent> {
   };
 }
 
-export function dynamicCollectionBodyLimit(collectionPathParam: string): Handler<RequestEvent> {
+export function dynamicCollectionBodyLimit(collectionPathParam: string): BoundHandler<RequestEvent> {
   const param = collectionPathParam || "collection";
 
   return {

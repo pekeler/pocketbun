@@ -3,7 +3,7 @@
 import type { App } from "../core/app.ts";
 import type { Collection } from "../core/collection_model.ts";
 import type { RequestEvent } from "../core/event_request.ts";
-import type { Handler } from "../tools/hook/hook.ts";
+import type { BoundHandler } from "../tools/hook/hook.ts";
 import {
   RateLimitRuleAudienceAll,
   RateLimitRuleAudienceAuth,
@@ -22,7 +22,7 @@ const rateLimitersSettingsHookId = "__pbRateLimitersSettingsHook__";
 // rateLimit defines the global rate limit middleware.
 //
 // This middleware is registered by default for all routes.
-export function rateLimit(): Handler<RequestEvent> {
+export function rateLimit(): BoundHandler<RequestEvent> {
   return {
     Id: DefaultRateLimitMiddlewareId,
     Priority: DefaultRateLimitMiddlewarePriority,
@@ -49,7 +49,7 @@ export function rateLimit(): Handler<RequestEvent> {
 }
 
 // collectionPathRateLimit defines a rate limit middleware for the internal collection handlers.
-export function collectionPathRateLimit(collectionPathParam: string, ...baseTags: string[]): Handler<RequestEvent> {
+export function collectionPathRateLimit(collectionPathParam: string, ...baseTags: string[]): BoundHandler<RequestEvent> {
   const param = collectionPathParam || "collection";
 
   return {

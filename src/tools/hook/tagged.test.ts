@@ -94,10 +94,11 @@ describe("tagged hook", () => {
     }
 
     const firstId = tagged.bind({
-      Func: async (event) => {
+      func: async (event) => {
         calls += "1";
         return event.Next();
       },
+      priority: -1,
     });
     tagged.bindFunc(async (event) => {
       calls += "2";
