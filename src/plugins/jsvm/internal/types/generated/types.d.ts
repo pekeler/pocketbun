@@ -65,7 +65,7 @@ declare function routerAdd(
   method: string,
   path: string,
   handler: (e: core.RequestEvent) => void,
-  ...middlewares: Array<string | ((e: core.RequestEvent) => void) | Middleware | hook.Handler<core.RequestEvent | undefined>>
+  ...middlewares: Array<((e: core.RequestEvent) => void) | Middleware | hook.Handler<core.RequestEvent | undefined>>
 ): void;
 
 /**
@@ -86,7 +86,7 @@ declare function routerAdd(
  * @group PocketBase
  */
 declare function routerUse(
-  ...middlewares: Array<string | ((e: core.RequestEvent) => void) | Middleware | hook.Handler<core.RequestEvent | undefined>>
+  ...middlewares: Array<((e: core.RequestEvent) => void) | Middleware | hook.Handler<core.RequestEvent | undefined>>
 ): void;
 
 // -------------------------------------------------------------------
@@ -709,7 +709,7 @@ declare const RequestInfo: {
  * @group PocketBase
  */
 declare class Middleware {
-  constructor(func: string | ((e: core.RequestEvent) => void), priority?: number, id?: string);
+  constructor(func: (e: core.RequestEvent) => void, priority?: number, id?: string);
 }
 
 interface Timezone extends time.Location {} // merge

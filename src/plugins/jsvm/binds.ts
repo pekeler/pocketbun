@@ -2396,6 +2396,9 @@ export function hooksBinds(app: App, target: BindTarget): void {
     if (methodName === "OnServe") {
       continue;
     }
+    if (methodName === "OnRecordCreateOTPRequest") {
+      continue;
+    }
     const hookMethod = (app as unknown as Record<string, unknown>)[methodName];
     if (typeof hookMethod !== "function") {
       continue;

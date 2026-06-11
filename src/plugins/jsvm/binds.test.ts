@@ -953,6 +953,12 @@ describe("jsvm binds", () => {
     expect(middleware.Id).toBe("test");
   });
 
+  it("base bind typings declare Bun-native middleware constructor", async () => {
+    const typesSource = await Bun.file(generatedTypesUrl).text();
+    expect(typesSource).toContain("constructor(func: (e: core.RequestEvent) => void, priority?: number, id?: string);");
+    expect(typesSource).not.toContain("constructor(func: string | ((e: core.RequestEvent) => void)");
+  });
+
   it("base binds timezone", () => {
     const scope: BindScope = {};
     baseBinds(scope);
@@ -2134,7 +2140,9 @@ server.listen(0, "127.0.0.1", () => {
     const app = newUnbootstrappedTestApp();
     const scope: BindScope = {};
     hooksBinds(app, scope);
-    expect(countKeys(scope)).toBe(83);
+    expect(countKeys(scope)).toBe(82);
+    expect(scope.onRecordRequestOTPRequest).toBeTypeOf("function");
+    expect(scope.onRecordCreateOTPRequest).toBeUndefined();
   });
 
   it("hooks binds", async () => {
@@ -2238,8 +2246,9 @@ server.listen(0, "127.0.0.1", () => {
   it("router bind typings accept native hook handlers", async () => {
     const typesSource = await Bun.file(generatedTypesUrl).text();
     expect(typesSource).toContain(
-      "string | ((e: core.RequestEvent) => void) | Middleware | hook.Handler<core.RequestEvent | undefined>",
+      "((e: core.RequestEvent) => void) | Middleware | hook.Handler<core.RequestEvent | undefined>",
     );
+    expect(typesSource).not.toContain("Array<string | ((e: core.RequestEvent) => void)");
   });
 
   it("router binds", async () => {
