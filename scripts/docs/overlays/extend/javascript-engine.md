@@ -35,6 +35,8 @@ For most parts, the JavaScript APIs mirror the upstream server APIs with 2 main 
 
 PocketBun still accepts older Go-style uppercase hook method names where they were exposed by previous PocketBun releases, but those names are legacy compatibility aliases. New hooks should use the lowercase names from the PocketBase JSVM docs and generated `pb_data/types.d.ts`.
 
+To update older hooks and migrations automatically, run `pocketbun jsvm lowercase`. It scans `./pb_hooks` and `./pb_migrations` by default; use `pocketbun jsvm lowercase --check` in CI to fail when legacy uppercase names remain, and review the generated diff before committing.
+
 In the PocketBun package API, use `RegisterJSVM*` / `MustRegisterJSVM*` as the preferred names for PocketBase JSVM parity. `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain available as aliases.
 
 Many I/O-heavy APIs also expose Async variants (for example `serveAsync(...)`, `migrateAsync(...)`, and `RegisterJSVMAsync(...)`).

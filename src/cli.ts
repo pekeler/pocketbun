@@ -3,12 +3,14 @@
 
 import type { ServeEvent } from "./core/events.ts";
 import { Static } from "./apis/base.ts";
+import { NewJSVMCommand, isJSVMLowercaseCommand } from "./cmd/jsvm.ts";
 import { MustRegisterAsync as RegisterJSVM } from "./plugins/jsvm/jsvm.ts";
 import { MustRegister as RegisterMigrateCmd, TemplateLangJS } from "./plugins/migratecmd/migratecmd.ts";
 import { New } from "./pocketbase.ts";
 
 export async function main(): Promise<void> {
   const app = New();
+  const args = process.argv.slice(2);
 
   // ---------------------------------------------------------------
   // Optional plugin flags:
@@ -68,7 +70,17 @@ export async function main(): Promise<void> {
     "fallback the request to index.html on missing static path, e.g. when pretty urls are used with SPA",
   );
 
-  app.RootCmd.ParseFlags(process.argv.slice(2));
+  app.RootCmd.AddCommand(NewJSVMCommand());
+  app.RootCmd.ParseFlags(args);
+
+  if (isJSVMLowercaseCommand(args)) {
+    const err = await app.RootCmd.Execute(args);
+    if (err) {
+      console.error(err);
+      process.exit(1);
+    }
+    return;
+  }
 
   // ---------------------------------------------------------------
   // Plugins and hooks:

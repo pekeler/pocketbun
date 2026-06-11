@@ -6,6 +6,7 @@
 - Fixed JSVM hook runtime aliases so lowercase app, record, and DateTime methods match the generated `pb_data/types.d.ts` declarations, including transaction callback `txApp` values, while preserving uppercase aliases for existing PocketBun hooks.
 - Fixed JSVM hook and router handler objects so `{ func, id, priority }` works at runtime as advertised by the generated TypeScript declarations, while preserving `{ Func, Id, Priority }` aliases; route middleware declarations now match Bun runtime and accept functions/handler objects instead of Goja-serialized strings, and hook globals now expose the upstream `onRecordRequestOTPRequest` name without the undocumented `onRecordCreateOTPRequest` alias.
 - Documented Go-style uppercase JSVM names as legacy compatibility aliases; new hooks should use PocketBase JSVM-style lowercase names.
+- Added `pocketbun jsvm lowercase` to rewrite older uppercase PocketBun hook and migration code to PocketBase JSVM-style lowercase names, with `--check` and `--dry-run` modes for CI and review.
 - Changed migration generation to JavaScript-only: omitted `TemplateLang` now generates `.js` files by default, and explicit Go template generation now fails fast instead of producing migrations PocketBun cannot run.
 - Reduced duplicate dev-mode SQL logs during server startup.
 - Clarified how to create collections in JSVM migrations.

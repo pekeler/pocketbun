@@ -111,6 +111,14 @@ PocketBun supports JSVM-style lowercase naming and keeps Go-style aliases where 
 - app method style: prefer `$app.onServe()`; `$app.OnServe()` remains accepted as a legacy compatibility alias
 - `pb_hooks` global hook bindings intentionally mirror upstream JSVM (so there is no global `onServe(...)`)
 
+To update older PocketBun hooks and migrations automatically, run:
+
+```sh
+pocketbun jsvm lowercase
+```
+
+The command scans `./pb_hooks` and `./pb_migrations` by default. Use `pocketbun jsvm lowercase --check` in CI to fail when legacy uppercase names remain, or pass explicit files/directories to limit the rewrite. The fixer rewrites JavaScript/TypeScript member access and object-literal keys such as `e.Record.GetString(...)`, `$app.OnServe()`, and `{ Func, Id, Priority }`; it does not rewrite comments, strings, or class constructor identifiers. Run it with a clean working tree and review the diff before committing.
+
 For `pb_hooks` module loading:
 
 - `.pb.ts` supports ESM imports from local files and dependencies (`node_modules`)
