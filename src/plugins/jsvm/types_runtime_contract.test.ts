@@ -1,6 +1,7 @@
 // PocketBun-only: regression tests for the generated server-side JavaScript type/runtime contract.
 
 import { describe, expect, it, setDefaultTimeout } from "bun:test";
+import { existsSync } from "node:fs";
 import ts from "typescript";
 import { buildServeHandler } from "../../apis/serve.ts";
 import { newTestApp } from "../../tests/app.ts";
@@ -36,7 +37,9 @@ type InterfaceScenario = {
 };
 
 const generatedTypesUrl = new URL("./internal/types/generated/types.d.ts", import.meta.url);
-const upstreamTypesPath = ".upstream/pocketbase/plugins/jsvm/internal/types/generated/types.d.ts";
+const upstreamTypesPath =
+  process.env.POCKETBUN_UPSTREAM_JSVM_TYPES_PATH ?? ".upstream/pocketbase/plugins/jsvm/internal/types/generated/types.d.ts";
+const upstreamTypesAvailable = existsSync(upstreamTypesPath);
 const pocketBunTopLevelAdditions = new Set(["newCollection", "newBaseCollection", "newViewCollection", "newAuthCollection"]);
 const pocketBunNamespaceAdditions = new Set([
   "$filesystem.fileFromPathAsync",
@@ -450,7 +453,7 @@ describe("jsvm generated type runtime contract", () => {
     expect(stalePatterns.filter((pattern) => comments.includes(pattern))).toEqual([]);
   });
 
-  it("keeps runtime bind names cased like upstream JSVM declarations", async () => {
+  it.skipIf(!upstreamTypesAvailable)("keeps runtime bind names cased like upstream JSVM declarations", async () => {
     const local = await sourceFile(generatedTypesUrl);
     const upstream = await sourceFile(upstreamTypesPath);
     const localTop = collectTopLevelValues(local);
@@ -534,7 +537,7 @@ describe("jsvm generated type runtime contract", () => {
     }
   });
 
-  it("keeps all generated declaration names in sync with audited upstream deltas", async () => {
+  it.skipIf(!upstreamTypesAvailable)("keeps all generated declaration names in sync with audited upstream deltas", async () => {
     const local = await sourceFile(generatedTypesUrl);
     const upstream = await sourceFile(upstreamTypesPath);
     const namespaceNames = sorted(new Set([...collectNamespaceNames(local), ...collectNamespaceNames(upstream)]));
