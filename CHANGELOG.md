@@ -9,6 +9,11 @@
   - Package embedders can now use `RegisterServerJS*` and `ServerJSConfig` for server-side JavaScript setup; `RegisterJSVM*` remains an upstream-parity alias and `RegisterHooksPlugin*` remains a released compatibility alias.
   - `pocketbun server-js lowercase` can rewrite older uppercase hook and migration code, with `--check` and `--dry-run` modes for CI and review.
   - Hook runtime compatibility wrappers no longer rely on `Proxy`, improving performance with cached facades and concrete route request adapters.
+- Upgrade notes from `v0.39.3-pocketbun.0`:
+  - Run `pocketbun server-js lowercase` in a clean working tree to update older uppercase hook and migration API usage; use `pocketbun server-js lowercase --check` in CI.
+  - For package embeds, prefer `RegisterServerJS*`, `MustRegisterServerJS*`, and `ServerJSConfig`; `RegisterJSVM*` and `RegisterHooksPlugin*` remain compatibility aliases.
+  - Remove explicit `TemplateLangGo` migration generation config or switch it to `TemplateLangJS`; PocketBun now generates JavaScript migrations only.
+  - Review older generated collection/schema migrations before fresh-database replay and use `app.forMigrations()` for collection persistence.
 - Changed migration generation to JavaScript-only: omitted `TemplateLang` now generates `.js` files by default, and explicit Go template generation now fails fast instead of producing migrations PocketBun cannot run.
 - Reduced duplicate dev-mode SQL logs during server startup.
 - Clarified how to create collections in JavaScript migrations.
