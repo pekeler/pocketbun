@@ -1336,7 +1336,7 @@ function buildReferencePage(args: { outputPath: string; permalink?: string; link
     "",
     "# Extend PocketBun Reference",
     "",
-    "This page is generated from PocketBun JSVM TypeScript declarations and serves as the API reference for the Extend PocketBun docs.",
+    "This page is generated from PocketBun server-side JavaScript TypeScript declarations and serves as the API reference for the Extend PocketBun docs.",
     "",
     "Quick links:",
     "",

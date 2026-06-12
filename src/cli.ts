@@ -3,7 +3,7 @@
 
 import type { ServeEvent } from "./core/events.ts";
 import { Static } from "./apis/base.ts";
-import { NewJSVMCommand, isJSVMLowercaseCommand } from "./cmd/jsvm.ts";
+import { NewServerJSCommand, isServerJSLowercaseCommand } from "./cmd/server_js.ts";
 import { MustRegisterAsync as RegisterJSVM } from "./plugins/jsvm/jsvm.ts";
 import { MustRegister as RegisterMigrateCmd, TemplateLangJS } from "./plugins/migratecmd/migratecmd.ts";
 import { New } from "./pocketbase.ts";
@@ -39,7 +39,7 @@ export async function main(): Promise<void> {
     "hooksPool",
     "hooksPool",
     flags.hooksPool,
-    "the total prewarm goja.Runtime instances for the JS app hooks execution",
+    "the total prewarmed runtime instances for server-side JavaScript hooks",
   );
   app.RootCmd.PersistentFlags().StringVar(
     flags,
@@ -70,10 +70,10 @@ export async function main(): Promise<void> {
     "fallback the request to index.html on missing static path, e.g. when pretty urls are used with SPA",
   );
 
-  app.RootCmd.AddCommand(NewJSVMCommand());
+  app.RootCmd.AddCommand(NewServerJSCommand());
   app.RootCmd.ParseFlags(args);
 
-  if (isJSVMLowercaseCommand(args)) {
+  if (isServerJSLowercaseCommand(args)) {
     const err = await app.RootCmd.Execute(args);
     if (err) {
       console.error(err);
@@ -86,7 +86,7 @@ export async function main(): Promise<void> {
   // Plugins and hooks:
   // ---------------------------------------------------------------
 
-  // load jsvm (pb_hooks and pb_migrations)
+  // load server-side JavaScript hooks and migrations
   await RegisterJSVM(app, {
     MigrationsDir: flags.migrationsDir,
     HooksDir: flags.hooksDir,

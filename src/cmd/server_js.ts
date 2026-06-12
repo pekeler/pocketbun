@@ -1,20 +1,20 @@
-// PocketBun-only: CLI utilities for JSVM hook maintenance.
+// PocketBun-only: CLI utilities for server-side JavaScript hook and migration maintenance.
 
 import { Command } from "../tools/cli/command.ts";
 
 const rootValueFlags = new Set(["dir", "hooksDir", "hooksPool", "migrationsDir", "publicDir"]);
 
-export function NewJSVMCommand(): Command {
+export function NewServerJSCommand(): Command {
   const command = new Command({
-    Use: "jsvm",
-    Short: "JSVM hook utilities",
+    Use: "server-js",
+    Short: "Server-side JavaScript utilities",
   });
 
-  command.AddCommand(newJSVMLowercaseCommand());
+  command.AddCommand(newServerJSLowercaseCommand());
   return command;
 }
 
-export function isJSVMLowercaseCommand(args: string[]): boolean {
+export function isServerJSLowercaseCommand(args: string[]): boolean {
   const positional: string[] = [];
 
   for (let index = 0; index < args.length; index += 1) {
@@ -40,10 +40,10 @@ export function isJSVMLowercaseCommand(args: string[]): boolean {
     }
   }
 
-  return positional[0] === "jsvm" && positional[1] === "lowercase";
+  return positional[0] === "server-js" && positional[1] === "lowercase";
 }
 
-function newJSVMLowercaseCommand(): Command {
+function newServerJSLowercaseCommand(): Command {
   const state = {
     check: false,
     dryRun: false,
@@ -52,14 +52,14 @@ function newJSVMLowercaseCommand(): Command {
 
   const command = new Command({
     Use: "lowercase [paths...]",
-    Short: "Rewrite legacy uppercase JSVM names to lowercase",
-    Long: `Rewrites older PocketBun pb_hooks/pb_migrations code from Go-style exported names to PocketBase JSVM-style lower-camel names.
+    Short: "Rewrite legacy uppercase server-side JavaScript names to lowercase",
+    Long: `Rewrites older PocketBun pb_hooks/pb_migrations code from Go-style exported names to PocketBase-style lower-camel JavaScript names.
 
 By default it scans ./pb_hooks and ./pb_migrations. Pass explicit files or directories to limit the rewrite.`,
     Example: [
-      "pocketbun jsvm lowercase",
-      "pocketbun jsvm lowercase --check",
-      "pocketbun jsvm lowercase pb_hooks/main.pb.ts",
+      "pocketbun server-js lowercase",
+      "pocketbun server-js lowercase --check",
+      "pocketbun server-js lowercase pb_hooks/main.pb.ts",
     ].join("\n"),
     SilenceUsage: true,
   });
@@ -87,9 +87,11 @@ By default it scans ./pb_hooks and ./pb_migrations. Pass explicit files or direc
     }
 
     if (summary.scanned === 0) {
-      console.log("No matching JSVM files found.");
+      console.log("No matching server-side JavaScript files found.");
     } else if (summary.changed === 0) {
-      console.log(`No legacy uppercase JSVM names found in ${summary.scanned} file${summary.scanned === 1 ? "" : "s"}.`);
+      console.log(
+        `No legacy uppercase server-side JavaScript names found in ${summary.scanned} file${summary.scanned === 1 ? "" : "s"}.`,
+      );
     } else {
       const action = state.check || state.dryRun ? "would change" : "changed";
       console.log(
@@ -98,7 +100,7 @@ By default it scans ./pb_hooks and ./pb_migrations. Pass explicit files or direc
     }
 
     if (state.check && summary.changed > 0) {
-      return new Error("legacy uppercase JSVM names found");
+      return new Error("legacy uppercase server-side JavaScript names found");
     }
     return null;
   };

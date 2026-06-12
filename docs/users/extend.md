@@ -63,11 +63,11 @@ For most parts, the JavaScript APIs mirror the upstream server APIs with 2 main 
 
 - Errors are thrown as regular JavaScript exceptions and not returned as explicit error values.
 
-PocketBun still accepts older Go-style uppercase hook method names where they were exposed by previous PocketBun releases, but those names are legacy compatibility aliases. New hooks should use the lowercase names from the PocketBase JSVM docs and generated `pb_data/types.d.ts`.
+PocketBun still accepts older Go-style uppercase hook method names where they were exposed by previous PocketBun releases, but those names are legacy compatibility aliases. New hooks should use the lowercase names from the PocketBase JavaScript docs and generated `pb_data/types.d.ts`.
 
-To update older hooks and migrations automatically, run `pocketbun jsvm lowercase`. It scans `./pb_hooks` and `./pb_migrations` by default; use `pocketbun jsvm lowercase --check` in CI to fail when legacy uppercase names remain, and review the generated diff before committing.
+To update older hooks and migrations automatically, run `pocketbun server-js lowercase`. It scans `./pb_hooks` and `./pb_migrations` by default; use `pocketbun server-js lowercase --check` in CI to fail when legacy uppercase names remain, and review the generated diff before committing.
 
-In the PocketBun package API, use `RegisterJSVM*` / `MustRegisterJSVM*` as the preferred names for PocketBase JSVM parity. `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain available as aliases.
+In the PocketBun package API, use `RegisterJSVM*` / `MustRegisterJSVM*` when you need naming parity with PocketBase's upstream JavaScript extension package. `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain available as aliases.
 
 Many I/O-heavy APIs also expose Async variants (for example `serveAsync(...)`, `migrateAsync(...)`, and `RegisterJSVMAsync(...)`).
 ### TypeScript declarations and code completion
@@ -1816,7 +1816,7 @@ let collection = new Collection({
 $app.save(collection)
 ```
 
-The `newCollection(...)`, `newBaseCollection(...)`, `newViewCollection(...)`, and `newAuthCollection(...)` helpers are available as top-level JSVM globals, not as `$app` methods. In migrations, create the collection with `new Collection(...)` or one of those global helpers, then use `app.forMigrations().save(collection)` to persist it.
+The `newCollection(...)`, `newBaseCollection(...)`, `newViewCollection(...)`, and `newAuthCollection(...)` helpers are available as top-level server-side JavaScript globals, not as `$app` methods. In migrations, create the collection with `new Collection(...)` or one of those global helpers, then use `app.forMigrations().save(collection)` to persist it.
 
 Base collections initialize only the `id` system record field by default. Add `autodate` fields such as `created` and `updated` explicitly when your records need timestamps.
 
@@ -2272,7 +2272,7 @@ onRecordCreateRequest((e) => {
 
 In order to send `multipart/form-data` requests (ex. uploading files) the request `body` must be a `FormData` instance.
 
-PocketBun JSVM's `FormData` has the same APIs as its browser equivalent with the main difference that for file values instead of `Blob` it accepts `$filesystem.File`.
+PocketBun's server-side JavaScript `FormData` has the same APIs as its browser equivalent with the main difference that for file values instead of `Blob` it accepts `$filesystem.File`.
 
 ```js
 const formData = new FormData();

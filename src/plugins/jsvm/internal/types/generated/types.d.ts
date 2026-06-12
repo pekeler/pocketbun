@@ -424,7 +424,7 @@ declare class Collection implements core.Collection {
 /**
  * newCollection initializes and returns a new Collection model with the specified type and name.
  *
- * It is a top-level JSVM global, not an `$app` method. In migrations, persist the returned
+ * It is a top-level server-side JavaScript global, not an `$app` method. In migrations, persist the returned
  * collection with `app.forMigrations().save(collection)`.
  *
  * @group PocketBase
@@ -434,7 +434,7 @@ declare function newCollection(typ: "base" | "auth" | "view" | string, name: str
 /**
  * newBaseCollection initializes and returns a new "base" Collection model.
  *
- * It is a top-level JSVM global, not an `$app` method. Base collections initialize only the `id`
+ * It is a top-level server-side JavaScript global, not an `$app` method. Base collections initialize only the `id`
  * system record field by default; add `autodate` fields explicitly if records need timestamps.
  *
  * @group PocketBase
@@ -444,7 +444,7 @@ declare function newBaseCollection(name: string, ...optId: string[]): core.Colle
 /**
  * newViewCollection initializes and returns a new "view" Collection model.
  *
- * It is a top-level JSVM global, not an `$app` method.
+ * It is a top-level server-side JavaScript global, not an `$app` method.
  *
  * @group PocketBase
  */
@@ -453,7 +453,7 @@ declare function newViewCollection(name: string, ...optId: string[]): core.Colle
 /**
  * newAuthCollection initializes and returns a new "auth" Collection model.
  *
- * It is a top-level JSVM global, not an `$app` method.
+ * It is a top-level server-side JavaScript global, not an `$app` method.
  *
  * @group PocketBase
  */

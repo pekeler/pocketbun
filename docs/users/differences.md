@@ -52,8 +52,8 @@ Use this as a quick migration recipe for an existing PocketBase project.
    - In `.pb.ts` hooks, use standard `import` for neighboring files and dependencies when needed.
 5. Keep API clients and route assumptions.
    - Existing client SDK usage should continue to work with the same API base paths (`/api/`, `/_/`).
-6. If you embed PocketBun programmatically, prefer JSVM-compatible naming.
-   - Prefer `RegisterJSVM*` / `MustRegisterJSVM*` for naming parity with PocketBase JSVM docs.
+6. If you embed PocketBun programmatically, keep upstream package API naming in mind.
+   - Prefer `RegisterJSVM*` / `MustRegisterJSVM*` when you need naming parity with PocketBase's upstream JavaScript extension package.
    - `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain aliases.
 7. Run a migration smoke test before deploying.
    - Start: `pocketbun serve --dev`
@@ -94,8 +94,8 @@ This prevents accidental writes into `node_modules`-adjacent paths when used as 
 
 ## Hooks Plugin Naming
 
-PocketBase JS extension naming uses `jsvm` package naming.
-PocketBun keeps those names as primary and also provides aliases:
+PocketBase's upstream JavaScript extension package uses `jsvm` naming internally.
+PocketBun keeps those package API names for upstream parity and also provides aliases:
 
 - preferred for parity: `RegisterJSVM*`, `MustRegisterJSVM*`
 - aliases: `RegisterHooksPlugin*`, `MustRegisterHooksPlugin*`
@@ -104,20 +104,20 @@ Both names map to the same plugin registration behavior.
 
 ## Hooks API And Module Loading
 
-PocketBun supports JSVM-style lowercase naming and keeps Go-style aliases where applicable. The uppercase aliases exist only for older PocketBun hooks and should be treated as legacy compatibility names; new `pb_hooks` and `pb_migrations` code should use the lowercase names used by PocketBase JSVM docs and `pb_data/types.d.ts`.
+PocketBun supports PocketBase-style lowercase server-side JavaScript naming and keeps Go-style aliases where applicable. The uppercase aliases exist only for older PocketBun hooks and should be treated as legacy compatibility names; new `pb_hooks` and `pb_migrations` code should use the lowercase names used by PocketBase JavaScript docs and `pb_data/types.d.ts`.
 
 - preferred hook object names: `bindFunc`, `bind`, `unbind`, `length`, `trigger`
 - legacy alias hook object names: `BindFunc`, `Bind`, `Unbind`, `Length`, `Trigger`
 - app method style: prefer `$app.onServe()`; `$app.OnServe()` remains accepted as a legacy compatibility alias
-- `pb_hooks` global hook bindings intentionally mirror upstream JSVM (so there is no global `onServe(...)`)
+- `pb_hooks` global hook bindings intentionally mirror PocketBase's upstream JavaScript hooks (so there is no global `onServe(...)`)
 
 To update older PocketBun hooks and migrations automatically, run:
 
 ```sh
-pocketbun jsvm lowercase
+pocketbun server-js lowercase
 ```
 
-The command scans `./pb_hooks` and `./pb_migrations` by default. Use `pocketbun jsvm lowercase --check` in CI to fail when legacy uppercase names remain, or pass explicit files/directories to limit the rewrite. The fixer rewrites JavaScript/TypeScript member access and object-literal keys such as `e.Record.GetString(...)`, `$app.OnServe()`, and `{ Func, Id, Priority }`; it does not rewrite comments, strings, or class constructor identifiers. Run it with a clean working tree and review the diff before committing.
+The command scans `./pb_hooks` and `./pb_migrations` by default. Use `pocketbun server-js lowercase --check` in CI to fail when legacy uppercase names remain, or pass explicit files/directories to limit the rewrite. The fixer rewrites JavaScript/TypeScript member access and object-literal keys such as `e.Record.GetString(...)`, `$app.OnServe()`, and `{ Func, Id, Priority }`; it does not rewrite comments, strings, or class constructor identifiers. Run it with a clean working tree and review the diff before committing.
 
 For `pb_hooks` module loading:
 
@@ -184,7 +184,7 @@ PocketBun keeps sync-compatible APIs but adds async alternatives for I/O-heavy p
 | Migration helper | `migrate(...)` | `migrateAsync(...)` |
 | Hooks plugin register | `RegisterJSVM(...)` | `RegisterJSVMAsync(...)` |
 | Filesystem factories | `NewFilesystem()` | `NewFilesystemAsync()` |
-| JSVM helpers | `$http.send(...)`, `$os.readFile(...)` | `$http.sendAsync(...)`, `$os.readFileAsync(...)` |
+| Server-side JavaScript helpers | `$http.send(...)`, `$os.readFile(...)` | `$http.sendAsync(...)`, `$os.readFileAsync(...)` |
 
 ## Operational Differences
 
@@ -242,7 +242,7 @@ PocketBun `$template` helper supports common PocketBase template patterns.
 
 For closer Go `text/template` parity, install optional `go-text-template`.
 
-### JSVM `$filepath`
+### Server-Side JavaScript `$filepath`
 
 PocketBun exposes the same `$filepath` method names as PocketBase, but it does not fully match Go `path/filepath` edge cases.
 
@@ -256,7 +256,7 @@ PocketBun exposes the same `$filepath` method names as PocketBase, but it does n
   - `join()` yields `"."` instead of `""`
   - `rel(path, path)` may yield `""` instead of `"."`
 
-### JSVM RequestEvent request/response surface
+### Server-Side JavaScript RequestEvent Request/Response Surface
 
 For custom routes, `e` below means the route event parameter passed to `routerAdd(..., (e) => { ... })`.
 
