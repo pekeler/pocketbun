@@ -4,7 +4,7 @@
 
 - Replaced `pocketbun server-js lowercase` with `pocketbun server-js upgrade-source`, which updates deprecated server-side JavaScript compatibility aliases, package aliases, template language config, and old generated collection migrations while preserving formatting.
 - Fixed remaining server-side JavaScript type/runtime mismatches so generated hook and migration declarations match the lowercase runtime API, including app, record, form, API error, validation error, `DateTime`, field `help`, `RequestInfo`, `Cookie`, `Command`, and `SubscriptionMessage.writeSSE(...)` names.
-- Documented uppercase server-side JavaScript compatibility aliases as deprecated, expanded `pocketbun server-js upgrade-source` coverage for the audited runtime/type surface, and updated docs/examples to use lowercase event/router helpers.
+- Documented uppercase server-side JavaScript compatibility aliases as deprecated, expanded `pocketbun server-js upgrade-source` coverage for the audited runtime/type surface, and updated generated declaration comments plus docs/examples to use lowercase server-side JavaScript helpers.
 
 ## 0.39.3-pocketbun.2 - 2026-06-12
 

@@ -154,7 +154,7 @@ declare const RequestInfo: {
 
 ### cronAdd
 
-CronAdd registers a new cron job.
+cronAdd registers a new cron job.
 
 If a cron job with the specified name already exist, it will be
 replaced with the new one.
@@ -178,7 +178,7 @@ declare function cronAdd(jobId: string, cronExpr: string, handler: () => void): 
 
 ### cronRemove
 
-CronRemove removes a single registered cron job by its name.
+cronRemove removes a single registered cron job by its name.
 
 Example:
 
@@ -196,7 +196,7 @@ declare function cronRemove(jobId: string): void;
 
 ### routerAdd
 
-RouterAdd registers a new route definition.
+routerAdd registers a new route definition.
 
 Example:
 
@@ -221,7 +221,7 @@ declare function routerAdd(
 
 ### routerUse
 
-RouterUse registers one or more global middlewares that are executed
+routerUse registers one or more global middlewares that are executed
 along the handler middlewares after a matching route is found.
 
 Example:
@@ -271,7 +271,7 @@ Example:
 const ex1 = toString(e.request.body)
 
 // slice of bytes
-const ex2 = toString([104 101 108 108 111]) // "hello"
+const ex2 = toString([104, 101, 108, 108, 111]) // "hello"
 
 // null
 const ex3 = toString(null) // ""
@@ -300,7 +300,7 @@ Example:
 const ex1 = toBytes(e.request.body)
 
 // string
-const ex2 = toBytes("hello") // [104 101 108 108 111]
+const ex2 = toBytes("hello") // [104, 101, 108, 108, 111]
 
 // object (the same as the string '{"test":1}')
 const ex3 = toBytes({"test":1}) // [123 34 116 101 115 116 34 58 49 125]
@@ -495,7 +495,7 @@ declare function newAuthCollection(name: string, ...optId: string[]): core.Colle
 
 ### migrate
 
-Migrate defines a single migration upgrade/downgrade action.
+migrate defines a single migration upgrade/downgrade action.
 
 _Note that this method is available only in pb_migrations context._
 
@@ -1463,7 +1463,7 @@ declare namespace $apis {
   let enrichRecords: apis.enrichRecords;
 
   /**
-   * RecordAuthResponse writes standardized json record auth response
+   * recordAuthResponse writes standardized json record auth response
    * into the specified request event.
    *
    * The authMethod argument specify the name of the current authentication method (eg. password, oauth2, etc.)

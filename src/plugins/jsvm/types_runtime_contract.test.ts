@@ -112,6 +112,10 @@ async function sourceFile(pathOrUrl: string | URL): Promise<ts.SourceFile> {
   return ts.createSourceFile(path, await Bun.file(pathOrUrl).text(), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
 }
 
+function declarationCommentText(source: string): string {
+  return (source.match(/\/\*\*[\s\S]*?\*\//g) ?? []).join("\n");
+}
+
 function propName(name: ts.PropertyName | ts.BindingName | ts.ModuleName | undefined): string | null {
   if (!name) {
     return null;
@@ -394,6 +398,53 @@ function memberNames(members: MemberMap): Set<string> {
 }
 
 describe("jsvm generated type runtime contract", () => {
+  it("keeps generated server-side JavaScript comments on lowercase public names", async () => {
+    const comments = declarationCommentText(await Bun.file(generatedTypesUrl).text());
+    const stalePatterns = [
+      "App.save()",
+      "App.delete()",
+      "App.validate()",
+      "App.saveNoValidate()",
+      "App.auxSave()",
+      "[App.",
+      "[OnModel",
+      "OnRecord*",
+      "OnCollection",
+      "OnRecordAuthRequest",
+      "RunInTransaction calls",
+      "FindCollections finds",
+      "SetRaw method",
+      "GetUnsavedFiles",
+      "ResponseWritter",
+      "responseWritter",
+      "search.fieldResolver",
+      "template.newRegistry",
+      ".Render(map",
+      "Message{Name",
+      "Data: []byte",
+      "h := Hook",
+      "fsys := os.DirFS",
+      "resolvers.NewRecordFieldResolver",
+      "types.Pointer",
+      "dbx.Params{",
+      "record.Get",
+      "record.Set",
+      "record.collection().Name",
+      "collection().Id",
+      "e.Next()",
+      "e.JSON(",
+      "e.BindBody(",
+      "m.WriteSSE",
+      "SetOut",
+      "SetErr",
+      "SetHelpCommand",
+      "ValidArgs",
+      "* RunE:",
+    ];
+
+    expect(stalePatterns.filter((pattern) => comments.includes(pattern))).toEqual([]);
+  });
+
   it("keeps runtime bind names cased like upstream JSVM declarations", async () => {
     const local = await sourceFile(generatedTypesUrl);
     const upstream = await sourceFile(upstreamTypesPath);

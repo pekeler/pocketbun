@@ -7,7 +7,7 @@
 // -------------------------------------------------------------------
 
 /**
- * CronAdd registers a new cron job.
+ * cronAdd registers a new cron job.
  *
  * If a cron job with the specified name already exist, it will be
  * replaced with the new one.
@@ -28,7 +28,7 @@
 declare function cronAdd(jobId: string, cronExpr: string, handler: () => void): void;
 
 /**
- * CronRemove removes a single registered cron job by its name.
+ * cronRemove removes a single registered cron job by its name.
  *
  * Example:
  *
@@ -47,7 +47,7 @@ declare function cronRemove(jobId: string): void;
 // -------------------------------------------------------------------
 
 /**
- * RouterAdd registers a new route definition.
+ * routerAdd registers a new route definition.
  *
  * Example:
  *
@@ -69,7 +69,7 @@ declare function routerAdd(
 ): void;
 
 /**
- * RouterUse registers one or more global middlewares that are executed
+ * routerUse registers one or more global middlewares that are executed
  * along the handler middlewares after a matching route is found.
  *
  * Example:
@@ -168,7 +168,7 @@ declare function readerToString(reader: any, maxBytes?: number): string;
  * const ex1 = toString(e.request.body)
  *
  * // slice of bytes
- * const ex2 = toString([104 101 108 108 111]) // "hello"
+ * const ex2 = toString([104, 101, 108, 108, 111]) // "hello"
  *
  * // null
  * const ex3 = toString(null) // ""
@@ -194,7 +194,7 @@ declare function toString(val: any, maxBytes?: number): string;
  * const ex1 = toBytes(e.request.body)
  *
  * // string
- * const ex2 = toBytes("hello") // [104 101 108 108 111]
+ * const ex2 = toBytes("hello") // [104, 101, 108, 108, 111]
  *
  * // object (the same as the string '{"test":1}')
  * const ex3 = toBytes({"test":1}) // [123 34 116 101 115 116 34 58 49 125]
@@ -1278,7 +1278,7 @@ declare namespace $apis {
   let enrichRecords: apis.enrichRecords;
 
   /**
-   * RecordAuthResponse writes standardized json record auth response
+   * recordAuthResponse writes standardized json record auth response
    * into the specified request event.
    *
    * The authMethod argument specify the name of the current authentication method (eg. password, oauth2, etc.)
@@ -1374,7 +1374,7 @@ declare namespace $http {
 // -------------------------------------------------------------------
 
 /**
- * Migrate defines a single migration upgrade/downgrade action.
+ * migrate defines a single migration upgrade/downgrade action.
  *
  * _Note that this method is available only in pb_migrations context._
  *
@@ -3596,7 +3596,7 @@ namespace security {
      * NB! While the source of the randomness comes from [crypto/rand] this method
      * is not recommended to be used on its own in critical secure contexts because
      * the generated length could vary too much on the used pattern and may not be
-     * as secure as simply calling [security.RandomString].
+     * as secure as simply calling [security.randomString].
      * If you still insist on using it for such purposes, consider at least
      * a large enough minimum length for the generated string, e.g. `[a-z0-9]{30}`.
      *
@@ -4521,7 +4521,7 @@ namespace dbx {
   }
   interface DB {
     /**
-     * Context returns the context associated with the DB instance.
+     * context returns the context associated with the DB instance.
      * It returns nil if no context is associated.
      */
     context(): context.Context;
@@ -4855,7 +4855,7 @@ namespace dbx {
   }
   interface ModelQuery {
     /**
-     * Context returns the context associated with the query.
+     * context returns the context associated with the query.
      */
     context(): context.Context;
   }
@@ -4997,7 +4997,7 @@ namespace dbx {
   }
   interface Query {
     /**
-     * Context returns the context associated with the query.
+     * context returns the context associated with the query.
      */
     context(): context.Context;
   }
@@ -5340,7 +5340,7 @@ namespace dbx {
   }
   interface SelectQuery {
     /**
-     * Context returns the context associated with the query.
+     * context returns the context associated with the query.
      */
     context(): context.Context;
   }
@@ -5708,7 +5708,7 @@ namespace filesystem {
   }
   interface File {
     /**
-     * AsMap implements [core.mapExtractor] and returns a value suitable
+     * asMap implements [core.mapExtractor] and returns a value suitable
      * to be used in an API rule expression.
      */
     asMap(): _TygojaDict;
@@ -5755,7 +5755,7 @@ namespace filesystem {
   }
   interface MultipartReader {
     /**
-     * Open implements the [filesystem.FileReader] interface.
+     * open implements the [filesystem.FileReader] interface.
      */
     open(): io.ReadSeekCloser;
   }
@@ -5767,7 +5767,7 @@ namespace filesystem {
   }
   interface PathReader {
     /**
-     * Open implements the [filesystem.FileReader] interface.
+     * open implements the [filesystem.FileReader] interface.
      */
     open(): io.ReadSeekCloser;
   }
@@ -5779,7 +5779,7 @@ namespace filesystem {
   }
   interface BytesReader {
     /**
-     * Open implements the [filesystem.FileReader] interface.
+     * open implements the [filesystem.FileReader] interface.
      */
     open(): io.ReadSeekCloser;
   }
@@ -5787,7 +5787,7 @@ namespace filesystem {
   interface bytesReadSeekCloser extends _sVNcSUf {}
   interface bytesReadSeekCloser {
     /**
-     * Close implements the [io.ReadSeekCloser] interface.
+     * close implements the [io.ReadSeekCloser] interface.
      */
     close(): void;
   }
@@ -5799,7 +5799,7 @@ namespace filesystem {
   }
   interface openFuncAsReader {
     /**
-     * Open implements the [filesystem.FileReader] interface.
+     * open implements the [filesystem.FileReader] interface.
      */
     open(): io.ReadSeekCloser;
   }
@@ -5829,25 +5829,25 @@ namespace filesystem {
   }
   interface System {
     /**
-     * SetContext assigns the specified context to the current filesystem.
+     * setContext assigns the specified context to the current filesystem.
      */
     setContext(ctx: context.Context): void;
   }
   interface System {
     /**
-     * Close releases any resources used for the related filesystem.
+     * close releases any resources used for the related filesystem.
      */
     close(): void;
   }
   interface System {
     /**
-     * Exists checks if file with fileKey path exists or not.
+     * exists checks if file with fileKey path exists or not.
      */
     exists(fileKey: string): boolean;
   }
   interface System {
     /**
-     * Attributes returns the attributes for the file with fileKey path.
+     * attributes returns the attributes for the file with fileKey path.
      *
      * If the file doesn't exist it returns ErrNotFound.
      */
@@ -5855,7 +5855,7 @@ namespace filesystem {
   }
   interface System {
     /**
-     * GetReader returns a file content reader for the given fileKey.
+     * getReader returns a file content reader for the given fileKey.
      *
      * NB! Make sure to call Close() on the file after you are done working with it.
      *
@@ -5871,7 +5871,7 @@ namespace filesystem {
   }
   interface System {
     /**
-     * GetReuploadableFile constructs a new reuploadable File value
+     * getReuploadableFile constructs a new reuploadable File value
      * from the associated fileKey blob.Reader.
      *
      * If preserveName is false then the returned File.Name will have
@@ -5887,7 +5887,7 @@ namespace filesystem {
   }
   interface System {
     /**
-     * Copy copies the file stored at srcKey to dstKey.
+     * copy copies the file stored at srcKey to dstKey.
      *
      * If srcKey file doesn't exist, it returns ErrNotFound.
      *
@@ -5897,31 +5897,31 @@ namespace filesystem {
   }
   interface System {
     /**
-     * List returns a flat list with info for all files under the specified prefix.
+     * list returns a flat list with info for all files under the specified prefix.
      */
     list(prefix: string): Array<blob.ListObject | undefined>;
   }
   interface System {
     /**
-     * Upload writes content into the fileKey location.
+     * upload writes content into the fileKey location.
      */
     upload(content: string | Array<number>, fileKey: string): void;
   }
   interface System {
     /**
-     * UploadFile uploads the provided File to the fileKey location.
+     * uploadFile uploads the provided File to the fileKey location.
      */
     uploadFile(file: File, fileKey: string): void;
   }
   interface System {
     /**
-     * UploadMultipart uploads the provided multipart file to the fileKey location.
+     * uploadMultipart uploads the provided multipart file to the fileKey location.
      */
     uploadMultipart(fh: multipart.FileHeader, fileKey: string): void;
   }
   interface System {
     /**
-     * Delete deletes stored file at fileKey location.
+     * delete deletes stored file at fileKey location.
      *
      * If the file doesn't exist returns ErrNotFound.
      */
@@ -5929,7 +5929,7 @@ namespace filesystem {
   }
   interface System {
     /**
-     * DeletePrefix deletes everything starting with the specified prefix.
+     * deletePrefix deletes everything starting with the specified prefix.
      *
      * The prefix could be subpath (ex. "/a/b/") or filename prefix (ex. "/a/b/file_").
      */
@@ -5948,7 +5948,7 @@ namespace filesystem {
   }
   interface System {
     /**
-     * Serve serves the file at fileKey location to an HTTP response.
+     * serve serves the file at fileKey location to an HTTP response.
      *
      * If the `download` query parameter is used the file will be always served for
      * download no matter of its type (aka. with "Content-Disposition: attachment").
@@ -5960,7 +5960,7 @@ namespace filesystem {
   }
   interface System {
     /**
-     * CreateThumb creates a new thumb image for the file at originalKey location.
+     * createThumb creates a new thumb image for the file at originalKey location.
      * The new thumb file is stored at thumbKey location.
      *
      * thumbSize is in the format:
@@ -6025,7 +6025,7 @@ namespace filesystem {
  *
  * ```
  * 	cmd := exec.Command("prog")
- * 	if err := cmd.Run(); err != nil {
+ * 	if err := cmd.run(); err != nil {
  * 		log.Fatal(err)
  * 	}
  * ```
@@ -6057,7 +6057,7 @@ namespace filesystem {
  * 	if errors.Is(cmd.Err, exec.ErrDot) {
  * 		cmd.Err = nil
  * 	}
- * 	if err := cmd.Run(); err != nil {
+ * 	if err := cmd.run(); err != nil {
  * 		log.Fatal(err)
  * 	}
  * ```
@@ -6120,7 +6120,7 @@ namespace core {
   interface App {
     [key: string]: any;
     /**
-     * UnsafeWithoutHooks returns a shallow copy of the current app WITHOUT any registered hooks.
+     * unsafeWithoutHooks returns a shallow copy of the current app WITHOUT any registered hooks.
      *
      * NB! Note that using the returned app instance may cause data integrity errors
      * since the Record validations and data normalizations (including files uploads)
@@ -6128,7 +6128,7 @@ namespace core {
      */
     unsafeWithoutHooks(): App;
     /**
-     * ForMigrations returns a shallow copy of the current app intended for migration code.
+     * forMigrations returns a shallow copy of the current app intended for migration code.
      *
      * It skips user hooks registered after app construction while preserving
      * PocketBun system hooks required for collection schema persistence.
@@ -6137,77 +6137,77 @@ namespace core {
      */
     forMigrations(): App;
     /**
-     * Logger returns the default app logger.
+     * logger returns the default app logger.
      *
      * If the application is not bootstrapped yet, fallbacks to slog.Default().
      */
     logger(): slog.Logger;
     /**
-     * IsBootstrapped checks if the application was initialized
+     * isBootstrapped checks if the application was initialized
      * (aka. whether Bootstrap() was called).
      */
     isBootstrapped(): boolean;
     /**
-     * IsTransactional checks if the current app instance is part of a transaction.
+     * isTransactional checks if the current app instance is part of a transaction.
      */
     isTransactional(): boolean;
     /**
-     * TxInfo returns the transaction associated with the current app instance (if any).
+     * txInfo returns the transaction associated with the current app instance (if any).
      *
      * Could be used if you want to execute indirectly a function after
-     * the related app transaction completes using `app.TxInfo().OnAfterFunc(callback)`.
+     * the related app transaction completes using `app.txInfo().OnAfterFunc(callback)`.
      */
     txInfo(): TxAppInfo;
     /**
-     * Bootstrap initializes the application
+     * bootstrap initializes the application
      * (aka. create data dir, open db connections, load settings, etc.).
      *
      * It will call ResetBootstrapState() if the application was already bootstrapped.
      */
     bootstrap(): void;
     /**
-     * ResetBootstrapState releases the initialized core app resources
+     * resetBootstrapState releases the initialized core app resources
      * (closing db connections, stopping cron ticker, etc.).
      */
     resetBootstrapState(): void;
     /**
-     * DataDir returns the app data directory path.
+     * dataDir returns the app data directory path.
      */
     dataDir(): string;
     /**
-     * EncryptionEnv returns the name of the app secret env key
+     * encryptionEnv returns the name of the app secret env key
      * (currently used primarily for optional settings encryption but this may change in the future).
      */
     encryptionEnv(): string;
     /**
-     * IsDev returns whether the app is in dev mode.
+     * isDev returns whether the app is in dev mode.
      *
      * When enabled logs, executed sql statements, etc. are printed to the stderr.
      */
     isDev(): boolean;
     /**
-     * Settings returns the loaded app settings.
+     * settings returns the loaded app settings.
      */
     settings(): Settings;
     /**
-     * Store returns the app runtime store.
+     * store returns the app runtime store.
      */
     store(): store.Store<string, any>;
     /**
-     * Cron returns the app cron instance.
+     * cron returns the app cron instance.
      */
     cron(): cron.Cron;
     /**
-     * SubscriptionsBroker returns the app realtime subscriptions broker instance.
+     * subscriptionsBroker returns the app realtime subscriptions broker instance.
      */
     subscriptionsBroker(): subscriptions.Broker;
     /**
-     * NewMailClient creates and returns a new SMTP or Sendmail client
+     * newMailClient creates and returns a new SMTP or Sendmail client
      * based on the current app settings.
      */
     newMailClient(): mailer.Mailer;
     /**
-     * NewFilesystem creates a new local or S3 filesystem instance
+     * newFilesystem creates a new local or S3 filesystem instance
      * for managing regular app files (ex. record uploads)
      * based on the current app settings.
      *
@@ -6216,7 +6216,7 @@ namespace core {
      */
     newFilesystem(): filesystem.System;
     /**
-     * NewBackupsFilesystem creates a new local or S3 filesystem instance
+     * newBackupsFilesystem creates a new local or S3 filesystem instance
      * for managing app backups based on the current app settings.
      *
      * NB! Make sure to call Close() on the returned result
@@ -6224,20 +6224,20 @@ namespace core {
      */
     newBackupsFilesystem(): filesystem.System;
     /**
-     * ReloadSettings reinitializes and reloads the stored application settings.
+     * reloadSettings reinitializes and reloads the stored application settings.
      */
     reloadSettings(): void;
     /**
-     * CreateBackup creates a new backup of the current app pb_data directory.
+     * createBackup creates a new backup of the current app pb_data directory.
      *
-     * Backups can be stored on S3 if it is configured in app.Settings().Backups.
+     * Backups can be stored on S3 if it is configured in app.settings().backups.
      *
      * Please refer to the godoc of the specific CoreApp implementation
      * for details on the backup procedures.
      */
     createBackup(ctx: context.Context, name: string): void;
     /**
-     * RestoreBackup restores the backup with the specified name and restarts
+     * restoreBackup restores the backup with the specified name and restarts
      * the current running application process.
      *
      * The safely perform the restore it is recommended to have free disk space
@@ -6250,26 +6250,26 @@ namespace core {
      */
     restoreBackup(ctx: context.Context, name: string): void;
     /**
-     * Restart restarts (aka. replaces) the current running application process.
+     * restart restarts (aka. replaces) the current running application process.
      *
      * NB! It relies on execve which is supported only on UNIX based systems.
      */
     restart(): void;
     /**
-     * RunSystemMigrations applies all new migrations registered in the [core.SystemMigrations] list.
+     * runSystemMigrations applies all new migrations registered in the [core.SystemMigrations] list.
      */
     runSystemMigrations(): void;
     /**
-     * RunAppMigrations applies all new migrations registered in the [CoreAppMigrations] list.
+     * runAppMigrations applies all new migrations registered in the [CoreAppMigrations] list.
      */
     runAppMigrations(): void;
     /**
-     * RunAllMigrations applies all system and app migrations
+     * runAllMigrations applies all system and app migrations
      * (aka. from both [core.SystemMigrations] and [CoreAppMigrations]).
      */
     runAllMigrations(): void;
     /**
-     * DB returns the default app data.db builder instance.
+     * db returns the default app data.db builder instance.
      *
      * To minimize SQLITE_BUSY errors, it automatically routes the
      * SELECT queries to the underlying concurrent db pool and everything else
@@ -6280,7 +6280,7 @@ namespace core {
      */
     db(): dbx.Builder;
     /**
-     * ConcurrentDB returns the concurrent app data.db builder instance.
+     * concurrentDB returns the concurrent app data.db builder instance.
      *
      * This method is used mainly internally for executing db read
      * operations in a concurrent/non-blocking manner.
@@ -6292,7 +6292,7 @@ namespace core {
      */
     concurrentDB(): dbx.Builder;
     /**
-     * NonconcurrentDB returns the nonconcurrent app data.db builder instance.
+     * nonconcurrentDB returns the nonconcurrent app data.db builder instance.
      *
      * The returned db instance is limited only to a single open connection,
      * meaning that it can process only 1 db operation at a time (other queries queue up).
@@ -6307,7 +6307,7 @@ namespace core {
      */
     nonconcurrentDB(): dbx.Builder;
     /**
-     * AuxDB returns the app auxiliary.db builder instance.
+     * auxDB returns the app auxiliary.db builder instance.
      *
      * To minimize SQLITE_BUSY errors, it automatically routes the
      * SELECT queries to the underlying concurrent db pool and everything else
@@ -6318,7 +6318,7 @@ namespace core {
      */
     auxDB(): dbx.Builder;
     /**
-     * AuxConcurrentDB returns the concurrent app auxiliary.db builder instance.
+     * auxConcurrentDB returns the concurrent app auxiliary.db builder instance.
      *
      * This method is used mainly internally for executing db read
      * operations in a concurrent/non-blocking manner.
@@ -6330,7 +6330,7 @@ namespace core {
      */
     auxConcurrentDB(): dbx.Builder;
     /**
-     * AuxNonconcurrentDB returns the nonconcurrent app auxiliary.db builder instance.
+     * auxNonconcurrentDB returns the nonconcurrent app auxiliary.db builder instance.
      *
      * The returned db instance is limited only to a single open connection,
      * meaning that it can process only 1 db operation at a time (other queries queue up).
@@ -6345,31 +6345,31 @@ namespace core {
      */
     auxNonconcurrentDB(): dbx.Builder;
     /**
-     * HasTable checks if a table (or view) with the provided name exists (case insensitive).
+     * hasTable checks if a table (or view) with the provided name exists (case insensitive).
      * in the data.db.
      */
     hasTable(tableName: string): boolean;
     /**
-     * AuxHasTable checks if a table (or view) with the provided name exists (case insensitive)
+     * auxHasTable checks if a table (or view) with the provided name exists (case insensitive)
      * in the auxiliary.db.
      */
     auxHasTable(tableName: string): boolean;
     /**
-     * TableColumns returns all column names of a single table by its name.
+     * tableColumns returns all column names of a single table by its name.
      */
     tableColumns(tableName: string): Array<string>;
     /**
-     * TableInfo returns the "table_info" pragma result for the specified table.
+     * tableInfo returns the "table_info" pragma result for the specified table.
      */
     tableInfo(tableName: string): Array<TableInfoRow | undefined>;
     /**
-     * TableIndexes returns a name grouped map with all non empty index of the specified table.
+     * tableIndexes returns a name grouped map with all non empty index of the specified table.
      *
      * Note: This method doesn't return an error on nonexisting table.
      */
     tableIndexes(tableName: string): _TygojaDict;
     /**
-     * DeleteTable drops the specified table.
+     * deleteTable drops the specified table.
      *
      * This method is a no-op if a table with the provided name doesn't exist.
      *
@@ -6378,7 +6378,7 @@ namespace core {
      */
     deleteTable(dangerousTableName: string): void;
     /**
-     * DeleteView drops the specified view name.
+     * deleteView drops the specified view name.
      *
      * This method is a no-op if a view with the provided name doesn't exist.
      *
@@ -6387,14 +6387,14 @@ namespace core {
      */
     deleteView(dangerousViewName: string): void;
     /**
-     * SaveView creates (or updates already existing) persistent SQL view.
+     * saveView creates (or updates already existing) persistent SQL view.
      *
      * NB! Be aware that this method is vulnerable to SQL injection and
      * its arguments must come only from trusted input!
      */
     saveView(dangerousViewName: string, dangerousSelectQuery: string): void;
     /**
-     * CreateViewFields creates a new FieldsList from the provided select query.
+     * createViewFields creates a new FieldsList from the provided select query.
      *
      * There are some caveats:
      * - The select query must have an "id" column.
@@ -6405,7 +6405,7 @@ namespace core {
      */
     createViewFields(dangerousSelectQuery: string): FieldsList;
     /**
-     * DryRunView executes the provided query by creating a temporary view
+     * dryRunView executes the provided query by creating a temporary view
      * collection and returning a sample of the resulting query records (if valid).
      *
      * PocketBun exposes this as an async method.
@@ -6417,29 +6417,29 @@ namespace core {
      */
     dryRunView(dangerousSelectQuery: string, sampleSize: number): Promise<DryRunViewResult>;
     /**
-     * FindRecordByViewFile returns the original Record of the provided view collection file.
+     * findRecordByViewFile returns the original Record of the provided view collection file.
      */
     findRecordByViewFile(viewCollectionModelOrIdentifier: any, fileFieldName: string, filename: string): Record;
     /**
-     * Vacuum executes VACUUM on the data.db in order to reclaim unused data db disk space.
+     * vacuum executes VACUUM on the data.db in order to reclaim unused data db disk space.
      */
     vacuum(): void;
     /**
-     * AuxVacuum executes VACUUM on the auxiliary.db in order to reclaim unused auxiliary db disk space.
+     * auxVacuum executes VACUUM on the auxiliary.db in order to reclaim unused auxiliary db disk space.
      */
     auxVacuum(): void;
     /**
-     * ModelQuery creates a new preconfigured select data.db query with preset
+     * modelQuery creates a new preconfigured select data.db query with preset
      * SELECT, FROM and other common fields based on the provided model.
      */
     modelQuery(model: Model): dbx.SelectQuery;
     /**
-     * AuxModelQuery creates a new preconfigured select auxiliary.db query with preset
+     * auxModelQuery creates a new preconfigured select auxiliary.db query with preset
      * SELECT, FROM and other common fields based on the provided model.
      */
     auxModelQuery(model: Model): dbx.SelectQuery;
     /**
-     * Delete deletes the specified model from the regular app database.
+     * delete deletes the specified model from the regular app database.
      */
     delete(model: Model): void;
     /**
@@ -6448,90 +6448,90 @@ namespace core {
      */
     deleteWithContext(ctx: context.Context, model: Model): void;
     /**
-     * AuxDelete deletes the specified model from the auxiliary database.
+     * auxDelete deletes the specified model from the auxiliary database.
      */
     auxDelete(model: Model): void;
     /**
-     * AuxDeleteWithContext deletes the specified model from the auxiliary database
+     * auxDeleteWithContext deletes the specified model from the auxiliary database
      * (the context could be used to limit the query execution).
      */
     auxDeleteWithContext(ctx: context.Context, model: Model): void;
     /**
-     * Save validates and saves the specified model into the regular app database.
+     * save validates and saves the specified model into the regular app database.
      *
-     * If you don't want to run validations, use [App.SaveNoValidate()].
+     * If you don't want to run validations, use [app.saveNoValidate()].
      */
     save(model: Model): void;
     /**
-     * SaveWithContext is the same as [App.Save()] but allows specifying a context to limit the db execution.
+     * saveWithContext is the same as [app.save()] but allows specifying a context to limit the db execution.
      *
-     * If you don't want to run validations, use [App.SaveNoValidateWithContext()].
+     * If you don't want to run validations, use [app.saveNoValidateWithContext()].
      */
     saveWithContext(ctx: context.Context, model: Model): void;
     /**
-     * SaveNoValidate saves the specified model into the regular app database without performing validations.
+     * saveNoValidate saves the specified model into the regular app database without performing validations.
      *
-     * If you want to also run validations before persisting, use [App.Save()].
+     * If you want to also run validations before persisting, use [app.save()].
      */
     saveNoValidate(model: Model): void;
     /**
-     * SaveNoValidateWithContext is the same as [App.SaveNoValidate()]
+     * saveNoValidateWithContext is the same as [app.saveNoValidate()]
      * but allows specifying a context to limit the db execution.
      *
-     * If you want to also run validations before persisting, use [App.SaveWithContext()].
+     * If you want to also run validations before persisting, use [app.saveWithContext()].
      */
     saveNoValidateWithContext(ctx: context.Context, model: Model): void;
     /**
-     * AuxSave validates and saves the specified model into the auxiliary app database.
+     * auxSave validates and saves the specified model into the auxiliary app database.
      *
-     * If you don't want to run validations, use [App.AuxSaveNoValidate()].
+     * If you don't want to run validations, use [app.auxSaveNoValidate()].
      */
     auxSave(model: Model): void;
     /**
-     * AuxSaveWithContext is the same as [App.AuxSave()] but allows specifying a context to limit the db execution.
+     * auxSaveWithContext is the same as [app.auxSave()] but allows specifying a context to limit the db execution.
      *
-     * If you don't want to run validations, use [App.AuxSaveNoValidateWithContext()].
+     * If you don't want to run validations, use [app.auxSaveNoValidateWithContext()].
      */
     auxSaveWithContext(ctx: context.Context, model: Model): void;
     /**
-     * AuxSaveNoValidate saves the specified model into the auxiliary app database without performing validations.
+     * auxSaveNoValidate saves the specified model into the auxiliary app database without performing validations.
      *
-     * If you want to also run validations before persisting, use [App.AuxSave()].
+     * If you want to also run validations before persisting, use [app.auxSave()].
      */
     auxSaveNoValidate(model: Model): void;
     /**
-     * AuxSaveNoValidateWithContext is the same as [App.AuxSaveNoValidate()]
+     * auxSaveNoValidateWithContext is the same as [app.auxSaveNoValidate()]
      * but allows specifying a context to limit the db execution.
      *
-     * If you want to also run validations before persisting, use [App.AuxSaveWithContext()].
+     * If you want to also run validations before persisting, use [app.auxSaveWithContext()].
      */
     auxSaveNoValidateWithContext(ctx: context.Context, model: Model): void;
     /**
-     * Validate triggers the OnModelValidate hook for the specified model.
+     * validate triggers the onModelValidate hook for the specified model.
      */
     validate(model: Model): void;
     /**
-     * ValidateWithContext is the same as Validate but allows specifying the ModelEvent context.
+     * validateWithContext is the same as validate but allows specifying the ModelEvent context.
      */
     validateWithContext(ctx: context.Context, model: Model): void;
     /**
-     * RunInTransaction wraps fn into a transaction for the regular app database.
+     * runInTransaction wraps fn into a transaction for the regular app database.
      *
-     * It is safe to nest RunInTransaction calls as long as you use the callback's txApp.
+     * It is safe to nest runInTransaction calls as long as you use the callback's txApp.
      */
     runInTransaction(fn: (txApp: App) => void): void;
     /**
-     * AuxRunInTransaction wraps fn into a transaction for the auxiliary app database.
+     * auxRunInTransaction wraps fn into a transaction for the auxiliary app database.
      *
-     * It is safe to nest RunInTransaction calls as long as you use the callback's txApp.
+     * It is safe to nest runInTransaction calls as long as you use the callback's txApp.
      */
     auxRunInTransaction(fn: (txApp: App) => void): void;
     /**
-     * LogQuery returns a new Log select query.
+     * logQuery returns a new Log select query.
      */
     logQuery(): dbx.SelectQuery;
     /**
-     * FindLogById finds a single Log entry by its id.
+     * findLogById finds a single Log entry by its id.
      */
     findLogById(id: string): Log;
     /**
@@ -6539,45 +6539,45 @@ namespace core {
      */
     logsStats(expr: dbx.Expression): Array<LogsStatsItem | undefined>;
     /**
-     * DeleteOldLogs delete all logs that are created before createdBefore.
+     * deleteOldLogs delete all logs that are created before createdBefore.
      */
     deleteOldLogs(createdBefore: time.Time): void;
     /**
-     * CollectionQuery returns a new Collection select query.
+     * collectionQuery returns a new Collection select query.
      */
     collectionQuery(): dbx.SelectQuery;
     /**
-     * FindCollections finds all collections by the given type(s).
+     * findAllCollections finds all collections by the given type(s).
      *
      * If collectionTypes is not set, it returns all collections.
      *
      * Example:
      *
      * ```
-     * 	app.FindAllCollections() // all collections
-     * 	app.FindAllCollections("auth", "view") // only auth and view collections
+     * 	app.findAllCollections() // all collections
+     * 	app.findAllCollections("auth", "view") // only auth and view collections
      * ```
      */
     findAllCollections(...collectionTypes: string[]): Array<Collection | undefined>;
     /**
-     * ReloadCachedCollections fetches all collections and caches them into the app store.
+     * reloadCachedCollections fetches all collections and caches them into the app store.
      */
     reloadCachedCollections(): void;
     /**
-     * FindCollectionByNameOrId finds a single collection by its name (case insensitive) or id.s
+     * findCollectionByNameOrId finds a single collection by its name (case insensitive) or id.s
      */
     findCollectionByNameOrId(nameOrId: string): Collection;
     /**
-     * FindCachedCollectionByNameOrId is similar to [App.FindCollectionByNameOrId]
+     * findCachedCollectionByNameOrId is similar to [app.findCollectionByNameOrId]
      * but retrieves the Collection from the app cache instead of making a db call.
      *
      * NB! This method is suitable for read-only Collection operations.
      *
      * Returns [sql.ErrNoRows] if no Collection is found for consistency
-     * with the [App.FindCollectionByNameOrId] method.
+     * with the [app.findCollectionByNameOrId] method.
      *
      * If you plan making changes to the returned Collection model,
-     * use [App.FindCollectionByNameOrId] instead.
+     * Use [app.findCollectionByNameOrId] instead.
      *
      * Caveats:
      *
@@ -6588,12 +6588,12 @@ namespace core {
      *   - If you are updating a Collection in a transaction and then call this method before commit,
      *     it'll return the cached Collection state and not the one from the uncommitted transaction.
      *   - The cache is automatically updated on collections db change (create/update/delete).
-     *     To manually reload the cache you can call [App.ReloadCachedCollections]
+     *     To manually reload the cache you can call [app.reloadCachedCollections]
      * ```
      */
     findCachedCollectionByNameOrId(nameOrId: string): Collection;
     /**
-     * FindCollectionReferences returns information for all relation
+     * findCollectionReferences returns information for all relation
      * fields referencing the provided collection.
      *
      * If the provided collection has reference to itself then it will be
@@ -6602,13 +6602,13 @@ namespace core {
      */
     findCollectionReferences(collection: Collection, ...excludeIds: string[]): _TygojaDict;
     /**
-     * FindCachedCollectionReferences is similar to [App.FindCollectionReferences]
+     * findCachedCollectionReferences is similar to [app.findCollectionReferences]
      * but retrieves the Collection from the app cache instead of making a db call.
      *
      * NB! This method is suitable for read-only Collection operations.
      *
      * If you plan making changes to the returned Collection model,
-     * use [App.FindCollectionReferences] instead.
+     * Use [app.findCollectionReferences] instead.
      *
      * Caveats:
      *
@@ -6619,12 +6619,12 @@ namespace core {
      *   - If you are updating a Collection in a transaction and then call this method before commit,
      *     it'll return the cached Collection state and not the one from the uncommitted transaction.
      *   - The cache is automatically updated on collections db change (create/update/delete).
-     *     To manually reload the cache you can call [App.ReloadCachedCollections].
+     *     To manually reload the cache you can call [app.reloadCachedCollections].
      * ```
      */
     findCachedCollectionReferences(collection: Collection, ...excludeIds: string[]): _TygojaDict;
     /**
-     * IsCollectionNameUnique checks that there is no existing collection
+     * isCollectionNameUnique checks that there is no existing collection
      * with the provided name (case insensitive!).
      *
      * Note: case insensitive check because the name is used also as
@@ -6632,7 +6632,7 @@ namespace core {
      */
     isCollectionNameUnique(name: string, ...excludeIds: string[]): boolean;
     /**
-     * TruncateCollection deletes all records associated with the provided collection.
+     * truncateCollection deletes all records associated with the provided collection.
      *
      * The truncate operation is executed in a single transaction,
      * aka. either everything is deleted or none.
@@ -6642,7 +6642,7 @@ namespace core {
      */
     truncateCollection(collection: Collection): void;
     /**
-     * ImportCollections imports the provided collections data in a single transaction.
+     * importCollections imports the provided collections data in a single transaction.
      *
      * For existing matching collections, the imported data is unmarshaled on top of the existing model.
      *
@@ -6652,12 +6652,12 @@ namespace core {
      */
     importCollections(toImport: Array<_TygojaDict>, deleteMissing: boolean): void;
     /**
-     * ImportCollectionsByMarshaledJSON is the same as [ImportCollections]
+     * importCollectionsByMarshaledJSON is the same as [importCollections]
      * but accept marshaled json array as import data (usually used for the autogenerated snapshots).
      */
     importCollectionsByMarshaledJSON(rawSliceOfMaps: string | Array<number>, deleteMissing: boolean): void;
     /**
-     * SyncRecordTableSchema compares the two provided collections
+     * syncRecordTableSchema compares the two provided collections
      * and applies the necessary related record table changes.
      *
      * If oldCollection is null, then only newCollection is used to create the record table.
@@ -6666,95 +6666,95 @@ namespace core {
      */
     syncRecordTableSchema(newCollection: Collection, oldCollection: Collection): void;
     /**
-     * FindAllExternalAuthsByRecord returns all ExternalAuth models
+     * findAllExternalAuthsByRecord returns all ExternalAuth models
      * linked to the provided auth record.
      */
     findAllExternalAuthsByRecord(authRecord: Record): Array<ExternalAuth | undefined>;
     /**
-     * FindAllExternalAuthsByCollection returns all ExternalAuth models
+     * findAllExternalAuthsByCollection returns all ExternalAuth models
      * linked to the provided auth collection.
      */
     findAllExternalAuthsByCollection(collection: Collection): Array<ExternalAuth | undefined>;
     /**
-     * FindFirstExternalAuthByExpr returns the first available (the most recent created)
+     * findFirstExternalAuthByExpr returns the first available (the most recent created)
      * ExternalAuth model that satisfies the non-nil expression.
      */
     findFirstExternalAuthByExpr(expr: dbx.Expression): ExternalAuth;
     /**
-     * DeleteAllExternalAuthsByRecord deletes all ExternalAuth models associated with the provided record.
+     * deleteAllExternalAuthsByRecord deletes all ExternalAuth models associated with the provided record.
      *
      * Returns a combined error with the failed deletes.
      */
     deleteAllExternalAuthsByRecord(authRecord: Record): void;
     /**
-     * FindAllMFAsByRecord returns all MFA models linked to the provided auth record.
+     * findAllMFAsByRecord returns all MFA models linked to the provided auth record.
      */
     findAllMFAsByRecord(authRecord: Record): Array<MFA | undefined>;
     /**
-     * FindAllMFAsByCollection returns all MFA models linked to the provided collection.
+     * findAllMFAsByCollection returns all MFA models linked to the provided collection.
      */
     findAllMFAsByCollection(collection: Collection): Array<MFA | undefined>;
     /**
-     * FindMFAById returns a single MFA model by its id.
+     * findMFAById returns a single MFA model by its id.
      */
     findMFAById(id: string): MFA;
     /**
-     * DeleteAllMFAsByRecord deletes all MFA models associated with the provided record.
+     * deleteAllMFAsByRecord deletes all MFA models associated with the provided record.
      *
      * Returns a combined error with the failed deletes.
      */
     deleteAllMFAsByRecord(authRecord: Record): void;
     /**
-     * DeleteExpiredMFAs deletes the expired MFAs for all auth collections.
+     * deleteExpiredMFAs deletes the expired MFAs for all auth collections.
      */
     deleteExpiredMFAs(): void;
     /**
-     * FindAllOTPsByRecord returns all OTP models linked to the provided auth record.
+     * findAllOTPsByRecord returns all OTP models linked to the provided auth record.
      */
     findAllOTPsByRecord(authRecord: Record): Array<OTP | undefined>;
     /**
-     * FindAllOTPsByCollection returns all OTP models linked to the provided collection.
+     * findAllOTPsByCollection returns all OTP models linked to the provided collection.
      */
     findAllOTPsByCollection(collection: Collection): Array<OTP | undefined>;
     /**
-     * FindOTPById returns a single OTP model by its id.
+     * findOTPById returns a single OTP model by its id.
      */
     findOTPById(id: string): OTP;
     /**
-     * DeleteAllOTPsByRecord deletes all OTP models associated with the provided record.
+     * deleteAllOTPsByRecord deletes all OTP models associated with the provided record.
      *
      * Returns a combined error with the failed deletes.
      */
     deleteAllOTPsByRecord(authRecord: Record): void;
     /**
-     * DeleteExpiredOTPs deletes the expired OTPs for all auth collections.
+     * deleteExpiredOTPs deletes the expired OTPs for all auth collections.
      */
     deleteExpiredOTPs(): void;
     /**
-     * FindAllAuthOriginsByRecord returns all AuthOrigin models linked to the provided auth record (in DESC order).
+     * findAllAuthOriginsByRecord returns all AuthOrigin models linked to the provided auth record (in DESC order).
      */
     findAllAuthOriginsByRecord(authRecord: Record): Array<AuthOrigin | undefined>;
     /**
-     * FindAllAuthOriginsByCollection returns all AuthOrigin models linked to the provided collection (in DESC order).
+     * findAllAuthOriginsByCollection returns all AuthOrigin models linked to the provided collection (in DESC order).
      */
     findAllAuthOriginsByCollection(collection: Collection): Array<AuthOrigin | undefined>;
     /**
-     * FindAuthOriginById returns a single AuthOrigin model by its id.
+     * findAuthOriginById returns a single AuthOrigin model by its id.
      */
     findAuthOriginById(id: string): AuthOrigin;
     /**
-     * FindAuthOriginByRecordAndFingerprint returns a single AuthOrigin model
+     * findAuthOriginByRecordAndFingerprint returns a single AuthOrigin model
      * by its authRecord relation and fingerprint.
      */
     findAuthOriginByRecordAndFingerprint(authRecord: Record, fingerprint: string): AuthOrigin;
     /**
-     * DeleteAllAuthOriginsByRecord deletes all AuthOrigin models associated with the provided record.
+     * deleteAllAuthOriginsByRecord deletes all AuthOrigin models associated with the provided record.
      *
      * Returns a combined error with the failed deletes.
      */
     deleteAllAuthOriginsByRecord(authRecord: Record): void;
     /**
-     * RecordQuery returns a new Record select query from a collection model, id or name.
+     * recordQuery returns a new Record select query from a collection model, id or name.
      *
      * In case a collection id or name is provided and that collection doesn't
      * actually exists, the generated query will be created with a cancelled context
@@ -6762,11 +6762,11 @@ namespace core {
      */
     recordQuery(collectionModelOrIdentifier: any): dbx.SelectQuery;
     /**
-     * FindRecordById finds the Record model by its id.
+     * findRecordById finds the Record model by its id.
      */
     findRecordById(collectionModelOrIdentifier: any, recordId: string, ...optFilters: ((q: dbx.SelectQuery) => void)[]): Record;
     /**
-     * FindRecordsByIds finds all records by the specified ids.
+     * findRecordsByIds finds all records by the specified ids.
      * If no records are found, returns an empty slice.
      */
     findRecordsByIds(
@@ -6775,7 +6775,7 @@ namespace core {
       ...optFilters: ((q: dbx.SelectQuery) => void)[]
     ): Array<Record | undefined>;
     /**
-     * FindAllRecords finds all records matching specified db expressions.
+     * findAllRecords finds all records matching specified db expressions.
      *
      * Returns all collection records if no expression is provided.
      *
@@ -6785,25 +6785,25 @@ namespace core {
      *
      * ```
      * 	// no extra expressions
-     * 	app.FindAllRecords("example")
+     * 	app.findAllRecords("example")
      *
      * 	// with extra expressions
-     * 	expr1 := dbx.HashExp{"email": "test@example.com"}
-     * 	expr2 := dbx.NewExp("LOWER(username) = {:username}", dbx.Params{"username": "test"})
-     * 	app.FindAllRecords("example", expr1, expr2)
+     * 	const expr1 = $dbx.hashExp({ email: "test@example.com" })
+     * 	const expr2 = $dbx.exp("LOWER(username) = {:username}", { username: "test" })
+     * 	app.findAllRecords("example", expr1, expr2)
      * ```
      */
     findAllRecords(collectionModelOrIdentifier: any, ...exprs: dbx.Expression[]): Array<Record | undefined>;
     /**
-     * FindFirstRecordByData returns the first found record matching
+     * findFirstRecordByData returns the first found record matching
      * the provided key-value pair.
      */
     findFirstRecordByData(collectionModelOrIdentifier: any, key: string, value: any): Record;
     /**
-     * FindRecordsByFilter returns limit number of records matching the
+     * findRecordsByFilter returns limit number of records matching the
      * provided string filter.
      *
-     * NB! Use the last "params" argument to bind untrusted user variables!
+     * NB! use the last "params" argument to bind untrusted user variables!
      *
      * The filter argument is optional and can be empty string to target
      * all available records.
@@ -6819,13 +6819,13 @@ namespace core {
      * Example:
      *
      * ```
-     * 	app.FindRecordsByFilter(
+     * 	app.findRecordsByFilter(
      * 		"posts",
      * 		"title ~ {:title} && visible = {:visible}",
      * 		"-created",
      * 		10,
      * 		0,
-     * 		dbx.Params{"title": "lorem ipsum", "visible": true}
+     * 		{ title: "lorem ipsum", visible: true }
      * 	)
      * ```
      */
@@ -6838,26 +6838,26 @@ namespace core {
       ...params: dbx.Params[]
     ): Array<Record | undefined>;
     /**
-     * FindFirstRecordByFilter returns the first available record matching the provided filter (if any).
+     * findFirstRecordByFilter returns the first available record matching the provided filter (if any).
      *
-     * NB! Use the last params argument to bind untrusted user variables!
+     * NB! use the last params argument to bind untrusted user variables!
      *
      * Returns sql.ErrNoRows if no record is found.
      *
      * Example:
      *
      * ```
-     * 	app.FindFirstRecordByFilter("posts", "")
-     * 	app.FindFirstRecordByFilter("posts", "slug={:slug} && status='public'", dbx.Params{"slug": "test"})
+     * 	app.findFirstRecordByFilter("posts", "")
+     * 	app.findFirstRecordByFilter("posts", "slug={:slug} && status='public'", { slug: "test" })
      * ```
      */
     findFirstRecordByFilter(collectionModelOrIdentifier: any, filter: string, ...params: dbx.Params[]): Record;
     /**
-     * CountRecords returns the total number of records in a collection.
+     * countRecords returns the total number of records in a collection.
      */
     countRecords(collectionModelOrIdentifier: any, ...exprs: dbx.Expression[]): number;
     /**
-     * FindAuthRecordByToken finds the auth record associated with the provided JWT
+     * findAuthRecordByToken finds the auth record associated with the provided JWT
      * (auth, file, verifyEmail, changeEmail, passwordReset types).
      *
      * Optionally specify a list of validTypes to check tokens only from those types.
@@ -6866,16 +6866,16 @@ namespace core {
      */
     findAuthRecordByToken(token: string, ...validTypes: string[]): Record;
     /**
-     * FindAuthRecordByEmail finds the auth record associated with the provided email.
+     * findAuthRecordByEmail finds the auth record associated with the provided email.
      *
      * Returns an error if it is not an auth collection or the record is not found.
      */
     findAuthRecordByEmail(collectionModelOrIdentifier: any, email: string): Record;
     /**
-     * CanAccessRecord checks if a record is allowed to be accessed by the
+     * canAccessRecord checks if a record is allowed to be accessed by the
      * specified requestInfo and accessRule.
      *
-     * Rule and db checks are ignored in case requestInfo.Auth is a superuser.
+     * Rule and db checks are ignored in case requestInfo.auth is a superuser.
      *
      * The returned error indicate that something unexpected happened during
      * the check (eg. invalid rule or db query error).
@@ -6885,17 +6885,17 @@ namespace core {
      * Example:
      *
      * ```
-     * 	requestInfo, _ := e.RequestInfo()
-     * 	record, _ := app.FindRecordById("example", "RECORD_ID")
-     * 	rule := types.Pointer("@request.auth.id != '' || status = 'public'")
-     * 	// ... or use one of the record collection's rule, eg. record.Collection().ViewRule
+     * 	const requestInfo = e.requestInfo()
+     * 	const record = app.findRecordById("example", "RECORD_ID")
+     * 	const rule = "@request.auth.id != '' || status = 'public'"
+     * 	// ... or use one of the record collection's rule, eg. record.collection().viewRule
      *
-     * 	if ok, _ := app.CanAccessRecord(record, requestInfo, rule); ok { ... }
+     * 	if (app.canAccessRecord(record, requestInfo, rule)) { ... }
      * ```
      */
     canAccessRecord(record: Record, requestInfo: RequestInfo, accessRule: string): boolean;
     /**
-     * ExpandRecord expands the relations of a single Record model.
+     * expandRecord expands the relations of a single Record model.
      *
      * If optFetchFunc is not set, then a default function will be used
      * that returns all relation records.
@@ -6904,7 +6904,7 @@ namespace core {
      */
     expandRecord(record: Record, expands: Array<string>, optFetchFunc: ExpandFetchFunc): _TygojaDict;
     /**
-     * ExpandRecords expands the relations of the provided Record models list.
+     * expandRecords expands the relations of the provided Record models list.
      *
      * If optFetchFunc is not set, then a default function will be used
      * that returns all relation records.
@@ -6913,39 +6913,39 @@ namespace core {
      */
     expandRecords(records: Array<Record | undefined>, expands: Array<string>, optFetchFunc: ExpandFetchFunc): _TygojaDict;
     /**
-     * OnBootstrap hook is triggered when initializing the main application
+     * onBootstrap hook is triggered when initializing the main application
      * resources (db, app settings, etc).
      */
     onBootstrap(): hook.Hook<BootstrapEvent | undefined>;
     /**
-     * OnServe hook is triggered when the app web server is started
+     * onServe hook is triggered when the app web server is started
      * (after starting the TCP listener but before initializing the blocking serve task),
      * allowing you to adjust its options and attach new routes or middlewares.
      */
     onServe(): hook.Hook<ServeEvent | undefined>;
     /**
-     * OnTerminate hook is triggered when the app is in the process
+     * onTerminate hook is triggered when the app is in the process
      * of being terminated (ex. on SIGTERM signal).
      *
      * Note that the app could be terminated abruptly without awaiting the hook completion.
      */
     onTerminate(): hook.Hook<TerminateEvent | undefined>;
     /**
-     * OnBackupCreate hook is triggered on each [App.CreateBackup] call.
+     * onBackupCreate hook is triggered on each [app.createBackup] call.
      */
     onBackupCreate(): hook.Hook<BackupEvent | undefined>;
     /**
-     * OnBackupRestore hook is triggered before app backup restore (aka. [App.RestoreBackup] call).
+     * onBackupRestore hook is triggered before app backup restore (aka. [app.restoreBackup] call).
      *
      * Note that by default on success the application is restarted and the after state of the hook is ignored.
      */
     onBackupRestore(): hook.Hook<BackupEvent | undefined>;
     /**
-     * OnModelValidate is triggered every time when a model is being validated
-     * (e.g. triggered by App.Validate() or App.Save()).
+     * onModelValidate is triggered every time when a model is being validated
+     * (e.g. triggered by app.validate() or app.save()).
      *
      * For convenience, if you want to listen to only the Record models
-     * events without doing manual type assertion, you can attach to the OnRecord* proxy hooks.
+     * events without doing manual type assertion, you can attach to the onRecord* proxy hooks.
      *
      * If the optional "tags" list (Collection id/name, Model table name, etc.) is specified,
      * then all event handlers registered via the created hook will be
@@ -6953,23 +6953,23 @@ namespace core {
      */
     onModelValidate(...tags: string[]): hook.TaggedHook<ModelEvent | undefined>;
     /**
-     * OnModelCreate is triggered every time when a new model is being created
-     * (e.g. triggered by App.Save()).
+     * onModelCreate is triggered every time when a new model is being created
+     * (e.g. triggered by app.save()).
      *
-     * Operations BEFORE the e.Next() execute before the model validation
+     * Operations BEFORE the e.next() execute before the model validation
      * and the INSERT DB statement.
      *
-     * Operations AFTER the e.Next() execute after the model validation
+     * Operations AFTER the e.next() execute after the model validation
      * and the INSERT DB statement.
      *
      * Note that successful execution doesn't guarantee that the model
      * is persisted in the database since its wrapping transaction may
      * not have been committed yet.
      * If you want to listen to only the actual persisted events, you can
-     * bind to [OnModelAfterCreateSuccess] or [OnModelAfterCreateError] hooks.
+     * bind to [onModelAfterCreateSuccess] or [onModelAfterCreateError] hooks.
      *
      * For convenience, if you want to listen to only the Record models
-     * events without doing manual type assertion, you can attach to the OnRecord* proxy hooks.
+     * events without doing manual type assertion, you can attach to the onRecord* proxy hooks.
      *
      * If the optional "tags" list (Collection id/name, Model table name, etc.) is specified,
      * then all event handlers registered via the created hook will be
@@ -6977,14 +6977,14 @@ namespace core {
      */
     onModelCreate(...tags: string[]): hook.TaggedHook<ModelEvent | undefined>;
     /**
-     * OnModelCreateExecute is triggered after successful Model validation
+     * onModelCreateExecute is triggered after successful Model validation
      * and right before the model INSERT DB statement execution.
      *
-     * Usually it is triggered as part of the App.Save() in the following firing order:
-     * OnModelCreate {
+     * Usually it is triggered as part of the app.save() in the following firing order:
+     * onModelCreate {
      * ```
-     *    -> OnModelValidate (skipped with App.SaveNoValidate())
-     *    -> OnModelCreateExecute
+     *    -> onModelValidate (skipped with app.saveNoValidate())
+     *    -> onModelCreateExecute
      * ```
      * }
      *
@@ -6992,10 +6992,10 @@ namespace core {
      * is persisted in the database since its wrapping transaction may have been
      * committed yet.
      * If you want to listen to only the actual persisted events,
-     * you can bind to [OnModelAfterCreateSuccess] or [OnModelAfterCreateError] hooks.
+     * you can bind to [onModelAfterCreateSuccess] or [onModelAfterCreateError] hooks.
      *
      * For convenience, if you want to listen to only the Record models
-     * events without doing manual type assertion, you can attach to the OnRecord* proxy hooks.
+     * events without doing manual type assertion, you can attach to the onRecord* proxy hooks.
      *
      * If the optional "tags" list (Collection id/name, Model table name, etc.) is specified,
      * then all event handlers registered via the created hook will be
@@ -7003,7 +7003,7 @@ namespace core {
      */
     onModelCreateExecute(...tags: string[]): hook.TaggedHook<ModelEvent | undefined>;
     /**
-     * OnModelAfterCreateSuccess is triggered after each successful
+     * onModelAfterCreateSuccess is triggered after each successful
      * Model DB create persistence.
      *
      * Note that when a Model is persisted as part of a transaction,
@@ -7012,7 +7012,7 @@ namespace core {
      * (aka. when the model wasn't persisted).
      *
      * For convenience, if you want to listen to only the Record models
-     * events without doing manual type assertion, you can attach to the OnRecord* proxy hooks.
+     * events without doing manual type assertion, you can attach to the onRecord* proxy hooks.
      *
      * If the optional "tags" list (Collection id/name, Model table name, etc.) is specified,
      * then all event handlers registered via the created hook will be
@@ -7020,18 +7020,18 @@ namespace core {
      */
     onModelAfterCreateSuccess(...tags: string[]): hook.TaggedHook<ModelEvent | undefined>;
     /**
-     * OnModelAfterCreateError is triggered after each failed
+     * onModelAfterCreateError is triggered after each failed
      * Model DB create persistence.
      *
      * Note that the execution of this hook is either immediate or delayed
      * depending on the error:
      * ```
-     *   - "immediate" on App.Save() failure
+     *   - "immediate" on app.save() failure
      *   - "delayed" on transaction rollback
      * ```
      *
      * For convenience, if you want to listen to only the Record models
-     * events without doing manual type assertion, you can attach to the OnRecord* proxy hooks.
+     * events without doing manual type assertion, you can attach to the onRecord* proxy hooks.
      *
      * If the optional "tags" list (Collection id/name, Model table name, etc.) is specified,
      * then all event handlers registered via the created hook will be
@@ -7039,23 +7039,23 @@ namespace core {
      */
     onModelAfterCreateError(...tags: string[]): hook.TaggedHook<ModelErrorEvent | undefined>;
     /**
-     * OnModelUpdate is triggered every time when a new model is being updated
-     * (e.g. triggered by App.Save()).
+     * onModelUpdate is triggered every time when a new model is being updated
+     * (e.g. triggered by app.save()).
      *
-     * Operations BEFORE the e.Next() execute before the model validation
+     * Operations BEFORE the e.next() execute before the model validation
      * and the UPDATE DB statement.
      *
-     * Operations AFTER the e.Next() execute after the model validation
+     * Operations AFTER the e.next() execute after the model validation
      * and the UPDATE DB statement.
      *
      * Note that successful execution doesn't guarantee that the model
      * is persisted in the database since its wrapping transaction may
      * not have been committed yet.
      * If you want to listen to only the actual persisted events, you can
-     * bind to [OnModelAfterUpdateSuccess] or [OnModelAfterUpdateError] hooks.
+     * bind to [onModelAfterUpdateSuccess] or [onModelAfterUpdateError] hooks.
      *
      * For convenience, if you want to listen to only the Record models
-     * events without doing manual type assertion, you can attach to the OnRecord* proxy hooks.
+     * events without doing manual type assertion, you can attach to the onRecord* proxy hooks.
      *
      * If the optional "tags" list (Collection id/name, Model table name, etc.) is specified,
      * then all event handlers registered via the created hook will be
@@ -7063,14 +7063,14 @@ namespace core {
      */
     onModelUpdate(...tags: string[]): hook.TaggedHook<ModelEvent | undefined>;
     /**
-     * OnModelUpdateExecute is triggered after successful Model validation
+     * onModelUpdateExecute is triggered after successful Model validation
      * and right before the model UPDATE DB statement execution.
      *
-     * Usually it is triggered as part of the App.Save() in the following firing order:
-     * OnModelUpdate {
+     * Usually it is triggered as part of the app.save() in the following firing order:
+     * onModelUpdate {
      * ```
-     *    -> OnModelValidate (skipped with App.SaveNoValidate())
-     *    -> OnModelUpdateExecute
+     *    -> onModelValidate (skipped with app.saveNoValidate())
+     *    -> onModelUpdateExecute
      * ```
      * }
      *
@@ -7078,10 +7078,10 @@ namespace core {
      * is persisted in the database since its wrapping transaction may have been
      * committed yet.
      * If you want to listen to only the actual persisted events,
-     * you can bind to [OnModelAfterUpdateSuccess] or [OnModelAfterUpdateError] hooks.
+     * you can bind to [onModelAfterUpdateSuccess] or [onModelAfterUpdateError] hooks.
      *
      * For convenience, if you want to listen to only the Record models
-     * events without doing manual type assertion, you can attach to the OnRecord* proxy hooks.
+     * events without doing manual type assertion, you can attach to the onRecord* proxy hooks.
      *
      * If the optional "tags" list (Collection id/name, Model table name, etc.) is specified,
      * then all event handlers registered via the created hook will be
@@ -7089,7 +7089,7 @@ namespace core {
      */
     onModelUpdateExecute(...tags: string[]): hook.TaggedHook<ModelEvent | undefined>;
     /**
-     * OnModelAfterUpdateSuccess is triggered after each successful
+     * onModelAfterUpdateSuccess is triggered after each successful
      * Model DB update persistence.
      *
      * Note that when a Model is persisted as part of a transaction,
@@ -7098,7 +7098,7 @@ namespace core {
      * (aka. when the model changes weren't persisted).
      *
      * For convenience, if you want to listen to only the Record models
-     * events without doing manual type assertion, you can attach to the OnRecord* proxy hooks.
+     * events without doing manual type assertion, you can attach to the onRecord* proxy hooks.
      *
      * If the optional "tags" list (Collection id/name, Model table name, etc.) is specified,
      * then all event handlers registered via the created hook will be
@@ -7106,18 +7106,18 @@ namespace core {
      */
     onModelAfterUpdateSuccess(...tags: string[]): hook.TaggedHook<ModelEvent | undefined>;
     /**
-     * OnModelAfterUpdateError is triggered after each failed
+     * onModelAfterUpdateError is triggered after each failed
      * Model DB update persistence.
      *
      * Note that the execution of this hook is either immediate or delayed
      * depending on the error:
      * ```
-     *   - "immediate" on App.Save() failure
+     *   - "immediate" on app.save() failure
      *   - "delayed" on transaction rollback
      * ```
      *
      * For convenience, if you want to listen to only the Record models
-     * events without doing manual type assertion, you can attach to the OnRecord* proxy hooks.
+     * events without doing manual type assertion, you can attach to the onRecord* proxy hooks.
      *
      * If the optional "tags" list (Collection id/name, Model table name, etc.) is specified,
      * then all event handlers registered via the created hook will be
@@ -7125,17 +7125,17 @@ namespace core {
      */
     onModelAfterUpdateError(...tags: string[]): hook.TaggedHook<ModelErrorEvent | undefined>;
     /**
-     * OnModelDelete is triggered every time when a new model is being deleted
-     * (e.g. triggered by App.Delete()).
+     * onModelDelete is triggered every time when a new model is being deleted
+     * (e.g. triggered by app.delete()).
      *
      * Note that successful execution doesn't guarantee that the model
      * is deleted from the database since its wrapping transaction may
      * not have been committed yet.
      * If you want to listen to only the actual persisted deleted events, you can
-     * bind to [OnModelAfterDeleteSuccess] or [OnModelAfterDeleteError] hooks.
+     * bind to [onModelAfterDeleteSuccess] or [onModelAfterDeleteError] hooks.
      *
      * For convenience, if you want to listen to only the Record models
-     * events without doing manual type assertion, you can attach to the OnRecord* proxy hooks.
+     * events without doing manual type assertion, you can attach to the onRecord* proxy hooks.
      *
      * If the optional "tags" list (Collection id/name, Model table name, etc.) is specified,
      * then all event handlers registered via the created hook will be
@@ -7143,14 +7143,14 @@ namespace core {
      */
     onModelDelete(...tags: string[]): hook.TaggedHook<ModelEvent | undefined>;
     /**
-     * OnModelUpdateExecute is triggered right before the model
+     * onModelUpdateExecute is triggered right before the model
      * DELETE DB statement execution.
      *
-     * Usually it is triggered as part of the App.Delete() in the following firing order:
-     * OnModelDelete {
+     * Usually it is triggered as part of the app.delete() in the following firing order:
+     * onModelDelete {
      * ```
      *    -> (internal delete checks)
-     *    -> OnModelDeleteExecute
+     *    -> onModelDeleteExecute
      * ```
      * }
      *
@@ -7158,10 +7158,10 @@ namespace core {
      * is deleted from the database since its wrapping transaction may
      * not have been committed yet.
      * If you want to listen to only the actual persisted deleted events, you can
-     * bind to [OnModelAfterDeleteSuccess] or [OnModelAfterDeleteError] hooks.
+     * bind to [onModelAfterDeleteSuccess] or [onModelAfterDeleteError] hooks.
      *
      * For convenience, if you want to listen to only the Record models
-     * events without doing manual type assertion, you can attach to the OnRecord* proxy hooks.
+     * events without doing manual type assertion, you can attach to the onRecord* proxy hooks.
      *
      * If the optional "tags" list (Collection id/name, Model table name, etc.) is specified,
      * then all event handlers registered via the created hook will be
@@ -7169,7 +7169,7 @@ namespace core {
      */
     onModelDeleteExecute(...tags: string[]): hook.TaggedHook<ModelEvent | undefined>;
     /**
-     * OnModelAfterDeleteSuccess is triggered after each successful
+     * onModelAfterDeleteSuccess is triggered after each successful
      * Model DB delete persistence.
      *
      * Note that when a Model is deleted as part of a transaction,
@@ -7178,7 +7178,7 @@ namespace core {
      * (aka. when the model delete wasn't persisted).
      *
      * For convenience, if you want to listen to only the Record models
-     * events without doing manual type assertion, you can attach to the OnRecord* proxy hooks.
+     * events without doing manual type assertion, you can attach to the onRecord* proxy hooks.
      *
      * If the optional "tags" list (Collection id/name, Model table name, etc.) is specified,
      * then all event handlers registered via the created hook will be
@@ -7186,18 +7186,18 @@ namespace core {
      */
     onModelAfterDeleteSuccess(...tags: string[]): hook.TaggedHook<ModelEvent | undefined>;
     /**
-     * OnModelAfterDeleteError is triggered after each failed
+     * onModelAfterDeleteError is triggered after each failed
      * Model DB delete persistence.
      *
      * Note that the execution of this hook is either immediate or delayed
      * depending on the error:
      * ```
-     *   - "immediate" on App.Delete() failure
+     *   - "immediate" on app.delete() failure
      *   - "delayed" on transaction rollback
      * ```
      *
      * For convenience, if you want to listen to only the Record models
-     * events without doing manual type assertion, you can attach to the OnRecord* proxy hooks.
+     * events without doing manual type assertion, you can attach to the onRecord* proxy hooks.
      *
      * If the optional "tags" list (Collection id/name, Model table name, etc.) is specified,
      * then all event handlers registered via the created hook will be
@@ -7205,24 +7205,24 @@ namespace core {
      */
     onModelAfterDeleteError(...tags: string[]): hook.TaggedHook<ModelErrorEvent | undefined>;
     /**
-     * OnRecordEnrich is triggered every time when a record is enriched
-     * (as part of the builtin Record responses, during realtime message seriazation, or when [apis.EnrichRecord] is invoked).
+     * onRecordEnrich is triggered every time when a record is enriched
+     * (as part of the builtin Record responses, during realtime message seriazation, or when [apis.enrichRecord] is invoked).
      *
      * It could be used for example to redact/hide or add computed temporary
      * Record model props only for the specific request info. For example:
      *
-     *  app.OnRecordEnrich("posts").BindFunc(func(e core.*RecordEnrichEvent) {
+     *  app.onRecordEnrich("posts").bindFunc((e) => {
      * ```
      *      // hide one or more fields
-     *      e.Record.Hide("role")
+     *      e.record.hide("role")
      *
      *      // add new custom field for registered users
-     *      if e.RequestInfo.Auth != nil && e.RequestInfo.Auth.Collection().Name == "users" {
-     *          e.Record.WithCustomData(true) // for security requires explicitly allowing it
-     *          e.Record.Set("computedScore", e.Record.GetInt("score") * e.RequestInfo.Auth.GetInt("baseScore"))
+     *      if (e.requestInfo?.auth && e.requestInfo.auth.collection().name == "users") {
+     *          e.record.withCustomData(true) // for security requires explicitly allowing it
+     *          e.record.set("computedScore", e.record.getInt("score") * e.requestInfo.auth.getInt("baseScore"))
      *      }
      *
-     *      return e.Next()
+     *      return e.next()
      * ```
      *  })
      *
@@ -7232,7 +7232,7 @@ namespace core {
      */
     onRecordEnrich(...tags: string[]): hook.TaggedHook<RecordEnrichEvent | undefined>;
     /**
-     * OnRecordValidate is a Record proxy model hook of [OnModelValidate].
+     * onRecordValidate is a Record proxy model hook of [onModelValidate].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7240,7 +7240,7 @@ namespace core {
      */
     onRecordValidate(...tags: string[]): hook.TaggedHook<RecordEvent | undefined>;
     /**
-     * OnRecordCreate is a Record proxy model hook of [OnModelCreate].
+     * onRecordCreate is a Record proxy model hook of [onModelCreate].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7248,7 +7248,7 @@ namespace core {
      */
     onRecordCreate(...tags: string[]): hook.TaggedHook<RecordEvent | undefined>;
     /**
-     * OnRecordCreateExecute is a Record proxy model hook of [OnModelCreateExecute].
+     * onRecordCreateExecute is a Record proxy model hook of [onModelCreateExecute].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7256,7 +7256,7 @@ namespace core {
      */
     onRecordCreateExecute(...tags: string[]): hook.TaggedHook<RecordEvent | undefined>;
     /**
-     * OnRecordAfterCreateSuccess is a Record proxy model hook of [OnModelAfterCreateSuccess].
+     * onRecordAfterCreateSuccess is a Record proxy model hook of [onModelAfterCreateSuccess].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7264,7 +7264,7 @@ namespace core {
      */
     onRecordAfterCreateSuccess(...tags: string[]): hook.TaggedHook<RecordEvent | undefined>;
     /**
-     * OnRecordAfterCreateError is a Record proxy model hook of [OnModelAfterCreateError].
+     * onRecordAfterCreateError is a Record proxy model hook of [onModelAfterCreateError].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7272,7 +7272,7 @@ namespace core {
      */
     onRecordAfterCreateError(...tags: string[]): hook.TaggedHook<RecordErrorEvent | undefined>;
     /**
-     * OnRecordUpdate is a Record proxy model hook of [OnModelUpdate].
+     * onRecordUpdate is a Record proxy model hook of [onModelUpdate].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7280,7 +7280,7 @@ namespace core {
      */
     onRecordUpdate(...tags: string[]): hook.TaggedHook<RecordEvent | undefined>;
     /**
-     * OnRecordUpdateExecute is a Record proxy model hook of [OnModelUpdateExecute].
+     * onRecordUpdateExecute is a Record proxy model hook of [onModelUpdateExecute].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7288,7 +7288,7 @@ namespace core {
      */
     onRecordUpdateExecute(...tags: string[]): hook.TaggedHook<RecordEvent | undefined>;
     /**
-     * OnRecordAfterUpdateSuccess is a Record proxy model hook of [OnModelAfterUpdateSuccess].
+     * onRecordAfterUpdateSuccess is a Record proxy model hook of [onModelAfterUpdateSuccess].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7296,7 +7296,7 @@ namespace core {
      */
     onRecordAfterUpdateSuccess(...tags: string[]): hook.TaggedHook<RecordEvent | undefined>;
     /**
-     * OnRecordAfterUpdateError is a Record proxy model hook of [OnModelAfterUpdateError].
+     * onRecordAfterUpdateError is a Record proxy model hook of [onModelAfterUpdateError].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7304,7 +7304,7 @@ namespace core {
      */
     onRecordAfterUpdateError(...tags: string[]): hook.TaggedHook<RecordErrorEvent | undefined>;
     /**
-     * OnRecordDelete is a Record proxy model hook of [OnModelDelete].
+     * onRecordDelete is a Record proxy model hook of [onModelDelete].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7312,7 +7312,7 @@ namespace core {
      */
     onRecordDelete(...tags: string[]): hook.TaggedHook<RecordEvent | undefined>;
     /**
-     * OnRecordDeleteExecute is a Record proxy model hook of [OnModelDeleteExecute].
+     * onRecordDeleteExecute is a Record proxy model hook of [onModelDeleteExecute].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7320,7 +7320,7 @@ namespace core {
      */
     onRecordDeleteExecute(...tags: string[]): hook.TaggedHook<RecordEvent | undefined>;
     /**
-     * OnRecordAfterDeleteSuccess is a Record proxy model hook of [OnModelAfterDeleteSuccess].
+     * onRecordAfterDeleteSuccess is a Record proxy model hook of [onModelAfterDeleteSuccess].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7328,7 +7328,7 @@ namespace core {
      */
     onRecordAfterDeleteSuccess(...tags: string[]): hook.TaggedHook<RecordEvent | undefined>;
     /**
-     * OnRecordAfterDeleteError is a Record proxy model hook of [OnModelAfterDeleteError].
+     * onRecordAfterDeleteError is a Record proxy model hook of [onModelAfterDeleteError].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7336,7 +7336,7 @@ namespace core {
      */
     onRecordAfterDeleteError(...tags: string[]): hook.TaggedHook<RecordErrorEvent | undefined>;
     /**
-     * OnCollectionValidate is a Collection proxy model hook of [OnModelValidate].
+     * onCollectionValidate is a Collection proxy model hook of [onModelValidate].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7344,7 +7344,7 @@ namespace core {
      */
     onCollectionValidate(...tags: string[]): hook.TaggedHook<CollectionEvent | undefined>;
     /**
-     * OnCollectionCreate is a Collection proxy model hook of [OnModelCreate].
+     * onCollectionCreate is a Collection proxy model hook of [onModelCreate].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7352,7 +7352,7 @@ namespace core {
      */
     onCollectionCreate(...tags: string[]): hook.TaggedHook<CollectionEvent | undefined>;
     /**
-     * OnCollectionCreateExecute is a Collection proxy model hook of [OnModelCreateExecute].
+     * onCollectionCreateExecute is a Collection proxy model hook of [onModelCreateExecute].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7360,7 +7360,7 @@ namespace core {
      */
     onCollectionCreateExecute(...tags: string[]): hook.TaggedHook<CollectionEvent | undefined>;
     /**
-     * OnCollectionAfterCreateSuccess is a Collection proxy model hook of [OnModelAfterCreateSuccess].
+     * onCollectionAfterCreateSuccess is a Collection proxy model hook of [onModelAfterCreateSuccess].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7368,7 +7368,7 @@ namespace core {
      */
     onCollectionAfterCreateSuccess(...tags: string[]): hook.TaggedHook<CollectionEvent | undefined>;
     /**
-     * OnCollectionAfterCreateError is a Collection proxy model hook of [OnModelAfterCreateError].
+     * onCollectionAfterCreateError is a Collection proxy model hook of [onModelAfterCreateError].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7376,7 +7376,7 @@ namespace core {
      */
     onCollectionAfterCreateError(...tags: string[]): hook.TaggedHook<CollectionErrorEvent | undefined>;
     /**
-     * OnCollectionUpdate is a Collection proxy model hook of [OnModelUpdate].
+     * onCollectionUpdate is a Collection proxy model hook of [onModelUpdate].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7384,7 +7384,7 @@ namespace core {
      */
     onCollectionUpdate(...tags: string[]): hook.TaggedHook<CollectionEvent | undefined>;
     /**
-     * OnCollectionUpdateExecute is a Collection proxy model hook of [OnModelUpdateExecute].
+     * onCollectionUpdateExecute is a Collection proxy model hook of [onModelUpdateExecute].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7392,7 +7392,7 @@ namespace core {
      */
     onCollectionUpdateExecute(...tags: string[]): hook.TaggedHook<CollectionEvent | undefined>;
     /**
-     * OnCollectionAfterUpdateSuccess is a Collection proxy model hook of [OnModelAfterUpdateSuccess].
+     * onCollectionAfterUpdateSuccess is a Collection proxy model hook of [onModelAfterUpdateSuccess].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7400,7 +7400,7 @@ namespace core {
      */
     onCollectionAfterUpdateSuccess(...tags: string[]): hook.TaggedHook<CollectionEvent | undefined>;
     /**
-     * OnCollectionAfterUpdateError is a Collection proxy model hook of [OnModelAfterUpdateError].
+     * onCollectionAfterUpdateError is a Collection proxy model hook of [onModelAfterUpdateError].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7408,7 +7408,7 @@ namespace core {
      */
     onCollectionAfterUpdateError(...tags: string[]): hook.TaggedHook<CollectionErrorEvent | undefined>;
     /**
-     * OnCollectionDelete is a Collection proxy model hook of [OnModelDelete].
+     * onCollectionDelete is a Collection proxy model hook of [onModelDelete].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7416,7 +7416,7 @@ namespace core {
      */
     onCollectionDelete(...tags: string[]): hook.TaggedHook<CollectionEvent | undefined>;
     /**
-     * OnCollectionDeleteExecute is a Collection proxy model hook of [OnModelDeleteExecute].
+     * onCollectionDeleteExecute is a Collection proxy model hook of [onModelDeleteExecute].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7424,7 +7424,7 @@ namespace core {
      */
     onCollectionDeleteExecute(...tags: string[]): hook.TaggedHook<CollectionEvent | undefined>;
     /**
-     * OnCollectionAfterDeleteSuccess is a Collection proxy model hook of [OnModelAfterDeleteSuccess].
+     * onCollectionAfterDeleteSuccess is a Collection proxy model hook of [onModelAfterDeleteSuccess].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7432,7 +7432,7 @@ namespace core {
      */
     onCollectionAfterDeleteSuccess(...tags: string[]): hook.TaggedHook<CollectionEvent | undefined>;
     /**
-     * OnCollectionAfterDeleteError is a Collection proxy model hook of [OnModelAfterDeleteError].
+     * onCollectionAfterDeleteError is a Collection proxy model hook of [onModelAfterDeleteError].
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7440,14 +7440,14 @@ namespace core {
      */
     onCollectionAfterDeleteError(...tags: string[]): hook.TaggedHook<CollectionErrorEvent | undefined>;
     /**
-     * OnMailerSend hook is triggered every time when a new email is
-     * being sent using the [App.NewMailClient()] instance.
+     * onMailerSend hook is triggered every time when a new email is
+     * being sent using the [app.newMailClient()] instance.
      *
      * It allows intercepting the email message or to use a custom mailer client.
      */
     onMailerSend(): hook.Hook<MailerEvent | undefined>;
     /**
-     * OnMailerRecordAuthAlertSend hook is triggered when
+     * onMailerRecordAuthAlertSend hook is triggered when
      * sending a new device login auth alert email, allowing you to
      * intercept and customize the email message that is being sent.
      *
@@ -7477,7 +7477,7 @@ namespace core {
      */
     onMailerRecordVerificationSend(...tags: string[]): hook.TaggedHook<MailerRecordEvent | undefined>;
     /**
-     * OnMailerRecordEmailChangeSend hook is triggered when sending a
+     * onMailerRecordEmailChangeSend hook is triggered when sending a
      * confirmation new address email to an auth record, allowing
      * you to intercept and customize the email message that is being sent.
      *
@@ -7487,7 +7487,7 @@ namespace core {
      */
     onMailerRecordEmailChangeSend(...tags: string[]): hook.TaggedHook<MailerRecordEvent | undefined>;
     /**
-     * OnMailerRecordOTPSend hook is triggered when sending an OTP email
+     * onMailerRecordOTPSend hook is triggered when sending an OTP email
      * to an auth record, allowing you to intercept and customize the
      * email message that is being sent.
      *
@@ -7497,43 +7497,43 @@ namespace core {
      */
     onMailerRecordOTPSend(...tags: string[]): hook.TaggedHook<MailerRecordEvent | undefined>;
     /**
-     * OnRealtimeConnectRequest hook is triggered when establishing the SSE client connection.
+     * onRealtimeConnectRequest hook is triggered when establishing the SSE client connection.
      *
-     * Any execution after e.Next() of a hook handler happens after the client disconnects.
+     * Any execution after e.next() of a hook handler happens after the client disconnects.
      */
     onRealtimeConnectRequest(): hook.Hook<RealtimeConnectRequestEvent | undefined>;
     /**
-     * OnRealtimeMessageSend hook is triggered when sending an SSE message to a client.
+     * onRealtimeMessageSend hook is triggered when sending an SSE message to a client.
      */
     onRealtimeMessageSend(): hook.Hook<RealtimeMessageEvent | undefined>;
     /**
-     * OnRealtimeSubscribeRequest hook is triggered when updating the
+     * onRealtimeSubscribeRequest hook is triggered when updating the
      * client subscriptions, allowing you to further validate and
      * modify the submitted change.
      */
     onRealtimeSubscribeRequest(): hook.Hook<RealtimeSubscribeRequestEvent | undefined>;
     /**
-     * OnSettingsListRequest hook is triggered on each API Settings list request.
+     * onSettingsListRequest hook is triggered on each API Settings list request.
      *
      * Could be used to validate or modify the response before returning it to the client.
      */
     onSettingsListRequest(): hook.Hook<SettingsListRequestEvent | undefined>;
     /**
-     * OnSettingsUpdateRequest hook is triggered on each API Settings update request.
+     * onSettingsUpdateRequest hook is triggered on each API Settings update request.
      *
      * Could be used to additionally validate the request data or
      * implement completely different persistence behavior.
      */
     onSettingsUpdateRequest(): hook.Hook<SettingsUpdateRequestEvent | undefined>;
     /**
-     * OnSettingsReload hook is triggered every time when the App.Settings()
+     * onSettingsReload hook is triggered every time when the App.settings()
      * is being replaced with a new state.
      *
-     * Calling App.Settings() after e.Next() returns the new state.
+     * Calling App.settings() after e.next() returns the new state.
      */
     onSettingsReload(): hook.Hook<SettingsReloadEvent | undefined>;
     /**
-     * OnFileDownloadRequest hook is triggered before each API File download request.
+     * onFileDownloadRequest hook is triggered before each API File download request.
      *
      * Could be used to validate or modify the file response before
      * returning it to the client.
@@ -7548,7 +7548,7 @@ namespace core {
      */
     onFileTokenRequest(...tags: string[]): hook.TaggedHook<FileTokenRequestEvent | undefined>;
     /**
-     * OnRecordAuthRequest hook is triggered on each successful API
+     * onRecordAuthRequest hook is triggered on each successful API
      * record authentication request (sign-in, token refresh, etc.).
      *
      * Could be used to additionally validate or modify the authenticated
@@ -7560,11 +7560,11 @@ namespace core {
      */
     onRecordAuthRequest(...tags: string[]): hook.TaggedHook<RecordAuthRequestEvent | undefined>;
     /**
-     * OnRecordAuthWithPasswordRequest hook is triggered on each
+     * onRecordAuthWithPasswordRequest hook is triggered on each
      * Record auth with password API request.
      *
-     * [RecordAuthWithPasswordRequestEvent.Record] could be nil if no matching identity is found, allowing
-     * you to manually locate a different Record model (by reassigning [RecordAuthWithPasswordRequestEvent.Record]).
+     * [RecordAuthWithPasswordRequestEvent.record] could be nil if no matching identity is found, allowing
+     * you to manually locate a different Record model (by reassigning [RecordAuthWithPasswordRequestEvent.record]).
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7572,14 +7572,14 @@ namespace core {
      */
     onRecordAuthWithPasswordRequest(...tags: string[]): hook.TaggedHook<RecordAuthWithPasswordRequestEvent | undefined>;
     /**
-     * OnRecordAuthWithOAuth2Request hook is triggered on each Record
+     * onRecordAuthWithOAuth2Request hook is triggered on each Record
      * OAuth2 sign-in/sign-up API request (after token exchange and before external provider linking).
      *
-     * If [RecordAuthWithOAuth2RequestEvent.Record] is not set, then the OAuth2
+     * If [RecordAuthWithOAuth2RequestEvent.record] is not set, then the OAuth2
      * request will try to create a new auth Record.
      *
      * To assign or link a different existing record model you can
-     * change the [RecordAuthWithOAuth2RequestEvent.Record] field.
+     * change the [RecordAuthWithOAuth2RequestEvent.record] field.
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7587,7 +7587,7 @@ namespace core {
      */
     onRecordAuthWithOAuth2Request(...tags: string[]): hook.TaggedHook<RecordAuthWithOAuth2RequestEvent | undefined>;
     /**
-     * OnRecordAuthRefreshRequest hook is triggered on each Record
+     * onRecordAuthRefreshRequest hook is triggered on each Record
      * auth refresh API request (right before generating a new auth token).
      *
      * Could be used to additionally validate the request data or implement
@@ -7599,7 +7599,7 @@ namespace core {
      */
     onRecordAuthRefreshRequest(...tags: string[]): hook.TaggedHook<RecordAuthRefreshRequestEvent | undefined>;
     /**
-     * OnRecordRequestPasswordResetRequest hook is triggered on
+     * onRecordRequestPasswordResetRequest hook is triggered on
      * each Record request password reset API request.
      *
      * Could be used to additionally validate the request data or implement
@@ -7611,7 +7611,7 @@ namespace core {
      */
     onRecordRequestPasswordResetRequest(...tags: string[]): hook.TaggedHook<RecordRequestPasswordResetRequestEvent | undefined>;
     /**
-     * OnRecordConfirmPasswordResetRequest hook is triggered on
+     * onRecordConfirmPasswordResetRequest hook is triggered on
      * each Record confirm password reset API request.
      *
      * Could be used to additionally validate the request data or implement
@@ -7623,7 +7623,7 @@ namespace core {
      */
     onRecordConfirmPasswordResetRequest(...tags: string[]): hook.TaggedHook<RecordConfirmPasswordResetRequestEvent | undefined>;
     /**
-     * OnRecordRequestVerificationRequest hook is triggered on
+     * onRecordRequestVerificationRequest hook is triggered on
      * each Record request verification API request.
      *
      * Could be used to additionally validate the loaded request data or implement
@@ -7635,7 +7635,7 @@ namespace core {
      */
     onRecordRequestVerificationRequest(...tags: string[]): hook.TaggedHook<RecordRequestVerificationRequestEvent | undefined>;
     /**
-     * OnRecordConfirmVerificationRequest hook is triggered on each
+     * onRecordConfirmVerificationRequest hook is triggered on each
      * Record confirm verification API request.
      *
      * Could be used to additionally validate the request data or implement
@@ -7647,7 +7647,7 @@ namespace core {
      */
     onRecordConfirmVerificationRequest(...tags: string[]): hook.TaggedHook<RecordConfirmVerificationRequestEvent | undefined>;
     /**
-     * OnRecordRequestEmailChangeRequest hook is triggered on each
+     * onRecordRequestEmailChangeRequest hook is triggered on each
      * Record request email change API request.
      *
      * Could be used to additionally validate the request data or implement
@@ -7659,7 +7659,7 @@ namespace core {
      */
     onRecordRequestEmailChangeRequest(...tags: string[]): hook.TaggedHook<RecordRequestEmailChangeRequestEvent | undefined>;
     /**
-     * OnRecordConfirmEmailChangeRequest hook is triggered on each
+     * onRecordConfirmEmailChangeRequest hook is triggered on each
      * Record confirm email change API request.
      *
      * Could be used to additionally validate the request data or implement
@@ -7671,11 +7671,11 @@ namespace core {
      */
     onRecordConfirmEmailChangeRequest(...tags: string[]): hook.TaggedHook<RecordConfirmEmailChangeRequestEvent | undefined>;
     /**
-     * OnRecordRequestOTPRequest hook is triggered on each Record
+     * onRecordRequestOTPRequest hook is triggered on each Record
      * request OTP API request.
      *
-     * [RecordCreateOTPRequestEvent.Record] could be nil if no matching identity is found, allowing
-     * you to manually create or locate a different Record model (by reassigning [RecordCreateOTPRequestEvent.Record]).
+     * [RecordCreateOTPRequestEvent.record] could be nil if no matching identity is found, allowing
+     * you to manually create or locate a different Record model (by reassigning [RecordCreateOTPRequestEvent.record]).
      *
      * If the optional "tags" list (Collection ids or names) is specified,
      * then all event handlers registered via the created hook will be
@@ -7683,7 +7683,7 @@ namespace core {
      */
     onRecordRequestOTPRequest(...tags: string[]): hook.TaggedHook<RecordCreateOTPRequestEvent | undefined>;
     /**
-     * OnRecordAuthWithOTPRequest hook is triggered on each Record
+     * onRecordAuthWithOTPRequest hook is triggered on each Record
      * auth with OTP API request.
      *
      * If the optional "tags" list (Collection ids or names) is specified,
@@ -7692,7 +7692,7 @@ namespace core {
      */
     onRecordAuthWithOTPRequest(...tags: string[]): hook.TaggedHook<RecordAuthWithOTPRequestEvent | undefined>;
     /**
-     * OnRecordsListRequest hook is triggered on each API Records list request.
+     * onRecordsListRequest hook is triggered on each API Records list request.
      *
      * Could be used to validate or modify the response before returning it to the client.
      *
@@ -7702,7 +7702,7 @@ namespace core {
      */
     onRecordsListRequest(...tags: string[]): hook.TaggedHook<RecordsListRequestEvent | undefined>;
     /**
-     * OnRecordViewRequest hook is triggered on each API Record view request.
+     * onRecordViewRequest hook is triggered on each API Record view request.
      *
      * Could be used to validate or modify the response before returning it to the client.
      *
@@ -7712,7 +7712,7 @@ namespace core {
      */
     onRecordViewRequest(...tags: string[]): hook.TaggedHook<RecordRequestEvent | undefined>;
     /**
-     * OnRecordCreateRequest hook is triggered on each API Record create request.
+     * onRecordCreateRequest hook is triggered on each API Record create request.
      *
      * Could be used to additionally validate the request data or implement
      * completely different persistence behavior.
@@ -7723,7 +7723,7 @@ namespace core {
      */
     onRecordCreateRequest(...tags: string[]): hook.TaggedHook<RecordRequestEvent | undefined>;
     /**
-     * OnRecordUpdateRequest hook is triggered on each API Record update request.
+     * onRecordUpdateRequest hook is triggered on each API Record update request.
      *
      * Could be used to additionally validate the request data or implement
      * completely different persistence behavior.
@@ -7734,7 +7734,7 @@ namespace core {
      */
     onRecordUpdateRequest(...tags: string[]): hook.TaggedHook<RecordRequestEvent | undefined>;
     /**
-     * OnRecordDeleteRequest hook is triggered on each API Record delete request.
+     * onRecordDeleteRequest hook is triggered on each API Record delete request.
      *
      * Could be used to additionally validate the request data or implement
      * completely different delete behavior.
@@ -7745,40 +7745,40 @@ namespace core {
      */
     onRecordDeleteRequest(...tags: string[]): hook.TaggedHook<RecordRequestEvent | undefined>;
     /**
-     * OnCollectionsListRequest hook is triggered on each API Collections list request.
+     * onCollectionsListRequest hook is triggered on each API Collections list request.
      *
      * Could be used to validate or modify the response before returning it to the client.
      */
     onCollectionsListRequest(): hook.Hook<CollectionsListRequestEvent | undefined>;
     /**
-     * OnCollectionViewRequest hook is triggered on each API Collection view request.
+     * onCollectionViewRequest hook is triggered on each API Collection view request.
      *
      * Could be used to validate or modify the response before returning it to the client.
      */
     onCollectionViewRequest(): hook.Hook<CollectionRequestEvent | undefined>;
     /**
-     * OnCollectionCreateRequest hook is triggered on each API Collection create request.
+     * onCollectionCreateRequest hook is triggered on each API Collection create request.
      *
      * Could be used to additionally validate the request data or implement
      * completely different persistence behavior.
      */
     onCollectionCreateRequest(): hook.Hook<CollectionRequestEvent | undefined>;
     /**
-     * OnCollectionUpdateRequest hook is triggered on each API Collection update request.
+     * onCollectionUpdateRequest hook is triggered on each API Collection update request.
      *
      * Could be used to additionally validate the request data or implement
      * completely different persistence behavior.
      */
     onCollectionUpdateRequest(): hook.Hook<CollectionRequestEvent | undefined>;
     /**
-     * OnCollectionDeleteRequest hook is triggered on each API Collection delete request.
+     * onCollectionDeleteRequest hook is triggered on each API Collection delete request.
      *
      * Could be used to additionally validate the request data or implement
      * completely different delete behavior.
      */
     onCollectionDeleteRequest(): hook.Hook<CollectionRequestEvent | undefined>;
     /**
-     * OnCollectionsBeforeImportRequest hook is triggered on each API
+     * onCollectionsBeforeImportRequest hook is triggered on each API
      * collections import request.
      *
      * Could be used to additionally validate the imported collections or
@@ -7786,7 +7786,7 @@ namespace core {
      */
     onCollectionsImportRequest(): hook.Hook<CollectionsImportRequestEvent | undefined>;
     /**
-     * OnBatchRequest hook is triggered on each API batch request.
+     * onBatchRequest hook is triggered on each API batch request.
      *
      * Could be used to additionally validate or modify the submitted batch requests.
      */
@@ -7806,110 +7806,110 @@ namespace core {
      * Example usage:
      *
      * ```
-     * 	origin := core.NewOrigin(app)
-     * 	origin.SetRecordRef(user.Id)
-     * 	origin.SetCollectionRef(user.Collection().Id)
-     * 	origin.SetFingerprint("...")
-     * 	app.Save(origin)
+     * 	const origin = app.newOrigin()
+     * 	origin.setRecordRef(user.id)
+     * 	origin.setCollectionRef(user.collection().id)
+     * 	origin.setFingerprint("...")
+     * 	app.save(origin)
      * ```
      */
     (app: App): AuthOrigin;
   }
   interface AuthOrigin {
     /**
-     * PreValidate implements the [PreValidator] interface and checks
+     * preValidate implements the [PreValidator] interface and checks
      * whether the proxy is properly loaded.
      */
     preValidate(ctx: context.Context, app: App): void;
   }
   interface AuthOrigin {
     /**
-     * ProxyRecord returns the proxied Record model.
+     * proxyRecord returns the proxied Record model.
      */
     proxyRecord(): Record;
   }
   interface AuthOrigin {
     /**
-     * SetProxyRecord loads the specified record model into the current proxy.
+     * setProxyRecord loads the specified record model into the current proxy.
      */
     setProxyRecord(record: Record): void;
   }
   interface AuthOrigin {
     /**
-     * CollectionRef returns the "collectionRef" field value.
+     * collectionRef returns the "collectionRef" field value.
      */
     collectionRef(): string;
   }
   interface AuthOrigin {
     /**
-     * SetCollectionRef updates the "collectionRef" record field value.
+     * setCollectionRef updates the "collectionRef" record field value.
      */
     setCollectionRef(collectionId: string): void;
   }
   interface AuthOrigin {
     /**
-     * RecordRef returns the "recordRef" record field value.
+     * recordRef returns the "recordRef" record field value.
      */
     recordRef(): string;
   }
   interface AuthOrigin {
     /**
-     * SetRecordRef updates the "recordRef" record field value.
+     * setRecordRef updates the "recordRef" record field value.
      */
     setRecordRef(recordId: string): void;
   }
   interface AuthOrigin {
     /**
-     * Fingerprint returns the "fingerprint" record field value.
+     * fingerprint returns the "fingerprint" record field value.
      */
     fingerprint(): string;
   }
   interface AuthOrigin {
     /**
-     * SetFingerprint updates the "fingerprint" record field value.
+     * setFingerprint updates the "fingerprint" record field value.
      */
     setFingerprint(fingerprint: string): void;
   }
   interface AuthOrigin {
     /**
-     * Created returns the "created" record field value.
+     * created returns the "created" record field value.
      */
     created(): types.DateTime;
   }
   interface AuthOrigin {
     /**
-     * Updated returns the "updated" record field value.
+     * updated returns the "updated" record field value.
      */
     updated(): types.DateTime;
   }
   interface BaseApp {
     /**
-     * FindAllAuthOriginsByRecord returns all AuthOrigin models linked to the provided auth record (in DESC order).
+     * findAllAuthOriginsByRecord returns all AuthOrigin models linked to the provided auth record (in DESC order).
      */
     findAllAuthOriginsByRecord(authRecord: Record): Array<AuthOrigin | undefined>;
   }
   interface BaseApp {
     /**
-     * FindAllAuthOriginsByCollection returns all AuthOrigin models linked to the provided collection (in DESC order).
+     * findAllAuthOriginsByCollection returns all AuthOrigin models linked to the provided collection (in DESC order).
      */
     findAllAuthOriginsByCollection(collection: Collection): Array<AuthOrigin | undefined>;
   }
   interface BaseApp {
     /**
-     * FindAuthOriginById returns a single AuthOrigin model by its id.
+     * findAuthOriginById returns a single AuthOrigin model by its id.
      */
     findAuthOriginById(id: string): AuthOrigin;
   }
   interface BaseApp {
     /**
-     * FindAuthOriginByRecordAndFingerprint returns a single AuthOrigin model
+     * findAuthOriginByRecordAndFingerprint returns a single AuthOrigin model
      * by its authRecord relation and fingerprint.
      */
     findAuthOriginByRecordAndFingerprint(authRecord: Record, fingerprint: string): AuthOrigin;
   }
   interface BaseApp {
     /**
-     * DeleteAllAuthOriginsByRecord deletes all AuthOrigin models associated with the provided record.
+     * deleteAllAuthOriginsByRecord deletes all AuthOrigin models associated with the provided record.
      *
      * Returns a combined error with the failed deletes.
      */
@@ -7921,7 +7921,7 @@ namespace core {
   interface FilesManager {
     [key: string]: any;
     /**
-     * BaseFilesPath returns the storage dir path used by the interface instance.
+     * baseFilesPath returns the storage dir path used by the interface instance.
      */
     baseFilesPath(): string;
   }
@@ -7954,13 +7954,13 @@ namespace core {
      * NewBaseApp creates and returns a new BaseApp instance
      * configured with the provided arguments.
      *
-     * To initialize the app, you need to call `app.Bootstrap()`.
+     * To initialize the app, you need to call `app.bootstrap()`.
      */
     (config: BaseAppConfig): BaseApp;
   }
   interface BaseApp {
     /**
-     * UnsafeWithoutHooks returns a shallow copy of the current app WITHOUT any registered hooks.
+     * unsafeWithoutHooks returns a shallow copy of the current app WITHOUT any registered hooks.
      *
      * NB! Note that using the returned app instance may cause data integrity errors
      * since the Record validations and data normalizations (including files uploads)
@@ -7968,7 +7968,7 @@ namespace core {
      */
     unsafeWithoutHooks(): App;
     /**
-     * ForMigrations returns a shallow copy of the current app intended for migration code.
+     * forMigrations returns a shallow copy of the current app intended for migration code.
      *
      * It skips user hooks registered after app construction while preserving
      * PocketBun system hooks required for collection schema persistence.
@@ -7979,7 +7979,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * Logger returns the default app logger.
+     * logger returns the default app logger.
      *
      * If the application is not bootstrapped yet, fallbacks to slog.Default().
      */
@@ -7987,29 +7987,29 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * TxInfo returns the transaction associated with the current app instance (if any).
+     * txInfo returns the transaction associated with the current app instance (if any).
      *
      * Could be used if you want to execute indirectly a function after
-     * the related app transaction completes using `app.TxInfo().OnAfterFunc(callback)`.
+     * the related app transaction completes using `app.txInfo().OnAfterFunc(callback)`.
      */
     txInfo(): TxAppInfo;
   }
   interface BaseApp {
     /**
-     * IsTransactional checks if the current app instance is part of a transaction.
+     * isTransactional checks if the current app instance is part of a transaction.
      */
     isTransactional(): boolean;
   }
   interface BaseApp {
     /**
-     * IsBootstrapped checks if the application was initialized
+     * isBootstrapped checks if the application was initialized
      * (aka. whether Bootstrap() was called).
      */
     isBootstrapped(): boolean;
   }
   interface BaseApp {
     /**
-     * Bootstrap initializes the application
+     * bootstrap initializes the application
      * (aka. create data dir, open db connections, load settings, etc.).
      *
      * It will call ResetBootstrapState() if the application was already bootstrapped.
@@ -8022,14 +8022,14 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * ResetBootstrapState releases the initialized core app resources
+     * resetBootstrapState releases the initialized core app resources
      * (closing db connections, stopping cron ticker, etc.).
      */
     resetBootstrapState(): void;
   }
   interface BaseApp {
     /**
-     * DB returns the default app data.db builder instance.
+     * db returns the default app data.db builder instance.
      *
      * To minimize SQLITE_BUSY errors, it automatically routes the
      * SELECT queries to the underlying concurrent db pool and everything
@@ -8042,7 +8042,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * ConcurrentDB returns the concurrent app data.db builder instance.
+     * concurrentDB returns the concurrent app data.db builder instance.
      *
      * This method is used mainly internally for executing db read
      * operations in a concurrent/non-blocking manner.
@@ -8056,7 +8056,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * NonconcurrentDB returns the nonconcurrent app data.db builder instance.
+     * nonconcurrentDB returns the nonconcurrent app data.db builder instance.
      *
      * The returned db instance is limited only to a single open connection,
      * meaning that it can process only 1 db operation at a time (other queries queue up).
@@ -8073,7 +8073,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * AuxDB returns the app auxiliary.db builder instance.
+     * auxDB returns the app auxiliary.db builder instance.
      *
      * To minimize SQLITE_BUSY errors, it automatically routes the
      * SELECT queries to the underlying concurrent db pool and everything
@@ -8086,7 +8086,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * AuxConcurrentDB returns the concurrent app auxiliary.db builder instance.
+     * auxConcurrentDB returns the concurrent app auxiliary.db builder instance.
      *
      * This method is used mainly internally for executing db read
      * operations in a concurrent/non-blocking manner.
@@ -8100,7 +8100,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * AuxNonconcurrentDB returns the nonconcurrent app auxiliary.db builder instance.
+     * auxNonconcurrentDB returns the nonconcurrent app auxiliary.db builder instance.
      *
      * The returned db instance is limited only to a single open connection,
      * meaning that it can process only 1 db operation at a time (other queries queue up).
@@ -8117,20 +8117,20 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * DataDir returns the app data directory path.
+     * dataDir returns the app data directory path.
      */
     dataDir(): string;
   }
   interface BaseApp {
     /**
-     * EncryptionEnv returns the name of the app secret env key
+     * encryptionEnv returns the name of the app secret env key
      * (currently used primarily for optional settings encryption but this may change in the future).
      */
     encryptionEnv(): string;
   }
   interface BaseApp {
     /**
-     * IsDev returns whether the app is in dev mode.
+     * isDev returns whether the app is in dev mode.
      *
      * When enabled logs, executed sql statements, etc. are printed to the stderr.
      */
@@ -8138,38 +8138,38 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * Settings returns the loaded app settings.
+     * settings returns the loaded app settings.
      */
     settings(): Settings;
   }
   interface BaseApp {
     /**
-     * Store returns the app runtime store.
+     * store returns the app runtime store.
      */
     store(): store.Store<string, any>;
   }
   interface BaseApp {
     /**
-     * Cron returns the app cron instance.
+     * cron returns the app cron instance.
      */
     cron(): cron.Cron;
   }
   interface BaseApp {
     /**
-     * SubscriptionsBroker returns the app realtime subscriptions broker instance.
+     * subscriptionsBroker returns the app realtime subscriptions broker instance.
      */
     subscriptionsBroker(): subscriptions.Broker;
   }
   interface BaseApp {
     /**
-     * NewMailClient creates and returns a new SMTP or Sendmail client
+     * newMailClient creates and returns a new SMTP or Sendmail client
      * based on the current app settings.
      */
     newMailClient(): mailer.Mailer;
   }
   interface BaseApp {
     /**
-     * NewFilesystem creates a new local or S3 filesystem instance
+     * newFilesystem creates a new local or S3 filesystem instance
      * for managing regular app files (ex. record uploads)
      * based on the current app settings.
      *
@@ -8180,7 +8180,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * NewBackupsFilesystem creates a new local or S3 filesystem instance
+     * newBackupsFilesystem creates a new local or S3 filesystem instance
      * for managing app backups based on the current app settings.
      *
      * NB! Make sure to call Close() on the returned result
@@ -8190,7 +8190,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * Restart restarts (aka. replaces) the current running application process.
+     * restart restarts (aka. replaces) the current running application process.
      *
      * NB! It relies on execve which is supported only on UNIX based systems.
      */
@@ -8198,19 +8198,19 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * RunSystemMigrations applies all new migrations registered in the [core.SystemMigrations] list.
+     * runSystemMigrations applies all new migrations registered in the [core.SystemMigrations] list.
      */
     runSystemMigrations(): void;
   }
   interface BaseApp {
     /**
-     * RunAppMigrations applies all new migrations registered in the [CoreAppMigrations] list.
+     * runAppMigrations applies all new migrations registered in the [CoreAppMigrations] list.
      */
     runAppMigrations(): void;
   }
   interface BaseApp {
     /**
-     * RunAllMigrations applies all system and app migrations
+     * runAllMigrations applies all system and app migrations
      * (aka. from both [core.SystemMigrations] and [CoreAppMigrations]).
      */
     runAllMigrations(): void;
@@ -8466,7 +8466,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * CreateBackup creates a new backup of the current app pb_data directory.
+     * createBackup creates a new backup of the current app pb_data directory.
      *
      * If name is empty, it will be autogenerated.
      * If backup with the same name exists, the new backup file will replace it.
@@ -8483,13 +8483,13 @@ namespace core {
      * When using S3 storage for the uploaded collection files, you have to
      * take care manually to backup those since they are not part of the pb_data.
      *
-     * Backups can be stored on S3 if it is configured in app.Settings().Backups.
+     * Backups can be stored on S3 if it is configured in app.settings().backups.
      */
     createBackup(ctx: context.Context, name: string): void;
   }
   interface BaseApp {
     /**
-     * RestoreBackup restores the backup with the specified name and restarts
+     * restoreBackup restores the backup with the specified name and restarts
      * the current running application process.
      *
      * NB! This feature is experimental and currently is expected to work only on UNIX based systems.
@@ -8532,14 +8532,14 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * ImportCollectionsByMarshaledJSON is the same as [ImportCollections]
+     * importCollectionsByMarshaledJSON is the same as [importCollections]
      * but accept marshaled json array as import data (usually used for the autogenerated snapshots).
      */
     importCollectionsByMarshaledJSON(rawSliceOfMaps: string | Array<number>, deleteMissing: boolean): void;
   }
   interface BaseApp {
     /**
-     * ImportCollections imports the provided collections data in a single transaction.
+     * importCollections imports the provided collections data in a single transaction.
      *
      * For existing matching collections, the imported data is unmarshaled on top of the existing model.
      *
@@ -8560,7 +8560,7 @@ namespace core {
     updateRule?: string;
     deleteRule?: string;
     /**
-     * RawOptions represents the raw serialized collection option loaded from the DB.
+     * rawOptions represents the raw serialized collection option loaded from the DB.
      * NB! This field shouldn't be modified manually. It is automatically updated
      * with the collection type specific option before save.
      */
@@ -8572,7 +8572,7 @@ namespace core {
     created: types.DateTime;
     updated: types.DateTime;
     /**
-     * System prevents the collection rename, deletion and rules change.
+     * system prevents the collection rename, deletion and rules change.
      * It is used primarily for internal purposes for collections like "_superusers", "_externalAuths", etc.
      */
     system: boolean;
@@ -8620,50 +8620,50 @@ namespace core {
   }
   interface Collection {
     /**
-     * TableName returns the Collection model SQL table name.
+     * tableName returns the Collection model SQL table name.
      */
     tableName(): string;
   }
   interface Collection {
     /**
-     * BaseFilesPath returns the storage dir path used by the collection.
+     * baseFilesPath returns the storage dir path used by the collection.
      */
     baseFilesPath(): string;
   }
   interface Collection {
     /**
-     * IsBase checks if the current collection has "base" type.
+     * isBase checks if the current collection has "base" type.
      */
     isBase(): boolean;
   }
   interface Collection {
     /**
-     * IsAuth checks if the current collection has "auth" type.
+     * isAuth checks if the current collection has "auth" type.
      */
     isAuth(): boolean;
   }
   interface Collection {
     /**
-     * IsView checks if the current collection has "view" type.
+     * isView checks if the current collection has "view" type.
      */
     isView(): boolean;
   }
   interface Collection {
     /**
-     * IntegrityChecks toggles the current collection integrity checks (ex. checking references on delete).
+     * integrityChecks toggles the current collection integrity checks (ex. checking references on delete).
      */
     integrityChecks(enable: boolean): void;
   }
   interface Collection {
     /**
-     * PostScan implements the [dbx.PostScanner] interface to auto unmarshal
+     * postScan implements the [dbx.PostScanner] interface to auto unmarshal
      * the raw serialized options into the concrete type specific fields.
      */
     postScan(): void;
   }
   interface Collection {
     /**
-     * UnmarshalJSON implements the [json.Unmarshaler] interface.
+     * unmarshalJSON implements the [json.Unmarshaler] interface.
      *
      * For new/"blank" Collection models it replaces the model with a factory
      * instance and then unmarshal the provided data one on top of it.
@@ -8672,7 +8672,7 @@ namespace core {
   }
   interface Collection {
     /**
-     * MarshalJSON implements the [json.Marshaler] interface.
+     * marshalJSON implements the [json.Marshaler] interface.
      *
      * Note that non-type related fields are ignored from the serialization
      * (ex. for "view" collections the "auth" fields are skipped).
@@ -8681,25 +8681,25 @@ namespace core {
   }
   interface Collection {
     /**
-     * String returns a string representation of the current collection.
+     * string returns a string representation of the current collection.
      */
     string(): string;
   }
   interface Collection {
     /**
-     * DBExport prepares and exports the current collection data for db persistence.
+     * dbExport prepares and exports the current collection data for db persistence.
      */
     dbExport(app: App): _TygojaDict;
   }
   interface Collection {
     /**
-     * GetIndex returns s single Collection index expression by its name.
+     * getIndex returns s single Collection index expression by its name.
      */
     getIndex(name: string): string;
   }
   interface Collection {
     /**
-     * AddIndex adds a new index into the current collection.
+     * addIndex adds a new index into the current collection.
      *
      * If the collection has an existing index matching the new name it will be replaced with the new one.
      */
@@ -8707,7 +8707,7 @@ namespace core {
   }
   interface Collection {
     /**
-     * RemoveIndex removes a single index with the specified name from the current collection.
+     * removeIndex removes a single index with the specified name from the current collection.
      */
     removeIndex(name: string): void;
   }
@@ -8716,7 +8716,7 @@ namespace core {
    */
   interface collectionAuthOptions {
     /**
-     * AuthRule could be used to specify additional record constraints
+     * authRule could be used to specify additional record constraints
      * applied after record authentication and right before returning the
      * auth token response to the client.
      *
@@ -8730,7 +8730,7 @@ namespace core {
      */
     authRule?: string;
     /**
-     * ManageRule gives admin-like permissions to allow fully managing
+     * manageRule gives admin-like permissions to allow fully managing
      * the auth record(s), eg. changing the password without requiring
      * to enter the old one, directly updating the verified state and email, etc.
      *
@@ -8738,24 +8738,24 @@ namespace core {
      */
     manageRule?: string;
     /**
-     * AuthAlert defines options related to the auth alerts on new device login.
+     * authAlert defines options related to the auth alerts on new device login.
      */
     authAlert: AuthAlertConfig;
     /**
-     * OAuth2 specifies whether OAuth2 auth is enabled for the collection
+     * oauth2 specifies whether OAuth2 auth is enabled for the collection
      * and which OAuth2 providers are allowed.
      */
     oauth2: OAuth2Config;
     /**
-     * PasswordAuth defines options related to the collection password authentication.
+     * passwordAuth defines options related to the collection password authentication.
      */
     passwordAuth: PasswordAuthConfig;
     /**
-     * MFA defines options related to the Multi-factor authentication (MFA).
+     * mfa defines options related to the Multi-factor authentication (MFA).
      */
     mfa: MFAConfig;
     /**
-     * OTP defines options related to the One-time password authentication (OTP).
+     * otp defines options related to the One-time password authentication (OTP).
      */
     otp: OTPConfig;
     /**
@@ -8781,13 +8781,13 @@ namespace core {
   }
   interface EmailTemplate {
     /**
-     * Validate makes EmailTemplate validatable by implementing [validation.Validatable] interface.
+     * validate makes EmailTemplate validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface EmailTemplate {
     /**
-     * Resolve replaces the placeholder parameters in the current email
+     * resolve replaces the placeholder parameters in the current email
      * template and returns its components as ready-to-use strings.
      */
     resolve(placeholders: _TygojaDict): [string, string];
@@ -8798,41 +8798,41 @@ namespace core {
   }
   interface AuthAlertConfig {
     /**
-     * Validate makes AuthAlertConfig validatable by implementing [validation.Validatable] interface.
+     * validate makes AuthAlertConfig validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface TokenConfig {
     secret: string;
     /**
-     * Duration specifies how long an issued token to be valid (in seconds)
+     * duration specifies how long an issued token to be valid (in seconds)
      */
     duration: number;
   }
   interface TokenConfig {
     /**
-     * Validate makes TokenConfig validatable by implementing [validation.Validatable] interface.
+     * validate makes TokenConfig validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface TokenConfig {
     /**
-     * DurationTime returns the current Duration as [time.Duration].
+     * durationTime returns the current Duration as [time.Duration].
      */
     durationTime(): time.Duration;
   }
   interface OTPConfig {
     enabled: boolean;
     /**
-     * Duration specifies how long the OTP to be valid (in seconds)
+     * duration specifies how long the OTP to be valid (in seconds)
      */
     duration: number;
     /**
-     * Length specifies the auto generated password length.
+     * length specifies the auto generated password length.
      */
     length: number;
     /**
-     * EmailTemplate is the default OTP email template that will be send to the auth record.
+     * emailTemplate is the default OTP email template that will be send to the auth record.
      *
      * In addition to the system placeholders you can also make use of
      * [core.EmailPlaceholderOTPId] and [core.EmailPlaceholderOTP].
@@ -8841,24 +8841,24 @@ namespace core {
   }
   interface OTPConfig {
     /**
-     * Validate makes OTPConfig validatable by implementing [validation.Validatable] interface.
+     * validate makes OTPConfig validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface OTPConfig {
     /**
-     * DurationTime returns the current Duration as [time.Duration].
+     * durationTime returns the current Duration as [time.Duration].
      */
     durationTime(): time.Duration;
   }
   interface MFAConfig {
     enabled: boolean;
     /**
-     * Duration specifies how long an issued MFA to be valid (in seconds)
+     * duration specifies how long an issued MFA to be valid (in seconds)
      */
     duration: number;
     /**
-     * Rule is an optional field to restrict MFA only for the records that satisfy the rule.
+     * rule is an optional field to restrict MFA only for the records that satisfy the rule.
      *
      * Leave it empty to enable MFA for everyone.
      */
@@ -8866,20 +8866,20 @@ namespace core {
   }
   interface MFAConfig {
     /**
-     * Validate makes MFAConfig validatable by implementing [validation.Validatable] interface.
+     * validate makes MFAConfig validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface MFAConfig {
     /**
-     * DurationTime returns the current Duration as [time.Duration].
+     * durationTime returns the current Duration as [time.Duration].
      */
     durationTime(): time.Duration;
   }
   interface PasswordAuthConfig {
     enabled: boolean;
     /**
-     * IdentityFields is a list of field names that could be used as
+     * identityFields is a list of field names that could be used as
      * identity during password authentication.
      *
      * Usually only fields that has single column UNIQUE index are accepted as values.
@@ -8888,7 +8888,7 @@ namespace core {
   }
   interface PasswordAuthConfig {
     /**
-     * Validate makes PasswordAuthConfig validatable by implementing [validation.Validatable] interface.
+     * validate makes PasswordAuthConfig validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
@@ -8905,7 +8905,7 @@ namespace core {
   }
   interface OAuth2Config {
     /**
-     * GetProviderConfig returns the first OAuth2ProviderConfig that matches the specified name.
+     * getProviderConfig returns the first OAuth2ProviderConfig that matches the specified name.
      *
      * Returns false and zero config if no such provider is available in c.Providers.
      */
@@ -8913,13 +8913,13 @@ namespace core {
   }
   interface OAuth2Config {
     /**
-     * Validate makes OAuth2Config validatable by implementing [validation.Validatable] interface.
+     * validate makes OAuth2Config validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface OAuth2ProviderConfig {
     /**
-     * PKCE overwrites the default provider PKCE config option.
+     * pkce overwrites the default provider PKCE config option.
      *
      * This usually shouldn't be needed but some OAuth2 vendors, like the LinkedIn OIDC,
      * may require manual adjustment due to returning error if extra parameters are added to the request
@@ -8937,13 +8937,13 @@ namespace core {
   }
   interface OAuth2ProviderConfig {
     /**
-     * Validate makes OAuth2ProviderConfig validatable by implementing [validation.Validatable] interface.
+     * validate makes OAuth2ProviderConfig validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface OAuth2ProviderConfig {
     /**
-     * InitProvider returns a new auth.Provider instance loaded with the current OAuth2ProviderConfig options.
+     * initProvider returns a new auth.provider instance loaded with the current OAuth2ProviderConfig options.
      */
     initProvider(): auth.Provider;
   }
@@ -8959,49 +8959,49 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * CollectionQuery returns a new Collection select query.
+     * collectionQuery returns a new Collection select query.
      */
     collectionQuery(): dbx.SelectQuery;
   }
   interface BaseApp {
     /**
-     * FindCollections finds all collections by the given type(s).
+     * findAllCollections finds all collections by the given type(s).
      *
      * If collectionTypes is not set, it returns all collections.
      *
      * Example:
      *
      * ```
-     * 	app.FindAllCollections() // all collections
-     * 	app.FindAllCollections("auth", "view") // only auth and view collections
+     * 	app.findAllCollections() // all collections
+     * 	app.findAllCollections("auth", "view") // only auth and view collections
      * ```
      */
     findAllCollections(...collectionTypes: string[]): Array<Collection | undefined>;
   }
   interface BaseApp {
     /**
-     * ReloadCachedCollections fetches all collections and caches them into the app store.
+     * reloadCachedCollections fetches all collections and caches them into the app store.
      */
     reloadCachedCollections(): void;
   }
   interface BaseApp {
     /**
-     * FindCollectionByNameOrId finds a single collection by its name (case insensitive) or id.
+     * findCollectionByNameOrId finds a single collection by its name (case insensitive) or id.
      */
     findCollectionByNameOrId(nameOrId: string): Collection;
   }
   interface BaseApp {
     /**
-     * FindCachedCollectionByNameOrId is similar to [BaseApp.FindCollectionByNameOrId]
+     * findCachedCollectionByNameOrId is similar to [BaseApp.findCollectionByNameOrId]
      * but retrieves the Collection from the app cache instead of making a db call.
      *
      * NB! This method is suitable for read-only Collection operations.
      *
      * Returns [sql.ErrNoRows] if no Collection is found for consistency
-     * with the [BaseApp.FindCollectionByNameOrId] method.
+     * with the [BaseApp.findCollectionByNameOrId] method.
      *
      * If you plan making changes to the returned Collection model,
-     * use [BaseApp.FindCollectionByNameOrId] instead.
+     * Use [BaseApp.findCollectionByNameOrId] instead.
      *
      * Caveats:
      *
@@ -9012,14 +9012,14 @@ namespace core {
      *   - If you are updating a Collection in a transaction and then call this method before commit,
      *     it'll return the cached Collection state and not the one from the uncommitted transaction.
      *   - The cache is automatically updated on collections db change (create/update/delete).
-     *     To manually reload the cache you can call [BaseApp.ReloadCachedCollections].
+     *     To manually reload the cache you can call [BaseApp.reloadCachedCollections].
      * ```
      */
     findCachedCollectionByNameOrId(nameOrId: string): Collection;
   }
   interface BaseApp {
     /**
-     * FindCollectionReferences returns information for all relation fields
+     * findCollectionReferences returns information for all relation fields
      * referencing the provided collection.
      *
      * If the provided collection has reference to itself then it will be
@@ -9030,13 +9030,13 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * FindCachedCollectionReferences is similar to [BaseApp.FindCollectionReferences]
+     * findCachedCollectionReferences is similar to [BaseApp.findCollectionReferences]
      * but retrieves the Collection from the app cache instead of making a db call.
      *
      * NB! This method is suitable for read-only Collection operations.
      *
      * If you plan making changes to the returned Collection model,
-     * use [BaseApp.FindCollectionReferences] instead.
+     * Use [BaseApp.findCollectionReferences] instead.
      *
      * Caveats:
      *
@@ -9047,14 +9047,14 @@ namespace core {
      *   - If you are updating a Collection in a transaction and then call this method before commit,
      *     it'll return the cached Collection state and not the one from the uncommitted transaction.
      *   - The cache is automatically updated on collections db change (create/update/delete).
-     *     To manually reload the cache you can call [BaseApp.ReloadCachedCollections].
+     *     To manually reload the cache you can call [BaseApp.reloadCachedCollections].
      * ```
      */
     findCachedCollectionReferences(collection: Collection, ...excludeIds: string[]): _TygojaDict;
   }
   interface BaseApp {
     /**
-     * IsCollectionNameUnique checks that there is no existing collection
+     * isCollectionNameUnique checks that there is no existing collection
      * with the provided name (case insensitive!).
      *
      * Note: case insensitive check because the name is used also as
@@ -9064,7 +9064,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * TruncateCollection deletes all records associated with the provided collection.
+     * truncateCollection deletes all records associated with the provided collection.
      *
      * The truncate operation is executed in a single transaction,
      * aka. either everything is deleted or none.
@@ -9076,7 +9076,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * SyncRecordTableSchema compares the two provided collections
+     * syncRecordTableSchema compares the two provided collections
      * and applies the necessary related record table changes.
      *
      * If oldCollection is null, then only newCollection is used to create the record table.
@@ -9091,34 +9091,34 @@ namespace core {
   }
   /**
    * DBExporter defines an interface for custom DB data export.
-   * Usually used as part of [App.Save].
+   * Usually used as part of [app.save].
    */
   interface DBExporter {
     [key: string]: any;
     /**
-     * DBExport returns a key-value map with the data to be used when saving the struct in the database.
+     * dbExport returns a key-value map with the data to be used when saving the struct in the database.
      */
     dbExport(app: App): _TygojaDict;
   }
   /**
    * PreValidator defines an optional model interface for registering a
-   * function that will run BEFORE firing the validation hooks (see [App.ValidateWithContext]).
+   * function that will run BEFORE firing the validation hooks (see [app.validateWithContext]).
    */
   interface PreValidator {
     [key: string]: any;
     /**
-     * PreValidate defines a function that runs BEFORE the validation hooks.
+     * preValidate defines a function that runs BEFORE the validation hooks.
      */
     preValidate(ctx: context.Context, app: App): void;
   }
   /**
    * PostValidator defines an optional model interface for registering a
-   * function that will run AFTER executing the validation hooks (see [App.ValidateWithContext]).
+   * function that will run AFTER executing the validation hooks (see [app.validateWithContext]).
    */
   interface PostValidator {
     [key: string]: any;
     /**
-     * PostValidate defines a function that runs AFTER the successful
+     * postValidate defines a function that runs AFTER the successful
      * execution of the validation hooks.
      */
     postValidate(ctx: context.Context, app: App): void;
@@ -9132,21 +9132,21 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * ModelQuery creates a new preconfigured select data.db query with preset
+     * modelQuery creates a new preconfigured select data.db query with preset
      * SELECT, FROM and other common fields based on the provided model.
      */
     modelQuery(m: Model): dbx.SelectQuery;
   }
   interface BaseApp {
     /**
-     * AuxModelQuery creates a new preconfigured select auxiliary.db query with preset
+     * auxModelQuery creates a new preconfigured select auxiliary.db query with preset
      * SELECT, FROM and other common fields based on the provided model.
      */
     auxModelQuery(m: Model): dbx.SelectQuery;
   }
   interface BaseApp {
     /**
-     * Delete deletes the specified model from the regular app database.
+     * delete deletes the specified model from the regular app database.
      */
     delete(model: Model): void;
   }
@@ -9159,92 +9159,92 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * AuxDelete deletes the specified model from the auxiliary database.
+     * auxDelete deletes the specified model from the auxiliary database.
      */
     auxDelete(model: Model): void;
   }
   interface BaseApp {
     /**
-     * AuxDeleteWithContext deletes the specified model from the auxiliary database
+     * auxDeleteWithContext deletes the specified model from the auxiliary database
      * (the context could be used to limit the query execution).
      */
     auxDeleteWithContext(ctx: context.Context, model: Model): void;
   }
   interface BaseApp {
     /**
-     * Save validates and saves the specified model into the regular app database.
+     * save validates and saves the specified model into the regular app database.
      *
-     * If you don't want to run validations, use [App.SaveNoValidate()].
+     * If you don't want to run validations, use [app.saveNoValidate()].
      */
     save(model: Model): void;
   }
   interface BaseApp {
     /**
-     * SaveWithContext is the same as [App.Save()] but allows specifying a context to limit the db execution.
+     * saveWithContext is the same as [app.save()] but allows specifying a context to limit the db execution.
      *
-     * If you don't want to run validations, use [App.SaveNoValidateWithContext()].
+     * If you don't want to run validations, use [app.saveNoValidateWithContext()].
      */
     saveWithContext(ctx: context.Context, model: Model): void;
   }
   interface BaseApp {
     /**
-     * SaveNoValidate saves the specified model into the regular app database without performing validations.
+     * saveNoValidate saves the specified model into the regular app database without performing validations.
      *
-     * If you want to also run validations before persisting, use [App.Save()].
+     * If you want to also run validations before persisting, use [app.save()].
      */
     saveNoValidate(model: Model): void;
   }
   interface BaseApp {
     /**
-     * SaveNoValidateWithContext is the same as [App.SaveNoValidate()]
+     * saveNoValidateWithContext is the same as [app.saveNoValidate()]
      * but allows specifying a context to limit the db execution.
      *
-     * If you want to also run validations before persisting, use [App.SaveWithContext()].
+     * If you want to also run validations before persisting, use [app.saveWithContext()].
      */
     saveNoValidateWithContext(ctx: context.Context, model: Model): void;
   }
   interface BaseApp {
     /**
-     * AuxSave validates and saves the specified model into the auxiliary app database.
+     * auxSave validates and saves the specified model into the auxiliary app database.
      *
-     * If you don't want to run validations, use [App.AuxSaveNoValidate()].
+     * If you don't want to run validations, use [app.auxSaveNoValidate()].
      */
     auxSave(model: Model): void;
   }
   interface BaseApp {
     /**
-     * AuxSaveWithContext is the same as [App.AuxSave()] but allows specifying a context to limit the db execution.
+     * auxSaveWithContext is the same as [app.auxSave()] but allows specifying a context to limit the db execution.
      *
-     * If you don't want to run validations, use [App.AuxSaveNoValidateWithContext()].
+     * If you don't want to run validations, use [app.auxSaveNoValidateWithContext()].
      */
     auxSaveWithContext(ctx: context.Context, model: Model): void;
   }
   interface BaseApp {
     /**
-     * AuxSaveNoValidate saves the specified model into the auxiliary app database without performing validations.
+     * auxSaveNoValidate saves the specified model into the auxiliary app database without performing validations.
      *
-     * If you want to also run validations before persisting, use [App.AuxSave()].
+     * If you want to also run validations before persisting, use [app.auxSave()].
      */
     auxSaveNoValidate(model: Model): void;
   }
   interface BaseApp {
     /**
-     * AuxSaveNoValidateWithContext is the same as [App.AuxSaveNoValidate()]
+     * auxSaveNoValidateWithContext is the same as [app.auxSaveNoValidate()]
      * but allows specifying a context to limit the db execution.
      *
-     * If you want to also run validations before persisting, use [App.AuxSaveWithContext()].
+     * If you want to also run validations before persisting, use [app.auxSaveWithContext()].
      */
     auxSaveNoValidateWithContext(ctx: context.Context, model: Model): void;
   }
   interface BaseApp {
     /**
-     * Validate triggers the OnModelValidate hook for the specified model.
+     * validate triggers the onModelValidate hook for the specified model.
      */
     validate(model: Model): void;
   }
   interface BaseApp {
     /**
-     * ValidateWithContext is the same as Validate but allows specifying the ModelEvent context.
+     * validateWithContext is the same as validate but allows specifying the ModelEvent context.
      */
     validateWithContext(ctx: context.Context, model: Model): void;
   }
@@ -9254,133 +9254,133 @@ namespace core {
   interface dualDBBuilder {}
   interface dualDBBuilder {
     /**
-     * Select implements the [dbx.Builder.Select] interface method.
+     * select implements the [dbx.Builder.Select] interface method.
      */
     select(...cols: string[]): dbx.SelectQuery;
   }
   interface dualDBBuilder {
     /**
-     * Model implements the [dbx.Builder.Model] interface method.
+     * model implements the [dbx.Builder.Model] interface method.
      */
     model(data: {}): dbx.ModelQuery;
   }
   interface dualDBBuilder {
     /**
-     * GeneratePlaceholder implements the [dbx.Builder.GeneratePlaceholder] interface method.
+     * generatePlaceholder implements the [dbx.Builder.GeneratePlaceholder] interface method.
      */
     generatePlaceholder(i: number): string;
   }
   interface dualDBBuilder {
     /**
-     * Quote implements the [dbx.Builder.Quote] interface method.
+     * quote implements the [dbx.Builder.Quote] interface method.
      */
     quote(str: string): string;
   }
   interface dualDBBuilder {
     /**
-     * QuoteSimpleTableName implements the [dbx.Builder.QuoteSimpleTableName] interface method.
+     * quoteSimpleTableName implements the [dbx.Builder.QuoteSimpleTableName] interface method.
      */
     quoteSimpleTableName(table: string): string;
   }
   interface dualDBBuilder {
     /**
-     * QuoteSimpleColumnName implements the [dbx.Builder.QuoteSimpleColumnName] interface method.
+     * quoteSimpleColumnName implements the [dbx.Builder.QuoteSimpleColumnName] interface method.
      */
     quoteSimpleColumnName(col: string): string;
   }
   interface dualDBBuilder {
     /**
-     * QueryBuilder implements the [dbx.Builder.QueryBuilder] interface method.
+     * queryBuilder implements the [dbx.Builder.QueryBuilder] interface method.
      */
     queryBuilder(): dbx.QueryBuilder;
   }
   interface dualDBBuilder {
     /**
-     * Insert implements the [dbx.Builder.Insert] interface method.
+     * insert implements the [dbx.Builder.Insert] interface method.
      */
     insert(table: string, cols: dbx.Params): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * Upsert implements the [dbx.Builder.Upsert] interface method.
+     * upsert implements the [dbx.Builder.Upsert] interface method.
      */
     upsert(table: string, cols: dbx.Params, ...constraints: string[]): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * Update implements the [dbx.Builder.Update] interface method.
+     * update implements the [dbx.Builder.Update] interface method.
      */
     update(table: string, cols: dbx.Params, where: dbx.Expression): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * Delete implements the [dbx.Builder.Delete] interface method.
+     * delete implements the [dbx.Builder.Delete] interface method.
      */
     delete(table: string, where: dbx.Expression): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * CreateTable implements the [dbx.Builder.CreateTable] interface method.
+     * createTable implements the [dbx.Builder.CreateTable] interface method.
      */
     createTable(table: string, cols: _TygojaDict, ...options: string[]): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * RenameTable implements the [dbx.Builder.RenameTable] interface method.
+     * renameTable implements the [dbx.Builder.RenameTable] interface method.
      */
     renameTable(oldName: string, newName: string): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * DropTable implements the [dbx.Builder.DropTable] interface method.
+     * dropTable implements the [dbx.Builder.DropTable] interface method.
      */
     dropTable(table: string): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * TruncateTable implements the [dbx.Builder.TruncateTable] interface method.
+     * truncateTable implements the [dbx.Builder.TruncateTable] interface method.
      */
     truncateTable(table: string): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * AddColumn implements the [dbx.Builder.AddColumn] interface method.
+     * addColumn implements the [dbx.Builder.AddColumn] interface method.
      */
     addColumn(table: string, col: string, typ: string): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * DropColumn implements the [dbx.Builder.DropColumn] interface method.
+     * dropColumn implements the [dbx.Builder.DropColumn] interface method.
      */
     dropColumn(table: string, col: string): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * RenameColumn implements the [dbx.Builder.RenameColumn] interface method.
+     * renameColumn implements the [dbx.Builder.RenameColumn] interface method.
      */
     renameColumn(table: string, oldName: string, newName: string): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * AlterColumn implements the [dbx.Builder.AlterColumn] interface method.
+     * alterColumn implements the [dbx.Builder.AlterColumn] interface method.
      */
     alterColumn(table: string, col: string, typ: string): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * AddPrimaryKey implements the [dbx.Builder.AddPrimaryKey] interface method.
+     * addPrimaryKey implements the [dbx.Builder.AddPrimaryKey] interface method.
      */
     addPrimaryKey(table: string, name: string, ...cols: string[]): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * DropPrimaryKey implements the [dbx.Builder.DropPrimaryKey] interface method.
+     * dropPrimaryKey implements the [dbx.Builder.DropPrimaryKey] interface method.
      */
     dropPrimaryKey(table: string, name: string): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * AddForeignKey implements the [dbx.Builder.AddForeignKey] interface method.
+     * addForeignKey implements the [dbx.Builder.AddForeignKey] interface method.
      */
     addForeignKey(
       table: string,
@@ -9393,31 +9393,31 @@ namespace core {
   }
   interface dualDBBuilder {
     /**
-     * DropForeignKey implements the [dbx.Builder.DropForeignKey] interface method.
+     * dropForeignKey implements the [dbx.Builder.DropForeignKey] interface method.
      */
     dropForeignKey(table: string, name: string): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * CreateIndex implements the [dbx.Builder.CreateIndex] interface method.
+     * createIndex implements the [dbx.Builder.CreateIndex] interface method.
      */
     createIndex(table: string, name: string, ...cols: string[]): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * CreateUniqueIndex implements the [dbx.Builder.CreateUniqueIndex] interface method.
+     * createUniqueIndex implements the [dbx.Builder.CreateUniqueIndex] interface method.
      */
     createUniqueIndex(table: string, name: string, ...cols: string[]): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * DropIndex implements the [dbx.Builder.DropIndex] interface method.
+     * dropIndex implements the [dbx.Builder.DropIndex] interface method.
      */
     dropIndex(table: string, name: string): dbx.Query;
   }
   interface dualDBBuilder {
     /**
-     * NewQuery implements the [dbx.Builder.NewQuery] interface method by
+     * newQuery implements the [dbx.Builder.NewQuery] interface method by
      * routing the SELECT queries to the concurrent builder instance.
      */
     newQuery(str: string): dbx.Query;
@@ -9444,14 +9444,14 @@ namespace core {
    */
   interface BaseModel {
     /**
-     * Id is the primary key of the model.
+     * id is the primary key of the model.
      * It is usually autogenerated by the parent model implementation.
      */
     id: string;
   }
   interface BaseModel {
     /**
-     * LastSavedPK returns the last saved primary key of the model.
+     * lastSavedPK returns the last saved primary key of the model.
      *
      * Its value is updated to the latest PK value after MarkAsNotNew() or PostScan() calls.
      */
@@ -9462,28 +9462,28 @@ namespace core {
   }
   interface BaseModel {
     /**
-     * IsNew indicates what type of db query (insert or update)
+     * isNew indicates what type of db query (insert or update)
      * should be used with the model instance.
      */
     isNew(): boolean;
   }
   interface BaseModel {
     /**
-     * MarkAsNew clears the pk field and marks the current model as "new"
-     * (aka. forces m.IsNew() to be true).
+     * markAsNew clears the pk field and marks the current model as "new"
+     * (aka. forces m.isNew() to be true).
      */
     markAsNew(): void;
   }
   interface BaseModel {
     /**
      * MarkAsNew set the pk field to the Id value and marks the current model
-     * as NOT "new" (aka. forces m.IsNew() to be false).
+     * as NOT "new" (aka. forces m.isNew() to be false).
      */
     markAsNotNew(): void;
   }
   interface BaseModel {
     /**
-     * PostScan implements the [dbx.PostScanner] interface.
+     * postScan implements the [dbx.PostScanner] interface.
      *
      * It is usually executed right after the model is populated with the db row values.
      */
@@ -9491,7 +9491,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * TableColumns returns all column names of a single table by its name.
+     * tableColumns returns all column names of a single table by its name.
      */
     tableColumns(tableName: string): Array<string>;
   }
@@ -9509,13 +9509,13 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * TableInfo returns the "table_info" pragma result for the specified table.
+     * tableInfo returns the "table_info" pragma result for the specified table.
      */
     tableInfo(tableName: string): Array<TableInfoRow | undefined>;
   }
   interface BaseApp {
     /**
-     * TableIndexes returns a name grouped map with all non empty index of the specified table.
+     * tableIndexes returns a name grouped map with all non empty index of the specified table.
      *
      * Note: This method doesn't return an error on nonexisting table.
      */
@@ -9523,7 +9523,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * DeleteTable drops the specified table.
+     * deleteTable drops the specified table.
      *
      * This method is a no-op if a table with the provided name doesn't exist.
      *
@@ -9534,43 +9534,43 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * HasTable checks if a table (or view) with the provided name exists (case insensitive).
+     * hasTable checks if a table (or view) with the provided name exists (case insensitive).
      * in the data.db.
      */
     hasTable(tableName: string): boolean;
   }
   interface BaseApp {
     /**
-     * AuxHasTable checks if a table (or view) with the provided name exists (case insensitive)
+     * auxHasTable checks if a table (or view) with the provided name exists (case insensitive)
      * in the auixiliary.db.
      */
     auxHasTable(tableName: string): boolean;
   }
   interface BaseApp {
     /**
-     * Vacuum executes VACUUM on the data.db in order to reclaim unused data db disk space.
+     * vacuum executes VACUUM on the data.db in order to reclaim unused data db disk space.
      */
     vacuum(): void;
   }
   interface BaseApp {
     /**
-     * AuxVacuum executes VACUUM on the auxiliary.db in order to reclaim unused auxiliary db disk space.
+     * auxVacuum executes VACUUM on the auxiliary.db in order to reclaim unused auxiliary db disk space.
      */
     auxVacuum(): void;
   }
   interface BaseApp {
     /**
-     * RunInTransaction wraps fn into a transaction for the regular app database.
+     * runInTransaction wraps fn into a transaction for the regular app database.
      *
-     * It is safe to nest RunInTransaction calls as long as you use the callback's txApp.
+     * It is safe to nest runInTransaction calls as long as you use the callback's txApp.
      */
     runInTransaction(fn: (txApp: App) => void): void;
   }
   interface BaseApp {
     /**
-     * AuxRunInTransaction wraps fn into a transaction for the auxiliary app database.
+     * auxRunInTransaction wraps fn into a transaction for the auxiliary app database.
      *
-     * It is safe to nest RunInTransaction calls as long as you use the callback's txApp.
+     * It is safe to nest runInTransaction calls as long as you use the callback's txApp.
      */
     auxRunInTransaction(fn: (txApp: App) => void): void;
   }
@@ -9580,7 +9580,7 @@ namespace core {
   interface TxAppInfo {}
   interface TxAppInfo {
     /**
-     * OnComplete registers the provided callback that will be invoked
+     * onComplete registers the provided callback that will be invoked
      * once the related transaction ends (either completes successfully or rollbacked with an error).
      *
      * The callback receives the transaction error (if any) as its argument.
@@ -9599,27 +9599,27 @@ namespace core {
   }
   interface RequestEvent {
     /**
-     * RealIP returns the "real" IP address from the configured trusted proxy headers.
+     * realIP returns the "real" IP address from the configured trusted proxy headers.
      *
-     * If Settings.TrustedProxy is not configured or the found IP is empty,
-     * it fallbacks to e.RemoteIP().
+     * If settings.trustedProxy is not configured or the found IP is empty,
+     * it fallbacks to e.remoteIP().
      *
      * NB!
      * Be careful when used in a security critical context as it relies on
      * the trusted proxy to be properly configured and your app to be accessible only through it.
-     * If you are not sure, use e.RemoteIP().
+     * If you are not sure, use e.remoteIP().
      */
     realIP(): string;
   }
   interface RequestEvent {
     /**
-     * HasSuperuserAuth checks whether the current RequestEvent has superuser authentication loaded.
+     * hasSuperuserAuth checks whether the current RequestEvent has superuser authentication loaded.
      */
     hasSuperuserAuth(): boolean;
   }
   interface RequestEvent {
     /**
-     * RequestInfo parses the current request into RequestInfo instance.
+     * requestInfo parses the current request into RequestInfo instance.
      *
      * Note that the returned result is cached to avoid copying the request data multiple times
      * but the auth state and other common store items are always refreshed in case they were changed by another handler.
@@ -9642,14 +9642,14 @@ namespace core {
   }
   interface RequestInfo {
     /**
-     * HasSuperuserAuth checks whether the current RequestInfo instance
+     * hasSuperuserAuth checks whether the current RequestInfo instance
      * has superuser authentication loaded.
      */
     hasSuperuserAuth(): boolean;
   }
   interface RequestInfo {
     /**
-     * Clone creates a new shallow copy of the current RequestInfo and its Auth record (if any).
+     * clone creates a new shallow copy of the current RequestInfo and its Auth record (if any).
      */
     clone(): RequestInfo;
   }
@@ -9714,20 +9714,20 @@ namespace core {
     server?: http.Server;
     certManager?: any;
     /**
-     * Listener allow specifying a custom network listener.
+     * listener allow specifying a custom network listener.
      *
-     * Leave it nil to use the default net.Listen("tcp", e.Server.Addr).
+     * Leave it nil to use the default net.Listen("tcp", e.server.Addr).
      */
     listener: net.Listener;
     /**
-     * InstallerFunc is the "installer" function that is called after
+     * installerFunc is the "installer" function that is called after
      * successful server tcp bind but only if there is no explicit
      * superuser record created yet.
      *
-     * It runs in a separate goroutine and its default value is [apis.DefaultInstallerFunc].
+     * It runs in a separate goroutine and its default value is [apis.defaultInstallerFunc].
      *
      * It receives a system superuser record as argument that you can use to generate
-     * a short-lived auth token (e.g. systemSuperuser.NewStaticAuthToken(30 * time.Minute))
+     * a short-lived auth token (e.g. systemSuperuser.newStaticAuthToken(30 * time.Minute))
      * and concatenate it as query param for your installer page
      * (if you are using the client-side SDKs, you can then load the
      * token with pb.authStore.save(token) and perform any Web API request
@@ -9739,19 +9739,19 @@ namespace core {
     /**
      * @todo experimental
      *
-     * UIExtensions is a list with the superuser UI extensions.
+     * uiExtensions is a list with the superuser UI extensions.
      */
     uiExtensions: Array<UIExtension>;
   }
   interface UIExtension {
     /**
-     * Name is the name of the extension.
+     * name is the name of the extension.
      * It is also used as path segment for the registered public extension endpoint
      * (e.g. /_/extensions/{name}/*)
      */
     name: string;
     /**
-     * FS is the extension file system.
+     * fs is the extension file system.
      */
     fs: fs.FS | string | { root: string };
   }
@@ -9840,7 +9840,7 @@ namespace core {
     servedPath: string;
     servedName: string;
     /**
-     * ThumbError indicates the a thumb wasn't able to be generated
+     * thumbError indicates the a thumb wasn't able to be generated
      * (e.g. because it didn't satisfy the support image formats or it timed out).
      *
      * Note that PocketBase fallbacks to the original file in case of a thumb error,
@@ -9864,7 +9864,7 @@ namespace core {
   interface RealtimeConnectRequestEvent extends _sASEhTZ {
     client: subscriptions.Client;
     /**
-     * IdleTimeout specifies the max duration to wait for a new message
+     * idleTimeout specifies the max duration to wait for a new message
      * before closing the connection.
      *
      * Modifying the value after the connection has been established has no effect.
@@ -9873,7 +9873,7 @@ namespace core {
      */
     idleTimeout: time.Duration;
     /**
-     * MaxTimeout specifies the maximum duration a realtime connection
+     * maxTimeout specifies the maximum duration a realtime connection
      * can remain open (including even if there are ongoing messages).
      *
      * Once the specified duration expires, the current connection will
@@ -9898,7 +9898,7 @@ namespace core {
   type _sgeYnEc = hook.Event & RequestEvent & baseCollectionEventData;
   interface RecordsListRequestEvent extends _sgeYnEc {
     /**
-     * @todo consider removing and maybe add as generic to the search.Result?
+     * @todo consider removing and maybe add as generic to the search.result?
      */
     records: Array<Record | undefined>;
     result?: search.Result;
@@ -9987,68 +9987,68 @@ namespace core {
      * Example usage:
      *
      * ```
-     * 	ea := core.NewExternalAuth(app)
-     * 	ea.SetRecordRef(user.Id)
-     * 	ea.SetCollectionRef(user.Collection().Id)
-     * 	ea.SetProvider("google")
-     * 	ea.SetProviderId("...")
-     * 	app.Save(ea)
+     * 	const ea = app.newExternalAuth()
+     * 	ea.setRecordRef(user.id)
+     * 	ea.setCollectionRef(user.collection().id)
+     * 	ea.setProvider("google")
+     * 	ea.setProviderId("...")
+     * 	app.save(ea)
      * ```
      */
     (app: App): ExternalAuth;
   }
   interface ExternalAuth {
     /**
-     * PreValidate implements the [PreValidator] interface and checks
+     * preValidate implements the [PreValidator] interface and checks
      * whether the proxy is properly loaded.
      */
     preValidate(ctx: context.Context, app: App): void;
   }
   interface ExternalAuth {
     /**
-     * ProxyRecord returns the proxied Record model.
+     * proxyRecord returns the proxied Record model.
      */
     proxyRecord(): Record;
   }
   interface ExternalAuth {
     /**
-     * SetProxyRecord loads the specified record model into the current proxy.
+     * setProxyRecord loads the specified record model into the current proxy.
      */
     setProxyRecord(record: Record): void;
   }
   interface ExternalAuth {
     /**
-     * CollectionRef returns the "collectionRef" field value.
+     * collectionRef returns the "collectionRef" field value.
      */
     collectionRef(): string;
   }
   interface ExternalAuth {
     /**
-     * SetCollectionRef updates the "collectionRef" record field value.
+     * setCollectionRef updates the "collectionRef" record field value.
      */
     setCollectionRef(collectionId: string): void;
   }
   interface ExternalAuth {
     /**
-     * RecordRef returns the "recordRef" record field value.
+     * recordRef returns the "recordRef" record field value.
      */
     recordRef(): string;
   }
   interface ExternalAuth {
     /**
-     * SetRecordRef updates the "recordRef" record field value.
+     * setRecordRef updates the "recordRef" record field value.
      */
     setRecordRef(recordId: string): void;
   }
   interface ExternalAuth {
     /**
-     * Provider returns the "provider" record field value.
+     * provider returns the "provider" record field value.
      */
     provider(): string;
   }
   interface ExternalAuth {
     /**
-     * SetProvider updates the "provider" record field value.
+     * setProvider updates the "provider" record field value.
      */
     setProvider(provider: string): void;
   }
@@ -10066,40 +10066,40 @@ namespace core {
   }
   interface ExternalAuth {
     /**
-     * Created returns the "created" record field value.
+     * created returns the "created" record field value.
      */
     created(): types.DateTime;
   }
   interface ExternalAuth {
     /**
-     * Updated returns the "updated" record field value.
+     * updated returns the "updated" record field value.
      */
     updated(): types.DateTime;
   }
   interface BaseApp {
     /**
-     * FindAllExternalAuthsByRecord returns all ExternalAuth models
+     * findAllExternalAuthsByRecord returns all ExternalAuth models
      * linked to the provided auth record.
      */
     findAllExternalAuthsByRecord(authRecord: Record): Array<ExternalAuth | undefined>;
   }
   interface BaseApp {
     /**
-     * FindAllExternalAuthsByCollection returns all ExternalAuth models
+     * findAllExternalAuthsByCollection returns all ExternalAuth models
      * linked to the provided auth collection.
      */
     findAllExternalAuthsByCollection(collection: Collection): Array<ExternalAuth | undefined>;
   }
   interface BaseApp {
     /**
-     * FindFirstExternalAuthByExpr returns the first available (the most recent created)
+     * findFirstExternalAuthByExpr returns the first available (the most recent created)
      * ExternalAuth model that satisfies the non-nil expression.
      */
     findFirstExternalAuthByExpr(expr: dbx.Expression): ExternalAuth;
   }
   interface BaseApp {
     /**
-     * DeleteAllExternalAuthsByRecord deletes all ExternalAuth models associated with the provided record.
+     * deleteAllExternalAuthsByRecord deletes all ExternalAuth models associated with the provided record.
      *
      * Returns a combined error with the failed deletes.
      */
@@ -10117,47 +10117,47 @@ namespace core {
   interface Field {
     [key: string]: any;
     /**
-     * GetId returns the field id.
+     * getId returns the field id.
      */
     getId(): string;
     /**
-     * SetId changes the field id.
+     * setId changes the field id.
      */
     setId(id: string): void;
     /**
-     * GetName returns the field name.
+     * getName returns the field name.
      */
     getName(): string;
     /**
-     * SetName changes the field name.
+     * setName changes the field name.
      */
     setName(name: string): void;
     /**
-     * GetSystem returns the field system flag state.
+     * getSystem returns the field system flag state.
      */
     getSystem(): boolean;
     /**
-     * SetSystem changes the field system flag state.
+     * setSystem changes the field system flag state.
      */
     setSystem(system: boolean): void;
     /**
-     * GetHidden returns the field hidden flag state.
+     * getHidden returns the field hidden flag state.
      */
     getHidden(): boolean;
     /**
-     * SetHidden changes the field hidden flag state.
+     * setHidden changes the field hidden flag state.
      */
     setHidden(hidden: boolean): void;
     /**
-     * Type returns the unique type of the field.
+     * type returns the unique type of the field.
      */
     type(): string;
     /**
-     * ColumnType returns the DB column definition of the field.
+     * columnType returns the DB column definition of the field.
      */
     columnType(app: App): string;
     /**
-     * PrepareValue returns a properly formatted field value based on the provided raw one.
+     * prepareValue returns a properly formatted field value based on the provided raw one.
      *
      * This method is also called on record construction to initialize its default field value.
      */
@@ -10167,7 +10167,7 @@ namespace core {
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
     /**
-     * ValidateSettings validates the current field settings.
+     * validateSettings validates the current field settings.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
@@ -10178,7 +10178,7 @@ namespace core {
   interface MaxBodySizeCalculator {
     [key: string]: any;
     /**
-     * CalculateMaxBodySize returns the approximate max body size of a field value.
+     * calculateMaxBodySize returns the approximate max body size of a field value.
      */
     calculateMaxBodySize(): number;
   }
@@ -10191,7 +10191,7 @@ namespace core {
   interface SetterFinder {
     [key: string]: any;
     /**
-     * FindSetter returns a single field value setter function
+     * findSetter returns a single field value setter function
      * by performing pattern-like field matching using the specified key.
      *
      * The key is usually just the field name but it could also
@@ -10211,7 +10211,7 @@ namespace core {
   interface GetterFinder {
     [key: string]: any;
     /**
-     * FindGetter returns a single field value getter function
+     * findGetter returns a single field value getter function
      * by performing pattern-like field matching using the specified key.
      *
      * The key is usually just the field name but it could also
@@ -10229,7 +10229,7 @@ namespace core {
   interface DriverValuer {
     [key: string]: any;
     /**
-     * DriverValue exports a single field value for persistence in the database.
+     * driverValue exports a single field value for persistence in the database.
      */
     driverValue(record: Record): any;
   }
@@ -10239,7 +10239,7 @@ namespace core {
   interface MultiValuer {
     [key: string]: any;
     /**
-     * IsMultiple checks whether the field is configured to support multiple or single values.
+     * isMultiple checks whether the field is configured to support multiple or single values.
      */
     isMultiple(): boolean;
   }
@@ -10281,124 +10281,124 @@ namespace core {
    */
   interface AutodateField {
     /**
-     * Name (required) is the unique name of the field.
+     * name (required) is the unique name of the field.
      */
     name: string;
     /**
-     * Id is the unique stable field identifier.
+     * id is the unique stable field identifier.
      *
      * It is automatically generated from the name when adding to a collection FieldsList.
      */
     id: string;
     /**
-     * System prevents the renaming and removal of the field.
+     * system prevents the renaming and removal of the field.
      */
     system: boolean;
     /**
-     * Hidden hides the field from the API response.
+     * hidden hides the field from the API response.
      */
     hidden: boolean;
     /**
-     * Presentable hints the Dashboard UI to use the underlying
+     * presentable hints the Dashboard UI to use the underlying
      * field record value in the relation preview label.
      */
     presentable: boolean;
     /**
-     * OnCreate auto sets the current datetime as field value on record create.
+     * onCreate auto sets the current datetime as field value on record create.
      */
     onCreate: boolean;
     /**
-     * OnUpdate auto sets the current datetime as field value on record update.
+     * onUpdate auto sets the current datetime as field value on record update.
      */
     onUpdate: boolean;
   }
   interface AutodateField {
     /**
-     * Type implements [Field.Type] interface method.
+     * type implements [Field.type] interface method.
      */
     type(): string;
   }
   interface AutodateField {
     /**
-     * GetId implements [Field.GetId] interface method.
+     * getId implements [Field.getId] interface method.
      */
     getId(): string;
   }
   interface AutodateField {
     /**
-     * SetId implements [Field.SetId] interface method.
+     * setId implements [Field.setId] interface method.
      */
     setId(id: string): void;
   }
   interface AutodateField {
     /**
-     * GetName implements [Field.GetName] interface method.
+     * getName implements [Field.getName] interface method.
      */
     getName(): string;
   }
   interface AutodateField {
     /**
-     * SetName implements [Field.SetName] interface method.
+     * setName implements [Field.setName] interface method.
      */
     setName(name: string): void;
   }
   interface AutodateField {
     /**
-     * GetSystem implements [Field.GetSystem] interface method.
+     * getSystem implements [Field.getSystem] interface method.
      */
     getSystem(): boolean;
   }
   interface AutodateField {
     /**
-     * SetSystem implements [Field.SetSystem] interface method.
+     * setSystem implements [Field.setSystem] interface method.
      */
     setSystem(system: boolean): void;
   }
   interface AutodateField {
     /**
-     * GetHidden implements [Field.GetHidden] interface method.
+     * getHidden implements [Field.getHidden] interface method.
      */
     getHidden(): boolean;
   }
   interface AutodateField {
     /**
-     * SetHidden implements [Field.SetHidden] interface method.
+     * setHidden implements [Field.setHidden] interface method.
      */
     setHidden(hidden: boolean): void;
   }
   interface AutodateField {
     /**
-     * ColumnType implements [Field.ColumnType] interface method.
+     * columnType implements [Field.columnType] interface method.
      */
     columnType(app: App): string;
   }
   interface AutodateField {
     /**
-     * PrepareValue implements [Field.PrepareValue] interface method.
+     * prepareValue implements [Field.prepareValue] interface method.
      */
     prepareValue(record: Record, raw: any): any;
   }
   interface AutodateField {
     /**
-     * ValidateValue implements [Field.ValidateValue] interface method.
+     * validateValue implements [Field.validateValue] interface method.
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
   }
   interface AutodateField {
     /**
-     * ValidateSettings implements [Field.ValidateSettings] interface method.
+     * validateSettings implements [Field.validateSettings] interface method.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
   interface AutodateField {
     /**
-     * FindSetter implements the [SetterFinder] interface.
+     * findSetter implements the [SetterFinder] interface.
      */
     findSetter(key: string): SetterFunc;
   }
   interface AutodateField {
     /**
-     * Intercept implements the [RecordInterceptor] interface.
+     * intercept implements the [RecordInterceptor] interface.
      */
     intercept(ctx: context.Context, app: App, record: Record, actionName: string, actionFunc: () => void): void;
   }
@@ -10409,113 +10409,113 @@ namespace core {
    */
   interface BoolField {
     /**
-     * Name (required) is the unique name of the field.
+     * name (required) is the unique name of the field.
      */
     name: string;
     /**
-     * Id is the unique stable field identifier.
+     * id is the unique stable field identifier.
      *
      * It is automatically generated from the name when adding to a collection FieldsList.
      */
     id: string;
     /**
-     * System prevents the renaming and removal of the field.
+     * system prevents the renaming and removal of the field.
      */
     system: boolean;
     /**
-     * Hidden hides the field from the API response.
+     * hidden hides the field from the API response.
      */
     hidden: boolean;
     /**
-     * Presentable hints the Dashboard UI to use the underlying
+     * presentable hints the Dashboard UI to use the underlying
      * field record value in the relation preview label.
      */
     presentable: boolean;
     /**
-     * Help is an extra text explaining what the field is about.
+     * help is an extra text explaining what the field is about.
      * It is usually shown in Dashboard UI under the field input.
      */
     help: string;
     /**
-     * Required will require the field value to be always "true".
+     * required will require the field value to be always "true".
      */
     required: boolean;
   }
   interface BoolField {
     /**
-     * Type implements [Field.Type] interface method.
+     * type implements [Field.type] interface method.
      */
     type(): string;
   }
   interface BoolField {
     /**
-     * GetId implements [Field.GetId] interface method.
+     * getId implements [Field.getId] interface method.
      */
     getId(): string;
   }
   interface BoolField {
     /**
-     * SetId implements [Field.SetId] interface method.
+     * setId implements [Field.setId] interface method.
      */
     setId(id: string): void;
   }
   interface BoolField {
     /**
-     * GetName implements [Field.GetName] interface method.
+     * getName implements [Field.getName] interface method.
      */
     getName(): string;
   }
   interface BoolField {
     /**
-     * SetName implements [Field.SetName] interface method.
+     * setName implements [Field.setName] interface method.
      */
     setName(name: string): void;
   }
   interface BoolField {
     /**
-     * GetSystem implements [Field.GetSystem] interface method.
+     * getSystem implements [Field.getSystem] interface method.
      */
     getSystem(): boolean;
   }
   interface BoolField {
     /**
-     * SetSystem implements [Field.SetSystem] interface method.
+     * setSystem implements [Field.setSystem] interface method.
      */
     setSystem(system: boolean): void;
   }
   interface BoolField {
     /**
-     * GetHidden implements [Field.GetHidden] interface method.
+     * getHidden implements [Field.getHidden] interface method.
      */
     getHidden(): boolean;
   }
   interface BoolField {
     /**
-     * SetHidden implements [Field.SetHidden] interface method.
+     * setHidden implements [Field.setHidden] interface method.
      */
     setHidden(hidden: boolean): void;
   }
   interface BoolField {
     /**
-     * ColumnType implements [Field.ColumnType] interface method.
+     * columnType implements [Field.columnType] interface method.
      */
     columnType(app: App): string;
   }
   interface BoolField {
     /**
-     * PrepareValue implements [Field.PrepareValue] interface method.
+     * prepareValue implements [Field.prepareValue] interface method.
      */
     prepareValue(record: Record, raw: any): any;
   }
   interface BoolField {
     /**
-     * ValidateValue implements [Field.ValidateValue] interface method.
+     * validateValue implements [Field.validateValue] interface method.
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
   }
   interface BoolField {
     /**
-     * ValidateSettings implements [Field.ValidateSettings] interface method.
+     * validateSettings implements [Field.validateSettings] interface method.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
@@ -10526,125 +10526,125 @@ namespace core {
    */
   interface DateField {
     /**
-     * Name (required) is the unique name of the field.
+     * name (required) is the unique name of the field.
      */
     name: string;
     /**
-     * Id is the unique stable field identifier.
+     * id is the unique stable field identifier.
      *
      * It is automatically generated from the name when adding to a collection FieldsList.
      */
     id: string;
     /**
-     * System prevents the renaming and removal of the field.
+     * system prevents the renaming and removal of the field.
      */
     system: boolean;
     /**
-     * Hidden hides the field from the API response.
+     * hidden hides the field from the API response.
      */
     hidden: boolean;
     /**
-     * Presentable hints the Dashboard UI to use the underlying
+     * presentable hints the Dashboard UI to use the underlying
      * field record value in the relation preview label.
      */
     presentable: boolean;
     /**
-     * Help is an extra text explaining what the field is about.
+     * help is an extra text explaining what the field is about.
      * It is usually shown in Dashboard UI under the field input.
      */
     help: string;
     /**
-     * Min specifies the min allowed field value.
+     * min specifies the min allowed field value.
      *
      * Leave it empty to skip the validator.
      */
     min: types.DateTime;
     /**
-     * Max specifies the max allowed field value.
+     * max specifies the max allowed field value.
      *
      * Leave it empty to skip the validator.
      */
     max: types.DateTime;
     /**
-     * Required will require the field value to be non-zero [types.DateTime].
+     * required will require the field value to be non-zero [types.DateTime].
      */
     required: boolean;
   }
   interface DateField {
     /**
-     * Type implements [Field.Type] interface method.
+     * type implements [Field.type] interface method.
      */
     type(): string;
   }
   interface DateField {
     /**
-     * GetId implements [Field.GetId] interface method.
+     * getId implements [Field.getId] interface method.
      */
     getId(): string;
   }
   interface DateField {
     /**
-     * SetId implements [Field.SetId] interface method.
+     * setId implements [Field.setId] interface method.
      */
     setId(id: string): void;
   }
   interface DateField {
     /**
-     * GetName implements [Field.GetName] interface method.
+     * getName implements [Field.getName] interface method.
      */
     getName(): string;
   }
   interface DateField {
     /**
-     * SetName implements [Field.SetName] interface method.
+     * setName implements [Field.setName] interface method.
      */
     setName(name: string): void;
   }
   interface DateField {
     /**
-     * GetSystem implements [Field.GetSystem] interface method.
+     * getSystem implements [Field.getSystem] interface method.
      */
     getSystem(): boolean;
   }
   interface DateField {
     /**
-     * SetSystem implements [Field.SetSystem] interface method.
+     * setSystem implements [Field.setSystem] interface method.
      */
     setSystem(system: boolean): void;
   }
   interface DateField {
     /**
-     * GetHidden implements [Field.GetHidden] interface method.
+     * getHidden implements [Field.getHidden] interface method.
      */
     getHidden(): boolean;
   }
   interface DateField {
     /**
-     * SetHidden implements [Field.SetHidden] interface method.
+     * setHidden implements [Field.setHidden] interface method.
      */
     setHidden(hidden: boolean): void;
   }
   interface DateField {
     /**
-     * ColumnType implements [Field.ColumnType] interface method.
+     * columnType implements [Field.columnType] interface method.
      */
     columnType(app: App): string;
   }
   interface DateField {
     /**
-     * PrepareValue implements [Field.PrepareValue] interface method.
+     * prepareValue implements [Field.prepareValue] interface method.
      */
     prepareValue(record: Record, raw: any): any;
   }
   interface DateField {
     /**
-     * ValidateValue implements [Field.ValidateValue] interface method.
+     * validateValue implements [Field.validateValue] interface method.
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
   }
   interface DateField {
     /**
-     * ValidateSettings implements [Field.ValidateSettings] interface method.
+     * validateSettings implements [Field.validateSettings] interface method.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
@@ -10655,41 +10655,41 @@ namespace core {
    */
   interface EditorField {
     /**
-     * Name (required) is the unique name of the field.
+     * name (required) is the unique name of the field.
      */
     name: string;
     /**
-     * Id is the unique stable field identifier.
+     * id is the unique stable field identifier.
      *
      * It is automatically generated from the name when adding to a collection FieldsList.
      */
     id: string;
     /**
-     * System prevents the renaming and removal of the field.
+     * system prevents the renaming and removal of the field.
      */
     system: boolean;
     /**
-     * Hidden hides the field from the API response.
+     * hidden hides the field from the API response.
      */
     hidden: boolean;
     /**
-     * Presentable hints the Dashboard UI to use the underlying
+     * presentable hints the Dashboard UI to use the underlying
      * field record value in the relation preview label.
      */
     presentable: boolean;
     /**
-     * Help is an extra text explaining what the field is about.
+     * help is an extra text explaining what the field is about.
      * It is usually shown in Dashboard UI under the field input.
      */
     help: string;
     /**
-     * MaxSize specifies the maximum size of the allowed field value (in bytes and up to 2^53-1).
+     * maxSize specifies the maximum size of the allowed field value (in bytes and up to 2^53-1).
      *
      * If zero, a default limit of ~5MB is applied.
      */
     maxSize: number;
     /**
-     * ConvertURLs is usually used to instruct the editor whether to
+     * convertURLs is usually used to instruct the editor whether to
      * apply url conversion (eg. stripping the domain name in case the
      * urls are using the same domain as the one where the editor is loaded).
      *
@@ -10697,91 +10697,91 @@ namespace core {
      */
     convertURLs: boolean;
     /**
-     * Required will require the field value to be non-empty string.
+     * required will require the field value to be non-empty string.
      */
     required: boolean;
   }
   interface EditorField {
     /**
-     * Type implements [Field.Type] interface method.
+     * type implements [Field.type] interface method.
      */
     type(): string;
   }
   interface EditorField {
     /**
-     * GetId implements [Field.GetId] interface method.
+     * getId implements [Field.getId] interface method.
      */
     getId(): string;
   }
   interface EditorField {
     /**
-     * SetId implements [Field.SetId] interface method.
+     * setId implements [Field.setId] interface method.
      */
     setId(id: string): void;
   }
   interface EditorField {
     /**
-     * GetName implements [Field.GetName] interface method.
+     * getName implements [Field.getName] interface method.
      */
     getName(): string;
   }
   interface EditorField {
     /**
-     * SetName implements [Field.SetName] interface method.
+     * setName implements [Field.setName] interface method.
      */
     setName(name: string): void;
   }
   interface EditorField {
     /**
-     * GetSystem implements [Field.GetSystem] interface method.
+     * getSystem implements [Field.getSystem] interface method.
      */
     getSystem(): boolean;
   }
   interface EditorField {
     /**
-     * SetSystem implements [Field.SetSystem] interface method.
+     * setSystem implements [Field.setSystem] interface method.
      */
     setSystem(system: boolean): void;
   }
   interface EditorField {
     /**
-     * GetHidden implements [Field.GetHidden] interface method.
+     * getHidden implements [Field.getHidden] interface method.
      */
     getHidden(): boolean;
   }
   interface EditorField {
     /**
-     * SetHidden implements [Field.SetHidden] interface method.
+     * setHidden implements [Field.setHidden] interface method.
      */
     setHidden(hidden: boolean): void;
   }
   interface EditorField {
     /**
-     * ColumnType implements [Field.ColumnType] interface method.
+     * columnType implements [Field.columnType] interface method.
      */
     columnType(app: App): string;
   }
   interface EditorField {
     /**
-     * PrepareValue implements [Field.PrepareValue] interface method.
+     * prepareValue implements [Field.prepareValue] interface method.
      */
     prepareValue(record: Record, raw: any): any;
   }
   interface EditorField {
     /**
-     * ValidateValue implements [Field.ValidateValue] interface method.
+     * validateValue implements [Field.validateValue] interface method.
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
   }
   interface EditorField {
     /**
-     * ValidateSettings implements [Field.ValidateSettings] interface method.
+     * validateSettings implements [Field.validateSettings] interface method.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
   interface EditorField {
     /**
-     * CalculateMaxBodySize implements the [MaxBodySizeCalculator] interface.
+     * calculateMaxBodySize implements the [MaxBodySizeCalculator] interface.
      */
     calculateMaxBodySize(): number;
   }
@@ -10792,125 +10792,125 @@ namespace core {
    */
   interface EmailField {
     /**
-     * Name (required) is the unique name of the field.
+     * name (required) is the unique name of the field.
      */
     name: string;
     /**
-     * Id is the unique stable field identifier.
+     * id is the unique stable field identifier.
      *
      * It is automatically generated from the name when adding to a collection FieldsList.
      */
     id: string;
     /**
-     * System prevents the renaming and removal of the field.
+     * system prevents the renaming and removal of the field.
      */
     system: boolean;
     /**
-     * Hidden hides the field from the API response.
+     * hidden hides the field from the API response.
      */
     hidden: boolean;
     /**
-     * Presentable hints the Dashboard UI to use the underlying
+     * presentable hints the Dashboard UI to use the underlying
      * field record value in the relation preview label.
      */
     presentable: boolean;
     /**
-     * Help is an extra text explaining what the field is about.
+     * help is an extra text explaining what the field is about.
      * It is usually shown in Dashboard UI under the field input.
      */
     help: string;
     /**
-     * ExceptDomains will require the email domain to NOT be included in the listed ones.
+     * exceptDomains will require the email domain to NOT be included in the listed ones.
      *
      * This validator can be set only if OnlyDomains is empty.
      */
     exceptDomains: Array<string>;
     /**
-     * OnlyDomains will require the email domain to be included in the listed ones.
+     * onlyDomains will require the email domain to be included in the listed ones.
      *
      * This validator can be set only if ExceptDomains is empty.
      */
     onlyDomains: Array<string>;
     /**
-     * Required will require the field value to be non-empty email string.
+     * required will require the field value to be non-empty email string.
      */
     required: boolean;
   }
   interface EmailField {
     /**
-     * Type implements [Field.Type] interface method.
+     * type implements [Field.type] interface method.
      */
     type(): string;
   }
   interface EmailField {
     /**
-     * GetId implements [Field.GetId] interface method.
+     * getId implements [Field.getId] interface method.
      */
     getId(): string;
   }
   interface EmailField {
     /**
-     * SetId implements [Field.SetId] interface method.
+     * setId implements [Field.setId] interface method.
      */
     setId(id: string): void;
   }
   interface EmailField {
     /**
-     * GetName implements [Field.GetName] interface method.
+     * getName implements [Field.getName] interface method.
      */
     getName(): string;
   }
   interface EmailField {
     /**
-     * SetName implements [Field.SetName] interface method.
+     * setName implements [Field.setName] interface method.
      */
     setName(name: string): void;
   }
   interface EmailField {
     /**
-     * GetSystem implements [Field.GetSystem] interface method.
+     * getSystem implements [Field.getSystem] interface method.
      */
     getSystem(): boolean;
   }
   interface EmailField {
     /**
-     * SetSystem implements [Field.SetSystem] interface method.
+     * setSystem implements [Field.setSystem] interface method.
      */
     setSystem(system: boolean): void;
   }
   interface EmailField {
     /**
-     * GetHidden implements [Field.GetHidden] interface method.
+     * getHidden implements [Field.getHidden] interface method.
      */
     getHidden(): boolean;
   }
   interface EmailField {
     /**
-     * SetHidden implements [Field.SetHidden] interface method.
+     * setHidden implements [Field.setHidden] interface method.
      */
     setHidden(hidden: boolean): void;
   }
   interface EmailField {
     /**
-     * ColumnType implements [Field.ColumnType] interface method.
+     * columnType implements [Field.columnType] interface method.
      */
     columnType(app: App): string;
   }
   interface EmailField {
     /**
-     * PrepareValue implements [Field.PrepareValue] interface method.
+     * prepareValue implements [Field.prepareValue] interface method.
      */
     prepareValue(record: Record, raw: any): any;
   }
   interface EmailField {
     /**
-     * ValidateValue implements [Field.ValidateValue] interface method.
+     * validateValue implements [Field.validateValue] interface method.
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
   }
   interface EmailField {
     /**
-     * ValidateSettings implements [Field.ValidateSettings] interface method.
+     * validateSettings implements [Field.validateSettings] interface method.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
@@ -10934,68 +10934,68 @@ namespace core {
    *   - "fieldName+" - append one or more files to the existing record one. For example:
    *
    *     // []string{"old1.txt", "old2.txt", "new1_ajkvass.txt", "new2_klhfnwd.txt"}
-   *     record.Set("documents+", []*filesystem.File{new1, new2})
+   *     record.set("documents+", []*filesystem.File{new1, new2})
    *
    *   - "+fieldName" - prepend one or more files to the existing record one. For example:
    *
    *     // []string{"new1_ajkvass.txt", "new2_klhfnwd.txt", "old1.txt", "old2.txt",}
-   *     record.Set("+documents", []*filesystem.File{new1, new2})
+   *     record.set("+documents", []*filesystem.File{new1, new2})
    *
    *   - "fieldName-" - subtract/delete one or more files from the existing record one. For example:
    *
    *     // []string{"old2.txt",}
-   *     record.Set("documents-", "old1.txt")
+   *     record.set("documents-", "old1.txt")
    * ```
    */
   interface FileField {
     /**
-     * Name (required) is the unique name of the field.
+     * name (required) is the unique name of the field.
      */
     name: string;
     /**
-     * Id is the unique stable field identifier.
+     * id is the unique stable field identifier.
      *
      * It is automatically generated from the name when adding to a collection FieldsList.
      */
     id: string;
     /**
-     * System prevents the renaming and removal of the field.
+     * system prevents the renaming and removal of the field.
      */
     system: boolean;
     /**
-     * Hidden hides the field from the API response.
+     * hidden hides the field from the API response.
      */
     hidden: boolean;
     /**
-     * Presentable hints the Dashboard UI to use the underlying
+     * presentable hints the Dashboard UI to use the underlying
      * field record value in the relation preview label.
      */
     presentable: boolean;
     /**
-     * Help is an extra text explaining what the field is about.
+     * help is an extra text explaining what the field is about.
      * It is usually shown in Dashboard UI under the field input.
      */
     help: string;
     /**
-     * MaxSize specifies the maximum size of a single uploaded file (in bytes and up to 2^53-1).
+     * maxSize specifies the maximum size of a single uploaded file (in bytes and up to 2^53-1).
      *
      * If zero, a default limit of 5MB is applied.
      */
     maxSize: number;
     /**
-     * MaxSelect specifies the max allowed files.
+     * maxSelect specifies the max allowed files.
      *
      * For multiple files the value must be > 1, otherwise fallbacks to single (default).
      */
     maxSelect: number;
     /**
-     * MimeTypes specifies an optional list of the allowed file mime types.
+     * mimeTypes specifies an optional list of the allowed file mime types.
      *
      * Leave it empty to disable the validator.
      */
     mimeTypes: Array<string>;
     /**
-     * Thumbs specifies an optional list of the supported thumbs for image based files.
+     * thumbs specifies an optional list of the supported thumbs for image based files.
      *
      * Each entry must be in one of the following formats:
      *
@@ -11010,7 +11010,7 @@ namespace core {
      */
     thumbs: Array<string>;
     /**
-     * Protected will require the users to provide a special file token to access the file.
+     * protected will require the users to provide a special file token to access the file.
      *
      * Note that by default all files are publicly accessible.
      *
@@ -11020,110 +11020,110 @@ namespace core {
      */
     protected: boolean;
     /**
-     * Required will require the field value to have at least one file.
+     * required will require the field value to have at least one file.
      */
     required: boolean;
   }
   interface FileField {
     /**
-     * Type implements [Field.Type] interface method.
+     * type implements [Field.type] interface method.
      */
     type(): string;
   }
   interface FileField {
     /**
-     * GetId implements [Field.GetId] interface method.
+     * getId implements [Field.getId] interface method.
      */
     getId(): string;
   }
   interface FileField {
     /**
-     * SetId implements [Field.SetId] interface method.
+     * setId implements [Field.setId] interface method.
      */
     setId(id: string): void;
   }
   interface FileField {
     /**
-     * GetName implements [Field.GetName] interface method.
+     * getName implements [Field.getName] interface method.
      */
     getName(): string;
   }
   interface FileField {
     /**
-     * SetName implements [Field.SetName] interface method.
+     * setName implements [Field.setName] interface method.
      */
     setName(name: string): void;
   }
   interface FileField {
     /**
-     * GetSystem implements [Field.GetSystem] interface method.
+     * getSystem implements [Field.getSystem] interface method.
      */
     getSystem(): boolean;
   }
   interface FileField {
     /**
-     * SetSystem implements [Field.SetSystem] interface method.
+     * setSystem implements [Field.setSystem] interface method.
      */
     setSystem(system: boolean): void;
   }
   interface FileField {
     /**
-     * GetHidden implements [Field.GetHidden] interface method.
+     * getHidden implements [Field.getHidden] interface method.
      */
     getHidden(): boolean;
   }
   interface FileField {
     /**
-     * SetHidden implements [Field.SetHidden] interface method.
+     * setHidden implements [Field.setHidden] interface method.
      */
     setHidden(hidden: boolean): void;
   }
   interface FileField {
     /**
-     * IsMultiple implements MultiValuer interface and checks whether the
+     * isMultiple implements MultiValuer interface and checks whether the
      * current field options support multiple values.
      */
     isMultiple(): boolean;
   }
   interface FileField {
     /**
-     * ColumnType implements [Field.ColumnType] interface method.
+     * columnType implements [Field.columnType] interface method.
      */
     columnType(app: App): string;
   }
   interface FileField {
     /**
-     * PrepareValue implements [Field.PrepareValue] interface method.
+     * prepareValue implements [Field.prepareValue] interface method.
      */
     prepareValue(record: Record, raw: any): any;
   }
   interface FileField {
     /**
-     * DriverValue implements the [DriverValuer] interface.
+     * driverValue implements the [DriverValuer] interface.
      */
     driverValue(record: Record): any;
   }
   interface FileField {
     /**
-     * ValidateSettings implements [Field.ValidateSettings] interface method.
+     * validateSettings implements [Field.validateSettings] interface method.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
   interface FileField {
     /**
-     * ValidateValue implements [Field.ValidateValue] interface method.
+     * validateValue implements [Field.validateValue] interface method.
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
   }
   interface FileField {
     /**
-     * CalculateMaxBodySize implements the [MaxBodySizeCalculator] interface.
+     * calculateMaxBodySize implements the [MaxBodySizeCalculator] interface.
      */
     calculateMaxBodySize(): number;
   }
   interface FileField {
     /**
-     * Intercept implements the [RecordInterceptor] interface.
+     * intercept implements the [RecordInterceptor] interface.
      *
      * note: files delete after records deletion is handled globally by the app FileManager hook
      */
@@ -11131,13 +11131,13 @@ namespace core {
   }
   interface FileField {
     /**
-     * FindGetter implements the [GetterFinder] interface.
+     * findGetter implements the [GetterFinder] interface.
      */
     findGetter(key: string): GetterFunc;
   }
   interface FileField {
     /**
-     * FindSetter implements the [SetterFinder] interface.
+     * findSetter implements the [SetterFinder] interface.
      */
     findSetter(key: string): SetterFunc;
   }
@@ -11151,120 +11151,120 @@ namespace core {
    * Examples of updating a record's GeoPointField value programmatically:
    *
    * ```
-   * 	record.Set("location", types.GeoPoint{Lat: 123, Lon: 456})
-   * 	record.Set("location", map[string]any{"lat":123, "lon":456})
-   * 	record.Set("location", []byte(`{"lat":123, "lon":456}`)
+   * 	record.set("location", types.GeoPoint{Lat: 123, Lon: 456})
+   * 	record.set("location", map[string]any{"lat":123, "lon":456})
+   * 	record.set("location", []byte(`{"lat":123, "lon":456}`)
    * ```
    */
   interface GeoPointField {
     /**
-     * Name (required) is the unique name of the field.
+     * name (required) is the unique name of the field.
      */
     name: string;
     /**
-     * Id is the unique stable field identifier.
+     * id is the unique stable field identifier.
      *
      * It is automatically generated from the name when adding to a collection FieldsList.
      */
     id: string;
     /**
-     * System prevents the renaming and removal of the field.
+     * system prevents the renaming and removal of the field.
      */
     system: boolean;
     /**
-     * Hidden hides the field from the API response.
+     * hidden hides the field from the API response.
      */
     hidden: boolean;
     /**
-     * Presentable hints the Dashboard UI to use the underlying
+     * presentable hints the Dashboard UI to use the underlying
      * field record value in the relation preview label.
      */
     presentable: boolean;
     /**
-     * Help is an extra text explaining what the field is about.
+     * help is an extra text explaining what the field is about.
      * It is usually shown in Dashboard UI under the field input.
      */
     help: string;
     /**
-     * Required will require the field coordinates to be non-zero (aka. not "Null Island").
+     * required will require the field coordinates to be non-zero (aka. not "Null Island").
      */
     required: boolean;
   }
   interface GeoPointField {
     /**
-     * Type implements [Field.Type] interface method.
+     * type implements [Field.type] interface method.
      */
     type(): string;
   }
   interface GeoPointField {
     /**
-     * GetId implements [Field.GetId] interface method.
+     * getId implements [Field.getId] interface method.
      */
     getId(): string;
   }
   interface GeoPointField {
     /**
-     * SetId implements [Field.SetId] interface method.
+     * setId implements [Field.setId] interface method.
      */
     setId(id: string): void;
   }
   interface GeoPointField {
     /**
-     * GetName implements [Field.GetName] interface method.
+     * getName implements [Field.getName] interface method.
      */
     getName(): string;
   }
   interface GeoPointField {
     /**
-     * SetName implements [Field.SetName] interface method.
+     * setName implements [Field.setName] interface method.
      */
     setName(name: string): void;
   }
   interface GeoPointField {
     /**
-     * GetSystem implements [Field.GetSystem] interface method.
+     * getSystem implements [Field.getSystem] interface method.
      */
     getSystem(): boolean;
   }
   interface GeoPointField {
     /**
-     * SetSystem implements [Field.SetSystem] interface method.
+     * setSystem implements [Field.setSystem] interface method.
      */
     setSystem(system: boolean): void;
   }
   interface GeoPointField {
     /**
-     * GetHidden implements [Field.GetHidden] interface method.
+     * getHidden implements [Field.getHidden] interface method.
      */
     getHidden(): boolean;
   }
   interface GeoPointField {
     /**
-     * SetHidden implements [Field.SetHidden] interface method.
+     * setHidden implements [Field.setHidden] interface method.
      */
     setHidden(hidden: boolean): void;
   }
   interface GeoPointField {
     /**
-     * ColumnType implements [Field.ColumnType] interface method.
+     * columnType implements [Field.columnType] interface method.
      */
     columnType(app: App): string;
   }
   interface GeoPointField {
     /**
-     * PrepareValue implements [Field.PrepareValue] interface method.
+     * prepareValue implements [Field.prepareValue] interface method.
      */
     prepareValue(record: Record, raw: any): any;
   }
   interface GeoPointField {
     /**
-     * ValidateValue implements [Field.ValidateValue] interface method.
+     * validateValue implements [Field.validateValue] interface method.
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
   }
   interface GeoPointField {
     /**
-     * ValidateSettings implements [Field.ValidateSettings] interface method.
+     * validateSettings implements [Field.validateSettings] interface method.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
@@ -11275,126 +11275,126 @@ namespace core {
    */
   interface JSONField {
     /**
-     * Name (required) is the unique name of the field.
+     * name (required) is the unique name of the field.
      */
     name: string;
     /**
-     * Id is the unique stable field identifier.
+     * id is the unique stable field identifier.
      *
      * It is automatically generated from the name when adding to a collection FieldsList.
      */
     id: string;
     /**
-     * System prevents the renaming and removal of the field.
+     * system prevents the renaming and removal of the field.
      */
     system: boolean;
     /**
-     * Hidden hides the field from the API response.
+     * hidden hides the field from the API response.
      */
     hidden: boolean;
     /**
-     * Presentable hints the Dashboard UI to use the underlying
+     * presentable hints the Dashboard UI to use the underlying
      * field record value in the relation preview label.
      */
     presentable: boolean;
     /**
-     * Help is an extra text explaining what the field is about.
+     * help is an extra text explaining what the field is about.
      * It is usually shown in Dashboard UI under the field input.
      */
     help: string;
     /**
-     * MaxSize specifies the maximum size of the allowed field value (in bytes and up to 2^53-1).
+     * maxSize specifies the maximum size of the allowed field value (in bytes and up to 2^53-1).
      *
      * If zero, a default limit of 1MB is applied.
      */
     maxSize: number;
     /**
-     * Required will require the field value to be non-empty JSON value
+     * required will require the field value to be non-empty JSON value
      * (aka. not "null", `""`, "[]", "{}").
      */
     required: boolean;
   }
   interface JSONField {
     /**
-     * Type implements [Field.Type] interface method.
+     * type implements [Field.type] interface method.
      */
     type(): string;
   }
   interface JSONField {
     /**
-     * GetId implements [Field.GetId] interface method.
+     * getId implements [Field.getId] interface method.
      */
     getId(): string;
   }
   interface JSONField {
     /**
-     * SetId implements [Field.SetId] interface method.
+     * setId implements [Field.setId] interface method.
      */
     setId(id: string): void;
   }
   interface JSONField {
     /**
-     * GetName implements [Field.GetName] interface method.
+     * getName implements [Field.getName] interface method.
      */
     getName(): string;
   }
   interface JSONField {
     /**
-     * SetName implements [Field.SetName] interface method.
+     * setName implements [Field.setName] interface method.
      */
     setName(name: string): void;
   }
   interface JSONField {
     /**
-     * GetSystem implements [Field.GetSystem] interface method.
+     * getSystem implements [Field.getSystem] interface method.
      */
     getSystem(): boolean;
   }
   interface JSONField {
     /**
-     * SetSystem implements [Field.SetSystem] interface method.
+     * setSystem implements [Field.setSystem] interface method.
      */
     setSystem(system: boolean): void;
   }
   interface JSONField {
     /**
-     * GetHidden implements [Field.GetHidden] interface method.
+     * getHidden implements [Field.getHidden] interface method.
      */
     getHidden(): boolean;
   }
   interface JSONField {
     /**
-     * SetHidden implements [Field.SetHidden] interface method.
+     * setHidden implements [Field.setHidden] interface method.
      */
     setHidden(hidden: boolean): void;
   }
   interface JSONField {
     /**
-     * ColumnType implements [Field.ColumnType] interface method.
+     * columnType implements [Field.columnType] interface method.
      */
     columnType(app: App): string;
   }
   interface JSONField {
     /**
-     * PrepareValue implements [Field.PrepareValue] interface method.
+     * prepareValue implements [Field.prepareValue] interface method.
      */
     prepareValue(record: Record, raw: any): any;
   }
   interface JSONField {
     /**
-     * ValidateValue implements [Field.ValidateValue] interface method.
+     * validateValue implements [Field.validateValue] interface method.
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
   }
   interface JSONField {
     /**
-     * ValidateSettings implements [Field.ValidateSettings] interface method.
+     * validateSettings implements [Field.validateSettings] interface method.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
   interface JSONField {
     /**
-     * CalculateMaxBodySize implements the [MaxBodySizeCalculator] interface.
+     * calculateMaxBodySize implements the [MaxBodySizeCalculator] interface.
      */
     calculateMaxBodySize(): number;
   }
@@ -11407,142 +11407,142 @@ namespace core {
    *
    * ```
    *   - "fieldName+" - appends to the existing record value. For example:
-   *     record.Set("total+", 5)
+   *     record.set("total+", 5)
    *   - "fieldName-" - subtracts from the existing record value. For example:
-   *     record.Set("total-", 5)
+   *     record.set("total-", 5)
    * ```
    */
   interface NumberField {
     /**
-     * Name (required) is the unique name of the field.
+     * name (required) is the unique name of the field.
      */
     name: string;
     /**
-     * Id is the unique stable field identifier.
+     * id is the unique stable field identifier.
      *
      * It is automatically generated from the name when adding to a collection FieldsList.
      */
     id: string;
     /**
-     * System prevents the renaming and removal of the field.
+     * system prevents the renaming and removal of the field.
      */
     system: boolean;
     /**
-     * Hidden hides the field from the API response.
+     * hidden hides the field from the API response.
      */
     hidden: boolean;
     /**
-     * Presentable hints the Dashboard UI to use the underlying
+     * presentable hints the Dashboard UI to use the underlying
      * field record value in the relation preview label.
      */
     presentable: boolean;
     /**
-     * Help is an extra text explaining what the field is about.
+     * help is an extra text explaining what the field is about.
      * It is usually shown in Dashboard UI under the field input.
      */
     help: string;
     /**
-     * Min specifies the min allowed field value.
+     * min specifies the min allowed field value.
      *
      * Leave it nil to skip the validator.
      */
     min?: number;
     /**
-     * Max specifies the max allowed field value.
+     * max specifies the max allowed field value.
      *
      * Leave it nil to skip the validator.
      */
     max?: number;
     /**
-     * OnlyInt will require the field value to be integer.
+     * onlyInt will require the field value to be integer.
      */
     onlyInt: boolean;
     /**
-     * Required will require the field value to be non-zero.
+     * required will require the field value to be non-zero.
      */
     required: boolean;
   }
   interface NumberField {
     /**
-     * Type implements [Field.Type] interface method.
+     * type implements [Field.type] interface method.
      */
     type(): string;
   }
   interface NumberField {
     /**
-     * GetId implements [Field.GetId] interface method.
+     * getId implements [Field.getId] interface method.
      */
     getId(): string;
   }
   interface NumberField {
     /**
-     * SetId implements [Field.SetId] interface method.
+     * setId implements [Field.setId] interface method.
      */
     setId(id: string): void;
   }
   interface NumberField {
     /**
-     * GetName implements [Field.GetName] interface method.
+     * getName implements [Field.getName] interface method.
      */
     getName(): string;
   }
   interface NumberField {
     /**
-     * SetName implements [Field.SetName] interface method.
+     * setName implements [Field.setName] interface method.
      */
     setName(name: string): void;
   }
   interface NumberField {
     /**
-     * GetSystem implements [Field.GetSystem] interface method.
+     * getSystem implements [Field.getSystem] interface method.
      */
     getSystem(): boolean;
   }
   interface NumberField {
     /**
-     * SetSystem implements [Field.SetSystem] interface method.
+     * setSystem implements [Field.setSystem] interface method.
      */
     setSystem(system: boolean): void;
   }
   interface NumberField {
     /**
-     * GetHidden implements [Field.GetHidden] interface method.
+     * getHidden implements [Field.getHidden] interface method.
      */
     getHidden(): boolean;
   }
   interface NumberField {
     /**
-     * SetHidden implements [Field.SetHidden] interface method.
+     * setHidden implements [Field.setHidden] interface method.
      */
     setHidden(hidden: boolean): void;
   }
   interface NumberField {
     /**
-     * ColumnType implements [Field.ColumnType] interface method.
+     * columnType implements [Field.columnType] interface method.
      */
     columnType(app: App): string;
   }
   interface NumberField {
     /**
-     * PrepareValue implements [Field.PrepareValue] interface method.
+     * prepareValue implements [Field.prepareValue] interface method.
      */
     prepareValue(record: Record, raw: any): any;
   }
   interface NumberField {
     /**
-     * ValidateValue implements [Field.ValidateValue] interface method.
+     * validateValue implements [Field.validateValue] interface method.
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
   }
   interface NumberField {
     /**
-     * ValidateSettings implements [Field.ValidateSettings] interface method.
+     * validateSettings implements [Field.validateSettings] interface method.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
   interface NumberField {
     /**
-     * FindSetter implements the [SetterFinder] interface.
+     * findSetter implements the [SetterFinder] interface.
      */
     findSetter(key: string): SetterFunc;
   }
@@ -11550,72 +11550,72 @@ namespace core {
    * PasswordField defines "password" type field for storing bcrypt hashed strings
    * (usually used only internally for the "password" auth collection system field).
    *
-   * If you want to set a direct bcrypt hash as record field value you can use the SetRaw method, for example:
+   * If you want to set a direct bcrypt hash as record field value you can use the setRaw method, for example:
    *
    * ```
    * 	// generates a bcrypt hash of "123456" and set it as field value
-   * 	// (record.GetString("password") returns the plain password until persisted, otherwise empty string)
-   * 	record.Set("password", "123456")
+   * 	// (record.getString("password") returns the plain password until persisted, otherwise empty string)
+   * 	record.set("password", "123456")
    *
    * 	// set directly a bcrypt hash of "123456" as field value
-   * 	// (record.GetString("password") returns empty string)
-   * 	record.SetRaw("password", "$2a$10$.5Elh8fgxypNUWhpUUr/xOa2sZm0VIaE0qWuGGl9otUfobb46T1Pq")
+   * 	// (record.getString("password") returns empty string)
+   * 	record.setRaw("password", "$2a$10$.5Elh8fgxypNUWhpUUr/xOa2sZm0VIaE0qWuGGl9otUfobb46T1Pq")
    * ```
    *
    * The following additional getter keys are available:
    *
    * ```
    *   - "fieldName:hash" - returns the bcrypt hash string of the record field value (if any). For example:
-   *     record.GetString("password:hash")
+   *     record.getString("password:hash")
    * ```
    */
   interface PasswordField {
     /**
-     * Name (required) is the unique name of the field.
+     * name (required) is the unique name of the field.
      */
     name: string;
     /**
-     * Id is the unique stable field identifier.
+     * id is the unique stable field identifier.
      *
      * It is automatically generated from the name when adding to a collection FieldsList.
      */
     id: string;
     /**
-     * System prevents the renaming and removal of the field.
+     * system prevents the renaming and removal of the field.
      */
     system: boolean;
     /**
-     * Hidden hides the field from the API response.
+     * hidden hides the field from the API response.
      */
     hidden: boolean;
     /**
-     * Presentable hints the Dashboard UI to use the underlying
+     * presentable hints the Dashboard UI to use the underlying
      * field record value in the relation preview label.
      */
     presentable: boolean;
     /**
-     * Help is an extra text explaining what the field is about.
+     * help is an extra text explaining what the field is about.
      * It is usually shown in Dashboard UI under the field input.
      */
     help: string;
     /**
-     * Pattern specifies an optional regex pattern to match against the field value.
+     * pattern specifies an optional regex pattern to match against the field value.
      *
      * Leave it empty to skip the pattern check.
      */
     pattern: string;
     /**
-     * Min specifies an optional required field string length.
+     * min specifies an optional required field string length.
      */
     min: number;
     /**
-     * Max specifies an optional required field string length.
+     * max specifies an optional required field string length.
      *
      * If zero, fallback to max 71 bytes.
      */
     max: number;
     /**
-     * Cost specifies the cost/weight/iteration/etc. bcrypt factor.
+     * cost specifies the cost/weight/iteration/etc. bcrypt factor.
      *
      * If zero, fallback to [bcrypt.DefaultCost].
      *
@@ -11623,109 +11623,109 @@ namespace core {
      */
     cost: number;
     /**
-     * Required will require the field value to be non-empty string.
+     * required will require the field value to be non-empty string.
      */
     required: boolean;
   }
   interface PasswordField {
     /**
-     * Type implements [Field.Type] interface method.
+     * type implements [Field.type] interface method.
      */
     type(): string;
   }
   interface PasswordField {
     /**
-     * GetId implements [Field.GetId] interface method.
+     * getId implements [Field.getId] interface method.
      */
     getId(): string;
   }
   interface PasswordField {
     /**
-     * SetId implements [Field.SetId] interface method.
+     * setId implements [Field.setId] interface method.
      */
     setId(id: string): void;
   }
   interface PasswordField {
     /**
-     * GetName implements [Field.GetName] interface method.
+     * getName implements [Field.getName] interface method.
      */
     getName(): string;
   }
   interface PasswordField {
     /**
-     * SetName implements [Field.SetName] interface method.
+     * setName implements [Field.setName] interface method.
      */
     setName(name: string): void;
   }
   interface PasswordField {
     /**
-     * GetSystem implements [Field.GetSystem] interface method.
+     * getSystem implements [Field.getSystem] interface method.
      */
     getSystem(): boolean;
   }
   interface PasswordField {
     /**
-     * SetSystem implements [Field.SetSystem] interface method.
+     * setSystem implements [Field.setSystem] interface method.
      */
     setSystem(system: boolean): void;
   }
   interface PasswordField {
     /**
-     * GetHidden implements [Field.GetHidden] interface method.
+     * getHidden implements [Field.getHidden] interface method.
      */
     getHidden(): boolean;
   }
   interface PasswordField {
     /**
-     * SetHidden implements [Field.SetHidden] interface method.
+     * setHidden implements [Field.setHidden] interface method.
      */
     setHidden(hidden: boolean): void;
   }
   interface PasswordField {
     /**
-     * ColumnType implements [Field.ColumnType] interface method.
+     * columnType implements [Field.columnType] interface method.
      */
     columnType(app: App): string;
   }
   interface PasswordField {
     /**
-     * DriverValue implements the [DriverValuer] interface.
+     * driverValue implements the [DriverValuer] interface.
      */
     driverValue(record: Record): any;
   }
   interface PasswordField {
     /**
-     * PrepareValue implements [Field.PrepareValue] interface method.
+     * prepareValue implements [Field.prepareValue] interface method.
      */
     prepareValue(record: Record, raw: any): any;
   }
   interface PasswordField {
     /**
-     * ValidateValue implements [Field.ValidateValue] interface method.
+     * validateValue implements [Field.validateValue] interface method.
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
   }
   interface PasswordField {
     /**
-     * ValidateSettings implements [Field.ValidateSettings] interface method.
+     * validateSettings implements [Field.validateSettings] interface method.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
   interface PasswordField {
     /**
-     * Intercept implements the [RecordInterceptor] interface.
+     * intercept implements the [RecordInterceptor] interface.
      */
     intercept(ctx: context.Context, app: App, record: Record, actionName: string, actionFunc: () => void): void;
   }
   interface PasswordField {
     /**
-     * FindGetter implements the [GetterFinder] interface.
+     * findGetter implements the [GetterFinder] interface.
      */
     findGetter(key: string): GetterFunc;
   }
   interface PasswordField {
     /**
-     * FindSetter implements the [SetterFinder] interface.
+     * findSetter implements the [SetterFinder] interface.
      */
     findSetter(key: string): SetterFunc;
   }
@@ -11756,64 +11756,64 @@ namespace core {
    * ```
    *   - "fieldName+" - append one or more values to the existing record one. For example:
    *
-   *     record.Set("categories+", []string{"new1", "new2"}) // []string{"old1", "old2", "new1", "new2"}
+   *     record.set("categories+", []string{"new1", "new2"}) // []string{"old1", "old2", "new1", "new2"}
    *
    *   - "+fieldName" - prepend one or more values to the existing record one. For example:
    *
-   *     record.Set("+categories", []string{"new1", "new2"}) // []string{"new1", "new2", "old1", "old2"}
+   *     record.set("+categories", []string{"new1", "new2"}) // []string{"new1", "new2", "old1", "old2"}
    *
    *   - "fieldName-" - subtract one or more values from the existing record one. For example:
    *
-   *     record.Set("categories-", "old1") // []string{"old2"}
+   *     record.set("categories-", "old1") // []string{"old2"}
    * ```
    */
   interface RelationField {
     /**
-     * Name (required) is the unique name of the field.
+     * name (required) is the unique name of the field.
      */
     name: string;
     /**
-     * Id is the unique stable field identifier.
+     * id is the unique stable field identifier.
      *
      * It is automatically generated from the name when adding to a collection FieldsList.
      */
     id: string;
     /**
-     * System prevents the renaming and removal of the field.
+     * system prevents the renaming and removal of the field.
      */
     system: boolean;
     /**
-     * Hidden hides the field from the API response.
+     * hidden hides the field from the API response.
      */
     hidden: boolean;
     /**
-     * Presentable hints the Dashboard UI to use the underlying
+     * presentable hints the Dashboard UI to use the underlying
      * field record value in the relation preview label.
      */
     presentable: boolean;
     /**
-     * Help is an extra text explaining what the field is about.
+     * help is an extra text explaining what the field is about.
      * It is usually shown in Dashboard UI under the field input.
      */
     help: string;
     /**
-     * CollectionId is the id of the related collection.
+     * collectionId is the id of the related collection.
      */
     collectionId: string;
     /**
-     * CascadeDelete indicates whether the root model should be deleted
+     * cascadeDelete indicates whether the root model should be deleted
      * in case of delete of all linked relations.
      */
     cascadeDelete: boolean;
     /**
-     * MinSelect indicates the min number of allowed relation records
+     * minSelect indicates the min number of allowed relation records
      * that could be linked to the main model.
      *
      * No min limit is applied if it is zero or negative value.
      */
     minSelect: number;
     /**
-     * MaxSelect indicates the max number of allowed relation records
+     * maxSelect indicates the max number of allowed relation records
      * that could be linked to the main model.
      *
      * For multiple select the value must be > 1, otherwise fallbacks to single (default).
@@ -11822,104 +11822,104 @@ namespace core {
      */
     maxSelect: number;
     /**
-     * Required will require the field value to be non-empty.
+     * required will require the field value to be non-empty.
      */
     required: boolean;
   }
   interface RelationField {
     /**
-     * Type implements [Field.Type] interface method.
+     * type implements [Field.type] interface method.
      */
     type(): string;
   }
   interface RelationField {
     /**
-     * GetId implements [Field.GetId] interface method.
+     * getId implements [Field.getId] interface method.
      */
     getId(): string;
   }
   interface RelationField {
     /**
-     * SetId implements [Field.SetId] interface method.
+     * setId implements [Field.setId] interface method.
      */
     setId(id: string): void;
   }
   interface RelationField {
     /**
-     * GetName implements [Field.GetName] interface method.
+     * getName implements [Field.getName] interface method.
      */
     getName(): string;
   }
   interface RelationField {
     /**
-     * SetName implements [Field.SetName] interface method.
+     * setName implements [Field.setName] interface method.
      */
     setName(name: string): void;
   }
   interface RelationField {
     /**
-     * GetSystem implements [Field.GetSystem] interface method.
+     * getSystem implements [Field.getSystem] interface method.
      */
     getSystem(): boolean;
   }
   interface RelationField {
     /**
-     * SetSystem implements [Field.SetSystem] interface method.
+     * setSystem implements [Field.setSystem] interface method.
      */
     setSystem(system: boolean): void;
   }
   interface RelationField {
     /**
-     * GetHidden implements [Field.GetHidden] interface method.
+     * getHidden implements [Field.getHidden] interface method.
      */
     getHidden(): boolean;
   }
   interface RelationField {
     /**
-     * SetHidden implements [Field.SetHidden] interface method.
+     * setHidden implements [Field.setHidden] interface method.
      */
     setHidden(hidden: boolean): void;
   }
   interface RelationField {
     /**
-     * IsMultiple implements [MultiValuer] interface and checks whether the
+     * isMultiple implements [MultiValuer] interface and checks whether the
      * current field options support multiple values.
      */
     isMultiple(): boolean;
   }
   interface RelationField {
     /**
-     * ColumnType implements [Field.ColumnType] interface method.
+     * columnType implements [Field.columnType] interface method.
      */
     columnType(app: App): string;
   }
   interface RelationField {
     /**
-     * PrepareValue implements [Field.PrepareValue] interface method.
+     * prepareValue implements [Field.prepareValue] interface method.
      */
     prepareValue(record: Record, raw: any): any;
   }
   interface RelationField {
     /**
-     * DriverValue implements the [DriverValuer] interface.
+     * driverValue implements the [DriverValuer] interface.
      */
     driverValue(record: Record): any;
   }
   interface RelationField {
     /**
-     * ValidateValue implements [Field.ValidateValue] interface method.
+     * validateValue implements [Field.validateValue] interface method.
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
   }
   interface RelationField {
     /**
-     * ValidateSettings implements [Field.ValidateSettings] interface method.
+     * validateSettings implements [Field.validateSettings] interface method.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
   interface RelationField {
     /**
-     * FindSetter implements [SetterFinder] interface method.
+     * findSetter implements [SetterFinder] interface method.
      */
     findSetter(key: string): SetterFunc;
   }
@@ -11942,155 +11942,155 @@ namespace core {
    * ```
    *   - "fieldName+" - append one or more values to the existing record one. For example:
    *
-   *     record.Set("roles+", []string{"new1", "new2"}) // []string{"old1", "old2", "new1", "new2"}
+   *     record.set("roles+", []string{"new1", "new2"}) // []string{"old1", "old2", "new1", "new2"}
    *
    *   - "+fieldName" - prepend one or more values to the existing record one. For example:
    *
-   *     record.Set("+roles", []string{"new1", "new2"}) // []string{"new1", "new2", "old1", "old2"}
+   *     record.set("+roles", []string{"new1", "new2"}) // []string{"new1", "new2", "old1", "old2"}
    *
    *   - "fieldName-" - subtract one or more values from the existing record one. For example:
    *
-   *     record.Set("roles-", "old1") // []string{"old2"}
+   *     record.set("roles-", "old1") // []string{"old2"}
    * ```
    */
   interface SelectField {
     /**
-     * Name (required) is the unique name of the field.
+     * name (required) is the unique name of the field.
      */
     name: string;
     /**
-     * Id is the unique stable field identifier.
+     * id is the unique stable field identifier.
      *
      * It is automatically generated from the name when adding to a collection FieldsList.
      */
     id: string;
     /**
-     * System prevents the renaming and removal of the field.
+     * system prevents the renaming and removal of the field.
      */
     system: boolean;
     /**
-     * Hidden hides the field from the API response.
+     * hidden hides the field from the API response.
      */
     hidden: boolean;
     /**
-     * Presentable hints the Dashboard UI to use the underlying
+     * presentable hints the Dashboard UI to use the underlying
      * field record value in the relation preview label.
      */
     presentable: boolean;
     /**
-     * Help is an extra text explaining what the field is about.
+     * help is an extra text explaining what the field is about.
      * It is usually shown in Dashboard UI under the field input.
      */
     help: string;
     /**
-     * Values specifies the list of accepted values.
+     * values specifies the list of accepted values.
      */
     values: Array<string>;
     /**
-     * MaxSelect specifies the max allowed selected values.
+     * maxSelect specifies the max allowed selected values.
      *
      * For multiple select the value must be > 1, otherwise fallbacks to single (default).
      */
     maxSelect: number;
     /**
-     * Required will require the field value to be non-empty.
+     * required will require the field value to be non-empty.
      */
     required: boolean;
   }
   interface SelectField {
     /**
-     * Type implements [Field.Type] interface method.
+     * type implements [Field.type] interface method.
      */
     type(): string;
   }
   interface SelectField {
     /**
-     * GetId implements [Field.GetId] interface method.
+     * getId implements [Field.getId] interface method.
      */
     getId(): string;
   }
   interface SelectField {
     /**
-     * SetId implements [Field.SetId] interface method.
+     * setId implements [Field.setId] interface method.
      */
     setId(id: string): void;
   }
   interface SelectField {
     /**
-     * GetName implements [Field.GetName] interface method.
+     * getName implements [Field.getName] interface method.
      */
     getName(): string;
   }
   interface SelectField {
     /**
-     * SetName implements [Field.SetName] interface method.
+     * setName implements [Field.setName] interface method.
      */
     setName(name: string): void;
   }
   interface SelectField {
     /**
-     * GetSystem implements [Field.GetSystem] interface method.
+     * getSystem implements [Field.getSystem] interface method.
      */
     getSystem(): boolean;
   }
   interface SelectField {
     /**
-     * SetSystem implements [Field.SetSystem] interface method.
+     * setSystem implements [Field.setSystem] interface method.
      */
     setSystem(system: boolean): void;
   }
   interface SelectField {
     /**
-     * GetHidden implements [Field.GetHidden] interface method.
+     * getHidden implements [Field.getHidden] interface method.
      */
     getHidden(): boolean;
   }
   interface SelectField {
     /**
-     * SetHidden implements [Field.SetHidden] interface method.
+     * setHidden implements [Field.setHidden] interface method.
      */
     setHidden(hidden: boolean): void;
   }
   interface SelectField {
     /**
-     * IsMultiple implements [MultiValuer] interface and checks whether the
+     * isMultiple implements [MultiValuer] interface and checks whether the
      * current field options support multiple values.
      */
     isMultiple(): boolean;
   }
   interface SelectField {
     /**
-     * ColumnType implements [Field.ColumnType] interface method.
+     * columnType implements [Field.columnType] interface method.
      */
     columnType(app: App): string;
   }
   interface SelectField {
     /**
-     * PrepareValue implements [Field.PrepareValue] interface method.
+     * prepareValue implements [Field.prepareValue] interface method.
      */
     prepareValue(record: Record, raw: any): any;
   }
   interface SelectField {
     /**
-     * DriverValue implements the [DriverValuer] interface.
+     * driverValue implements the [DriverValuer] interface.
      */
     driverValue(record: Record): any;
   }
   interface SelectField {
     /**
-     * ValidateValue implements [Field.ValidateValue] interface method.
+     * validateValue implements [Field.validateValue] interface method.
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
   }
   interface SelectField {
     /**
-     * ValidateSettings implements [Field.ValidateSettings] interface method.
+     * validateSettings implements [Field.validateSettings] interface method.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
   interface SelectField {
     /**
-     * FindSetter implements the [SetterFinder] interface.
+     * findSetter implements the [SetterFinder] interface.
      */
     findSetter(key: string): SetterFunc;
   }
@@ -12104,59 +12104,59 @@ namespace core {
    * - "fieldName:autogenerate" - autogenerate field value if AutogeneratePattern is set. For example:
    *
    * ```
-   * 	record.Set("slug:autogenerate", "") // [random value]
-   * 	record.Set("slug:autogenerate", "abc-") // abc-[random value]
+   * 	record.set("slug:autogenerate", "") // [random value]
+   * 	record.set("slug:autogenerate", "abc-") // abc-[random value]
    * ```
    */
   interface TextField {
     /**
-     * Name (required) is the unique name of the field.
+     * name (required) is the unique name of the field.
      */
     name: string;
     /**
-     * Id is the unique stable field identifier.
+     * id is the unique stable field identifier.
      *
      * It is automatically generated from the name when adding to a collection FieldsList.
      */
     id: string;
     /**
-     * System prevents the renaming and removal of the field.
+     * system prevents the renaming and removal of the field.
      */
     system: boolean;
     /**
-     * Hidden hides the field from the API response.
+     * hidden hides the field from the API response.
      */
     hidden: boolean;
     /**
-     * Presentable hints the Dashboard UI to use the underlying
+     * presentable hints the Dashboard UI to use the underlying
      * field record value in the relation preview label.
      */
     presentable: boolean;
     /**
-     * Help is an extra text explaining what the field is about.
+     * help is an extra text explaining what the field is about.
      * It is usually shown in Dashboard UI under the field input.
      */
     help: string;
     /**
-     * Min specifies the minimum required string characters.
+     * min specifies the minimum required string characters.
      *
      * if zero value, no min limit is applied.
      */
     min: number;
     /**
-     * Max specifies the maximum allowed string characters.
+     * max specifies the maximum allowed string characters.
      *
      * If zero, a default limit of 5000 is applied.
      */
     max: number;
     /**
-     * Pattern specifies an optional regex pattern to match against the field value.
+     * pattern specifies an optional regex pattern to match against the field value.
      *
      * Leave it empty to skip the pattern check.
      */
     pattern: string;
     /**
-     * AutogeneratePattern specifies an optional regex pattern that could
+     * autogeneratePattern specifies an optional regex pattern that could
      * be used to generate random string from it and set it automatically
      * on record create if no explicit value is set or when the `:autogenerate` modifier is used.
      *
@@ -12164,11 +12164,11 @@ namespace core {
      */
     autogeneratePattern: string;
     /**
-     * Required will require the field value to be non-empty string.
+     * required will require the field value to be non-empty string.
      */
     required: boolean;
     /**
-     * PrimaryKey will mark the field as primary key.
+     * primaryKey will mark the field as primary key.
      *
      * A single collection can have only 1 field marked as primary key.
      */
@@ -12176,97 +12176,97 @@ namespace core {
   }
   interface TextField {
     /**
-     * Type implements [Field.Type] interface method.
+     * type implements [Field.type] interface method.
      */
     type(): string;
   }
   interface TextField {
     /**
-     * GetId implements [Field.GetId] interface method.
+     * getId implements [Field.getId] interface method.
      */
     getId(): string;
   }
   interface TextField {
     /**
-     * SetId implements [Field.SetId] interface method.
+     * setId implements [Field.setId] interface method.
      */
     setId(id: string): void;
   }
   interface TextField {
     /**
-     * GetName implements [Field.GetName] interface method.
+     * getName implements [Field.getName] interface method.
      */
     getName(): string;
   }
   interface TextField {
     /**
-     * SetName implements [Field.SetName] interface method.
+     * setName implements [Field.setName] interface method.
      */
     setName(name: string): void;
   }
   interface TextField {
     /**
-     * GetSystem implements [Field.GetSystem] interface method.
+     * getSystem implements [Field.getSystem] interface method.
      */
     getSystem(): boolean;
   }
   interface TextField {
     /**
-     * SetSystem implements [Field.SetSystem] interface method.
+     * setSystem implements [Field.setSystem] interface method.
      */
     setSystem(system: boolean): void;
   }
   interface TextField {
     /**
-     * GetHidden implements [Field.GetHidden] interface method.
+     * getHidden implements [Field.getHidden] interface method.
      */
     getHidden(): boolean;
   }
   interface TextField {
     /**
-     * SetHidden implements [Field.SetHidden] interface method.
+     * setHidden implements [Field.setHidden] interface method.
      */
     setHidden(hidden: boolean): void;
   }
   interface TextField {
     /**
-     * ColumnType implements [Field.ColumnType] interface method.
+     * columnType implements [Field.columnType] interface method.
      */
     columnType(app: App): string;
   }
   interface TextField {
     /**
-     * PrepareValue implements [Field.PrepareValue] interface method.
+     * prepareValue implements [Field.prepareValue] interface method.
      */
     prepareValue(record: Record, raw: any): any;
   }
   interface TextField {
     /**
-     * ValidateValue implements [Field.ValidateValue] interface method.
+     * validateValue implements [Field.validateValue] interface method.
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
   }
   interface TextField {
     /**
-     * ValidatePlainValue validates the provided string against the field options.
+     * validatePlainValue validates the provided string against the field options.
      */
     validatePlainValue(value: string): void;
   }
   interface TextField {
     /**
-     * ValidateSettings implements [Field.ValidateSettings] interface method.
+     * validateSettings implements [Field.validateSettings] interface method.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
   interface TextField {
     /**
-     * Intercept implements the [RecordInterceptor] interface.
+     * intercept implements the [RecordInterceptor] interface.
      */
     intercept(ctx: context.Context, app: App, record: Record, actionName: string, actionFunc: () => void): void;
   }
   interface TextField {
     /**
-     * FindSetter implements the [SetterFinder] interface.
+     * findSetter implements the [SetterFinder] interface.
      */
     findSetter(key: string): SetterFunc;
   }
@@ -12277,125 +12277,125 @@ namespace core {
    */
   interface URLField {
     /**
-     * Name (required) is the unique name of the field.
+     * name (required) is the unique name of the field.
      */
     name: string;
     /**
-     * Id is the unique stable field identifier.
+     * id is the unique stable field identifier.
      *
      * It is automatically generated from the name when adding to a collection FieldsList.
      */
     id: string;
     /**
-     * System prevents the renaming and removal of the field.
+     * system prevents the renaming and removal of the field.
      */
     system: boolean;
     /**
-     * Hidden hides the field from the API response.
+     * hidden hides the field from the API response.
      */
     hidden: boolean;
     /**
-     * Presentable hints the Dashboard UI to use the underlying
+     * presentable hints the Dashboard UI to use the underlying
      * field record value in the relation preview label.
      */
     presentable: boolean;
     /**
-     * Help is an extra text explaining what the field is about.
+     * help is an extra text explaining what the field is about.
      * It is usually shown in Dashboard UI under the field input.
      */
     help: string;
     /**
-     * ExceptDomains will require the URL domain to NOT be included in the listed ones.
+     * exceptDomains will require the URL domain to NOT be included in the listed ones.
      *
      * This validator can be set only if OnlyDomains is empty.
      */
     exceptDomains: Array<string>;
     /**
-     * OnlyDomains will require the URL domain to be included in the listed ones.
+     * onlyDomains will require the URL domain to be included in the listed ones.
      *
      * This validator can be set only if ExceptDomains is empty.
      */
     onlyDomains: Array<string>;
     /**
-     * Required will require the field value to be non-empty URL string.
+     * required will require the field value to be non-empty URL string.
      */
     required: boolean;
   }
   interface URLField {
     /**
-     * Type implements [Field.Type] interface method.
+     * type implements [Field.type] interface method.
      */
     type(): string;
   }
   interface URLField {
     /**
-     * GetId implements [Field.GetId] interface method.
+     * getId implements [Field.getId] interface method.
      */
     getId(): string;
   }
   interface URLField {
     /**
-     * SetId implements [Field.SetId] interface method.
+     * setId implements [Field.setId] interface method.
      */
     setId(id: string): void;
   }
   interface URLField {
     /**
-     * GetName implements [Field.GetName] interface method.
+     * getName implements [Field.getName] interface method.
      */
     getName(): string;
   }
   interface URLField {
     /**
-     * SetName implements [Field.SetName] interface method.
+     * setName implements [Field.setName] interface method.
      */
     setName(name: string): void;
   }
   interface URLField {
     /**
-     * GetSystem implements [Field.GetSystem] interface method.
+     * getSystem implements [Field.getSystem] interface method.
      */
     getSystem(): boolean;
   }
   interface URLField {
     /**
-     * SetSystem implements [Field.SetSystem] interface method.
+     * setSystem implements [Field.setSystem] interface method.
      */
     setSystem(system: boolean): void;
   }
   interface URLField {
     /**
-     * GetHidden implements [Field.GetHidden] interface method.
+     * getHidden implements [Field.getHidden] interface method.
      */
     getHidden(): boolean;
   }
   interface URLField {
     /**
-     * SetHidden implements [Field.SetHidden] interface method.
+     * setHidden implements [Field.setHidden] interface method.
      */
     setHidden(hidden: boolean): void;
   }
   interface URLField {
     /**
-     * ColumnType implements [Field.ColumnType] interface method.
+     * columnType implements [Field.columnType] interface method.
      */
     columnType(app: App): string;
   }
   interface URLField {
     /**
-     * PrepareValue implements [Field.PrepareValue] interface method.
+     * prepareValue implements [Field.prepareValue] interface method.
      */
     prepareValue(record: Record, raw: any): any;
   }
   interface URLField {
     /**
-     * ValidateValue implements [Field.ValidateValue] interface method.
+     * validateValue implements [Field.validateValue] interface method.
      */
     validateValue(ctx: context.Context, app: App, record: Record): void;
   }
   interface URLField {
     /**
-     * ValidateSettings implements [Field.ValidateSettings] interface method.
+     * validateSettings implements [Field.validateSettings] interface method.
      */
     validateSettings(ctx: context.Context, app: App, collection: Collection): void;
   }
@@ -12411,38 +12411,38 @@ namespace core {
   interface FieldsList extends Array<Field> {}
   interface FieldsList {
     /**
-     * Clone creates a deep clone of the current list.
+     * clone creates a deep clone of the current list.
      */
     clone(): FieldsList;
   }
   interface FieldsList {
     /**
-     * FieldNames returns a slice with the name of all list fields.
+     * fieldNames returns a slice with the name of all list fields.
      */
     fieldNames(): Array<string>;
   }
   interface FieldsList {
     /**
-     * AsMap returns a map with all registered list field.
+     * asMap returns a map with all registered list field.
      * The returned map is indexed with each field name.
      */
     asMap(): _TygojaDict;
   }
   interface FieldsList {
     /**
-     * GetById returns a single field by its id.
+     * getById returns a single field by its id.
      */
     getById(fieldId: string): Field;
   }
   interface FieldsList {
     /**
-     * GetByName returns a single field by its name.
+     * getByName returns a single field by its name.
      */
     getByName(fieldName: string): Field;
   }
   interface FieldsList {
     /**
-     * RemoveById removes a single field by its id.
+     * removeById removes a single field by its id.
      *
      * This method does nothing if field with the specified id doesn't exist.
      */
@@ -12450,7 +12450,7 @@ namespace core {
   }
   interface FieldsList {
     /**
-     * RemoveByName removes a single field by its name.
+     * removeByName removes a single field by its name.
      *
      * This method does nothing if field with the specified name doesn't exist.
      */
@@ -12458,7 +12458,7 @@ namespace core {
   }
   interface FieldsList {
     /**
-     * Add adds one or more fields to the current list.
+     * add adds one or more fields to the current list.
      *
      * By default this method will try to REPLACE existing fields with
      * the new ones by their id or by their name if the new field doesn't have an explicit id.
@@ -12472,7 +12472,7 @@ namespace core {
   }
   interface FieldsList {
     /**
-     * AddAt is the same as Add but insert/move the fields at the specific position.
+     * addAt is the same as Add but insert/move the fields at the specific position.
      *
      * If pos < 0, then this method acts the same as calling Add.
      *
@@ -12482,7 +12482,7 @@ namespace core {
   }
   interface FieldsList {
     /**
-     * AddMarshaledJSON parses the provided raw json data and adds the
+     * addMarshaledJSON parses the provided raw json data and adds the
      * found fields into the current list (following the same rule as the Add method).
      *
      * The rawJSON argument could be one of:
@@ -12493,18 +12493,18 @@ namespace core {
      *
      * Example:
      *
-     * ```
-     * 	l.AddMarshaledJSON([]byte{`{"type":"text", name: "test"}`})
-     * 	l.AddMarshaledJSON([]byte{`[{"type":"text", name: "test1"}, {"type":"text", name: "test2"}]`})
+     * ```js
+     * fields.addMarshaledJSON(`{"type":"text","name":"test"}`)
+     * fields.addMarshaledJSON(`[{"type":"text","name":"test1"},{"type":"text","name":"test2"}]`)
      * ```
      */
     addMarshaledJSON(rawJSON: string | Array<number>): void;
   }
   interface FieldsList {
     /**
-     * AddMarshaledJSONAt is the same as AddMarshaledJSON but insert/move the fields at the specific position.
+     * addMarshaledJSONAt is the same as addMarshaledJSON but insert/move the fields at the specific position.
      *
-     * If pos < 0, then this method acts the same as calling AddMarshaledJSON.
+     * If pos < 0, then this method acts the same as calling addMarshaledJSON.
      *
      * If pos > FieldsList total items, then the specified fields are inserted/moved at the end of the list.
      */
@@ -12512,7 +12512,7 @@ namespace core {
   }
   interface FieldsList {
     /**
-     * String returns the string representation of the current list.
+     * string returns the string representation of the current list.
      */
     string(): string;
   }
@@ -12528,26 +12528,26 @@ namespace core {
   }
   interface FieldsList {
     /**
-     * UnmarshalJSON implements [json.Unmarshaler] and
+     * unmarshalJSON implements [json.Unmarshaler] and
      * loads the provided json data into the current FieldsList.
      */
     unmarshalJSON(data: string | Array<number>): void;
   }
   interface FieldsList {
     /**
-     * MarshalJSON implements the [json.Marshaler] interface.
+     * marshalJSON implements the [json.Marshaler] interface.
      */
     marshalJSON(): string | Array<number>;
   }
   interface FieldsList {
     /**
-     * Value implements the [driver.Valuer] interface.
+     * value implements the [driver.Valuer] interface.
      */
     value(): any;
   }
   interface FieldsList {
     /**
-     * Scan implements [sql.Scanner] interface to scan the provided value
+     * scan implements [sql.Scanner] interface to scan the provided value
      * into the current FieldsList instance.
      */
     scan(value: any): void;
@@ -12564,13 +12564,13 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * LogQuery returns a new Log select query.
+     * logQuery returns a new Log select query.
      */
     logQuery(): dbx.SelectQuery;
   }
   interface BaseApp {
     /**
-     * FindLogById finds a single Log entry by its id.
+     * findLogById finds a single Log entry by its id.
      */
     findLogById(id: string): Log;
   }
@@ -12583,13 +12583,13 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * LogsStats returns hourly grouped logs statistics.
+     * logsStats returns hourly grouped logs statistics.
      */
     logsStats(expr: dbx.Expression): Array<LogsStatsItem | undefined>;
   }
   interface BaseApp {
     /**
-     * DeleteOldLogs delete all logs that are created before createdBefore.
+     * deleteOldLogs delete all logs that are created before createdBefore.
      *
      * For better performance the logs delete is executed as plain SQL statement,
      * aka. no delete model hook events will be fired.
@@ -12608,110 +12608,110 @@ namespace core {
      * Example usage:
      *
      * ```
-     * 	mfa := core.NewMFA(app)
-     * 	mfa.SetRecordRef(user.Id)
-     * 	mfa.SetCollectionRef(user.Collection().Id)
-     * 	mfa.SetMethod(core.MFAMethodPassword)
-     * 	app.Save(mfa)
+     * 	const mfa = app.newMFA()
+     * 	mfa.setRecordRef(user.id)
+     * 	mfa.setCollectionRef(user.collection().id)
+     * 	mfa.setMethod(core.MFAMethodPassword)
+     * 	app.save(mfa)
      * ```
      */
     (app: App): MFA;
   }
   interface MFA {
     /**
-     * PreValidate implements the [PreValidator] interface and checks
+     * preValidate implements the [PreValidator] interface and checks
      * whether the proxy is properly loaded.
      */
     preValidate(ctx: context.Context, app: App): void;
   }
   interface MFA {
     /**
-     * ProxyRecord returns the proxied Record model.
+     * proxyRecord returns the proxied Record model.
      */
     proxyRecord(): Record;
   }
   interface MFA {
     /**
-     * SetProxyRecord loads the specified record model into the current proxy.
+     * setProxyRecord loads the specified record model into the current proxy.
      */
     setProxyRecord(record: Record): void;
   }
   interface MFA {
     /**
-     * CollectionRef returns the "collectionRef" field value.
+     * collectionRef returns the "collectionRef" field value.
      */
     collectionRef(): string;
   }
   interface MFA {
     /**
-     * SetCollectionRef updates the "collectionRef" record field value.
+     * setCollectionRef updates the "collectionRef" record field value.
      */
     setCollectionRef(collectionId: string): void;
   }
   interface MFA {
     /**
-     * RecordRef returns the "recordRef" record field value.
+     * recordRef returns the "recordRef" record field value.
      */
     recordRef(): string;
   }
   interface MFA {
     /**
-     * SetRecordRef updates the "recordRef" record field value.
+     * setRecordRef updates the "recordRef" record field value.
      */
     setRecordRef(recordId: string): void;
   }
   interface MFA {
     /**
-     * Method returns the "method" record field value.
+     * method returns the "method" record field value.
      */
     method(): string;
   }
   interface MFA {
     /**
-     * SetMethod updates the "method" record field value.
+     * setMethod updates the "method" record field value.
      */
     setMethod(method: string): void;
   }
   interface MFA {
     /**
-     * Created returns the "created" record field value.
+     * created returns the "created" record field value.
      */
     created(): types.DateTime;
   }
   interface MFA {
     /**
-     * Updated returns the "updated" record field value.
+     * updated returns the "updated" record field value.
      */
     updated(): types.DateTime;
   }
   interface MFA {
     /**
-     * HasExpired checks if the mfa is expired, aka. whether it has been
+     * hasExpired checks if the mfa is expired, aka. whether it has been
      * more than maxElapsed time since its creation.
      */
     hasExpired(maxElapsed: time.Duration): boolean;
   }
   interface BaseApp {
     /**
-     * FindAllMFAsByRecord returns all MFA models linked to the provided auth record.
+     * findAllMFAsByRecord returns all MFA models linked to the provided auth record.
      */
     findAllMFAsByRecord(authRecord: Record): Array<MFA | undefined>;
   }
   interface BaseApp {
     /**
-     * FindAllMFAsByCollection returns all MFA models linked to the provided collection.
+     * findAllMFAsByCollection returns all MFA models linked to the provided collection.
      */
     findAllMFAsByCollection(collection: Collection): Array<MFA | undefined>;
   }
   interface BaseApp {
     /**
-     * FindMFAById returns a single MFA model by its id.
+     * findMFAById returns a single MFA model by its id.
      */
     findMFAById(id: string): MFA;
   }
   interface BaseApp {
     /**
-     * DeleteAllMFAsByRecord deletes all MFA models associated with the provided record.
+     * deleteAllMFAsByRecord deletes all MFA models associated with the provided record.
      *
      * Returns a combined error with the failed deletes.
      */
@@ -12719,7 +12719,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * DeleteExpiredMFAs deletes the expired MFAs for all auth collections.
+     * deleteExpiredMFAs deletes the expired MFAs for all auth collections.
      */
     deleteExpiredMFAs(): void;
   }
@@ -12735,27 +12735,27 @@ namespace core {
   interface MigrationsList {}
   interface MigrationsList {
     /**
-     * Item returns a single migration from the list by its index.
+     * item returns a single migration from the list by its index.
      */
     item(index: number): Migration;
   }
   interface MigrationsList {
     /**
-     * Items returns the internal migrations list slice.
+     * items returns the internal migrations list slice.
      */
     items(): Array<Migration | undefined>;
   }
   interface MigrationsList {
     /**
-     * Copy copies all provided list migrations into the current one.
+     * copy copies all provided list migrations into the current one.
      */
     copy(list: MigrationsList): void;
   }
   interface MigrationsList {
     /**
-     * Add adds adds an existing migration definition to the list.
+     * add adds adds an existing migration definition to the list.
      *
-     * If m.File is not provided, it will try to get the name from its .go file.
+     * If m.file is not provided, it will try to get the name from its .go file.
      *
      * The list will be sorted automatically based on the migrations file name.
      */
@@ -12763,7 +12763,7 @@ namespace core {
   }
   interface MigrationsList {
     /**
-     * Register adds new migration definition to the list.
+     * register adds new migration definition to the list.
      *
      * If optFilename is not provided, it will try to get the name from its .go file.
      *
@@ -12783,7 +12783,7 @@ namespace core {
   }
   interface MigrationsRunner {
     /**
-     * Run interactively executes the current runner with the provided args.
+     * run interactively executes the current runner with the provided args.
      *
      * The following commands are supported:
      * - up           - applies all migrations
@@ -12794,7 +12794,7 @@ namespace core {
   }
   interface MigrationsRunner {
     /**
-     * Up executes all unapplied migrations for the provided runner.
+     * up executes all unapplied migrations for the provided runner.
      *
      * On success returns list with the applied migrations file names.
      */
@@ -12802,7 +12802,7 @@ namespace core {
   }
   interface MigrationsRunner {
     /**
-     * Down reverts the last `toRevertCount` applied migrations
+     * down reverts the last `toRevertCount` applied migrations
      * (in the order they were applied).
      *
      * On success returns list with the reverted migrations file names.
@@ -12811,7 +12811,7 @@ namespace core {
   }
   interface MigrationsRunner {
     /**
-     * RemoveMissingAppliedMigrations removes the db entries of all applied migrations
+     * removeMissingAppliedMigrations removes the db entries of all applied migrations
      * that are not listed in the runner's migrations list.
      */
     removeMissingAppliedMigrations(): void;
@@ -12828,61 +12828,61 @@ namespace core {
      * Example usage:
      *
      * ```
-     * 	otp := core.NewOTP(app)
-     * 	otp.SetRecordRef(user.Id)
-     * 	otp.SetCollectionRef(user.Collection().Id)
-     * 	otp.SetPassword(security.RandomStringWithAlphabet(6, "1234567890"))
-     * 	app.Save(otp)
+     * 	const otp = app.newOTP()
+     * 	otp.setRecordRef(user.id)
+     * 	otp.setCollectionRef(user.collection().id)
+     * 	otp.setPassword(security.randomStringWithAlphabet(6, "1234567890"))
+     * 	app.save(otp)
      * ```
      */
     (app: App): OTP;
   }
   interface OTP {
     /**
-     * PreValidate implements the [PreValidator] interface and checks
+     * preValidate implements the [PreValidator] interface and checks
      * whether the proxy is properly loaded.
      */
     preValidate(ctx: context.Context, app: App): void;
   }
   interface OTP {
     /**
-     * ProxyRecord returns the proxied Record model.
+     * proxyRecord returns the proxied Record model.
      */
     proxyRecord(): Record;
   }
   interface OTP {
     /**
-     * SetProxyRecord loads the specified record model into the current proxy.
+     * setProxyRecord loads the specified record model into the current proxy.
      */
     setProxyRecord(record: Record): void;
   }
   interface OTP {
     /**
-     * CollectionRef returns the "collectionRef" field value.
+     * collectionRef returns the "collectionRef" field value.
      */
     collectionRef(): string;
   }
   interface OTP {
     /**
-     * SetCollectionRef updates the "collectionRef" record field value.
+     * setCollectionRef updates the "collectionRef" record field value.
      */
     setCollectionRef(collectionId: string): void;
   }
   interface OTP {
     /**
-     * RecordRef returns the "recordRef" record field value.
+     * recordRef returns the "recordRef" record field value.
      */
     recordRef(): string;
   }
   interface OTP {
     /**
-     * SetRecordRef updates the "recordRef" record field value.
+     * setRecordRef updates the "recordRef" record field value.
      */
     setRecordRef(recordId: string): void;
   }
   interface OTP {
     /**
-     * SentTo returns the "sentTo" record field value.
+     * sentTo returns the "sentTo" record field value.
      *
      * It could be any string value (email, phone, message app id, etc.)
      * and usually is used as part of the auth flow to update the verified
@@ -12892,50 +12892,50 @@ namespace core {
   }
   interface OTP {
     /**
-     * SetSentTo updates the "sentTo" record field value.
+     * setSentTo updates the "sentTo" record field value.
      */
     setSentTo(val: string): void;
   }
   interface OTP {
     /**
-     * Created returns the "created" record field value.
+     * created returns the "created" record field value.
      */
     created(): types.DateTime;
   }
   interface OTP {
     /**
-     * Updated returns the "updated" record field value.
+     * updated returns the "updated" record field value.
      */
     updated(): types.DateTime;
   }
   interface OTP {
     /**
-     * HasExpired checks if the otp is expired, aka. whether it has been
+     * hasExpired checks if the otp is expired, aka. whether it has been
      * more than maxElapsed time since its creation.
      */
     hasExpired(maxElapsed: time.Duration): boolean;
   }
   interface BaseApp {
     /**
-     * FindAllOTPsByRecord returns all OTP models linked to the provided auth record.
+     * findAllOTPsByRecord returns all OTP models linked to the provided auth record.
      */
     findAllOTPsByRecord(authRecord: Record): Array<OTP | undefined>;
   }
   interface BaseApp {
     /**
-     * FindAllOTPsByCollection returns all OTP models linked to the provided collection.
+     * findAllOTPsByCollection returns all OTP models linked to the provided collection.
      */
     findAllOTPsByCollection(collection: Collection): Array<OTP | undefined>;
   }
   interface BaseApp {
     /**
-     * FindOTPById returns a single OTP model by its id.
+     * findOTPById returns a single OTP model by its id.
      */
     findOTPById(id: string): OTP;
   }
   interface BaseApp {
     /**
-     * DeleteAllOTPsByRecord deletes all OTP models associated with the provided record.
+     * deleteAllOTPsByRecord deletes all OTP models associated with the provided record.
      *
      * Returns a combined error with the failed deletes.
      */
@@ -12943,7 +12943,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * DeleteExpiredOTPs deletes the expired OTPs for all auth collections.
+     * deleteExpiredOTPs deletes the expired OTPs for all auth collections.
      */
     deleteExpiredOTPs(): void;
   }
@@ -12952,42 +12952,41 @@ namespace core {
    * RecordFieldResolver defines a custom search resolver struct for
    * managing Record model search fields.
    *
-   * Usually used together with `search.Provider`.
+   * Usually used together with `search.provider`.
    * Example:
    *
-   * ```
-   * 	resolver := resolvers.NewRecordFieldResolver(
-   * 	    app,
-   * 	    myCollection,
-   * 	    &models.RequestInfo{...},
-   * 	    true,
-   * 	)
-   * 	provider := search.NewProvider(resolver)
-   * 	...
+   * ```js
+   * const resolver = newRecordFieldResolver(
+   *     app,
+   *     myCollection,
+   *     requestInfo,
+   *     true,
+   * )
+   * const provider = search.newProvider(resolver)
    * ```
    */
   interface RecordFieldResolver {}
   interface RecordFieldResolver {
     /**
-     * AllowedFields returns a copy of the resolver's allowed fields.
+     * allowedFields returns a copy of the resolver's allowed fields.
      */
     allowedFields(): Array<string>;
   }
   interface RecordFieldResolver {
     /**
-     * SetAllowedFields replaces the resolver's allowed fields with the new ones.
+     * setAllowedFields replaces the resolver's allowed fields with the new ones.
      */
     setAllowedFields(newAllowedFields: Array<string>): void;
   }
   interface RecordFieldResolver {
     /**
-     * AllowHiddenFields returns whether the current resolver allows filtering hidden fields.
+     * allowHiddenFields returns whether the current resolver allows filtering hidden fields.
      */
     allowHiddenFields(): boolean;
   }
   interface RecordFieldResolver {
     /**
-     * SetAllowHiddenFields enables or disables hidden fields filtering.
+     * setAllowHiddenFields enables or disables hidden fields filtering.
      */
     setAllowHiddenFields(allowHiddenFields: boolean): void;
   }
@@ -13001,7 +13000,7 @@ namespace core {
     /**
      * @todo think of a better a way how to call it automatically after BuildExpr
      *
-     * UpdateQuery implements `search.FieldResolver` interface.
+     * updateQuery implements `search.FieldResolver` interface.
      *
      * Conditionally updates the provided search query based on the
      * resolved fields (eg. dynamically joining relations).
@@ -13010,7 +13009,7 @@ namespace core {
   }
   interface RecordFieldResolver {
     /**
-     * Resolve implements `search.FieldResolver` interface.
+     * resolve implements `search.FieldResolver` interface.
      *
      * Example of some resolvable fieldName formats:
      *
@@ -13044,7 +13043,7 @@ namespace core {
   interface replaceWithExpression {}
   interface replaceWithExpression {
     /**
-     * Build converts the expression into a SQL fragment.
+     * build converts the expression into a SQL fragment.
      *
      * Implements [dbx.Expression] interface.
      */
@@ -13061,7 +13060,7 @@ namespace core {
   }
   interface Record {
     /**
-     * Collection returns the Collection model associated with the current Record model.
+     * collection returns the Collection model associated with the current Record model.
      *
      * NB! The returned collection is only for read purposes and it shouldn't be modified
      * because it could have unintended side-effects on other Record models from the same collection.
@@ -13070,37 +13069,37 @@ namespace core {
   }
   interface Record {
     /**
-     * TableName returns the table name associated with the current Record model.
+     * tableName returns the table name associated with the current Record model.
      */
     tableName(): string;
   }
   interface Record {
     /**
-     * PostScan implements the [dbx.PostScanner] interface.
+     * postScan implements the [dbx.PostScanner] interface.
      *
      * It essentially refreshes/updates the current Record original state
      * as if the model was fetched from the databases for the first time.
      *
-     * Or in other words, it means that m.Original().FieldsData() will have
-     * the same values as m.Record().FieldsData().
+     * Or in other words, it means that m.original().FieldsData() will have
+     * the same values as m.record().FieldsData().
      */
     postScan(): void;
   }
   interface Record {
     /**
-     * HookTags returns the hook tags associated with the current record.
+     * hookTags returns the hook tags associated with the current record.
      */
     hookTags(): Array<string>;
   }
   interface Record {
     /**
-     * BaseFilesPath returns the storage dir path used by the record.
+     * baseFilesPath returns the storage dir path used by the record.
      */
     baseFilesPath(): string;
   }
   interface Record {
     /**
-     * Original returns a shallow copy of the current record model populated
+     * original returns a shallow copy of the current record model populated
      * with its ORIGINAL db data state (aka. right after PostScan())
      * and everything else reset to the defaults.
      *
@@ -13111,7 +13110,7 @@ namespace core {
   }
   interface Record {
     /**
-     * Fresh returns a shallow copy of the current record model populated
+     * fresh returns a shallow copy of the current record model populated
      * with its LATEST data state and everything else reset to the defaults
      * (aka. no expand, no unknown fields and with default visibility flags).
      */
@@ -13119,29 +13118,29 @@ namespace core {
   }
   interface Record {
     /**
-     * Clone returns a shallow copy of the current record model with all of
+     * clone returns a shallow copy of the current record model with all of
      * its collection and unknown fields data, expand and flags copied.
      *
-     * use [Record.Fresh()] instead if you want a copy with only the latest
+     * Use [Record.fresh()] instead if you want a copy with only the latest
      * collection fields data and everything else reset to the defaults.
      */
     clone(): Record;
   }
   interface Record {
     /**
-     * Expand returns a shallow copy of the current Record model expand data (if any).
+     * expand returns a shallow copy of the current Record model expand data (if any).
      */
     expand(): _TygojaDict;
   }
   interface Record {
     /**
-     * SetExpand replaces the current Record's expand with the provided expand arg data (shallow copied).
+     * setExpand replaces the current Record's expand with the provided expand arg data (shallow copied).
      */
     setExpand(expand: _TygojaDict): void;
   }
   interface Record {
     /**
-     * MergeExpand merges recursively the provided expand data into
+     * mergeExpand merges recursively the provided expand data into
      * the current model's expand (if any).
      *
      * Note that if an expanded prop with the same key is a slice (old or new expand)
@@ -13152,13 +13151,13 @@ namespace core {
   }
   interface Record {
     /**
-     * FieldsData returns a shallow copy ONLY of the collection's fields record's data.
+     * fieldsData returns a shallow copy ONLY of the collection's fields record's data.
      */
     fieldsData(): _TygojaDict;
   }
   interface Record {
     /**
-     * CustomData returns a shallow copy ONLY of the custom record fields data,
+     * customData returns a shallow copy ONLY of the custom record fields data,
      * aka. fields that are neither defined by the collection, nor special system ones.
      *
      * Note that custom fields prefixed with "@pbInternal" are always skipped.
@@ -13167,28 +13166,28 @@ namespace core {
   }
   interface Record {
     /**
-     * WithCustomData toggles the export/serialization of custom data fields
+     * withCustomData toggles the export/serialization of custom data fields
      * (false by default).
      */
     withCustomData(state: boolean): Record;
   }
   interface Record {
     /**
-     * IgnoreEmailVisibility toggles the flag to ignore the auth record email visibility check.
+     * ignoreEmailVisibility toggles the flag to ignore the auth record email visibility check.
      */
     ignoreEmailVisibility(state: boolean): Record;
   }
   interface Record {
     /**
-     * IgnoreUnchangedFields toggles the flag to ignore the unchanged fields
+     * ignoreUnchangedFields toggles the flag to ignore the unchanged fields
      * from the DB export for the UPDATE SQL query.
      *
      * This could be used if you want to save only the record fields that you've changed
      * without overwrite other untouched fields in case of concurrent update.
      *
-     * Note that the fields change comparison is based on the current fields against m.Original()
+     * Note that the fields change comparison is based on the current fields against m.original()
      * (aka. if you have performed save on the same Record instance multiple times you may have to refetch it,
-     * so that m.Original() could reflect the last saved change).
+     * so that m.original() could reflect the last saved change).
      */
     ignoreUnchangedFields(state: boolean): Record;
   }
@@ -13197,26 +13196,26 @@ namespace core {
      * Set sets the provided key-value data pair into the current Record
      * model directly as it is WITHOUT NORMALIZATIONS.
      *
-     * See also [Record.Set].
+     * See also [Record.set].
      */
     setRaw(key: string, value: any): void;
   }
   interface Record {
     /**
-     * SetIfFieldExists sets the provided key-value data pair into the current Record model
+     * setIfFieldExists sets the provided key-value data pair into the current Record model
      * ONLY if key is existing Collection field name/modifier.
      *
      * This method does nothing if key is not a known Collection field name/modifier.
      *
      * On success returns the matched Field, otherwise - nil.
      *
-     * To set any key-value, including custom/unknown fields, use the [Record.Set] method.
+     * To set any key-value, including custom/unknown fields, use the [Record.set] method.
      */
     setIfFieldExists(key: string, value: any): Field;
   }
   interface Record {
     /**
-     * Set sets the provided key-value data pair into the current Record model.
+     * set sets the provided key-value data pair into the current Record model.
      *
      * If the record collection has field with name matching the provided "key",
      * the value will be further normalized according to the field setter(s).
@@ -13228,79 +13227,79 @@ namespace core {
   }
   interface Record {
     /**
-     * Get returns a normalized single record model data value for "key".
+     * get returns a normalized single record model data value for "key".
      */
     get(key: string): any;
   }
   interface Record {
     /**
-     * Load bulk loads the provided data into the current Record model.
+     * load bulk loads the provided data into the current Record model.
      */
     load(data: _TygojaDict): void;
   }
   interface Record {
     /**
-     * GetBool returns the data value for "key" as a bool.
+     * getBool returns the data value for "key" as a bool.
      */
     getBool(key: string): boolean;
   }
   interface Record {
     /**
-     * GetString returns the data value for "key" as a string.
+     * getString returns the data value for "key" as a string.
      */
     getString(key: string): string;
   }
   interface Record {
     /**
-     * GetInt returns the data value for "key" as an int.
+     * getInt returns the data value for "key" as an int.
      */
     getInt(key: string): number;
   }
   interface Record {
     /**
-     * GetFloat returns the data value for "key" as a float64.
+     * getFloat returns the data value for "key" as a float64.
      */
     getFloat(key: string): number;
   }
   interface Record {
     /**
-     * GetDateTime returns the data value for "key" as a DateTime instance.
+     * getDateTime returns the data value for "key" as a DateTime instance.
      */
     getDateTime(key: string): types.DateTime;
   }
   interface Record {
     /**
-     * GetGeoPoint returns the data value for "key" as a GeoPoint instance.
+     * getGeoPoint returns the data value for "key" as a GeoPoint instance.
      */
     getGeoPoint(key: string): types.GeoPoint;
   }
   interface Record {
     /**
-     * GetStringSlice returns the data value for "key" as a slice of non-zero unique strings.
+     * getStringSlice returns the data value for "key" as a slice of non-zero unique strings.
      */
     getStringSlice(key: string): Array<string>;
   }
   interface Record {
     /**
-     * GetUnsavedFiles returns the uploaded files for the provided "file" field key,
+     * getUnsavedFiles returns the uploaded files for the provided "file" field key,
      * (aka. the current [*filesystem.File] values) so that you can apply further
      * validations or modifications (including changing the file name or content before persisting).
      *
      * Example:
      *
      * ```
-     * 	files := record.GetUnsavedFiles("documents")
-     * 	for _, f := range files {
-     * 	    f.Name = "doc_" + f.Name // add a prefix to each file name
+     * 	const files = record.getUnsavedFiles("documents")
+     * 	for (const f of files) {
+     * 	    f.name = "doc_" + f.name // add a prefix to each file name
      * 	}
-     * 	app.Save(record) // the files are pointers so the applied changes will transparently reflect on the record value
+     * 	app.save(record) // the files are pointers so the applied changes will transparently reflect on the record value
      * ```
      */
     getUnsavedFiles(key: string): Array<filesystem.File | undefined>;
   }
   interface Record {
     /**
-     * Deprecated: replaced with GetUnsavedFiles.
+     * Deprecated: replaced with getUnsavedFiles.
      */
     getUploadedFiles(key: string): Array<filesystem.File | undefined>;
   }
@@ -13311,17 +13310,15 @@ namespace core {
      * Example
      *
      * ```
-     * 	result := struct {
-     * 	    FirstName string `json:"first_name"`
-     * 	}{}
-     * 	err := m.UnmarshalJSONField("my_field_name", &result)
+     * 	const result = {}
+     * 	m.unmarshalJSONField("my_field_name", result)
      * ```
      */
     unmarshalJSONField(key: string, result: any): void;
   }
   interface Record {
     /**
-     * ExpandedOne retrieves a single relation Record from the already
+     * expandedOne retrieves a single relation Record from the already
      * loaded expand data of the current model.
      *
      * If the requested expand relation is multiple, this method returns
@@ -13333,7 +13330,7 @@ namespace core {
   }
   interface Record {
     /**
-     * ExpandedAll retrieves a slice of relation Records from the already
+     * expandedAll retrieves a slice of relation Records from the already
      * loaded expand data of the current model.
      *
      * If the requested expand relation is single, this method normalizes
@@ -13345,45 +13342,45 @@ namespace core {
   }
   interface Record {
     /**
-     * FindFileFieldByFile returns the first file type field for which
+     * findFileFieldByFile returns the first file type field for which
      * any of the record's data contains the provided filename.
      */
     findFileFieldByFile(filename: string): FileField;
   }
   interface Record {
     /**
-     * DBExport implements the [DBExporter] interface and returns a key-value
+     * dbExport implements the [DBExporter] interface and returns a key-value
      * map with the data to be persisted when saving the Record in the database.
      */
     dbExport(app: App): _TygojaDict;
   }
   interface Record {
     /**
-     * Hide hides the specified fields from the public safe serialization of the record.
+     * hide hides the specified fields from the public safe serialization of the record.
      */
     hide(...fieldNames: string[]): Record;
   }
   interface Record {
     /**
-     * Unhide forces to unhide the specified fields from the public safe serialization
+     * unhide forces to unhide the specified fields from the public safe serialization
      * of the record (even when the collection field itself is marked as hidden).
      */
     unhide(...fieldNames: string[]): Record;
   }
   interface Record {
     /**
-     * PublicExport exports only the record fields that are safe to be public.
+     * publicExport exports only the record fields that are safe to be public.
      *
-     * To export unknown data fields you need to set record.WithCustomData(true).
+     * To export unknown data fields you need to set record.withCustomData(true).
      *
      * For auth records, to force the export of the email field you need to set
-     * record.IgnoreEmailVisibility(true).
+     * record.ignoreEmailVisibility(true).
      */
     publicExport(): _TygojaDict;
   }
   interface Record {
     /**
-     * MarshalJSON implements the [json.Marshaler] interface.
+     * marshalJSON implements the [json.Marshaler] interface.
      *
      * Only the data exported by `PublicExport()` will be serialized.
      */
@@ -13391,13 +13388,13 @@ namespace core {
   }
   interface Record {
     /**
-     * UnmarshalJSON implements the [json.Unmarshaler] interface.
+     * unmarshalJSON implements the [json.Unmarshaler] interface.
      */
     unmarshalJSON(data: string | Array<number>): void;
   }
   interface Record {
     /**
-     * ReplaceModifiers returns a new map with applied modifier
+     * replaceModifiers returns a new map with applied modifier
      * values based on the current record and the specified data.
      *
      * The resolved modifier keys will be removed.
@@ -13411,7 +13408,7 @@ namespace core {
      * Example usage:
      *
      * ```
-     * 	 newData := record.ReplaceModifiers(data)
+     * 	 const newData = record.replaceModifiers(data)
      * 		// record: {"field": 10}
      * 		// data:   {"field+": 5}
      * 		// result: {"field": 15}
@@ -13421,13 +13418,13 @@ namespace core {
   }
   interface Record {
     /**
-     * Email returns the "email" record field value (usually available with Auth collections).
+     * email returns the "email" record field value (usually available with Auth collections).
      */
     email(): string;
   }
   interface Record {
     /**
-     * SetEmail sets the "email" record field value (usually available with Auth collections).
+     * setEmail sets the "email" record field value (usually available with Auth collections).
      */
     setEmail(email: string): void;
   }
@@ -13439,49 +13436,49 @@ namespace core {
   }
   interface Record {
     /**
-     * SetEmailVisibility sets the "emailVisibility" record field value (usually available with Auth collections).
+     * setEmailVisibility sets the "emailVisibility" record field value (usually available with Auth collections).
      */
     setEmailVisibility(visible: boolean): void;
   }
   interface Record {
     /**
-     * Verified returns the "verified" record field value (usually available with Auth collections).
+     * verified returns the "verified" record field value (usually available with Auth collections).
      */
     verified(): boolean;
   }
   interface Record {
     /**
-     * SetVerified sets the "verified" record field value (usually available with Auth collections).
+     * setVerified sets the "verified" record field value (usually available with Auth collections).
      */
     setVerified(verified: boolean): void;
   }
   interface Record {
     /**
-     * TokenKey returns the "tokenKey" record field value (usually available with Auth collections).
+     * tokenKey returns the "tokenKey" record field value (usually available with Auth collections).
      */
     tokenKey(): string;
   }
   interface Record {
     /**
-     * SetTokenKey sets the "tokenKey" record field value (usually available with Auth collections).
+     * setTokenKey sets the "tokenKey" record field value (usually available with Auth collections).
      */
     setTokenKey(key: string): void;
   }
   interface Record {
     /**
-     * RefreshTokenKey generates and sets a new random auth record "tokenKey".
+     * refreshTokenKey generates and sets a new random auth record "tokenKey".
      */
     refreshTokenKey(): void;
   }
   interface Record {
     /**
-     * SetPassword sets the "password" record field value (usually available with Auth collections).
+     * setPassword sets the "password" record field value (usually available with Auth collections).
      */
     setPassword(password: string): void;
   }
   interface Record {
     /**
-     * SetRandomPassword sets the "password" auth record field to a random autogenerated value.
+     * setRandomPassword sets the "password" auth record field to a random autogenerated value.
      *
      * The autogenerated password is ~30 characters and it is set directly as hash,
      * aka. the field plain password value validators (length, pattern, etc.) are ignored
@@ -13491,7 +13488,7 @@ namespace core {
   }
   interface Record {
     /**
-     * ValidatePassword validates a plain password against the "password" record field.
+     * validatePassword validates a plain password against the "password" record field.
      *
      * Returns false if the password is incorrect.
      */
@@ -13499,7 +13496,7 @@ namespace core {
   }
   interface Record {
     /**
-     * IsSuperuser returns whether the current record is a superuser, aka.
+     * isSuperuser returns whether the current record is a superuser, aka.
      * whether the record is from the _superusers collection.
      */
     isSuperuser(): boolean;
@@ -13514,11 +13511,11 @@ namespace core {
   interface RecordProxy {
     [key: string]: any;
     /**
-     * ProxyRecord returns the proxied Record model.
+     * proxyRecord returns the proxied Record model.
      */
     proxyRecord(): Record;
     /**
-     * SetProxyRecord loads the specified record model into the current proxy.
+     * setProxyRecord loads the specified record model into the current proxy.
      */
     setProxyRecord(record: Record): void;
   }
@@ -13530,19 +13527,19 @@ namespace core {
   interface BaseRecordProxy extends _sGcFPDy {}
   interface BaseRecordProxy {
     /**
-     * ProxyRecord returns the proxied Record model.
+     * proxyRecord returns the proxied Record model.
      */
     proxyRecord(): Record;
   }
   interface BaseRecordProxy {
     /**
-     * SetProxyRecord loads the specified record model into the current proxy.
+     * setProxyRecord loads the specified record model into the current proxy.
      */
     setProxyRecord(record: Record): void;
   }
   interface BaseApp {
     /**
-     * RecordQuery returns a new Record select query from a collection model, id or name.
+     * recordQuery returns a new Record select query from a collection model, id or name.
      *
      * In case a collection id or name is provided and that collection doesn't
      * actually exists, the generated query will be created with a cancelled context
@@ -13552,13 +13549,13 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * FindRecordById finds the Record model by its id.
+     * findRecordById finds the Record model by its id.
      */
     findRecordById(collectionModelOrIdentifier: any, recordId: string, ...optFilters: ((q: dbx.SelectQuery) => void)[]): Record;
   }
   interface BaseApp {
     /**
-     * FindRecordsByIds finds all records by the specified ids.
+     * findRecordsByIds finds all records by the specified ids.
      * If no records are found, returns an empty slice.
      */
     findRecordsByIds(
@@ -13569,7 +13566,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * FindAllRecords finds all records matching specified db expressions.
+     * findAllRecords finds all records matching specified db expressions.
      *
      * Returns all collection records if no expression is provided.
      *
@@ -13579,29 +13576,29 @@ namespace core {
      *
      * ```
      * 	// no extra expressions
-     * 	app.FindAllRecords("example")
+     * 	app.findAllRecords("example")
      *
      * 	// with extra expressions
-     * 	expr1 := dbx.HashExp{"email": "test@example.com"}
-     * 	expr2 := dbx.NewExp("LOWER(username) = {:username}", dbx.Params{"username": "test"})
-     * 	app.FindAllRecords("example", expr1, expr2)
+     * 	const expr1 = $dbx.hashExp({ email: "test@example.com" })
+     * 	const expr2 = $dbx.exp("LOWER(username) = {:username}", { username: "test" })
+     * 	app.findAllRecords("example", expr1, expr2)
      * ```
      */
     findAllRecords(collectionModelOrIdentifier: any, ...exprs: dbx.Expression[]): Array<Record | undefined>;
   }
   interface BaseApp {
     /**
-     * FindFirstRecordByData returns the first found record matching
+     * findFirstRecordByData returns the first found record matching
      * the provided key-value pair.
      */
     findFirstRecordByData(collectionModelOrIdentifier: any, key: string, value: any): Record;
   }
   interface BaseApp {
     /**
-     * FindRecordsByFilter returns limit number of records matching the
+     * findRecordsByFilter returns limit number of records matching the
      * provided string filter.
      *
-     * NB! Use the last "params" argument to bind untrusted user variables!
+     * NB! use the last "params" argument to bind untrusted user variables!
      *
      * The filter argument is optional and can be empty string to target
      * all available records.
@@ -13617,13 +13614,13 @@ namespace core {
      * Example:
      *
      * ```
-     * 	app.FindRecordsByFilter(
+     * 	app.findRecordsByFilter(
      * 		"posts",
      * 		"title ~ {:title} && visible = {:visible}",
      * 		"-created",
      * 		10,
      * 		0,
-     * 		dbx.Params{"title": "lorem ipsum", "visible": true}
+     * 		{ title: "lorem ipsum", visible: true }
      * 	)
      * ```
      */
@@ -13638,30 +13635,30 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * FindFirstRecordByFilter returns the first available record matching the provided filter (if any).
+     * findFirstRecordByFilter returns the first available record matching the provided filter (if any).
      *
-     * NB! Use the last params argument to bind untrusted user variables!
+     * NB! use the last params argument to bind untrusted user variables!
      *
      * Returns sql.ErrNoRows if no record is found.
      *
      * Example:
      *
      * ```
-     * 	app.FindFirstRecordByFilter("posts", "")
-     * 	app.FindFirstRecordByFilter("posts", "slug={:slug} && status='public'", dbx.Params{"slug": "test"})
+     * 	app.findFirstRecordByFilter("posts", "")
+     * 	app.findFirstRecordByFilter("posts", "slug={:slug} && status='public'", { slug: "test" })
      * ```
      */
     findFirstRecordByFilter(collectionModelOrIdentifier: any, filter: string, ...params: dbx.Params[]): Record;
   }
   interface BaseApp {
     /**
-     * CountRecords returns the total number of records in a collection.
+     * countRecords returns the total number of records in a collection.
      */
     countRecords(collectionModelOrIdentifier: any, ...exprs: dbx.Expression[]): number;
   }
   interface BaseApp {
     /**
-     * FindAuthRecordByToken finds the auth record associated with the provided JWT
+     * findAuthRecordByToken finds the auth record associated with the provided JWT
      * (auth, file, verifyEmail, changeEmail, passwordReset types).
      *
      * Optionally specify a list of validTypes to check tokens only from those types.
@@ -13672,7 +13669,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * FindAuthRecordByEmail finds the auth record associated with the provided email.
+     * findAuthRecordByEmail finds the auth record associated with the provided email.
      *
      * The email check would be case-insensitive if the related collection
      * email unique index has COLLATE NOCASE specified for the email column.
@@ -13683,10 +13680,10 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * CanAccessRecord checks if a record is allowed to be accessed by the
+     * canAccessRecord checks if a record is allowed to be accessed by the
      * specified requestInfo and accessRule.
      *
-     * Rule and db checks are ignored in case requestInfo.Auth is a superuser.
+     * Rule and db checks are ignored in case requestInfo.auth is a superuser.
      *
      * The returned error indicate that something unexpected happened during
      * the check (eg. invalid rule or db query error).
@@ -13696,12 +13693,12 @@ namespace core {
      * Example:
      *
      * ```
-     * 	requestInfo, _ := e.RequestInfo()
-     * 	record, _ := app.FindRecordById("example", "RECORD_ID")
-     * 	rule := types.Pointer("@request.auth.id != '' || status = 'public'")
-     * 	// ... or use one of the record collection's rule, eg. record.Collection().ViewRule
+     * 	const requestInfo = e.requestInfo()
+     * 	const record = app.findRecordById("example", "RECORD_ID")
+     * 	const rule = "@request.auth.id != '' || status = 'public'"
+     * 	// ... or use one of the record collection's rule, eg. record.collection().viewRule
      *
-     * 	if ok, _ := app.CanAccessRecord(record, requestInfo, rule); ok { ... }
+     * 	if (app.canAccessRecord(record, requestInfo, rule)) { ... }
      * ```
      */
     canAccessRecord(record: Record, requestInfo: RequestInfo, accessRule: string): boolean;
@@ -13714,7 +13711,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * ExpandRecord expands the relations of a single Record model.
+     * expandRecord expands the relations of a single Record model.
      *
      * If optFetchFunc is not set, then a default function will be used
      * that returns all relation records.
@@ -13725,7 +13722,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * ExpandRecords expands the relations of the provided Record models list.
+     * expandRecords expands the relations of the provided Record models list.
      *
      * If optFetchFunc is not set, then a default function will be used
      * that returns all relation records.
@@ -13736,7 +13733,7 @@ namespace core {
   }
   interface Record {
     /**
-     * NewStaticAuthToken generates and returns a new static record authentication token.
+     * newStaticAuthToken generates and returns a new static record authentication token.
      *
      * Static auth tokens are similar to the regular auth tokens, but are
      * non-refreshable and support custom duration.
@@ -13747,37 +13744,37 @@ namespace core {
   }
   interface Record {
     /**
-     * NewAuthToken generates and returns a new record authentication token.
+     * newAuthToken generates and returns a new record authentication token.
      */
     newAuthToken(): string;
   }
   interface Record {
     /**
-     * NewVerificationToken generates and returns a new record verification token.
+     * newVerificationToken generates and returns a new record verification token.
      */
     newVerificationToken(): string;
   }
   interface Record {
     /**
-     * NewPasswordResetToken generates and returns a new auth record password reset request token.
+     * newPasswordResetToken generates and returns a new auth record password reset request token.
      */
     newPasswordResetToken(): string;
   }
   interface Record {
     /**
-     * NewEmailChangeToken generates and returns a new auth record change email request token.
+     * newEmailChangeToken generates and returns a new auth record change email request token.
      */
     newEmailChangeToken(newEmail: string): string;
   }
   interface Record {
     /**
-     * NewFileToken generates and returns a new record private file access token.
+     * newFileToken generates and returns a new record private file access token.
      */
     newFileToken(): string;
   }
   interface settings {
     /**
-     * SuperuserIPs defines an optional list of the superuser allowed
+     * superuserIPs defines an optional list of the superuser allowed
      * individual IPs and subnets (in CIDR notation).
      */
     superuserIPs: Array<string>;
@@ -13797,80 +13794,80 @@ namespace core {
   interface Settings extends _sjTIroR {}
   interface Settings {
     /**
-     * TableName implements [Model.TableName] interface method.
+     * tableName implements [Model.tableName] interface method.
      */
     tableName(): string;
   }
   interface Settings {
     /**
-     * PK implements [Model.LastSavedPK] interface method.
+     * PK implements [Model.lastSavedPK] interface method.
      */
     lastSavedPK(): any;
   }
   interface Settings {
     /**
-     * PK implements [Model.PK] interface method.
+     * pk implements [Model.pk] interface method.
      */
     pk(): any;
   }
   interface Settings {
     /**
-     * IsNew implements [Model.IsNew] interface method.
+     * isNew implements [Model.isNew] interface method.
      */
     isNew(): boolean;
   }
   interface Settings {
     /**
-     * MarkAsNew implements [Model.MarkAsNew] interface method.
+     * markAsNew implements [Model.markAsNew] interface method.
      */
     markAsNew(): void;
   }
   interface Settings {
     /**
-     * MarkAsNew implements [Model.MarkAsNotNew] interface method.
+     * MarkAsNew implements [Model.markAsNotNew] interface method.
      */
     markAsNotNew(): void;
   }
   interface Settings {
     /**
-     * PostScan implements [Model.PostScan] interface method.
+     * postScan implements [Model.postScan] interface method.
      */
     postScan(): void;
   }
   interface Settings {
     /**
-     * String returns a serialized string representation of the current settings.
+     * string returns a serialized string representation of the current settings.
      */
     string(): string;
   }
   interface Settings {
     /**
-     * DBExport prepares and exports the current settings for db persistence.
+     * dbExport prepares and exports the current settings for db persistence.
      */
     dbExport(app: App): _TygojaDict;
   }
   interface Settings {
     /**
-     * PostValidate implements the [PostValidator] interface and defines
+     * postValidate implements the [PostValidator] interface and defines
      * the Settings model validations.
      */
     postValidate(ctx: context.Context, app: App): void;
   }
   interface Settings {
     /**
-     * Merge merges the "other" settings into the current one.
+     * merge merges the "other" settings into the current one.
      */
     merge(other: Settings): void;
   }
   interface Settings {
     /**
-     * Clone creates a new deep copy of the current settings.
+     * clone creates a new deep copy of the current settings.
      */
     clone(): Settings;
   }
   interface Settings {
     /**
-     * MarshalJSON implements the [json.Marshaler] interface.
+     * marshalJSON implements the [json.Marshaler] interface.
      *
      * Note that sensitive fields (S3 secret, SMTP password, etc.) are excluded.
      */
@@ -13894,7 +13891,7 @@ namespace core {
      */
     tls: boolean;
     /**
-     * LocalName is optional domain name or IP address used for the
+     * localName is optional domain name or IP address used for the
      * EHLO/HELO exchange (if not explicitly set, defaults to "localhost").
      *
      * This is required only by some SMTP servers, such as Gmail SMTP-relay.
@@ -13903,7 +13900,7 @@ namespace core {
   }
   interface SMTPConfig {
     /**
-     * Validate makes SMTPConfig validatable by implementing [validation.Validatable] interface.
+     * validate makes SMTPConfig validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
@@ -13918,22 +13915,22 @@ namespace core {
   }
   interface S3Config {
     /**
-     * Validate makes S3Config validatable by implementing [validation.Validatable] interface.
+     * validate makes S3Config validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface BatchConfig {
     enabled: boolean;
     /**
-     * MaxRequests is the maximum allowed batch request to execute.
+     * maxRequests is the maximum allowed batch request to execute.
      */
     maxRequests: number;
     /**
-     * Timeout is the max duration in seconds to wait before cancelling the batch transaction.
+     * timeout is the max duration in seconds to wait before cancelling the batch transaction.
      */
     timeout: number;
     /**
-     * MaxBodySize is the maximum allowed batch request body size in bytes.
+     * maxBodySize is the maximum allowed batch request body size in bytes.
      *
      * If not set, fallbacks to max ~128MB.
      */
@@ -13941,32 +13938,32 @@ namespace core {
   }
   interface BatchConfig {
     /**
-     * Validate makes BatchConfig validatable by implementing [validation.Validatable] interface.
+     * validate makes BatchConfig validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface BackupsConfig {
     /**
-     * Cron is a Bun cron expression to schedule auto backups, eg. "* * * * *" or "0 9 * * MON-FRI".
+     * cron is a Bun cron expression to schedule auto backups, eg. "* * * * *" or "0 9 * * MON-FRI".
      *
      * Leave it empty to disable the auto backups functionality.
      */
     cron: string;
     /**
-     * CronMaxKeep is the max number of cron generated backups to
+     * cronMaxKeep is the max number of cron generated backups to
      * keep before removing older entries.
      *
      * This field works only when the cron config has valid cron expression.
      */
     cronMaxKeep: number;
     /**
-     * S3 is an optional S3 storage config specifying where to store the app backups.
+     * s3 is an optional S3 storage config specifying where to store the app backups.
      */
     s3: S3Config;
   }
   interface BackupsConfig {
     /**
-     * Validate makes BackupsConfig validatable by implementing [validation.Validatable] interface.
+     * validate makes BackupsConfig validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
@@ -13974,7 +13971,7 @@ namespace core {
     /**
      * @todo experimental
      *
-     * AccentColor specify the UI "accent" color (HEX).
+     * accentColor specify the UI "accent" color (HEX).
      */
     accentColor: string;
     appName: string;
@@ -13985,7 +13982,7 @@ namespace core {
   }
   interface MetaConfig {
     /**
-     * Validate makes MetaConfig validatable by implementing [validation.Validatable] interface.
+     * validate makes MetaConfig validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
@@ -13997,17 +13994,17 @@ namespace core {
   }
   interface LogsConfig {
     /**
-     * Validate makes LogsConfig validatable by implementing [validation.Validatable] interface.
+     * validate makes LogsConfig validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface TrustedProxyConfig {
     /**
-     * Headers is a list of explicit trusted header(s) to check.
+     * headers is a list of explicit trusted header(s) to check.
      */
     headers: Array<string>;
     /**
-     * UseLeftmostIP specifies to use the left-mostish IP from the trusted headers.
+     * useLeftmostIP specifies to use the left-mostish IP from the trusted headers.
      *
      * Note that this could be insecure when used with X-Forwarded-For header
      * because some proxies like AWS ELB allow users to prepend their own header value
@@ -14017,13 +14014,13 @@ namespace core {
   }
   interface TrustedProxyConfig {
     /**
-     * MarshalJSON implements the [json.Marshaler] interface.
+     * marshalJSON implements the [json.Marshaler] interface.
      */
     marshalJSON(): string | Array<number>;
   }
   interface TrustedProxyConfig {
     /**
-     * Validate makes RateLimitRule validatable by implementing [validation.Validatable] interface.
+     * validate makes RateLimitRule validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
@@ -14034,7 +14031,7 @@ namespace core {
   }
   interface RateLimitsConfig {
     /**
-     * FindRateLimitRule returns the first matching rule based on the provided labels.
+     * findRateLimitRule returns the first matching rule based on the provided labels.
      *
      * Optionally you can further specify a list of valid RateLimitRule.Audience values to further filter the matching rule
      * (aka. the rule Audience will have to exist in one of the specified options).
@@ -14043,19 +14040,19 @@ namespace core {
   }
   interface RateLimitsConfig {
     /**
-     * MarshalJSON implements the [json.Marshaler] interface.
+     * marshalJSON implements the [json.Marshaler] interface.
      */
     marshalJSON(): string | Array<number>;
   }
   interface RateLimitsConfig {
     /**
-     * Validate makes RateLimitsConfig validatable by implementing [validation.Validatable] interface.
+     * validate makes RateLimitsConfig validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface RateLimitRule {
     /**
-     * Label is the identifier of the current rule.
+     * label is the identifier of the current rule.
      *
      * It could be a tag, complete path or path prerefix (when ends with `/`).
      *
@@ -14071,7 +14068,7 @@ namespace core {
      */
     label: string;
     /**
-     * Audience specifies the auth group the rule should apply for:
+     * audience specifies the auth group the rule should apply for:
      * ```
      *   - ""      - both guests and authenticated users (default)
      *   - "@guest" - only for guests
@@ -14080,30 +14077,30 @@ namespace core {
      */
     audience: string;
     /**
-     * Duration specifies the interval (in seconds) per which to reset
+     * duration specifies the interval (in seconds) per which to reset
      * the counted/accumulated rate limiter tokens.
      */
     duration: number;
     /**
-     * MaxRequests is the max allowed number of requests per Duration.
+     * maxRequests is the max allowed number of requests per Duration.
      */
     maxRequests: number;
   }
   interface RateLimitRule {
     /**
-     * Validate makes RateLimitRule validatable by implementing [validation.Validatable] interface.
+     * validate makes RateLimitRule validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface RateLimitRule {
     /**
-     * DurationTime returns the tag's Duration as [time.Duration].
+     * durationTime returns the tag's Duration as [time.Duration].
      */
     durationTime(): time.Duration;
   }
   interface RateLimitRule {
     /**
-     * String returns a string representation of the rule.
+     * string returns a string representation of the rule.
      */
     string(): string;
   }
@@ -14118,7 +14115,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * ReloadSettings initializes and reloads the stored application settings.
+     * reloadSettings initializes and reloads the stored application settings.
      *
      * If no settings were stored it will persist the current app ones.
      */
@@ -14126,7 +14123,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * DeleteView drops the specified view name.
+     * deleteView drops the specified view name.
      *
      * This method is a no-op if a view with the provided name doesn't exist.
      *
@@ -14137,7 +14134,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * SaveView creates (or updates already existing) persistent SQL view.
+     * saveView creates (or updates already existing) persistent SQL view.
      *
      * NB! Be aware that this method is vulnerable to SQL injection and
      * its arguments must come only from trusted input!
@@ -14146,7 +14143,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * CreateViewFields creates a new FieldsList from the provided select query.
+     * createViewFields creates a new FieldsList from the provided select query.
      *
      * There are some caveats:
      * - The select query must have an "id" column.
@@ -14166,7 +14163,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * DryRunView executes the provided query by creating a temporary view
+     * dryRunView executes the provided query by creating a temporary view
      * collection and returning a sample of the resulting query records (if valid).
      *
      * PocketBun exposes this as an async method.
@@ -14180,7 +14177,7 @@ namespace core {
   }
   interface BaseApp {
     /**
-     * FindRecordByViewFile returns the original Record of the provided view collection file.
+     * findRecordByViewFile returns the original Record of the provided view collection file.
      */
     findRecordByViewFile(viewCollectionModelOrIdentifier: any, fileFieldName: string, filename: string): Record;
   }
@@ -14238,26 +14235,26 @@ namespace forms {
    */
   interface AppleClientSecretCreate {
     /**
-     * ClientId is the identifier of your app (aka. Service ID).
+     * clientId is the identifier of your app (aka. Service ID).
      */
     clientId: string;
     /**
-     * TeamId is a 10-character string associated with your developer account
+     * teamId is a 10-character string associated with your developer account
      * (usually could be found next to your name in the Apple Developer site).
      */
     teamId: string;
     /**
-     * KeyId is a 10-character key identifier generated for the "Sign in with Apple"
+     * keyId is a 10-character key identifier generated for the "Sign in with Apple"
      * private key associated with your developer account.
      */
     keyId: string;
     /**
-     * PrivateKey is the private key associated to your app.
+     * privateKey is the private key associated to your app.
      * Usually wrapped within -----BEGIN PRIVATE KEY----- X -----END PRIVATE KEY-----.
      */
     privateKey: string;
     /**
-     * Duration specifies how long the generated JWT should be considered valid.
+     * duration specifies how long the generated JWT should be considered valid.
      * The specified value must be in seconds and max 15777000 (~6months).
      */
     duration: number;
@@ -14271,13 +14268,13 @@ namespace forms {
   }
   interface AppleClientSecretCreate {
     /**
-     * Validate makes the form validatable by implementing [validation.Validatable] interface.
+     * validate makes the form validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface AppleClientSecretCreate {
     /**
-     * Submit validates the form and returns a new Apple Client Secret JWT.
+     * submit validates the form and returns a new Apple Client Secret JWT.
      */
     submit(): string;
   }
@@ -14285,19 +14282,19 @@ namespace forms {
   interface newRecordUpsert {
     /**
      * NewRecordUpsert creates a new [RecordUpsert] form from the provided [CoreApp] and [core.Record] instances
-     * (for create you could pass a pointer to an empty Record - core.NewRecord(collection)).
+     * (for create you could pass a pointer to an empty Record - new Record(collection)).
      */
     (app: CoreApp, record: core.Record): RecordUpsert;
   }
   interface RecordUpsert {
     /**
-     * SetContext assigns ctx as context of the current form.
+     * setContext assigns ctx as context of the current form.
      */
     setContext(ctx: context.Context): void;
   }
   interface RecordUpsert {
     /**
-     * SetApp replaces the current form app instance.
+     * setApp replaces the current form app instance.
      *
      * This could be used for example if you want to change at later stage
      * before submission to change from regular -> transactional app instance.
@@ -14306,39 +14303,39 @@ namespace forms {
   }
   interface RecordUpsert {
     /**
-     * SetRecord replaces the current form record instance.
+     * setRecord replaces the current form record instance.
      */
     setRecord(record: core.Record): void;
   }
   interface RecordUpsert {
     /**
-     * ResetAccess resets the form access level to the accessLevelDefault.
+     * resetAccess resets the form access level to the accessLevelDefault.
      */
     resetAccess(): void;
   }
   interface RecordUpsert {
     /**
-     * GrantManagerAccess updates the form access level to "manager" allowing
+     * grantManagerAccess updates the form access level to "manager" allowing
      * directly changing some system record fields (often used with auth collection records).
      */
     grantManagerAccess(): void;
   }
   interface RecordUpsert {
     /**
-     * GrantSuperuserAccess updates the form access level to "superuser" allowing
+     * grantSuperuserAccess updates the form access level to "superuser" allowing
      * directly changing all system record fields, including those marked as "Hidden".
      */
     grantSuperuserAccess(): void;
   }
   interface RecordUpsert {
     /**
-     * HasManageAccess reports whether the form has "manager" or "superuser" level access.
+     * hasManageAccess reports whether the form has "manager" or "superuser" level access.
      */
     hasManageAccess(): boolean;
   }
   interface RecordUpsert {
     /**
-     * Load loads the provided data into the form and the related record.
+     * load loads the provided data into the form and the related record.
      */
     load(data: _TygojaDict): void;
   }
@@ -14346,8 +14343,8 @@ namespace forms {
     /**
      * Deprecated: It was previously used as part of the record create action but it is not needed anymore and will be removed in the future.
      *
-     * DrySubmit performs a temp form submit within a transaction and reverts it at the end.
-     * For actual record persistence, check the [RecordUpsert.Submit()] method.
+     * drySubmit performs a temp form submit within a transaction and reverts it at the end.
+     * For actual record persistence, check the [RecordUpsert.submit()] method.
      *
      * This method doesn't perform validations, handle file uploads/deletes or trigger app save events!
      */
@@ -14355,7 +14352,7 @@ namespace forms {
   }
   interface RecordUpsert {
     /**
-     * Submit validates the form specific validations and attempts to save the form record.
+     * submit validates the form specific validations and attempts to save the form record.
      */
     submit(): void;
   }
@@ -14375,13 +14372,13 @@ namespace forms {
   }
   interface TestEmailSend {
     /**
-     * Validate makes the form validatable by implementing [validation.Validatable] interface.
+     * validate makes the form validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface TestEmailSend {
     /**
-     * Submit validates and sends a test email to the form.Email address.
+     * submit validates and sends a test email to the form.email address.
      */
     submit(): void;
   }
@@ -14402,13 +14399,13 @@ namespace forms {
   }
   interface TestS3Filesystem {
     /**
-     * Validate makes the form validatable by implementing [validation.Validatable] interface.
+     * validate makes the form validatable by implementing [validation.Validatable] interface.
      */
     validate(): void;
   }
   interface TestS3Filesystem {
     /**
-     * Submit validates and performs a S3 filesystem connection test.
+     * submit validates and performs a S3 filesystem connection test.
      */
     submit(): void;
   }
@@ -14423,43 +14420,43 @@ namespace apis {
   }
   interface newApiError {
     /**
-     * NewApiError is an alias for [router.NewApiError].
+     * NewApiError is an alias for [router.newApiError].
      */
     (status: number, message: string, errData: any): router.ApiError;
   }
   interface newBadRequestError {
     /**
-     * NewBadRequestError is an alias for [router.NewBadRequestError].
+     * NewBadRequestError is an alias for [router.newBadRequestError].
      */
     (message: string, errData: any): router.ApiError;
   }
   interface newNotFoundError {
     /**
-     * NewNotFoundError is an alias for [router.NewNotFoundError].
+     * NewNotFoundError is an alias for [router.newNotFoundError].
      */
     (message: string, errData: any): router.ApiError;
   }
   interface newForbiddenError {
     /**
-     * NewForbiddenError is an alias for [router.NewForbiddenError].
+     * NewForbiddenError is an alias for [router.newForbiddenError].
      */
     (message: string, errData: any): router.ApiError;
   }
   interface newUnauthorizedError {
     /**
-     * NewUnauthorizedError is an alias for [router.NewUnauthorizedError].
+     * NewUnauthorizedError is an alias for [router.newUnauthorizedError].
      */
     (message: string, errData: any): router.ApiError;
   }
   interface newTooManyRequestsError {
     /**
-     * NewTooManyRequestsError is an alias for [router.NewTooManyRequestsError].
+     * NewTooManyRequestsError is an alias for [router.newTooManyRequestsError].
      */
     (message: string, errData: any): router.ApiError;
   }
   interface newInternalServerError {
     /**
-     * NewInternalServerError is an alias for [router.NewInternalServerError].
+     * NewInternalServerError is an alias for [router.newInternalServerError].
      */
     (message: string, errData: any): router.ApiError;
   }
@@ -14478,19 +14475,19 @@ namespace apis {
   }
   interface newRouter {
     /**
-     * NewRouter returns a new router instance loaded with the default app middlewares and api routes.
+     * newRouter returns a new router instance loaded with the default app middlewares and api routes.
      */
     (app: CoreApp): router.Router<core.RequestEvent | undefined>;
   }
   interface wrapStdHandler {
     /**
-     * WrapStdHandler wraps Go [http.Handler] into a PocketBase handler func.
+     * wrapStdHandler wraps Go [http.Handler] into a PocketBase handler func.
      */
     (h: http.Handler): (_arg0: core.RequestEvent) => void;
   }
   interface wrapStdMiddleware {
     /**
-     * WrapStdMiddleware wraps Go [func(http.Handler) http.Handle] into a PocketBase middleware func.
+     * wrapStdMiddleware wraps Go [func(http.Handler) http.Handle] into a PocketBase middleware func.
      */
     (m: (_arg0: http.Handler) => http.Handler): (_arg0: core.RequestEvent) => void;
   }
@@ -14520,9 +14517,9 @@ namespace apis {
      *
      * Example:
      *
-     * ```
-     * 	fsys := os.DirFS("./pb_public")
-     * 	router.GET("/files/{path...}", apis.Static(fsys, false))
+     * ```js
+     * const fsys = $os.dirFS("./pb_public")
+     * router.get("/files/{path...}", $apis.static(fsys, false))
      * ```
      */
     (fsys: fs.FS, indexFallback: boolean): (_arg0: core.RequestEvent) => void;
@@ -14579,7 +14576,7 @@ namespace apis {
      * RequireGuestOnly middleware requires a request to NOT have a valid
      * Authorization header.
      *
-     * This middleware is the opposite of [apis.RequireAuth()].
+     * This middleware is the opposite of [apis.requireAuth()].
      */
     (): hook.Handler<core.RequestEvent | undefined>;
   }
@@ -14593,8 +14590,8 @@ namespace apis {
      * Example:
      *
      * ```
-     * 	apis.RequireAuth()                      // any auth collection
-     * 	apis.RequireAuth("_superusers", "users") // only the listed auth collections
+     * 	apis.requireAuth()                      // any auth collection
+     * 	apis.requireAuth("_superusers", "users") // only the listed auth collections
      * ```
      */
     (...optCollectionNames: string[]): hook.Handler<core.RequestEvent | undefined>;
@@ -14611,7 +14608,7 @@ namespace apis {
      * RequireSuperuserOrOwnerAuth middleware requires a request to have
      * a valid superuser or regular record owner Authorization header set.
      *
-     * This middleware is similar to [apis.RequireAuth()] but
+     * This middleware is similar to [apis.requireAuth()] but
      * for the auth record token expects to have the same id as the path
      * parameter ownerIdPathParam (default to "id" if empty).
      */
@@ -14659,7 +14656,7 @@ namespace apis {
    */
   interface CORSConfig {
     /**
-     * AllowOrigins determines the value of the Access-Control-Allow-Origin
+     * allowOrigins determines the value of the Access-Control-Allow-Origin
      * response header.  This header defines a list of origins that may access the
      * resource.  The wildcard characters '*' and '?' are supported and are
      * converted to regex fragments '.*' and '.' accordingly.
@@ -14674,7 +14671,7 @@ namespace apis {
      */
     allowOrigins: Array<string>;
     /**
-     * AllowOriginFunc is a custom function to validate the origin. It takes the
+     * allowOriginFunc is a custom function to validate the origin. It takes the
      * origin as an argument and returns true if allowed or false otherwise. If
      * an error is returned, it is returned by the handler. If this option is
      * set, AllowOrigins is ignored.
@@ -14687,7 +14684,7 @@ namespace apis {
      */
     allowOriginFunc: (origin: string) => boolean;
     /**
-     * AllowMethods determines the value of the Access-Control-Allow-Methods
+     * allowMethods determines the value of the Access-Control-Allow-Methods
      * response header.  This header specified the list of methods allowed when
      * accessing the resource.  This is used in response to a preflight request.
      *
@@ -14697,7 +14694,7 @@ namespace apis {
      */
     allowMethods: Array<string>;
     /**
-     * AllowHeaders determines the value of the Access-Control-Allow-Headers
+     * allowHeaders determines the value of the Access-Control-Allow-Headers
      * response header.  This header is used in response to a preflight request to
      * indicate which HTTP headers can be used when making the actual request.
      *
@@ -14707,7 +14704,7 @@ namespace apis {
      */
     allowHeaders: Array<string>;
     /**
-     * AllowCredentials determines the value of the
+     * allowCredentials determines the value of the
      * Access-Control-Allow-Credentials response header.  This header indicates
      * whether or not the response to the request can be exposed when the
      * credentials mode (Request.credentials) is true. When used as part of a
@@ -14725,7 +14722,7 @@ namespace apis {
      */
     allowCredentials: boolean;
     /**
-     * UnsafeWildcardOriginWithAllowCredentials UNSAFE/INSECURE: allows wildcard '*' origin to be used with AllowCredentials
+     * unsafeWildcardOriginWithAllowCredentials UNSAFE/INSECURE: allows wildcard '*' origin to be used with AllowCredentials
      * flag. In that case we consider any origin allowed and send it back to the client with `Access-Control-Allow-Origin` header.
      *
      * This is INSECURE and potentially leads to [cross-origin](https://portswigger.net/research/exploiting-cors-misconfigurations-for-bitcoins-and-bounties)
@@ -14735,7 +14732,7 @@ namespace apis {
      */
     unsafeWildcardOriginWithAllowCredentials: boolean;
     /**
-     * ExposeHeaders determines the value of Access-Control-Expose-Headers, which
+     * exposeHeaders determines the value of Access-Control-Expose-Headers, which
      * defines a list of headers that clients are allowed to access.
      *
      * Optional. Default value []string{}, in which case the header is not set.
@@ -14744,7 +14741,7 @@ namespace apis {
      */
     exposeHeaders: Array<string>;
     /**
-     * MaxAge determines the value of the Access-Control-Max-Age response header.
+     * maxAge determines the value of the Access-Control-Max-Age response header.
      * This header indicates how long (in seconds) the results of a preflight
      * request can be cached.
      * The header is set only if MaxAge != 0, negative value sends "0" which instructs browsers not to cache that response.
@@ -14846,7 +14843,7 @@ namespace apis {
   }
   interface impersonateForm {
     /**
-     * Duration is the optional custom token duration in seconds.
+     * duration is the optional custom token duration in seconds.
      */
     duration: number;
   }
@@ -14875,7 +14872,7 @@ namespace apis {
     /**
      * @todo
      * deprecated: use AuthURL instead
-     * AuthUrl will be removed after dropping v0.22 support
+     * authUrl will be removed after dropping v0.22 support
      */
     authUrl: string;
     /**
@@ -14941,7 +14938,7 @@ namespace apis {
     /**
      * @todo
      * deprecated: use RedirectURL instead
-     * RedirectUrl will be removed after dropping v0.22 support
+     * redirectUrl will be removed after dropping v0.22 support
      */
     redirectUrl: string;
   }
@@ -14962,7 +14959,7 @@ namespace apis {
     identity: string;
     password: string;
     /**
-     * IdentityField specifies the field to use to search for the identity
+     * identityField specifies the field to use to search for the identity
      * (leave it empty for "auto" detection).
      */
     identityField: string;
@@ -14971,20 +14968,20 @@ namespace apis {
   import cryptoRand = rand;
   interface recordAuthResponse {
     /**
-     * RecordAuthResponse writes standardized json record auth response
+     * recordAuthResponse writes standardized json record auth response
      * into the specified request context.
      *
      * The authMethod argument specify the name of the current authentication method (eg. password, oauth2, etc.)
      * that it is used primarily as an auth identifier during MFA and for login alerts.
      *
      * Set authMethod to empty string if you want to ignore the MFA checks and the login alerts
-     * (can be also adjusted additionally via the OnRecordAuthRequest hook).
+     * (can be also adjusted additionally via the onRecordAuthRequest hook).
      */
     (e: core.RequestEvent, authRecord: core.Record, authMethod: string, meta: any): void;
   }
   interface enrichRecord {
     /**
-     * EnrichRecord parses the request context and enrich the provided record:
+     * enrichRecord parses the request context and enrich the provided record:
      * ```
      *   - expands relations (if defaultExpands and/or ?expand query param is set)
      *   - ensures that the emails of the auth record and its expanded auth relations
@@ -14995,7 +14992,7 @@ namespace apis {
   }
   interface enrichRecords {
     /**
-     * EnrichRecords parses the request context and enriches the provided records:
+     * enrichRecords parses the request context and enriches the provided records:
      * ```
      *   - expands relations (if defaultExpands and/or ?expand query param is set)
      *   - ensures that the emails of the auth records and their expanded auth relations
@@ -15008,19 +15005,19 @@ namespace apis {
   }
   interface iterator<T> {}
   /**
-   * ServeConfig defines a configuration struct for apis.Serve().
+   * ServeConfig defines a configuration struct for apis.serve().
    */
   interface ServeConfig {
     /**
-     * ShowStartBanner indicates whether to show or hide the server start console message.
+     * showStartBanner indicates whether to show or hide the server start console message.
      */
     showStartBanner: boolean;
     /**
-     * HttpAddr is the TCP address to listen for the HTTP server (eg. "127.0.0.1:80").
+     * httpAddr is the TCP address to listen for the HTTP server (eg. "127.0.0.1:80").
      */
     httpAddr: string;
     /**
-     * HttpsAddr is the TCP address to listen for the HTTPS server (eg. "127.0.0.1:443").
+     * httpsAddr is the TCP address to listen for the HTTPS server (eg. "127.0.0.1:443").
      */
     httpsAddr: string;
     /**
@@ -15033,7 +15030,7 @@ namespace apis {
      */
     certificateDomains: Array<string>;
     /**
-     * AllowedOrigins is an optional list of CORS origins (default to "*").
+     * allowedOrigins is an optional list of CORS origins (default to "*").
      */
     allowedOrigins: Array<string>;
   }
@@ -15046,8 +15043,8 @@ namespace apis {
      * Example:
      *
      * ```
-     * 	app.Bootstrap()
-     * 	apis.Serve(app, apis.ServeConfig{
+     * 	app.bootstrap()
+     * 	apis.serve(app, apis.ServeConfig{
      * 		HttpAddr:        "127.0.0.1:8080",
      * 		ShowStartBanner: false,
      * 	})
@@ -15070,20 +15067,18 @@ namespace apis {
  *
  * Example:
  *
- * ```
- * 	registry := template.NewRegistry()
+ * ```js
+ * const html1 = $template.loadFiles(
+ *     // the files set wil be parsed only once and then cached
+ *     "layout.html",
+ *     "content.html",
+ * ).render({ name: "John" })
  *
- * 	html1, err := registry.LoadFiles(
- * 		// the files set wil be parsed only once and then cached
- * 		"layout.html",
- * 		"content.html",
- * 	).Render(map[string]any{"name": "John"})
- *
- * 	html2, err := registry.LoadFiles(
- * 		// reuse the already parsed and cached files set
- * 		"layout.html",
- * 		"content.html",
- * 	).Render(map[string]any{"name": "Jane"})
+ * const html2 = $template.loadFiles(
+ *     // reuse the already parsed and cached files set
+ *     "layout.html",
+ *     "content.html",
+ * ).render({ name: "Jane" })
  * ```
  */
 namespace template {
@@ -15092,19 +15087,19 @@ namespace template {
      * NewRegistry creates and initializes a new templates registry with
      * some defaults (eg. global "raw" template function for unescaped HTML).
      *
-     * Use the Registry.Load* methods to load templates into the registry.
+     * Use the Registry.load* methods to load templates into the registry.
      */
     (): Registry;
   }
   /**
    * Registry defines a templates registry that is safe to be used by multiple goroutines.
    *
-   * Use the Registry.Load* methods to load templates into the registry.
+   * Use the Registry.load* methods to load templates into the registry.
    */
   interface Registry {}
   interface Registry {
     /**
-     * AddFuncs registers new global template functions.
+     * addFuncs registers new global template functions.
      *
      * The key of each map entry is the function name that will be used in the templates.
      * If a function with the map entry name already exists it will be replaced with the new one.
@@ -15114,20 +15109,17 @@ namespace template {
      *
      * Example:
      *
-     * ```
-     * 	r.AddFuncs(map[string]any{
-     * 	  "toUpper": func(str string) string {
-     * 	      return strings.ToUppser(str)
-     * 	  },
-     * 	  ...
-     * 	})
+     * ```js
+     * $template.addFuncs({
+     *     toUpper: (str) => str.toUpperCase(),
+     * })
      * ```
      */
     addFuncs(funcs: _TygojaDict): Registry;
   }
   interface Registry {
     /**
-     * LoadFiles caches (if not already) the specified filenames set as a
+     * loadFiles caches (if not already) the specified filenames set as a
      * single template and returns a ready to use Renderer instance.
      *
      * There must be at least 1 filename specified.
@@ -15136,14 +15128,14 @@ namespace template {
   }
   interface Registry {
     /**
-     * LoadString caches (if not already) the specified inline string as a
+     * loadString caches (if not already) the specified inline string as a
      * single template and returns a ready to use Renderer instance.
      */
     loadString(text: string): Renderer;
   }
   interface Registry {
     /**
-     * LoadFS caches (if not already) the specified fs and globPatterns
+     * loadFS caches (if not already) the specified fs and globPatterns
      * pair as single template and returns a ready to use Renderer instance.
      *
      * There must be at least 1 file matching the provided globPattern(s)
@@ -15157,7 +15149,7 @@ namespace template {
   interface Renderer {}
   interface Renderer {
     /**
-     * Render executes the template with the specified data as the dot object
+     * render executes the template with the specified data as the dot object
      * and returns the result as plain string.
      */
     render(data: any): string;
@@ -15169,7 +15161,7 @@ namespace pocketbase {
    * PocketBase defines a PocketBase app launcher.
    *
    * It implements [CoreApp] via embedding and all of the app interface methods
-   * could be accessed directly through the instance (eg. PocketBase.DataDir()).
+   * could be accessed directly through the instance (eg. PocketBase.dataDir()).
    */
   type _spLGfrP = CoreApp;
   interface PocketBase extends _spLGfrP {
@@ -15209,9 +15201,9 @@ namespace pocketbase {
      *
      * Note that the application will not be initialized/bootstrapped yet,
      * aka. DB connections, migrations, app settings, etc. will not be accessible.
-     * Everything will be initialized when [PocketBase.Start] is executed.
-     * If you want to initialize the application before calling [PocketBase.Start],
-     * then you'll have to manually call [PocketBase.Bootstrap].
+     * Everything will be initialized when [PocketBase.start] is executed.
+     * If you want to initialize the application before calling [PocketBase.start],
+     * then you'll have to manually call [PocketBase.bootstrap].
      */
     (): PocketBase;
   }
@@ -15221,25 +15213,25 @@ namespace pocketbase {
      *
      * Note that the application will not be initialized/bootstrapped yet,
      * aka. DB connections, migrations, app settings, etc. will not be accessible.
-     * Everything will be initialized when [PocketBase.Start] is executed.
-     * If you want to initialize the application before calling [PocketBase.Start],
-     * then you'll have to manually call [PocketBase.Bootstrap].
+     * Everything will be initialized when [PocketBase.start] is executed.
+     * If you want to initialize the application before calling [PocketBase.start],
+     * then you'll have to manually call [PocketBase.bootstrap].
      */
     (config: Config): PocketBase;
   }
   interface PocketBase {
     /**
      * Start starts the application, aka. registers the default system
-     * commands (serve, superuser, version) and executes pb.RootCmd.
+     * commands (serve, superuser, version) and executes pb.rootCmd.
      */
     start(): void;
   }
   interface PocketBase {
     /**
      * Execute initializes the application (if not already) and executes
-     * the pb.RootCmd with graceful shutdown support.
+     * the pb.rootCmd with graceful shutdown support.
      *
-     * This method differs from pb.Start() by not registering the default
+     * This method differs from pb.start() by not registering the default
      * system commands!
      */
     execute(): void;
@@ -15576,7 +15568,7 @@ namespace bytes {
  * you want to view documentation for freebsd/arm on linux/amd64, set $GOOS
  * to freebsd and $GOARCH to arm.
  * The primary use of syscall is inside other packages that provide a more
- * portable interface to the system, such as "os", "time" and "net".  Use
+ * portable interface to the system, such as "os", "time" and "net".  use
  * those packages rather than this one if you can.
  * For details of the functions and data types in this package consult
  * the manuals for the appropriate operating system.
@@ -15755,7 +15747,7 @@ namespace syscall {
  * resets.
  *
  * The rest of this section gives the precise details of how operations
- * use monotonic clocks, but understanding those details is not required
+ * Use monotonic clocks, but understanding those details is not required
  * to use this package.
  *
  * The Time returned by time.Now contains a monotonic clock reading.
@@ -15776,8 +15768,8 @@ namespace syscall {
  * On some systems the monotonic clock will stop if the computer goes to sleep.
  * On such a system, t.Sub(u) may not accurately reflect the actual
  * time that passed between t and u. The same applies to other functions and
- * methods that subtract times, such as [Since], [Until], [Time.Before], [Time.After],
- * [Time.Add], [Time.Equal] and [Time.Compare]. In some cases, you may need to strip
+ * methods that subtract times, such as [Since], [Until], [Time.before], [Time.after],
+ * [Time.add], [Time.equal] and [Time.compare]. In some cases, you may need to strip
  * the monotonic clock to get accurate results.
  *
  * Because the monotonic clock reading has no meaning outside
@@ -15843,14 +15835,14 @@ namespace time {
      * to the layout defined by the argument. See the documentation for the
      * constant called [Layout] to see how to represent the layout format.
      *
-     * The executable example for [Time.Format] demonstrates the working
+     * The executable example for [Time.format] demonstrates the working
      * of the layout string in detail and is a good reference.
      */
     format(layout: string): string;
   }
   interface Time {
     /**
-     * AppendFormat is like [Time.Format] but appends the textual
+     * AppendFormat is like [Time.format] but appends the textual
      * representation to b and returns the extended buffer.
      */
     appendFormat(b: string | Array<number>, layout: string): string | Array<number>;
@@ -15863,24 +15855,24 @@ namespace time {
    * type [time.Time], not *time.Time.
    *
    * A Time value can be used by multiple goroutines simultaneously except
-   * that the methods [Time.GobDecode], [Time.UnmarshalBinary], [Time.UnmarshalJSON] and
-   * [Time.UnmarshalText] are not concurrency-safe.
+   * that the methods [Time.gobDecode], [Time.unmarshalBinary], [Time.unmarshalJSON] and
+   * [Time.unmarshalText] are not concurrency-safe.
    *
-   * Time instants can be compared using the [Time.Before], [Time.After], and [Time.Equal] methods.
-   * The [Time.Sub] method subtracts two instants, producing a [Duration].
-   * The [Time.Add] method adds a Time and a Duration, producing a Time.
+   * Time instants can be compared using the [Time.before], [Time.after], and [Time.equal] methods.
+   * The [Time.sub] method subtracts two instants, producing a [Duration].
+   * The [Time.add] method adds a Time and a Duration, producing a Time.
    *
    * The zero value of type Time is January 1, year 1, 00:00:00.000000000 UTC.
-   * As this time is unlikely to come up in practice, the [Time.IsZero] method gives
+   * As this time is unlikely to come up in practice, the [Time.isZero] method gives
    * a simple way of detecting a time that has not been initialized explicitly.
    *
-   * Each time has an associated [Location]. The methods [Time.Local], [Time.UTC], and Time.In return a
+   * Each time has an associated [Location]. The methods [Time.local], [Time.utc], and Time.in return a
    * Time with a specific Location. Changing the Location of a Time value with
    * these methods does not change the actual instant it represents, only the time
    * zone in which to interpret it.
    *
-   * Representations of a Time value saved by the [Time.GobEncode], [Time.MarshalBinary], [Time.AppendBinary],
-   * [Time.MarshalJSON], [Time.MarshalText] and [Time.AppendText] methods store the [Time.Location]'s offset,
+   * Representations of a Time value saved by the [Time.gobEncode], [Time.marshalBinary], [Time.appendBinary],
+   * [Time.marshalJSON], [Time.marshalText] and [Time.appendText] methods store the [Time.location]'s offset,
    * but not the location name. They therefore lose information about Daylight Saving Time.
    *
    * In addition to the required “wall clock” reading, a Time may contain an optional
@@ -16271,9 +16263,9 @@ namespace time {
   interface Time {
     /**
      * MarshalText implements the [encoding.TextMarshaler] interface. The output
-     * matches that of calling the [Time.AppendText] method.
+     * matches that of calling the [Time.appendText] method.
      *
-     * See [Time.AppendText] for more information.
+     * See [Time.appendText] for more information.
      */
     marshalText(): string | Array<number>;
   }
@@ -16601,7 +16593,7 @@ namespace store {
      * Example:
      *
      * ```
-     * 	s := store.New[string, int](nil)
+     * 	s := store.new[string, int](nil)
      * 	s.SetFunc("count", func(old int) int {
      * 	    return old + 1
      * 	})
@@ -16789,8 +16781,8 @@ namespace context {
      * 	// This prevents collisions with keys defined in other packages.
      * 	type key int
      *
-     * 	// userKey is the key for user.User values in Contexts. It is
-     * 	// unexported; clients use user.NewContext and user.FromContext
+     * 	// userKey is the key for user.user values in Contexts. It is
+     * 	// unexported; clients use user.newContext and user.fromContext
      * 	// instead of using this key directly.
      * 	var userKey key
      *
@@ -17188,25 +17180,25 @@ namespace syntax {
 namespace cobra {
   interface Command {
     /**
-     * GenBashCompletion generates bash completion file and writes to the passed writer.
+     * genBashCompletion generates bash completion file and writes to the passed writer.
      */
     genBashCompletion(w: io.Writer): void;
   }
   interface Command {
     /**
-     * GenBashCompletionFile generates bash completion file.
+     * genBashCompletionFile generates bash completion file.
      */
     genBashCompletionFile(filename: string): void;
   }
   interface Command {
     /**
-     * GenBashCompletionFileV2 generates Bash completion version 2.
+     * genBashCompletionFileV2 generates Bash completion version 2.
      */
     genBashCompletionFileV2(filename: string, includeDesc: boolean): void;
   }
   interface Command {
     /**
-     * GenBashCompletionV2 generates Bash completion file version 2
+     * genBashCompletionV2 generates Bash completion file version 2
      * and writes it to the passed writer.
      */
     genBashCompletionV2(w: io.Writer, includeDesc: boolean): void;
@@ -17221,7 +17213,7 @@ namespace cobra {
    */
   interface Command {
     /**
-     * Use is the one-line usage message.
+     * use is the one-line usage message.
      * Recommended syntax is as follows:
      * ```
      *   [ ] identifies an optional argument. Arguments that are not enclosed in brackets are required.
@@ -17235,16 +17227,16 @@ namespace cobra {
      */
     use: string;
     /**
-     * Aliases is an array of aliases that can be used instead of the first word in Use.
+     * aliases is an array of aliases that can be used instead of the first word in use.
      */
     aliases: Array<string>;
     /**
-     * SuggestFor is an array of command names for which this command will be suggested -
+     * suggestFor is an array of command names for which this command will be suggested -
      * similar to aliases but only suggests.
      */
     suggestFor: Array<string>;
     /**
-     * Short is the short description shown in the 'help' output.
+     * short is the short description shown in the 'help' output.
      */
     short: string;
     /**
@@ -17252,21 +17244,21 @@ namespace cobra {
      */
     groupID: string;
     /**
-     * Long is the long message shown in the 'help <this-command>' output.
+     * long is the long message shown in the 'help <this-command>' output.
      */
     long: string;
     /**
-     * Example is examples of how to use the command.
+     * example is examples of how to use the command.
      */
     example: string;
     /**
-     * ValidArgs is list of all valid non-flag arguments that are accepted in shell completions
+     * validArgs is list of all valid non-flag arguments that are accepted in shell completions
      */
     validArgs: Array<Completion>;
     /**
-     * ValidArgsFunction is an optional function that provides valid non-flag arguments for shell completion.
-     * It is a dynamic version of using ValidArgs.
-     * Only one of ValidArgs and ValidArgsFunction can be used for a command.
+     * validArgsFunction is an optional function that provides valid non-flag arguments for shell completion.
+     * It is a dynamic version of using validArgs.
+     * Only one of validArgs and validArgsFunction can be used for a command.
      */
     validArgsFunction: CompletionFunc;
     /**
@@ -17274,14 +17266,14 @@ namespace cobra {
      */
     args: PositionalArgs;
     /**
-     * ArgAliases is List of aliases for ValidArgs.
+     * ArgAliases is List of aliases for validArgs.
      * These are not suggested to the user in the shell completion,
      * but accepted if entered manually.
      */
     argAliases: Array<string>;
     /**
      * BashCompletionFunction is custom bash functions used by the legacy bash autocompletion generator.
-     * For portability with other shells, it is recommended to instead use ValidArgsFunction
+     * For portability with other shells, it is recommended to instead use validArgsFunction
      */
     bashCompletionFunction: string;
     /**
@@ -17301,114 +17293,114 @@ namespace cobra {
      */
     version: string;
     /**
-     * The *Run functions are executed in the following order:
+     * The *run functions are executed in the following order:
      * ```
-     *   * PersistentPreRun()
-     *   * PreRun()
-     *   * Run()
-     *   * PostRun()
-     *   * PersistentPostRun()
+     *   * persistentPreRun()
+     *   * preRun()
+     *   * run()
+     *   * postRun()
+     *   * persistentPostRun()
      * ```
      * All functions get the same args, the arguments after the command name.
-     * The *PreRun and *PostRun functions will only be executed if the Run function of the current
+     * The *preRun and *postRun functions will only be executed if the run function of the current
      * command has been declared.
      *
-     * PersistentPreRun: children of this command will inherit and execute.
+     * persistentPreRun: children of this command will inherit and execute.
      */
     persistentPreRun: (cmd: Command, args: Array<string>) => void;
     /**
-     * PersistentPreRunE: PersistentPreRun but returns an error.
+     * persistentPreRunE: persistentPreRun but returns an error.
      */
     persistentPreRunE: (cmd: Command, args: Array<string>) => void;
     /**
-     * PreRun: children of this command will not inherit.
+     * preRun: children of this command will not inherit.
      */
     preRun: (cmd: Command, args: Array<string>) => void;
     /**
-     * PreRunE: PreRun but returns an error.
+     * preRunE: preRun but returns an error.
      */
     preRunE: (cmd: Command, args: Array<string>) => void;
     /**
-     * Run: Typically the actual work function. Most commands will only implement this.
+     * run: Typically the actual work function. Most commands will only implement this.
      */
     run: (cmd: Command, args: Array<string>) => void;
     /**
-     * RunE: Run but returns an error.
+     * runE: run but returns an error.
      */
     runE: (cmd: Command, args: Array<string>) => void;
     /**
-     * PostRun: run after the Run command.
+     * postRun: run after the run command.
      */
     postRun: (cmd: Command, args: Array<string>) => void;
     /**
-     * PostRunE: PostRun but returns an error.
+     * postRunE: postRun but returns an error.
      */
     postRunE: (cmd: Command, args: Array<string>) => void;
     /**
-     * PersistentPostRun: children of this command will inherit and execute after PostRun.
+     * persistentPostRun: children of this command will inherit and execute after postRun.
      */
     persistentPostRun: (cmd: Command, args: Array<string>) => void;
     /**
-     * PersistentPostRunE: PersistentPostRun but returns an error.
+     * persistentPostRunE: persistentPostRun but returns an error.
      */
     persistentPostRunE: (cmd: Command, args: Array<string>) => void;
     /**
-     * FParseErrWhitelist flag parse errors to be ignored
+     * fParseErrWhitelist flag parse errors to be ignored
      */
     fParseErrWhitelist: FParseErrWhitelist;
     /**
-     * CompletionOptions is a set of options to control the handling of shell completion
+     * completionOptions is a set of options to control the handling of shell completion
      */
     completionOptions: CompletionOptions;
     /**
-     * TraverseChildren parses flags on all parents before executing child command.
+     * traverseChildren parses flags on all parents before executing child command.
      */
     traverseChildren: boolean;
     /**
-     * Hidden defines, if this command is hidden and should NOT show up in the list of available commands.
+     * hidden defines, if this command is hidden and should NOT show up in the list of available commands.
      */
     hidden: boolean;
     /**
-     * SilenceErrors is an option to quiet errors down stream.
+     * silenceErrors is an option to quiet errors down stream.
      */
     silenceErrors: boolean;
     /**
-     * SilenceUsage is an option to silence usage when an error occurs.
+     * silenceUsage is an option to silence usage when an error occurs.
      */
     silenceUsage: boolean;
     /**
-     * DisableFlagParsing disables the flag parsing.
+     * disableFlagParsing disables the flag parsing.
      * If this is true all flags will be passed to the command as arguments.
      */
     disableFlagParsing: boolean;
     /**
-     * DisableAutoGenTag defines, if gen tag ("Auto generated by spf13/cobra...")
+     * disableAutoGenTag defines, if gen tag ("Auto generated by spf13/cobra...")
      * will be printed by generating docs for this command.
      */
     disableAutoGenTag: boolean;
     /**
-     * DisableFlagsInUseLine will disable the addition of [flags] to the usage
+     * disableFlagsInUseLine will disable the addition of [flags] to the usage
      * line of a command when printing help or generating docs
      */
     disableFlagsInUseLine: boolean;
     /**
-     * DisableSuggestions disables the suggestions based on Levenshtein distance
+     * disableSuggestions disables the suggestions based on Levenshtein distance
      * that go along with 'unknown command' messages.
      */
     disableSuggestions: boolean;
     /**
-     * SuggestionsMinimumDistance defines minimum levenshtein distance to display suggestions.
+     * suggestionsMinimumDistance defines minimum levenshtein distance to display suggestions.
      * Must be > 0.
      */
     suggestionsMinimumDistance: number;
   }
   interface Command {
     /**
-     * Context returns underlying command context. If command was executed
-     * with ExecuteContext or the context was set with SetContext, the
+     * context returns underlying command context. If command was executed
+     * with executeContext or the context was set with setContext, the
      * previously set context will be returned. Otherwise, nil is returned.
      *
-     * Notice that a call to Execute and ExecuteC will replace a nil context of
+     * Notice that a call to execute and executeC will replace a nil context of
      * a command with a context.Background, so a background context will be
      * returned by Context after one of these functions has been called.
      */
@@ -17416,179 +17408,179 @@ namespace cobra {
   }
   interface Command {
     /**
-     * SetContext sets context for the command. This context will be overwritten by
-     * Command.ExecuteContext or Command.ExecuteContextC.
+     * setContext sets context for the command. This context will be overwritten by
+     * command.executeContext or command.executeContextC.
      */
     setContext(ctx: context.Context): void;
   }
   interface Command {
     /**
-     * SetArgs sets arguments for the command. It is set to os.Args[1:] by default, if desired, can be overridden
+     * setArgs sets arguments for the command. It is set to os.Args[1:] by default, if desired, can be overridden
      * particularly useful when testing.
      */
     setArgs(a: Array<string>): void;
   }
   interface Command {
     /**
-     * SetOutput sets the destination for usage and error messages.
+     * setOutput sets the destination for usage and error messages.
      * If output is nil, os.Stderr is used.
      *
-     * Deprecated: Use SetOut and/or SetErr instead
+     * Deprecated: use setOut and/or setErr instead
      */
     setOutput(output: io.Writer): void;
   }
   interface Command {
     /**
-     * SetOut sets the destination for usage messages.
+     * setOut sets the destination for usage messages.
      * If newOut is nil, os.Stdout is used.
      */
     setOut(newOut: io.Writer): void;
   }
   interface Command {
     /**
-     * SetErr sets the destination for error messages.
+     * setErr sets the destination for error messages.
      * If newErr is nil, os.Stderr is used.
      */
     setErr(newErr: io.Writer): void;
   }
   interface Command {
     /**
-     * SetIn sets the source for input data
+     * setIn sets the source for input data
      * If newIn is nil, os.Stdin is used.
      */
     setIn(newIn: io.Reader): void;
   }
   interface Command {
     /**
-     * SetUsageFunc sets usage function. Usage can be defined by application.
+     * setUsageFunc sets usage function. Usage can be defined by application.
      */
     setUsageFunc(f: (_arg0: Command) => void): void;
   }
   interface Command {
     /**
-     * SetUsageTemplate sets usage template. Can be defined by Application.
+     * setUsageTemplate sets usage template. Can be defined by Application.
      */
     setUsageTemplate(s: string): void;
   }
   interface Command {
     /**
-     * SetFlagErrorFunc sets a function to generate an error when flag parsing
+     * setFlagErrorFunc sets a function to generate an error when flag parsing
      * fails.
      */
     setFlagErrorFunc(f: (_arg0: Command, _arg1: Error) => void): void;
   }
   interface Command {
     /**
-     * SetHelpFunc sets help function. Can be defined by Application.
+     * setHelpFunc sets help function. Can be defined by Application.
      */
     setHelpFunc(f: (_arg0: Command, _arg1: Array<string>) => void): void;
   }
   interface Command {
     /**
-     * SetHelpCommand sets help command.
+     * setHelpCommand sets help command.
      */
     setHelpCommand(cmd: Command): void;
   }
   interface Command {
     /**
-     * SetHelpCommandGroupID sets the group id of the help command.
+     * setHelpCommandGroupID sets the group id of the help command.
      */
     setHelpCommandGroupID(groupID: string): void;
   }
   interface Command {
     /**
-     * SetCompletionCommandGroupID sets the group id of the completion command.
+     * setCompletionCommandGroupID sets the group id of the completion command.
      */
     setCompletionCommandGroupID(groupID: string): void;
   }
   interface Command {
     /**
-     * SetHelpTemplate sets help template to be used. Application can use it to set custom template.
+     * setHelpTemplate sets help template to be used. Application can use it to set custom template.
      */
     setHelpTemplate(s: string): void;
   }
   interface Command {
     /**
-     * SetVersionTemplate sets version template to be used. Application can use it to set custom template.
+     * setVersionTemplate sets version template to be used. Application can use it to set custom template.
      */
     setVersionTemplate(s: string): void;
   }
   interface Command {
     /**
-     * SetErrPrefix sets error message prefix to be used. Application can use it to set custom prefix.
+     * setErrPrefix sets error message prefix to be used. Application can use it to set custom prefix.
      */
     setErrPrefix(s: string): void;
   }
   interface Command {
     /**
-     * SetGlobalNormalizationFunc sets a normalization function to all flag sets and also to child commands.
+     * setGlobalNormalizationFunc sets a normalization function to all flag sets and also to child commands.
      * The user should not have a cyclic dependency on commands.
      */
     setGlobalNormalizationFunc(n: (f: any, name: string) => any): void;
   }
   interface Command {
     /**
-     * OutOrStdout returns output to stdout.
+     * outOrStdout returns output to stdout.
      */
     outOrStdout(): io.Writer;
   }
   interface Command {
     /**
-     * OutOrStderr returns output to stderr
+     * outOrStderr returns output to stderr
      */
     outOrStderr(): io.Writer;
   }
   interface Command {
     /**
-     * ErrOrStderr returns output to stderr
+     * errOrStderr returns output to stderr
      */
     errOrStderr(): io.Writer;
   }
   interface Command {
     /**
-     * InOrStdin returns input to stdin
+     * inOrStdin returns input to stdin
      */
     inOrStdin(): io.Reader;
   }
   interface Command {
     /**
-     * UsageFunc returns either the function set by SetUsageFunc for this command
+     * usageFunc returns either the function set by setUsageFunc for this command
      * or a parent, or it returns a default usage function.
      */
     usageFunc(): (_arg0: Command) => void;
   }
   interface Command {
     /**
-     * Usage puts out the usage for the command.
+     * usage puts out the usage for the command.
      * Used when a user provides invalid input.
-     * Can be defined by user by overriding UsageFunc.
+     * Can be defined by user by overriding usageFunc.
      */
     usage(): void;
   }
   interface Command {
     /**
-     * HelpFunc returns either the function set by SetHelpFunc for this command
+     * helpFunc returns either the function set by setHelpFunc for this command
      * or a parent, or it returns a function with default help behavior.
      */
     helpFunc(): (_arg0: Command, _arg1: Array<string>) => void;
   }
   interface Command {
     /**
-     * Help puts out the help for the command.
+     * help puts out the help for the command.
      * Used when a user calls help [command].
-     * Can be defined by user by overriding HelpFunc.
+     * Can be defined by user by overriding helpFunc.
      */
     help(): void;
   }
   interface Command {
     /**
-     * UsageString returns usage string.
+     * usageString returns usage string.
      */
     usageString(): string;
   }
   interface Command {
     /**
-     * FlagErrorFunc returns either the function set by SetFlagErrorFunc for this
+     * flagErrorFunc returns either the function set by setFlagErrorFunc for this
      * command or a parent, or it returns a function which returns the original
      * error.
      */
@@ -17596,92 +17588,92 @@ namespace cobra {
   }
   interface Command {
     /**
-     * UsagePadding return padding for the usage.
+     * usagePadding return padding for the usage.
      */
     usagePadding(): number;
   }
   interface Command {
     /**
-     * CommandPathPadding return padding for the command path.
+     * commandPathPadding return padding for the command path.
      */
     commandPathPadding(): number;
   }
   interface Command {
     /**
-     * NamePadding returns padding for the name.
+     * namePadding returns padding for the name.
      */
     namePadding(): number;
   }
   interface Command {
     /**
-     * UsageTemplate returns usage template for the command.
+     * usageTemplate returns usage template for the command.
      * This function is kept for backwards-compatibility reasons.
      */
     usageTemplate(): string;
   }
   interface Command {
     /**
-     * HelpTemplate return help template for the command.
+     * helpTemplate return help template for the command.
      * This function is kept for backwards-compatibility reasons.
      */
     helpTemplate(): string;
   }
   interface Command {
     /**
-     * VersionTemplate return version template for the command.
+     * versionTemplate return version template for the command.
      * This function is kept for backwards-compatibility reasons.
      */
     versionTemplate(): string;
   }
   interface Command {
     /**
-     * ErrPrefix return error message prefix for the command
+     * errPrefix return error message prefix for the command
      */
     errPrefix(): string;
   }
   interface Command {
     /**
-     * Find the target command given the args and command tree
+     * find the target command given the args and command tree
      * Meant to be run on the highest node. Only searches down.
      */
     find(args: Array<string>): [Command, Array<string>];
   }
   interface Command {
     /**
-     * Traverse the command tree to find the command, and parse args for
+     * traverse the command tree to find the command, and parse args for
      * each parent.
      */
     traverse(args: Array<string>): [Command, Array<string>];
   }
   interface Command {
     /**
-     * SuggestionsFor provides suggestions for the typedName.
+     * suggestionsFor provides suggestions for the typedName.
      */
     suggestionsFor(typedName: string): Array<string>;
   }
   interface Command {
     /**
-     * VisitParents visits all parents of the command and invokes fn on each parent.
+     * visitParents visits all parents of the command and invokes fn on each parent.
      */
     visitParents(fn: (_arg0: Command) => void): void;
   }
   interface Command {
     /**
-     * Root finds root command.
+     * root finds root command.
      */
     root(): Command;
   }
   interface Command {
     /**
-     * ArgsLenAtDash will return the length of c.Flags().Args at the moment
+     * argsLenAtDash will return the length of c.Flags().Args at the moment
      * when a -- was found during args parsing.
      */
     argsLenAtDash(): number;
   }
   interface Command {
     /**
-     * ExecuteContext is the same as Execute(), but sets the ctx on the command.
-     * Retrieve ctx by calling cmd.Context() inside your *Run lifecycle or ValidArgs
+     * executeContext is the same as Execute(), but sets the ctx on the command.
+     * Retrieve ctx by calling cmd.context() inside your *run lifecycle or validArgs
      * functions.
      */
     executeContext(ctx: context.Context): void;
@@ -17696,15 +17688,15 @@ namespace cobra {
   }
   interface Command {
     /**
-     * ExecuteContextC is the same as ExecuteC(), but sets the ctx on the command.
-     * Retrieve ctx by calling cmd.Context() inside your *Run lifecycle or ValidArgs
+     * executeContextC is the same as executeC(), but sets the ctx on the command.
+     * Retrieve ctx by calling cmd.context() inside your *run lifecycle or validArgs
      * functions.
      */
     executeContextC(ctx: context.Context): Command;
   }
   interface Command {
     /**
-     * ExecuteC executes the command.
+     * executeC executes the command.
      */
     executeC(): Command;
   }
@@ -17713,13 +17705,13 @@ namespace cobra {
   }
   interface Command {
     /**
-     * ValidateRequiredFlags validates all required flags are present and returns an error otherwise
+     * validateRequiredFlags validates all required flags are present and returns an error otherwise
      */
     validateRequiredFlags(): void;
   }
   interface Command {
     /**
-     * InitDefaultHelpFlag adds default help flag to c.
+     * initDefaultHelpFlag adds default help flag to c.
      * It is called automatically by executing the c or by calling help and usage.
      * If c already has help flag, it will do nothing.
      */
@@ -18235,8 +18227,8 @@ namespace cobra {
      * not consistent with Bash completion. It has therefore been disabled.
      * Instead, when no other completion is specified, file completion is done by
      * default for every argument. One can disable file completion on a per-argument
-     * basis by using ValidArgsFunction and ShellCompDirectiveNoFileComp.
-     * To achieve file extension filtering, one can use ValidArgsFunction and
+     * basis by using validArgsFunction and ShellCompDirectiveNoFileComp.
+     * To achieve file extension filtering, one can use validArgsFunction and
      * ShellCompDirectiveFilterFileExt.
      *
      * Deprecated
@@ -18248,7 +18240,7 @@ namespace cobra {
      * MarkZshCompPositionalArgumentWords only worked for zsh. It has therefore
      * been disabled.
      * To achieve the same behavior across all shells, one can use
-     * ValidArgs (for the first argument only) or ValidArgsFunction for
+     * validArgs (for the first argument only) or validArgsFunction for
      * any argument (can include the first one also).
      *
      * Deprecated
@@ -18261,7 +18253,7 @@ namespace exec {
   /**
    * Cmd represents an external command being prepared or run.
    *
-   * A Cmd cannot be reused after calling its [Cmd.Run], [Cmd.Output] or [Cmd.CombinedOutput]
+   * A Cmd cannot be reused after calling its [Cmd.run], [Cmd.Output] or [Cmd.CombinedOutput]
    * methods.
    */
   interface Cmd {
@@ -18275,7 +18267,7 @@ namespace exec {
     path: string;
     /**
      * Args holds command line arguments, including the command as Args[0].
-     * If the Args field is empty or nil, Run uses {Path}.
+     * If the Args field is empty or nil, run uses {Path}.
      *
      * In typical use, both Path and Args are set by calling Command.
      */
@@ -18295,7 +18287,7 @@ namespace exec {
     env: Array<string>;
     /**
      * Dir specifies the working directory of the command.
-     * If Dir is the empty string, Run runs the command in the
+     * If Dir is the empty string, run runs the command in the
      * calling process's current directory.
      *
      * On Unix systems, the value of Dir also determines the
@@ -18332,7 +18324,7 @@ namespace exec {
     /**
      * Stdout and Stderr specify the process's standard output and error.
      *
-     * If either is nil, Run connects the corresponding file descriptor
+     * If either is nil, run connects the corresponding file descriptor
      * to the null device (os.DevNull).
      *
      * If either is an *os.File, the corresponding output from the process
@@ -18359,7 +18351,7 @@ namespace exec {
     extraFiles: Array<os.File | undefined>;
     /**
      * SysProcAttr holds optional, operating system-specific attributes.
-     * Run passes it to os.StartProcess as the os.ProcAttr's Sys field.
+     * run passes it to os.StartProcess as the os.ProcAttr's Sys field.
      */
     sysProcAttr?: syscall.SysProcAttr;
     /**
@@ -18368,7 +18360,7 @@ namespace exec {
     process?: os.Process;
     /**
      * ProcessState contains information about an exited process.
-     * If the process was started successfully, Wait or Run will
+     * If the process was started successfully, Wait or run will
      * populate its ProcessState when the command completes.
      */
     processState?: os.ProcessState;
@@ -18441,7 +18433,7 @@ namespace exec {
   }
   interface Cmd {
     /**
-     * Run starts the specified command and waits for it to complete.
+     * run starts the specified command and waits for it to complete.
      *
      * The returned error is nil if the command runs, has no problems
      * copying stdin, stdout, and stderr, and exits with a zero exit
@@ -18526,7 +18518,7 @@ namespace exec {
      * [Cmd.Wait] will close the pipe after seeing the command exit, so most callers
      * need not close the pipe themselves. It is thus incorrect to call Wait
      * before all reads from the pipe have completed.
-     * For the same reason, it is incorrect to call [Cmd.Run] when using StdoutPipe.
+     * For the same reason, it is incorrect to call [Cmd.run] when using StdoutPipe.
      * See the example for idiomatic usage.
      */
     stdoutPipe(): io.ReadCloser;
@@ -18539,7 +18531,7 @@ namespace exec {
      * [Cmd.Wait] will close the pipe after seeing the command exit, so most callers
      * need not close the pipe themselves. It is thus incorrect to call Wait
      * before all reads from the pipe have completed.
-     * For the same reason, it is incorrect to use [Cmd.Run] when using StderrPipe.
+     * For the same reason, it is incorrect to use [Cmd.run] when using StderrPipe.
      * See the StdoutPipe example for idiomatic usage.
      */
     stderrPipe(): io.ReadCloser;
@@ -18565,19 +18557,19 @@ namespace types {
   interface DateTime {}
   interface DateTime {
     /**
-     * Time returns the internal [time.Time] instance.
+     * time returns the internal [time.Time] instance.
      */
     time(): time.Time;
   }
   interface DateTime {
     /**
-     * Add returns a new DateTime based on the current DateTime + the specified duration.
+     * add returns a new DateTime based on the current DateTime + the specified duration.
      */
     add(duration: time.Duration): DateTime;
   }
   interface DateTime {
     /**
-     * Sub returns a [time.Duration] by subtracting the specified DateTime from the current one.
+     * sub returns a [time.Duration] by subtracting the specified DateTime from the current one.
      *
      * If the result exceeds the maximum (or minimum) value that can be stored in a [time.Duration],
      * the maximum (or minimum) duration will be returned.
@@ -18586,7 +18578,7 @@ namespace types {
   }
   interface DateTime {
     /**
-     * AddDate returns a new DateTime based on the current one + duration.
+     * addDate returns a new DateTime based on the current one + duration.
      *
      * It follows the same rules as [time.AddDate].
      */
@@ -18594,19 +18586,19 @@ namespace types {
   }
   interface DateTime {
     /**
-     * After reports whether the current DateTime instance is after u.
+     * after reports whether the current DateTime instance is after u.
      */
     after(u: DateTime): boolean;
   }
   interface DateTime {
     /**
-     * Before reports whether the current DateTime instance is before u.
+     * before reports whether the current DateTime instance is before u.
      */
     before(u: DateTime): boolean;
   }
   interface DateTime {
     /**
-     * Compare compares the current DateTime instance with u.
+     * compare compares the current DateTime instance with u.
      * If the current instance is before u, it returns -1.
      * If the current instance is after u, it returns +1.
      * If they're the same, it returns 0.
@@ -18615,7 +18607,7 @@ namespace types {
   }
   interface DateTime {
     /**
-     * Equal reports whether the current DateTime and u represent the same time instant.
+     * equal reports whether the current DateTime and u represent the same time instant.
      * Two DateTime can be equal even if they are in different locations.
      * For example, 6:00 +0200 and 4:00 UTC are Equal.
      */
@@ -18623,20 +18615,20 @@ namespace types {
   }
   interface DateTime {
     /**
-     * Unix returns the current DateTime as a Unix time, aka.
+     * unix returns the current DateTime as a Unix time, aka.
      * the number of seconds elapsed since January 1, 1970 UTC.
      */
     unix(): number;
   }
   interface DateTime {
     /**
-     * IsZero checks whether the current DateTime instance has zero time value.
+     * isZero checks whether the current DateTime instance has zero time value.
      */
     isZero(): boolean;
   }
   interface DateTime {
     /**
-     * String serializes the current DateTime instance into a formatted
+     * string serializes the current DateTime instance into a formatted
      * UTC date string.
      *
      * The zero value is serialized to an empty string.
@@ -18645,25 +18637,25 @@ namespace types {
   }
   interface DateTime {
     /**
-     * MarshalJSON implements the [json.Marshaler] interface.
+     * marshalJSON implements the [json.Marshaler] interface.
      */
     marshalJSON(): string | Array<number>;
   }
   interface DateTime {
     /**
-     * UnmarshalJSON implements the [json.Unmarshaler] interface.
+     * unmarshalJSON implements the [json.Unmarshaler] interface.
      */
     unmarshalJSON(b: string | Array<number>): void;
   }
   interface DateTime {
     /**
-     * Value implements the [driver.Valuer] interface.
+     * value implements the [driver.Valuer] interface.
      */
     value(): any;
   }
   interface DateTime {
     /**
-     * Scan implements [sql.Scanner] interface to scan the provided value
+     * scan implements [sql.Scanner] interface to scan the provided value
      * into the current DateTime instance.
      */
     scan(value: any): void;
@@ -18681,26 +18673,26 @@ namespace types {
   }
   interface GeoPoint {
     /**
-     * String returns the string representation of the current GeoPoint instance.
+     * string returns the string representation of the current GeoPoint instance.
      */
     string(): string;
   }
   interface GeoPoint {
     /**
-     * AsMap implements [core.mapExtractor] and returns a value suitable
+     * asMap implements [core.mapExtractor] and returns a value suitable
      * to be used in an API rule expression.
      */
     asMap(): _TygojaDict;
   }
   interface GeoPoint {
     /**
-     * Value implements the [driver.Valuer] interface.
+     * value implements the [driver.Valuer] interface.
      */
     value(): any;
   }
   interface GeoPoint {
     /**
-     * Scan implements [sql.Scanner] interface to scan the provided value
+     * scan implements [sql.Scanner] interface to scan the provided value
      * into the current GeoPoint instance.
      *
      * The value argument could be nil (no-op), another GeoPoint instance,
@@ -18714,25 +18706,25 @@ namespace types {
   interface JSONArray<T> extends Array<T> {}
   interface JSONArray<T> {
     /**
-     * MarshalJSON implements the [json.Marshaler] interface.
+     * marshalJSON implements the [json.Marshaler] interface.
      */
     marshalJSON(): string | Array<number>;
   }
   interface JSONArray<T> {
     /**
-     * String returns the string representation of the current json array.
+     * string returns the string representation of the current json array.
      */
     string(): string;
   }
   interface JSONArray<T> {
     /**
-     * Value implements the [driver.Valuer] interface.
+     * value implements the [driver.Valuer] interface.
      */
     value(): any;
   }
   interface JSONArray<T> {
     /**
-     * Scan implements [sql.Scanner] interface to scan the provided value
+     * scan implements [sql.Scanner] interface to scan the provided value
      * into the current JSONArray[T] instance.
      */
     scan(value: any): void;
@@ -18743,19 +18735,19 @@ namespace types {
   interface JSONMap<T> extends _TygojaDict {}
   interface JSONMap<T> {
     /**
-     * MarshalJSON implements the [json.Marshaler] interface.
+     * marshalJSON implements the [json.Marshaler] interface.
      */
     marshalJSON(): string | Array<number>;
   }
   interface JSONMap<T> {
     /**
-     * String returns the string representation of the current json map.
+     * string returns the string representation of the current json map.
      */
     string(): string;
   }
   interface JSONMap<T> {
     /**
-     * Get retrieves a single value from the current JSONMap[T].
+     * get retrieves a single value from the current JSONMap[T].
      *
      * This helper was added primarily to assist the goja integration since custom map types
      * don't have direct access to the map keys (https://pkg.go.dev/github.com/dop251/goja#hdr-Maps_with_methods).
@@ -18764,7 +18756,7 @@ namespace types {
   }
   interface JSONMap<T> {
     /**
-     * Set sets a single value in the current JSONMap[T].
+     * set sets a single value in the current JSONMap[T].
      *
      * This helper was added primarily to assist the goja integration since custom map types
      * don't have direct access to the map keys (https://pkg.go.dev/github.com/dop251/goja#hdr-Maps_with_methods).
@@ -18773,13 +18765,13 @@ namespace types {
   }
   interface JSONMap<T> {
     /**
-     * Value implements the [driver.Valuer] interface.
+     * value implements the [driver.Valuer] interface.
      */
     value(): any;
   }
   interface JSONMap<T> {
     /**
-     * Scan implements [sql.Scanner] interface to scan the provided value
+     * scan implements [sql.Scanner] interface to scan the provided value
      * into the current JSONMap[T] instance.
      */
     scan(value: any): void;
@@ -18790,31 +18782,31 @@ namespace types {
   interface JSONRaw extends Array<number> {}
   interface JSONRaw {
     /**
-     * String returns the current JSONRaw instance as a json encoded string.
+     * string returns the current JSONRaw instance as a json encoded string.
      */
     string(): string;
   }
   interface JSONRaw {
     /**
-     * MarshalJSON implements the [json.Marshaler] interface.
+     * marshalJSON implements the [json.Marshaler] interface.
      */
     marshalJSON(): string | Array<number>;
   }
   interface JSONRaw {
     /**
-     * UnmarshalJSON implements the [json.Unmarshaler] interface.
+     * unmarshalJSON implements the [json.Unmarshaler] interface.
      */
     unmarshalJSON(b: string | Array<number>): void;
   }
   interface JSONRaw {
     /**
-     * Value implements the [driver.Valuer] interface.
+     * value implements the [driver.Valuer] interface.
      */
     value(): any;
   }
   interface JSONRaw {
     /**
-     * Scan implements [sql.Scanner] interface to scan the provided value
+     * scan implements [sql.Scanner] interface to scan the provided value
      * into the current JSONRaw instance.
      */
     scan(value: any): void;
@@ -18981,7 +18973,7 @@ namespace multipart {
  * 	http.Handle("/foo", fooHandler)
  *
  * 	http.HandleFunc("/bar", func(w http.ResponseWriter, r *http.Request) {
- * 		fmt.Fprintf(w, "Hello, %q", html.EscapeString(r.URL.Path))
+ * 		fmt.Fprintf(w, "Hello, %q", html.EscapeString(r.url.Path))
  * 	})
  *
  * 	log.Fatal(http.ListenAndServe(":8080", nil))
@@ -19190,7 +19182,7 @@ namespace http {
      * given in the URL itself. For HTTP/2, it is the value of the
      * ":authority" pseudo-header field.
      * It may be of the form "host:port". For international domain
-     * names, Host may be in Punycode or Unicode form. Use
+     * names, Host may be in Punycode or Unicode form. use
      * golang.org/x/net/idna to convert it to either format if
      * needed.
      * To prevent DNS rebinding attacks, server Handlers should
@@ -19300,7 +19292,7 @@ namespace http {
   }
   interface Request {
     /**
-     * Context returns the request's context. To change the context, use
+     * context returns the request's context. To change the context, use
      * [Request.Clone] or [Request.WithContext].
      *
      * The returned context is always non-nil; it defaults to the
@@ -19437,7 +19429,7 @@ namespace http {
      * initial Request-URI line of the request with an absolute URI, per
      * section 5.3 of RFC 7230, including the scheme and host.
      * In either case, WriteProxy also writes a Host header, using
-     * either r.Host or r.URL.Host.
+     * either r.host or r.url.Host.
      */
     writeProxy(w: io.Writer): void;
   }
@@ -19467,21 +19459,21 @@ namespace http {
   }
   interface Request {
     /**
-     * ParseForm populates r.Form and r.PostForm.
+     * ParseForm populates r.form and r.postForm.
      *
      * For all requests, ParseForm parses the raw query from the URL and updates
-     * r.Form.
+     * r.form.
      *
      * For POST, PUT, and PATCH requests, it also reads the request body, parses it
-     * as a form and puts the results into both r.PostForm and r.Form. Request body
-     * parameters take precedence over URL query string values in r.Form.
+     * as a form and puts the results into both r.postForm and r.form. Request body
+     * parameters take precedence over URL query string values in r.form.
      *
      * If the request Body's size has not already been limited by [MaxBytesReader],
      * the size is capped at 10MB.
      *
      * For other HTTP methods, or when the Content-Type is not
      * application/x-www-form-urlencoded, the request Body is not read, and
-     * r.PostForm is initialized to a non-nil, empty value.
+     * r.postForm is initialized to a non-nil, empty value.
      *
      * [Request.ParseMultipartForm] calls ParseForm automatically.
      * ParseForm is idempotent.
@@ -19545,7 +19537,7 @@ namespace http {
   }
   interface Request {
     /**
-     * SetPathValue sets name to value, so that subsequent calls to r.PathValue(name)
+     * SetPathValue sets name to value, so that subsequent calls to r.pathValue(name)
      * return value.
      */
     setPathValue(name: string, value: string): void;
@@ -19923,124 +19915,124 @@ namespace auth {
   interface Provider {
     [key: string]: any;
     /**
-     * Logo returns the provider logo SVG.
+     * logo returns the provider logo SVG.
      */
     logo(): string;
     /**
-     * Order returns the sorting order of the provider usually used in the auth methods list response.
+     * order returns the sorting order of the provider usually used in the auth methods list response.
      */
     order(): number;
     /**
-     * Context returns the context associated with the provider (if any).
+     * context returns the context associated with the provider (if any).
      */
     context(): context.Context;
     /**
-     * SetContext assigns the specified context to the current provider.
+     * setContext assigns the specified context to the current provider.
      */
     setContext(ctx: context.Context): void;
     /**
-     * PKCE indicates whether the provider can use the PKCE flow.
+     * pkce indicates whether the provider can use the PKCE flow.
      */
     pkce(): boolean;
     /**
-     * SetPKCE toggles the state whether the provider can use the PKCE flow or not.
+     * setPKCE toggles the state whether the provider can use the PKCE flow or not.
      */
     setPKCE(enable: boolean): void;
     /**
-     * DisplayName usually returns provider name as it is officially written
+     * displayName usually returns provider name as it is officially written
      * and it could be used directly in the UI.
      */
     displayName(): string;
     /**
-     * SetDisplayName sets the provider's display name.
+     * setDisplayName sets the provider's display name.
      */
     setDisplayName(displayName: string): void;
     /**
-     * Scopes returns the provider access permissions that will be requested.
+     * scopes returns the provider access permissions that will be requested.
      */
     scopes(): Array<string>;
     /**
-     * SetScopes sets the provider access permissions that will be requested later.
+     * setScopes sets the provider access permissions that will be requested later.
      */
     setScopes(scopes: Array<string>): void;
     /**
-     * ClientId returns the provider client's app ID.
+     * clientId returns the provider client's app ID.
      */
     clientId(): string;
     /**
-     * SetClientId sets the provider client's ID.
+     * setClientId sets the provider client's ID.
      */
     setClientId(clientId: string): void;
     /**
-     * ClientSecret returns the provider client's app secret.
+     * clientSecret returns the provider client's app secret.
      */
     clientSecret(): string;
     /**
-     * SetClientSecret sets the provider client's app secret.
+     * setClientSecret sets the provider client's app secret.
      */
     setClientSecret(secret: string): void;
     /**
-     * RedirectURL returns the end address to redirect the user
+     * redirectURL returns the end address to redirect the user
      * going through the OAuth flow.
      */
     redirectURL(): string;
     /**
-     * SetRedirectURL sets the provider's RedirectURL.
+     * setRedirectURL sets the provider's RedirectURL.
      */
     setRedirectURL(url: string): void;
     /**
-     * AuthURL returns the provider's authorization service url.
+     * authURL returns the provider's authorization service url.
      */
     authURL(): string;
     /**
-     * SetAuthURL sets the provider's AuthURL.
+     * setAuthURL sets the provider's AuthURL.
      */
     setAuthURL(url: string): void;
     /**
-     * TokenURL returns the provider's token exchange service url.
+     * tokenURL returns the provider's token exchange service url.
      */
     tokenURL(): string;
     /**
-     * SetTokenURL sets the provider's TokenURL.
+     * setTokenURL sets the provider's TokenURL.
      */
     setTokenURL(url: string): void;
     /**
-     * UserInfoURL returns the provider's user info api url.
+     * userInfoURL returns the provider's user info api url.
      */
     userInfoURL(): string;
     /**
-     * SetUserInfoURL sets the provider's UserInfoURL.
+     * setUserInfoURL sets the provider's UserInfoURL.
      */
     setUserInfoURL(url: string): void;
     /**
-     * Extra returns a shallow copy of any custom config data
+     * extra returns a shallow copy of any custom config data
      * that the provider may be need.
      */
     extra(): _TygojaDict;
     /**
-     * SetExtra updates the provider's custom config data.
+     * setExtra updates the provider's custom config data.
      */
     setExtra(data: _TygojaDict): void;
     /**
-     * Client returns an http client using the provided token.
+     * client returns an http client using the provided token.
      */
     client(token: oauth2.Token): any;
     /**
-     * BuildAuthURL returns a URL to the provider's consent page
+     * buildAuthURL returns a URL to the provider's consent page
      * that asks for permissions for the required scopes explicitly.
      */
     buildAuthURL(state: string, ...opts: oauth2.AuthCodeOption[]): string;
     /**
-     * FetchToken converts an authorization code to token.
+     * fetchToken converts an authorization code to token.
      */
     fetchToken(code: string, ...opts: oauth2.AuthCodeOption[]): oauth2.Token;
     /**
-     * FetchRawUserInfo requests and marshalizes into `result` the
+     * fetchRawUserInfo requests and marshalizes into `result` the
      * the OAuth user api response.
      */
     fetchRawUserInfo(token: oauth2.Token): string | Array<number>;
     /**
-     * FetchAuthUser is similar to FetchRawUserInfo, but normalizes and
+     * fetchAuthUser is similar to FetchRawUserInfo, but normalizes and
      * marshalizes the user api response into a standardized AuthUser struct.
      */
     fetchAuthUser(token: oauth2.Token): AuthUser;
@@ -20061,13 +20053,13 @@ namespace auth {
     /**
      * @todo
      * deprecated: use AvatarURL instead
-     * AvatarUrl will be removed after dropping v0.22 support
+     * avatarUrl will be removed after dropping v0.22 support
      */
     avatarUrl: string;
   }
   interface AuthUser {
     /**
-     * MarshalJSON implements the [json.Marshaler] interface.
+     * marshalJSON implements the [json.Marshaler] interface.
      *
      * @todo remove after dropping v0.22 support
      */
@@ -20093,34 +20085,34 @@ namespace hook {
   interface Event {}
   interface Event {
     /**
-     * Next calls the next hook handler.
+     * next calls the next hook handler.
      */
     next(): void;
   }
   /**
    * Handler defines a single Hook handler.
    * Multiple handlers can share the same id.
-   * If Id is not explicitly set it will be autogenerated by Hook.Add and Hook.AddHandler.
+   * If Id is not explicitly set it will be autogenerated by Hook.add and Hook.addHandler.
    */
   interface Handler<T> {
     /**
-     * Func defines the handler function to execute.
+     * func defines the handler function to execute.
      *
-     * Note that users need to call e.Next() in order to proceed with
+     * Note that users need to call e.next() in order to proceed with
      * the execution of the hook chain.
      */
     func: (_arg0: T) => void;
     /**
-     * Id is the unique identifier of the handler.
+     * id is the unique identifier of the handler.
      *
-     * It could be used later to remove the handler from a hook via [Hook.Remove].
+     * It could be used later to remove the handler from a hook via [Hook.remove].
      *
      * If missing, an autogenerated value will be assigned when adding
      * the handler to a hook.
      */
     id: string;
     /**
-     * Priority allows changing the default exec priority of the handler within a hook.
+     * priority allows changing the default exec priority of the handler within a hook.
      *
      * If 0, the handler will be executed in the same order it was registered.
      */
@@ -20133,27 +20125,19 @@ namespace hook {
    *
    * Example:
    *
-   * ```
-   * 	type CustomEvent struct {
-   * 		hook.Event
-   * 		SomeField int
-   * 	}
+   * ```js
+   * const h = app.onBootstrap()
    *
-   * 	h := Hook[*CustomEvent]{}
-   *
-   * 	h.BindFunc(func(e *CustomEvent) error {
-   * 		println(e.SomeField)
-   *
-   * 		return e.Next()
-   * 	})
-   *
-   * 	h.Trigger(&CustomEvent{ SomeField: 123 })
+   * h.bindFunc((e) => {
+   *     console.log(e.app)
+   *     return e.next()
+   * })
    * ```
    */
   interface Hook<T> {}
   interface Hook<T> {
     /**
-     * Bind registers the provided handler to the current hooks queue.
+     * bind registers the provided handler to the current hooks queue.
      *
      * If handler.Id is empty it is updated with autogenerated value.
      *
@@ -20164,41 +20148,41 @@ namespace hook {
   }
   interface Hook<T> {
     /**
-     * BindFunc is similar to Bind but registers a new handler from just the provided function.
+     * bindFunc is similar to Bind but registers a new handler from just the provided function.
      *
      * The registered handler is added with a default 0 priority and the id will be autogenerated.
      *
-     * If you want to register a handler with custom priority or id use the [Hook.Bind] method.
+     * If you want to register a handler with custom priority or id use the [Hook.bind] method.
      */
     bindFunc(fn: (e: T) => void): string;
   }
   interface Hook<T> {
     /**
-     * Unbind removes one or many hook handler by their id.
+     * unbind removes one or many hook handler by their id.
      */
     unbind(...idsToRemove: string[]): void;
   }
   interface Hook<T> {
     /**
-     * UnbindAll removes all registered handlers.
+     * unbindAll removes all registered handlers.
      */
     unbindAll(): void;
   }
   interface Hook<T> {
     /**
-     * Length returns to total number of registered hook handlers.
+     * length returns to total number of registered hook handlers.
      */
     length(): number;
   }
   interface Hook<T> {
     /**
-     * Trigger executes all registered hook handlers one by one
+     * trigger executes all registered hook handlers one by one
      * with the specified event as an argument.
      *
      * Optionally, this method allows also to register additional one off
      * handler funcs that will be temporary appended to the handlers queue.
      *
-     * NB! Each hook handler must call event.Next() in order the hook chain to proceed.
+     * NB! Each hook handler must call event.next() in order the hook chain to proceed.
      */
     trigger(event: T, ...oneOffHandlerFuncs: ((_arg0: T) => void)[]): void;
   }
@@ -20210,7 +20194,7 @@ namespace hook {
   interface TaggedHook<T> extends _sXEbPOQ<T> {}
   interface TaggedHook<T> {
     /**
-     * CanTriggerOn checks if the current TaggedHook can be triggered with
+     * canTriggerOn checks if the current TaggedHook can be triggered with
      * the provided event data tags.
      *
      * It returns always true if the hook doesn't have any tags.
@@ -20219,19 +20203,19 @@ namespace hook {
   }
   interface TaggedHook<T> {
     /**
-     * Bind registers the provided handler to the current hooks queue.
+     * bind registers the provided handler to the current hooks queue.
      *
-     * It is similar to [Hook.Bind] with the difference that the handler
-     * function is invoked only if the event data tags satisfy h.CanTriggerOn.
+     * It is similar to [Hook.bind] with the difference that the handler
+     * function is invoked only if the event data tags satisfy h.canTriggerOn.
      */
     bind(handler: Handler<T>): string;
   }
   interface TaggedHook<T> {
     /**
-     * BindFunc registers a new handler with the specified function.
+     * bindFunc registers a new handler with the specified function.
      *
-     * It is similar to [Hook.Bind] with the difference that the handler
-     * function is invoked only if the event data tags satisfy h.CanTriggerOn.
+     * It is similar to [Hook.bind] with the difference that the handler
+     * function is invoked only if the event data tags satisfy h.canTriggerOn.
      */
     bindFunc(fn: (e: T) => void): string;
   }
@@ -21126,19 +21110,19 @@ namespace router {
   }
   interface ApiError {
     /**
-     * Error makes it compatible with the `error` interface.
+     * error makes it compatible with the `error` interface.
      */
     error(): string;
   }
   interface ApiError {
     /**
-     * RawData returns the unformatted error data (could be an internal error, text, etc.)
+     * rawData returns the unformatted error data (could be an internal error, text, etc.)
      */
     rawData(): any;
   }
   interface ApiError {
     /**
-     * Is reports whether the current ApiError wraps the target.
+     * is reports whether the current ApiError wraps the target.
      */
     is(target: Error): boolean;
   }
@@ -21155,42 +21139,42 @@ namespace router {
   }
   interface Event {
     /**
-     * Written reports whether the current response has already been written.
+     * written reports whether the current response has already been written.
      *
-     * This method always returns false if e.ResponseWritter doesn't implement the WriteTracker interface
-     * (all router package handlers receives a ResponseWritter that implements it unless explicitly replaced with a custom one).
+     * This method always returns false if e.response doesn't implement the WriteTracker interface
+     * (all router package handlers receives a ResponseWriter that implements it unless explicitly replaced with a custom one).
      */
     written(): boolean;
   }
   interface Event {
     /**
-     * Status reports the status code of the current response.
+     * status reports the status code of the current response.
      *
-     * This method always returns 0 if e.Response doesn't implement the StatusTracker interface
-     * (all router package handlers receives a ResponseWritter that implements it unless explicitly replaced with a custom one).
+     * This method always returns 0 if e.response doesn't implement the StatusTracker interface
+     * (all router package handlers receives a ResponseWriter that implements it unless explicitly replaced with a custom one).
      */
     status(): number;
   }
   interface Event {
     /**
-     * Flush flushes buffered data to the current response.
+     * flush flushes buffered data to the current response.
      *
-     * Returns [http.ErrNotSupported] if e.Response doesn't implement the [http.Flusher] interface
-     * (all router package handlers receives a ResponseWritter that implements it unless explicitly replaced with a custom one).
+     * Returns [http.ErrNotSupported] if e.response doesn't implement the [http.Flusher] interface
+     * (all router package handlers receives a ResponseWriter that implements it unless explicitly replaced with a custom one).
      */
     flush(): void;
   }
   interface Event {
     /**
-     * IsTLS reports whether the connection on which the request was received is TLS.
+     * isTLS reports whether the connection on which the request was received is TLS.
      */
     isTLS(): boolean;
   }
   interface Event {
     /**
-     * SetCookie is an alias for [http.SetCookie].
+     * setCookie is an alias for [http.SetCookie].
      *
-     * SetCookie adds a Set-Cookie header to the current response's headers.
+     * setCookie adds a Set-Cookie header to the current response's headers.
      * The provided cookie must have a valid Name.
      * Invalid cookies may be silently dropped.
      */
@@ -21198,7 +21182,7 @@ namespace router {
   }
   interface Event {
     /**
-     * RemoteIP returns the IP address of the client that sent the request.
+     * remoteIP returns the IP address of the client that sent the request.
      *
      * IPv6 addresses are returned expanded.
      * For example, "2001:db8::1" becomes "2001:0db8:0000:0000:0000:0000:0000:0001".
@@ -21210,79 +21194,79 @@ namespace router {
   }
   interface Event {
     /**
-     * FindUploadedFiles extracts all form files of "key" from a http request
+     * findUploadedFiles extracts all form files of "key" from a http request
      * and returns a slice with filesystem.File instances (if any).
      */
     findUploadedFiles(key: string): Array<filesystem.File | undefined>;
   }
   interface Event {
     /**
-     * Get retrieves single value from the current event data store.
+     * get retrieves single value from the current event data store.
      */
     get(key: string): any;
   }
   interface Event {
     /**
-     * GetAll returns a copy of the current event data store.
+     * getAll returns a copy of the current event data store.
      */
     getAll(): _TygojaDict;
   }
   interface Event {
     /**
-     * Set saves single value into the current event data store.
+     * set saves single value into the current event data store.
      */
     set(key: string, value: any): void;
   }
   interface Event {
     /**
-     * SetAll saves all items from m into the current event data store.
+     * setAll saves all items from m into the current event data store.
      */
     setAll(m: _TygojaDict): void;
   }
   interface Event {
     /**
-     * String writes a plain string response.
+     * string writes a plain string response.
      */
     string(status: number, data: string): void;
   }
   interface Event {
     /**
-     * HTML writes an HTML response.
+     * html writes an HTML response.
      */
     html(status: number, data: string): void;
   }
   interface Event {
     /**
-     * JSON writes a JSON response.
+     * json writes a JSON response.
      *
      * It also provides a generic response data fields picker if the "fields" query parameter is set.
-     * For example, if you are requesting `?fields=a,b` for `e.JSON(200, map[string]int{ "a":1, "b":2, "c":3 })`,
+     * For example, if you are requesting `?fields=a,b` for `e.json(200, map[string]int{ "a":1, "b":2, "c":3 })`,
      * it should result in a JSON response like: `{"a":1, "b": 2}`.
      */
     json(status: number, data: any): void;
   }
   interface Event {
     /**
-     * XML writes an XML response.
+     * xml writes an XML response.
      * It automatically prepends the generic [xml.Header] string to the response.
      */
     xml(status: number, data: any): void;
   }
   interface Event {
     /**
-     * Stream streams the specified reader into the response.
+     * stream streams the specified reader into the response.
      */
     stream(status: number, contentType: string, reader: io.Reader): void;
   }
   interface Event {
     /**
-     * Blob writes a blob (bytes slice) response.
+     * blob writes a blob (bytes slice) response.
      */
     blob(status: number, contentType: string, b: string | Array<number>): void;
   }
   interface Event {
     /**
-     * FileFS serves the specified filename from fsys.
+     * fileFS serves the specified filename from fsys.
      *
      * It is similar to [echo.FileFS] for consistency with earlier versions.
      */
@@ -21290,13 +21274,13 @@ namespace router {
   }
   interface Event {
     /**
-     * NoContent writes a response with no body (ex. 204).
+     * noContent writes a response with no body (ex. 204).
      */
     noContent(status: number): void;
   }
   interface Event {
     /**
-     * Redirect writes a redirect response to the specified url.
+     * redirect writes a redirect response to the specified url.
      * The status code must be in between 300 – 399 range.
      */
     redirect(status: number, url: string): void;
@@ -21324,7 +21308,7 @@ namespace router {
   }
   interface Event {
     /**
-     * BindBody unmarshal the request body into the provided dst.
+     * bindBody unmarshal the request body into the provided dst.
      *
      * dst must be either a struct pointer or map[string]any.
      *
@@ -21341,21 +21325,16 @@ namespace router {
      * ```
      *   - "json" (json body)- uses the builtin Go json package for unmarshaling.
      *   - "xml" (xml body) - uses the builtin Go xml package for unmarshaling.
-     *   - "form" (form data) - utilizes the custom [router.UnmarshalRequestData] method.
+     *   - "form" (form data) - utilizes the custom [router.unmarshalRequestData] method.
      * ```
      *
      * NB! When dst is a struct make sure that it doesn't have public fields
      * that shouldn't be bindable and it is advisible such fields to be unexported
      * or have a separate struct just for the binding. For example:
      *
-     * ```
-     * 	data := struct{
-     * 	   somethingPrivate string
-     *
-     * 	   Title string `json:"title" form:"title"`
-     * 	   Total int    `json:"total" form:"total"`
-     * 	}
-     * 	err := e.BindBody(&data)
+     * ```js
+     * const data = {}
+     * e.bindBody(data)
      * ```
      */
     bindBody(dst: any): void;
@@ -21366,30 +21345,21 @@ namespace router {
    *
    * Example:
    *
-   * ```
-   * 	r := NewRouter[*MyEvent](eventFactory)
+   * ```js
+   * routerAdd("GET", "/test", (e) => {
+   *     return e.next()
+   * })
    *
-   * 	// middlewares
-   * 	r.BindFunc(m1, m2)
-   *
-   * 	// routes
-   * 	r.GET("/test", handler1)
-   *
-   * 	// sub-routers/groups
-   * 	api := r.Group("/api")
-   * 	api.GET("/admins", handler2)
-   *
-   * 	// generate a http.ServeMux instance based on the router configurations
-   * 	mux, _ := r.BuildMux()
-   *
-   * 	http.ListenAndServe("localhost:8090", mux)
+   * routerUse((e) => {
+   *     return e.next()
+   * })
    * ```
    */
   type _skxgfxH<T> = RouterGroup<T>;
   interface Router<T> extends _skxgfxH<T> {}
   interface Router<T> {
     /**
-     * BuildMux constructs a new mux [http.Handler] instance from the current router configurations.
+     * buildMux constructs a new mux [http.Handler] instance from the current router configurations.
      */
     buildMux(): http.Handler;
   }
@@ -21417,7 +21387,7 @@ namespace mailer {
   interface Mailer {
     [key: string]: any;
     /**
-     * Send sends an email with the provided Message.
+     * send sends an email with the provided Message.
      */
     send(message: Message): void;
   }
@@ -21430,26 +21400,26 @@ namespace subscriptions {
   interface Broker {}
   interface Broker {
     /**
-     * Clients returns a shallow copy of all registered clients indexed
+     * clients returns a shallow copy of all registered clients indexed
      * with their connection id.
      */
     clients(): _TygojaDict;
   }
   interface Broker {
     /**
-     * ChunkedClients splits the current clients into a chunked slice.
+     * chunkedClients splits the current clients into a chunked slice.
      */
     chunkedClients(chunkSize: number): Array<Array<Client>>;
   }
   interface Broker {
     /**
-     * TotalClients returns the total number of registered clients.
+     * totalClients returns the total number of registered clients.
      */
     totalClients(): number;
   }
   interface Broker {
     /**
-     * ClientById finds a registered client by its id.
+     * clientById finds a registered client by its id.
      *
      * Returns non-nil error when client with clientId is not registered.
      */
@@ -21457,13 +21427,13 @@ namespace subscriptions {
   }
   interface Broker {
     /**
-     * Register adds a new client to the broker instance.
+     * register adds a new client to the broker instance.
      */
     register(client: Client): void;
   }
   interface Broker {
     /**
-     * Unregister removes a single client by its id and marks it as discarded.
+     * unregister removes a single client by its id and marks it as discarded.
      *
      * If client with clientId doesn't exist, this method does nothing.
      */
@@ -21475,29 +21445,29 @@ namespace subscriptions {
   interface Client {
     [key: string]: any;
     /**
-     * Id Returns the unique id of the client.
+     * id Returns the unique id of the client.
      */
     id(): string;
     /**
-     * Channel returns the client's communication channel.
+     * channel returns the client's communication channel.
      *
      * NB! The channel shouldn't be used after calling Discard().
      */
     channel(): undefined;
     /**
-     * Subscriptions returns a shallow copy of the client subscriptions matching the prefixes.
+     * subscriptions returns a shallow copy of the client subscriptions matching the prefixes.
      * If no prefix is specified, returns all subscriptions.
      */
     subscriptions(...prefixes: string[]): _TygojaDict;
     /**
-     * Subscribe subscribes the client to the provided subscriptions list.
+     * subscribe subscribes the client to the provided subscriptions list.
      *
      * Each subscription can also have "options" (json serialized SubscriptionOptions) as query parameter.
      *
      * Example:
      *
      * ```
-     * 	Subscribe(
+     * 	subscribe(
      * 	    "subscriptionA",
      * 	    `subscriptionB?options={"query":{"a":1},"headers":{"x_token":"abc"}}`,
      * 	)
@@ -21505,39 +21475,39 @@ namespace subscriptions {
      */
     subscribe(...subs: string[]): void;
     /**
-     * Unsubscribe unsubscribes the client from the provided subscriptions list.
+     * unsubscribe unsubscribes the client from the provided subscriptions list.
      */
     unsubscribe(...subs: string[]): void;
     /**
-     * HasSubscription checks if the client is subscribed to `sub`.
+     * hasSubscription checks if the client is subscribed to `sub`.
      */
     hasSubscription(sub: string): boolean;
     /**
-     * Set stores any value to the client's context.
+     * set stores any value to the client's context.
      */
     set(key: string, value: any): void;
     /**
-     * Unset removes a single value from the client's context.
+     * unset removes a single value from the client's context.
      */
     unset(key: string): void;
     /**
-     * Get retrieves the key value from the client's context.
+     * get retrieves the key value from the client's context.
      */
     get(key: string): any;
     /**
-     * Discard marks the client as "discarded" (and closes its channel),
+     * discard marks the client as "discarded" (and closes its channel),
      * meaning that it shouldn't be used anymore for sending new messages.
      *
      * It is safe to call Discard() multiple times.
      */
     discard(): void;
     /**
-     * IsDiscarded indicates whether the client has been "discarded"
+     * isDiscarded indicates whether the client has been "discarded"
      * and should no longer be used.
      */
     isDiscarded(): boolean;
     /**
-     * Send sends the specified message to the client's channel (if not discarded).
+     * send sends the specified message to the client's channel (if not discarded).
      */
     send(m: Message): void;
   }
@@ -21550,14 +21520,14 @@ namespace subscriptions {
   }
   interface Message {
     /**
-     * WriteSSE writes the current message in a SSE format into the provided writer.
+     * writeSSE writes the current message in a SSE format into the provided writer.
      *
-     * For example, writing to a router.Event:
+     * For example, writing to a router.event:
      *
-     * ```
-     * 	m := Message{Name: "users/create", Data: []byte{...}}
-     * 	m.WriteSSE(e.Response, "yourEventId")
-     * 	e.Flush()
+     * ```js
+     * const m = new SubscriptionMessage({ name: "users/create", data: "{}" })
+     * m.writeSSE(e.response, "yourEventId")
+     * e.flush()
      * ```
      */
     writeSSE(w: io.Writer, eventId: string): void;
@@ -21663,7 +21633,7 @@ namespace subscriptions {
  * to construct a new Logger containing the attributes:
  *
  * ```
- * 	logger2 := logger.With("url", r.URL)
+ * 	logger2 := logger.With("url", r.url)
  * ```
  *
  * The arguments to With are the same key-value pairs used in [Logger.Info].
@@ -21722,8 +21692,8 @@ namespace subscriptions {
  *
  * ```
  * 	slog.Group("request",
- * 	    "method", r.Method,
- * 	    "url", r.URL)
+ * 	    "method", r.method,
+ * 	    "url", r.url)
  * ```
  *
  * TextHandler would display this group as
@@ -21861,12 +21831,12 @@ namespace subscriptions {
  * A Record contains a mixture of simple public fields (e.g. Time, Level, Message)
  * and hidden fields that refer to state (such as attributes) indirectly. This
  * means that modifying a simple copy of a Record (e.g. by calling
- * [Record.Add] or [Record.AddAttrs] to add attributes)
+ * [Record.add] or [Record.addAttrs] to add attributes)
  * may have unexpected effects on the original.
- * Before modifying a Record, use [Record.Clone] to
+ * Before modifying a Record, use [Record.clone] to
  * create a copy that shares no state with the original,
  * or create a new Record with [NewRecord]
- * and build up its Attrs by traversing the old ones with [Record.Attrs].
+ * and build up its Attrs by traversing the old ones with [Record.attrs].
  *
  * # Performance considerations
  *
@@ -21883,14 +21853,14 @@ namespace subscriptions {
  * For example, consider the call
  *
  * ```
- * 	slog.Info("starting request", "url", r.URL.String())  // may compute String unnecessarily
+ * 	slog.Info("starting request", "url", r.url.String())  // may compute String unnecessarily
  * ```
  *
  * The URL.String method will be called even if the logger discards Info-level events.
  * Instead, pass the URL directly:
  *
  * ```
- * 	slog.Info("starting request", "url", &r.URL) // calls URL.String only if needed
+ * 	slog.Info("starting request", "url", &r.url) // calls URL.String only if needed
  * ```
  *
  * The built-in [TextHandler] will call its String method, but only
@@ -22072,13 +22042,13 @@ namespace cron {
   interface Cron {}
   interface Cron {
     /**
-     * MustAdd is similar to Add() but panic on failure.
+     * mustAdd is similar to Add() but panic on failure.
      */
     mustAdd(jobId: string, cronExpr: string, run: () => void): void;
   }
   interface Cron {
     /**
-     * Add registers a single cron job.
+     * add registers a single cron job.
      *
      * If there is already a job with the provided id, then the old job
      * will be replaced with the new one.
@@ -22091,31 +22061,31 @@ namespace cron {
   }
   interface Cron {
     /**
-     * Remove removes a single cron job by its id.
+     * remove removes a single cron job by its id.
      */
     remove(jobId: string): void;
   }
   interface Cron {
     /**
-     * RemoveAll removes all registered cron jobs.
+     * removeAll removes all registered cron jobs.
      */
     removeAll(): void;
   }
   interface Cron {
     /**
-     * Total returns the current total number of registered cron jobs.
+     * total returns the current total number of registered cron jobs.
      */
     total(): number;
   }
   interface Cron {
     /**
-     * Jobs returns a shallow copy of the currently registered cron jobs.
+     * jobs returns a shallow copy of the currently registered cron jobs.
      */
     jobs(): Array<Job | undefined>;
   }
   interface Cron {
     /**
-     * Stop stops the current cron scheduler (if not already).
+     * stop stops the current cron scheduler (if not already).
      *
      * You can resume the scheduler by calling Start().
      */
@@ -22123,7 +22093,7 @@ namespace cron {
   }
   interface Cron {
     /**
-     * Start starts the cron scheduler.
+     * start starts the cron scheduler.
      *
      * Calling Start() on already started cron will restart the scheduler.
      */
@@ -22131,7 +22101,7 @@ namespace cron {
   }
   interface Cron {
     /**
-     * HasStarted checks whether the current Cron scheduler has been started.
+     * hasStarted checks whether the current Cron scheduler has been started.
      */
     hasStarted(): boolean;
   }
@@ -23604,7 +23574,7 @@ namespace router {
   }
   interface RouterGroup<T> {
     /**
-     * Group creates and register a new child Group into the current one
+     * group creates and register a new child Group into the current one
      * with the specified prefix.
      *
      * The prefix follows the standard Go net/http ServeMux pattern format ("[HOST]/[PATH]")
@@ -23618,25 +23588,25 @@ namespace router {
   }
   interface RouterGroup<T> {
     /**
-     * BindFunc registers one or multiple middleware functions to the current group.
+     * bindFunc registers one or multiple middleware functions to the current group.
      *
      * The registered middleware functions are "anonymous" and with default priority,
      * aka. executes in the order they were registered.
      *
      * If you need to specify a named middleware (ex. so that it can be removed)
-     * or middleware with custom exec prirority, use [RouterGroup.Bind] method.
+     * or middleware with custom exec prirority, use [RouterGroup.bind] method.
      */
     bindFunc(...middlewareFuncs: ((e: T) => void)[]): RouterGroup<T>;
   }
   interface RouterGroup<T> {
     /**
-     * Bind registers one or multiple middleware handlers to the current group.
+     * bind registers one or multiple middleware handlers to the current group.
      */
     bind(...middlewares: (hook.Handler<T> | undefined)[]): RouterGroup<T>;
   }
   interface RouterGroup<T> {
     /**
-     * Unbind removes one or more middlewares with the specified id(s)
+     * unbind removes one or more middlewares with the specified id(s)
      * from the current group and its children (if any).
      *
      * Anonymous middlewares are not removable, aka. this method does nothing
@@ -23646,7 +23616,7 @@ namespace router {
   }
   interface RouterGroup<T> {
     /**
-     * Route registers a single route into the current group.
+     * route registers a single route into the current group.
      *
      * Note that the final route path will be the concatenation of all parent groups prefixes + the route path.
      * The path follows the standard Go net/http ServeMux format ("[HOST]/[PATH]"),
@@ -23658,61 +23628,61 @@ namespace router {
   }
   interface RouterGroup<T> {
     /**
-     * Any is a shorthand for [RouterGroup.AddRoute] with "" as route method (aka. matches any method).
+     * any is a shorthand for [RouterGroup.addRoute] with "" as route method (aka. matches any method).
      */
     any(path: string, action: (e: T) => void): Route<T>;
   }
   interface RouterGroup<T> {
     /**
-     * GET is a shorthand for [RouterGroup.AddRoute] with GET as route method.
+     * get is a shorthand for [RouterGroup.addRoute] with GET as route method.
      */
     get(path: string, action: (e: T) => void): Route<T>;
   }
   interface RouterGroup<T> {
     /**
-     * SEARCH is a shorthand for [RouterGroup.AddRoute] with SEARCH as route method.
+     * search is a shorthand for [RouterGroup.addRoute] with SEARCH as route method.
      */
     search(path: string, action: (e: T) => void): Route<T>;
   }
   interface RouterGroup<T> {
     /**
-     * POST is a shorthand for [RouterGroup.AddRoute] with POST as route method.
+     * post is a shorthand for [RouterGroup.addRoute] with POST as route method.
      */
     post(path: string, action: (e: T) => void): Route<T>;
   }
   interface RouterGroup<T> {
     /**
-     * DELETE is a shorthand for [RouterGroup.AddRoute] with DELETE as route method.
+     * delete is a shorthand for [RouterGroup.addRoute] with DELETE as route method.
      */
     delete(path: string, action: (e: T) => void): Route<T>;
   }
   interface RouterGroup<T> {
     /**
-     * PATCH is a shorthand for [RouterGroup.AddRoute] with PATCH as route method.
+     * patch is a shorthand for [RouterGroup.addRoute] with PATCH as route method.
      */
     patch(path: string, action: (e: T) => void): Route<T>;
   }
   interface RouterGroup<T> {
     /**
-     * PUT is a shorthand for [RouterGroup.AddRoute] with PUT as route method.
+     * put is a shorthand for [RouterGroup.addRoute] with PUT as route method.
      */
     put(path: string, action: (e: T) => void): Route<T>;
   }
   interface RouterGroup<T> {
     /**
-     * HEAD is a shorthand for [RouterGroup.AddRoute] with HEAD as route method.
+     * head is a shorthand for [RouterGroup.addRoute] with HEAD as route method.
      */
     head(path: string, action: (e: T) => void): Route<T>;
   }
   interface RouterGroup<T> {
     /**
-     * OPTIONS is a shorthand for [RouterGroup.AddRoute] with OPTIONS as route method.
+     * options is a shorthand for [RouterGroup.addRoute] with OPTIONS as route method.
      */
     options(path: string, action: (e: T) => void): Route<T>;
   }
   interface RouterGroup<T> {
     /**
-     * HasRoute checks whether the specified route pattern (method + path)
+     * hasRoute checks whether the specified route pattern (method + path)
      * is registered in the current group or its children.
      *
      * This could be useful to conditionally register and checks for routes
@@ -23783,8 +23753,8 @@ namespace slog {
      *
      * Handle methods that produce output should observe the following rules:
      * ```
-     *   - If r.Time is the zero time, ignore the time.
-     *   - If r.PC is zero, ignore it.
+     *   - If r.time is the zero time, ignore the time.
+     *   - If r.pc is zero, ignore it.
      *   - Attr's values should be resolved.
      *   - If an Attr's key and value are both the zero value, ignore the Attr.
      *     This can be tested with attr.Equal(Attr{}).
@@ -23907,25 +23877,25 @@ namespace cron {
   interface Job {}
   interface Job {
     /**
-     * Id returns the cron job id.
+     * id returns the cron job id.
      */
     id(): string;
   }
   interface Job {
     /**
-     * Expression returns the plain cron job schedule expression.
+     * expression returns the plain cron job schedule expression.
      */
     expression(): string;
   }
   interface Job {
     /**
-     * Run runs the cron job function.
+     * run runs the cron job function.
      */
     run(): void;
   }
   interface Job {
     /**
-     * MarshalJSON implements [json.Marshaler] and export the current
+     * marshalJSON implements [json.Marshaler] and export the current
      * jobs data into valid JSON.
      */
     marshalJSON(): string | Array<number>;
@@ -24106,7 +24076,7 @@ namespace slog {
    * Copies of a Record share state.
    * Do not modify a Record after handing out a copy to it.
    * Call [NewRecord] to create a new Record.
-   * Use [Record.Clone] to create a copy with no shared state.
+   * Use [Record.clone] to create a copy with no shared state.
    */
   interface Record {
     /**
@@ -24377,25 +24347,25 @@ namespace router {
   }
   interface Route<T> {
     /**
-     * BindFunc registers one or multiple middleware functions to the current route.
+     * bindFunc registers one or multiple middleware functions to the current route.
      *
      * The registered middleware functions are "anonymous" and with default priority,
      * aka. executes in the order they were registered.
      *
      * If you need to specify a named middleware (ex. so that it can be removed)
-     * or middleware with custom exec prirority, use the [Route.Bind] method.
+     * or middleware with custom exec prirority, use the [Route.bind] method.
      */
     bindFunc(...middlewareFuncs: ((e: T) => void)[]): Route<T>;
   }
   interface Route<T> {
     /**
-     * Bind registers one or multiple middleware handlers to the current route.
+     * bind registers one or multiple middleware handlers to the current route.
      */
     bind(...middlewares: (hook.Handler<T> | undefined)[]): Route<T>;
   }
   interface Route<T> {
     /**
-     * Unbind removes one or more middlewares with the specified id(s) from the current route.
+     * unbind removes one or more middlewares with the specified id(s) from the current route.
      *
      * It also adds the removed middleware ids to an exclude list so that they could be skipped from
      * the execution chain in case the middleware is registered in a parent group.
