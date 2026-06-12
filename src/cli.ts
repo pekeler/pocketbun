@@ -3,7 +3,7 @@
 
 import type { ServeEvent } from "./core/events.ts";
 import { Static } from "./apis/base.ts";
-import { NewServerJSCommand, isServerJSLowercaseCommand } from "./cmd/server_js.ts";
+import { NewServerJSCommand, isServerJSSourceUpgradeCommand } from "./cmd/server_js.ts";
 import { MustRegisterAsync as RegisterServerJS } from "./plugins/jsvm/jsvm.ts";
 import { MustRegister as RegisterMigrateCmd, TemplateLangJS } from "./plugins/migratecmd/migratecmd.ts";
 import { New } from "./pocketbase.ts";
@@ -73,7 +73,7 @@ export async function main(): Promise<void> {
   app.RootCmd.AddCommand(NewServerJSCommand());
   app.RootCmd.ParseFlags(args);
 
-  if (isServerJSLowercaseCommand(args)) {
+  if (isServerJSSourceUpgradeCommand(args)) {
     const err = await app.RootCmd.Execute(args);
     if (err) {
       console.error(err);

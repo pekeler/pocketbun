@@ -86,6 +86,104 @@ onRecordAfterCreateSuccess((e) => {
 `);
   });
 
+  it("rewrites released PocketBun server-side JavaScript aliases", () => {
+    const source = `import {
+  type JSVMConfig,
+  MustRegisterHooksPluginAsync,
+  RegisterHooksPlugin,
+  RegisterJSVM as registerJSVM,
+  TemplateLangGo,
+} from "pocketbun";
+
+const config: JSVMConfig = { TemplateLang: TemplateLangGo };
+RegisterHooksPlugin(app, config);
+registerJSVM(app, { TemplateLang: TemplateLangGo });
+await MustRegisterHooksPluginAsync(app, config);
+`;
+
+    const result = rewriteJSVMCase(source);
+
+    expect(result.changed).toBeTrue();
+    expect(result.code).toBe(`import {
+  type ServerJSConfig,
+  MustRegisterServerJSAsync,
+  RegisterServerJS,
+  RegisterServerJS as registerJSVM,
+  TemplateLangJS,
+} from "pocketbun";
+
+const config: ServerJSConfig = { TemplateLang: TemplateLangJS };
+RegisterServerJS(app, config);
+registerJSVM(app, { TemplateLang: TemplateLangJS });
+await MustRegisterServerJSAsync(app, config);
+`);
+  });
+
+  it("updates old generated collection migrations to use the migration app view", () => {
+    const source = `migrate((app) => {
+  const collection = new Collection({ id: "posts" });
+
+  return app.Save(collection);
+}, (app) => {
+  const collection = app.FindCollectionByNameOrId("posts");
+
+  return app.Delete(collection);
+});
+
+migrate((app) => {
+  const snapshot = [];
+
+  return app.ImportCollections(snapshot, false);
+}, (app) => {
+  return null;
+});
+`;
+
+    const result = rewriteJSVMCase(source);
+
+    expect(result.changed).toBeTrue();
+    expect(result.code).toBe(`migrate((app) => {
+  const migrationApp = app.forMigrations();
+  const collection = new Collection({ id: "posts" });
+
+  return migrationApp.save(collection);
+}, (app) => {
+  const migrationApp = app.forMigrations();
+  const collection = migrationApp.findCollectionByNameOrId("posts");
+
+  return migrationApp.delete(collection);
+});
+
+migrate((app) => {
+  const migrationApp = app.forMigrations();
+  const snapshot = [];
+
+  return migrationApp.importCollections(snapshot, false);
+}, (app) => {
+  return null;
+});
+`);
+  });
+
+  it("does not route ordinary data migrations through forMigrations", () => {
+    const source = `migrate((app) => {
+  const record = app.FindRecordById("posts", "abc");
+
+  return app.Save(record);
+});
+`;
+
+    const result = rewriteJSVMCase(source);
+
+    expect(result.changed).toBeTrue();
+    expect(result.code).toBe(`migrate((app) => {
+  const record = app.findRecordById("posts", "abc");
+
+  return app.save(record);
+});
+`);
+  });
+
   it("checks and writes default pb_hooks and pb_migrations paths", async () => {
     await using dir = await newTempDir("pocketbun-jsvm-case-codemod-");
     const hooksDir = join(dir.path, "pb_hooks");

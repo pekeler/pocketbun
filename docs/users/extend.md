@@ -65,7 +65,7 @@ For most parts, the JavaScript APIs mirror the upstream server APIs with 2 main 
 
 PocketBun still accepts older Go-style uppercase hook method names where they were exposed by previous PocketBun releases, but those names are legacy compatibility aliases. New hooks should use the lowercase names from the PocketBase JavaScript docs and generated `pb_data/types.d.ts`.
 
-To update older hooks and migrations automatically, run `pocketbun server-js lowercase`. It scans `./pb_hooks` and `./pb_migrations` by default; use `pocketbun server-js lowercase --check` in CI to fail when legacy uppercase names remain, and review the generated diff before committing.
+To update older hooks and migrations automatically, run `pocketbun server-js upgrade-source`. It scans `./pb_hooks` and `./pb_migrations` by default; use `pocketbun server-js upgrade-source --check` in CI to fail when legacy names remain, and review the generated diff before committing. The fixer also updates released PocketBun package aliases like `RegisterHooksPlugin*` / `RegisterJSVM*`, `JSVMConfig`, and `TemplateLangGo` when you pass files that contain package setup code.
 
 In the PocketBun package API, use `RegisterServerJS*` / `MustRegisterServerJS*` and `ServerJSConfig` for server-side hooks and JavaScript migrations. PocketBase's upstream JavaScript extension package is named `jsvm` because it runs code in an embedded JavaScript VM; PocketBun keeps `RegisterJSVM*` / `MustRegisterJSVM*` and `JSVMConfig` as upstream-parity aliases. `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain available for compatibility with released PocketBun versions.
 

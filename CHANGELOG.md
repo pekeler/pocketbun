@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.39.3-pocketbun.3 - 2026-06-12
+
+- Replaced `pocketbun server-js lowercase` with `pocketbun server-js upgrade-source`, which updates legacy server-side JavaScript names, package aliases, template language config, and old generated collection migrations while preserving formatting.
+
 ## 0.39.3-pocketbun.2 - 2026-06-12
 
 - `pocketbun server-js lowercase` now preserves existing indentation, spacing, blank lines, and quote style while rewriting names.

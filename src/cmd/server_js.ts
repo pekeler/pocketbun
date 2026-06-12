@@ -10,11 +10,11 @@ export function NewServerJSCommand(): Command {
     Short: "Server-side JavaScript utilities",
   });
 
-  command.AddCommand(newServerJSLowercaseCommand());
+  command.AddCommand(newServerJSUpgradeSourceCommand());
   return command;
 }
 
-export function isServerJSLowercaseCommand(args: string[]): boolean {
+export function isServerJSSourceUpgradeCommand(args: string[]): boolean {
   const positional: string[] = [];
 
   for (let index = 0; index < args.length; index += 1) {
@@ -40,10 +40,10 @@ export function isServerJSLowercaseCommand(args: string[]): boolean {
     }
   }
 
-  return positional[0] === "server-js" && positional[1] === "lowercase";
+  return positional[0] === "server-js" && positional[1] === "upgrade-source";
 }
 
-function newServerJSLowercaseCommand(): Command {
+function newServerJSUpgradeSourceCommand(): Command {
   const state = {
     check: false,
     dryRun: false,
@@ -51,15 +51,17 @@ function newServerJSLowercaseCommand(): Command {
   };
 
   const command = new Command({
-    Use: "lowercase [paths...]",
-    Short: "Rewrite legacy uppercase server-side JavaScript names to lowercase",
-    Long: `Rewrites older PocketBun pb_hooks/pb_migrations code from Go-style exported names to PocketBase-style lower-camel JavaScript names.
+    Use: "upgrade-source [paths...]",
+    Short: "Upgrade legacy server-side JavaScript source",
+    Long: `Rewrites older PocketBun server-side JavaScript code from released compatibility names to the preferred names.
+
+This includes Go-style exported names, PocketBun package aliases, TemplateLangGo, and older generated collection migrations that need app.forMigrations().
 
 By default it scans ./pb_hooks and ./pb_migrations. Pass explicit files or directories to limit the rewrite.`,
     Example: [
-      "pocketbun server-js lowercase",
-      "pocketbun server-js lowercase --check",
-      "pocketbun server-js lowercase pb_hooks/main.pb.ts",
+      "pocketbun server-js upgrade-source",
+      "pocketbun server-js upgrade-source --check",
+      "pocketbun server-js upgrade-source pb_hooks/main.pb.ts",
     ].join("\n"),
     SilenceUsage: true,
   });
@@ -90,7 +92,7 @@ By default it scans ./pb_hooks and ./pb_migrations. Pass explicit files or direc
       console.log("No matching server-side JavaScript files found.");
     } else if (summary.changed === 0) {
       console.log(
-        `No legacy uppercase server-side JavaScript names found in ${summary.scanned} file${summary.scanned === 1 ? "" : "s"}.`,
+        `No legacy server-side JavaScript names found in ${summary.scanned} file${summary.scanned === 1 ? "" : "s"}.`,
       );
     } else {
       const action = state.check || state.dryRun ? "would change" : "changed";
@@ -100,7 +102,7 @@ By default it scans ./pb_hooks and ./pb_migrations. Pass explicit files or direc
     }
 
     if (state.check && summary.changed > 0) {
-      return new Error("legacy uppercase server-side JavaScript names found");
+      return new Error("legacy server-side JavaScript names found");
     }
     return null;
   };

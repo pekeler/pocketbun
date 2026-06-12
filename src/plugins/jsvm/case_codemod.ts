@@ -9,6 +9,33 @@ import { convertGoToJSName } from "./mapper.ts";
 export const defaultJSVMCaseCodemodExtensions = [".js", ".ts", ".mjs", ".mts", ".cjs", ".cts"];
 const defaultJSVMCaseCodemodPaths = ["pb_hooks", "pb_migrations"];
 const skippedDirNames = new Set([".git", "node_modules", "pb_data", "vendor"]);
+const exactLegacyNames = new Map([
+  ["RegisterJSVM", "RegisterServerJS"],
+  ["MustRegisterJSVM", "MustRegisterServerJS"],
+  ["RegisterJSVMAsync", "RegisterServerJSAsync"],
+  ["MustRegisterJSVMAsync", "MustRegisterServerJSAsync"],
+  ["JSVMConfig", "ServerJSConfig"],
+  ["RegisterHooksPlugin", "RegisterServerJS"],
+  ["MustRegisterHooksPlugin", "MustRegisterServerJS"],
+  ["RegisterHooksPluginAsync", "RegisterServerJSAsync"],
+  ["MustRegisterHooksPluginAsync", "MustRegisterServerJSAsync"],
+  ["TemplateLangGo", "TemplateLangJS"],
+]);
+const packageConfigNames = new Set([
+  "Automigrate",
+  "Dir",
+  "HooksDir",
+  "HooksFilesPattern",
+  "HooksPoolSize",
+  "HooksWatch",
+  "MigrationsDir",
+  "MigrationsFilesPattern",
+  "OnInit",
+  "TemplateLang",
+  "TypesDir",
+]);
+const migrationAppName = "migrationApp";
+const migrationCollectionMethods = new Set(["delete", "findCollectionByNameOrId", "importCollections", "save"]);
 
 export type JSVMCaseRewriteResult = {
   code: string;
@@ -52,6 +79,8 @@ export function rewriteJSVMCase(source: string, fileName = "hooks.pb.js"): JSVMC
       if (ts.isIdentifier(node.name)) {
         addIdentifierReplacement(sourceFile, edits, node.name);
       }
+    } else if (ts.isIdentifier(node)) {
+      addExactIdentifierReplacement(sourceFile, edits, node);
     } else if (ts.isElementAccessExpression(node)) {
       const argument = node.argumentExpression;
       const name = stringLiteralText(argument);
@@ -71,6 +100,8 @@ export function rewriteJSVMCase(source: string, fileName = "hooks.pb.js"): JSVMC
       } else if (ts.isIdentifier(node.name)) {
         addShorthandPropertyReplacement(sourceFile, edits, node.name);
       }
+    } else if (ts.isCallExpression(node)) {
+      addMigrationAppReplacements(sourceFile, edits, node);
     }
 
     ts.forEachChild(node, visit);
@@ -121,6 +152,13 @@ export async function runJSVMCaseCodemod(
 }
 
 function convertLegacyName(name: string): string | null {
+  const exact = exactLegacyNames.get(name);
+  if (exact) {
+    return exact;
+  }
+  if (packageConfigNames.has(name)) {
+    return null;
+  }
   if (!/^[A-Z]/.test(name)) {
     return null;
   }
@@ -128,12 +166,24 @@ function convertLegacyName(name: string): string | null {
   return converted === name ? null : converted;
 }
 
+function convertExactLegacyName(name: string): string | null {
+  return exactLegacyNames.get(name) ?? null;
+}
+
+function addExactIdentifierReplacement(sourceFile: ts.SourceFile, edits: SourceEdit[], name: ts.Identifier): void {
+  const converted = convertExactLegacyName(name.text);
+  if (!converted) {
+    return;
+  }
+  addSourceEdit(edits, { start: name.getStart(sourceFile), end: name.getEnd(), text: converted });
+}
+
 function addIdentifierReplacement(sourceFile: ts.SourceFile, edits: SourceEdit[], name: ts.Identifier): void {
   const converted = convertLegacyName(name.text);
   if (!converted) {
     return;
   }
-  edits.push({ start: name.getStart(sourceFile), end: name.getEnd(), text: converted });
+  addSourceEdit(edits, { start: name.getStart(sourceFile), end: name.getEnd(), text: converted });
 }
 
 function addPropertyNameReplacement(sourceFile: ts.SourceFile, edits: SourceEdit[], name: ts.PropertyName): void {
@@ -151,11 +201,17 @@ function addPropertyNameReplacement(sourceFile: ts.SourceFile, edits: SourceEdit
 }
 
 function addShorthandPropertyReplacement(sourceFile: ts.SourceFile, edits: SourceEdit[], name: ts.Identifier): void {
+  const exact = convertExactLegacyName(name.text);
+  if (exact) {
+    addSourceEdit(edits, { start: name.getStart(sourceFile), end: name.getEnd(), text: exact });
+    return;
+  }
+
   const converted = convertLegacyName(name.text);
   if (!converted) {
     return;
   }
-  edits.push({ start: name.getStart(sourceFile), end: name.getStart(sourceFile), text: `${converted}: ` });
+  addSourceEdit(edits, { start: name.getStart(sourceFile), end: name.getStart(sourceFile), text: `${converted}: ` });
 }
 
 function addStringLiteralReplacement(sourceFile: ts.SourceFile, edits: SourceEdit[], node: ts.Expression, text: string): void {
@@ -164,7 +220,140 @@ function addStringLiteralReplacement(sourceFile: ts.SourceFile, edits: SourceEdi
   if (end - start < 2) {
     return;
   }
-  edits.push({ start: start + 1, end: end - 1, text });
+  addSourceEdit(edits, { start: start + 1, end: end - 1, text });
+}
+
+function addMigrationAppReplacements(sourceFile: ts.SourceFile, edits: SourceEdit[], node: ts.CallExpression): void {
+  if (!ts.isIdentifier(node.expression) || node.expression.text !== "migrate") {
+    return;
+  }
+
+  for (const argument of node.arguments) {
+    if (!ts.isArrowFunction(argument) && !ts.isFunctionExpression(argument)) {
+      continue;
+    }
+    const param = argument.parameters[0];
+    if (!param || !ts.isIdentifier(param.name) || !ts.isBlock(argument.body)) {
+      continue;
+    }
+
+    addMigrationBlockReplacements(sourceFile, edits, argument.body, param.name.text);
+  }
+}
+
+function addMigrationBlockReplacements(sourceFile: ts.SourceFile, edits: SourceEdit[], block: ts.Block, appName: string): void {
+  const replacements: SourceEdit[] = [];
+  let hasCollectionSchemaSignal = false;
+
+  const visit = (node: ts.Node) => {
+    if (node !== block && ts.isFunctionLike(node)) {
+      return;
+    }
+
+    if (isCollectionConstructorUsage(node)) {
+      hasCollectionSchemaSignal = true;
+    }
+
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === appName &&
+      isMigrationCollectionMethod(node.name.text)
+    ) {
+      if (isMigrationCollectionLookupMethod(node.name.text)) {
+        hasCollectionSchemaSignal = true;
+      }
+      replacements.push({
+        start: node.expression.getStart(sourceFile),
+        end: node.expression.getEnd(),
+        text: migrationAppName,
+      });
+    }
+
+    ts.forEachChild(node, visit);
+  };
+  ts.forEachChild(block, visit);
+
+  if (replacements.length === 0 || !hasCollectionSchemaSignal) {
+    return;
+  }
+
+  for (const replacement of replacements) {
+    addSourceEdit(edits, replacement);
+  }
+
+  if (!hasTopLevelMigrationAppDeclaration(block)) {
+    addSourceEdit(edits, {
+      start: block.getStart(sourceFile) + 1,
+      end: block.getStart(sourceFile) + 1,
+      text: `\n${detectBlockIndent(sourceFile, block)}const ${migrationAppName} = ${appName}.forMigrations();`,
+    });
+  }
+}
+
+function isMigrationCollectionMethod(name: string): boolean {
+  const converted = convertLegacyName(name);
+  return migrationCollectionMethods.has(converted ?? name);
+}
+
+function isMigrationCollectionLookupMethod(name: string): boolean {
+  const converted = convertLegacyName(name) ?? name;
+  return converted === "findCollectionByNameOrId" || converted === "importCollections";
+}
+
+function isCollectionConstructorUsage(node: ts.Node): boolean {
+  if (ts.isNewExpression(node) && ts.isIdentifier(node.expression)) {
+    return node.expression.text === "Collection";
+  }
+  if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+    return (
+      node.expression.text === "newCollection" ||
+      node.expression.text === "newBaseCollection" ||
+      node.expression.text === "newAuthCollection" ||
+      node.expression.text === "newViewCollection"
+    );
+  }
+  return false;
+}
+
+function hasTopLevelMigrationAppDeclaration(block: ts.Block): boolean {
+  for (const statement of block.statements) {
+    if (!ts.isVariableStatement(statement)) {
+      continue;
+    }
+    for (const declaration of statement.declarationList.declarations) {
+      if (ts.isIdentifier(declaration.name) && declaration.name.text === migrationAppName) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function detectBlockIndent(sourceFile: ts.SourceFile, block: ts.Block): string {
+  const source = sourceFile.text;
+  const openBraceEnd = block.getStart(sourceFile) + 1;
+  const lineEnd = source.indexOf("\n", openBraceEnd);
+  if (lineEnd < 0) {
+    return "  ";
+  }
+
+  const nextLineStart = lineEnd + 1;
+  const match = /^[\t ]*/.exec(source.slice(nextLineStart));
+  const indent = match?.[0] ?? "";
+  return indent || "  ";
+}
+
+function addSourceEdit(edits: SourceEdit[], edit: SourceEdit): void {
+  for (const existing of edits) {
+    if (existing.start === edit.start && existing.end === edit.end) {
+      if (existing.text !== edit.text) {
+        throw new Error("conflicting JSVM case codemod edits");
+      }
+      return;
+    }
+  }
+  edits.push(edit);
 }
 
 function applySourceEdits(source: string, edits: SourceEdit[]): string {

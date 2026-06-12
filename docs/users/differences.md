@@ -115,10 +115,10 @@ PocketBun supports PocketBase-style lowercase server-side JavaScript naming and 
 To update older PocketBun hooks and migrations automatically, run:
 
 ```sh
-pocketbun server-js lowercase
+pocketbun server-js upgrade-source
 ```
 
-The command scans `./pb_hooks` and `./pb_migrations` by default. Use `pocketbun server-js lowercase --check` in CI to fail when legacy uppercase names remain, or pass explicit files/directories to limit the rewrite. The fixer rewrites JavaScript/TypeScript member access and object-literal keys such as `e.Record.GetString(...)`, `$app.OnServe()`, and `{ Func, Id, Priority }`; it does not rewrite comments, strings, or class constructor identifiers. Run it with a clean working tree and review the diff before committing.
+The command scans `./pb_hooks` and `./pb_migrations` by default. Use `pocketbun server-js upgrade-source --check` in CI to fail when legacy names remain, or pass explicit files/directories to limit the rewrite. The fixer rewrites JavaScript/TypeScript member access and object-literal keys such as `e.Record.GetString(...)`, `$app.OnServe()`, and `{ Func, Id, Priority }`; updates released package aliases such as `RegisterHooksPlugin*`, `RegisterJSVM*`, `JSVMConfig`, and `TemplateLangGo`; and updates old generated collection migrations to use `app.forMigrations()`. It does not rewrite comments, strings, or class constructor identifiers. Run it with a clean working tree and review the diff before committing.
 
 For `pb_hooks` module loading:
 
