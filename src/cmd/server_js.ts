@@ -55,7 +55,7 @@ function newServerJSUpgradeSourceCommand(): Command {
     Short: "Upgrade legacy server-side JavaScript source",
     Long: `Rewrites older PocketBun server-side JavaScript code from released compatibility names to the preferred names.
 
-This includes Go-style exported names, PocketBun package aliases, TemplateLangGo, and older generated collection migrations that need app.forMigrations().
+This includes Go-style exported app, record, DateTime, form, ApiError, ValidationError, and hook handler names; PocketBun package aliases; TemplateLangGo; and older generated collection migrations that need app.forMigrations().
 
 By default it scans ./pb_hooks and ./pb_migrations. Pass explicit files or directories to limit the rewrite.`,
     Example: [

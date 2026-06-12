@@ -119,6 +119,101 @@ await MustRegisterServerJSAsync(app, config);
 `);
   });
 
+  it("rewrites legacy runtime names from generated server-side JavaScript types", () => {
+    const source = `migrate((app) => {
+  return app.RunInTransaction((txApp) => {
+    txApp.RunInTransaction(() => null);
+
+    const record = app.FindFirstRecordByFilter("posts", "1=1");
+    record.GetUnsavedFiles("docs");
+    record.GetUploadedFiles("docs");
+    record.UnmarshalJSONField("meta", {});
+    record.ExpandedOne("author");
+    record.ExpandedAll("tags");
+    record.IgnoreUnchangedFields(true);
+    record.MarshalJSON();
+    record.UnmarshalJSON("{}");
+
+    const created = record.GetDateTime("created");
+    created.IsZero();
+    created.MarshalJSON();
+    created.UnmarshalJSON('"2024-01-01 00:00:00.000Z"');
+    created.Value();
+
+    const form = new RecordUpsertForm(app, record);
+    form.SetContext(null);
+    form.SetApp(app);
+    form.SetRecord(record);
+    form.ResetAccess();
+    form.GrantManagerAccess();
+    form.GrantSuperuserAccess();
+    form.HasManageAccess();
+    form.Load({});
+    form.DrySubmit(() => null);
+    form.Submit();
+
+    const apple = new AppleClientSecretCreateForm(app);
+    apple.ClientId = "client";
+    apple.TeamId = "team";
+    apple.KeyId = "key";
+    apple.PrivateKey = "private";
+    apple.Duration = 60;
+    apple.Validate();
+    apple.Submit();
+
+    const email = new TestEmailSendForm(app);
+    email.Email = "test@example.com";
+    email.Template = "verification";
+    email.Collection = "users";
+    email.Validate();
+    email.Submit();
+
+    const s3 = new TestS3FilesystemForm(app);
+    s3.Filesystem = "storage";
+    s3.Validate();
+    s3.Submit();
+
+    const apiErr = new ApiError(400, "bad");
+    apiErr.Error();
+    apiErr.RawData();
+    apiErr.Is(new Error("bad"));
+    apiErr.Status;
+    apiErr.Message;
+    apiErr.Data;
+
+    const validationErr = new ValidationError("code", "message");
+    validationErr.Error();
+    validationErr.Code();
+    validationErr.Message();
+    validationErr.SetMessage("next");
+    validationErr.Params();
+    validationErr.SetParams({});
+  });
+});
+`;
+
+    const result = rewriteJSVMCase(source);
+
+    expect(result.changed).toBeTrue();
+    expect(result.code).toContain("app.runInTransaction((txApp) => {");
+    expect(result.code).toContain("txApp.runInTransaction(() => null);");
+    expect(result.code).toContain('record.getUnsavedFiles("docs");');
+    expect(result.code).toContain('record.unmarshalJSONField("meta", {});');
+    expect(result.code).toContain("record.ignoreUnchangedFields(true);");
+    expect(result.code).toContain("created.isZero();");
+    expect(result.code).toContain("created.marshalJSON();");
+    expect(result.code).toContain("form.grantSuperuserAccess();");
+    expect(result.code).toContain("form.hasManageAccess();");
+    expect(result.code).toContain('apple.clientId = "client";');
+    expect(result.code).toContain('apple.privateKey = "private";');
+    expect(result.code).toContain('email.collection = "users";');
+    expect(result.code).toContain('s3.filesystem = "storage";');
+    expect(result.code).toContain("apiErr.rawData();");
+    expect(result.code).toContain("apiErr.status;");
+    expect(result.code).toContain('validationErr.setMessage("next");');
+    expect(result.code).toContain("validationErr.setParams({});");
+  });
+
   it("updates old generated collection migrations to use the migration app view", () => {
     const source = `migrate((app) => {
   const collection = new Collection({ id: "posts" });

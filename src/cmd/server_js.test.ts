@@ -33,6 +33,7 @@ describe("server-side JavaScript command", () => {
 
     expect(err).toBeNull();
     expect(out).toContain("Rewrites older PocketBun server-side JavaScript code");
+    expect(out).toContain("app, record, DateTime, form, ApiError, ValidationError");
     expect(out).toContain("pocketbun server-js upgrade-source --check");
   });
 
