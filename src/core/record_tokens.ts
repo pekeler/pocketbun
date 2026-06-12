@@ -27,6 +27,12 @@ declare module "./record_model.ts" {
     NewPasswordResetToken(): string;
     NewEmailChangeToken(newEmail: string): string;
     NewFileToken(): string;
+    newStaticAuthToken(durationSeconds: number): string;
+    newAuthToken(): string;
+    newVerificationToken(): string;
+    newPasswordResetToken(): string;
+    newEmailChangeToken(newEmail: string): string;
+    newFileToken(): string;
   }
 }
 
@@ -128,6 +134,32 @@ Record.prototype.NewFileToken = function (this: Record): string {
     key,
     collection.FileToken.DurationTime(),
   );
+};
+
+// PocketBun JSVM compatibility: expose PocketBase's lower-camel server-side
+// JavaScript token helpers directly on Record instances.
+Record.prototype.newStaticAuthToken = function (this: Record, durationSeconds: number): string {
+  return this.NewStaticAuthToken(durationSeconds);
+};
+
+Record.prototype.newAuthToken = function (this: Record): string {
+  return this.NewAuthToken();
+};
+
+Record.prototype.newVerificationToken = function (this: Record): string {
+  return this.NewVerificationToken();
+};
+
+Record.prototype.newPasswordResetToken = function (this: Record): string {
+  return this.NewPasswordResetToken();
+};
+
+Record.prototype.newEmailChangeToken = function (this: Record, newEmail: string): string {
+  return this.NewEmailChangeToken(newEmail);
+};
+
+Record.prototype.newFileToken = function (this: Record): string {
+  return this.NewFileToken();
 };
 
 function newAuthToken(record: Record, durationSeconds: number, refreshable: boolean): string {

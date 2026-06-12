@@ -861,6 +861,87 @@ export function NewRecord(collection: Collection, data: RecordData = {}): Record
   return new Record(collection, data, true);
 }
 
+const recordMethodAliases = [
+  ["isNew", "IsNew"],
+  ["postScan", "PostScan"],
+  ["load", "Load"],
+  ["lastSavedPK", "LastSavedPK"],
+  ["pk", "PK"],
+  ["markAsNew", "MarkAsNew"],
+  ["markAsNotNew", "MarkAsNotNew"],
+  ["original", "Original"],
+  ["fresh", "Fresh"],
+  ["clone", "Clone"],
+  ["fieldsData", "FieldsData"],
+  ["customData", "CustomData"],
+  ["expand", "Expand"],
+  ["hasExpand", "HasExpand"],
+  ["setExpand", "SetExpand"],
+  ["mergeExpand", "MergeExpand"],
+  ["findFileFieldByFile", "FindFileFieldByFile"],
+  ["hide", "Hide"],
+  ["unhide", "Unhide"],
+  ["withCustomData", "WithCustomData"],
+  ["ignoreEmailVisibility", "IgnoreEmailVisibility"],
+  ["ignoreUnchangedFields", "IgnoreUnchangedFields"],
+  ["setIfFieldExists", "SetIfFieldExists"],
+  ["replaceModifiers", "ReplaceModifiers"],
+  ["tableName", "TableName"],
+  ["hookTags", "HookTags"],
+  ["baseFilesPath", "BaseFilesPath"],
+  ["dbExport", "DBExport"],
+  ["isSuperuser", "IsSuperuser"],
+  ["publicExport", "PublicExport"],
+  ["email", "Email"],
+  ["setEmail", "SetEmail"],
+  ["emailVisibility", "EmailVisibility"],
+  ["setEmailVisibility", "SetEmailVisibility"],
+  ["verified", "Verified"],
+  ["setVerified", "SetVerified"],
+  ["tokenKey", "TokenKey"],
+  ["setTokenKey", "SetTokenKey"],
+  ["refreshTokenKey", "RefreshTokenKey"],
+  ["setPassword", "SetPassword"],
+  ["setPasswordAsync", "SetPasswordAsync"],
+  ["setRandomPassword", "SetRandomPassword"],
+  ["setRandomPasswordAsync", "SetRandomPasswordAsync"],
+  ["validatePassword", "ValidatePassword"],
+  ["validatePasswordAsync", "ValidatePasswordAsync"],
+] as const;
+
+installRecordJSVMAliases();
+
+function installRecordJSVMAliases(): void {
+  // PocketBun JSVM compatibility: expose PocketBase's lower-camel server-side
+  // JavaScript names directly on Record instances instead of using bind facades.
+  for (const [aliasName, sourceName] of recordMethodAliases) {
+    defineRecordMethodAlias(aliasName, sourceName);
+  }
+}
+
+function defineRecordMethodAlias(aliasName: string, sourceName: string): void {
+  if (aliasName in Record.prototype) {
+    return;
+  }
+
+  Object.defineProperty(Record.prototype, aliasName, {
+    configurable: true,
+    enumerable: false,
+    writable: true,
+    value(this: { [key: string]: unknown }, ...args: unknown[]) {
+      const method = this[sourceName];
+      if (typeof method !== "function") {
+        throw new Error(`Record.${sourceName} is not available`);
+      }
+      const result = method.apply(this, args);
+      if (result instanceof Error) {
+        throw result;
+      }
+      return result;
+    },
+  });
+}
+
 const utf8Decoder = new TextDecoder();
 
 function normalizeRowValue(value: unknown): unknown {

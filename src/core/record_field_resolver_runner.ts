@@ -735,9 +735,15 @@ function buildInExpr(column: string, count: number): string {
 }
 
 export function getCollectionField(collection: Collection, name: string): CollectionField | null {
-  for (const field of collection.fields) {
-    if (field.name === name) {
-      return field;
+  for (const field of collection.Fields) {
+    if (field.GetName() === name) {
+      return {
+        name: field.GetName(),
+        type: field.Type(),
+        system: field.GetSystem(),
+        hidden: field.GetHidden(),
+        raw: field as unknown as Record<string, unknown>,
+      };
     }
   }
   return null;

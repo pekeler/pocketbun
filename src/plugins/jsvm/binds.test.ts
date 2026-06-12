@@ -841,6 +841,34 @@ describe("jsvm binds", () => {
     }
   });
 
+  it("app binds allow Record constructor and set field setters in transactions", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      appBinds(scope, app);
+
+      const txErr = scope.$app.runInTransaction((txApp: BindScope) => {
+        const collection = txApp.findCollectionByNameOrId("demo1");
+        const created = new scope.Record(collection, { text: "created in transaction" });
+        expect(created.getString("text")).toBe("created in transaction");
+
+        created.set("text", "changed in transaction");
+        expect(created.getString("text")).toBe("changed in transaction");
+
+        const records = txApp.findRecordsByFilter("demo1", "id = '84nmscqy84lsi1t'", "", 1, 0);
+        const record = records[0];
+        record.set("text", "updated in transaction");
+        expect(record.getString("text")).toBe("updated in transaction");
+        return null;
+      });
+
+      expect(txErr).toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("base binds context", () => {
     const scope: BindScope = {};
     baseBinds(scope);
@@ -963,6 +991,38 @@ describe("jsvm binds", () => {
     const posts = scope.newBaseCollection("posts");
     expect(posts.type).toBe("base");
     expect(posts.Fields.map((field: { GetName: () => string }) => field.GetName())).toEqual(["id"]);
+  });
+
+  it("base binds Record constructor and set apply field setters from wrapped collections", () => {
+    const scope: BindScope = {};
+    baseBinds(scope);
+
+    const collection = scope.newBaseCollection("posts");
+    collection.Fields.add(new scope.TextField({ name: "title" }));
+    collection.Fields.add(new scope.SelectField({ name: "status", values: ["active", "canceled"] }));
+    collection.Fields.add(new scope.RelationField({ name: "owner", collectionId: "users" }));
+    collection.Fields.add(new scope.DateField({ name: "scheduled" }));
+
+    const statusField = collection.Fields.getByName("status");
+    const setter = statusField.FindSetter("status");
+    expect(typeof setter).toBe("function");
+
+    const record = new scope.Record(collection, {
+      title: "example",
+      status: "active",
+      owner: "user123",
+      scheduled: "2026-01-02 03:04:05.000Z",
+    });
+
+    expect(record.getString("title")).toBe("example");
+    expect(record.getString("status")).toBe("active");
+    expect(record.getString("owner")).toBe("user123");
+    expect(record.getDateTime("scheduled").string()).toBe("2026-01-02 03:04:05.000Z");
+
+    record.set("status", "canceled");
+    record.set("title", "changed");
+    expect(record.getString("status")).toBe("canceled");
+    expect(record.getString("title")).toBe("changed");
   });
 
   it("base bind typings declare collection helper globals", async () => {

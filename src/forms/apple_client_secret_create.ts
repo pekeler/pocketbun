@@ -22,6 +22,46 @@ export class AppleClientSecretCreate {
     this.app = app;
   }
 
+  get clientId(): string {
+    return this.ClientId;
+  }
+
+  set clientId(value: string) {
+    this.ClientId = value;
+  }
+
+  get teamId(): string {
+    return this.TeamId;
+  }
+
+  set teamId(value: string) {
+    this.TeamId = value;
+  }
+
+  get keyId(): string {
+    return this.KeyId;
+  }
+
+  set keyId(value: string) {
+    this.KeyId = value;
+  }
+
+  get privateKey(): string {
+    return this.PrivateKey;
+  }
+
+  set privateKey(value: string) {
+    this.PrivateKey = value;
+  }
+
+  get duration(): number {
+    return this.Duration;
+  }
+
+  set duration(value: number) {
+    this.Duration = value;
+  }
+
   // Validate makes the form validatable by implementing [validation.Validatable] interface.
   Validate(): Error | null {
     const errors: Record<string, Error> = {};
@@ -64,6 +104,15 @@ export class AppleClientSecretCreate {
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
   }
 
+  // PocketBun JSVM compatibility: PocketBase exposes lower-camel form APIs
+  // that throw validation errors instead of returning Go-style error values.
+  validate(): void {
+    const err = this.Validate();
+    if (err) {
+      throw err;
+    }
+  }
+
   // Submit validates the form and returns a new Apple Client Secret JWT.
   Submit(): { secret: string; error: Error | null } {
     const err = this.Validate();
@@ -99,6 +148,14 @@ export class AppleClientSecretCreate {
 
     const secret = `${signingInput}.${base64UrlEncode(signature)}`;
     return { secret, error: null };
+  }
+
+  submit(): string {
+    const { secret, error } = this.Submit();
+    if (error) {
+      throw error;
+    }
+    return secret;
   }
 }
 

@@ -1400,7 +1400,7 @@ function cloneCollectionForRule(collection: Collection, suffix: string): Collect
     type: collection.type,
     system: collection.system,
     // Deviation: shallow-copy field/index references to match upstream struct-copy behavior.
-    fields: collection.fields,
+    fields: collection.rawFields,
     Fields: collection.Fields,
     indexes: collection.indexes,
     listRule: collection.listRule,

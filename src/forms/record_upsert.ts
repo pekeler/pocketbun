@@ -38,6 +38,10 @@ export class RecordUpsert {
     this.ctx = ctx;
   }
 
+  setContext(ctx: unknown): void {
+    this.SetContext(ctx);
+  }
+
   // SetApp replaces the current form app instance.
   //
   // This could be used for example if you want to change at later stage
@@ -46,14 +50,26 @@ export class RecordUpsert {
     this.app = app;
   }
 
+  setApp(app: App): void {
+    this.SetApp(app);
+  }
+
   // SetRecord replaces the current form record instance.
   SetRecord(record: RecordModel): void {
     this.record = record;
   }
 
+  setRecord(record: RecordModel): void {
+    this.SetRecord(record);
+  }
+
   // ResetAccess resets the form access level to the accessLevelDefault.
   ResetAccess(): void {
     this.accessLevel = accessLevelDefault;
+  }
+
+  resetAccess(): void {
+    this.ResetAccess();
   }
 
   // GrantManagerAccess updates the form access level to "manager" allowing
@@ -62,15 +78,27 @@ export class RecordUpsert {
     this.accessLevel = accessLevelManager;
   }
 
+  grantManagerAccess(): void {
+    this.GrantManagerAccess();
+  }
+
   // GrantSuperuserAccess updates the form access level to "superuser" allowing
   // directly changing all system record fields, including those marked as "Hidden".
   GrantSuperuserAccess(): void {
     this.accessLevel = accessLevelSuperuser;
   }
 
+  grantSuperuserAccess(): void {
+    this.GrantSuperuserAccess();
+  }
+
   // HasManageAccess reports whether the form has "manager" or "superuser" level access.
   HasManageAccess(): boolean {
     return this.accessLevel === accessLevelManager || this.accessLevel === accessLevelSuperuser;
+  }
+
+  hasManageAccess(): boolean {
+    return this.HasManageAccess();
   }
 
   // Load loads the provided data into the form and the related record.
@@ -85,6 +113,10 @@ export class RecordUpsert {
       const field = this.record.SetIfFieldExists(key, value);
       this.restoreHiddenFieldValue(field, isAuth);
     }
+  }
+
+  load(data: Record<string, unknown>): void {
+    this.Load(data);
   }
 
   // LoadAsync loads the provided data into the form and the related record,
@@ -302,6 +334,21 @@ export class RecordUpsert {
     return manualRollback();
   }
 
+  async drySubmit(
+    callback: ((txApp: App, drySavedRecord: RecordModel) => void | Error | null | Promise<void | Error | null>) | null,
+  ): Promise<void> {
+    const err = await this.DrySubmit(async (txApp, drySavedRecord) => {
+      if (!callback) {
+        return null;
+      }
+      const result = await callback(txApp, drySavedRecord);
+      return result instanceof Error ? result : null;
+    });
+    if (err) {
+      throw err;
+    }
+  }
+
   // Submit validates the form specific validations and attempts to save the form record.
   async Submit(): Promise<Error | null> {
     // PocketBun perf deviation (behavior-compatible): non-auth collections have
@@ -316,6 +363,13 @@ export class RecordUpsert {
     }
 
     return this.app.SaveWithContext(this.ctx, this.record);
+  }
+
+  async submit(): Promise<void> {
+    const err = await this.Submit();
+    if (err) {
+      throw err;
+    }
   }
 
   // syncPasswordFields syncs the form's auth password fields with their

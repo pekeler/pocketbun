@@ -26,6 +26,7 @@ import {
   FieldNamePassword,
   FieldNameTokenKey,
   FieldNameVerified,
+  type Field,
 } from "./field.ts";
 import { BoolField } from "./field_bool.ts";
 import { EmailField } from "./field_email.ts";
@@ -68,7 +69,7 @@ export type CollectionInit = {
   name?: string;
   type?: string;
   system?: boolean;
-  fields?: CollectionField[];
+  fields?: CollectionField[] | Field[];
   Fields?: FieldsList;
   indexes?: string[];
   listRule?: string | null;
@@ -86,8 +87,8 @@ export class Collection {
   name = "";
   type = "";
   system = false;
-  fields: CollectionField[] = [];
   Fields: FieldsList = new FieldsList();
+  rawFields: CollectionField[] = [];
   // @todo consider changing the indexes field to a "getter" for the sqlite_master table?
   indexes: string[] = [];
   listRule: string | null = null;
@@ -129,8 +130,12 @@ export class Collection {
     this.name = values.name ?? "";
     this.type = values.type ?? this.type;
     this.system = Boolean(values.system);
-    this.fields = values.fields ?? [];
     this.Fields = values.Fields ?? new FieldsList();
+    if (!values.Fields && values.fields) {
+      this.fields = values.fields;
+    } else if (values.fields) {
+      this.rawFields = parseCollectionFields(collectionFieldsRaw(values.fields));
+    }
     this.indexes = values.indexes ?? [];
     this.listRule = values.listRule ?? null;
     this.viewRule = values.viewRule ?? null;
@@ -246,6 +251,25 @@ export class Collection {
       return;
     }
     this.applyOptions(value);
+  }
+
+  get fields(): FieldsList {
+    return this.Fields;
+  }
+
+  set fields(value: FieldsList | CollectionField[] | Field[]) {
+    if (value instanceof FieldsList) {
+      this.Fields = value;
+      this.rawFields = parseCollectionFields(value.toJSON());
+      return;
+    }
+    const raw = collectionFieldsRaw(value);
+    this.rawFields = parseCollectionFields(raw);
+    try {
+      this.Fields = FieldsList.fromJSON(JSON.stringify(raw));
+    } catch {
+      this.Fields = new FieldsList();
+    }
   }
 
   SafeOptions(): Record<string, unknown> {
@@ -557,7 +581,7 @@ export class Collection {
         break;
     }
 
-    this.fields = parseCollectionFields(this.Fields.toJSON());
+    this.rawFields = parseCollectionFields(this.Fields.toJSON());
   }
 
   initIdField(): void {
@@ -709,7 +733,6 @@ export class Collection {
     this.name = other.name;
     this.type = other.type;
     this.system = other.system;
-    this.fields = [...other.fields];
     this.Fields = other.Fields.Clone();
     this.indexes = [...other.indexes];
     this.listRule = other.listRule;
@@ -978,17 +1001,24 @@ export function parseCollectionFields(raw: unknown): CollectionField[] {
   return fields;
 }
 
-export function normalizeCollectionFields(collection: Collection): void {
-  if (collection.Fields.length === 0 && collection.fields.length > 0) {
-    try {
-      collection.Fields = FieldsList.fromJSON(JSON.stringify(collection.fields));
-    } catch {
-      collection.Fields = new FieldsList();
-    }
+function collectionFieldsRaw(value: FieldsList | CollectionField[] | Field[]): unknown[] {
+  if (value instanceof FieldsList) {
+    return value.toJSON();
   }
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((item) => {
+    if (item && typeof item === "object" && "raw" in item) {
+      return (item as CollectionField).raw;
+    }
+    return item;
+  });
+}
 
+export function normalizeCollectionFields(collection: Collection): void {
   if (collection.Fields.length > 0) {
-    collection.fields = parseCollectionFields(collection.Fields.toJSON());
+    collection.rawFields = parseCollectionFields(collection.Fields.toJSON());
   }
 }
 
@@ -1061,6 +1091,7 @@ export function applyCollectionData(collection: Collection, data: Record<string,
     } catch {
       collection.Fields = new FieldsList();
     }
+    collection.rawFields = parseCollectionFields(data.fields);
   }
   if (Array.isArray(data.indexes)) {
     collection.indexes = data.indexes.filter((value) => typeof value === "string") as string[];
@@ -1357,4 +1388,99 @@ function serializeToken(config: TokenConfigValue, safe: boolean): Record<string,
 
 function crc32Checksum(value: string): string {
   return String(Bun.hash.crc32(value));
+}
+
+// PocketBun JSVM compatibility: expose PocketBase's lower-camel server-side
+// JavaScript collection names directly on Collection instances instead of
+// relying on bind-layer facades.
+const collectionPropertyAliases = [
+  ["authRule", "AuthRule"],
+  ["manageRule", "ManageRule"],
+  ["authAlert", "AuthAlert"],
+  ["oauth2", "OAuth2"],
+  ["passwordAuth", "PasswordAuth"],
+  ["mfa", "MFA"],
+  ["otp", "OTP"],
+  ["authToken", "AuthToken"],
+  ["passwordResetToken", "PasswordResetToken"],
+  ["emailChangeToken", "EmailChangeToken"],
+  ["verificationToken", "VerificationToken"],
+  ["fileToken", "FileToken"],
+  ["verificationTemplate", "VerificationTemplate"],
+  ["resetPasswordTemplate", "ResetPasswordTemplate"],
+  ["confirmEmailChangeTemplate", "ConfirmEmailChangeTemplate"],
+  ["viewQuery", "ViewQuery"],
+  ["rawOptions", "RawOptions"],
+] as const;
+
+const collectionMethodAliases = [
+  ["safeOptions", "SafeOptions"],
+  ["tableName", "TableName"],
+  ["baseFilesPath", "BaseFilesPath"],
+  ["isBase", "IsBase"],
+  ["lastSavedPK", "LastSavedPK"],
+  ["pk", "PK"],
+  ["markAsNew", "MarkAsNew"],
+  ["markAsNotNew", "MarkAsNotNew"],
+  ["integrityChecks", "IntegrityChecks"],
+  ["postScan", "PostScan"],
+  ["unmarshalRawOptions", "unmarshalRawOptions"],
+  ["unmarshalJSON", "UnmarshalJSON"],
+  ["marshalJSON", "MarshalJSON"],
+  ["string", "String"],
+  ["dbExport", "DBExport"],
+  ["getIndex", "GetIndex"],
+  ["addIndex", "AddIndex"],
+  ["removeIndex", "RemoveIndex"],
+] as const;
+
+installCollectionJSVMAliases();
+
+function installCollectionJSVMAliases(): void {
+  for (const [aliasName, sourceName] of collectionPropertyAliases) {
+    defineCollectionPropertyAlias(aliasName, sourceName);
+  }
+  for (const [aliasName, sourceName] of collectionMethodAliases) {
+    defineCollectionMethodAlias(aliasName, sourceName);
+  }
+}
+
+function defineCollectionPropertyAlias(aliasName: string, sourceName: string): void {
+  if (aliasName in Collection.prototype) {
+    return;
+  }
+
+  Object.defineProperty(Collection.prototype, aliasName, {
+    configurable: true,
+    enumerable: false,
+    get(this: Record<string, unknown>) {
+      return this[sourceName];
+    },
+    set(this: Record<string, unknown>, value: unknown) {
+      this[sourceName] = value;
+    },
+  });
+}
+
+function defineCollectionMethodAlias(aliasName: string, sourceName: string): void {
+  if (aliasName in Collection.prototype) {
+    return;
+  }
+
+  Object.defineProperty(Collection.prototype, aliasName, {
+    configurable: true,
+    enumerable: false,
+    writable: true,
+    value(this: Record<string, unknown>, ...args: unknown[]) {
+      const method = this[sourceName];
+      if (typeof method !== "function") {
+        throw new Error(`Collection.${sourceName} is not available`);
+      }
+      const result = method.apply(this, args);
+      if (result instanceof Error) {
+        throw result;
+      }
+      return result;
+    },
+  });
 }

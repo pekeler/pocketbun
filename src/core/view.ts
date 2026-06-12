@@ -211,7 +211,7 @@ export async function DryRunView(app: App, dangerousSelectQuery: string, sampleS
   const fields = await CreateViewFields(app, normalizedQuery);
   const tempCollection = NewViewCollection(`temp_view_${pseudorandomString(5)}`);
   tempCollection.Fields = fields;
-  tempCollection.fields = parseCollectionFields(fields.toJSON());
+  tempCollection.rawFields = parseCollectionFields(fields.toJSON());
   tempCollection.system = false;
   tempCollection.ViewQuery = normalizedQuery;
 

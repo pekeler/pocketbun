@@ -1,100 +1,95 @@
-# Lower-camel public package API aliases
+# Replace Generic JSVM Facades With Direct Compatibility Aliases
 
 This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds. This document follows `.agents/PLANS.md`.
 
 ## Purpose / Big Picture
 
-PocketBun users should see TypeScript-style lower-camel names in public JavaScript and TypeScript examples, while existing released code that imports or calls Go-style exported names continues to run. After this change, package embedders can import helpers such as `newPocketBase`, `registerServerJSAsync`, `requireGuestOnly`, `serveStatic`, `registerMigrateCmd`, and `templateLangJS`, and can call lower-camel command/app helpers when wiring custom CLIs. Existing names such as `New`, `RegisterServerJSAsync`, `RequireGuestOnly`, `Static`, `RegisterMigrateCmd`, `TemplateLangJS`, `RootCmd`, and `Start()` remain available as deprecated compatibility aliases.
+PocketBun exposes a server-side JavaScript runtime, called JSVM in the PocketBase codebase, for hooks, routes, and migrations. PocketBase's JSVM public API uses lower-camel names such as `record.getString(...)`, while much of PocketBun's core TypeScript port intentionally mirrors upstream Go names such as `Record.GetString(...)`. The current binding layer bridges that gap with a generic facade system that recursively wraps arbitrary objects and synthesizes lower-camel aliases at runtime.
+
+That generic facade system caused a serious bug: a field setter function returned from `Field.FindSetter(...)` was wrapped into a non-callable object, so `new Record(collection, data)` and `record.set(...)` could throw in hooks. After this change, JSVM-exposed core objects should carry their compatibility aliases directly or be wrapped by narrow semantic adapters only where behavior genuinely differs. Users should still be able to use PocketBase-compatible server-side JavaScript, and the Admin UI should continue to work through the REST API and static asset paths.
 
 ## Progress
 
-- [x] (2026-06-12T12:36:17Z) Audited the package entrypoint, examples, generated server-side JavaScript declarations, and host-side CLI classes for remaining Go-style public names.
-- [x] (2026-06-12T12:48:00Z) Added lower-camel package exports, `PocketBase` launcher aliases, `Command`/`FlagSet` aliases, lower-camel config keys, and prototype-level `BaseApp` aliases while preserving old names.
-- [x] (2026-06-12T12:52:00Z) Updated public examples, docs, and the `server-js upgrade-source` codemod to prefer lower-camel package names.
-- [x] (2026-06-12T12:54:00Z) Cleaned remaining generated declaration comments that showed Go syntax in PocketBase-facing examples.
-- [x] (2026-06-12T12:58:00Z) Added regression tests covering preferred aliases, codemod rewrites, command aliases, launcher aliases, and generated comment guards.
-- [x] (2026-06-12T13:38:00Z) Ran formatting, full tests, typecheck, lint, and docs checks successfully.
+- [x] (2026-06-12T15:46:17Z) Read `.agents/PLANS.md`, inspected `src/plugins/jsvm/binds.ts`, `src/plugins/jsvm/binds.test.ts`, and `src/plugins/jsvm/types_runtime_contract.test.ts`.
+- [x] (2026-06-12T15:46:17Z) Confirmed the current working tree already contains the narrow setter-panic fix in `CHANGELOG.md`, `src/plugins/jsvm/binds.ts`, and `src/plugins/jsvm/binds.test.ts`.
+- [x] (2026-06-12T16:34:12Z) Replaced broad generic wrapping for ordinary core return values with direct aliases and explicit narrow adapters.
+- [x] (2026-06-12T16:34:12Z) Added and adjusted regression tests that prove JSVM runtime contracts remain intact without generic object facades.
+- [x] (2026-06-12T16:34:12Z) Ran targeted JSVM bind and generated type contract tests successfully: `bun test src/plugins/jsvm/binds.test.ts src/plugins/jsvm/types_runtime_contract.test.ts --concurrent`.
+- [x] (2026-06-12T16:58:42Z) Ran `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint` successfully.
 
 ## Surprises & Discoveries
 
-- Observation: The server-side hook and migration examples already use lower-case runtime names, but generated `types.d.ts` comments still include Go-shaped examples for `GeoPointField` and `apis.serve`.
-  Evidence: `src/plugins/jsvm/internal/types/generated/types.d.ts` contains `types.GeoPoint{Lat: 123, Lon: 456}` and `apis.ServeConfig{ HttpAddr: ... }`.
-- Observation: The package/embedding API has a separate public surface from server-side JavaScript. Its current examples use Go-style names such as `New`, `RootCmd`, `PersistentFlags`, `RegisterMigrateCmd`, `TemplateLangJS`, `Static`, and `Start()`.
-  Evidence: `examples/base/main.ts` imports and calls those names.
-- Observation: The first focused test run exposed that `version` existed at the package entrypoint but not as a direct `src/pocketbase.ts` export.
-  Evidence: `bun test src/public_api_types.test.ts src/tools/cli/command.test.ts src/plugins/jsvm/case_codemod.test.ts src/plugins/jsvm/types_runtime_contract.test.ts src/pocketbase.test.ts --concurrent` failed with `Export named 'version' not found in module '/Users/pekeler/Projects/pocketbun/src/pocketbase.ts'`.
-- Observation: `BaseApp` had lower-camel aliases after the initial fix, but the exported `App` interface still forced helper authors back to Go-style names for several app methods.
-  Evidence: `src/core/app.ts` declared `CreateBackup`, `RecordQuery`, `Save`, and `RunInTransaction` without matching lower-camel `App` entries.
+- Observation: `src/core/base.ts` already declares many lower-camel aliases on `BaseApp` and `App`, so the generic facade is not the only source of JSVM-style names.
+  Evidence: `src/core/base.ts` has declarations such as `declare runInTransaction: BaseApp["RunInTransaction"];`, `declare save: BaseApp["Save"];`, and a method alias table near the end of the file.
+- Observation: The generated JSVM runtime contract test is the primary safety net for server-side JavaScript method/property shape.
+  Evidence: `src/plugins/jsvm/types_runtime_contract.test.ts` creates real values such as records, collections, fields, hooks, forms, errors, and request events, then checks that every generated interface member exists at runtime.
+- Observation: Validation errors have an unavoidable JavaScript name collision between internal `Error.message`/`code` properties and upstream JSVM `message()`/`code()` methods.
+  Evidence: The generated `ozzo_validation.Error` interface requires `error()`, `code()`, `message()`, and `params()` methods, while `src/internal/compat/validation.ts` keeps property-style fields for internal compatibility.
 
 ## Decision Log
 
-- Decision: Keep all previously released Go-style package names as deprecated compatibility aliases.
-  Rationale: PocketBun has already released those names, and removing them would break existing embedders. The fix is to provide preferred lower-camel names without forcing an immediate migration.
-  Date/Author: 2026-06-12 / Codex.
-- Decision: Use descriptive lower-camel names where the exact first-letter lowercase form would be invalid or awkward JavaScript.
-  Rationale: `new` is a keyword and `static` is awkward as an import binding. Preferred names such as `newPocketBase` and `serveStatic` communicate intent and avoid syntax traps.
-  Date/Author: 2026-06-12 / Codex.
-- Decision: Implement `BaseApp` method aliases on the prototype.
-  Rationale: Prototype aliases avoid `Proxy`, avoid per-instance allocation, preserve old method implementations, and make package embedders able to call lower-camel app methods outside the server-side JavaScript facade.
-  Date/Author: 2026-06-12 / Codex.
+- Decision: Keep explicit app and event adapters while removing generic wrapping for ordinary object values.
+  Rationale: App values need semantic differences such as sync `save(...)` and transaction callback wrapping; route events need request adapters for PocketBase-style request access. Ordinary records, collections, fields, dates, forms, and errors should not need reflective recursive facade wrapping.
+  Date/Author: 2026-06-12 / Codex
+- Decision: Validate Admin UI compatibility through the existing full test suite, including API and e2e smoke tests, rather than adding a JSVM-specific Admin UI test.
+  Rationale: The Admin UI is a static frontend that depends on REST routes, JSON shapes, auth, files, and static serving. This refactor targets server-side JavaScript object exposure; existing API and e2e tests are the relevant regression coverage for Admin UI behavior.
+  Date/Author: 2026-06-12 / Codex
+- Decision: Keep `ValidationError` as an explicit bind adapter while leaving the internal validation helper shape unchanged.
+  Rationale: A single JavaScript value cannot expose both a string `message` property and a callable `message()` method. The JSVM constructor needs the upstream method shape, while internal code and tests still use property-style validation errors.
+  Date/Author: 2026-06-12 / Codex
 
 ## Outcomes & Retrospective
 
-Lower-camel package, `PocketBase`, `Command`, `FlagSet`, `App`, and `BaseApp` aliases are implemented while preserving Go-style compatibility names. Docs, examples, generated declaration comments, and the `server-js upgrade-source` codemod now prefer or rewrite to the lower-camel names. Full validation passed:
-
-    bun run format:fix
-    bun run typecheck
-    bun run lint
-    bun run docs:check
-    bun test --concurrent
+Implementation is complete. The final full gate passed: `bun run format:fix`, `bun test --concurrent` with 1881 passing tests, `bun run typecheck`, `bun run lint`, and `git diff --check`.
 
 ## Context and Orientation
 
-PocketBun has two JavaScript-facing surfaces. The first is server-side JavaScript loaded from `pb_hooks` and `pb_migrations`; its generated declarations live in `src/plugins/jsvm/internal/types/generated/types.d.ts`, and the runtime bindings are primarily in `src/plugins/jsvm/binds.ts`. That surface should follow PocketBase upstream JSVM lower-camel names.
+The main file is `src/plugins/jsvm/binds.ts`. It creates the globals available to PocketBase-compatible server-side JavaScript. The functions `baseBinds`, `appBinds`, `formsBinds`, `apisBinds`, `routerBinds`, and related helpers populate a JavaScript scope with constructors and namespaces such as `Record`, `$app`, `$apis`, and router helpers.
 
-The second surface is the PocketBun npm package entrypoint in `index.ts` and public classes used by embedders, such as `src/pocketbase.ts`, `src/apis/base.ts`, `src/apis/middlewares.ts`, `src/plugins/jsvm/jsvm.ts`, `src/plugins/migratecmd/migratecmd.ts`, and `src/tools/cli/command.ts`. Because PocketBun was ported from PocketBase Go, this package API still exposes several Go-style exported names. The goal here is not to remove those names, but to add lower-camel preferred aliases and update docs/examples to use them.
+The problematic layer starts around `wrapBoundValueInternal` in `src/plugins/jsvm/binds.ts`. It currently takes nearly any object returned by a bind method and builds an object facade with lower-camel aliases using `defineFacadeMembers`. A facade is an object that forwards properties and methods to an underlying target object. This is fragile because not every JavaScript value can be safely represented by a plain object facade. Functions must remain callable, and objects with private fields, such as `DateTime`, must run their methods on the real object, not on a facade.
+
+The compatibility tests live in `src/plugins/jsvm/binds.test.ts` and `src/plugins/jsvm/types_runtime_contract.test.ts`. The full project test suite also covers REST API behavior used by the vendored Admin UI.
 
 ## Plan of Work
 
-First, add lower-camel aliases at the package entrypoint in `index.ts`. Aliases must point to the same function object where possible so runtime compatibility tests can use identity checks. Add lower-camel names for server-side JavaScript registration helpers, JSVM bind helpers, migrate command registration, migration template language constants, route middleware exports, the static file handler, archive helpers, registry creation, package version, and PocketBase construction.
+First, narrow `wrapBoundValueInternal` so it no longer recursively facades arbitrary non-app objects. It should preserve raw values by default. It may still dispatch app-like values to `wrapApp`, and error wrapping may remain explicit where the bind constructors need non-native error shape.
 
-Next, add lower-camel runtime aliases on the classes embedders touch directly. In `src/pocketbase.ts`, expose `rootCmd` and `app` as property aliases for `RootCmd` and `App`, add `start()` as an alias for `Start()`, and add `newPocketBase()` / `newPocketBaseWithConfig()` helpers next to `New()` / `NewWithConfig()`. In `src/tools/cli/command.ts`, add lower-camel methods and lower-camel constructor property normalization for `Command` and `FlagSet`, including `addCommand`, `removeCommand`, `persistentFlags`, `flags`, `parseFlags`, `setErr`, `setOut`, `setHelpCommand`, and lower-camel object keys such as `use`, `run`, and `runE`. Keep existing PascalCase fields and methods.
+Second, update constructors and factories in `baseBinds`, `formsBinds`, and `apisBinds` so they return raw instances when those instances already expose the generated JSVM members directly. For classes that do not yet expose direct lower-camel aliases, add small, commented alias blocks to the owning class or to the bind-specific class when the class only exists for JSVM binding. Keep Go-style methods and names intact for upstream traceability.
 
-Then update public examples and docs to prefer the lower-camel names. `examples/base/main.ts` and `examples/advanced/main.ts` should import the preferred package names and call lower-camel instance methods. Docs in `docs/users/extend.md` and `docs/users/differences.md` should describe old names as deprecated compatibility aliases. The upgrade-source codemod in `src/plugins/jsvm/case_codemod.ts` should rewrite released package aliases to the new preferred names when it is run against package setup files.
+Third, keep `wrapApp` and `wrapEvent` focused on semantic adaptation. `wrapApp` should continue to provide JSVM-safe sync `save(...)`, `delete(...)`, `importCollections(...)`, and `runInTransaction(...)` behavior. `wrapEvent` should continue to adapt route requests and event values that do not have direct JSVM-compatible request APIs.
 
-Finally, clean generated declaration comments that still show Go syntax in PocketBase-facing examples, update `docs/users/reference.md` if it mirrors those comments, and add tests. `src/public_api_types.test.ts` should pin the new package aliases and old compatibility identities. `src/plugins/jsvm/case_codemod.test.ts` should cover package setup rewrites. `src/plugins/jsvm/types_runtime_contract.test.ts` should guard the remaining generated comment snippets.
+Fourth, run the targeted JSVM tests and then the full verification commands required by `AGENTS.md`.
 
 ## Concrete Steps
 
 Work from `/Users/pekeler/Projects/pocketbun`.
 
-Run focused checks while editing:
+1. Edit `src/plugins/jsvm/binds.ts`.
+2. If runtime contract tests report missing concrete methods or properties, add direct aliases to the appropriate source files. Prefer existing patterns such as `getString(...) { return this.GetString(...); }`.
+3. Run targeted tests:
 
-    bun test src/public_api_types.test.ts src/plugins/jsvm/case_codemod.test.ts src/plugins/jsvm/types_runtime_contract.test.ts --concurrent
+        bun test src/plugins/jsvm/binds.test.ts src/plugins/jsvm/types_runtime_contract.test.ts --concurrent
 
-After all edits, run the required gate:
+4. Run full checks:
 
-    bun run format:fix
-    bun test --concurrent
-    bun run typecheck
-    bun run lint
-    bun run docs:check
+        bun run format:fix
+        bun test --concurrent
+        bun run typecheck
+        bun run lint
 
 ## Validation and Acceptance
 
-The preferred package API is accepted when TypeScript can import and type-check lower-camel names from `pocketbun`, examples use those names, and tests prove old names still point to the same runtime behavior. The generated comment cleanup is accepted when tests fail on stale Go-shaped snippets such as `types.GeoPoint{` and `apis.ServeConfig{` and pass after the cleanup.
+The change is accepted when:
+
+- The regression for `new Record(collection, data)` and `record.set(...)` still passes.
+- The generated JSVM runtime contract test passes, proving server-side JavaScript objects still expose the methods and properties described by generated types.
+- The full test suite passes, including REST API and e2e smoke tests that protect Admin UI-facing behavior.
+- Typecheck and lint pass with no warnings or errors.
 
 ## Idempotence and Recovery
 
-All edits are additive except docs/example rewrites and generated comment cleanup. If a test fails, rerun the focused test after the relevant file is fixed. The old Go-style exported names must not be removed during this plan; they are compatibility aliases.
+All edits are ordinary source changes and can be repeated. If a narrowed wrapper causes widespread missing JSVM names, restore the last known passing shape from `git diff`, add the missing direct aliases in small groups, and rerun the two targeted JSVM test files before continuing. Do not revert unrelated user changes.
 
 ## Artifacts and Notes
 
-Focused validation:
-
-    bun test src/public_api_types.test.ts src/tools/cli/command.test.ts src/plugins/jsvm/case_codemod.test.ts src/plugins/jsvm/types_runtime_contract.test.ts src/pocketbase.test.ts --concurrent
-    39 pass, 0 fail
-
-## Interfaces and Dependencies
-
-No new dependencies are required. All runtime aliases should be implemented with ordinary TypeScript exports, methods, and getters. The codemod should continue using TypeScript AST helpers in `src/plugins/jsvm/case_codemod.ts`.
+Before this plan, the exact setter panic was reproduced with a one-line `bun -e` script and then fixed by preserving callable functions and unwrapping `Record` constructor arguments. The full suite passed once with 1881 tests and 0 failures after the narrow bugfix. This plan extends that work by reducing the generic facade system that caused the bug.

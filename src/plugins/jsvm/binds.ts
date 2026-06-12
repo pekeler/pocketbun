@@ -54,6 +54,7 @@ import { EmailField } from "../../core/field_email.ts";
 import { FileField } from "../../core/field_file.ts";
 import { GeoPointField } from "../../core/field_geo_point.ts";
 import { JSONField } from "../../core/field_json.ts";
+import { installFieldJSVMAliases } from "../../core/field_jsvm_aliases.ts";
 import { NumberField } from "../../core/field_number.ts";
 import { PasswordField } from "../../core/field_password.ts";
 import { RelationField } from "../../core/field_relation.ts";
@@ -172,7 +173,6 @@ export function appBinds(target: BindTarget, app: App): void {
 
 const appFacadeCache = new WeakMap<object, object>();
 const eventFacadeCache = new WeakMap<object, object>();
-const boundValueFacadeCache = new WeakMap<object, object>();
 const boundValueTargetCache = new WeakMap<object, object>();
 
 // App is an interface, so app values returned through events or forMigrations()
@@ -914,37 +914,15 @@ function queryValuesToJSON(query: URLSearchParams): Record<string, string[]> {
   return out;
 }
 
-// wrapBoundValue maps bound Go-style names to the JS style expected by jsvm scripts
-// (eg. `Fields.Add` <-> `fields.add`) and applies recursively to returned objects.
+// wrapBoundValue keeps semantic bind adapters in place without recursively
+// facading arbitrary returned objects. Direct JSVM aliases live on the core
+// classes so callables and objects with private state remain real values.
 function wrapBoundValue<T>(value: T): T {
-  return wrapBoundValueInternal(value, false);
+  return wrapBoundValueInternal(value);
 }
 
-function wrapBoundObjectValue<T>(value: T): T {
-  return wrapBoundValueInternal(value, true);
-}
-
-function wrapBoundValueInternal<T>(value: T, wrapErrors: boolean): T {
-  if (!value || (typeof value !== "object" && typeof value !== "function")) {
-    return value;
-  }
-
-  if ((!wrapErrors && value instanceof Error) || isPromiseLike(value) || value instanceof Date || value instanceof RegExp) {
-    return value;
-  }
-
-  if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
-    return value;
-  }
-
-  if (
-    value instanceof Request ||
-    value instanceof Response ||
-    value instanceof Headers ||
-    value instanceof URL ||
-    value instanceof URLSearchParams ||
-    value instanceof FormData
-  ) {
+function wrapBoundValueInternal<T>(value: T): T {
+  if (!value || typeof value !== "object") {
     return value;
   }
 
@@ -953,23 +931,7 @@ function wrapBoundValueInternal<T>(value: T, wrapErrors: boolean): T {
     return wrapApp(objectValue) as T;
   }
 
-  if (Array.isArray(value)) {
-    exposeArrayElements(value as unknown[]);
-    if (Object.getPrototypeOf(value) === Array.prototype) {
-      return value;
-    }
-  }
-
-  const existing = boundValueFacadeCache.get(objectValue);
-  if (existing) {
-    return existing as T;
-  }
-
-  const facade = Object.create(objectValue) as object;
-  boundValueFacadeCache.set(objectValue, facade);
-  boundValueTargetCache.set(facade, objectValue);
-  defineFacadeMembers(facade, objectValue);
-  return facade as T;
+  return value;
 }
 
 function unwrapBoundValue<T>(value: T): T {
@@ -982,24 +944,7 @@ function unwrapBoundValue<T>(value: T): T {
     return target as T;
   }
 
-  if (Array.isArray(value)) {
-    unwrapArrayElements(value as unknown[]);
-    return value;
-  }
-
   return value;
-}
-
-function exposeArrayElements(values: unknown[]): void {
-  for (let i = 0; i < values.length; i += 1) {
-    values[i] = wrapBoundValue(values[i]);
-  }
-}
-
-function unwrapArrayElements(values: unknown[]): void {
-  for (let i = 0; i < values.length; i += 1) {
-    values[i] = unwrapBoundValue(values[i]);
-  }
 }
 
 function defineFacadeMembers(facade: object, target: object, options: FacadeOptions = {}): void {
@@ -1673,16 +1618,14 @@ class RequestInfo implements RequestInfoShape {
   }
 
   clone(): RequestInfo {
-    return wrapBoundValue(
-      new RequestInfo({
-        query: { ...this.query },
-        headers: { ...this.headers },
-        body: { ...this.body },
-        auth: this.auth?.Clone() ?? null,
-        method: this.method,
-        context: this.context,
-      }),
-    ) as RequestInfo;
+    return new RequestInfo({
+      query: { ...this.query },
+      headers: { ...this.headers },
+      body: { ...this.body },
+      auth: this.auth?.Clone() ?? null,
+      method: this.method,
+      context: this.context,
+    });
   }
 }
 
@@ -1740,11 +1683,17 @@ function normalizeMailerAddressList(raw: unknown): MailerAddress[] {
 function assignStructValues(target: Record<string, unknown>, values: Record<string, unknown>): void {
   for (const [key, value] of Object.entries(values)) {
     if (key in target) {
+      if (typeof target[key] === "function") {
+        continue;
+      }
       target[key] = value;
       continue;
     }
     const candidate = `${key.slice(0, 1).toUpperCase()}${key.slice(1)}`;
     if (candidate in target) {
+      if (typeof (target as Record<string, unknown>)[candidate] === "function") {
+        continue;
+      }
       (target as Record<string, unknown>)[candidate] = value;
       continue;
     }
@@ -1760,30 +1709,28 @@ function wrapFieldCtor(Ctor: StructCtor): StructCtor {
       super(...args);
       const values = (args[0] ?? {}) as Record<string, unknown>;
       assignStructValues(this as Record<string, unknown>, values);
-      return wrapBoundValue(this as unknown as object) as object;
     }
   } as StructCtor;
 }
 
-function wrapStructCtor(Ctor: StructCtor, options: { wrapErrors?: boolean } = {}): StructCtor {
+function wrapStructCtor(Ctor: StructCtor): StructCtor {
   return class extends Ctor {
     constructor(...args: unknown[]) {
       super(...args.map((arg) => unwrapBoundValue(arg)));
-      return options.wrapErrors
-        ? (wrapBoundObjectValue(this as unknown as object) as object)
-        : (wrapBoundValue(this as unknown as object) as object);
     }
   } as StructCtor;
 }
 
-function wrapFactory<T extends (...args: any[]) => object>(factory: T, options: { wrapErrors?: boolean } = {}): T {
+function wrapFactory<T extends (...args: any[]) => object>(factory: T): T {
   return function wrappedFactory(...args: Parameters<T>): ReturnType<T> {
     const result = factory(...(args.map((arg) => unwrapBoundValue(arg)) as Parameters<T>));
-    return (options.wrapErrors ? wrapBoundObjectValue(result) : wrapBoundValue(result)) as ReturnType<T>;
+    return wrapBoundValue(result) as ReturnType<T>;
   } as unknown as T;
 }
 
 export function baseBinds(target: BindTarget): void {
+  installFieldJSVMAliases();
+
   target.readerToString = (reader: unknown, maxBytes = DefaultMaxBodySize): string => {
     return toStringValue(reader, maxBytes);
   };
@@ -1827,12 +1774,13 @@ export function baseBinds(target: BindTarget): void {
   target.nullObject = (): NullPlaceholder => new NullPlaceholder("object");
   target.Record = class RecordWrapper extends RecordModel {
     constructor(collection?: Collection, data?: Record<string, unknown>) {
-      if (collection instanceof Collection) {
-        super(collection, data ?? {}, true);
+      const unwrappedCollection = unwrapBoundValue(collection);
+      const unwrappedData = unwrapBoundValue(data);
+      if (unwrappedCollection instanceof Collection) {
+        super(unwrappedCollection, unwrappedData ?? {}, true);
       } else {
         super(new Collection(), {}, true);
       }
-      return wrapBoundValue(this as unknown as object) as RecordWrapper;
     }
   };
   target.Collection = class CollectionWrapper extends Collection {
@@ -1844,7 +1792,6 @@ export function baseBinds(target: BindTarget): void {
           throw err;
         }
       }
-      return wrapBoundValue(this as unknown as object) as CollectionWrapper;
     }
   };
   target.FieldsList = class FieldsListWrapper extends FieldsList {
@@ -1853,7 +1800,6 @@ export function baseBinds(target: BindTarget): void {
       if (Array.isArray(values) && values.length > 0) {
         this.AddMarshaledJSON(JSON.stringify(values));
       }
-      return wrapBoundValue(this as unknown as object) as FieldsListWrapper;
     }
   };
   target.Field = class FieldWrapper {
@@ -1864,17 +1810,14 @@ export function baseBinds(target: BindTarget): void {
       if (list.length === 0) {
         throw new Error("invalid field data");
       }
-      return wrapBoundValue(list[0]) as unknown as FieldWrapper;
+      return list[0] as unknown as FieldWrapper;
     }
   };
   target.newCollection = (typ: string, name: string, ...optId: string[]): Collection =>
-    wrapBoundValue(NewCollection(typ, name, optId[0] ?? ""));
-  target.newBaseCollection = (name: string, ...optId: string[]): Collection =>
-    wrapBoundValue(NewBaseCollection(name, optId[0] ?? ""));
-  target.newViewCollection = (name: string, ...optId: string[]): Collection =>
-    wrapBoundValue(NewViewCollection(name, optId[0] ?? ""));
-  target.newAuthCollection = (name: string, ...optId: string[]): Collection =>
-    wrapBoundValue(NewAuthCollection(name, optId[0] ?? ""));
+    NewCollection(typ, name, optId[0] ?? "");
+  target.newBaseCollection = (name: string, ...optId: string[]): Collection => NewBaseCollection(name, optId[0] ?? "");
+  target.newViewCollection = (name: string, ...optId: string[]): Collection => NewViewCollection(name, optId[0] ?? "");
+  target.newAuthCollection = (name: string, ...optId: string[]): Collection => NewAuthCollection(name, optId[0] ?? "");
   target.NumberField = wrapFieldCtor(NumberField);
   target.BoolField = wrapFieldCtor(BoolField);
   target.TextField = wrapFieldCtor(TextField);
@@ -2038,7 +1981,6 @@ export function baseBinds(target: BindTarget): void {
     constructor(values: Record<string, unknown> = {}) {
       super();
       assignStructValues(this as unknown as Record<string, unknown>, values);
-      return wrapBoundValue(this as unknown as object) as CommandWrapper;
     }
   };
   target.RequestInfo = RequestInfo;
@@ -2058,20 +2000,90 @@ export function baseBinds(target: BindTarget): void {
       super(new Date(raw.replace(" ", "T")));
     }
   };
-  target.ValidationError = wrapStructCtor(
-    class ValidationErrorWrapper extends ValidationError {
-      constructor(code = "", message = "") {
-        super(code, message);
-      }
+  class ValidationErrorWrapper extends ValidationError {
+    private codeValue: string;
+    private messageValue: string;
+    private paramsValue: Record<string, unknown> | null = null;
+
+    constructor(code = "", message = "") {
+      super(code, message);
+      this.codeValue = code;
+      this.messageValue = message;
+      delete (this as { code?: unknown }).code;
+      delete (this as { params?: unknown }).params;
+      delete (this as { message?: unknown }).message;
+    }
+
+    override Error(): string {
+      return this.messageValue;
+    }
+
+    override Code(): string {
+      return this.codeValue;
+    }
+
+    override Message(): string {
+      return this.messageValue;
+    }
+
+    override SetMessage(message: string): this {
+      this.messageValue = message;
+      return this;
+    }
+
+    override setMessage(message: string): this {
+      return this.SetMessage(message);
+    }
+
+    override Params(): Record<string, unknown> {
+      return this.paramsValue ?? {};
+    }
+
+    override SetParams(params: Record<string, unknown>): this {
+      this.paramsValue = params;
+      return this;
+    }
+
+    override setParams(params: Record<string, unknown>): this {
+      return this.SetParams(params);
+    }
+  }
+  Object.defineProperties(ValidationErrorWrapper.prototype, {
+    error: {
+      configurable: true,
+      writable: true,
+      value(this: ValidationErrorWrapper) {
+        return this.Error();
+      },
     },
-    { wrapErrors: true },
-  );
+    code: {
+      configurable: true,
+      writable: true,
+      value(this: ValidationErrorWrapper) {
+        return this.Code();
+      },
+    },
+    message: {
+      configurable: true,
+      writable: true,
+      value(this: ValidationErrorWrapper) {
+        return this.Message();
+      },
+    },
+    params: {
+      configurable: true,
+      writable: true,
+      value(this: ValidationErrorWrapper) {
+        return this.Params();
+      },
+    },
+  });
+  target.ValidationError = ValidationErrorWrapper;
   target.Cookie = Cookie;
   target.SubscriptionMessage = class SubscriptionMessageWrapper extends SubscriptionMessageModel {
     constructor(values: { name?: string; data?: string | Uint8Array } = {}) {
       const raw = values.data ?? new Uint8Array();
       super(values.name ?? "", raw);
-      return wrapBoundValue(this as unknown as object) as SubscriptionMessageWrapper;
     }
   };
 }
@@ -2604,13 +2616,13 @@ export function apisBinds(target: BindTarget): void {
     enrichRecords: EnrichRecords,
   };
 
-  target.ApiError = wrapStructCtor(ApiError, { wrapErrors: true });
-  target.NotFoundError = wrapFactory(NewNotFoundError, { wrapErrors: true });
-  target.BadRequestError = wrapFactory(NewBadRequestError, { wrapErrors: true });
-  target.ForbiddenError = wrapFactory(NewForbiddenError, { wrapErrors: true });
-  target.UnauthorizedError = wrapFactory(NewUnauthorizedError, { wrapErrors: true });
-  target.TooManyRequestsError = wrapFactory(NewTooManyRequestsError, { wrapErrors: true });
-  target.InternalServerError = wrapFactory(NewInternalServerError, { wrapErrors: true });
+  target.ApiError = wrapStructCtor(ApiError);
+  target.NotFoundError = wrapFactory(NewNotFoundError);
+  target.BadRequestError = wrapFactory(NewBadRequestError);
+  target.ForbiddenError = wrapFactory(NewForbiddenError);
+  target.UnauthorizedError = wrapFactory(NewUnauthorizedError);
+  target.TooManyRequestsError = wrapFactory(NewTooManyRequestsError);
+  target.InternalServerError = wrapFactory(NewInternalServerError);
 }
 
 function exposeHookHandler<T>(handler: { Func: (event: T) => unknown; Id?: string; Priority?: number }): {

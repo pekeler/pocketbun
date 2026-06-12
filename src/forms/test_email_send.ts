@@ -31,6 +31,30 @@ export class TestEmailSend {
     this.app = app;
   }
 
+  get email(): string {
+    return this.Email;
+  }
+
+  set email(value: string) {
+    this.Email = value;
+  }
+
+  get template(): string {
+    return this.Template;
+  }
+
+  set template(value: string) {
+    this.Template = value;
+  }
+
+  get collection(): string {
+    return this.Collection;
+  }
+
+  set collection(value: string) {
+    this.Collection = value;
+  }
+
   // Validate makes the form validatable by implementing [validation.Validatable] interface.
   Validate(): Error | null {
     const errors: Record<string, Error> = {};
@@ -71,6 +95,13 @@ export class TestEmailSend {
     }
 
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+  }
+
+  validate(): void {
+    const err = this.Validate();
+    if (err) {
+      throw err;
+    }
   }
 
   // Submit validates and sends a test email to the form.Email address.
@@ -115,6 +146,13 @@ export class TestEmailSend {
       }
       default:
         return new Error(`unknown template ${this.Template}`);
+    }
+  }
+
+  async submit(): Promise<void> {
+    const err = await this.Submit();
+    if (err) {
+      throw err;
     }
   }
 

@@ -340,7 +340,7 @@ export class TextField implements Field, SetterFinder, RecordInterceptor {
       return null;
     }
     let totalPrimaryKeys = 0;
-    const fields = collection.Fields.length > 0 ? collection.Fields : collection.fields;
+    const fields = collection.Fields.length > 0 ? collection.Fields : collection.rawFields;
     for (const field of fields) {
       const candidate = field as {
         GetName?: () => string;

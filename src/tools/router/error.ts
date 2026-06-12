@@ -18,7 +18,7 @@ export type SafeErrorResolver = {
 };
 
 export class ApiError extends Error {
-  rawData: unknown;
+  rawDataValue: unknown;
   Data: Record<string, unknown>;
   Message: string;
   Status: number;
@@ -30,7 +30,7 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.Status = status;
     this.Message = sentenized;
-    this.rawData = rawData;
+    this.rawDataValue = rawData;
     this.Data = safeErrorsData(rawData);
   }
 
@@ -38,8 +38,16 @@ export class ApiError extends Error {
     return this.Message;
   }
 
+  error(): string {
+    return this.Error();
+  }
+
   RawData(): unknown {
-    return this.rawData;
+    return this.rawDataValue;
+  }
+
+  rawData(): unknown {
+    return this.RawData();
   }
 
   Is(target: unknown): boolean {
@@ -49,10 +57,30 @@ export class ApiError extends Error {
     if (this === target) {
       return true;
     }
-    if (this.rawData instanceof Error && target instanceof Error) {
-      return errorsIs(this.rawData, target);
+    if (this.rawDataValue instanceof Error && target instanceof Error) {
+      return errorsIs(this.rawDataValue, target);
     }
     return false;
+  }
+
+  is(target: unknown): boolean {
+    return this.Is(target);
+  }
+
+  get status(): number {
+    return this.Status;
+  }
+
+  set status(value: number) {
+    this.Status = value;
+  }
+
+  get data(): Record<string, unknown> {
+    return this.Data;
+  }
+
+  set data(value: Record<string, unknown>) {
+    this.Data = value;
   }
 
   toJSON(): Record<string, unknown> {
@@ -198,8 +226,8 @@ function resolveSafeErrorItem(err: unknown): unknown {
   };
 
   if (err instanceof ValidationError) {
-    data.code = err.code;
-    data.message = sentenize(err.message);
+    data.code = err.Code();
+    data.message = sentenize(err.Message());
   } else if (isSafeErrorItem(err)) {
     data.code = err.Code();
     data.message = sentenize(err.Error());

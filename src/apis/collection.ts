@@ -425,7 +425,7 @@ function collectionFromData(data: Record<string, unknown>): Collection {
 
 function mergeDefaultFields(collection: Collection): void {
   collection.initDefaultFields();
-  collection.fields = parseCollectionFields(collection.Fields.toJSON());
+  collection.rawFields = parseCollectionFields(collection.Fields.toJSON());
 }
 
 function safeErrorsData(data: unknown): Record<string, unknown> {

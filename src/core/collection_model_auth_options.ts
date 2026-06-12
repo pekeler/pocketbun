@@ -390,6 +390,159 @@ function randomSecret(): string {
   return randomString(50);
 }
 
+// PocketBun JSVM compatibility: PocketBase server-side JavaScript exposes
+// collection auth options with lower-camel fields. Keep the ported Go-style
+// fields above and add direct aliases here so hook code can use the upstream
+// JSVM shape without bind-layer object facades.
+installAuthOptionsJSVMAliases();
+
+function installAuthOptionsJSVMAliases(): void {
+  definePropertyAliases(TokenConfigValue.prototype, [
+    ["secret", "Secret"],
+    ["duration", "Duration"],
+  ]);
+  defineMethodAliases(TokenConfigValue.prototype, [
+    ["validate", "Validate"],
+    ["durationTime", "DurationTime"],
+  ]);
+
+  definePropertyAliases(EmailTemplate.prototype, [
+    ["subject", "Subject"],
+    ["body", "Body"],
+  ]);
+  defineMethodAliases(EmailTemplate.prototype, [
+    ["validate", "Validate"],
+    ["resolve", "Resolve"],
+  ]);
+
+  definePropertyAliases(AuthAlertConfig.prototype, [
+    ["enabled", "Enabled"],
+    ["emailTemplate", "EmailTemplate"],
+  ]);
+  defineMethodAliases(AuthAlertConfig.prototype, [["validate", "Validate"]]);
+
+  definePropertyAliases(OTPConfig.prototype, [
+    ["enabled", "Enabled"],
+    ["duration", "Duration"],
+    ["length", "Length"],
+    ["emailTemplate", "EmailTemplate"],
+  ]);
+  defineMethodAliases(OTPConfig.prototype, [
+    ["validate", "Validate"],
+    ["durationTime", "DurationTime"],
+  ]);
+
+  definePropertyAliases(MFAConfig.prototype, [
+    ["enabled", "Enabled"],
+    ["duration", "Duration"],
+    ["rule", "Rule"],
+  ]);
+  defineMethodAliases(MFAConfig.prototype, [
+    ["validate", "Validate"],
+    ["durationTime", "DurationTime"],
+  ]);
+
+  definePropertyAliases(PasswordAuthConfig.prototype, [
+    ["enabled", "Enabled"],
+    ["identityFields", "IdentityFields"],
+  ]);
+  defineMethodAliases(PasswordAuthConfig.prototype, [["validate", "Validate"]]);
+
+  definePropertyAliases(OAuth2Config.prototype, [
+    ["providers", "Providers"],
+    ["enabled", "Enabled"],
+  ]);
+  Object.defineProperty(OAuth2Config.prototype, "mappedFields", {
+    configurable: true,
+    enumerable: false,
+    get(this: OAuth2Config) {
+      installMappedFieldsAliases(this.MappedFields);
+      return this.MappedFields;
+    },
+    set(this: OAuth2Config, value: OAuth2KnownFields) {
+      this.MappedFields = value;
+      installMappedFieldsAliases(this.MappedFields);
+    },
+  });
+  defineMethodAliases(OAuth2Config.prototype, [
+    ["getProviderConfig", "GetProviderConfig"],
+    ["validate", "Validate"],
+  ]);
+
+  definePropertyAliases(OAuth2ProviderConfig.prototype, [
+    ["pkce", "PKCE"],
+    ["name", "Name"],
+    ["clientId", "ClientId"],
+    ["clientSecret", "ClientSecret"],
+    ["authURL", "AuthURL"],
+    ["tokenURL", "TokenURL"],
+    ["userInfoURL", "UserInfoURL"],
+    ["displayName", "DisplayName"],
+    ["extra", "Extra"],
+  ]);
+  defineMethodAliases(OAuth2ProviderConfig.prototype, [["validate", "Validate"]]);
+}
+
+function installMappedFieldsAliases(value: OAuth2KnownFields): void {
+  defineObjectPropertyAlias(value, "id", "Id");
+  defineObjectPropertyAlias(value, "name", "Name");
+  defineObjectPropertyAlias(value, "username", "Username");
+  defineObjectPropertyAlias(value, "avatarURL", "AvatarURL");
+}
+
+function definePropertyAliases(
+  prototype: object,
+  aliases: ReadonlyArray<readonly [aliasName: string, sourceName: string]>,
+): void {
+  for (const [aliasName, sourceName] of aliases) {
+    defineObjectPropertyAlias(prototype, aliasName, sourceName);
+  }
+}
+
+function defineObjectPropertyAlias(target: object, aliasName: string, sourceName: string): void {
+  if (Object.prototype.hasOwnProperty.call(target, aliasName)) {
+    return;
+  }
+
+  Object.defineProperty(target, aliasName, {
+    configurable: true,
+    enumerable: false,
+    get(this: Record<string, unknown>) {
+      return this[sourceName];
+    },
+    set(this: Record<string, unknown>, value: unknown) {
+      this[sourceName] = value;
+    },
+  });
+}
+
+function defineMethodAliases(
+  prototype: object,
+  aliases: ReadonlyArray<readonly [aliasName: string, sourceName: string]>,
+): void {
+  for (const [aliasName, sourceName] of aliases) {
+    if (aliasName in prototype) {
+      continue;
+    }
+    Object.defineProperty(prototype, aliasName, {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value(this: Record<string, unknown>, ...args: unknown[]) {
+        const method = this[sourceName];
+        if (typeof method !== "function") {
+          throw new Error(`${sourceName} is not available`);
+        }
+        const result = method.apply(this, args);
+        if (result instanceof Error) {
+          throw result;
+        }
+        return result;
+      },
+    });
+  }
+}
+
 export function normalizeEmailTemplate(raw: unknown): EmailTemplate {
   if (!raw || typeof raw !== "object") {
     return new EmailTemplate();

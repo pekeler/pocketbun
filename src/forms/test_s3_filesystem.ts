@@ -18,6 +18,14 @@ export class TestS3Filesystem {
     this.app = app;
   }
 
+  get filesystem(): string {
+    return this.Filesystem;
+  }
+
+  set filesystem(value: string) {
+    this.Filesystem = value;
+  }
+
   // Validate makes the form validatable by implementing [validation.Validatable] interface.
   Validate(): Error | null {
     const errors: Record<string, Error> = {};
@@ -30,6 +38,13 @@ export class TestS3Filesystem {
     }
 
     return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
+  }
+
+  validate(): void {
+    const err = this.Validate();
+    if (err) {
+      throw err;
+    }
   }
 
   // Submit validates and performs a S3 filesystem connection test.
@@ -81,6 +96,13 @@ export class TestS3Filesystem {
     }
 
     return null;
+  }
+
+  async submit(): Promise<void> {
+    const err = await this.Submit();
+    if (err) {
+      throw err;
+    }
   }
 }
 

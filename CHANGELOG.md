@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Fixed server-side JavaScript `new Record(collection, data)` and `record.set(...)` field setters when records are built from JSVM-wrapped collections, including transaction callback apps.
+- Hardened server-side JavaScript runtime compatibility so generated JSVM objects expose PocketBase-style names directly instead of relying on recursive object facades.
+
 ## 0.39.3-pocketbun.4 - 2026-06-12
 
 - Fixed CLI help spacing for long subcommands such as `pocketbun server-js upgrade-source`.

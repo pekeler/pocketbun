@@ -266,7 +266,7 @@ export class RelationField implements Field, MultiValuer, DriverValuer, SetterFi
     }
 
     if (oldCollection) {
-      const oldFields = oldCollection.Fields.length > 0 ? oldCollection.Fields : oldCollection.fields;
+      const oldFields = oldCollection.Fields.length > 0 ? oldCollection.Fields : oldCollection.rawFields;
       const oldField = oldFields.find((field) => {
         const candidate = field as FieldIdCandidate;
         if (candidate.Id === this.Id || candidate.id === this.Id) {

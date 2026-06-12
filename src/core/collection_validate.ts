@@ -101,16 +101,8 @@ class CollectionValidator {
   }
 
   private syncFields(): void {
-    if (this.#next.Fields.length === 0 && this.#next.fields.length > 0) {
-      try {
-        this.#next.Fields = FieldsList.fromJSON(JSON.stringify(this.#next.fields));
-      } catch {
-        this.#next.Fields = new FieldsList();
-      }
-    }
-
     if (this.#next.Fields.length > 0) {
-      this.#next.fields = parseCollectionFields(this.#next.Fields.toJSON());
+      this.#next.rawFields = parseCollectionFields(this.#next.Fields.toJSON());
     }
   }
 

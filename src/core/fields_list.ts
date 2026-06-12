@@ -88,8 +88,13 @@ export class FieldsList extends Array<Field> {
   // (the id value doesn't really matter and it is mostly used as a stable identifier in case of a field rename).
   Add(...fields: Field[]): void {
     for (const field of fields) {
-      this.add(-1, field);
+      this.addInternal(-1, field);
     }
+  }
+
+  // add is a JSVM compatibility alias for Add.
+  add(...fields: Field[]): void {
+    this.Add(...fields);
   }
 
   // AddAt is the same as Add but insert/move the fields at the specific position.
@@ -105,13 +110,18 @@ export class FieldsList extends Array<Field> {
         continue;
       }
       if (pos < 0) {
-        this.add(-1, field);
+        this.addInternal(-1, field);
       } else if (pos > total) {
-        this.add(total + i, field);
+        this.addInternal(total + i, field);
       } else {
-        this.add(pos + i, field);
+        this.addInternal(pos + i, field);
       }
     }
+  }
+
+  // addAt is a JSVM compatibility alias for AddAt.
+  addAt(pos: number, ...fields: Field[]): void {
+    this.AddAt(pos, ...fields);
   }
 
   // AddMarshaledJSON parses the provided raw json data and adds the
@@ -135,6 +145,14 @@ export class FieldsList extends Array<Field> {
     }
   }
 
+  // addMarshaledJSON is a JSVM compatibility alias for AddMarshaledJSON.
+  addMarshaledJSON(rawJSON: string | Uint8Array | null | undefined): void {
+    const err = this.AddMarshaledJSON(rawJSON);
+    if (err) {
+      throw err;
+    }
+  }
+
   // AddMarshaledJSONAt is the same as AddMarshaledJSON but insert/move the fields at the specific position.
   //
   // If pos < 0, then this method acts the same as calling AddMarshaledJSON.
@@ -150,13 +168,29 @@ export class FieldsList extends Array<Field> {
     }
   }
 
+  // addMarshaledJSONAt is a JSVM compatibility alias for AddMarshaledJSONAt.
+  addMarshaledJSONAt(pos: number, rawJSON: string | Uint8Array | null | undefined): void {
+    const err = this.AddMarshaledJSONAt(pos, rawJSON);
+    if (err) {
+      throw err;
+    }
+  }
+
   // String returns the string representation of the current list.
   String(): string {
     return JSON.stringify(this);
   }
 
+  string(): string {
+    return this.String();
+  }
+
   MarshalJSON(): string {
     return this.String();
+  }
+
+  marshalJSON(): string {
+    return this.MarshalJSON();
   }
 
   UnmarshalJSON(rawJSON: string | Uint8Array): Error | null {
@@ -168,7 +202,7 @@ export class FieldsList extends Array<Field> {
       const fields = parseFieldsJSON(rawJSON);
       this.splice(0, this.length);
       for (const field of fields) {
-        this.add(-1, field);
+        this.addInternal(-1, field);
       }
       return null;
     } catch (error) {
@@ -179,6 +213,10 @@ export class FieldsList extends Array<Field> {
   // Value implements driver.Valuer-like behavior and returns JSON string.
   Value(): string {
     return this.String();
+  }
+
+  value(): string {
+    return this.Value();
   }
 
   // Scan implements driver.Scanner-like behavior.
@@ -205,6 +243,13 @@ export class FieldsList extends Array<Field> {
       return new Error("failed to unmarshal the provided JSON - expects array of objects or just single object");
     } catch (error) {
       return error as Error;
+    }
+  }
+
+  scan(value: unknown): void {
+    const err = this.Scan(value);
+    if (err) {
+      throw err;
     }
   }
 
@@ -251,11 +296,11 @@ export class FieldsList extends Array<Field> {
     const fields = parseFieldsJSON(rawJSON);
     this.splice(0, this.length);
     for (const field of fields) {
-      this.add(-1, field);
+      this.addInternal(-1, field);
     }
   }
 
-  private add(pos: number, newField: Field): void {
+  private addInternal(pos: number, newField: Field): void {
     let replaceByName = false;
     let replaceInPlace = false;
 
@@ -314,6 +359,43 @@ export class FieldsList extends Array<Field> {
 
     this.splice(pos, 0, newField);
   }
+}
+
+const fieldsListMethodAliases = [
+  ["clone", "Clone"],
+  ["fieldNames", "FieldNames"],
+  ["asMap", "AsMap"],
+  ["getById", "GetById"],
+  ["getByName", "GetByName"],
+  ["removeById", "RemoveById"],
+  ["removeByName", "RemoveByName"],
+] as const;
+
+for (const [aliasName, sourceName] of fieldsListMethodAliases) {
+  defineFieldsListMethodAlias(aliasName, sourceName);
+}
+
+function defineFieldsListMethodAlias(aliasName: string, sourceName: string): void {
+  if (aliasName in FieldsList.prototype) {
+    return;
+  }
+
+  Object.defineProperty(FieldsList.prototype, aliasName, {
+    configurable: true,
+    enumerable: false,
+    writable: true,
+    value(this: Record<string, unknown>, ...args: unknown[]) {
+      const method = this[sourceName];
+      if (typeof method !== "function") {
+        throw new Error(`FieldsList.${sourceName} is not available`);
+      }
+      const result = method.apply(this, args);
+      if (result instanceof Error) {
+        throw result;
+      }
+      return result;
+    },
+  });
 }
 
 function marshaledJSONtoFieldsList(rawJSON: string | Uint8Array | null | undefined): FieldsList {

@@ -14,6 +14,22 @@ export class Message {
     this.Data = typeof data === "string" ? new TextEncoder().encode(data) : data;
   }
 
+  get name(): string {
+    return this.Name;
+  }
+
+  set name(value: string) {
+    this.Name = value;
+  }
+
+  get data(): Uint8Array {
+    return this.Data;
+  }
+
+  set data(value: Uint8Array | string) {
+    this.Data = typeof value === "string" ? new TextEncoder().encode(value) : value;
+  }
+
   // WriteSSE writes the current message in a SSE format into the provided writer.
   //
   // For example, writing to a router.Event:
@@ -27,5 +43,10 @@ export class Message {
     writer.write("data:");
     writer.write(this.Data);
     writer.write("\n\n");
+  }
+
+  // writeSSE is a JSVM compatibility alias for WriteSSE.
+  writeSSE(writer: MessageWriter, eventId: string): void {
+    this.WriteSSE(writer, eventId);
   }
 }
