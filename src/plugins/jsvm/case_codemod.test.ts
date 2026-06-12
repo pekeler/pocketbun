@@ -51,12 +51,39 @@ onRecordAfterCreateSuccess((e) => {
   });
 
   it("rewrites string-literal element access", () => {
-    const source = `const value = e["Record"]["GetString"]("email");\n`;
+    const source = `const value = e['Record']["GetString"]("email");\n`;
 
     const result = rewriteJSVMCase(source);
 
     expect(result.changed).toBeTrue();
-    expect(result.code).toContain(`e["record"]["getString"]("email")`);
+    expect(result.code).toContain(`e['record']["getString"]("email")`);
+  });
+
+  it("preserves existing indentation and blank lines", () => {
+    const source = `onRecordAfterCreateSuccess((e) => {
+
+\tif (e.Record) {
+\t\treturn e.Record.GetString("email");
+\t}
+
+\tconst {  Record  } = e;
+\treturn Record.GetString("email");
+});
+`;
+
+    const result = rewriteJSVMCase(source);
+
+    expect(result.changed).toBeTrue();
+    expect(result.code).toBe(`onRecordAfterCreateSuccess((e) => {
+
+\tif (e.record) {
+\t\treturn e.record.getString("email");
+\t}
+
+\tconst {  record: Record  } = e;
+\treturn Record.getString("email");
+});
+`);
   });
 
   it("checks and writes default pb_hooks and pb_migrations paths", async () => {

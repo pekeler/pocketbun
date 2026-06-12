@@ -37,139 +37,52 @@ export type JSVMCaseCodemodOptions = {
   extensions?: string[];
 };
 
+type SourceEdit = {
+  start: number;
+  end: number;
+  text: string;
+};
+
 export function rewriteJSVMCase(source: string, fileName = "hooks.pb.js"): JSVMCaseRewriteResult {
   const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, scriptKindForFile(fileName));
-  let replacements = 0;
+  const edits: SourceEdit[] = [];
 
-  const transformer: ts.TransformerFactory<ts.SourceFile> = (context) => {
-    const factory = context.factory;
-
-    const visit: ts.Visitor = (node): ts.VisitResult<ts.Node> => {
-      if (ts.isPropertyAccessExpression(node)) {
-        const expression = ts.visitNode(node.expression, visit, ts.isExpression) ?? node.expression;
-        const name = convertLegacyName(node.name.text);
-        if (!name && expression === node.expression) {
-          return node;
-        }
-        if (name) {
-          replacements += 1;
-        }
-        return factory.updatePropertyAccessExpression(node, expression, name ? factory.createIdentifier(name) : node.name);
+  const visit = (node: ts.Node) => {
+    if (ts.isPropertyAccessExpression(node)) {
+      if (ts.isIdentifier(node.name)) {
+        addIdentifierReplacement(sourceFile, edits, node.name);
       }
-
-      if (ts.isElementAccessExpression(node)) {
-        const expression = ts.visitNode(node.expression, visit, ts.isExpression) ?? node.expression;
-        const argument = ts.visitNode(node.argumentExpression, visit, ts.isExpression) ?? node.argumentExpression;
-        const name = stringLiteralText(argument);
-        const converted = name ? convertLegacyName(name) : null;
-        if (!converted && expression === node.expression && argument === node.argumentExpression) {
-          return node;
-        }
-        if (converted) {
-          replacements += 1;
-        }
-        return factory.updateElementAccessExpression(
-          node,
-          expression,
-          converted ? factory.createStringLiteral(converted) : argument,
-        );
+    } else if (ts.isElementAccessExpression(node)) {
+      const argument = node.argumentExpression;
+      const name = stringLiteralText(argument);
+      const converted = name ? convertLegacyName(name) : null;
+      if (converted && argument) {
+        addStringLiteralReplacement(sourceFile, edits, argument, converted);
       }
-
-      if (ts.isPropertyAssignment(node)) {
-        const initializer = ts.visitNode(node.initializer, visit, ts.isExpression) ?? node.initializer;
-        const name = convertPropertyName(factory, node.name);
-        if (!name && initializer === node.initializer) {
-          return node;
-        }
-        if (name) {
-          replacements += 1;
-        }
-        return factory.updatePropertyAssignment(node, name ?? node.name, initializer);
+    } else if (ts.isPropertyAssignment(node)) {
+      addPropertyNameReplacement(sourceFile, edits, node.name);
+    } else if (ts.isShorthandPropertyAssignment(node)) {
+      addShorthandPropertyReplacement(sourceFile, edits, node.name);
+    } else if (ts.isMethodDeclaration(node) && ts.isObjectLiteralExpression(node.parent)) {
+      addPropertyNameReplacement(sourceFile, edits, node.name);
+    } else if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
+      if (node.propertyName) {
+        addPropertyNameReplacement(sourceFile, edits, node.propertyName);
+      } else if (ts.isIdentifier(node.name)) {
+        addShorthandPropertyReplacement(sourceFile, edits, node.name);
       }
-
-      if (ts.isShorthandPropertyAssignment(node)) {
-        const name = convertLegacyName(node.name.text);
-        if (!name) {
-          return node;
-        }
-        replacements += 1;
-        return factory.createPropertyAssignment(factory.createIdentifier(name), node.name);
-      }
-
-      if (ts.isMethodDeclaration(node) && ts.isObjectLiteralExpression(node.parent)) {
-        const body = ts.visitNode(node.body, visit, ts.isBlock);
-        const name = convertPropertyName(factory, node.name);
-        if (!name && body === node.body) {
-          return node;
-        }
-        if (name) {
-          replacements += 1;
-        }
-        return factory.updateMethodDeclaration(
-          node,
-          node.modifiers,
-          node.asteriskToken,
-          name ?? node.name,
-          node.questionToken,
-          node.typeParameters,
-          node.parameters,
-          node.type,
-          body,
-        );
-      }
-
-      if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
-        const initializer = node.initializer ? ts.visitNode(node.initializer, visit, ts.isExpression) : undefined;
-        const propertyName = node.propertyName ? convertPropertyName(factory, node.propertyName) : null;
-        if (propertyName) {
-          replacements += 1;
-          return factory.updateBindingElement(
-            node,
-            node.dotDotDotToken,
-            propertyName,
-            node.name,
-            initializer ?? node.initializer,
-          );
-        }
-
-        if (!node.propertyName && ts.isIdentifier(node.name)) {
-          const name = convertLegacyName(node.name.text);
-          if (name) {
-            replacements += 1;
-            return factory.updateBindingElement(
-              node,
-              node.dotDotDotToken,
-              factory.createIdentifier(name),
-              node.name,
-              initializer ?? node.initializer,
-            );
-          }
-        }
-
-        if (initializer !== node.initializer) {
-          return factory.updateBindingElement(node, node.dotDotDotToken, node.propertyName, node.name, initializer);
-        }
-        return node;
-      }
-
-      return ts.visitEachChild(node, visit, context);
-    };
-
-    return (node) => ts.visitNode(node, visit, ts.isSourceFile) ?? node;
-  };
-
-  const transformed = ts.transform(sourceFile, [transformer]);
-  try {
-    if (replacements === 0) {
-      return { code: source, changed: false, replacements: 0 };
     }
 
-    const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
-    const code = printer.printFile(transformed.transformed[0] ?? sourceFile);
-    return { code, changed: code !== source, replacements };
-  } finally {
-    transformed.dispose();
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+
+  if (edits.length === 0) {
+    return { code: source, changed: false, replacements: 0 };
   }
+
+  const code = applySourceEdits(source, edits);
+  return { code, changed: code !== source, replacements: edits.length };
 }
 
 export async function runJSVMCaseCodemod(
@@ -215,16 +128,61 @@ function convertLegacyName(name: string): string | null {
   return converted === name ? null : converted;
 }
 
-function convertPropertyName(factory: ts.NodeFactory, name: ts.PropertyName): ts.PropertyName | null {
+function addIdentifierReplacement(sourceFile: ts.SourceFile, edits: SourceEdit[], name: ts.Identifier): void {
+  const converted = convertLegacyName(name.text);
+  if (!converted) {
+    return;
+  }
+  edits.push({ start: name.getStart(sourceFile), end: name.getEnd(), text: converted });
+}
+
+function addPropertyNameReplacement(sourceFile: ts.SourceFile, edits: SourceEdit[], name: ts.PropertyName): void {
   if (ts.isIdentifier(name)) {
-    const converted = convertLegacyName(name.text);
-    return converted ? factory.createIdentifier(converted) : null;
+    addIdentifierReplacement(sourceFile, edits, name);
+    return;
   }
-  if (ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
+
+  if (ts.isStringLiteral(name) || ts.isNoSubstitutionTemplateLiteral(name)) {
     const converted = convertLegacyName(name.text);
-    return converted ? factory.createStringLiteral(converted) : null;
+    if (converted) {
+      addStringLiteralReplacement(sourceFile, edits, name, converted);
+    }
   }
-  return null;
+}
+
+function addShorthandPropertyReplacement(sourceFile: ts.SourceFile, edits: SourceEdit[], name: ts.Identifier): void {
+  const converted = convertLegacyName(name.text);
+  if (!converted) {
+    return;
+  }
+  edits.push({ start: name.getStart(sourceFile), end: name.getStart(sourceFile), text: `${converted}: ` });
+}
+
+function addStringLiteralReplacement(sourceFile: ts.SourceFile, edits: SourceEdit[], node: ts.Expression, text: string): void {
+  const start = node.getStart(sourceFile);
+  const end = node.getEnd();
+  if (end - start < 2) {
+    return;
+  }
+  edits.push({ start: start + 1, end: end - 1, text });
+}
+
+function applySourceEdits(source: string, edits: SourceEdit[]): string {
+  const sorted = [...edits].sort((a, b) => a.start - b.start || a.end - b.end);
+  let previousEnd = 0;
+  for (const edit of sorted) {
+    if (edit.start < previousEnd) {
+      throw new Error("overlapping JSVM case codemod edits");
+    }
+    previousEnd = edit.end;
+  }
+
+  let code = source;
+  for (let i = sorted.length - 1; i >= 0; i -= 1) {
+    const edit = sorted[i]!;
+    code = `${code.slice(0, edit.start)}${edit.text}${code.slice(edit.end)}`;
+  }
+  return code;
 }
 
 function stringLiteralText(node: ts.Expression | undefined): string | null {
