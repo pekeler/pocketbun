@@ -188,6 +188,11 @@ function main(): void {
   assertIncludes(introDoc, "Bun.CSRF.generate", "docs/users/introduction.md");
   assertIncludes(jsDoc, "`.pb.ts`", "docs/users/extend.md");
   assertIncludes(jsDoc, "`RegisterServerJS*` / `MustRegisterServerJS*`", "docs/users/extend.md");
+  assertIncludes(jsDoc, "`RequestInfo`", "docs/users/extend.md");
+  assertIncludes(jsDoc, "`Cookie`", "docs/users/extend.md");
+  assertIncludes(jsDoc, "`Command`", "docs/users/extend.md");
+  assertIncludes(jsDoc, "`SubscriptionMessage`", "docs/users/extend.md");
+  assertIncludes(jsDoc, "`Context`", "docs/users/extend.md");
   assertIncludes(jsDoc, "Route middleware with reusable handlers", "docs/users/extend.md");
   assertIncludes(jsDoc, "DBX or direct SQLite style?", "docs/users/extend.md");
   assertIncludes(jsDoc, "$http.sendAsync", "docs/users/extend.md");
@@ -222,6 +227,10 @@ function main(): void {
   assertIncludes(differencesDoc, "migrations must be able to run years later", "docs/users/differences.md");
   assertIncludes(differencesDoc, "Do not use current app behavior from migrations", "docs/users/differences.md");
   assertIncludes(differencesDoc, "PocketBun disagrees for generated schema migrations", "docs/users/differences.md");
+  assertIncludes(differencesDoc, "requestInfo.HasSuperuserAuth()", "docs/users/differences.md");
+  assertIncludes(differencesDoc, "cookie.Valid()", "docs/users/differences.md");
+  assertIncludes(differencesDoc, "message.WriteSSE(...)", "docs/users/differences.md");
+  assertIncludes(differencesDoc, 'new Command({ Use: "serve", RunE: fn })', "docs/users/differences.md");
   assertIncludes(
     differencesDoc,
     "https://guides.rubyonrails.org/v3.2/migrations.html#using-models-in-your-migrations",

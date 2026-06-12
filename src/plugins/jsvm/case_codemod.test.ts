@@ -130,6 +130,9 @@ await MustRegisterServerJSAsync(app, config);
     txApp.RunInTransaction(() => null);
 
     const record = app.FindFirstRecordByFilter("posts", "1=1");
+    app.FindRecordsByFilter("posts", "title = {:title}", "-created", 10, 0, {});
+    app.Save(record);
+    record.GetString("title");
     record.GetUnsavedFiles("docs");
     record.GetUploadedFiles("docs");
     record.UnmarshalJSONField("meta", {});
@@ -141,6 +144,9 @@ await MustRegisterServerJSAsync(app, config);
 
     const created = record.GetDateTime("created");
     created.IsZero();
+    created.Before(new DateTime());
+    created.After(new DateTime());
+    created.Compare(new DateTime());
     created.MarshalJSON();
     created.UnmarshalJSON('"2024-01-01 00:00:00.000Z"');
     created.Value();
@@ -202,10 +208,16 @@ await MustRegisterServerJSAsync(app, config);
     expect(result.changed).toBeTrue();
     expect(result.code).toContain("app.runInTransaction((txApp) => {");
     expect(result.code).toContain("txApp.runInTransaction(() => null);");
+    expect(result.code).toContain('app.findRecordsByFilter("posts", "title = {:title}", "-created", 10, 0, {});');
+    expect(result.code).toContain("app.save(record);");
+    expect(result.code).toContain('record.getString("title");');
     expect(result.code).toContain('record.getUnsavedFiles("docs");');
     expect(result.code).toContain('record.unmarshalJSONField("meta", {});');
     expect(result.code).toContain("record.ignoreUnchangedFields(true);");
     expect(result.code).toContain("created.isZero();");
+    expect(result.code).toContain("created.before(new DateTime());");
+    expect(result.code).toContain("created.after(new DateTime());");
+    expect(result.code).toContain("created.compare(new DateTime());");
     expect(result.code).toContain("created.marshalJSON();");
     expect(result.code).toContain("form.grantSuperuserAccess();");
     expect(result.code).toContain("form.hasManageAccess();");
@@ -217,6 +229,126 @@ await MustRegisterServerJSAsync(app, config);
     expect(result.code).toContain("apiErr.status;");
     expect(result.code).toContain('validationErr.setMessage("next");');
     expect(result.code).toContain("validationErr.setParams({});");
+  });
+
+  it("rewrites latest audited runtime and option names", () => {
+    const source = `onBootstrap((e) => {
+  const requestInfo = new RequestInfo({
+    Auth: e.Auth,
+    Body: {},
+    Headers: {},
+    Context: new Context(),
+  });
+  requestInfo.HasSuperuserAuth();
+  requestInfo.Clone();
+
+  const cookie = new Cookie({
+    Name: "sid",
+    Value: "abc",
+    Quoted: true,
+    Expires: new DateTime(),
+    RawExpires: "soon",
+    Partitioned: true,
+    Raw: "raw",
+    Unparsed: ["x"],
+  });
+  cookie.String();
+  cookie.Valid();
+
+  const command = new Command({
+    Use: "serve",
+    Short: "Serve",
+    Long: "Serve app",
+    Version: "1",
+    SilenceUsage: true,
+    ValidArgs: ["serve"],
+    RunE: () => null,
+    Hidden: false,
+    FParseErrWhitelist: { UnknownFlags: true },
+    CompletionOptions: { DisableDefaultCmd: true },
+  });
+  $app.RootCmd.AddCommand(command);
+  command.AddCommand(new Command({ Use: "child" }));
+  command.SetOut({ Write: () => null });
+  command.SetErr({ Write: () => null });
+  command.SetHelpCommand(new Command());
+  command.PersistentFlags();
+  command.Flags();
+  command.ParseFlags([]);
+  command.Find([]);
+  command.Execute();
+  command.Name();
+
+  const message = new SubscriptionMessage({ Name: "update", Data: [] });
+  message.WriteSSE({ Write: () => null }, "event-id");
+
+  const ctx = new Context();
+  ctx.Deadline();
+  ctx.Done();
+  ctx.Err();
+  ctx.Value("key");
+
+  const provider = { Logo: () => "", Order: () => 0 };
+  provider.Logo();
+  provider.Order();
+
+  const field = new TextField({ Name: "title", Help: "shown" });
+  field.Help = "updated";
+});
+`;
+
+    const result = rewriteJSVMCase(source);
+
+    expect(result.changed).toBeTrue();
+    expect(result.code).toContain("new RequestInfo({");
+    expect(result.code).toContain("auth: e.auth");
+    expect(result.code).toContain("body: {}");
+    expect(result.code).toContain("headers: {}");
+    expect(result.code).toContain("context: new Context()");
+    expect(result.code).toContain("requestInfo.hasSuperuserAuth();");
+    expect(result.code).toContain("requestInfo.clone();");
+    expect(result.code).toContain('name: "sid"');
+    expect(result.code).toContain('value: "abc"');
+    expect(result.code).toContain("quoted: true");
+    expect(result.code).toContain("expires: new DateTime()");
+    expect(result.code).toContain('rawExpires: "soon"');
+    expect(result.code).toContain("partitioned: true");
+    expect(result.code).toContain('raw: "raw"');
+    expect(result.code).toContain('unparsed: ["x"]');
+    expect(result.code).toContain("cookie.string();");
+    expect(result.code).toContain("cookie.valid();");
+    expect(result.code).toContain('use: "serve"');
+    expect(result.code).toContain('short: "Serve"');
+    expect(result.code).toContain('long: "Serve app"');
+    expect(result.code).toContain('version: "1"');
+    expect(result.code).toContain("silenceUsage: true");
+    expect(result.code).toContain('validArgs: ["serve"]');
+    expect(result.code).toContain("runE: () => null");
+    expect(result.code).toContain("hidden: false");
+    expect(result.code).toContain("fParseErrWhitelist: { unknownFlags: true }");
+    expect(result.code).toContain("completionOptions: { disableDefaultCmd: true }");
+    expect(result.code).toContain("$app.rootCmd.addCommand(command);");
+    expect(result.code).toContain('command.addCommand(new Command({ use: "child" }));');
+    expect(result.code).toContain("command.setOut({ write: () => null });");
+    expect(result.code).toContain("command.setErr({ write: () => null });");
+    expect(result.code).toContain("command.setHelpCommand(new Command());");
+    expect(result.code).toContain("command.persistentFlags();");
+    expect(result.code).toContain("command.flags();");
+    expect(result.code).toContain("command.parseFlags([]);");
+    expect(result.code).toContain("command.find([]);");
+    expect(result.code).toContain("command.execute();");
+    expect(result.code).toContain("command.name();");
+    expect(result.code).toContain('new SubscriptionMessage({ name: "update", data: [] });');
+    expect(result.code).toContain('message.writeSSE({ write: () => null }, "event-id");');
+    expect(result.code).toContain("ctx.deadline();");
+    expect(result.code).toContain("ctx.done();");
+    expect(result.code).toContain("ctx.err();");
+    expect(result.code).toContain('ctx.value("key");');
+    expect(result.code).toContain('const provider = { logo: () => "", order: () => 0 };');
+    expect(result.code).toContain("provider.logo();");
+    expect(result.code).toContain("provider.order();");
+    expect(result.code).toContain('new TextField({ name: "title", help: "shown" });');
+    expect(result.code).toContain('field.help = "updated";');
   });
 
   it("updates old generated collection migrations to use the migration app view", () => {
