@@ -1,5 +1,13 @@
 // PocketBun-only: package entrypoint that re-exports the public API.
 
+import {
+  Register as RegisterServerJS,
+  MustRegister as MustRegisterServerJS,
+  RegisterAsync as RegisterServerJSAsync,
+  MustRegisterAsync as MustRegisterServerJSAsync,
+  type Config as ServerJSConfig,
+} from "./src/plugins/jsvm/jsvm.ts";
+
 export { buildServeHandler, serve, serveAsync, type ServeConfig } from "./src/apis/serve.ts";
 export { Static, StaticWildcardParam } from "./src/apis/base.ts";
 export {
@@ -17,17 +25,62 @@ export { type App } from "./src/core/app.ts";
 export { type ServeEvent } from "./src/core/events.ts";
 export { migrate, migrateAsync, type MigrateMode } from "./src/core/migrate.ts";
 export { New, NewWithConfig, PocketBase, type PocketBaseConfig, Version } from "./src/pocketbase.ts";
-export {
-  Register as RegisterJSVM,
-  MustRegister as MustRegisterJSVM,
-  RegisterAsync as RegisterJSVMAsync,
-  MustRegisterAsync as MustRegisterJSVMAsync,
-  Register as RegisterHooksPlugin,
-  MustRegister as MustRegisterHooksPlugin,
-  RegisterAsync as RegisterHooksPluginAsync,
-  MustRegisterAsync as MustRegisterHooksPluginAsync,
-  type Config as JSVMConfig,
-} from "./src/plugins/jsvm/jsvm.ts";
+export { RegisterServerJS, MustRegisterServerJS, RegisterServerJSAsync, MustRegisterServerJSAsync };
+export type { ServerJSConfig };
+
+/**
+ * @deprecated Prefer RegisterServerJS. This alias exists because PocketBase's upstream
+ * JavaScript extension package is named "jsvm".
+ */
+export const RegisterJSVM = RegisterServerJS;
+
+/**
+ * @deprecated Prefer MustRegisterServerJS. This alias exists because PocketBase's upstream
+ * JavaScript extension package is named "jsvm".
+ */
+export const MustRegisterJSVM = MustRegisterServerJS;
+
+/**
+ * @deprecated Prefer RegisterServerJSAsync. This alias exists because PocketBase's upstream
+ * JavaScript extension package is named "jsvm".
+ */
+export const RegisterJSVMAsync = RegisterServerJSAsync;
+
+/**
+ * @deprecated Prefer MustRegisterServerJSAsync. This alias exists because PocketBase's upstream
+ * JavaScript extension package is named "jsvm".
+ */
+export const MustRegisterJSVMAsync = MustRegisterServerJSAsync;
+
+/**
+ * @deprecated Prefer ServerJSConfig. This alias exists because PocketBase's upstream JavaScript
+ * extension package is named "jsvm".
+ */
+export type JSVMConfig = ServerJSConfig;
+
+/**
+ * @deprecated Prefer RegisterServerJS. This older PocketBun alias remains for compatibility
+ * with released package versions.
+ */
+export const RegisterHooksPlugin = RegisterServerJS;
+
+/**
+ * @deprecated Prefer MustRegisterServerJS. This older PocketBun alias remains for compatibility
+ * with released package versions.
+ */
+export const MustRegisterHooksPlugin = MustRegisterServerJS;
+
+/**
+ * @deprecated Prefer RegisterServerJSAsync. This older PocketBun alias remains for compatibility
+ * with released package versions.
+ */
+export const RegisterHooksPluginAsync = RegisterServerJSAsync;
+
+/**
+ * @deprecated Prefer MustRegisterServerJSAsync. This older PocketBun alias remains for compatibility
+ * with released package versions.
+ */
+export const MustRegisterHooksPluginAsync = MustRegisterServerJSAsync;
 export {
   BindApis,
   BindCore,

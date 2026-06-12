@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   BaseApp,
-  MustRegisterJSVMAsync,
+  MustRegisterServerJSAsync,
   RequireGuestOnly,
   RegisterMigrateCmd,
   Static,
@@ -27,9 +27,9 @@ await Promise.all([
 
 const app = new BaseApp({ dataDir, isDev: true });
 
-// PocketBun-only async variant to avoid sync fs startup work in JSVM setup.
+// PocketBun-only async variant to avoid sync fs startup work in server-side JavaScript setup.
 // Use the throwing helper so hook loading errors are surfaced immediately.
-await MustRegisterJSVMAsync(app, {
+await MustRegisterServerJSAsync(app, {
   HooksDir: hooksDir,
   HooksWatch: true,
   HooksPoolSize: 5,

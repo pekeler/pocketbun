@@ -17,7 +17,7 @@ Quick links:
 - [PocketBase To PocketBun Migration Checklist](#pocketbase-to-pocketbun-migration-checklist)
 - [Runtime And Distribution](#runtime-and-distribution)
 - [CLI Defaults And Paths](#cli-defaults-and-paths)
-- [Hooks Plugin Naming](#hooks-plugin-naming)
+- [Server-Side JavaScript Plugin Naming](#server-side-javascript-plugin-naming)
 - [Hooks API And Module Loading](#hooks-api-and-module-loading)
 - [Migration Hook Behavior](#migration-hook-behavior)
 - [Async API Extensions](#async-api-extensions)
@@ -52,9 +52,10 @@ Use this as a quick migration recipe for an existing PocketBase project.
    - In `.pb.ts` hooks, use standard `import` for neighboring files and dependencies when needed.
 5. Keep API clients and route assumptions.
    - Existing client SDK usage should continue to work with the same API base paths (`/api/`, `/_/`).
-6. If you embed PocketBun programmatically, keep upstream package API naming in mind.
-   - Prefer `RegisterJSVM*` / `MustRegisterJSVM*` when you need naming parity with PocketBase's upstream JavaScript extension package.
-   - `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain aliases.
+6. If you embed PocketBun programmatically, prefer server-side JavaScript package API names.
+   - Prefer `RegisterServerJS*` / `MustRegisterServerJS*` and `ServerJSConfig`.
+   - `RegisterJSVM*` / `MustRegisterJSVM*` and `JSVMConfig` remain aliases because PocketBase's upstream JavaScript extension package is named `jsvm`.
+   - `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain aliases for compatibility with released PocketBun versions.
 7. Run a migration smoke test before deploying.
    - Start: `pocketbun serve --dev`
    - Verify health: `GET /api/health`
@@ -92,15 +93,15 @@ Default paths in PocketBun CLI:
 
 This prevents accidental writes into `node_modules`-adjacent paths when used as package dependency.
 
-## Hooks Plugin Naming
+## Server-Side JavaScript Plugin Naming
 
-PocketBase's upstream JavaScript extension package uses `jsvm` naming internally.
-PocketBun keeps those package API names for upstream parity and also provides aliases:
+PocketBase's upstream JavaScript extension package uses `jsvm` naming because it runs code in an embedded JavaScript VM. PocketBun runs hooks and JavaScript migrations with Bun, so PocketBun's preferred package API names use `ServerJS`:
 
-- preferred for parity: `RegisterJSVM*`, `MustRegisterJSVM*`
-- aliases: `RegisterHooksPlugin*`, `MustRegisterHooksPlugin*`
+- preferred: `RegisterServerJS*`, `MustRegisterServerJS*`, `ServerJSConfig`
+- upstream-parity aliases: `RegisterJSVM*`, `MustRegisterJSVM*`, `JSVMConfig`
+- released compatibility aliases: `RegisterHooksPlugin*`, `MustRegisterHooksPlugin*`
 
-Both names map to the same plugin registration behavior.
+All names map to the same server-side JavaScript registration behavior.
 
 ## Hooks API And Module Loading
 
@@ -182,7 +183,7 @@ PocketBun keeps sync-compatible APIs but adds async alternatives for I/O-heavy p
 | Archive helpers | `Create`, `Extract` | `CreateAsync`, `ExtractAsync` |
 | App bootstrap/serve | `app.bootstrap()`, `serve(...)` | `app.bootstrapAsync()`, `serveAsync(...)` |
 | Migration helper | `migrate(...)` | `migrateAsync(...)` |
-| Hooks plugin register | `RegisterJSVM(...)` | `RegisterJSVMAsync(...)` |
+| Server-side JavaScript register | `RegisterServerJS(...)` | `RegisterServerJSAsync(...)` |
 | Filesystem factories | `NewFilesystem()` | `NewFilesystemAsync()` |
 | Server-side JavaScript helpers | `$http.send(...)`, `$os.readFile(...)` | `$http.sendAsync(...)`, `$os.readFileAsync(...)` |
 

@@ -1,11 +1,14 @@
 // Ported from pocketbase/examples/base/main.go
 
 import { join } from "node:path";
-import type { ServeEvent } from "../../src/core/events.ts";
-import { Static } from "../../src/apis/base.ts";
-import { MustRegisterAsync as RegisterJSVM } from "../../src/plugins/jsvm/jsvm.ts";
-import { MustRegister as RegisterMigrateCmd, TemplateLangJS } from "../../src/plugins/migratecmd/migratecmd.ts";
-import { New } from "../../src/pocketbase.ts";
+import {
+  MustRegisterServerJSAsync,
+  New,
+  RegisterMigrateCmd,
+  Static,
+  TemplateLangJS,
+  type ServeEvent,
+} from "../../index.ts";
 import { IsProbablyGoRun } from "../../src/tools/osutils/run.ts";
 
 export async function main(): Promise<void> {
@@ -25,7 +28,7 @@ export async function main(): Promise<void> {
     indexFallback: true,
   };
 
-  app.RootCmd.PersistentFlags().StringVar(flags, "hooksDir", "hooksDir", flags.hooksDir, "the directory with the JS app hooks");
+  app.RootCmd.PersistentFlags().StringVar(flags, "hooksDir", "hooksDir", flags.hooksDir, "the directory with JavaScript hooks");
   app.RootCmd.PersistentFlags().BoolVar(
     flags,
     "hooksWatch",
@@ -38,7 +41,7 @@ export async function main(): Promise<void> {
     "hooksPool",
     "hooksPool",
     flags.hooksPool,
-    "the total prewarm goja.Runtime instances for the JS app hooks execution",
+    "the total prewarmed runtime instances for server-side JavaScript hooks",
   );
   app.RootCmd.PersistentFlags().StringVar(
     flags,
@@ -75,9 +78,9 @@ export async function main(): Promise<void> {
   // Plugins and hooks:
   // ---------------------------------------------------------------
 
-  // PocketBun-only async variant to avoid sync fs startup work in JSVM setup.
-  // load jsvm (pb_hooks and pb_migrations)
-  await RegisterJSVM(app, {
+  // PocketBun-only async variant to avoid sync fs startup work in server-side JavaScript setup.
+  // load server-side JavaScript hooks and migrations
+  await MustRegisterServerJSAsync(app, {
     MigrationsDir: flags.migrationsDir,
     HooksDir: flags.hooksDir,
     HooksWatch: flags.hooksWatch,

@@ -2,7 +2,7 @@
 // the benchmark requester and server do not contend on the same Bun event loop.
 
 import { fileURLToPath } from "node:url";
-import { MustRegisterJSVM, NewWithConfig, serve } from "../../index.ts";
+import { MustRegisterServerJS, NewWithConfig, serve } from "../../index.ts";
 import { CollectionNameSuperusers } from "../../src/core/collection_model.ts";
 import { NewRecord } from "../../src/core/record_model.ts";
 import { registerBenchmarkModule } from "./module.ts";
@@ -24,7 +24,7 @@ const app = NewWithConfig({
   DefaultQueryTimeout: 120,
 });
 
-MustRegisterJSVM(app, {
+MustRegisterServerJS(app, {
   HooksPoolSize: 50,
   HooksDir: hooksDir,
 });

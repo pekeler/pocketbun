@@ -19,10 +19,24 @@ import {
   BindMails,
   BindOS,
   BindSecurity,
+  MustRegisterHooksPlugin,
+  MustRegisterHooksPluginAsync,
+  MustRegisterJSVM,
+  MustRegisterJSVMAsync,
+  MustRegisterServerJS,
+  MustRegisterServerJSAsync,
   New,
   NewWithConfig,
+  RegisterHooksPlugin,
+  RegisterHooksPluginAsync,
+  RegisterJSVM,
+  RegisterJSVMAsync,
+  RegisterServerJS,
+  RegisterServerJSAsync,
   Version,
+  type JSVMConfig,
   type PocketBaseConfig,
+  type ServerJSConfig,
 } from "../index.ts";
 import {
   BindApis as InternalBindApis,
@@ -36,6 +50,12 @@ import {
   BindOS as InternalBindOS,
   BindSecurity as InternalBindSecurity,
 } from "./plugins/jsvm/binds.ts";
+import {
+  MustRegister as InternalMustRegisterServerJS,
+  MustRegisterAsync as InternalMustRegisterServerJSAsync,
+  Register as InternalRegisterServerJS,
+  RegisterAsync as InternalRegisterServerJSAsync,
+} from "./plugins/jsvm/jsvm.ts";
 
 describe("public api types", () => {
   it("keeps the PocketBase constructor helpers typed", () => {
@@ -49,6 +69,27 @@ describe("public api types", () => {
     expectTypeOf(BaseApp).instance.toHaveProperty("onServe");
     expectTypeOf(BaseApp).instance.toHaveProperty("onTerminate");
     expectTypeOf(BaseApp).instance.toHaveProperty("onRecordCreate");
+  });
+
+  it("re-exports server-side JavaScript registration helpers with legacy aliases", () => {
+    expect(RegisterServerJS).toBe(InternalRegisterServerJS);
+    expect(MustRegisterServerJS).toBe(InternalMustRegisterServerJS);
+    expect(RegisterServerJSAsync).toBe(InternalRegisterServerJSAsync);
+    expect(MustRegisterServerJSAsync).toBe(InternalMustRegisterServerJSAsync);
+
+    /* eslint-disable typescript-eslint/no-deprecated -- compatibility alias regression coverage */
+    expect(RegisterJSVM).toBe(RegisterServerJS);
+    expect(MustRegisterJSVM).toBe(MustRegisterServerJS);
+    expect(RegisterJSVMAsync).toBe(RegisterServerJSAsync);
+    expect(MustRegisterJSVMAsync).toBe(MustRegisterServerJSAsync);
+
+    expect(RegisterHooksPlugin).toBe(RegisterServerJS);
+    expect(MustRegisterHooksPlugin).toBe(MustRegisterServerJS);
+    expect(RegisterHooksPluginAsync).toBe(RegisterServerJSAsync);
+    expect(MustRegisterHooksPluginAsync).toBe(MustRegisterServerJSAsync);
+
+    expectTypeOf<JSVMConfig>().toEqualTypeOf<ServerJSConfig>();
+    /* eslint-enable typescript-eslint/no-deprecated */
   });
 
   it("re-exports the upstream-style JSVM bind helpers from the package entrypoint", () => {

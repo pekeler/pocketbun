@@ -4,7 +4,7 @@
 import type { ServeEvent } from "./core/events.ts";
 import { Static } from "./apis/base.ts";
 import { NewServerJSCommand, isServerJSLowercaseCommand } from "./cmd/server_js.ts";
-import { MustRegisterAsync as RegisterJSVM } from "./plugins/jsvm/jsvm.ts";
+import { MustRegisterAsync as RegisterServerJS } from "./plugins/jsvm/jsvm.ts";
 import { MustRegister as RegisterMigrateCmd, TemplateLangJS } from "./plugins/migratecmd/migratecmd.ts";
 import { New } from "./pocketbase.ts";
 
@@ -26,7 +26,7 @@ export async function main(): Promise<void> {
     indexFallback: true,
   };
 
-  app.RootCmd.PersistentFlags().StringVar(flags, "hooksDir", "hooksDir", flags.hooksDir, "the directory with the JS app hooks");
+  app.RootCmd.PersistentFlags().StringVar(flags, "hooksDir", "hooksDir", flags.hooksDir, "the directory with JavaScript hooks");
   app.RootCmd.PersistentFlags().BoolVar(
     flags,
     "hooksWatch",
@@ -87,7 +87,7 @@ export async function main(): Promise<void> {
   // ---------------------------------------------------------------
 
   // load server-side JavaScript hooks and migrations
-  await RegisterJSVM(app, {
+  await RegisterServerJS(app, {
     MigrationsDir: flags.migrationsDir,
     HooksDir: flags.hooksDir,
     HooksWatch: flags.hooksWatch,

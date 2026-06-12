@@ -526,9 +526,9 @@ function patchExtend(text: string): string {
   const asyncApisNote =
     "PocketBun also provides async alternatives for several I/O-heavy helpers (for example `$http.sendAsync(...)` and `$os.readFileAsync(...)`).";
   const hooksPluginNote =
-    "In the PocketBun package API, use `RegisterJSVM*` / `MustRegisterJSVM*` when you need naming parity with PocketBase's upstream JavaScript extension package. `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain available as aliases.";
+    "In the PocketBun package API, use `RegisterServerJS*` / `MustRegisterServerJS*` and `ServerJSConfig` for server-side hooks and JavaScript migrations. PocketBase's upstream JavaScript extension package is named `jsvm` because it runs code in an embedded JavaScript VM; PocketBun keeps `RegisterJSVM*` / `MustRegisterJSVM*` and `JSVMConfig` as upstream-parity aliases. `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain available for compatibility with released PocketBun versions.";
   const asyncOverviewNote =
-    "Many I/O-heavy APIs also expose Async variants (for example `serveAsync(...)`, `migrateAsync(...)`, and `RegisterJSVMAsync(...)`).";
+    "Many I/O-heavy APIs also expose Async variants (for example `serveAsync(...)`, `migrateAsync(...)`, and `RegisterServerJSAsync(...)`).";
   const errorsLine = "- Errors are thrown as regular JavaScript exceptions and not returned as explicit error values.";
   const dbxIntro =
     "To prevent SQL injection attacks, you should use named parameters for any expression value that comes from user input. This could be done using the named `` placeholders in your SQL statement and then define the parameter values for the query with `bind(params)`.";

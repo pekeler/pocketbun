@@ -187,7 +187,7 @@ function main(): void {
   assertIncludes(introDoc, "`pocketbun serve`", "docs/users/introduction.md");
   assertIncludes(introDoc, "Bun.CSRF.generate", "docs/users/introduction.md");
   assertIncludes(jsDoc, "`.pb.ts`", "docs/users/extend.md");
-  assertIncludes(jsDoc, "`RegisterJSVM*` / `MustRegisterJSVM*`", "docs/users/extend.md");
+  assertIncludes(jsDoc, "`RegisterServerJS*` / `MustRegisterServerJS*`", "docs/users/extend.md");
   assertIncludes(jsDoc, "Route middleware with reusable handlers", "docs/users/extend.md");
   assertIncludes(jsDoc, "DBX or direct SQLite style?", "docs/users/extend.md");
   assertIncludes(jsDoc, "$http.sendAsync", "docs/users/extend.md");
