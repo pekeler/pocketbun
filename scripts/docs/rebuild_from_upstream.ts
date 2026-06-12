@@ -847,7 +847,7 @@ function tableToMarkdown(tableHtml: string): string {
 
 function convertJsHelper(content: string): string {
   const titles = dedupe([...content.matchAll(/title:\s*"([^"]+)"/g)].map((match) => capture(match, 1, "helper title")));
-  const hooks = dedupe([...content.matchAll(/On[A-Z][A-Za-z0-9]+/g)].map((m) => m[0]));
+  const hooks = dedupe([...content.matchAll(/On[A-Z][A-Za-z0-9]+/g)].map((m) => lowerFirst(m[0])));
 
   const parts: string[] = [];
 
@@ -863,6 +863,10 @@ function convertJsHelper(content: string): string {
   }
 
   return parts.join("\n").trim();
+}
+
+function lowerFirst(value: string): string {
+  return value.charAt(0).toLowerCase() + value.slice(1);
 }
 
 function convertSvelte(content: string): string {

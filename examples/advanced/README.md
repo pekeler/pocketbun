@@ -111,7 +111,7 @@ Authenticated request (expected to fail):
 ## Custom route (programmatic `onServe`)
 
 `examples/advanced/main.ts` also shows the code-first `BaseApp` style using
-`e.Router.GET(...).bind(...)` with a built-in middleware imported from
+`e.router.get(...).bind(...)` with a built-in middleware imported from
 `pocketbun` (`RequireGuestOnly`).
 
 Guest request:

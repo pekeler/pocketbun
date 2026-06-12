@@ -56,16 +56,13 @@ On Windows, HooksWatch restart behavior has no effect.
 
 For most parts, the JavaScript APIs mirror the upstream server APIs with 2 main differences:
 
-- Go exported method and field names are converted to camelCase, for example:
-
-  `app.FindRecordById("example", "RECORD_ID")` becomes
-  `$app.findRecordById("example", "RECORD_ID")`.
+- Go exported method and field names are exposed in camelCase, for example `$app.findRecordById("example", "RECORD_ID")`.
 
 - Errors are thrown as regular JavaScript exceptions and not returned as explicit error values.
 
-PocketBun still accepts older Go-style uppercase hook method names where they were exposed by previous PocketBun releases, but those names are legacy compatibility aliases. New hooks should use the lowercase names from the PocketBase JavaScript docs and generated `pb_data/types.d.ts`.
+PocketBun still accepts older Go-style uppercase hook and migration names where they were exposed by previous PocketBun releases, but those names are deprecated compatibility aliases. New hooks and migrations should use the lowercase names from the PocketBase JavaScript docs and generated `pb_data/types.d.ts`.
 
-To update older hooks and migrations automatically, run `pocketbun server-js upgrade-source`. It scans `./pb_hooks` and `./pb_migrations` by default; use `pocketbun server-js upgrade-source --check` in CI to fail when legacy names remain, and review the generated diff before committing. The fixer rewrites legacy uppercase app, record, `DateTime`, form, `ApiError`, `ValidationError`, and hook handler member names such as `app.RunInTransaction(...)`, `record.GetDateTime(...)`, `form.Validate()`, and `validationErr.SetMessage(...)`. It also updates released PocketBun package aliases like `RegisterHooksPlugin*` / `RegisterJSVM*`, `JSVMConfig`, and `TemplateLangGo` when you pass files that contain package setup code.
+To update older hooks and migrations automatically, run `pocketbun server-js upgrade-source`. It scans `./pb_hooks` and `./pb_migrations` by default; use `pocketbun server-js upgrade-source --check` in CI to fail when deprecated aliases remain, and review the generated diff before committing. The fixer rewrites deprecated uppercase app, record, `DateTime`, form, `ApiError`, `ValidationError`, and hook handler member names to their lower camelCase equivalents. It also updates released PocketBun package aliases like `RegisterHooksPlugin*` / `RegisterJSVM*`, `JSVMConfig`, and `TemplateLangGo` when you pass files that contain package setup code.
 
 In the PocketBun package API, use `RegisterServerJS*` / `MustRegisterServerJS*` and `ServerJSConfig` for server-side hooks and JavaScript migrations. PocketBase's upstream JavaScript extension package is named `jsvm` because it runs code in an embedded JavaScript VM; PocketBun keeps `RegisterJSVM*` / `MustRegisterJSVM*` and `JSVMConfig` as upstream-parity aliases. `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain available for compatibility with released PocketBun versions.
 
@@ -198,91 +195,91 @@ Detected hook groups from helper source:
 - Base model delete hooks
 
 Detected hook names from helper source:
-- `OnRecordEnrich`
-- `OnRecord`
-- `OnCollection`
-- `OnBootstrap`
-- `OnServe`
-- `OnSettingsReload`
-- `OnBackupCreate`
-- `OnBackupRestore`
-- `OnTerminate`
-- `OnMailerSend`
-- `OnMailerRecordAuthAlertSend`
-- `OnMailerRecordPasswordResetSend`
-- `OnMailerRecordVerificationSend`
-- `OnMailerRecordEmailChangeSend`
-- `OnMailerRecordOTPSend`
-- `OnRealtimeConnectRequest`
-- `OnRealtimeSubscribeRequest`
-- `OnRealtimeMessageSend`
-- `OnRecordValidate`
-- `OnModelValidate`
-- `OnRecordCreate`
-- `OnModelCreate`
-- `OnRecordCreateExecute`
-- `OnModelCreateExecute`
-- `OnRecordAfterCreateSuccess`
-- `OnModelAfterCreateSuccess`
-- `OnRecordAfterCreateError`
-- `OnModelAfterCreateError`
-- `OnRecordUpdate`
-- `OnModelUpdate`
-- `OnRecordUpdateExecute`
-- `OnModelUpdateExecute`
-- `OnRecordAfterUpdateSuccess`
-- `OnModelAfterUpdateSuccess`
-- `OnRecordAfterUpdateError`
-- `OnModelAfterUpdateError`
-- `OnRecordDelete`
-- `OnModelDelete`
-- `OnRecordDeleteExecute`
-- `OnModelDeleteExecute`
-- `OnRecordAfterDeleteSuccess`
-- `OnModelAfterDeleteSuccess`
-- `OnRecordAfterDeleteError`
-- `OnModelAfterDeleteError`
-- `OnCollectionValidate`
-- `OnCollectionCreate`
-- `OnCollectionCreateExecute`
-- `OnCollectionAfterCreateSuccess`
-- `OnCollectionAfterCreateError`
-- `OnCollectionUpdate`
-- `OnCollectionUpdateExecute`
-- `OnCollectionAfterUpdateSuccess`
-- `OnCollectionAfterUpdateError`
-- `OnCollectionDelete`
-- `OnCollectionDeleteExecute`
-- `OnCollectionAfterDeleteSuccess`
-- `OnCollectionAfterDeleteError`
-- `OnRecordsListRequest`
-- `OnRecordViewRequest`
-- `OnRecordCreateRequest`
-- `OnRecordUpdateRequest`
-- `OnRecordDeleteRequest`
-- `OnRecordAuthRequest`
-- `OnRecordAuthRefreshRequest`
-- `OnRecordAuthWithPasswordRequest`
-- `OnRecordAuthWithOAuth2Request`
-- `OnRecordRequestPasswordResetRequest`
-- `OnRecordConfirmPasswordResetRequest`
-- `OnRecordRequestVerificationRequest`
-- `OnRecordConfirmVerificationRequest`
-- `OnRecordRequestEmailChangeRequest`
-- `OnRecordConfirmEmailChangeRequest`
-- `OnRecordRequestOTPRequest`
-- `OnRecordAuthWithOTPRequest`
-- `OnBatchRequest`
-- `OnFileDownloadRequest`
-- `OnFileTokenRequest`
-- `OnCollectionsListRequest`
-- `OnCollectionViewRequest`
-- `OnCollectionCreateRequest`
-- `OnCollectionUpdateRequest`
-- `OnCollectionDeleteRequest`
-- `OnCollectionsImportRequest`
-- `OnSettingsListRequest`
-- `OnSettingsUpdateRequest`
+- `onRecordEnrich`
+- `onRecord`
+- `onCollection`
+- `onBootstrap`
+- `onServe`
+- `onSettingsReload`
+- `onBackupCreate`
+- `onBackupRestore`
+- `onTerminate`
+- `onMailerSend`
+- `onMailerRecordAuthAlertSend`
+- `onMailerRecordPasswordResetSend`
+- `onMailerRecordVerificationSend`
+- `onMailerRecordEmailChangeSend`
+- `onMailerRecordOTPSend`
+- `onRealtimeConnectRequest`
+- `onRealtimeSubscribeRequest`
+- `onRealtimeMessageSend`
+- `onRecordValidate`
+- `onModelValidate`
+- `onRecordCreate`
+- `onModelCreate`
+- `onRecordCreateExecute`
+- `onModelCreateExecute`
+- `onRecordAfterCreateSuccess`
+- `onModelAfterCreateSuccess`
+- `onRecordAfterCreateError`
+- `onModelAfterCreateError`
+- `onRecordUpdate`
+- `onModelUpdate`
+- `onRecordUpdateExecute`
+- `onModelUpdateExecute`
+- `onRecordAfterUpdateSuccess`
+- `onModelAfterUpdateSuccess`
+- `onRecordAfterUpdateError`
+- `onModelAfterUpdateError`
+- `onRecordDelete`
+- `onModelDelete`
+- `onRecordDeleteExecute`
+- `onModelDeleteExecute`
+- `onRecordAfterDeleteSuccess`
+- `onModelAfterDeleteSuccess`
+- `onRecordAfterDeleteError`
+- `onModelAfterDeleteError`
+- `onCollectionValidate`
+- `onCollectionCreate`
+- `onCollectionCreateExecute`
+- `onCollectionAfterCreateSuccess`
+- `onCollectionAfterCreateError`
+- `onCollectionUpdate`
+- `onCollectionUpdateExecute`
+- `onCollectionAfterUpdateSuccess`
+- `onCollectionAfterUpdateError`
+- `onCollectionDelete`
+- `onCollectionDeleteExecute`
+- `onCollectionAfterDeleteSuccess`
+- `onCollectionAfterDeleteError`
+- `onRecordsListRequest`
+- `onRecordViewRequest`
+- `onRecordCreateRequest`
+- `onRecordUpdateRequest`
+- `onRecordDeleteRequest`
+- `onRecordAuthRequest`
+- `onRecordAuthRefreshRequest`
+- `onRecordAuthWithPasswordRequest`
+- `onRecordAuthWithOAuth2Request`
+- `onRecordRequestPasswordResetRequest`
+- `onRecordConfirmPasswordResetRequest`
+- `onRecordRequestVerificationRequest`
+- `onRecordConfirmVerificationRequest`
+- `onRecordRequestEmailChangeRequest`
+- `onRecordConfirmEmailChangeRequest`
+- `onRecordRequestOTPRequest`
+- `onRecordAuthWithOTPRequest`
+- `onBatchRequest`
+- `onFileDownloadRequest`
+- `onFileTokenRequest`
+- `onCollectionsListRequest`
+- `onCollectionViewRequest`
+- `onCollectionCreateRequest`
+- `onCollectionUpdateRequest`
+- `onCollectionDeleteRequest`
+- `onCollectionsImportRequest`
+- `onSettingsListRequest`
+- `onSettingsUpdateRequest`
 ## Routing
 
 If your custom routes introduce cookie-backed sessions or server-rendered forms, Bun's native `Bun.CSRF.generate(...)` / `Bun.CSRF.verify(...)` helpers can be a useful building block. PocketBun's builtin JSON APIs remain stateless and don't manage CSRF tokens for your custom route layer.

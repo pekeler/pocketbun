@@ -52,10 +52,10 @@ function newServerJSUpgradeSourceCommand(): Command {
 
   const command = new Command({
     Use: "upgrade-source [paths...]",
-    Short: "Upgrade legacy server-side JavaScript source",
-    Long: `Rewrites older PocketBun server-side JavaScript code from released compatibility names to the preferred names.
+    Short: "Upgrade deprecated server-side JavaScript aliases",
+    Long: `Rewrites older PocketBun server-side JavaScript code from deprecated compatibility aliases to the preferred names.
 
-This includes Go-style exported app, record, DateTime, form, ApiError, ValidationError, and hook handler names; PocketBun package aliases; TemplateLangGo; and older generated collection migrations that need app.forMigrations().
+This includes deprecated Go-style exported app, record, DateTime, form, ApiError, ValidationError, and hook handler names; PocketBun package aliases; TemplateLangGo; and older generated collection migrations that need app.forMigrations().
 
 By default it scans ./pb_hooks and ./pb_migrations. Pass explicit files or directories to limit the rewrite.`,
     Example: [
@@ -92,7 +92,7 @@ By default it scans ./pb_hooks and ./pb_migrations. Pass explicit files or direc
       console.log("No matching server-side JavaScript files found.");
     } else if (summary.changed === 0) {
       console.log(
-        `No legacy server-side JavaScript names found in ${summary.scanned} file${summary.scanned === 1 ? "" : "s"}.`,
+        `No deprecated server-side JavaScript aliases found in ${summary.scanned} file${summary.scanned === 1 ? "" : "s"}.`,
       );
     } else {
       const action = state.check || state.dryRun ? "would change" : "changed";
@@ -102,7 +102,7 @@ By default it scans ./pb_hooks and ./pb_migrations. Pass explicit files or direc
     }
 
     if (state.check && summary.changed > 0) {
-      return new Error("legacy server-side JavaScript names found");
+      return new Error("deprecated server-side JavaScript aliases found");
     }
     return null;
   };

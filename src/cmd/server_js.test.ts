@@ -32,7 +32,7 @@ describe("server-side JavaScript command", () => {
     const err = await root.Execute(["server-js", "upgrade-source", "--help"]);
 
     expect(err).toBeNull();
-    expect(out).toContain("Rewrites older PocketBun server-side JavaScript code");
+    expect(out).toContain("deprecated compatibility aliases");
     expect(out).toContain("app, record, DateTime, form, ApiError, ValidationError");
     expect(out).toContain("pocketbun server-js upgrade-source --check");
   });

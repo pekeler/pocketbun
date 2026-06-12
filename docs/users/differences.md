@@ -105,11 +105,11 @@ All names map to the same server-side JavaScript registration behavior.
 
 ## Hooks API And Module Loading
 
-PocketBun supports PocketBase-style lowercase server-side JavaScript naming and keeps Go-style aliases where applicable. The uppercase aliases exist only for older PocketBun hooks and should be treated as legacy compatibility names; new `pb_hooks` and `pb_migrations` code should use the lowercase names used by PocketBase JavaScript docs and `pb_data/types.d.ts`.
+PocketBun supports PocketBase-style lowercase server-side JavaScript naming and keeps Go-style aliases where applicable. The uppercase aliases exist only for older PocketBun hooks and migrations, and are deprecated compatibility aliases; new `pb_hooks` and `pb_migrations` code should use the lowercase names used by PocketBase JavaScript docs and `pb_data/types.d.ts`.
 
 - preferred hook object names: `bindFunc`, `bind`, `unbind`, `length`, `trigger`
-- legacy alias hook object names: `BindFunc`, `Bind`, `Unbind`, `Length`, `Trigger`
-- app method style: prefer `$app.onServe()`; `$app.OnServe()` remains accepted as a legacy compatibility alias
+- deprecated alias hook object names: `BindFunc`, `Bind`, `Unbind`, `Length`, `Trigger`
+- app method style: prefer `$app.onServe()`; `$app.OnServe()` remains accepted as a deprecated compatibility alias
 - `pb_hooks` global hook bindings intentionally mirror PocketBase's upstream JavaScript hooks (so there is no global `onServe(...)`)
 
 To update older PocketBun hooks and migrations automatically, run:
@@ -118,7 +118,7 @@ To update older PocketBun hooks and migrations automatically, run:
 pocketbun server-js upgrade-source
 ```
 
-The command scans `./pb_hooks` and `./pb_migrations` by default. Use `pocketbun server-js upgrade-source --check` in CI to fail when legacy names remain, or pass explicit files/directories to limit the rewrite. The fixer rewrites JavaScript/TypeScript member access and object-literal keys such as `e.Record.GetString(...)`, `$app.OnServe()`, `app.RunInTransaction(...)`, `record.GetDateTime(...)`, `form.Validate()`, `apiErr.RawData()`, `validationErr.SetMessage(...)`, and `{ Func, Id, Priority }`; updates released package aliases such as `RegisterHooksPlugin*`, `RegisterJSVM*`, `JSVMConfig`, and `TemplateLangGo`; and updates old generated collection migrations to use `app.forMigrations()`. It does not rewrite comments, strings, or class constructor identifiers such as `new ApiError(...)`, `new ValidationError(...)`, or `new RecordUpsertForm(...)`. Run it with a clean working tree and review the diff before committing.
+The command scans `./pb_hooks` and `./pb_migrations` by default. Use `pocketbun server-js upgrade-source --check` in CI to fail when deprecated aliases remain, or pass explicit files/directories to limit the rewrite. The fixer rewrites deprecated JavaScript/TypeScript member access and object-literal keys such as `e.Record.GetString(...)`, `$app.OnServe()`, `app.RunInTransaction(...)`, `record.GetDateTime(...)`, `form.Validate()`, `apiErr.RawData()`, `validationErr.SetMessage(...)`, and `{ Func, Id, Priority }`; updates released package aliases such as `RegisterHooksPlugin*`, `RegisterJSVM*`, `JSVMConfig`, and `TemplateLangGo`; and updates old generated collection migrations to use `app.forMigrations()`. It does not rewrite comments, strings, or class constructor identifiers such as `new ApiError(...)`, `new ValidationError(...)`, or `new RecordUpsertForm(...)`. Run it with a clean working tree and review the diff before committing.
 
 For `pb_hooks` module loading:
 
@@ -128,7 +128,7 @@ For `pb_hooks` module loading:
 For code-first `BaseApp` usage:
 
 - built-in route middlewares are available as package exports (for example `RequireGuestOnly`, `SkipSuccessActivityLog`)
-- you can bind them directly in `onServe` routes with `e.Router.GET(...).bind(...)`
+- you can bind them directly in `onServe` routes with `e.router.get(...).bind(...)`
 
 ## Migration Hook Behavior
 

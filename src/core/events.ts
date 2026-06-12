@@ -142,6 +142,62 @@ export class ServeEvent extends Event {
     this.App = app;
     this.Router = router;
   }
+
+  get app(): App {
+    return this.App;
+  }
+
+  set app(app: App) {
+    this.App = app;
+  }
+
+  get router(): Router<RequestEvent> {
+    return this.Router;
+  }
+
+  set router(router: Router<RequestEvent>) {
+    this.Router = router;
+  }
+
+  get server(): ReturnType<typeof Bun.serve> | null {
+    return this.Server;
+  }
+
+  set server(server: ReturnType<typeof Bun.serve> | null) {
+    this.Server = server;
+  }
+
+  get certManager(): unknown {
+    return this.CertManager;
+  }
+
+  set certManager(certManager: unknown) {
+    this.CertManager = certManager;
+  }
+
+  get listener(): unknown {
+    return this.Listener;
+  }
+
+  set listener(listener: unknown) {
+    this.Listener = listener;
+  }
+
+  get installerFunc(): ServeInstallerFunc | null {
+    return this.InstallerFunc;
+  }
+
+  set installerFunc(installerFunc: ServeInstallerFunc | null) {
+    this.InstallerFunc = installerFunc;
+  }
+
+  get uiExtensions(): UIExtension[] {
+    return this.UIExtensions;
+  }
+
+  set uiExtensions(uiExtensions: UIExtension[]) {
+    this.UIExtensions = uiExtensions;
+  }
 }
 
 export class SettingsReloadEvent extends Event {

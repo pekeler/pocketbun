@@ -247,6 +247,7 @@ describe("RouterGroup", () => {
     for (const scenario of scenarios) {
       const has = group.HasRoute(scenario.method, scenario.path);
       expect(has).toBe(scenario.expected);
+      expect(group.hasRoute(scenario.method, scenario.path)).toBe(scenario.expected);
     }
   });
 });

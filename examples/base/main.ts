@@ -98,11 +98,11 @@ export async function main(): Promise<void> {
   // (if publicDir exists and the route path is not already defined)
   app.onServe().bind({
     func: (e: ServeEvent) => {
-      if (!e.Router.HasRoute("GET", "/{path...}")) {
-        e.Router.GET("/{path...}", Static(flags.publicDir, flags.indexFallback));
+      if (!e.router.hasRoute("GET", "/{path...}")) {
+        e.router.get("/{path...}", Static(flags.publicDir, flags.indexFallback));
       }
 
-      return e.Next();
+      return e.next();
     },
     priority: 999, // execute as latest as possible to allow users to provide their own route
   });

@@ -44,14 +44,14 @@ RegisterMigrateCmd(app, null, {
 
 app.onServe().bind({
   func: (e: ServeEvent) => {
-    e.Router.GET("/hello-from-main", (requestEvent) => {
-      return requestEvent.JSON(200, { message: "Hello from BaseApp route." });
+    e.router.get("/hello-from-main", (requestEvent) => {
+      return requestEvent.json(200, { message: "Hello from BaseApp route." });
     }).bind(RequireGuestOnly());
 
-    if (!e.Router.HasRoute("GET", "/{path...}")) {
-      e.Router.GET("/{path...}", Static(publicDir, true));
+    if (!e.router.hasRoute("GET", "/{path...}")) {
+      e.router.get("/{path...}", Static(publicDir, true));
     }
-    return e.Next();
+    return e.next();
   },
   priority: 999,
 });

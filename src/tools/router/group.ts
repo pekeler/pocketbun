@@ -116,15 +116,15 @@ export class RouterGroup<T extends Resolver> {
       pattern = `${method.toUpperCase()} ${pattern}`;
     }
 
-    return this.hasRoute(pattern, null);
+    return this.hasRoutePattern(pattern, null);
   }
 
-  private hasRoute(pattern: string, parents: Array<RouterGroup<T>> | null): boolean {
+  private hasRoutePattern(pattern: string, parents: Array<RouterGroup<T>> | null): boolean {
     const parentList = parents ?? [];
 
     for (const child of this.children) {
       if (child instanceof RouterGroup) {
-        if (child.hasRoute(pattern, [...parentList, this])) {
+        if (child.hasRoutePattern(pattern, [...parentList, this])) {
           return true;
         }
         continue;
@@ -204,6 +204,10 @@ export class RouterGroup<T extends Resolver> {
 
   options(path: string, action: Handler<T>): Route<T> {
     return this.OPTIONS(path, action);
+  }
+
+  hasRoute(method: string, path: string): boolean {
+    return this.HasRoute(method, path);
   }
 }
 

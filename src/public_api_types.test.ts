@@ -36,6 +36,7 @@ import {
   Version,
   type JSVMConfig,
   type PocketBaseConfig,
+  type ServeEvent,
   type ServerJSConfig,
 } from "../index.ts";
 import {
@@ -69,6 +70,12 @@ describe("public api types", () => {
     expectTypeOf(BaseApp).instance.toHaveProperty("onServe");
     expectTypeOf(BaseApp).instance.toHaveProperty("onTerminate");
     expectTypeOf(BaseApp).instance.toHaveProperty("onRecordCreate");
+  });
+
+  it("keeps lowercase ServeEvent aliases in the public type surface", () => {
+    expectTypeOf<ServeEvent>().toHaveProperty("router");
+    expectTypeOf<ServeEvent["router"]>().toEqualTypeOf<ServeEvent["Router"]>();
+    expectTypeOf<ServeEvent>().toHaveProperty("installerFunc");
   });
 
   it("re-exports server-side JavaScript registration helpers with legacy aliases", () => {

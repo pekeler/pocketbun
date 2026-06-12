@@ -49,13 +49,13 @@ describe("serve installer", () => {
   it("supports async OnServe hooks in serveAsync", async () => {
     const { app, cleanup } = await newTestApp();
     try {
-      app.OnServe().Bind({
-        Id: "__pbTestAsyncOnServeHook__",
-        Func: async (event) => {
+      app.onServe().bind({
+        id: "__pbTestAsyncOnServeHook__",
+        func: async (event) => {
           await Bun.sleep(1);
-          event.InstallerFunc = null;
-          event.Router.get("/__pb_async_on_serve", (reqEvent) => reqEvent.String(200, "ok"));
-          return event.Next();
+          event.installerFunc = null;
+          event.router.get("/__pb_async_on_serve", (reqEvent) => reqEvent.string(200, "ok"));
+          return event.next();
         },
       });
 

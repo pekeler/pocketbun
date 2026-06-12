@@ -1,4 +1,4 @@
-// PocketBun-only: regression tests for the JSVM uppercase-to-lowercase migration helper.
+// PocketBun-only: regression tests for the JSVM deprecated-uppercase-to-lowercase migration helper.
 
 import { describe, expect, it } from "bun:test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -7,7 +7,7 @@ import { newTempDir } from "../../tests/fs.ts";
 import { rewriteJSVMCase, runJSVMCaseCodemod } from "./case_codemod.ts";
 
 describe("JSVM case codemod", () => {
-  it("rewrites legacy uppercase member access without touching strings or comments", () => {
+  it("rewrites deprecated uppercase member access without touching strings or comments", () => {
     const source = `// keep comment text e.Record.GetString
 const text = "keep string text e.Record.GetString";
 onRecordAfterCreateSuccess((e) => {
@@ -31,6 +31,9 @@ onRecordAfterCreateSuccess((e) => {
   it("rewrites hook handler object keys and collection helper chains", () => {
     const source = `$app.OnServe().Bind({
   Func(e) {
+    if (!e.Router.HasRoute("GET", "/")) {
+      e.Router.GET("/", (requestEvent) => requestEvent.JSON(200, {})).BindFunc(() => null);
+    }
     collection.Fields.Add(new TextField({ Name: "title" }));
     return e.Next();
   },
@@ -44,6 +47,8 @@ onRecordAfterCreateSuccess((e) => {
     expect(result.changed).toBeTrue();
     expect(result.code).toContain("$app.onServe().bind({");
     expect(result.code).toContain("func(e) {");
+    expect(result.code).toContain(`if (!e.router.hasRoute("GET", "/")) {`);
+    expect(result.code).toContain(`e.router.get("/", (requestEvent) => requestEvent.json(200, {})).bindFunc(() => null);`);
     expect(result.code).toContain(`collection.fields.add(new TextField({ name: "title" }));`);
     expect(result.code).toContain(`id: "route"`);
     expect(result.code).toContain("priority: 10");
@@ -119,7 +124,7 @@ await MustRegisterServerJSAsync(app, config);
 `);
   });
 
-  it("rewrites legacy runtime names from generated server-side JavaScript types", () => {
+  it("rewrites deprecated runtime names from generated server-side JavaScript types", () => {
     const source = `migrate((app) => {
   return app.RunInTransaction((txApp) => {
     txApp.RunInTransaction(() => null);

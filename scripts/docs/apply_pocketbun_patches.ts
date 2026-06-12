@@ -540,8 +540,14 @@ function patchExtend(text: string): string {
   const oldMigrationAppNote =
     "For collection/schema changes, use `const migrationApp = app.forMigrations()` before calling collection persistence methods such as `save`, `delete`, or `importCollections`. This skips user hooks while preserving PocketBun system hooks required to save collections and sync record tables. New generated JS collection migrations use this form.";
   const migrationAppNote = `${oldMigrationAppNote}${migrationSafetySuffix}`;
+  const migrationAppScopeNote =
+    "`app.forMigrations()` returns an app view for persistence and lookup methods; it does not namespace the top-level collection constructor helpers. Use `new Collection(...)` or global helpers like `newBaseCollection(...)`, not `migrationApp.newBaseCollection(...)`.";
   const migrationDataPolicy =
     "For record, data, and settings migrations, use SQL. If SQL is not enough, keep the transformation logic inside the migration and work with the persisted data shape. Do not use current app behavior from migrations: no normal record/settings `app.save(...)`, forms, services, or hook-driven helpers.";
+  const collectionHelpersNote =
+    "The `newCollection(...)`, `newBaseCollection(...)`, `newViewCollection(...)`, and `newAuthCollection(...)` helpers are available as top-level server-side JavaScript globals, not as `$app` methods. In migrations, create the collection with `new Collection(...)` or one of those global helpers, then use `app.forMigrations().save(collection)` to persist it.";
+  const baseCollectionNote =
+    "Base collections initialize only the `id` system record field by default. Add `autodate` fields such as `created` and `updated` explicitly when your records need timestamps.";
 
   out = out.replace(/For complete API bindings reference, see \[Extend PocketBun Reference\]\(\.\/reference\.md\)\.\n\n/g, "");
 
@@ -641,7 +647,20 @@ function patchExtend(text: string): string {
     ),
     `$1\n\n${migrationAppNote}\n\n${migrationDataPolicy}`,
   );
+  out = out.replace(new RegExp(`\\n\\n${escapeRegExp(migrationAppScopeNote)}`, "g"), "");
+  out = out.replace(
+    new RegExp(`(${escapeRegExp(migrationAppNote)})(\\n\\n${escapeRegExp(migrationDataPolicy)})`, "g"),
+    `$1\n\n${migrationAppScopeNote}$2`,
+  );
   out = out.replace(new RegExp(`(?:\\n\\n${escapeRegExp(migrationDataPolicy)}){2,}`, "g"), `\n\n${migrationDataPolicy}`);
+  out = out.replace(
+    new RegExp(`\\n\\n${escapeRegExp(collectionHelpersNote)}(?:\\n\\n${escapeRegExp(baseCollectionNote)})?`, "g"),
+    "",
+  );
+  out = out.replace(
+    /(\$app\.save\(collection\)\n```)(?=\n\n### Update existing collection)/g,
+    `$1\n\n${collectionHelpersNote}\n\n${baseCollectionNote}`,
+  );
   out = out.replace(
     /migrate\(\(app\) => \{\n    \/\/ missing default options, system fields like id, email, etc\. are initialized automatically/g,
     "migrate((app) => {\n    const migrationApp = app.forMigrations()\n\n    // missing default options, system fields like id, email, etc. are initialized automatically",
@@ -656,6 +675,7 @@ function patchExtend(text: string): string {
   );
   out = out.replace(/`\.\/pocketbun/g, "`pocketbun");
   out = out.replace(/\.\/pocketbun\b/g, "pocketbun");
+  out = out.replace(/PocketBun JSVM's `FormData` has/g, "PocketBun's server-side JavaScript `FormData` has");
   out = out.replace(
     /# Extend PocketBun\n\n/g,
     "# Extend PocketBun\n\nFor complete API bindings reference, see [Extend PocketBun Reference](./reference.md).\n\n",
