@@ -1,10 +1,12 @@
 // PocketBun-only: codemod helpers for migrating older PocketBun JSVM hooks
 // from Go-style exported names to PocketBase JSVM-style lower-camel names.
 
+import { existsSync, readFileSync } from "node:fs";
 import { lstat, readFile, readdir, writeFile } from "node:fs/promises";
 import { basename, extname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import * as ts from "typescript";
-import { convertGoToJSName } from "./mapper.ts";
+import { convertJSToGoName } from "./mapper.ts";
 
 export const defaultJSVMCaseCodemodExtensions = [".js", ".ts", ".mjs", ".mts", ".cjs", ".cts"];
 const defaultJSVMCaseCodemodPaths = ["pb_hooks", "pb_migrations"];
@@ -66,6 +68,133 @@ const packageConfigNameReplacements = new Map([
   ["TemplateLang", "templateLang"],
   ["TypesDir", "typesDir"],
 ]);
+const fallbackRuntimeNameReplacements = new Map([
+  ["After", "after"],
+  ["App", "app"],
+  ["Auth", "auth"],
+  ["Before", "before"],
+  ["Bind", "bind"],
+  ["BindBody", "bindBody"],
+  ["BindFunc", "bindFunc"],
+  ["Body", "body"],
+  ["ClientId", "clientId"],
+  ["Collection", "collection"],
+  ["Compare", "compare"],
+  ["CompletionOptions", "completionOptions"],
+  ["Context", "context"],
+  ["Data", "data"],
+  ["DisableDefaultCmd", "disableDefaultCmd"],
+  ["Email", "email"],
+  ["Fields", "fields"],
+  ["Filesystem", "filesystem"],
+  ["FParseErrWhitelist", "fParseErrWhitelist"],
+  ["Func", "func"],
+  ["Get", "get"],
+  ["GetDateTime", "getDateTime"],
+  ["GetString", "getString"],
+  ["GET", "get"],
+  ["HEAD", "head"],
+  ["HTML", "html"],
+  ["HasRoute", "hasRoute"],
+  ["HasSuperuserAuth", "hasSuperuserAuth"],
+  ["Help", "help"],
+  ["Hidden", "hidden"],
+  ["Id", "id"],
+  ["IsZero", "isZero"],
+  ["JSON", "json"],
+  ["KeyId", "keyId"],
+  ["Long", "long"],
+  ["MarshalJSON", "marshalJSON"],
+  ["Message", "message"],
+  ["Name", "name"],
+  ["Next", "next"],
+  ["Order", "order"],
+  ["OPTIONS", "options"],
+  ["PATCH", "patch"],
+  ["POST", "post"],
+  ["Priority", "priority"],
+  ["PrivateKey", "privateKey"],
+  ["PUT", "put"],
+  ["Quoted", "quoted"],
+  ["Raw", "raw"],
+  ["RawData", "rawData"],
+  ["RawExpires", "rawExpires"],
+  ["Record", "record"],
+  ["RootCmd", "rootCmd"],
+  ["Router", "router"],
+  ["RunE", "runE"],
+  ["SEARCH", "search"],
+  ["Set", "set"],
+  ["SetErr", "setErr"],
+  ["SetHelpCommand", "setHelpCommand"],
+  ["SetMessage", "setMessage"],
+  ["SetOut", "setOut"],
+  ["Short", "short"],
+  ["SilenceUsage", "silenceUsage"],
+  ["Status", "status"],
+  ["String", "string"],
+  ["Submit", "submit"],
+  ["TeamId", "teamId"],
+  ["Template", "template"],
+  ["UnmarshalJSON", "unmarshalJSON"],
+  ["UnknownFlags", "unknownFlags"],
+  ["Unparsed", "unparsed"],
+  ["Valid", "valid"],
+  ["ValidArgs", "validArgs"],
+  ["Validate", "validate"],
+  ["Value", "value"],
+  ["Version", "version"],
+  ["Write", "write"],
+  ["WriteSSE", "writeSSE"],
+  ["XML", "xml"],
+]);
+const runtimeNameReplacements = createRuntimeNameReplacements();
+const optionObjectConstructors = new Set([
+  "BaseCollection",
+  "AuthCollection",
+  "Collection",
+  "Command",
+  "Cookie",
+  "RequestInfo",
+  "SubscriptionMessage",
+  "ViewCollection",
+]);
+const hookHandlerOptionNames = new Set(["Func", "Id", "Priority"]);
+const writerOptionNames = new Set(["Write"]);
+const commandNestedOptionNames = new Set([
+  "CompletionOptions",
+  "FParseErrWhitelist",
+  "completionOptions",
+  "fParseErrWhitelist",
+]);
+const packageConfigTypeNames = new Set(["Config", "JSVMConfig", "PocketBaseConfig", "ServerJSConfig"]);
+const packageConfigFunctionNames = new Set([
+  "MustRegisterHooksPlugin",
+  "MustRegisterHooksPluginAsync",
+  "MustRegisterJSVM",
+  "MustRegisterJSVMAsync",
+  "MustRegisterMigrateCmd",
+  "MustRegisterServerJS",
+  "MustRegisterServerJSAsync",
+  "NewWithConfig",
+  "RegisterHooksPlugin",
+  "RegisterHooksPluginAsync",
+  "RegisterJSVM",
+  "RegisterJSVMAsync",
+  "RegisterMigrateCmd",
+  "RegisterServerJS",
+  "RegisterServerJSAsync",
+  "mustRegisterServerJS",
+  "mustRegisterServerJSAsync",
+  "mustRegisterMigrateCmd",
+  "newPocketBaseWithConfig",
+  "registerMigrateCmd",
+  "registerJSVM",
+  "registerServerJS",
+  "registerServerJSAsync",
+]);
+const hookBindMethodNames = new Set(["Bind", "bind"]);
+const writerMethodNames = new Set(["SetErr", "SetOut", "WriteSSE", "setErr", "setOut", "writeSSE"]);
 const migrationAppName = "migrationApp";
 const migrationCollectionMethods = new Set(["delete", "findCollectionByNameOrId", "importCollections", "save"]);
 
@@ -105,10 +234,11 @@ type SourceEdit = {
 export function rewriteJSVMCase(source: string, fileName = "hooks.pb.js"): JSVMCaseRewriteResult {
   const sourceFile = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, scriptKindForFile(fileName));
   const edits: SourceEdit[] = [];
+  const plainObjectIdentifiers = collectPlainObjectIdentifiers(sourceFile);
 
   const visit = (node: ts.Node) => {
     if (ts.isPropertyAccessExpression(node)) {
-      if (ts.isIdentifier(node.name)) {
+      if (ts.isIdentifier(node.name) && shouldRewritePropertyAccess(node, plainObjectIdentifiers)) {
         addIdentifierReplacement(sourceFile, edits, node.name);
       }
     } else if (ts.isIdentifier(node)) {
@@ -121,16 +251,24 @@ export function rewriteJSVMCase(source: string, fileName = "hooks.pb.js"): JSVMC
         addStringLiteralReplacement(sourceFile, edits, argument, converted);
       }
     } else if (ts.isPropertyAssignment(node)) {
-      addPropertyNameReplacement(sourceFile, edits, node.name);
+      if (shouldRewriteObjectLiteralMember(node)) {
+        addPropertyNameReplacement(sourceFile, edits, node.name);
+      }
     } else if (ts.isShorthandPropertyAssignment(node)) {
-      addShorthandPropertyReplacement(sourceFile, edits, node.name);
-    } else if (ts.isMethodDeclaration(node) && ts.isObjectLiteralExpression(node.parent)) {
-      addPropertyNameReplacement(sourceFile, edits, node.name);
-    } else if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
-      if (node.propertyName) {
-        addPropertyNameReplacement(sourceFile, edits, node.propertyName);
-      } else if (ts.isIdentifier(node.name)) {
+      if (shouldRewriteObjectLiteralMember(node)) {
         addShorthandPropertyReplacement(sourceFile, edits, node.name);
+      }
+    } else if (ts.isMethodDeclaration(node) && ts.isObjectLiteralExpression(node.parent)) {
+      if (shouldRewriteObjectLiteralMember(node)) {
+        addPropertyNameReplacement(sourceFile, edits, node.name);
+      }
+    } else if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent)) {
+      if (shouldRewriteBindingElement(node)) {
+        if (node.propertyName) {
+          addPropertyNameReplacement(sourceFile, edits, node.propertyName);
+        } else if (ts.isIdentifier(node.name)) {
+          addShorthandPropertyReplacement(sourceFile, edits, node.name);
+        }
       }
     } else if (ts.isCallExpression(node)) {
       addMigrationAppReplacements(sourceFile, edits, node);
@@ -192,15 +330,253 @@ function convertLegacyName(name: string): string | null {
   if (packageConfigName) {
     return packageConfigName;
   }
-  if (!/^[A-Z]/.test(name)) {
-    return null;
-  }
-  const converted = convertGoToJSName(name);
-  return converted === name ? null : converted;
+  return runtimeNameReplacements.get(name) ?? null;
 }
 
 function convertExactLegacyName(name: string): string | null {
   return exactLegacyNames.get(name) ?? null;
+}
+
+function createRuntimeNameReplacements(): Map<string, string> {
+  const replacements = new Map(fallbackRuntimeNameReplacements);
+  const generatedTypes = readGeneratedTypesText();
+  if (!generatedTypes) {
+    return replacements;
+  }
+
+  const sf = ts.createSourceFile("types.d.ts", generatedTypes, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const addName = (name: string | null) => {
+    if (!name || name === "constructor" || name.startsWith("_")) {
+      return;
+    }
+
+    addRuntimeNameReplacement(replacements, convertJSToGoName(name), name);
+    const acronym = acronymLegacyName(name);
+    if (acronym) {
+      addRuntimeNameReplacement(replacements, acronym, name);
+    }
+  };
+
+  const visit = (node: ts.Node) => {
+    if (ts.isMethodSignature(node) || ts.isPropertySignature(node)) {
+      addName(propertyNameText(node.name));
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+
+  return replacements;
+}
+
+function readGeneratedTypesText(): string | null {
+  for (const path of generatedTypesCandidatePaths()) {
+    try {
+      if (existsSync(path)) {
+        return readFileSync(path, "utf8");
+      }
+    } catch {
+      // ignore and try the next source/dist-relative candidate
+    }
+  }
+  return null;
+}
+
+function generatedTypesCandidatePaths(): string[] {
+  return [
+    new URL("./internal/types/generated/types.d.ts", import.meta.url),
+    new URL("../src/plugins/jsvm/internal/types/generated/types.d.ts", import.meta.url),
+  ].map((url) => fileURLToPath(url));
+}
+
+function addRuntimeNameReplacement(replacements: Map<string, string>, legacyName: string, preferredName: string): void {
+  if (legacyName && legacyName !== preferredName) {
+    replacements.set(legacyName, preferredName);
+  }
+}
+
+function acronymLegacyName(name: string): string | null {
+  switch (name) {
+    case "html":
+      return "HTML";
+    case "json":
+      return "JSON";
+    case "xml":
+      return "XML";
+    default:
+      return null;
+  }
+}
+
+function propertyNameText(name: ts.PropertyName | ts.BindingName | undefined): string | null {
+  if (!name) {
+    return null;
+  }
+  if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
+    return name.text;
+  }
+  return null;
+}
+
+function collectPlainObjectIdentifiers(sourceFile: ts.SourceFile): Set<string> {
+  const identifiers = new Set<string>();
+
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.initializer &&
+      ts.isObjectLiteralExpression(node.initializer) &&
+      !isKnownOptionObject(node.initializer)
+    ) {
+      identifiers.add(node.name.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+
+  return identifiers;
+}
+
+function shouldRewritePropertyAccess(node: ts.PropertyAccessExpression, plainObjectIdentifiers: Set<string>): boolean {
+  if (!convertLegacyName(node.name.text)) {
+    return false;
+  }
+
+  const baseIdentifier = baseIdentifierText(node.expression);
+  return !baseIdentifier || !plainObjectIdentifiers.has(baseIdentifier);
+}
+
+function baseIdentifierText(node: ts.Expression): string | null {
+  let current: ts.Expression = node;
+  while (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current) || ts.isCallExpression(current)) {
+    current = current.expression;
+  }
+  return ts.isIdentifier(current) ? current.text : null;
+}
+
+function shouldRewriteObjectLiteralMember(
+  node: ts.PropertyAssignment | ts.ShorthandPropertyAssignment | ts.MethodDeclaration,
+): boolean {
+  const legacyName = propertyNameText(node.name);
+  if (!legacyName || !convertLegacyName(legacyName) || !ts.isObjectLiteralExpression(node.parent)) {
+    return false;
+  }
+
+  const object = node.parent;
+  if (packageConfigNameReplacements.has(legacyName)) {
+    return isPackageConfigObject(object);
+  }
+  if (hookHandlerOptionNames.has(legacyName) && isHookHandlerObject(object)) {
+    return true;
+  }
+  if (writerOptionNames.has(legacyName) && isWriterObject(object)) {
+    return true;
+  }
+  if (isCommandNestedOptionObject(object)) {
+    return true;
+  }
+  return isKnownOptionObject(object);
+}
+
+function shouldRewriteBindingElement(node: ts.BindingElement): boolean {
+  const legacyName = propertyNameText(node.propertyName ?? node.name);
+  if (!legacyName || !convertLegacyName(legacyName)) {
+    return false;
+  }
+
+  const declaration = bindingVariableDeclaration(node);
+  return Boolean(declaration?.initializer && isLikelyEventExpression(declaration.initializer));
+}
+
+function bindingVariableDeclaration(node: ts.BindingElement): ts.VariableDeclaration | null {
+  let current: ts.Node | undefined = node.parent;
+  while (current) {
+    if (ts.isVariableDeclaration(current)) {
+      return current;
+    }
+    current = current.parent;
+  }
+  return null;
+}
+
+function isLikelyEventExpression(node: ts.Expression): boolean {
+  return ts.isIdentifier(node) && /^(e|event|hookEvent|requestEvent)$/.test(node.text);
+}
+
+function isKnownOptionObject(object: ts.ObjectLiteralExpression): boolean {
+  const parent = object.parent;
+  if (ts.isNewExpression(parent) && isArgument(parent.arguments, object)) {
+    const name = expressionName(parent.expression);
+    return Boolean(name && (optionObjectConstructors.has(name) || name.endsWith("Field")));
+  }
+  if (ts.isCallExpression(parent) && isArgument(parent.arguments, object)) {
+    const name = expressionName(parent.expression);
+    return Boolean(name && ["newAuthCollection", "newBaseCollection", "newCollection", "newViewCollection"].includes(name));
+  }
+  return isPackageConfigObject(object);
+}
+
+function isPackageConfigObject(object: ts.ObjectLiteralExpression): boolean {
+  const parent = object.parent;
+  if (ts.isVariableDeclaration(parent) && parent.type) {
+    const name = typeName(parent.type);
+    if (name && packageConfigTypeNames.has(name)) {
+      return true;
+    }
+  }
+  if ((ts.isCallExpression(parent) || ts.isNewExpression(parent)) && isArgument(parent.arguments, object)) {
+    const name = expressionName(parent.expression);
+    return Boolean(name && packageConfigFunctionNames.has(name));
+  }
+  return false;
+}
+
+function isHookHandlerObject(object: ts.ObjectLiteralExpression): boolean {
+  const parent = object.parent;
+  if (!ts.isCallExpression(parent) || !isArgument(parent.arguments, object)) {
+    return false;
+  }
+  const name = expressionName(parent.expression);
+  return Boolean(name && hookBindMethodNames.has(name));
+}
+
+function isWriterObject(object: ts.ObjectLiteralExpression): boolean {
+  const parent = object.parent;
+  if (!ts.isCallExpression(parent) || !isArgument(parent.arguments, object)) {
+    return false;
+  }
+  const name = expressionName(parent.expression);
+  return Boolean(name && writerMethodNames.has(name));
+}
+
+function isCommandNestedOptionObject(object: ts.ObjectLiteralExpression): boolean {
+  const parent = object.parent;
+  return ts.isPropertyAssignment(parent) && commandNestedOptionNames.has(propertyNameText(parent.name) ?? "");
+}
+
+function isArgument(argumentsList: ts.NodeArray<ts.Expression> | undefined, object: ts.ObjectLiteralExpression): boolean {
+  return Boolean(argumentsList?.some((argument) => argument === object));
+}
+
+function expressionName(node: ts.Expression): string | null {
+  if (ts.isIdentifier(node)) {
+    return node.text;
+  }
+  if (ts.isPropertyAccessExpression(node)) {
+    return node.name.text;
+  }
+  return null;
+}
+
+function typeName(node: ts.TypeNode): string | null {
+  if (ts.isTypeReferenceNode(node)) {
+    const name = node.typeName;
+    if (ts.isIdentifier(name)) {
+      return name.text;
+    }
+    return name.right.text;
+  }
+  return null;
 }
 
 function addExactIdentifierReplacement(sourceFile: ts.SourceFile, edits: SourceEdit[], name: ts.Identifier): void {

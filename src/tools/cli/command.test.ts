@@ -65,6 +65,7 @@ describe("Command", () => {
   it("Execute prints help with --help", async () => {
     const root = new Command({ Use: "pocketbun", Short: "pocketbun CLI" });
     root.AddCommand(new Command({ Use: "serve", Short: "Starts the web server" }));
+    root.AddCommand(new Command({ Use: "upgrade-source", Short: "Upgrade deprecated aliases" }));
 
     let out = "";
     root.SetOut({
@@ -79,6 +80,7 @@ describe("Command", () => {
     expect(out).toContain("pocketbun [command]");
     expect(out).toContain("Available Commands:");
     expect(out).toContain("serve");
+    expect(out).toContain("upgrade-source  Upgrade deprecated aliases");
   });
 
   it("Execute prints long help text when available", async () => {

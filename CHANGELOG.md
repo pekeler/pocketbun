@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.39.3-pocketbun.4 (Unreleased)
+
+- Fixed CLI help spacing for long subcommands such as `pocketbun server-js upgrade-source`.
+- Fixed `pocketbun server-js upgrade-source` so it no longer rewrites non-PocketBun uppercase keys such as HTTP headers or `globalThis.secrets.*` names.
+
 ## 0.39.3-pocketbun.3 - 2026-06-12
 
 - Replaced `pocketbun server-js lowercase` with `pocketbun server-js upgrade-source`, which updates deprecated server-side JavaScript compatibility aliases, package aliases, template language config, and old generated collection migrations while preserving formatting.

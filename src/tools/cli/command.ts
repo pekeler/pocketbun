@@ -784,8 +784,9 @@ export class Command {
     const visibleChildren = this.#children.filter((child) => !child.Hidden);
     if (visibleChildren.length > 0) {
       lines.push("", "Available Commands:");
+      const commandNameWidth = Math.max(...visibleChildren.map((child) => child.name().length), 14) + 2;
       for (const child of visibleChildren) {
-        const name = child.name().padEnd(14, " ");
+        const name = child.name().padEnd(commandNameWidth, " ");
         lines.push(`  ${name}${child.Short}`);
       }
     }

@@ -64,6 +64,39 @@ onRecordAfterCreateSuccess((e) => {
     expect(result.code).toContain(`e['record']["getString"]("email")`);
   });
 
+  it("does not rewrite application data keys such as headers or secrets", () => {
+    const source = `routerAdd("GET", "/api/token", async (requestEvent) => {
+  if (!globalThis.secrets.OPENAI_API_KEY) {
+    throw new Error("Missing OPENAI_API_KEY");
+  }
+  requestEvent.app.RunInTransaction((app) => app.Save(requestEvent.auth));
+  const response = await $http.sendAsync({
+    url: "https://api.openai.com/v1/realtime/client_secrets",
+    method: "POST",
+    headers: {
+      Authorization: \`Bearer \${globalThis.secrets.OPENAI_API_KEY}\`,
+      "Content-Type": "application/json"
+    },
+    body: "{}"
+  });
+  const contentType = response.headers["Content-Type"]?.[0] || "application/json";
+  return requestEvent.blob(200, contentType, response.body);
+});
+`;
+
+    const result = rewriteJSVMCase(source);
+
+    expect(result.changed).toBeTrue();
+    expect(result.code).toContain("requestEvent.app.runInTransaction((app) => app.save(requestEvent.auth));");
+    expect(result.code).toContain("globalThis.secrets.OPENAI_API_KEY");
+    expect(result.code).toContain("Authorization: `Bearer ${globalThis.secrets.OPENAI_API_KEY}`");
+    expect(result.code).toContain('"Content-Type": "application/json"');
+    expect(result.code).toContain('response.headers["Content-Type"]?.[0]');
+    expect(result.code).not.toContain("globalThis.secrets.openai_api_key");
+    expect(result.code).not.toContain("authorization:");
+    expect(result.code).not.toContain('"content-Type"');
+  });
+
   it("preserves existing indentation and blank lines", () => {
     const source = `onRecordAfterCreateSuccess((e) => {
 
@@ -366,9 +399,9 @@ requireGuestOnly();
     expect(result.code).toContain("ctx.done();");
     expect(result.code).toContain("ctx.err();");
     expect(result.code).toContain('ctx.value("key");');
-    expect(result.code).toContain('const provider = { logo: () => "", order: () => 0 };');
-    expect(result.code).toContain("provider.logo();");
-    expect(result.code).toContain("provider.order();");
+    expect(result.code).toContain('const provider = { Logo: () => "", Order: () => 0 };');
+    expect(result.code).toContain("provider.Logo();");
+    expect(result.code).toContain("provider.Order();");
     expect(result.code).toContain('new TextField({ name: "title", help: "shown" });');
     expect(result.code).toContain('field.help = "updated";');
   });
