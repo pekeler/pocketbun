@@ -19,14 +19,17 @@ export type Config = {
   //
   // If not set it fallbacks to a relative "pb_data/../pb_migrations" directory.
   Dir?: string;
+  dir?: string;
 
   // Automigrate specifies whether to enable automigrations.
   Automigrate?: boolean;
+  automigrate?: boolean;
 
   // TemplateLang specifies the template language to use when generating migrations.
   // PocketBun supports only JavaScript migration templates. TemplateLangGo remains
   // exported as a legacy sentinel, but Register rejects it.
   TemplateLang?: string;
+  templateLang?: string;
 };
 
 // MustRegister registers the migratecmd plugin to the provided app instance
@@ -40,7 +43,12 @@ export function MustRegister(app: App, rootCmd: Command | null, config: Config):
 
 // Register registers the migratecmd plugin to the provided app instance.
 export function Register(app: App, rootCmd: Command | null, config: Config): Error | null {
-  const normalized: Config = { ...config };
+  const normalized: Config = {
+    ...config,
+    Dir: config.Dir ?? config.dir,
+    Automigrate: config.Automigrate ?? config.automigrate,
+    TemplateLang: config.TemplateLang ?? config.templateLang,
+  };
 
   if (!normalized.TemplateLang) {
     normalized.TemplateLang = TemplateLangJS;

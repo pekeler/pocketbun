@@ -11150,10 +11150,9 @@ namespace core {
    *
    * Examples of updating a record's GeoPointField value programmatically:
    *
-   * ```
-   * 	record.set("location", types.GeoPoint{Lat: 123, Lon: 456})
-   * 	record.set("location", map[string]any{"lat":123, "lon":456})
-   * 	record.set("location", []byte(`{"lat":123, "lon":456}`)
+   * ```js
+   * record.set("location", { lat: 123, lon: 456 })
+   * record.set("location", JSON.stringify({ lat: 123, lon: 456 }))
    * ```
    */
   interface GeoPointField {
@@ -15042,12 +15041,12 @@ namespace apis {
      *
      * Example:
      *
-     * ```
-     * 	app.bootstrap()
-     * 	apis.serve(app, apis.ServeConfig{
-     * 		HttpAddr:        "127.0.0.1:8080",
-     * 		ShowStartBanner: false,
-     * 	})
+     * ```js
+     * app.bootstrap()
+     * apis.serve(app, {
+     *   httpAddr: "127.0.0.1:8080",
+     *   showStartBanner: false,
+     * })
      * ```
      */
     (app: CoreApp, config: ServeConfig): void;

@@ -10,29 +10,61 @@ export const defaultJSVMCaseCodemodExtensions = [".js", ".ts", ".mjs", ".mts", "
 const defaultJSVMCaseCodemodPaths = ["pb_hooks", "pb_migrations"];
 const skippedDirNames = new Set([".git", "node_modules", "pb_data", "vendor"]);
 const exactLegacyNames = new Map([
-  ["RegisterJSVM", "RegisterServerJS"],
-  ["MustRegisterJSVM", "MustRegisterServerJS"],
-  ["RegisterJSVMAsync", "RegisterServerJSAsync"],
-  ["MustRegisterJSVMAsync", "MustRegisterServerJSAsync"],
+  ["New", "newPocketBase"],
+  ["NewWithConfig", "newPocketBaseWithConfig"],
+  ["Version", "version"],
+  ["Static", "serveStatic"],
+  ["RequireGuestOnly", "requireGuestOnly"],
+  ["RequireAuth", "requireAuth"],
+  ["RequireSuperuserAuth", "requireSuperuserAuth"],
+  ["RequireSuperuserOrOwnerAuth", "requireSuperuserOrOwnerAuth"],
+  ["RequireSameCollectionContextAuth", "requireSameCollectionContextAuth"],
+  ["SkipSuccessActivityLog", "skipSuccessActivityLog"],
+  ["RegisterServerJS", "registerServerJS"],
+  ["MustRegisterServerJS", "mustRegisterServerJS"],
+  ["RegisterServerJSAsync", "registerServerJSAsync"],
+  ["MustRegisterServerJSAsync", "mustRegisterServerJSAsync"],
+  ["RegisterJSVM", "registerServerJS"],
+  ["MustRegisterJSVM", "mustRegisterServerJS"],
+  ["RegisterJSVMAsync", "registerServerJSAsync"],
+  ["MustRegisterJSVMAsync", "mustRegisterServerJSAsync"],
   ["JSVMConfig", "ServerJSConfig"],
-  ["RegisterHooksPlugin", "RegisterServerJS"],
-  ["MustRegisterHooksPlugin", "MustRegisterServerJS"],
-  ["RegisterHooksPluginAsync", "RegisterServerJSAsync"],
-  ["MustRegisterHooksPluginAsync", "MustRegisterServerJSAsync"],
-  ["TemplateLangGo", "TemplateLangJS"],
+  ["RegisterHooksPlugin", "registerServerJS"],
+  ["MustRegisterHooksPlugin", "mustRegisterServerJS"],
+  ["RegisterHooksPluginAsync", "registerServerJSAsync"],
+  ["MustRegisterHooksPluginAsync", "mustRegisterServerJSAsync"],
+  ["RegisterMigrateCmd", "registerMigrateCmd"],
+  ["MustRegisterMigrateCmd", "mustRegisterMigrateCmd"],
+  ["TemplateLangJS", "templateLangJS"],
+  ["TemplateLangGo", "templateLangJS"],
+  ["BindCore", "bindCore"],
+  ["BindDbx", "bindDbx"],
+  ["BindMails", "bindMails"],
+  ["BindSecurity", "bindSecurity"],
+  ["BindFilesystem", "bindFilesystem"],
+  ["BindFilepath", "bindFilepath"],
+  ["BindOS", "bindOS"],
+  ["BindForms", "bindForms"],
+  ["BindApis", "bindApis"],
+  ["BindHTTP", "bindHTTP"],
+  ["Create", "create"],
+  ["CreateAsync", "createAsync"],
+  ["Extract", "extract"],
+  ["ExtractAsync", "extractAsync"],
+  ["NewRegistry", "newRegistry"],
 ]);
-const packageConfigNames = new Set([
-  "Automigrate",
-  "Dir",
-  "HooksDir",
-  "HooksFilesPattern",
-  "HooksPoolSize",
-  "HooksWatch",
-  "MigrationsDir",
-  "MigrationsFilesPattern",
-  "OnInit",
-  "TemplateLang",
-  "TypesDir",
+const packageConfigNameReplacements = new Map([
+  ["Automigrate", "automigrate"],
+  ["Dir", "dir"],
+  ["HooksDir", "hooksDir"],
+  ["HooksFilesPattern", "hooksFilesPattern"],
+  ["HooksPoolSize", "hooksPoolSize"],
+  ["HooksWatch", "hooksWatch"],
+  ["MigrationsDir", "migrationsDir"],
+  ["MigrationsFilesPattern", "migrationsFilesPattern"],
+  ["OnInit", "onInit"],
+  ["TemplateLang", "templateLang"],
+  ["TypesDir", "typesDir"],
 ]);
 const migrationAppName = "migrationApp";
 const migrationCollectionMethods = new Set(["delete", "findCollectionByNameOrId", "importCollections", "save"]);
@@ -156,8 +188,9 @@ function convertLegacyName(name: string): string | null {
   if (exact) {
     return exact;
   }
-  if (packageConfigNames.has(name)) {
-    return null;
+  const packageConfigName = packageConfigNameReplacements.get(name);
+  if (packageConfigName) {
+    return packageConfigName;
   }
   if (!/^[A-Z]/.test(name)) {
     return null;

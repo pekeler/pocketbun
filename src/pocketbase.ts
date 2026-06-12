@@ -14,6 +14,7 @@ import { FireAndForget } from "./tools/routine/routine.ts";
 
 // Version of PocketBun.
 export const Version = resolvePocketBunVersion();
+export const version = Version;
 
 function resolvePocketBunVersion(): string {
   if (process.env.POCKETBUN_VERSION) {
@@ -50,17 +51,27 @@ function readPocketBunPackageVersion(): string | null {
 export type PocketBaseConfig = {
   // hide the default console server info on app startup
   HideStartBanner?: boolean;
+  hideStartBanner?: boolean;
   // optional default values for the console flags
   DefaultDev?: boolean;
+  defaultDev?: boolean;
   DefaultDataDir?: string;
+  defaultDataDir?: string;
   DefaultEncryptionEnv?: string;
+  defaultEncryptionEnv?: string;
   DefaultQueryTimeout?: number;
+  defaultQueryTimeout?: number;
   // optional DB configurations (currently ignored for bun:sqlite)
   DataMaxOpenConns?: number;
+  dataMaxOpenConns?: number;
   DataMaxIdleConns?: number;
+  dataMaxIdleConns?: number;
   AuxMaxOpenConns?: number;
+  auxMaxOpenConns?: number;
   AuxMaxIdleConns?: number;
+  auxMaxIdleConns?: number;
   DBConnect?: unknown;
+  dbConnect?: unknown;
   // legacy BaseAppConfig-style overrides for convenience
   dataDir?: string;
   encryptionEnv?: string;
@@ -80,8 +91,8 @@ const DefaultQueryTimeoutSeconds = 30;
 
 // PocketBase defines a PocketBun app launcher with CLI support.
 export class PocketBase extends BaseApp {
-  RootCmd: Command;
-  App: BaseApp;
+  rootCmd: Command;
+  app: BaseApp;
   devFlag: boolean;
   dataDirFlag: string;
   encryptionEnvFlag: string;
@@ -103,15 +114,15 @@ export class PocketBase extends BaseApp {
 
     super(baseConfig);
 
-    this.RootCmd = rootCmd;
-    this.App = this;
+    this.rootCmd = rootCmd;
+    this.app = this;
     this.devFlag = flags.devFlag;
     this.dataDirFlag = flags.dataDirFlag;
     this.encryptionEnvFlag = flags.encryptionEnvFlag;
     this.queryTimeout = flags.queryTimeout;
     this.hideStartBanner = normalized.HideStartBanner ?? false;
 
-    this.RootCmd.SetHelpCommand(new Command({ Hidden: true }));
+    this.rootCmd.setHelpCommand(new Command({ hidden: true }));
 
     this.OnBootstrap().Bind({
       Id: ModerncDepsCheckHookId,
@@ -130,9 +141,31 @@ export class PocketBase extends BaseApp {
 
   // Start registers the default system commands and executes the root command.
   async Start(): Promise<Error | null> {
-    this.RootCmd.AddCommand(NewSuperuserCommand(this));
-    this.RootCmd.AddCommand(NewServeCommand(this, !this.hideStartBanner));
+    this.rootCmd.addCommand(NewSuperuserCommand(this));
+    this.rootCmd.addCommand(NewServeCommand(this, !this.hideStartBanner));
     return this.Execute();
+  }
+
+  start(): Promise<Error | null> {
+    return this.Start();
+  }
+
+  /** @deprecated Prefer rootCmd. */
+  get RootCmd(): Command {
+    return this.rootCmd;
+  }
+
+  set RootCmd(value: Command) {
+    this.rootCmd = value;
+  }
+
+  /** @deprecated Prefer app. */
+  get App(): BaseApp {
+    return this.app;
+  }
+
+  set App(value: BaseApp) {
+    this.app = value;
   }
 
   // Execute initializes the application (if needed) and executes the root command.
@@ -157,7 +190,7 @@ export class PocketBase extends BaseApp {
     process.once("SIGINT", signalHandler);
     process.once("SIGTERM", signalHandler);
 
-    void Promise.resolve(this.RootCmd.Execute())
+    void Promise.resolve(this.rootCmd.execute())
       .then((err) => {
         if (err) {
           commandErr = err;
@@ -195,6 +228,10 @@ export class PocketBase extends BaseApp {
     return commandErr;
   }
 
+  execute(): Promise<Error | null> {
+    return this.Execute();
+  }
+
   private skipBootstrap(): boolean {
     const flags = ["-h", "--help", "-v", "--version"];
 
@@ -202,7 +239,7 @@ export class PocketBase extends BaseApp {
       return true;
     }
 
-    const [cmd, _args, err] = this.RootCmd.Find(process.argv.slice(2));
+    const [cmd, _args, err] = this.rootCmd.find(process.argv.slice(2));
     if (err) {
       return true;
     }
@@ -213,10 +250,10 @@ export class PocketBase extends BaseApp {
       }
 
       const trimmed = arg.replace(/^-+/, "");
-      if (trimmed.length > 1 && cmd.Flags().Lookup(trimmed) == null) {
+      if (trimmed.length > 1 && cmd.flags().lookup(trimmed) == null) {
         return true;
       }
-      if (trimmed.length === 1 && cmd.Flags().ShorthandLookup(trimmed) == null) {
+      if (trimmed.length === 1 && cmd.flags().shorthandLookup(trimmed) == null) {
         return true;
       }
     }
@@ -226,18 +263,38 @@ export class PocketBase extends BaseApp {
 }
 
 // New creates a new PocketBase instance with the default configuration.
-export function New(): PocketBase {
+export function newPocketBase(): PocketBase {
   const { withTransientRuntime } = inspectRuntime();
-  return NewWithConfig({ DefaultDev: withTransientRuntime });
+  return newPocketBaseWithConfig({ defaultDev: withTransientRuntime });
 }
 
 // NewWithConfig creates a new PocketBase instance with the provided config.
-export function NewWithConfig(config: PocketBaseConfig): PocketBase {
+export function newPocketBaseWithConfig(config: PocketBaseConfig): PocketBase {
   return new PocketBase(config);
 }
 
+// New creates a new PocketBase instance with the default configuration.
+/** @deprecated Prefer newPocketBase. */
+export const New = newPocketBase;
+
+// NewWithConfig creates a new PocketBase instance with the provided config.
+/** @deprecated Prefer newPocketBaseWithConfig. */
+export const NewWithConfig = newPocketBaseWithConfig;
+
 function normalizePocketBaseConfig(config: PocketBaseConfig): PocketBaseConfig {
-  const normalized: PocketBaseConfig = { ...config };
+  const normalized: PocketBaseConfig = {
+    ...config,
+    HideStartBanner: config.HideStartBanner ?? config.hideStartBanner,
+    DefaultDev: config.DefaultDev ?? config.defaultDev,
+    DefaultDataDir: config.DefaultDataDir ?? config.defaultDataDir,
+    DefaultEncryptionEnv: config.DefaultEncryptionEnv ?? config.defaultEncryptionEnv,
+    DefaultQueryTimeout: config.DefaultQueryTimeout ?? config.defaultQueryTimeout,
+    DataMaxOpenConns: config.DataMaxOpenConns ?? config.dataMaxOpenConns,
+    DataMaxIdleConns: config.DataMaxIdleConns ?? config.dataMaxIdleConns,
+    AuxMaxOpenConns: config.AuxMaxOpenConns ?? config.auxMaxOpenConns,
+    AuxMaxIdleConns: config.AuxMaxIdleConns ?? config.auxMaxIdleConns,
+    DBConnect: config.DBConnect ?? config.dbConnect,
+  };
 
   if (!normalized.DefaultDataDir && config.dataDir) {
     normalized.DefaultDataDir = config.dataDir;

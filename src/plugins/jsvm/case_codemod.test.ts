@@ -94,16 +94,23 @@ onRecordAfterCreateSuccess((e) => {
   it("rewrites released PocketBun server-side JavaScript aliases", () => {
     const source = `import {
   type JSVMConfig,
+  New,
+  RegisterMigrateCmd,
+  RequireGuestOnly,
   MustRegisterHooksPluginAsync,
   RegisterHooksPlugin,
   RegisterJSVM as registerJSVM,
   TemplateLangGo,
+  TemplateLangJS,
 } from "pocketbun";
 
-const config: JSVMConfig = { TemplateLang: TemplateLangGo };
+const config: JSVMConfig = { TemplateLang: TemplateLangGo, HooksDir: "pb_hooks" };
 RegisterHooksPlugin(app, config);
 registerJSVM(app, { TemplateLang: TemplateLangGo });
 await MustRegisterHooksPluginAsync(app, config);
+RegisterMigrateCmd(app, app.RootCmd, { TemplateLang: TemplateLangJS, Automigrate: true, Dir: "pb_migrations" });
+New().RootCmd.AddCommand(new Command({ Use: "hello", RunE: () => null }));
+RequireGuestOnly();
 `;
 
     const result = rewriteJSVMCase(source);
@@ -111,16 +118,23 @@ await MustRegisterHooksPluginAsync(app, config);
     expect(result.changed).toBeTrue();
     expect(result.code).toBe(`import {
   type ServerJSConfig,
-  MustRegisterServerJSAsync,
-  RegisterServerJS,
-  RegisterServerJS as registerJSVM,
-  TemplateLangJS,
+  newPocketBase,
+  registerMigrateCmd,
+  requireGuestOnly,
+  mustRegisterServerJSAsync,
+  registerServerJS,
+  registerServerJS as registerJSVM,
+  templateLangJS,
+  templateLangJS,
 } from "pocketbun";
 
-const config: ServerJSConfig = { TemplateLang: TemplateLangJS };
-RegisterServerJS(app, config);
-registerJSVM(app, { TemplateLang: TemplateLangJS });
-await MustRegisterServerJSAsync(app, config);
+const config: ServerJSConfig = { templateLang: templateLangJS, hooksDir: "pb_hooks" };
+registerServerJS(app, config);
+registerJSVM(app, { templateLang: templateLangJS });
+await mustRegisterServerJSAsync(app, config);
+registerMigrateCmd(app, app.rootCmd, { templateLang: templateLangJS, automigrate: true, dir: "pb_migrations" });
+newPocketBase().rootCmd.addCommand(new Command({ use: "hello", runE: () => null }));
+requireGuestOnly();
 `);
   });
 
@@ -132,6 +146,10 @@ await MustRegisterServerJSAsync(app, config);
     const record = app.FindFirstRecordByFilter("posts", "1=1");
     app.FindRecordsByFilter("posts", "title = {:title}", "-created", 10, 0, {});
     app.Save(record);
+    app.CreateBackup(null, "backup.zip");
+    app.Restart();
+    app.RecordQuery("posts");
+    app.SyncRecordTableSchema(record.Collection(), null);
     record.GetString("title");
     record.GetUnsavedFiles("docs");
     record.GetUploadedFiles("docs");
@@ -210,6 +228,10 @@ await MustRegisterServerJSAsync(app, config);
     expect(result.code).toContain("txApp.runInTransaction(() => null);");
     expect(result.code).toContain('app.findRecordsByFilter("posts", "title = {:title}", "-created", 10, 0, {});');
     expect(result.code).toContain("app.save(record);");
+    expect(result.code).toContain('app.createBackup(null, "backup.zip");');
+    expect(result.code).toContain("app.restart();");
+    expect(result.code).toContain('app.recordQuery("posts");');
+    expect(result.code).toContain("app.syncRecordTableSchema(record.collection(), null);");
     expect(result.code).toContain('record.getString("title");');
     expect(result.code).toContain('record.getUnsavedFiles("docs");');
     expect(result.code).toContain('record.unmarshalJSONField("meta", {});');

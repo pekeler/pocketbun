@@ -6,11 +6,11 @@ const rootValueFlags = new Set(["dir", "hooksDir", "hooksPool", "migrationsDir",
 
 export function NewServerJSCommand(): Command {
   const command = new Command({
-    Use: "server-js",
-    Short: "Server-side JavaScript utilities",
+    use: "server-js",
+    short: "Server-side JavaScript utilities",
   });
 
-  command.AddCommand(newServerJSUpgradeSourceCommand());
+  command.addCommand(newServerJSUpgradeSourceCommand());
   return command;
 }
 
@@ -51,28 +51,28 @@ function newServerJSUpgradeSourceCommand(): Command {
   };
 
   const command = new Command({
-    Use: "upgrade-source [paths...]",
-    Short: "Upgrade deprecated server-side JavaScript aliases",
-    Long: `Rewrites older PocketBun server-side JavaScript code from deprecated compatibility aliases to the preferred names.
+    use: "upgrade-source [paths...]",
+    short: "Upgrade deprecated server-side JavaScript aliases",
+    long: `Rewrites older PocketBun server-side JavaScript code from deprecated compatibility aliases to the preferred names.
 
-This includes deprecated Go-style exported app, record, DateTime, form, ApiError, ValidationError, and hook handler names; PocketBun package aliases; TemplateLangGo; and older generated collection migrations that need app.forMigrations().
+This includes deprecated Go-style exported app, record, DateTime, form, ApiError, ValidationError, and hook handler names; PocketBun package aliases and config keys; and older generated collection migrations that need app.forMigrations().
 
 By default it scans ./pb_hooks and ./pb_migrations. Pass explicit files or directories to limit the rewrite.`,
-    Example: [
+    example: [
       "pocketbun server-js upgrade-source",
       "pocketbun server-js upgrade-source --check",
       "pocketbun server-js upgrade-source pb_hooks/main.pb.ts",
     ].join("\n"),
-    SilenceUsage: true,
+    silenceUsage: true,
   });
 
-  command.PersistentFlags().BoolVar(state, "check", "check", state.check, "report files that would change without writing");
-  command.PersistentFlags().BoolVar(state, "dryRun", "dry-run", state.dryRun, "print the planned rewrite without writing");
+  command.persistentFlags().boolVar(state, "check", "check", state.check, "report files that would change without writing");
+  command.persistentFlags().boolVar(state, "dryRun", "dry-run", state.dryRun, "print the planned rewrite without writing");
   command
-    .PersistentFlags()
-    .StringSliceVar(state, "extensions", "extensions", state.extensions, "comma-separated file extensions to scan");
+    .persistentFlags()
+    .stringSliceVar(state, "extensions", "extensions", state.extensions, "comma-separated file extensions to scan");
 
-  command.RunE = async (_cmd, args) => {
+  command.runE = async (_cmd, args) => {
     const { runJSVMCaseCodemod } = await import("../plugins/jsvm/case_codemod.ts");
     const summary = await runJSVMCaseCodemod(args, {
       check: state.check,

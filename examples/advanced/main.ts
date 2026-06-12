@@ -3,11 +3,11 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   BaseApp,
-  MustRegisterServerJSAsync,
-  RequireGuestOnly,
-  RegisterMigrateCmd,
-  Static,
-  TemplateLangJS,
+  mustRegisterServerJSAsync,
+  requireGuestOnly,
+  registerMigrateCmd,
+  serveStatic,
+  templateLangJS,
   type ServeEvent,
   serveAsync,
 } from "../../index.ts";
@@ -29,27 +29,27 @@ const app = new BaseApp({ dataDir, isDev: true });
 
 // PocketBun-only async variant to avoid sync fs startup work in server-side JavaScript setup.
 // Use the throwing helper so hook loading errors are surfaced immediately.
-await MustRegisterServerJSAsync(app, {
-  HooksDir: hooksDir,
-  HooksWatch: true,
-  HooksPoolSize: 5,
-  MigrationsDir: migrationsDir,
+await mustRegisterServerJSAsync(app, {
+  hooksDir,
+  hooksWatch: true,
+  hooksPoolSize: 5,
+  migrationsDir,
 });
 
-RegisterMigrateCmd(app, null, {
-  Dir: migrationsDir,
-  Automigrate: true,
-  TemplateLang: TemplateLangJS,
+registerMigrateCmd(app, null, {
+  dir: migrationsDir,
+  automigrate: true,
+  templateLang: templateLangJS,
 });
 
 app.onServe().bind({
   func: (e: ServeEvent) => {
     e.router.get("/hello-from-main", (requestEvent) => {
       return requestEvent.json(200, { message: "Hello from BaseApp route." });
-    }).bind(RequireGuestOnly());
+    }).bind(requireGuestOnly());
 
     if (!e.router.hasRoute("GET", "/{path...}")) {
-      e.router.get("/{path...}", Static(publicDir, true));
+      e.router.get("/{path...}", serveStatic(publicDir, true));
     }
     return e.next();
   },

@@ -4,6 +4,27 @@ import { describe, expect, it } from "bun:test";
 import { Command } from "./command.ts";
 
 describe("Command", () => {
+  it("accepts lower-camel command and flag aliases", async () => {
+    const root = new Command({ use: "pocketbun", short: "pocketbun CLI" });
+    const state = { dev: false, name: "" };
+    root.persistentFlags().boolVar(state, "dev", "dev", false, "dev mode");
+    root.persistentFlags().stringVar(state, "name", "name", "", "name");
+    root.addCommand(
+      new Command({
+        use: "serve",
+        run: () => {
+          state.name += "-ran";
+        },
+      }),
+    );
+
+    const err = await root.execute(["--dev", "--name", "test", "serve"]);
+
+    expect(err).toBeNull();
+    expect(state).toEqual({ dev: true, name: "test-ran" });
+    expect(root.find(["serve"])[0].use).toBe("serve");
+  });
+
   it("SetHelpCommand registers named help command", () => {
     const root = new Command({ Use: "root" });
     const help = new Command({ Use: "help", Hidden: true });

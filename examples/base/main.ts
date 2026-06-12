@@ -2,17 +2,17 @@
 
 import { join } from "node:path";
 import {
-  MustRegisterServerJSAsync,
-  New,
-  RegisterMigrateCmd,
-  Static,
-  TemplateLangJS,
+  mustRegisterServerJSAsync,
+  newPocketBase,
+  registerMigrateCmd,
+  serveStatic,
+  templateLangJS,
   type ServeEvent,
 } from "../../index.ts";
 import { IsProbablyGoRun } from "../../src/tools/osutils/run.ts";
 
 export async function main(): Promise<void> {
-  const app = New();
+  const app = newPocketBase();
 
   // ---------------------------------------------------------------
   // Optional plugin flags:
@@ -28,43 +28,43 @@ export async function main(): Promise<void> {
     indexFallback: true,
   };
 
-  app.RootCmd.PersistentFlags().StringVar(flags, "hooksDir", "hooksDir", flags.hooksDir, "the directory with JavaScript hooks");
-  app.RootCmd.PersistentFlags().BoolVar(
+  app.rootCmd.persistentFlags().stringVar(flags, "hooksDir", "hooksDir", flags.hooksDir, "the directory with JavaScript hooks");
+  app.rootCmd.persistentFlags().boolVar(
     flags,
     "hooksWatch",
     "hooksWatch",
     flags.hooksWatch,
     "auto restart the app on pb_hooks file change; it has no effect on Windows",
   );
-  app.RootCmd.PersistentFlags().IntVar(
+  app.rootCmd.persistentFlags().intVar(
     flags,
     "hooksPool",
     "hooksPool",
     flags.hooksPool,
     "the total prewarmed runtime instances for server-side JavaScript hooks",
   );
-  app.RootCmd.PersistentFlags().StringVar(
+  app.rootCmd.persistentFlags().stringVar(
     flags,
     "migrationsDir",
     "migrationsDir",
     flags.migrationsDir,
     "the directory with the user defined migrations",
   );
-  app.RootCmd.PersistentFlags().BoolVar(
+  app.rootCmd.persistentFlags().boolVar(
     flags,
     "automigrate",
     "automigrate",
     flags.automigrate,
     "enable/disable auto migrations",
   );
-  app.RootCmd.PersistentFlags().StringVar(
+  app.rootCmd.persistentFlags().stringVar(
     flags,
     "publicDir",
     "publicDir",
     flags.publicDir,
     "the directory to serve static files",
   );
-  app.RootCmd.PersistentFlags().BoolVar(
+  app.rootCmd.persistentFlags().boolVar(
     flags,
     "indexFallback",
     "indexFallback",
@@ -72,7 +72,7 @@ export async function main(): Promise<void> {
     "fallback the request to index.html on missing static path, e.g. when pretty urls are used with SPA",
   );
 
-  app.RootCmd.ParseFlags(process.argv.slice(2));
+  app.rootCmd.parseFlags(process.argv.slice(2));
 
   // ---------------------------------------------------------------
   // Plugins and hooks:
@@ -80,18 +80,18 @@ export async function main(): Promise<void> {
 
   // PocketBun-only async variant to avoid sync fs startup work in server-side JavaScript setup.
   // load server-side JavaScript hooks and migrations
-  await MustRegisterServerJSAsync(app, {
-    MigrationsDir: flags.migrationsDir,
-    HooksDir: flags.hooksDir,
-    HooksWatch: flags.hooksWatch,
-    HooksPoolSize: flags.hooksPool,
+  await mustRegisterServerJSAsync(app, {
+    migrationsDir: flags.migrationsDir,
+    hooksDir: flags.hooksDir,
+    hooksWatch: flags.hooksWatch,
+    hooksPoolSize: flags.hooksPool,
   });
 
   // migrate command (with js templates)
-  RegisterMigrateCmd(app, app.RootCmd, {
-    TemplateLang: TemplateLangJS,
-    Automigrate: flags.automigrate,
-    Dir: flags.migrationsDir,
+  registerMigrateCmd(app, app.rootCmd, {
+    templateLang: templateLangJS,
+    automigrate: flags.automigrate,
+    dir: flags.migrationsDir,
   });
 
   // static route to serves files from the provided public dir
@@ -99,7 +99,7 @@ export async function main(): Promise<void> {
   app.onServe().bind({
     func: (e: ServeEvent) => {
       if (!e.router.hasRoute("GET", "/{path...}")) {
-        e.router.get("/{path...}", Static(flags.publicDir, flags.indexFallback));
+        e.router.get("/{path...}", serveStatic(flags.publicDir, flags.indexFallback));
       }
 
       return e.next();
@@ -107,7 +107,7 @@ export async function main(): Promise<void> {
     priority: 999, // execute as latest as possible to allow users to provide their own route
   });
 
-  const err = await app.Start();
+  const err = await app.start();
   if (err) {
     console.error(err);
     process.exit(1);

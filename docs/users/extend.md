@@ -52,7 +52,7 @@ onRecordAfterUpdateSuccess((e) => {
 
 - For convenience, when making changes to files inside `pb_hooks`, the process will automatically restart/reload itself (currently supported only on UNIX based platforms). Hook files are loaded per filename sort order.
 
-On Windows, HooksWatch restart behavior has no effect.
+On Windows, `hooksWatch` restart behavior has no effect.
 
 For most parts, the JavaScript APIs mirror the upstream server APIs with 2 main differences:
 
@@ -62,11 +62,11 @@ For most parts, the JavaScript APIs mirror the upstream server APIs with 2 main 
 
 PocketBun still accepts older Go-style uppercase hook and migration names where they were exposed by previous PocketBun releases, but those names are deprecated compatibility aliases. New hooks and migrations should use the lowercase names from the PocketBase JavaScript docs and generated `pb_data/types.d.ts`.
 
-To update older hooks and migrations automatically, run `pocketbun server-js upgrade-source`. It scans `./pb_hooks` and `./pb_migrations` by default; use `pocketbun server-js upgrade-source --check` in CI to fail when deprecated aliases remain, and review the generated diff before committing. The fixer rewrites deprecated uppercase server-side JavaScript member access and object-literal keys to their lower camelCase equivalents, including app, record, `DateTime`, form, `ApiError`, `ValidationError`, `RequestInfo`, `Cookie`, `Command`, `SubscriptionMessage`, `Context`, field option, auth provider, and hook handler names. It also updates released PocketBun package aliases like `RegisterHooksPlugin*` / `RegisterJSVM*`, `JSVMConfig`, and `TemplateLangGo` when you pass files that contain package setup code.
+To update older hooks and migrations automatically, run `pocketbun server-js upgrade-source`. It scans `./pb_hooks` and `./pb_migrations` by default; use `pocketbun server-js upgrade-source --check` in CI to fail when deprecated aliases remain, and review the generated diff before committing. The fixer rewrites deprecated uppercase server-side JavaScript member access and object-literal keys to their lower camelCase equivalents, including app methods such as `RunInTransaction`, `CreateBackup`, `RecordQuery`, and `Restart`; record, `DateTime`, form, `ApiError`, `ValidationError`, `RequestInfo`, `Cookie`, `Command`, `SubscriptionMessage`, `Context`, field option, auth provider, and hook handler names. It also updates released PocketBun package aliases like `RegisterHooksPlugin*` / `RegisterJSVM*`, `RegisterServerJS*`, `TemplateLangJS`, and PascalCase package config keys when you pass files that contain package setup code.
 
-In the PocketBun package API, use `RegisterServerJS*` / `MustRegisterServerJS*` and `ServerJSConfig` for server-side hooks and JavaScript migrations. PocketBase's upstream JavaScript extension package is named `jsvm` because it runs code in an embedded JavaScript VM; PocketBun keeps `RegisterJSVM*` / `MustRegisterJSVM*` and `JSVMConfig` as upstream-parity aliases. `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain available for compatibility with released PocketBun versions.
+In the PocketBun package API, use `registerServerJS*` / `mustRegisterServerJS*` and `ServerJSConfig` for server-side hooks and JavaScript migrations. PocketBase's upstream JavaScript extension package is named `jsvm` because it runs code in an embedded JavaScript VM; PocketBun keeps `RegisterJSVM*` / `MustRegisterJSVM*` and `JSVMConfig` as upstream-parity aliases. `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` and `RegisterServerJS*` / `MustRegisterServerJS*` remain available as deprecated compatibility aliases.
 
-Many I/O-heavy APIs also expose Async variants (for example `serveAsync(...)`, `migrateAsync(...)`, and `RegisterServerJSAsync(...)`).
+Many I/O-heavy APIs also expose Async variants (for example `serveAsync(...)`, `migrateAsync(...)`, and `registerServerJSAsync(...)`).
 ### TypeScript declarations and code completion
 
 PocketBun can execute `.pb.ts` files directly, and it also provides builtin **ambient TypeScript declarations** for editor completion and inline docs.

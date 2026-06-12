@@ -1,123 +1,100 @@
-# Remove JSVM Proxy Wrappers
+# Lower-camel public package API aliases
 
-This ExecPlan is a living document. The sections Progress, Surprises & Discoveries, Decision Log, and Outcomes & Retrospective must be kept up to date as work proceeds.
-
-PLANS.md exists in this repo at .agents/PLANS.md. This ExecPlan must be maintained in accordance with that file.
+This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds. This document follows `.agents/PLANS.md`.
 
 ## Purpose / Big Picture
 
-PocketBun exposes PocketBase-compatible JavaScript APIs inside `pb_hooks`. The current bridge makes lower-case JSVM names work by putting `Proxy` objects in front of apps, hook events, route requests, and arbitrary returned objects. A JavaScript `Proxy` runs a trap on every property access and method call, which is the wrong default for hot hook paths. After this change, hook code should still be able to call lower-case JSVM methods such as `$app.findRecordsByFilter(...)`, `record.getString(...)`, and `dateTime.before(...)`, while legacy upper-case aliases continue to work, but the runtime bridge will use explicit cached facades and concrete adapter objects instead of `new Proxy`.
-
-The observable proof is that the existing JSVM compatibility tests still pass, new regression tests exercise lower-case methods without proxies, and `rg "new Proxy" src/plugins/jsvm/binds.ts` returns no matches.
+PocketBun users should see TypeScript-style lower-camel names in public JavaScript and TypeScript examples, while existing released code that imports or calls Go-style exported names continues to run. After this change, package embedders can import helpers such as `newPocketBase`, `registerServerJSAsync`, `requireGuestOnly`, `serveStatic`, `registerMigrateCmd`, and `templateLangJS`, and can call lower-camel command/app helpers when wiring custom CLIs. Existing names such as `New`, `RegisterServerJSAsync`, `RequireGuestOnly`, `Static`, `RegisterMigrateCmd`, `TemplateLangJS`, `RootCmd`, and `Start()` remain available as deprecated compatibility aliases.
 
 ## Progress
 
-- [x] (2026-06-11T18:05:00Z) Confirmed the remaining proxy usage is localized to `src/plugins/jsvm/binds.ts`.
-- [x] (2026-06-11T18:05:00Z) Replaced the completed migration-template ExecPlan with this JSVM proxy-removal plan.
-- [x] (2026-06-11T18:35:00Z) Replaced `wrapApp`, `wrapEvent`, and generic `wrapBoundValue` with explicit cached facades that map Go-style names to JSVM-style names without `Proxy`.
-- [x] (2026-06-11T18:35:00Z) Replaced route request, header, URL, and query proxies with concrete adapter classes.
-- [x] (2026-06-11T18:35:00Z) Added a focused regression test that rejects `new Proxy` in `src/plugins/jsvm/binds.ts` and updated the changelog.
-- [x] (2026-06-11T18:38:00Z) Ran focused JSVM tests: `bun test src/plugins/jsvm/binds.test.ts src/plugins/jsvm/jsvm.test.ts --concurrent` passed with 81 tests.
-- [x] (2026-06-11T19:05:00Z) Ran the full validation gate: `bun run format:fix`; `bun test --concurrent` passed with 1860 tests; `bun run typecheck` passed; `bun run lint` passed with 0 warnings and 0 errors; `rg "new Proxy" src/plugins/jsvm/binds.ts -n` returned no matches.
-- [x] (2026-06-11T19:08:00Z) Committed the focused changes.
+- [x] (2026-06-12T12:36:17Z) Audited the package entrypoint, examples, generated server-side JavaScript declarations, and host-side CLI classes for remaining Go-style public names.
+- [x] (2026-06-12T12:48:00Z) Added lower-camel package exports, `PocketBase` launcher aliases, `Command`/`FlagSet` aliases, lower-camel config keys, and prototype-level `BaseApp` aliases while preserving old names.
+- [x] (2026-06-12T12:52:00Z) Updated public examples, docs, and the `server-js upgrade-source` codemod to prefer lower-camel package names.
+- [x] (2026-06-12T12:54:00Z) Cleaned remaining generated declaration comments that showed Go syntax in PocketBase-facing examples.
+- [x] (2026-06-12T12:58:00Z) Added regression tests covering preferred aliases, codemod rewrites, command aliases, launcher aliases, and generated comment guards.
+- [x] (2026-06-12T13:38:00Z) Ran formatting, full tests, typecheck, lint, and docs checks successfully.
 
 ## Surprises & Discoveries
 
-- Observation: The broad proxy bridge predates this thread; this task is a cleanup of older infrastructure, not a removal of code that was introduced only for lower-case compatibility.
-  Evidence: `rg "new Proxy|wrapApp|wrapEvent|wrapBoundValue" src/plugins/jsvm/binds.ts` shows all active proxy use in one file, while earlier git history showed app/event wrappers first arriving months before this task.
-
-- Observation: Output arrays must preserve identity when passed back into bound methods.
-  Evidence: The first focused JSVM test run left `arrayOf(...)` and query `.all(result)` targets empty because `unwrapBoundValue` cloned arrays; changing array unwrapping to mutate elements in place fixed the query and dynamic model tests.
-
-- Observation: `FieldsList` is an `Array` subclass and needs both list behavior and JSVM lower-case aliases.
-  Evidence: `collection.Fields.getByName(...)` needs facade aliases, while `collection.Fields.map(...)` should return a plain array for existing tests. The final implementation exposes array subclasses through facades and normalizes common array-result methods such as `map`, `filter`, and `slice` to plain arrays.
+- Observation: The server-side hook and migration examples already use lower-case runtime names, but generated `types.d.ts` comments still include Go-shaped examples for `GeoPointField` and `apis.serve`.
+  Evidence: `src/plugins/jsvm/internal/types/generated/types.d.ts` contains `types.GeoPoint{Lat: 123, Lon: 456}` and `apis.ServeConfig{ HttpAddr: ... }`.
+- Observation: The package/embedding API has a separate public surface from server-side JavaScript. Its current examples use Go-style names such as `New`, `RootCmd`, `PersistentFlags`, `RegisterMigrateCmd`, `TemplateLangJS`, `Static`, and `Start()`.
+  Evidence: `examples/base/main.ts` imports and calls those names.
+- Observation: The first focused test run exposed that `version` existed at the package entrypoint but not as a direct `src/pocketbase.ts` export.
+  Evidence: `bun test src/public_api_types.test.ts src/tools/cli/command.test.ts src/plugins/jsvm/case_codemod.test.ts src/plugins/jsvm/types_runtime_contract.test.ts src/pocketbase.test.ts --concurrent` failed with `Export named 'version' not found in module '/Users/pekeler/Projects/pocketbun/src/pocketbase.ts'`.
+- Observation: `BaseApp` had lower-camel aliases after the initial fix, but the exported `App` interface still forced helper authors back to Go-style names for several app methods.
+  Evidence: `src/core/app.ts` declared `CreateBackup`, `RecordQuery`, `Save`, and `RunInTransaction` without matching lower-camel `App` entries.
 
 ## Decision Log
 
-- Decision: Remove all `new Proxy` calls from `src/plugins/jsvm/binds.ts`, including route request adapters, rather than only removing the generic object proxy.
-  Rationale: Leaving smaller request/query/header proxies would keep the same hidden per-access trap cost and make future performance audits ambiguous. Concrete classes are straightforward for those fixed surfaces.
-  Date/Author: 2026-06-11 / Codex
-
-- Decision: Use cached facades for app and general bound values rather than mutating every original object in place.
-  Rationale: A facade can expose lower-case and upper-case methods with stable own properties while preserving the underlying PocketBun object untouched. It also gives `unwrapBoundValue` a concrete map back to the raw object when a hook passes a facade back into app methods.
-  Date/Author: 2026-06-11 / Codex
-
-- Decision: Keep plain arrays as arrays and unwrap them in place when they are passed back into bound methods.
-  Rationale: Query methods use arrays as caller-owned output parameters. Cloning those arrays preserves values but loses the mutation target, so the caller observes an empty result.
-  Date/Author: 2026-06-11 / Codex
+- Decision: Keep all previously released Go-style package names as deprecated compatibility aliases.
+  Rationale: PocketBun has already released those names, and removing them would break existing embedders. The fix is to provide preferred lower-camel names without forcing an immediate migration.
+  Date/Author: 2026-06-12 / Codex.
+- Decision: Use descriptive lower-camel names where the exact first-letter lowercase form would be invalid or awkward JavaScript.
+  Rationale: `new` is a keyword and `static` is awkward as an import binding. Preferred names such as `newPocketBase` and `serveStatic` communicate intent and avoid syntax traps.
+  Date/Author: 2026-06-12 / Codex.
+- Decision: Implement `BaseApp` method aliases on the prototype.
+  Rationale: Prototype aliases avoid `Proxy`, avoid per-instance allocation, preserve old method implementations, and make package embedders able to call lower-camel app methods outside the server-side JavaScript facade.
+  Date/Author: 2026-06-12 / Codex.
 
 ## Outcomes & Retrospective
 
-The JSVM compatibility bridge no longer uses `Proxy` wrappers. Lower-case JSVM methods and legacy upper-case aliases still pass the focused and full test suites. The final validation gate passed with `bun run format:fix`, `bun test --concurrent` (1860 pass, 0 fail), `bun run typecheck`, `bun run lint` (0 warnings, 0 errors), and `rg "new Proxy" src/plugins/jsvm/binds.ts -n` returning no matches. The focused changes are committed.
+Lower-camel package, `PocketBase`, `Command`, `FlagSet`, `App`, and `BaseApp` aliases are implemented while preserving Go-style compatibility names. Docs, examples, generated declaration comments, and the `server-js upgrade-source` codemod now prefer or rewrite to the lower-camel names. Full validation passed:
+
+    bun run format:fix
+    bun run typecheck
+    bun run lint
+    bun run docs:check
+    bun test --concurrent
 
 ## Context and Orientation
 
-The JSVM bridge lives in `src/plugins/jsvm/binds.ts`. It creates the global `$app` binding used inside `pb_hooks`, wraps hook event objects before user callbacks run, and exposes PocketBase helper classes/functions such as `Record`, `Collection`, fields, router helpers, filesystem helpers, and date/time helpers. In this plan, a "facade" means a normal JavaScript object created with `Object.create(rawObject)`. The facade has concrete properties and methods defined on it, and each method calls the raw object. This is different from a `Proxy`, because JavaScript can use ordinary property lookup instead of invoking a trap for every access.
+PocketBun has two JavaScript-facing surfaces. The first is server-side JavaScript loaded from `pb_hooks` and `pb_migrations`; its generated declarations live in `src/plugins/jsvm/internal/types/generated/types.d.ts`, and the runtime bindings are primarily in `src/plugins/jsvm/binds.ts`. That surface should follow PocketBase upstream JSVM lower-camel names.
 
-The old bridge has four proxy families in `src/plugins/jsvm/binds.ts`:
-
-- `wrapApp` proxies the app and overrides methods such as `save`, `delete`, and `runInTransaction` so hook scripts get synchronous PocketBase JSVM behavior where required.
-- `wrapEvent` proxies hook events and maps `e.record`, `e.app`, `e.next`, and route `e.request` to JSVM-style names.
-- `wrapRouteRequest`, `wrapRouteRequestURL`, `wrapHeaderValues`, and `wrapQueryValues` proxy fixed Web API objects to expose PocketBase-style route request helpers.
-- `wrapBoundValue` recursively proxies arbitrary returned PocketBun objects so lower-case names such as `record.getString` map to Go-style methods such as `GetString`.
-
-The helper `src/plugins/jsvm/mapper.ts` converts between Go-style names and JS-style names. `convertJSToGoName("getString")` returns `GetString`, and `convertGoToJSName("GetString")` returns `getString`.
+The second surface is the PocketBun npm package entrypoint in `index.ts` and public classes used by embedders, such as `src/pocketbase.ts`, `src/apis/base.ts`, `src/apis/middlewares.ts`, `src/plugins/jsvm/jsvm.ts`, `src/plugins/migratecmd/migratecmd.ts`, and `src/tools/cli/command.ts`. Because PocketBun was ported from PocketBase Go, this package API still exposes several Go-style exported names. The goal here is not to remove those names, but to add lower-camel preferred aliases and update docs/examples to use them.
 
 ## Plan of Work
 
-First, replace the generic proxy machinery with facade helpers in `src/plugins/jsvm/binds.ts`. The new helper should cache one facade per raw object in a `WeakMap`, cache the reverse mapping for `unwrapBoundValue`, and define concrete own properties on the facade for both the original name and the lower-case JSVM alias. Function properties should unwrap facade arguments, call the raw method with the raw object as `this`, throw returned `Error` values to match the old bridge, and expose returned objects through the same facade helper. Data and accessor properties should use getters and setters that forward to the raw object.
+First, add lower-camel aliases at the package entrypoint in `index.ts`. Aliases must point to the same function object where possible so runtime compatibility tests can use identity checks. Add lower-camel names for server-side JavaScript registration helpers, JSVM bind helpers, migrate command registration, migration template language constants, route middleware exports, the static file handler, archive helpers, registry creation, package version, and PocketBase construction.
 
-Second, keep app-specific behavior explicit. `$app` should return an app facade. The facade must preserve lower-case JSVM methods and legacy upper-case methods, but the lower-case app methods with special semantics must still call the correct sync implementation: `save`, `saveNoValidate`, `saveWithContext`, `saveNoValidateWithContext`, `delete`, `deleteWithContext`, `importCollections`, `importCollectionsByMarshaledJSON`, `validate`, `saveView`, and `createViewFields`. Transaction callbacks for `runInTransaction` and `auxRunInTransaction` must receive an app facade for the transaction app.
+Next, add lower-camel runtime aliases on the classes embedders touch directly. In `src/pocketbase.ts`, expose `rootCmd` and `app` as property aliases for `RootCmd` and `App`, add `start()` as an alias for `Start()`, and add `newPocketBase()` / `newPocketBaseWithConfig()` helpers next to `New()` / `NewWithConfig()`. In `src/tools/cli/command.ts`, add lower-camel methods and lower-camel constructor property normalization for `Command` and `FlagSet`, including `addCommand`, `removeCommand`, `persistentFlags`, `flags`, `parseFlags`, `setErr`, `setOut`, `setHelpCommand`, and lower-camel object keys such as `use`, `run`, and `runE`. Keep existing PascalCase fields and methods.
 
-Third, replace route request proxies with concrete adapter classes in the same file. A route request adapter should expose `header`, `url`, `pathValue(name)`, `setPathValue(name, value)`, `raw`, and common `Request` pass-through methods/properties such as `method`, `headers`, `body`, `json()`, `text()`, `arrayBuffer()`, `formData()`, and `clone()`. A URL adapter should expose `path`, `rawQuery`, `scheme`, `query()`, `string()`, `toString()`, and common URL pass-through properties. Header and query adapters should expose the PocketBase JSVM semantics where missing values return empty strings and JSON conversion returns `Record<string, string[]>`.
+Then update public examples and docs to prefer the lower-camel names. `examples/base/main.ts` and `examples/advanced/main.ts` should import the preferred package names and call lower-camel instance methods. Docs in `docs/users/extend.md` and `docs/users/differences.md` should describe old names as deprecated compatibility aliases. The upgrade-source codemod in `src/plugins/jsvm/case_codemod.ts` should rewrite released package aliases to the new preferred names when it is run against package setup files.
 
-Fourth, update constructors and helper functions in `baseBinds` that currently return `wrapBoundValue(...)` so they return the new facade helper. Update hook callback wrapping sites so they call the new event facade helper. Keep the public function names close to the existing code to minimize the diff.
-
-Fifth, update tests and docs only where needed. Existing docs should already prefer lower-case names because the previous commits changed that. Add a regression test that asserts the bridge source has no `new Proxy` and that lower-case and upper-case calls still work through hook bindings.
+Finally, clean generated declaration comments that still show Go syntax in PocketBase-facing examples, update `docs/users/reference.md` if it mirrors those comments, and add tests. `src/public_api_types.test.ts` should pin the new package aliases and old compatibility identities. `src/plugins/jsvm/case_codemod.test.ts` should cover package setup rewrites. `src/plugins/jsvm/types_runtime_contract.test.ts` should guard the remaining generated comment snippets.
 
 ## Concrete Steps
 
-All commands run from `/Users/pekeler/Projects/pocketbun`.
+Work from `/Users/pekeler/Projects/pocketbun`.
 
-1. Inspect the current bridge and tests:
+Run focused checks while editing:
 
-   `rg "new Proxy|wrapApp|wrapEvent|wrapBoundValue" src/plugins/jsvm src/core src/tools -n`
+    bun test src/public_api_types.test.ts src/plugins/jsvm/case_codemod.test.ts src/plugins/jsvm/types_runtime_contract.test.ts --concurrent
 
-2. Edit `src/plugins/jsvm/binds.ts` to replace proxy wrappers with cached facades and concrete adapters.
+After all edits, run the required gate:
 
-3. Add focused tests in `src/plugins/jsvm/binds.test.ts` or the closest existing JSVM regression test file.
-
-4. Update `CHANGELOG.md` under `Unreleased` or the active target version with a concise user-facing note that JSVM lower-case compatibility no longer relies on proxy wrappers.
-
-5. Run:
-
-   `bun run format:fix`
-
-   `bun test src/plugins/jsvm/binds.test.ts src/plugins/jsvm/jsvm.test.ts --concurrent`
-
-   `bun test --concurrent`
-
-   `bun run typecheck`
-
-   `bun run lint`
-
-6. Commit the focused source, test, changelog, and ExecPlan changes.
+    bun run format:fix
+    bun test --concurrent
+    bun run typecheck
+    bun run lint
+    bun run docs:check
 
 ## Validation and Acceptance
 
-Acceptance requires:
-
-- `rg "new Proxy" src/plugins/jsvm/binds.ts` returns no matches.
-- `$app.findCollectionByNameOrId(...)`, `$app.FindCollectionByNameOrId(...)`, `$app.runInTransaction(...)`, and `$app.RunInTransaction(...)` all continue to work from hook scripts.
-- Record and date-time lower-case methods continue to work from hook scripts.
-- Route hook scripts can continue to use `e.request.header.get(...)`, `e.request.url.query().get(...)`, `e.request.pathValue(...)`, and `e.request.raw`.
-- The focused JSVM tests pass.
-- The full gate passes: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, and `bun run lint`.
+The preferred package API is accepted when TypeScript can import and type-check lower-camel names from `pocketbun`, examples use those names, and tests prove old names still point to the same runtime behavior. The generated comment cleanup is accepted when tests fail on stale Go-shaped snippets such as `types.GeoPoint{` and `apis.ServeConfig{` and pass after the cleanup.
 
 ## Idempotence and Recovery
 
-The changes are normal source edits. Re-running formatting and tests is safe. If a facade bug appears, inspect whether the failing property is an app special case, a route adapter property, or a generic bound-value alias. Fix the smallest helper that owns that surface rather than restoring a `Proxy`. If a method receives a facade where it expects a raw PocketBun object, add or adjust an `unwrapBoundValue` call at the call boundary.
+All edits are additive except docs/example rewrites and generated comment cleanup. If a test fails, rerun the focused test after the relevant file is fixed. The old Go-style exported names must not be removed during this plan; they are compatibility aliases.
 
 ## Artifacts and Notes
 
-The prior lowercase API and codemod work is already committed before this plan starts. The relevant existing commits are `497c7eaa` for docs and `e934a950` for the codemod.
+Focused validation:
+
+    bun test src/public_api_types.test.ts src/tools/cli/command.test.ts src/plugins/jsvm/case_codemod.test.ts src/plugins/jsvm/types_runtime_contract.test.ts src/pocketbase.test.ts --concurrent
+    39 pass, 0 fail
+
+## Interfaces and Dependencies
+
+No new dependencies are required. All runtime aliases should be implemented with ordinary TypeScript exports, methods, and getters. The codemod should continue using TypeScript AST helpers in `src/plugins/jsvm/case_codemod.ts`.

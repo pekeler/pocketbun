@@ -33,13 +33,21 @@ const generatedTypesSourcePath = resolveGeneratedTypesSourcePath(dirname(fileURL
 
 export type Config = {
   OnInit?: (globals: Record<string, unknown>) => void;
+  onInit?: (globals: Record<string, unknown>) => void;
   HooksWatch?: boolean;
+  hooksWatch?: boolean;
   HooksDir?: string;
+  hooksDir?: string;
   HooksFilesPattern?: string;
+  hooksFilesPattern?: string;
   HooksPoolSize?: number;
+  hooksPoolSize?: number;
   MigrationsDir?: string;
+  migrationsDir?: string;
   MigrationsFilesPattern?: string;
+  migrationsFilesPattern?: string;
   TypesDir?: string;
+  typesDir?: string;
 };
 
 export function MustRegister(app: App, config: Config): void {
@@ -122,6 +130,14 @@ export async function RegisterAsync(app: App, config: Config): Promise<Error | n
 function normalizeConfig(app: App, config: Config): Config {
   const normalized: Config = {
     ...config,
+    OnInit: config.OnInit ?? config.onInit,
+    HooksWatch: config.HooksWatch ?? config.hooksWatch,
+    HooksDir: config.HooksDir ?? config.hooksDir,
+    HooksFilesPattern: config.HooksFilesPattern ?? config.hooksFilesPattern,
+    HooksPoolSize: config.HooksPoolSize ?? config.hooksPoolSize,
+    MigrationsDir: config.MigrationsDir ?? config.migrationsDir,
+    MigrationsFilesPattern: config.MigrationsFilesPattern ?? config.migrationsFilesPattern,
+    TypesDir: config.TypesDir ?? config.typesDir,
   };
 
   if (!normalized.HooksDir) {

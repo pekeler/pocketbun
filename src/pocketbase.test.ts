@@ -4,7 +4,7 @@ import { describe, expect, it } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { New, NewWithConfig, type PocketBaseConfig, Version } from "./pocketbase.ts";
+import { newPocketBase, newPocketBaseWithConfig, type PocketBaseConfig, version } from "./pocketbase.ts";
 import { removeDirWithRetry } from "./tests/fs.ts";
 import { Command } from "./tools/cli/command.ts";
 
@@ -24,59 +24,59 @@ function skipBootstrap(app: unknown): boolean {
 }
 
 describe("pocketbase", () => {
-  it.serial("New", () => {
+  it.serial("newPocketBase", () => {
     withArgs(["--dir=test_dir", "--encryptionEnv=test_encryption_env", "--debug=true"], () => {
-      const app = New();
+      const app = newPocketBase();
 
       expect(app).not.toBeNull();
-      expect(app.RootCmd).not.toBeNull();
-      expect(app.App).not.toBeNull();
-      expect(app.DataDir()).toBe("test_dir");
-      expect(app.EncryptionEnv()).toBe("test_encryption_env");
+      expect(app.rootCmd).not.toBeNull();
+      expect(app.app).not.toBeNull();
+      expect(app.dataDir()).toBe("test_dir");
+      expect(app.encryptionEnv()).toBe("test_encryption_env");
     });
   });
 
-  it.serial("NewWithConfig", () => {
-    const app = NewWithConfig({
-      DefaultDataDir: "test_dir",
-      DefaultEncryptionEnv: "test_encryption_env",
-      HideStartBanner: true,
+  it.serial("newPocketBaseWithConfig", () => {
+    const app = newPocketBaseWithConfig({
+      defaultDataDir: "test_dir",
+      defaultEncryptionEnv: "test_encryption_env",
+      hideStartBanner: true,
     } satisfies PocketBaseConfig);
 
     expect(app).not.toBeNull();
-    expect(app.RootCmd).not.toBeNull();
-    expect(app.App).not.toBeNull();
+    expect(app.rootCmd).not.toBeNull();
+    expect(app.app).not.toBeNull();
     expect(app.hideStartBanner).toBe(true);
-    expect(app.DataDir()).toBe("test_dir");
-    expect(app.EncryptionEnv()).toBe("test_encryption_env");
+    expect(app.dataDir()).toBe("test_dir");
+    expect(app.encryptionEnv()).toBe("test_encryption_env");
   });
 
-  it.serial("NewWithConfigAndFlags", () => {
+  it.serial("newPocketBaseWithConfigAndFlags", () => {
     withArgs(["--dir=test_dir_flag", "--encryptionEnv=test_encryption_env_flag", "--debug=false"], () => {
-      const app = NewWithConfig({
-        DefaultDataDir: "test_dir",
-        DefaultEncryptionEnv: "test_encryption_env",
-        HideStartBanner: true,
+      const app = newPocketBaseWithConfig({
+        defaultDataDir: "test_dir",
+        defaultEncryptionEnv: "test_encryption_env",
+        hideStartBanner: true,
       } satisfies PocketBaseConfig);
 
       expect(app).not.toBeNull();
-      expect(app.RootCmd).not.toBeNull();
-      expect(app.App).not.toBeNull();
+      expect(app.rootCmd).not.toBeNull();
+      expect(app.app).not.toBeNull();
       expect(app.hideStartBanner).toBe(true);
-      expect(app.DataDir()).toBe("test_dir_flag");
-      expect(app.EncryptionEnv()).toBe("test_encryption_env_flag");
+      expect(app.dataDir()).toBe("test_dir_flag");
+      expect(app.encryptionEnv()).toBe("test_encryption_env_flag");
     });
   });
 
-  it.serial("New defaults data dir to cwd for package-managed CLI paths", async () => {
+  it.serial("newPocketBase defaults data dir to cwd for package-managed CLI paths", async () => {
     const originalArgv = [...process.argv];
 
     try {
       process.argv = [originalArgv[0] ?? "bun", join(tmpdir(), "node_modules", ".bin", "pocketbun")];
       const expectedDataDir = join(process.cwd(), "pb_data");
 
-      const app = New();
-      expect(app.DataDir()).toBe(expectedDataDir);
+      const app = newPocketBase();
+      expect(app.dataDir()).toBe(expectedDataDir);
     } finally {
       process.argv = originalArgv;
     }
@@ -85,18 +85,18 @@ describe("pocketbase", () => {
   it.serial("skipBootstrap", async () => {
     const original = [...process.argv];
     const tempDir = await mkdtemp(join(tmpdir(), "temp_pb_data-"));
-    let bootstrappedApp: ReturnType<typeof NewWithConfig> | null = null;
+    let bootstrappedApp: ReturnType<typeof newPocketBaseWithConfig> | null = null;
 
     try {
-      const app0 = NewWithConfig({ DefaultDataDir: tempDir });
+      const app0 = newPocketBaseWithConfig({ defaultDataDir: tempDir });
       bootstrappedApp = app0;
       app0.bootstrap();
       expect(skipBootstrap(app0)).toBe(true);
 
       process.argv = original.slice(0, 2);
       process.argv.push("demo");
-      const app1 = NewWithConfig({ DefaultDataDir: tempDir });
-      app1.RootCmd.AddCommand(new Command({ Use: "test" }));
+      const app1 = newPocketBaseWithConfig({ defaultDataDir: tempDir });
+      app1.rootCmd.addCommand(new Command({ use: "test" }));
       expect(skipBootstrap(app1)).toBe(true);
 
       const flagScenarios = [
@@ -107,28 +107,28 @@ describe("pocketbase", () => {
       for (const scenario of flagScenarios) {
         process.argv = original.slice(0, 2);
         process.argv.push(`--${scenario.name}`);
-        const app2 = NewWithConfig({ DefaultDataDir: tempDir });
+        const app2 = newPocketBaseWithConfig({ defaultDataDir: tempDir });
         expect(skipBootstrap(app2)).toBe(true);
 
         process.argv = original.slice(0, 2);
         process.argv.push(`-${scenario.short}`);
-        const app3 = NewWithConfig({ DefaultDataDir: tempDir });
+        const app3 = newPocketBaseWithConfig({ defaultDataDir: tempDir });
         expect(skipBootstrap(app3)).toBe(true);
 
         process.argv = original.slice(0, 2);
         process.argv.push("custom", `--${scenario.name}`);
-        const app4 = NewWithConfig({ DefaultDataDir: tempDir });
-        const customCmd4 = new Command({ Use: "custom" });
-        customCmd4.PersistentFlags().BoolP(scenario.name, scenario.short, false, "");
-        app4.RootCmd.AddCommand(customCmd4);
+        const app4 = newPocketBaseWithConfig({ defaultDataDir: tempDir });
+        const customCmd4 = new Command({ use: "custom" });
+        customCmd4.persistentFlags().boolP(scenario.name, scenario.short, false, "");
+        app4.rootCmd.addCommand(customCmd4);
         expect(skipBootstrap(app4)).toBe(false);
 
         process.argv = original.slice(0, 2);
         process.argv.push("custom", `-${scenario.short}`);
-        const app5 = NewWithConfig({ DefaultDataDir: tempDir });
-        const customCmd5 = new Command({ Use: "custom" });
-        customCmd5.PersistentFlags().BoolP(scenario.name, scenario.short, false, "");
-        app5.RootCmd.AddCommand(customCmd5);
+        const app5 = newPocketBaseWithConfig({ defaultDataDir: tempDir });
+        const customCmd5 = new Command({ use: "custom" });
+        customCmd5.persistentFlags().boolP(scenario.name, scenario.short, false, "");
+        app5.rootCmd.addCommand(customCmd5);
         expect(skipBootstrap(app5)).toBe(false);
       }
     } finally {
@@ -138,7 +138,7 @@ describe("pocketbase", () => {
     }
   });
 
-  it.serial("Execute returns command errors", async () => {
+  it.serial("execute returns command errors", async () => {
     const original = [...process.argv];
     const tempDir = await mkdtemp(join(tmpdir(), "temp_pb_data-"));
 
@@ -146,15 +146,15 @@ describe("pocketbase", () => {
       process.argv = original.slice(0, 2);
       process.argv.push("custom");
 
-      const app = NewWithConfig({ DefaultDataDir: tempDir });
-      app.RootCmd.AddCommand(
+      const app = newPocketBaseWithConfig({ defaultDataDir: tempDir });
+      app.rootCmd.addCommand(
         new Command({
-          Use: "custom",
-          RunE: () => new Error("custom command failed"),
+          use: "custom",
+          runE: () => new Error("custom command failed"),
         }),
       );
 
-      const err = await app.Execute();
+      const err = await app.execute();
       expect(err).toBeInstanceOf(Error);
       expect(err?.message).toBe("custom command failed");
     } finally {
@@ -163,8 +163,8 @@ describe("pocketbase", () => {
     }
   });
 
-  it("Version resolves to the PocketBun package version", () => {
-    expect(Version).not.toBe("(untracked)");
-    expect(Version).toContain("-pocketbun.");
+  it("version resolves to the PocketBun package version", () => {
+    expect(version).not.toBe("(untracked)");
+    expect(version).toContain("-pocketbun.");
   });
 });

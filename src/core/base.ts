@@ -386,6 +386,118 @@ export class BaseApp implements App {
   #onCollectionAfterDeleteSuccess!: Hook<CollectionEvent>;
   #onCollectionAfterDeleteError!: Hook<CollectionErrorEvent>;
 
+  declare cron: BaseApp["Cron"];
+  declare isDev: BaseApp["IsDev"];
+  declare subscriptionsBroker: BaseApp["SubscriptionsBroker"];
+  declare logger: BaseApp["Logger"];
+  declare modelQuery: BaseApp["ModelQuery"];
+  declare auxModelQuery: BaseApp["AuxModelQuery"];
+  declare collectionQuery: BaseApp["CollectionQuery"];
+  declare logQuery: BaseApp["LogQuery"];
+  declare findLogById: BaseApp["FindLogById"];
+  declare logsStats: BaseApp["LogsStats"];
+  declare deleteOldLogs: BaseApp["DeleteOldLogs"];
+  declare txInfo: BaseApp["TxInfo"];
+  declare newMailClient: BaseApp["NewMailClient"];
+  declare newFilesystem: BaseApp["NewFilesystem"];
+  declare newFilesystemAsync: NonNullable<BaseApp["NewFilesystemAsync"]>;
+  declare newBackupsFilesystem: BaseApp["NewBackupsFilesystem"];
+  declare newBackupsFilesystemAsync: NonNullable<BaseApp["NewBackupsFilesystemAsync"]>;
+  declare createBackup: BaseApp["CreateBackup"];
+  declare restoreBackup: BaseApp["RestoreBackup"];
+  declare restart: BaseApp["Restart"];
+  declare restartAsync: NonNullable<BaseApp["RestartAsync"]>;
+  declare save: BaseApp["Save"];
+  declare saveNoValidate: BaseApp["SaveNoValidate"];
+  declare saveWithContext: BaseApp["SaveWithContext"];
+  declare saveNoValidateWithContext: BaseApp["SaveNoValidateWithContext"];
+  declare saveSync: BaseApp["SaveSync"];
+  declare saveNoValidateSync: BaseApp["SaveNoValidateSync"];
+  declare saveWithContextSync: BaseApp["SaveWithContextSync"];
+  declare saveNoValidateWithContextSync: BaseApp["SaveNoValidateWithContextSync"];
+  declare auxSave: BaseApp["AuxSave"];
+  declare auxSaveNoValidate: BaseApp["AuxSaveNoValidate"];
+  declare auxSaveWithContext: BaseApp["AuxSaveWithContext"];
+  declare auxSaveNoValidateWithContext: BaseApp["AuxSaveNoValidateWithContext"];
+  declare auxSaveSync: BaseApp["AuxSaveSync"];
+  declare auxSaveNoValidateSync: BaseApp["AuxSaveNoValidateSync"];
+  declare auxSaveWithContextSync: BaseApp["AuxSaveWithContextSync"];
+  declare auxSaveNoValidateWithContextSync: BaseApp["AuxSaveNoValidateWithContextSync"];
+  declare delete: BaseApp["Delete"];
+  declare deleteWithContext: BaseApp["DeleteWithContext"];
+  declare deleteSync: BaseApp["DeleteSync"];
+  declare deleteWithContextSync: BaseApp["DeleteWithContextSync"];
+  declare auxDelete: BaseApp["AuxDelete"];
+  declare auxDeleteWithContext: BaseApp["AuxDeleteWithContext"];
+  declare auxDeleteSync: BaseApp["AuxDeleteSync"];
+  declare auxDeleteWithContextSync: BaseApp["AuxDeleteWithContextSync"];
+  declare validate: BaseApp["Validate"];
+  declare validateWithContext: BaseApp["ValidateWithContext"];
+  declare validateSync: BaseApp["ValidateSync"];
+  declare runInTransaction: BaseApp["RunInTransaction"];
+  declare runInTransactionSync: BaseApp["RunInTransactionSync"];
+  declare runInTransactionAsync: BaseApp["RunInTransactionAsync"];
+  declare auxRunInTransaction: BaseApp["AuxRunInTransaction"];
+  declare auxRunInTransactionSync: BaseApp["AuxRunInTransactionSync"];
+  declare isTransactional: BaseApp["IsTransactional"];
+  declare unsafeWithoutHooks: BaseApp["UnsafeWithoutHooks"];
+  declare recordQuery: BaseApp["RecordQuery"];
+  declare findAllCollections: BaseApp["FindAllCollections"];
+  declare reloadCachedCollections: BaseApp["ReloadCachedCollections"];
+  declare findCachedCollectionByNameOrId: BaseApp["FindCachedCollectionByNameOrId"];
+  declare findCollectionReferences: BaseApp["FindCollectionReferences"];
+  declare findCachedCollectionReferences: BaseApp["FindCachedCollectionReferences"];
+  declare hasTable: BaseApp["HasTable"];
+  declare findRecordByViewFile: BaseApp["FindRecordByViewFile"];
+  declare findRecordsByIds: BaseApp["FindRecordsByIds"];
+  declare findAllRecords: BaseApp["FindAllRecords"];
+  declare findFirstRecordByData: BaseApp["FindFirstRecordByData"];
+  declare findRecordsByFilter: BaseApp["FindRecordsByFilter"];
+  declare countRecords: BaseApp["CountRecords"];
+  declare expandRecord: BaseApp["ExpandRecord"];
+  declare expandRecords: BaseApp["ExpandRecords"];
+  declare canAccessRecord: BaseApp["CanAccessRecord"];
+  declare findAuthRecordByEmail: BaseApp["FindAuthRecordByEmail"];
+  declare findAllExternalAuthsByRecord: BaseApp["FindAllExternalAuthsByRecord"];
+  declare findAllExternalAuthsByCollection: BaseApp["FindAllExternalAuthsByCollection"];
+  declare findFirstExternalAuthByExpr: BaseApp["FindFirstExternalAuthByExpr"];
+  declare deleteAllExternalAuthsByRecord: BaseApp["DeleteAllExternalAuthsByRecord"];
+  declare findAllOTPsByRecord: BaseApp["FindAllOTPsByRecord"];
+  declare findAllOTPsByCollection: BaseApp["FindAllOTPsByCollection"];
+  declare findOTPById: BaseApp["FindOTPById"];
+  declare deleteAllOTPsByRecord: BaseApp["DeleteAllOTPsByRecord"];
+  declare deleteExpiredOTPs: BaseApp["DeleteExpiredOTPs"];
+  declare findAllMFAsByRecord: BaseApp["FindAllMFAsByRecord"];
+  declare findAllMFAsByCollection: BaseApp["FindAllMFAsByCollection"];
+  declare findMFAById: BaseApp["FindMFAById"];
+  declare deleteAllMFAsByRecord: BaseApp["DeleteAllMFAsByRecord"];
+  declare deleteExpiredMFAs: BaseApp["DeleteExpiredMFAs"];
+  declare findAllAuthOriginsByRecord: BaseApp["FindAllAuthOriginsByRecord"];
+  declare findAllAuthOriginsByCollection: BaseApp["FindAllAuthOriginsByCollection"];
+  declare findAuthOriginById: BaseApp["FindAuthOriginById"];
+  declare findAuthOriginByRecordAndFingerprint: BaseApp["FindAuthOriginByRecordAndFingerprint"];
+  declare deleteAllAuthOriginsByRecord: BaseApp["DeleteAllAuthOriginsByRecord"];
+  declare truncateCollection: BaseApp["TruncateCollection"];
+  declare importCollectionsByMarshaledJSON: BaseApp["ImportCollectionsByMarshaledJSON"];
+  declare importCollectionsByMarshaledJSONSync: BaseApp["ImportCollectionsByMarshaledJSONSync"];
+  declare importCollections: BaseApp["ImportCollections"];
+  declare importCollectionsSync: BaseApp["ImportCollectionsSync"];
+  declare syncRecordTableSchema: BaseApp["SyncRecordTableSchema"];
+  declare syncRecordTableSchemaSync: BaseApp["SyncRecordTableSchemaSync"];
+  declare deleteView: BaseApp["DeleteView"];
+  declare saveView: BaseApp["SaveView"];
+  declare saveViewSync: BaseApp["SaveViewSync"];
+  declare createViewFields: BaseApp["CreateViewFields"];
+  declare createViewFieldsSync: BaseApp["CreateViewFieldsSync"];
+  declare dryRunView: BaseApp["DryRunView"];
+  declare tableInfo: BaseApp["TableInfo"];
+  declare tableColumns: BaseApp["TableColumns"];
+  declare tableIndexes: BaseApp["TableIndexes"];
+  declare deleteTable: BaseApp["DeleteTable"];
+  declare vacuum: BaseApp["Vacuum"];
+  declare auxVacuum: BaseApp["AuxVacuum"];
+  declare isCollectionNameUnique: BaseApp["IsCollectionNameUnique"];
+
   constructor(config: BaseAppConfig = {}) {
     this.#dataDir = config.dataDir ?? "pb_data";
     this.#encryptionEnv = config.encryptionEnv ?? "";
@@ -3597,11 +3709,11 @@ export class BaseApp implements App {
   }
 
   SyncRecordTableSchema(newCollection: Collection, oldCollection: Collection | null): Promise<Error | null> {
-    return this.syncRecordTableSchema(newCollection, oldCollection);
+    return this.syncRecordTableSchemaInternal(newCollection, oldCollection);
   }
 
   SyncRecordTableSchemaSync(newCollection: Collection, oldCollection: Collection | null): Error | null {
-    return this.syncRecordTableSchemaSync(newCollection, oldCollection);
+    return this.syncRecordTableSchemaSyncInternal(newCollection, oldCollection);
   }
 
   private validateRecord(record: RecordModel): Error | null {
@@ -4246,7 +4358,7 @@ export class BaseApp implements App {
       );
     }
 
-    const syncErr = await this.syncRecordTableSchema(collection, original);
+    const syncErr = await this.syncRecordTableSchemaInternal(collection, original);
     if (syncErr) {
       return syncErr;
     }
@@ -4358,7 +4470,7 @@ export class BaseApp implements App {
       );
     }
 
-    const syncErr = this.syncRecordTableSchemaSync(collection, original);
+    const syncErr = this.syncRecordTableSchemaSyncInternal(collection, original);
     if (syncErr) {
       return syncErr;
     }
@@ -4439,11 +4551,14 @@ export class BaseApp implements App {
     return validateCollectionSync(this, collection, original);
   }
 
-  private async syncRecordTableSchema(newCollection: Collection, oldCollection: Collection | null): Promise<Error | null> {
+  private async syncRecordTableSchemaInternal(
+    newCollection: Collection,
+    oldCollection: Collection | null,
+  ): Promise<Error | null> {
     return syncRecordTableSchema(this, newCollection, oldCollection);
   }
 
-  private syncRecordTableSchemaSync(newCollection: Collection, oldCollection: Collection | null): Error | null {
+  private syncRecordTableSchemaSyncInternal(newCollection: Collection, oldCollection: Collection | null): Error | null {
     return syncRecordTableSchemaSync(this, newCollection, oldCollection);
   }
 
@@ -5530,6 +5645,143 @@ export class BaseApp implements App {
   IsCollectionNameUnique(name: string, excludeId?: string): boolean {
     return IsCollectionNameUniqueQuery(this, name, excludeId);
   }
+}
+
+const baseAppMethodAliases = [
+  ["cron", "Cron"],
+  ["isDev", "IsDev"],
+  ["subscriptionsBroker", "SubscriptionsBroker"],
+  ["logger", "Logger"],
+  ["modelQuery", "ModelQuery"],
+  ["auxModelQuery", "AuxModelQuery"],
+  ["collectionQuery", "CollectionQuery"],
+  ["logQuery", "LogQuery"],
+  ["findLogById", "FindLogById"],
+  ["logsStats", "LogsStats"],
+  ["deleteOldLogs", "DeleteOldLogs"],
+  ["txInfo", "TxInfo"],
+  ["newMailClient", "NewMailClient"],
+  ["newFilesystem", "NewFilesystem"],
+  ["newFilesystemAsync", "NewFilesystemAsync"],
+  ["newBackupsFilesystem", "NewBackupsFilesystem"],
+  ["newBackupsFilesystemAsync", "NewBackupsFilesystemAsync"],
+  ["createBackup", "CreateBackup"],
+  ["restoreBackup", "RestoreBackup"],
+  ["restart", "Restart"],
+  ["restartAsync", "RestartAsync"],
+  ["save", "Save"],
+  ["saveNoValidate", "SaveNoValidate"],
+  ["saveWithContext", "SaveWithContext"],
+  ["saveNoValidateWithContext", "SaveNoValidateWithContext"],
+  ["saveSync", "SaveSync"],
+  ["saveNoValidateSync", "SaveNoValidateSync"],
+  ["saveWithContextSync", "SaveWithContextSync"],
+  ["saveNoValidateWithContextSync", "SaveNoValidateWithContextSync"],
+  ["auxSave", "AuxSave"],
+  ["auxSaveNoValidate", "AuxSaveNoValidate"],
+  ["auxSaveWithContext", "AuxSaveWithContext"],
+  ["auxSaveNoValidateWithContext", "AuxSaveNoValidateWithContext"],
+  ["auxSaveSync", "AuxSaveSync"],
+  ["auxSaveNoValidateSync", "AuxSaveNoValidateSync"],
+  ["auxSaveWithContextSync", "AuxSaveWithContextSync"],
+  ["auxSaveNoValidateWithContextSync", "AuxSaveNoValidateWithContextSync"],
+  ["delete", "Delete"],
+  ["deleteWithContext", "DeleteWithContext"],
+  ["deleteSync", "DeleteSync"],
+  ["deleteWithContextSync", "DeleteWithContextSync"],
+  ["auxDelete", "AuxDelete"],
+  ["auxDeleteWithContext", "AuxDeleteWithContext"],
+  ["auxDeleteSync", "AuxDeleteSync"],
+  ["auxDeleteWithContextSync", "AuxDeleteWithContextSync"],
+  ["validate", "Validate"],
+  ["validateWithContext", "ValidateWithContext"],
+  ["validateSync", "ValidateSync"],
+  ["runInTransaction", "RunInTransaction"],
+  ["runInTransactionSync", "RunInTransactionSync"],
+  ["runInTransactionAsync", "RunInTransactionAsync"],
+  ["auxRunInTransaction", "AuxRunInTransaction"],
+  ["auxRunInTransactionSync", "AuxRunInTransactionSync"],
+  ["isTransactional", "IsTransactional"],
+  ["unsafeWithoutHooks", "UnsafeWithoutHooks"],
+  ["recordQuery", "RecordQuery"],
+  ["findAllCollections", "FindAllCollections"],
+  ["reloadCachedCollections", "ReloadCachedCollections"],
+  ["findCachedCollectionByNameOrId", "FindCachedCollectionByNameOrId"],
+  ["findCollectionReferences", "FindCollectionReferences"],
+  ["findCachedCollectionReferences", "FindCachedCollectionReferences"],
+  ["hasTable", "HasTable"],
+  ["findRecordByViewFile", "FindRecordByViewFile"],
+  ["findRecordsByIds", "FindRecordsByIds"],
+  ["findAllRecords", "FindAllRecords"],
+  ["findFirstRecordByData", "FindFirstRecordByData"],
+  ["findRecordsByFilter", "FindRecordsByFilter"],
+  ["countRecords", "CountRecords"],
+  ["expandRecord", "ExpandRecord"],
+  ["expandRecords", "ExpandRecords"],
+  ["canAccessRecord", "CanAccessRecord"],
+  ["findAuthRecordByEmail", "FindAuthRecordByEmail"],
+  ["findAllExternalAuthsByRecord", "FindAllExternalAuthsByRecord"],
+  ["findAllExternalAuthsByCollection", "FindAllExternalAuthsByCollection"],
+  ["findFirstExternalAuthByExpr", "FindFirstExternalAuthByExpr"],
+  ["deleteAllExternalAuthsByRecord", "DeleteAllExternalAuthsByRecord"],
+  ["findAllOTPsByRecord", "FindAllOTPsByRecord"],
+  ["findAllOTPsByCollection", "FindAllOTPsByCollection"],
+  ["findOTPById", "FindOTPById"],
+  ["deleteAllOTPsByRecord", "DeleteAllOTPsByRecord"],
+  ["deleteExpiredOTPs", "DeleteExpiredOTPs"],
+  ["findAllMFAsByRecord", "FindAllMFAsByRecord"],
+  ["findAllMFAsByCollection", "FindAllMFAsByCollection"],
+  ["findMFAById", "FindMFAById"],
+  ["deleteAllMFAsByRecord", "DeleteAllMFAsByRecord"],
+  ["deleteExpiredMFAs", "DeleteExpiredMFAs"],
+  ["findAllAuthOriginsByRecord", "FindAllAuthOriginsByRecord"],
+  ["findAllAuthOriginsByCollection", "FindAllAuthOriginsByCollection"],
+  ["findAuthOriginById", "FindAuthOriginById"],
+  ["findAuthOriginByRecordAndFingerprint", "FindAuthOriginByRecordAndFingerprint"],
+  ["deleteAllAuthOriginsByRecord", "DeleteAllAuthOriginsByRecord"],
+  ["truncateCollection", "TruncateCollection"],
+  ["importCollectionsByMarshaledJSON", "ImportCollectionsByMarshaledJSON"],
+  ["importCollectionsByMarshaledJSONSync", "ImportCollectionsByMarshaledJSONSync"],
+  ["importCollections", "ImportCollections"],
+  ["importCollectionsSync", "ImportCollectionsSync"],
+  ["syncRecordTableSchema", "SyncRecordTableSchema"],
+  ["syncRecordTableSchemaSync", "SyncRecordTableSchemaSync"],
+  ["deleteView", "DeleteView"],
+  ["saveView", "SaveView"],
+  ["saveViewSync", "SaveViewSync"],
+  ["createViewFields", "CreateViewFields"],
+  ["createViewFieldsSync", "CreateViewFieldsSync"],
+  ["dryRunView", "DryRunView"],
+  ["tableInfo", "TableInfo"],
+  ["tableColumns", "TableColumns"],
+  ["tableIndexes", "TableIndexes"],
+  ["deleteTable", "DeleteTable"],
+  ["vacuum", "Vacuum"],
+  ["auxVacuum", "AuxVacuum"],
+  ["isCollectionNameUnique", "IsCollectionNameUnique"],
+] as const;
+
+for (const [aliasName, sourceName] of baseAppMethodAliases) {
+  defineBaseAppMethodAlias(aliasName, sourceName);
+}
+
+function defineBaseAppMethodAlias(aliasName: string, sourceName: string): void {
+  if (aliasName in BaseApp.prototype) {
+    return;
+  }
+
+  Object.defineProperty(BaseApp.prototype, aliasName, {
+    configurable: true,
+    enumerable: false,
+    writable: true,
+    value(this: Record<string, unknown>, ...args: unknown[]) {
+      const method = this[sourceName];
+      if (typeof method !== "function") {
+        throw new Error(`BaseApp.${sourceName} is not available`);
+      }
+      return method.apply(this, args);
+    },
+  });
 }
 
 function isRecordProxy(value: unknown): value is RecordProxy {

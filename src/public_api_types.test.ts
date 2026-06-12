@@ -33,12 +33,42 @@ import {
   RegisterJSVMAsync,
   RegisterServerJS,
   RegisterServerJSAsync,
+  Static,
+  TemplateLangJS,
   Version,
+  bindApis,
+  bindCore,
+  bindDbx,
+  bindFilesystem,
+  bindFilepath,
+  bindForms,
+  bindHTTP,
+  bindMails,
+  bindOS,
+  bindSecurity,
+  mustRegisterMigrateCmd,
+  mustRegisterServerJS,
+  mustRegisterServerJSAsync,
+  newPocketBase,
+  newPocketBaseWithConfig,
+  registerMigrateCmd,
+  registerServerJS,
+  registerServerJSAsync,
+  requireAuth,
+  requireGuestOnly,
+  serveStatic,
+  staticWildcardParam,
+  templateLangJS,
+  version,
+  type App,
   type JSVMConfig,
+  type MigrateCmdConfig,
   type PocketBaseConfig,
   type ServeEvent,
   type ServerJSConfig,
 } from "../index.ts";
+import { StaticWildcardParam } from "./apis/base.ts";
+import { RequireAuth, RequireGuestOnly } from "./apis/middlewares.ts";
 import {
   BindApis as InternalBindApis,
   BindCore as InternalBindCore,
@@ -57,9 +87,24 @@ import {
   Register as InternalRegisterServerJS,
   RegisterAsync as InternalRegisterServerJSAsync,
 } from "./plugins/jsvm/jsvm.ts";
+import {
+  MustRegister as InternalMustRegisterMigrateCmd,
+  Register as InternalRegisterMigrateCmd,
+  TemplateLangJS as InternalTemplateLangJS,
+} from "./plugins/migratecmd/migratecmd.ts";
 
+// oxlint-disable typescript-eslint/no-deprecated
+// Compatibility alias regression coverage intentionally touches deprecated exports.
 describe("public api types", () => {
   it("keeps the PocketBase constructor helpers typed", () => {
+    expectTypeOf(newPocketBase).returns.toEqualTypeOf<PocketBase>();
+    expectTypeOf(newPocketBaseWithConfig).returns.toEqualTypeOf<PocketBase>();
+    expectTypeOf<Parameters<typeof newPocketBaseWithConfig>>().toEqualTypeOf<[PocketBaseConfig]>();
+    expect(newPocketBase).toBe(New);
+    expect(newPocketBaseWithConfig).toBe(NewWithConfig);
+    expect(version).toBe(Version);
+    expectTypeOf(version).toBeString();
+
     expectTypeOf(New).returns.toEqualTypeOf<PocketBase>();
     expectTypeOf(NewWithConfig).returns.toEqualTypeOf<PocketBase>();
     expectTypeOf<Parameters<typeof NewWithConfig>>().toEqualTypeOf<[PocketBaseConfig]>();
@@ -70,6 +115,20 @@ describe("public api types", () => {
     expectTypeOf(BaseApp).instance.toHaveProperty("onServe");
     expectTypeOf(BaseApp).instance.toHaveProperty("onTerminate");
     expectTypeOf(BaseApp).instance.toHaveProperty("onRecordCreate");
+    expectTypeOf(BaseApp).instance.toHaveProperty("save");
+    expectTypeOf(BaseApp).instance.toHaveProperty("newFilesystem");
+    expectTypeOf(BaseApp).instance.toHaveProperty("findRecordsByFilter");
+    expectTypeOf(BaseApp).instance.toHaveProperty("runInTransaction");
+    expectTypeOf(BaseApp).instance.toHaveProperty("createBackup");
+    expectTypeOf(BaseApp).instance.toHaveProperty("recordQuery");
+  });
+
+  it("keeps lowercase App aliases in the public type surface", () => {
+    expectTypeOf<App>().toHaveProperty("save");
+    expectTypeOf<App>().toHaveProperty("findRecordsByFilter");
+    expectTypeOf<App>().toHaveProperty("runInTransaction");
+    expectTypeOf<App>().toHaveProperty("createBackup");
+    expectTypeOf<App>().toHaveProperty("recordQuery");
   });
 
   it("keeps lowercase ServeEvent aliases in the public type surface", () => {
@@ -79,6 +138,12 @@ describe("public api types", () => {
   });
 
   it("re-exports server-side JavaScript registration helpers with legacy aliases", () => {
+    expect(registerServerJS).toBe(InternalRegisterServerJS);
+    expect(mustRegisterServerJS).toBe(InternalMustRegisterServerJS);
+    expect(registerServerJSAsync).toBe(InternalRegisterServerJSAsync);
+    expect(mustRegisterServerJSAsync).toBe(InternalMustRegisterServerJSAsync);
+
+    /* eslint-disable typescript-eslint/no-deprecated -- compatibility alias regression coverage */
     expect(RegisterServerJS).toBe(InternalRegisterServerJS);
     expect(MustRegisterServerJS).toBe(InternalMustRegisterServerJS);
     expect(RegisterServerJSAsync).toBe(InternalRegisterServerJSAsync);
@@ -100,6 +165,18 @@ describe("public api types", () => {
   });
 
   it("re-exports the upstream-style JSVM bind helpers from the package entrypoint", () => {
+    expect(bindCore).toBe(InternalBindCore);
+    expect(bindDbx).toBe(InternalBindDbx);
+    expect(bindMails).toBe(InternalBindMails);
+    expect(bindSecurity).toBe(InternalBindSecurity);
+    expect(bindFilesystem).toBe(InternalBindFilesystem);
+    expect(bindFilepath).toBe(InternalBindFilepath);
+    expect(bindOS).toBe(InternalBindOS);
+    expect(bindForms).toBe(InternalBindForms);
+    expect(bindApis).toBe(InternalBindApis);
+    expect(bindHTTP).toBe(InternalBindHTTP);
+
+    /* eslint-disable typescript-eslint/no-deprecated -- compatibility alias regression coverage */
     expect(BindCore).toBe(InternalBindCore);
     expect(BindDbx).toBe(InternalBindDbx);
     expect(BindMails).toBe(InternalBindMails);
@@ -110,5 +187,18 @@ describe("public api types", () => {
     expect(BindForms).toBe(InternalBindForms);
     expect(BindApis).toBe(InternalBindApis);
     expect(BindHTTP).toBe(InternalBindHTTP);
+    /* eslint-enable typescript-eslint/no-deprecated */
+  });
+
+  it("re-exports lower-camel package helpers with legacy aliases", () => {
+    expect(serveStatic).toBe(Static);
+    expect(staticWildcardParam).toBe(StaticWildcardParam);
+    expect(requireGuestOnly).toBe(RequireGuestOnly);
+    expect(requireAuth).toBe(RequireAuth);
+    expect(registerMigrateCmd).toBe(InternalRegisterMigrateCmd);
+    expect(mustRegisterMigrateCmd).toBe(InternalMustRegisterMigrateCmd);
+    expect(templateLangJS).toBe(InternalTemplateLangJS);
+    expect(TemplateLangJS).toBe(InternalTemplateLangJS);
+    expectTypeOf<MigrateCmdConfig>().toHaveProperty("templateLang");
   });
 });

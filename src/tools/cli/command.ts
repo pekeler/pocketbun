@@ -76,6 +76,10 @@ export class FlagSet {
     );
   }
 
+  stringVar(target: Record<string, unknown>, key: string, name: string, value: string, usage: string): Flag {
+    return this.StringVar(target, key, name, value, usage);
+  }
+
   StringVarP(
     target: Record<string, unknown>,
     key: string,
@@ -96,6 +100,17 @@ export class FlagSet {
     );
   }
 
+  stringVarP(
+    target: Record<string, unknown>,
+    key: string,
+    name: string,
+    shorthand: string,
+    value: string,
+    usage: string,
+  ): Flag {
+    return this.StringVarP(target, key, name, shorthand, value, usage);
+  }
+
   StringSliceVar(target: Record<string, unknown>, key: string, name: string, value: string[], usage: string): Flag {
     return this.addFlag(
       new Flag({
@@ -106,6 +121,10 @@ export class FlagSet {
         target: { obj: target, key },
       }),
     );
+  }
+
+  stringSliceVar(target: Record<string, unknown>, key: string, name: string, value: string[], usage: string): Flag {
+    return this.StringSliceVar(target, key, name, value, usage);
   }
 
   StringSliceVarP(
@@ -128,6 +147,17 @@ export class FlagSet {
     );
   }
 
+  stringSliceVarP(
+    target: Record<string, unknown>,
+    key: string,
+    name: string,
+    shorthand: string,
+    value: string[],
+    usage: string,
+  ): Flag {
+    return this.StringSliceVarP(target, key, name, shorthand, value, usage);
+  }
+
   BoolVar(target: Record<string, unknown>, key: string, name: string, value: boolean, usage: string): Flag {
     return this.addFlag(
       new Flag({
@@ -138,6 +168,10 @@ export class FlagSet {
         target: { obj: target, key },
       }),
     );
+  }
+
+  boolVar(target: Record<string, unknown>, key: string, name: string, value: boolean, usage: string): Flag {
+    return this.BoolVar(target, key, name, value, usage);
   }
 
   BoolVarP(target: Record<string, unknown>, key: string, name: string, shorthand: string, value: boolean, usage: string): Flag {
@@ -153,9 +187,17 @@ export class FlagSet {
     );
   }
 
+  boolVarP(target: Record<string, unknown>, key: string, name: string, shorthand: string, value: boolean, usage: string): Flag {
+    return this.BoolVarP(target, key, name, shorthand, value, usage);
+  }
+
   BoolP(name: string, shorthand: string, value: boolean, usage: string): Flag {
     const holder: Record<string, unknown> = { value };
     return this.BoolVarP(holder, "value", name, shorthand, value, usage);
+  }
+
+  boolP(name: string, shorthand: string, value: boolean, usage: string): Flag {
+    return this.BoolP(name, shorthand, value, usage);
   }
 
   IntVar(target: Record<string, unknown>, key: string, name: string, value: number, usage: string): Flag {
@@ -168,6 +210,10 @@ export class FlagSet {
         target: { obj: target, key },
       }),
     );
+  }
+
+  intVar(target: Record<string, unknown>, key: string, name: string, value: number, usage: string): Flag {
+    return this.IntVar(target, key, name, value, usage);
   }
 
   IntVarP(target: Record<string, unknown>, key: string, name: string, shorthand: string, value: number, usage: string): Flag {
@@ -183,12 +229,24 @@ export class FlagSet {
     );
   }
 
+  intVarP(target: Record<string, unknown>, key: string, name: string, shorthand: string, value: number, usage: string): Flag {
+    return this.IntVarP(target, key, name, shorthand, value, usage);
+  }
+
   Lookup(name: string): Flag | null {
     return this.#flags.get(name) ?? null;
   }
 
+  lookup(name: string): Flag | null {
+    return this.Lookup(name);
+  }
+
   ShorthandLookup(short: string): Flag | null {
     return this.#shorthand.get(short) ?? null;
+  }
+
+  shorthandLookup(short: string): Flag | null {
+    return this.ShorthandLookup(short);
   }
 
   Parse(args: string[], allowUnknown = false): { args: string[]; error: Error | null } {
@@ -278,6 +336,10 @@ export class FlagSet {
     return { args: remaining, error: null };
   }
 
+  parse(args: string[], allowUnknown = false): { args: string[]; error: Error | null } {
+    return this.Parse(args, allowUnknown);
+  }
+
   values(): Flag[] {
     return Array.from(this.#flags.values());
   }
@@ -322,6 +384,110 @@ export class Command {
     Object.assign(this, values);
   }
 
+  get use(): string {
+    return this.Use;
+  }
+
+  set use(value: string) {
+    this.Use = value;
+  }
+
+  get short(): string {
+    return this.Short;
+  }
+
+  set short(value: string) {
+    this.Short = value;
+  }
+
+  get long(): string {
+    return this.Long;
+  }
+
+  set long(value: string) {
+    this.Long = value;
+  }
+
+  get example(): string {
+    return this.Example;
+  }
+
+  set example(value: string) {
+    this.Example = value;
+  }
+
+  get version(): string {
+    return this.Version;
+  }
+
+  set version(value: string) {
+    this.Version = value;
+  }
+
+  get silenceUsage(): boolean {
+    return this.SilenceUsage;
+  }
+
+  set silenceUsage(value: boolean) {
+    this.SilenceUsage = value;
+  }
+
+  get validArgs(): string[] {
+    return this.ValidArgs;
+  }
+
+  set validArgs(value: string[]) {
+    this.ValidArgs = value;
+  }
+
+  get args(): CommandArgsValidator | null {
+    return this.Args;
+  }
+
+  set args(value: CommandArgsValidator | null) {
+    this.Args = value;
+  }
+
+  get run(): CommandRun | null {
+    return this.Run;
+  }
+
+  set run(value: CommandRun | null) {
+    this.Run = value;
+  }
+
+  get runE(): CommandRunE | null {
+    return this.RunE;
+  }
+
+  set runE(value: CommandRunE | null) {
+    this.RunE = value;
+  }
+
+  get hidden(): boolean {
+    return this.Hidden;
+  }
+
+  set hidden(value: boolean) {
+    this.Hidden = value;
+  }
+
+  get fParseErrWhitelist(): { UnknownFlags?: boolean } {
+    return this.FParseErrWhitelist;
+  }
+
+  set fParseErrWhitelist(value: { UnknownFlags?: boolean }) {
+    this.FParseErrWhitelist = value;
+  }
+
+  get completionOptions(): { DisableDefaultCmd?: boolean } {
+    return this.CompletionOptions;
+  }
+
+  set completionOptions(value: { DisableDefaultCmd?: boolean }) {
+    this.CompletionOptions = value;
+  }
+
   AddCommand(...cmds: Array<Command | undefined | null>): void {
     for (const cmd of cmds) {
       if (!cmd) {
@@ -332,23 +498,43 @@ export class Command {
     }
   }
 
+  addCommand(...cmds: Array<Command | undefined | null>): void {
+    this.AddCommand(...cmds);
+  }
+
   RemoveCommand(...cmds: Array<Command | undefined | null>): void {
     const remove = new Set(cmds.filter(Boolean) as Command[]);
     this.#children = this.#children.filter((child) => !remove.has(child));
+  }
+
+  removeCommand(...cmds: Array<Command | undefined | null>): void {
+    this.RemoveCommand(...cmds);
   }
 
   PersistentFlags(): FlagSet {
     return this.#persistentFlags;
   }
 
+  persistentFlags(): FlagSet {
+    return this.PersistentFlags();
+  }
+
   Flags(): FlagSet {
     return FlagSet.merge(this.inheritedFlags(), this.#persistentFlags, this.#flags);
+  }
+
+  flags(): FlagSet {
+    return this.Flags();
   }
 
   ParseFlags(args: string[]): Error | null {
     const allowUnknown = this.allowsUnknownFlags();
     const { error } = this.Flags().Parse(args, allowUnknown);
     return error;
+  }
+
+  parseFlags(args: string[]): Error | null {
+    return this.ParseFlags(args);
   }
 
   Find(args: string[]): [Command, string[], Error | null] {
@@ -372,6 +558,10 @@ export class Command {
     }
 
     return child.Find(args.slice(1));
+  }
+
+  find(args: string[]): [Command, string[], Error | null] {
+    return this.Find(args);
   }
 
   async Execute(args: string[] = process.argv.slice(2)): Promise<Error | null> {
@@ -453,12 +643,24 @@ export class Command {
     return null;
   }
 
+  async execute(args: string[] = process.argv.slice(2)): Promise<Error | null> {
+    return this.Execute(args);
+  }
+
   SetErr(writer: { write: (chunk: string) => void }): void {
     this.#errWriter = writer;
   }
 
+  setErr(writer: { write: (chunk: string) => void }): void {
+    this.SetErr(writer);
+  }
+
   SetOut(writer: { write: (chunk: string) => void }): void {
     this.#outWriter = writer;
+  }
+
+  setOut(writer: { write: (chunk: string) => void }): void {
+    this.SetOut(writer);
   }
 
   SetHelpCommand(cmd: Command): void {
@@ -475,6 +677,10 @@ export class Command {
     }
 
     this.AddCommand(cmd);
+  }
+
+  setHelpCommand(cmd: Command): void {
+    this.SetHelpCommand(cmd);
   }
 
   name(): string {

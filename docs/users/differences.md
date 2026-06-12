@@ -53,9 +53,9 @@ Use this as a quick migration recipe for an existing PocketBase project.
 5. Keep API clients and route assumptions.
    - Existing client SDK usage should continue to work with the same API base paths (`/api/`, `/_/`).
 6. If you embed PocketBun programmatically, prefer server-side JavaScript package API names.
-   - Prefer `RegisterServerJS*` / `MustRegisterServerJS*` and `ServerJSConfig`.
+   - Prefer `registerServerJS*` / `mustRegisterServerJS*` and `ServerJSConfig`.
    - `RegisterJSVM*` / `MustRegisterJSVM*` and `JSVMConfig` remain aliases because PocketBase's upstream JavaScript extension package is named `jsvm`.
-   - `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` remain aliases for compatibility with released PocketBun versions.
+   - `RegisterHooksPlugin*` / `MustRegisterHooksPlugin*` and `RegisterServerJS*` / `MustRegisterServerJS*` remain deprecated aliases for compatibility with released PocketBun versions.
 7. Run a migration smoke test before deploying.
    - Start: `pocketbun serve --dev`
    - Verify health: `GET /api/health`
@@ -97,9 +97,9 @@ This prevents accidental writes into `node_modules`-adjacent paths when used as 
 
 PocketBase's upstream JavaScript extension package uses `jsvm` naming because it runs code in an embedded JavaScript VM. PocketBun runs hooks and JavaScript migrations with Bun, so PocketBun's preferred package API names use `ServerJS`:
 
-- preferred: `RegisterServerJS*`, `MustRegisterServerJS*`, `ServerJSConfig`
+- preferred: `registerServerJS*`, `mustRegisterServerJS*`, `ServerJSConfig`
 - upstream-parity aliases: `RegisterJSVM*`, `MustRegisterJSVM*`, `JSVMConfig`
-- released compatibility aliases: `RegisterHooksPlugin*`, `MustRegisterHooksPlugin*`
+- released compatibility aliases: `RegisterHooksPlugin*`, `MustRegisterHooksPlugin*`, `RegisterServerJS*`, `MustRegisterServerJS*`
 
 All names map to the same server-side JavaScript registration behavior.
 
@@ -118,7 +118,7 @@ To update older PocketBun hooks and migrations automatically, run:
 pocketbun server-js upgrade-source
 ```
 
-The command scans `./pb_hooks` and `./pb_migrations` by default. Use `pocketbun server-js upgrade-source --check` in CI to fail when deprecated aliases remain, or pass explicit files/directories to limit the rewrite. The fixer rewrites deprecated JavaScript/TypeScript member access and object-literal keys such as `e.Record.GetString(...)`, `$app.OnServe()`, `app.RunInTransaction(...)`, `record.GetDateTime(...)`, `dateTime.Before(...)`, `requestInfo.HasSuperuserAuth()`, `cookie.Valid()`, `command.SetOut(...)`, `message.WriteSSE(...)`, `ctx.Deadline()`, `form.Validate()`, `apiErr.RawData()`, `validationErr.SetMessage(...)`, `{ Func, Id, Priority }`, `{ Name, Help }`, `{ Logo, Order }`, and `new Command({ Use: "serve", RunE: fn })`; updates released package aliases such as `RegisterHooksPlugin*`, `RegisterJSVM*`, `JSVMConfig`, and `TemplateLangGo`; and updates old generated collection migrations to use `app.forMigrations()`. It does not rewrite comments, strings, or class constructor identifiers such as `new ApiError(...)`, `new ValidationError(...)`, or `new RecordUpsertForm(...)`. Run it with a clean working tree and review the diff before committing.
+The command scans `./pb_hooks` and `./pb_migrations` by default. Use `pocketbun server-js upgrade-source --check` in CI to fail when deprecated aliases remain, or pass explicit files/directories to limit the rewrite. The fixer rewrites deprecated JavaScript/TypeScript member access and object-literal keys such as `e.Record.GetString(...)`, `$app.OnServe()`, `app.RunInTransaction(...)`, `app.CreateBackup(...)`, `app.RecordQuery(...)`, `app.Restart()`, `record.GetDateTime(...)`, `dateTime.Before(...)`, `requestInfo.HasSuperuserAuth()`, `cookie.Valid()`, `command.SetOut(...)`, `message.WriteSSE(...)`, `ctx.Deadline()`, `form.Validate()`, `apiErr.RawData()`, `validationErr.SetMessage(...)`, `{ Func, Id, Priority }`, `{ Name, Help }`, `{ Logo, Order }`, and `new Command({ Use: "serve", RunE: fn })`; updates released package aliases such as `RegisterHooksPlugin*`, `RegisterJSVM*`, `RegisterServerJS*`, `RequireGuestOnly`, `Static`, `TemplateLangJS`, and PascalCase package config keys; and updates old generated collection migrations to use `app.forMigrations()`. It does not rewrite comments, strings, or class constructor identifiers such as `new ApiError(...)`, `new ValidationError(...)`, or `new RecordUpsertForm(...)`. Run it with a clean working tree and review the diff before committing.
 
 For `pb_hooks` module loading:
 
@@ -127,7 +127,7 @@ For `pb_hooks` module loading:
 
 For code-first `BaseApp` usage:
 
-- built-in route middlewares are available as package exports (for example `RequireGuestOnly`, `SkipSuccessActivityLog`)
+- built-in route middlewares are available as package exports (for example `requireGuestOnly`, `skipSuccessActivityLog`)
 - you can bind them directly in `onServe` routes with `e.router.get(...).bind(...)`
 
 ## Migration Hook Behavior
@@ -180,11 +180,11 @@ PocketBun keeps sync-compatible APIs but adds async alternatives for I/O-heavy p
 
 | Area | PocketBase-compatible sync API | PocketBun async extension |
 | --- | --- | --- |
-| Archive helpers | `Create`, `Extract` | `CreateAsync`, `ExtractAsync` |
+| Archive helpers | `create`, `extract` | `createAsync`, `extractAsync` |
 | App bootstrap/serve | `app.bootstrap()`, `serve(...)` | `app.bootstrapAsync()`, `serveAsync(...)` |
 | Migration helper | `migrate(...)` | `migrateAsync(...)` |
-| Server-side JavaScript register | `RegisterServerJS(...)` | `RegisterServerJSAsync(...)` |
-| Filesystem factories | `NewFilesystem()` | `NewFilesystemAsync()` |
+| Server-side JavaScript register | `registerServerJS(...)` | `registerServerJSAsync(...)` |
+| Filesystem factories | `newFilesystem()` | `newFilesystemAsync()` |
 | Server-side JavaScript helpers | `$http.send(...)`, `$os.readFile(...)` | `$http.sendAsync(...)`, `$os.readFileAsync(...)` |
 
 ## Operational Differences
@@ -289,7 +289,7 @@ from PocketBase and is informational only.
 
 ### Windows behavior
 
-- `HooksWatch` restart behavior has no effect on Windows.
+- `hooksWatch` restart behavior has no effect on Windows.
 - filesystem/process timing can differ from Unix-like systems.
 
 ## PocketBase Docs Topics That Do Not Apply Directly

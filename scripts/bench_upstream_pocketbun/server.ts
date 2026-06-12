@@ -2,7 +2,7 @@
 // the benchmark requester and server do not contend on the same Bun event loop.
 
 import { fileURLToPath } from "node:url";
-import { MustRegisterServerJS, NewWithConfig, serve } from "../../index.ts";
+import { mustRegisterServerJS, newPocketBaseWithConfig, serve } from "../../index.ts";
 import { CollectionNameSuperusers } from "../../src/core/collection_model.ts";
 import { NewRecord } from "../../src/core/record_model.ts";
 import { registerBenchmarkModule } from "./module.ts";
@@ -18,15 +18,15 @@ const hooksDir =
   process.env.POCKETBUN_BENCH_SERVER_HOOKS_DIR?.trim() ||
   fileURLToPath(new URL("../../vendor/pocketbase-benchmarks/pb_hooks", import.meta.url));
 
-const app = NewWithConfig({
-  HideStartBanner: true,
-  DefaultDataDir: dataDir,
-  DefaultQueryTimeout: 120,
+const app = newPocketBaseWithConfig({
+  hideStartBanner: true,
+  defaultDataDir: dataDir,
+  defaultQueryTimeout: 120,
 });
 
-MustRegisterServerJS(app, {
-  HooksPoolSize: 50,
-  HooksDir: hooksDir,
+mustRegisterServerJS(app, {
+  hooksPoolSize: 50,
+  hooksDir,
 });
 registerBenchmarkModule(app, baseUrl);
 
@@ -70,17 +70,17 @@ function parsePort(raw: string | undefined): number {
   return parsed;
 }
 
-async function ensureDefaultSuperuser(app: ReturnType<typeof NewWithConfig>): Promise<void> {
-  if (app.CountRecords(CollectionNameSuperusers) > 0) {
+async function ensureDefaultSuperuser(app: ReturnType<typeof newPocketBaseWithConfig>): Promise<void> {
+  if (app.countRecords(CollectionNameSuperusers) > 0) {
     return;
   }
 
-  const superusersCollection = app.FindCollectionByNameOrId(CollectionNameSuperusers);
+  const superusersCollection = app.findCollectionByNameOrId(CollectionNameSuperusers);
   const superuser = NewRecord(superusersCollection);
   superuser.Set("email", "test@example.com");
   superuser.Set("password", "1234567890");
 
-  const saveErr = await app.Save(superuser);
+  const saveErr = await app.save(superuser);
   if (saveErr) {
     throw new Error(`failed to create benchmark superuser: ${saveErr.message}`);
   }

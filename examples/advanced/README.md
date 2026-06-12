@@ -112,7 +112,7 @@ Authenticated request (expected to fail):
 
 `examples/advanced/main.ts` also shows the code-first `BaseApp` style using
 `e.router.get(...).bind(...)` with a built-in middleware imported from
-`pocketbun` (`RequireGuestOnly`).
+`pocketbun` (`requireGuestOnly`).
 
 Guest request:
 
