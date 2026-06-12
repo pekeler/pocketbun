@@ -75,6 +75,7 @@ import {
   SendRecordPasswordReset,
   SendRecordVerification,
 } from "../../mails/record.ts";
+import { Command as CliCommand } from "../../tools/cli/command.ts";
 import {
   HashExp,
   NewExp,
@@ -113,6 +114,7 @@ import {
   pseudorandomStringWithAlphabet,
   randomString,
 } from "../../tools/security/random.ts";
+import { Message as SubscriptionMessageModel } from "../../tools/subscriptions/message.ts";
 import { JSONRaw, JSONArray, JSONMap, DateTime, NowDateTime } from "../../tools/types/index.ts";
 import { FormData as HooksFormData } from "./form_data.ts";
 import { convertGoToJSName } from "./mapper.ts";
@@ -1240,10 +1242,22 @@ class Context {
   #key: unknown;
   #value: unknown;
 
-  constructor(parent: Context | null, key: unknown, value: unknown) {
+  constructor(parent: Context | null = null, key: unknown = undefined, value: unknown = undefined) {
     this.#parent = parent;
     this.#key = key;
     this.#value = value;
+  }
+
+  deadline(): [Date, boolean] {
+    return [new Date(0), false];
+  }
+
+  done(): undefined {
+    return undefined;
+  }
+
+  err(): undefined {
+    return undefined;
   }
 
   value(key: unknown): unknown {
@@ -1495,18 +1509,29 @@ function lastSundayUtcMs(year: number, month: number, hour: number): number {
 class Cookie {
   name = "";
   value = "";
+  quoted = false;
   path = "";
   domain = "";
+  expires: DateTime | Date | null = null;
+  rawExpires = "";
   maxAge = 0;
   secure = false;
   httpOnly = false;
   sameSite = 0;
+  partitioned = false;
+  raw = "";
+  unparsed: string[] = [];
 
   constructor(init: Partial<Cookie> = {}) {
     Object.assign(this, init);
   }
 
   string(): string {
+    const err = this.cookieValidationError();
+    if (err) {
+      return "";
+    }
+
     const parts: string[] = [];
     parts.push(`${this.name}=${this.value}`);
     if (this.path) {
@@ -1514,6 +1539,10 @@ class Cookie {
     }
     if (this.domain) {
       parts.push(`Domain=${this.domain}`);
+    }
+    const expires = cookieExpiresDate(this.expires);
+    if (expires && !Number.isNaN(expires.getTime()) && expires.getTime() > 0) {
+      parts.push(`Expires=${expires.toUTCString()}`);
     }
     if (this.maxAge) {
       parts.push(`Max-Age=${this.maxAge}`);
@@ -1528,8 +1557,54 @@ class Cookie {
     if (sameSite) {
       parts.push(`SameSite=${sameSite}`);
     }
+    if (this.partitioned) {
+      parts.push("Partitioned");
+    }
     return parts.join("; ");
   }
+
+  valid(): void {
+    const err = this.cookieValidationError();
+    if (err) {
+      throw err;
+    }
+  }
+
+  private cookieValidationError(): Error | null {
+    if (!this.name || !isValidCookieName(this.name)) {
+      return new Error("http: invalid Cookie.Name");
+    }
+    return null;
+  }
+}
+
+function cookieExpiresDate(value: DateTime | Date | null): Date | null {
+  if (value instanceof DateTime) {
+    return value.time();
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  return null;
+}
+
+function isValidCookieName(name: string): boolean {
+  for (let i = 0; i < name.length; i += 1) {
+    const code = name.charCodeAt(i);
+    if (code <= 0x20 || code >= 0x7f || name[i] === "(" || name[i] === ")" || name[i] === "<" || name[i] === ">") {
+      return false;
+    }
+    if (name[i] === "@" || name[i] === "," || name[i] === ";" || name[i] === ":" || name[i] === "\\") {
+      return false;
+    }
+    if (name[i] === '"' || name[i] === "/" || name[i] === "[" || name[i] === "]" || name[i] === "?" || name[i] === "=") {
+      return false;
+    }
+    if (name[i] === "{" || name[i] === "}") {
+      return false;
+    }
+  }
+  return true;
 }
 
 function sameSiteValue(mode: number): string {
@@ -1591,6 +1666,23 @@ class RequestInfo implements RequestInfoShape {
 
   constructor(data: Partial<RequestInfoShape> = {}) {
     Object.assign(this, data);
+  }
+
+  hasSuperuserAuth(): boolean {
+    return this.auth !== null && this.auth.isSuperuser();
+  }
+
+  clone(): RequestInfo {
+    return wrapBoundValue(
+      new RequestInfo({
+        query: { ...this.query },
+        headers: { ...this.headers },
+        body: { ...this.body },
+        auth: this.auth?.Clone() ?? null,
+        method: this.method,
+        context: this.context,
+      }),
+    ) as RequestInfo;
   }
 }
 
@@ -1942,12 +2034,11 @@ export function baseBinds(target: BindTarget): void {
       };
     }
   };
-  target.Command = class Command {
-    use = "";
-    run?: (cmd: unknown, args: unknown[]) => void;
-
+  target.Command = class CommandWrapper extends CliCommand {
     constructor(values: Record<string, unknown> = {}) {
-      Object.assign(this, values);
+      super();
+      assignStructValues(this as unknown as Record<string, unknown>, values);
+      return wrapBoundValue(this as unknown as object) as CommandWrapper;
     }
   };
   target.RequestInfo = RequestInfo;
@@ -1976,14 +2067,11 @@ export function baseBinds(target: BindTarget): void {
     { wrapErrors: true },
   );
   target.Cookie = Cookie;
-  target.SubscriptionMessage = class SubscriptionMessageWrapper {
-    name = "";
-    data: Uint8Array<ArrayBufferLike> = new Uint8Array();
-
+  target.SubscriptionMessage = class SubscriptionMessageWrapper extends SubscriptionMessageModel {
     constructor(values: { name?: string; data?: string | Uint8Array } = {}) {
-      this.name = values.name ?? "";
       const raw = values.data ?? new Uint8Array();
-      this.data = typeof raw === "string" ? new TextEncoder().encode(raw) : (raw as Uint8Array);
+      super(values.name ?? "", raw);
+      return wrapBoundValue(this as unknown as object) as SubscriptionMessageWrapper;
     }
   };
 }

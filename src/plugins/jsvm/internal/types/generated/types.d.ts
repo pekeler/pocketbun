@@ -643,7 +643,6 @@ declare class MailerMessage implements mailer.Message {
   constructor(message?: Partial<mailer.Message>);
 }
 
-interface Command extends cobra.Command {} // merge
 /**
  * Command defines a single console command.
  *
@@ -660,8 +659,34 @@ interface Command extends cobra.Command {} // merge
  *
  * @group PocketBase
  */
-declare class Command implements cobra.Command {
-  constructor(cmd?: Partial<cobra.Command>);
+interface Command {
+  use: string;
+  short: string;
+  long: string;
+  example: string;
+  version: string;
+  silenceUsage: boolean;
+  validArgs: Array<string>;
+  args?: (cmd: Command, args: Array<string>) => Error | null;
+  run?: (cmd: Command, args: Array<string>) => void;
+  runE?: (cmd: Command, args: Array<string>) => Error | null | Promise<Error | null>;
+  hidden: boolean;
+  fParseErrWhitelist: { unknownFlags?: boolean; UnknownFlags?: boolean };
+  completionOptions: { disableDefaultCmd?: boolean; DisableDefaultCmd?: boolean };
+  addCommand(...cmds: Array<Command | undefined | null>): void;
+  removeCommand(...cmds: Array<Command | undefined | null>): void;
+  persistentFlags(): any;
+  flags(): any;
+  parseFlags(args: Array<string>): Error | null;
+  find(args: Array<string>): [Command, Array<string>, Error | null];
+  execute(args?: Array<string>): Promise<Error | null>;
+  setErr(writer: { write(chunk: string): void }): void;
+  setOut(writer: { write(chunk: string): void }): void;
+  setHelpCommand(cmd: Command): void;
+  name(): string;
+}
+declare class Command {
+  constructor(cmd?: Partial<Command>);
 }
 
 /**
@@ -6380,6 +6405,18 @@ namespace core {
      */
     createViewFields(dangerousSelectQuery: string): FieldsList;
     /**
+     * DryRunView executes the provided query by creating a temporary view
+     * collection and returning a sample of the resulting query records (if valid).
+     *
+     * PocketBun exposes this as an async method.
+     *
+     * The same caveats from CreateViewFields apply here too.
+     *
+     * NB! Be aware that this method is vulnerable to SQL injection and the
+     * "dangerousSelectQuery" argument must come only from trusted input!
+     */
+    dryRunView(dangerousSelectQuery: string, sampleSize: number): Promise<DryRunViewResult>;
+    /**
      * FindRecordByViewFile returns the original Record of the provided view collection file.
      */
     findRecordByViewFile(viewCollectionModelOrIdentifier: any, fileFieldName: string, filename: string): Record;
@@ -9699,6 +9736,24 @@ namespace core {
      * Set it to nil if you want to skip the installer.
      */
     installerFunc: (app: App, systemSuperuser: Record, baseURL: string) => void;
+    /**
+     * @todo experimental
+     *
+     * UIExtensions is a list with the superuser UI extensions.
+     */
+    uiExtensions: Array<UIExtension>;
+  }
+  interface UIExtension {
+    /**
+     * Name is the name of the extension.
+     * It is also used as path segment for the registered public extension endpoint
+     * (e.g. /_/extensions/{name}/*)
+     */
+    name: string;
+    /**
+     * FS is the extension file system.
+     */
+    fs: fs.FS | string | { root: string };
   }
   type _scXWVFh = hook.Event & RequestEvent;
   interface SettingsListRequestEvent extends _scXWVFh {
@@ -10377,6 +10432,11 @@ namespace core {
      */
     presentable: boolean;
     /**
+     * Help is an extra text explaining what the field is about.
+     * It is usually shown in Dashboard UI under the field input.
+     */
+    help: string;
+    /**
      * Required will require the field value to be always "true".
      */
     required: boolean;
@@ -10488,6 +10548,11 @@ namespace core {
      * field record value in the relation preview label.
      */
     presentable: boolean;
+    /**
+     * Help is an extra text explaining what the field is about.
+     * It is usually shown in Dashboard UI under the field input.
+     */
+    help: string;
     /**
      * Min specifies the min allowed field value.
      *
@@ -10612,6 +10677,11 @@ namespace core {
      * field record value in the relation preview label.
      */
     presentable: boolean;
+    /**
+     * Help is an extra text explaining what the field is about.
+     * It is usually shown in Dashboard UI under the field input.
+     */
+    help: string;
     /**
      * MaxSize specifies the maximum size of the allowed field value (in bytes and up to 2^53-1).
      *
@@ -10744,6 +10814,11 @@ namespace core {
      * field record value in the relation preview label.
      */
     presentable: boolean;
+    /**
+     * Help is an extra text explaining what the field is about.
+     * It is usually shown in Dashboard UI under the field input.
+     */
+    help: string;
     /**
      * ExceptDomains will require the email domain to NOT be included in the listed ones.
      *
@@ -10896,6 +10971,11 @@ namespace core {
      * field record value in the relation preview label.
      */
     presentable: boolean;
+    /**
+     * Help is an extra text explaining what the field is about.
+     * It is usually shown in Dashboard UI under the field input.
+     */
+    help: string;
     /**
      * MaxSize specifies the maximum size of a single uploaded file (in bytes and up to 2^53-1).
      *
@@ -11101,6 +11181,11 @@ namespace core {
      */
     presentable: boolean;
     /**
+     * Help is an extra text explaining what the field is about.
+     * It is usually shown in Dashboard UI under the field input.
+     */
+    help: string;
+    /**
      * Required will require the field coordinates to be non-zero (aka. not "Null Island").
      */
     required: boolean;
@@ -11212,6 +11297,11 @@ namespace core {
      * field record value in the relation preview label.
      */
     presentable: boolean;
+    /**
+     * Help is an extra text explaining what the field is about.
+     * It is usually shown in Dashboard UI under the field input.
+     */
+    help: string;
     /**
      * MaxSize specifies the maximum size of the allowed field value (in bytes and up to 2^53-1).
      *
@@ -11346,6 +11436,11 @@ namespace core {
      * field record value in the relation preview label.
      */
     presentable: boolean;
+    /**
+     * Help is an extra text explaining what the field is about.
+     * It is usually shown in Dashboard UI under the field input.
+     */
+    help: string;
     /**
      * Min specifies the min allowed field value.
      *
@@ -11498,6 +11593,11 @@ namespace core {
      * field record value in the relation preview label.
      */
     presentable: boolean;
+    /**
+     * Help is an extra text explaining what the field is about.
+     * It is usually shown in Dashboard UI under the field input.
+     */
+    help: string;
     /**
      * Pattern specifies an optional regex pattern to match against the field value.
      *
@@ -11692,6 +11792,11 @@ namespace core {
      */
     presentable: boolean;
     /**
+     * Help is an extra text explaining what the field is about.
+     * It is usually shown in Dashboard UI under the field input.
+     */
+    help: string;
+    /**
      * CollectionId is the id of the related collection.
      */
     collectionId: string;
@@ -11873,6 +11978,11 @@ namespace core {
      */
     presentable: boolean;
     /**
+     * Help is an extra text explaining what the field is about.
+     * It is usually shown in Dashboard UI under the field input.
+     */
+    help: string;
+    /**
      * Values specifies the list of accepted values.
      */
     values: Array<string>;
@@ -12022,6 +12132,11 @@ namespace core {
      * field record value in the relation preview label.
      */
     presentable: boolean;
+    /**
+     * Help is an extra text explaining what the field is about.
+     * It is usually shown in Dashboard UI under the field input.
+     */
+    help: string;
     /**
      * Min specifies the minimum required string characters.
      *
@@ -12184,6 +12299,11 @@ namespace core {
      * field record value in the relation preview label.
      */
     presentable: boolean;
+    /**
+     * Help is an extra text explaining what the field is about.
+     * It is usually shown in Dashboard UI under the field input.
+     */
+    help: string;
     /**
      * ExceptDomains will require the URL domain to NOT be included in the listed ones.
      *
@@ -13851,6 +13971,12 @@ namespace core {
     validate(): void;
   }
   interface MetaConfig {
+    /**
+     * @todo experimental
+     *
+     * AccentColor specify the UI "accent" color (HEX).
+     */
+    accentColor: string;
     appName: string;
     appURL: string;
     senderName: string;
@@ -14030,6 +14156,27 @@ namespace core {
      * "dangerousSelectQuery" argument must come only from trusted input!
      */
     createViewFields(dangerousSelectQuery: string): FieldsList;
+  }
+  /**
+   * DryRunViewResult contains the generated view fields and sample records.
+   */
+  interface DryRunViewResult {
+    fields: FieldsList;
+    sample: Array<Record | undefined>;
+  }
+  interface BaseApp {
+    /**
+     * DryRunView executes the provided query by creating a temporary view
+     * collection and returning a sample of the resulting query records (if valid).
+     *
+     * PocketBun exposes this as an async method.
+     *
+     * The same caveats from CreateViewFields apply here too.
+     *
+     * NB! Be aware that this method is vulnerable to SQL injection and the
+     * "dangerousSelectQuery" argument must come only from trusted input!
+     */
+    dryRunView(dangerousSelectQuery: string, sampleSize: number): Promise<DryRunViewResult>;
   }
   interface BaseApp {
     /**
@@ -14722,6 +14869,7 @@ namespace apis {
   interface providerInfo {
     name: string;
     displayName: string;
+    logo: string;
     state: string;
     authURL: string;
     /**
@@ -15028,7 +15176,7 @@ namespace pocketbase {
     /**
      * RootCmd is the main console command
      */
-    rootCmd?: cobra.Command;
+    rootCmd?: Command;
   }
   /**
    * Config is the PocketBase initialization config struct.
@@ -19774,6 +19922,14 @@ namespace auth {
    */
   interface Provider {
     [key: string]: any;
+    /**
+     * Logo returns the provider logo SVG.
+     */
+    logo(): string;
+    /**
+     * Order returns the sorting order of the provider usually used in the auth methods list response.
+     */
+    order(): number;
     /**
      * Context returns the context associated with the provider (if any).
      */

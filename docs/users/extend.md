@@ -834,6 +834,7 @@ Main practical differences:
   - direct style is lower-level and usually better for measured hot paths
 
 In most cases, prefer `$app.db()` / `$app.auxDb()` over opening a separate `new Database(...)` so you keep PocketBun DB configuration and compatibility behavior.
+
 ### Executing queries
 
 To execute DB queries you can start with the `newQuery("...")` statement and then call one of:

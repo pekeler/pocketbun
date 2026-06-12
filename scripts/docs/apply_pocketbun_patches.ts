@@ -713,13 +713,10 @@ function patchReference(text: string): string {
   const oldMigrationAppNote =
     "For collection/schema migrations, use `const migrationApp = app.forMigrations()` before collection persistence calls. It skips user hooks while preserving PocketBun system hooks required for collection schema persistence.";
   const migrationAppNote = `${oldMigrationAppNote}${migrationSafetySuffix}`;
-  out = out.replace(
-    new RegExp(
-      `(${escapeRegExp(migrateNote)})(?:\\n\\n${escapeRegExp(oldMigrationAppNote)}(?:${escapeRegExp(migrationSafetySuffix)})*)*`,
-      "g",
-    ),
-    `$1\n\n${migrationAppNote}`,
-  );
+  const migrationAppNotePattern =
+    /(?:\n\n)?For collection\/schema migrations, use `const migrationApp = app\.forMigrations\(\)`\s+before collection persistence calls\. It skips user hooks while preserving\s+PocketBun system hooks required for collection schema persistence\.(?:\s+See Rails'\s+\[Using Models in Your Migrations\]\(https:\/\/guides\.rubyonrails\.org\/v3\.2\/migrations\.html#using-models-in-your-migrations\)\s+for the same replay hazard\.)?/g;
+  out = out.replace(migrationAppNotePattern, "");
+  out = out.replace(new RegExp(escapeRegExp(migrateNote), "g"), `${migrateNote}\n\n${migrationAppNote}`);
 
   return out;
 }

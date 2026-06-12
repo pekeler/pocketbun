@@ -144,6 +144,10 @@ declare const RequestInfo: {
 - [`nullBool`](#nullbool)
 - [`nullArray`](#nullarray)
 - [`nullObject`](#nullobject)
+- [`newCollection`](#newcollection)
+- [`newBaseCollection`](#newbasecollection)
+- [`newViewCollection`](#newviewcollection)
+- [`newAuthCollection`](#newauthcollection)
 - [`migrate`](#migrate)
 
 ---
@@ -439,6 +443,56 @@ declare function nullObject(): { get(key: string): any; set(key: string, value: 
 
 ---
 
+### newCollection
+
+newCollection initializes and returns a new Collection model with the specified type and name.
+
+It is a top-level server-side JavaScript global, not an `$app` method. In migrations, persist the returned
+collection with `app.forMigrations().save(collection)`.
+
+```ts
+declare function newCollection(typ: "base" | "auth" | "view" | string, name: string, ...optId: string[]): core.Collection;
+```
+
+---
+
+### newBaseCollection
+
+newBaseCollection initializes and returns a new "base" Collection model.
+
+It is a top-level server-side JavaScript global, not an `$app` method. Base collections initialize only the `id`
+system record field by default; add `autodate` fields explicitly if records need timestamps.
+
+```ts
+declare function newBaseCollection(name: string, ...optId: string[]): core.Collection;
+```
+
+---
+
+### newViewCollection
+
+newViewCollection initializes and returns a new "view" Collection model.
+
+It is a top-level server-side JavaScript global, not an `$app` method.
+
+```ts
+declare function newViewCollection(name: string, ...optId: string[]): core.Collection;
+```
+
+---
+
+### newAuthCollection
+
+newAuthCollection initializes and returns a new "auth" Collection model.
+
+It is a top-level server-side JavaScript global, not an `$app` method.
+
+```ts
+declare function newAuthCollection(name: string, ...optId: string[]): core.Collection;
+```
+
+---
+
 ### migrate
 
 Migrate defines a single migration upgrade/downgrade action.
@@ -583,8 +637,6 @@ const collection = new Collection({
     ]
 })
 ```
-
-Top-level helper constructors such as `newBaseCollection("articles")` are also available. They are globals, not `$app` methods.
 
 ```ts
 declare class Collection implements core.Collection {
@@ -814,22 +866,9 @@ declare class MailerMessage implements mailer.Message {
 
 ### Command
 
-Command defines a single console command.
-
-Example:
-
-```js
-const command = new Command({
-    use: "hello",
-    run: (cmd, args) => { console.log("Hello world!") },
-})
-
-$app.rootCmd.addCommand(command);
-```
-
 ```ts
-declare class Command implements cobra.Command {
-  constructor(cmd?: Partial<cobra.Command>);
+declare class Command {
+  constructor(cmd?: Partial<Command>);
 }
 ```
 
