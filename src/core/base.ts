@@ -1553,8 +1553,48 @@ export class BaseApp implements App {
     return this.#db!;
   }
 
+  ConcurrentDB(): Database {
+    return this.db();
+  }
+
+  concurrentDB(): Database {
+    return this.ConcurrentDB();
+  }
+
+  NonconcurrentDB(): Database {
+    return this.db();
+  }
+
+  nonconcurrentDB(): Database {
+    return this.NonconcurrentDB();
+  }
+
+  AuxDB(): Database {
+    return this.auxDb();
+  }
+
+  auxDB(): Database {
+    return this.AuxDB();
+  }
+
   auxDb(): Database {
     return this.#auxDb!;
+  }
+
+  AuxConcurrentDB(): Database {
+    return this.auxDb();
+  }
+
+  auxConcurrentDB(): Database {
+    return this.AuxConcurrentDB();
+  }
+
+  AuxNonconcurrentDB(): Database {
+    return this.auxDb();
+  }
+
+  auxNonconcurrentDB(): Database {
+    return this.AuxNonconcurrentDB();
   }
 
   TxInfo(): TxAppInfo | null {
@@ -2493,6 +2533,17 @@ export class BaseApp implements App {
     }
   }
 
+  private withDatabaseSync<T>(db: DbxDatabase, fn: () => T): T {
+    // Deviation: reuse the primary save/delete code by temporarily swapping the active db.
+    const previous = this.#db;
+    this.#db = db;
+    try {
+      return fn();
+    } finally {
+      this.#db = previous;
+    }
+  }
+
   async AuxSave(model: Model): Promise<Error | null> {
     return this.withDatabase(this.auxDb() as DbxDatabase, () => this.saveModel(model, true));
   }
@@ -2507,6 +2558,22 @@ export class BaseApp implements App {
 
   async AuxSaveNoValidateWithContext(_ctx: unknown, model: Model): Promise<Error | null> {
     return this.withDatabase(this.auxDb() as DbxDatabase, () => this.saveModel(model, false));
+  }
+
+  AuxSaveSync(model: Model): Error | null {
+    return this.withDatabaseSync(this.auxDb() as DbxDatabase, () => this.saveModelSync(model, true));
+  }
+
+  AuxSaveNoValidateSync(model: Model): Error | null {
+    return this.withDatabaseSync(this.auxDb() as DbxDatabase, () => this.saveModelSync(model, false));
+  }
+
+  AuxSaveWithContextSync(_ctx: unknown, model: Model): Error | null {
+    return this.withDatabaseSync(this.auxDb() as DbxDatabase, () => this.saveModelSync(model, true));
+  }
+
+  AuxSaveNoValidateWithContextSync(_ctx: unknown, model: Model): Error | null {
+    return this.withDatabaseSync(this.auxDb() as DbxDatabase, () => this.saveModelSync(model, false));
   }
 
   private async runRecordInterceptors(
@@ -3475,6 +3542,22 @@ export class BaseApp implements App {
 
   DeleteWithContextSync(_ctx: unknown, model: Model): Error | null {
     return this.DeleteSync(model);
+  }
+
+  async AuxDelete(model: Model): Promise<Error | null> {
+    return this.withDatabase(this.auxDb() as DbxDatabase, () => this.Delete(model));
+  }
+
+  async AuxDeleteWithContext(_ctx: unknown, model: Model): Promise<Error | null> {
+    return this.AuxDelete(model);
+  }
+
+  AuxDeleteSync(model: Model): Error | null {
+    return this.withDatabaseSync(this.auxDb() as DbxDatabase, () => this.DeleteSync(model));
+  }
+
+  AuxDeleteWithContextSync(_ctx: unknown, model: Model): Error | null {
+    return this.AuxDeleteSync(model);
   }
 
   // TruncateCollection deletes all records associated with the provided collection.

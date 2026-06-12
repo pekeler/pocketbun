@@ -3,6 +3,7 @@
 ## 0.39.3-pocketbun.3 - 2026-06-12
 
 - Replaced `pocketbun server-js lowercase` with `pocketbun server-js upgrade-source`, which updates legacy server-side JavaScript names, package aliases, template language config, and old generated collection migrations while preserving formatting.
+- Fixed remaining server-side JavaScript type/runtime mismatches so generated app, record, form, API error, validation error, and `DateTime` names are available at runtime, including `app.runInTransaction(...)` in hooks, migrations, and transaction callbacks.
 
 ## 0.39.3-pocketbun.2 - 2026-06-12
 

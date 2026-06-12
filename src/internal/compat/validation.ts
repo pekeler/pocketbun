@@ -22,6 +22,15 @@ export class ValidationError extends Error {
     return this.message;
   }
 
+  setMessage(message: string): this {
+    this.message = message;
+    return this;
+  }
+
+  SetMessage(message: string): this {
+    return this.setMessage(message);
+  }
+
   Params(): Record<string, unknown> {
     return this.params ?? {};
   }

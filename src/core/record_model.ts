@@ -37,6 +37,7 @@ export class Record {
   #isNew: boolean;
   #exportCustomData = false;
   #ignoreEmailVisibility = false;
+  #ignoreUnchangedFields = false;
   #customVisibility = new Store<string, boolean>();
   #expand: Store<string, unknown> | null = null;
   #hookTags: string[] | null = null;
@@ -247,6 +248,44 @@ export class Record {
     return this.GetStringSlice(field);
   }
 
+  GetUnsavedFiles(key: string): unknown[] {
+    const normalizedKey = key.endsWith(":unsaved") ? key : `${key}:unsaved`;
+    const value = this.Get(normalizedKey);
+    return Array.isArray(value) ? value : [];
+  }
+
+  getUnsavedFiles(key: string): unknown[] {
+    return this.GetUnsavedFiles(key);
+  }
+
+  GetUploadedFiles(key: string): unknown[] {
+    console.warn("Please replace GetUploadedFiles with GetUnsavedFiles");
+    return this.GetUnsavedFiles(key);
+  }
+
+  getUploadedFiles(key: string): unknown[] {
+    return this.GetUploadedFiles(key);
+  }
+
+  UnmarshalJSONField(key: string, result: unknown): Error | null {
+    try {
+      const parsed = JSON.parse(this.GetString(key));
+      if (result && typeof result === "object" && parsed && typeof parsed === "object") {
+        Object.assign(result as RecordData, parsed as RecordData);
+      }
+      return null;
+    } catch (error) {
+      return error as Error;
+    }
+  }
+
+  unmarshalJSONField(key: string, result: unknown): void {
+    const err = this.UnmarshalJSONField(key, result);
+    if (err) {
+      throw err;
+    }
+  }
+
   Set(field: string, value: unknown): void {
     if (field === FieldNameExpand) {
       this.SetRaw(field, value);
@@ -319,6 +358,7 @@ export class Record {
     clone.#data = { ...this.#data };
     clone.#exportCustomData = this.#exportCustomData;
     clone.#ignoreEmailVisibility = this.#ignoreEmailVisibility;
+    clone.#ignoreUnchangedFields = this.#ignoreUnchangedFields;
     clone.#customVisibility.reset(Object.fromEntries(this.#customVisibility.getAll()));
     if (this.#expand) {
       clone.SetExpand(Object.fromEntries(this.#expand.getAll()));
@@ -441,6 +481,36 @@ export class Record {
     this.#expand.reset(oldExpand);
   }
 
+  ExpandedOne(relField: string): Record | null {
+    const rel = this.#expand?.get(relField);
+    if (rel instanceof Record) {
+      return rel;
+    }
+    if (Array.isArray(rel)) {
+      return rel.find((item): item is Record => item instanceof Record) ?? null;
+    }
+    return null;
+  }
+
+  expandedOne(relField: string): Record | null {
+    return this.ExpandedOne(relField);
+  }
+
+  ExpandedAll(relField: string): Record[] {
+    const rel = this.#expand?.get(relField);
+    if (rel instanceof Record) {
+      return [rel];
+    }
+    if (Array.isArray(rel)) {
+      return rel.filter((item): item is Record => item instanceof Record);
+    }
+    return [];
+  }
+
+  expandedAll(relField: string): Record[] {
+    return this.ExpandedAll(relField);
+  }
+
   FindFileFieldByFile(filename: string): FileField | null {
     for (const field of this.#collection.Fields) {
       if (field.Type() !== "file") {
@@ -478,6 +548,15 @@ export class Record {
 
   IgnoreEmailVisibility(state: boolean): this {
     this.#ignoreEmailVisibility = state;
+    return this;
+  }
+
+  ignoreUnchangedFields(state: boolean): this {
+    return this.IgnoreUnchangedFields(state);
+  }
+
+  IgnoreUnchangedFields(state: boolean): this {
+    this.#ignoreUnchangedFields = state;
     return this;
   }
 
@@ -648,8 +727,12 @@ export class Record {
 
   DBExport(): RecordData {
     const result: RecordData = {};
+    const original = this.#ignoreUnchangedFields && !this.IsNew() ? this.Original() : null;
     for (const field of this.#collection.Fields) {
       const name = field.GetName();
+      if (original && valuesEqual(this.Get(name), original.Get(name))) {
+        continue;
+      }
       const driver = field as unknown as DriverValuer;
       if (typeof driver.DriverValue === "function") {
         const [value, err] = driver.DriverValue(this);
@@ -744,6 +827,32 @@ export class Record {
   toJSON(): RecordData {
     return this.publicExport();
   }
+
+  MarshalJSON(): string {
+    return JSON.stringify(this.publicExport());
+  }
+
+  marshalJSON(): string {
+    return this.MarshalJSON();
+  }
+
+  UnmarshalJSON(data: string | Uint8Array): Error | null {
+    try {
+      const text = typeof data === "string" ? data : new TextDecoder().decode(data);
+      const parsed = text ? (JSON.parse(text) as RecordData) : {};
+      this.Load(parsed);
+      return null;
+    } catch (error) {
+      return error as Error;
+    }
+  }
+
+  unmarshalJSON(data: string | Uint8Array): void {
+    const err = this.UnmarshalJSON(data);
+    if (err) {
+      throw err;
+    }
+  }
 }
 
 attachRecordAuthMethods(Record);
@@ -765,4 +874,16 @@ function normalizeRowValue(value: unknown): unknown {
     return utf8Decoder.decode(new Uint8Array(value.buffer, value.byteOffset, value.byteLength));
   }
   return value;
+}
+
+function valuesEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) {
+    return true;
+  }
+
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return false;
+  }
 }

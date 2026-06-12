@@ -159,6 +159,86 @@ function extractInterfacePropertyNames(source: string, interfaceName: string): s
   return [...propertyNames].filter(Boolean).sort();
 }
 
+function extractBalancedBlock(source: string, start: number): string {
+  const open = source.indexOf("{", start);
+  if (open === -1) {
+    return "";
+  }
+
+  let depth = 0;
+  for (let i = open; i < source.length; i += 1) {
+    const char = source[i];
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return source.slice(open + 1, i);
+      }
+    }
+  }
+
+  return "";
+}
+
+function extractNamespaceByBraces(source: string, namespaceName: string): string {
+  const markers = [`declare namespace ${namespaceName} {`, `namespace ${namespaceName} {`];
+  let start = -1;
+  for (const marker of markers) {
+    const index = source.indexOf(marker);
+    if (index !== -1 && (start === -1 || index < start)) {
+      start = index;
+    }
+  }
+  return start === -1 ? "" : extractBalancedBlock(source, start);
+}
+
+function extractInterfaceMethodNamesByBraces(source: string, interfaceName: string): string[] {
+  const methodNames = new Set<string>();
+  const startToken = `interface ${interfaceName} {`;
+  let offset = 0;
+
+  while (offset < source.length) {
+    const start = source.indexOf(startToken, offset);
+    if (start === -1) {
+      break;
+    }
+
+    const block = extractBalancedBlock(source, start);
+    const methodMatches = block.matchAll(/\n\s*([A-Za-z_][A-Za-z0-9_]*)\s*\(/g);
+    for (const match of methodMatches) {
+      methodNames.add(match[1] ?? "");
+    }
+
+    offset = start + startToken.length + block.length;
+  }
+
+  return [...methodNames].filter(Boolean).sort();
+}
+
+function extractInterfacePropertyNamesByBraces(source: string, interfaceName: string): string[] {
+  const propertyNames = new Set<string>();
+  const startToken = `interface ${interfaceName} {`;
+  let offset = 0;
+
+  while (offset < source.length) {
+    const start = source.indexOf(startToken, offset);
+    if (start === -1) {
+      break;
+    }
+
+    const block = extractBalancedBlock(source, start);
+    const propertyMatches = block.matchAll(/\n\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*[^;\n]+;/g);
+    for (const match of propertyMatches) {
+      propertyNames.add(match[1] ?? "");
+    }
+
+    offset = start + startToken.length + block.length;
+  }
+
+  return [...propertyNames].filter(Boolean).sort();
+}
+
 async function startExternalServer(script: string): Promise<StartedExternalServer> {
   const maxAttempts = 15;
 
@@ -334,6 +414,75 @@ describe("jsvm binds", () => {
   it("does not use Proxy wrappers for JSVM compatibility bindings", async () => {
     const source = await Bun.file(new URL("./binds.ts", import.meta.url)).text();
     expect(source).not.toContain("new Proxy");
+  });
+
+  it("runtime exposes generated server-side JavaScript method and property names", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const typesSource = await Bun.file(generatedTypesUrl).text();
+      const appScope: BindScope = {};
+      appBinds(appScope, app);
+      const record = appScope.$app.findFirstRecordByFilter("demo1", "1=1");
+
+      const baseScope: BindScope = {};
+      baseBinds(baseScope);
+      formsBinds(baseScope);
+      apisBinds(baseScope);
+      const dateTime = new baseScope.DateTime("2024-01-01 00:00:00.000Z");
+
+      const scenarios = [
+        { namespace: "core", interfaceName: "App", value: appScope.$app },
+        { namespace: "core", interfaceName: "Record", value: record },
+        { namespace: "types", interfaceName: "DateTime", value: dateTime },
+        {
+          namespace: "forms",
+          interfaceName: "AppleClientSecretCreate",
+          value: new baseScope.AppleClientSecretCreateForm(appScope.$app),
+          properties: true,
+        },
+        {
+          namespace: "forms",
+          interfaceName: "RecordUpsert",
+          value: new baseScope.RecordUpsertForm(appScope.$app, record),
+        },
+        {
+          namespace: "forms",
+          interfaceName: "TestEmailSend",
+          value: new baseScope.TestEmailSendForm(appScope.$app),
+          properties: true,
+        },
+        {
+          namespace: "forms",
+          interfaceName: "TestS3Filesystem",
+          value: new baseScope.TestS3FilesystemForm(appScope.$app),
+          properties: true,
+        },
+        { namespace: "router", interfaceName: "ApiError", value: new baseScope.ApiError(400, "Bad"), properties: true },
+        { namespace: "ozzo_validation", interfaceName: "Error", value: new baseScope.ValidationError("code", "Message") },
+      ];
+
+      for (const scenario of scenarios) {
+        const namespaceSource = extractNamespaceByBraces(typesSource, scenario.namespace);
+        const methodNames = extractInterfaceMethodNamesByBraces(namespaceSource, scenario.interfaceName);
+        const missing = methodNames.filter((name) => typeof scenario.value[name] !== "function");
+        expect(missing).toEqual([]);
+
+        if (scenario.properties) {
+          const propertyNames = extractInterfacePropertyNamesByBraces(namespaceSource, scenario.interfaceName);
+          const missingProperties = propertyNames.filter((name) => !(name in scenario.value));
+          expect(missingProperties).toEqual([]);
+        }
+      }
+
+      expect(typeof appScope.$app.runInTransaction).toBe("function");
+      const txErr = appScope.$app.runInTransaction((txApp: BindScope) => {
+        expect(typeof txApp.runInTransaction).toBe("function");
+        return null;
+      });
+      expect(txErr).toBeNull();
+    } finally {
+      await cleanup();
+    }
   });
 
   it("base binds count", () => {

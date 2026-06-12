@@ -62,6 +62,19 @@ describe("jsvm loader", () => {
     await writeFile(
       join(migrationsDir, "9999999998_collection_helper_test.js"),
       `migrate((app) => {
+  if (typeof app.runInTransaction !== "function") {
+    throw new Error("missing migration app.runInTransaction");
+  }
+  const txErr = app.runInTransaction((txApp) => {
+    if (typeof txApp.runInTransaction !== "function") {
+      throw new Error("missing migration txApp.runInTransaction");
+    }
+    return null;
+  });
+  if (txErr) {
+    throw txErr;
+  }
+
   const tasks = newBaseCollection("jsvm_tasks");
   tasks.Fields.add(new TextField({ name: "title", required: true }));
   tasks.listRule = "@request.auth.id != ''";
@@ -132,6 +145,9 @@ routerAdd("GET", "/hooks-request/{name}", (e) => {
   });
 });
 onModelUpdate((e) => {
+  if (typeof e.app.runInTransaction !== "function") {
+    throw new Error("missing hook e.app.runInTransaction");
+  }
   globalThis.__pbHooksCalls++;
   e.next();
 }, "demo2");

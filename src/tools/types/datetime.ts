@@ -219,6 +219,10 @@ export class DateTime {
     return JSON.stringify(this.String());
   }
 
+  marshalJSON(): string {
+    return this.MarshalJSON();
+  }
+
   UnmarshalJSON(raw: Uint8Array | string | null | undefined): Error | null {
     try {
       if (raw == null) {
@@ -238,8 +242,19 @@ export class DateTime {
     }
   }
 
+  unmarshalJSON(raw: Uint8Array | string | null | undefined): void {
+    const err = this.UnmarshalJSON(raw);
+    if (err) {
+      throw err;
+    }
+  }
+
   Value(): string {
     return this.String();
+  }
+
+  value(): string {
+    return this.Value();
   }
 
   toJSON(): string {

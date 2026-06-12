@@ -194,11 +194,21 @@ const appSaveOverrides: Record<string, { sync: string; async: string; modelArgIn
     async: "SaveNoValidateWithContext",
     modelArgIndex: 1,
   },
+  auxSave: { sync: "AuxSaveSync", async: "AuxSave", modelArgIndex: 0 },
+  auxSaveNoValidate: { sync: "AuxSaveNoValidateSync", async: "AuxSaveNoValidate", modelArgIndex: 0 },
+  auxSaveWithContext: { sync: "AuxSaveWithContextSync", async: "AuxSaveWithContext", modelArgIndex: 1 },
+  auxSaveNoValidateWithContext: {
+    sync: "AuxSaveNoValidateWithContextSync",
+    async: "AuxSaveNoValidateWithContext",
+    modelArgIndex: 1,
+  },
 };
 
 const appSyncOverrides: Record<string, string> = {
   delete: "DeleteSync",
   deleteWithContext: "DeleteWithContextSync",
+  auxDelete: "AuxDeleteSync",
+  auxDeleteWithContext: "AuxDeleteWithContextSync",
   importCollections: "ImportCollectionsSync",
   importCollectionsByMarshaledJSON: "ImportCollectionsByMarshaledJSONSync",
   validate: "ValidateSync",
@@ -905,11 +915,19 @@ function queryValuesToJSON(query: URLSearchParams): Record<string, string[]> {
 // wrapBoundValue maps bound Go-style names to the JS style expected by jsvm scripts
 // (eg. `Fields.Add` <-> `fields.add`) and applies recursively to returned objects.
 function wrapBoundValue<T>(value: T): T {
+  return wrapBoundValueInternal(value, false);
+}
+
+function wrapBoundObjectValue<T>(value: T): T {
+  return wrapBoundValueInternal(value, true);
+}
+
+function wrapBoundValueInternal<T>(value: T, wrapErrors: boolean): T {
   if (!value || (typeof value !== "object" && typeof value !== "function")) {
     return value;
   }
 
-  if (value instanceof Error || isPromiseLike(value) || value instanceof Date || value instanceof RegExp) {
+  if ((!wrapErrors && value instanceof Error) || isPromiseLike(value) || value instanceof Date || value instanceof RegExp) {
     return value;
   }
 
@@ -1642,7 +1660,7 @@ function assignStructValues(target: Record<string, unknown>, values: Record<stri
   }
 }
 
-type StructCtor = new (...args: unknown[]) => object;
+type StructCtor = new (...args: any[]) => object;
 
 function wrapFieldCtor(Ctor: StructCtor): StructCtor {
   return class extends Ctor {
@@ -1653,6 +1671,24 @@ function wrapFieldCtor(Ctor: StructCtor): StructCtor {
       return wrapBoundValue(this as unknown as object) as object;
     }
   } as StructCtor;
+}
+
+function wrapStructCtor(Ctor: StructCtor, options: { wrapErrors?: boolean } = {}): StructCtor {
+  return class extends Ctor {
+    constructor(...args: unknown[]) {
+      super(...args.map((arg) => unwrapBoundValue(arg)));
+      return options.wrapErrors
+        ? (wrapBoundObjectValue(this as unknown as object) as object)
+        : (wrapBoundValue(this as unknown as object) as object);
+    }
+  } as StructCtor;
+}
+
+function wrapFactory<T extends (...args: any[]) => object>(factory: T, options: { wrapErrors?: boolean } = {}): T {
+  return function wrappedFactory(...args: Parameters<T>): ReturnType<T> {
+    const result = factory(...(args.map((arg) => unwrapBoundValue(arg)) as Parameters<T>));
+    return (options.wrapErrors ? wrapBoundObjectValue(result) : wrapBoundValue(result)) as ReturnType<T>;
+  } as unknown as T;
 }
 
 export function baseBinds(target: BindTarget): void {
@@ -1931,11 +1967,14 @@ export function baseBinds(target: BindTarget): void {
       super(new Date(raw.replace(" ", "T")));
     }
   };
-  target.ValidationError = class ValidationErrorWrapper extends ValidationError {
-    constructor(code = "", message = "") {
-      super(code, message);
-    }
-  };
+  target.ValidationError = wrapStructCtor(
+    class ValidationErrorWrapper extends ValidationError {
+      constructor(code = "", message = "") {
+        super(code, message);
+      }
+    },
+    { wrapErrors: true },
+  );
   target.Cookie = Cookie;
   target.SubscriptionMessage = class SubscriptionMessageWrapper {
     name = "";
@@ -2450,10 +2489,10 @@ export function osBinds(target: BindTarget): void {
 }
 
 export function formsBinds(target: BindTarget): void {
-  target.AppleClientSecretCreateForm = AppleClientSecretCreate;
-  target.RecordUpsertForm = RecordUpsert;
-  target.TestEmailSendForm = TestEmailSend;
-  target.TestS3FilesystemForm = TestS3Filesystem;
+  target.AppleClientSecretCreateForm = wrapStructCtor(AppleClientSecretCreate);
+  target.RecordUpsertForm = wrapStructCtor(RecordUpsert);
+  target.TestEmailSendForm = wrapStructCtor(TestEmailSend);
+  target.TestS3FilesystemForm = wrapStructCtor(TestS3Filesystem);
 }
 
 export function apisBinds(target: BindTarget): void {
@@ -2477,13 +2516,13 @@ export function apisBinds(target: BindTarget): void {
     enrichRecords: EnrichRecords,
   };
 
-  target.ApiError = ApiError;
-  target.NotFoundError = NewNotFoundError;
-  target.BadRequestError = NewBadRequestError;
-  target.ForbiddenError = NewForbiddenError;
-  target.UnauthorizedError = NewUnauthorizedError;
-  target.TooManyRequestsError = NewTooManyRequestsError;
-  target.InternalServerError = NewInternalServerError;
+  target.ApiError = wrapStructCtor(ApiError, { wrapErrors: true });
+  target.NotFoundError = wrapFactory(NewNotFoundError, { wrapErrors: true });
+  target.BadRequestError = wrapFactory(NewBadRequestError, { wrapErrors: true });
+  target.ForbiddenError = wrapFactory(NewForbiddenError, { wrapErrors: true });
+  target.UnauthorizedError = wrapFactory(NewUnauthorizedError, { wrapErrors: true });
+  target.TooManyRequestsError = wrapFactory(NewTooManyRequestsError, { wrapErrors: true });
+  target.InternalServerError = wrapFactory(NewInternalServerError, { wrapErrors: true });
 }
 
 function exposeHookHandler<T>(handler: { Func: (event: T) => unknown; Id?: string; Priority?: number }): {
