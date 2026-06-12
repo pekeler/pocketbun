@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.39.3-pocketbun.1 - 2026-06-12
 
 - Fixed command help output so `migrate --help` lists supported actions and superuser commands show examples.
 - Aligned server-side JavaScript hooks and migrations with PocketBase's lowercase API while preserving compatibility for existing PocketBun code:
