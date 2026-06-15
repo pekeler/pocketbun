@@ -156,8 +156,8 @@ const scenarios: Scenario[] = [
       provider: "missing",
     }),
     expectedStatus: 400,
-    expectedContent: ['"data":{', '"provider":', '"code":', '"redirectURL":'],
-    notExpectedContent: ['"codeVerifier":'],
+    expectedContent: ['"data":{', '"provider":', '"code":'],
+    notExpectedContent: ['"codeVerifier":', '"redirectURL":'],
     expectedEvents: { "*": 0 },
   },
   {
@@ -168,8 +168,8 @@ const scenarios: Scenario[] = [
       provider: "apple",
     }),
     expectedStatus: 400,
-    expectedContent: ['"data":{', '"provider":', '"code":', '"redirectURL":'],
-    notExpectedContent: ['"codeVerifier":'],
+    expectedContent: ['"data":{', '"provider":', '"code":'],
+    notExpectedContent: ['"codeVerifier":', '"redirectURL":'],
     expectedEvents: { "*": 0 },
   },
   {

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.39.4-pocketbun.0 - 2026-06-15
+
+- Now compatible with PocketBase `v0.39.4` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0394) (upstream commit `507ecb2`).
+  - Includes upstream OAuth2 code exchange validation, first implicit presentable relation-field sorting, and minor Admin UI fixes.
+
 ## 0.39.3-pocketbun.5 - 2026-06-12
 
 - Fixed server-side JavaScript `new Record(collection, data)` and `record.set(...)` field setters when records are built from JSVM-wrapped collections, including transaction callback apps.

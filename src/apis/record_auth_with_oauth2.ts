@@ -770,10 +770,6 @@ function validateOAuth2Form(form: OAuth2Form, collection: Collection): Error | n
     errors.code = ErrRequired;
   }
 
-  if (required(form.redirectURL)) {
-    errors.redirectURL = ErrRequired;
-  }
-
   return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
 }
 
