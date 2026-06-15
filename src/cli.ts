@@ -3,7 +3,7 @@
 
 import type { ServeEvent } from "./core/events.ts";
 import { Static as serveStatic } from "./apis/base.ts";
-import { NewServerJSCommand, isServerJSSourceUpgradeCommand } from "./cmd/server_js.ts";
+import { NewHooksCommand, NewServerJSCommand, isHooksBuildCommand, isServerJSSourceUpgradeCommand } from "./cmd/server_js.ts";
 import { MustRegisterAsync as registerServerJS } from "./plugins/jsvm/jsvm.ts";
 import { MustRegister as registerMigrateCmd, TemplateLangJS as templateLangJS } from "./plugins/migratecmd/migratecmd.ts";
 import { newPocketBase } from "./pocketbase.ts";
@@ -64,10 +64,11 @@ export async function main(): Promise<void> {
       "fallback the request to index.html on missing static path, e.g. when pretty urls are used with SPA",
     );
 
+  app.rootCmd.addCommand(NewHooksCommand());
   app.rootCmd.addCommand(NewServerJSCommand());
   app.rootCmd.parseFlags(args);
 
-  if (isServerJSSourceUpgradeCommand(args)) {
+  if (isServerJSSourceUpgradeCommand(args) || isHooksBuildCommand(args)) {
     const err = await app.rootCmd.execute(args);
     if (err) {
       console.error(err);

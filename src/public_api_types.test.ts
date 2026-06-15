@@ -161,6 +161,8 @@ describe("public api types", () => {
     expect(MustRegisterHooksPluginAsync).toBe(MustRegisterServerJSAsync);
 
     expectTypeOf<JSVMConfig>().toEqualTypeOf<ServerJSConfig>();
+    expectTypeOf<ServerJSConfig>().toHaveProperty("bundleHooks");
+    expectTypeOf<ServerJSConfig>().toHaveProperty("bundledHooksDir");
     /* eslint-enable typescript-eslint/no-deprecated */
   });
 

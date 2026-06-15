@@ -1,5 +1,6 @@
 // PocketBun-only: CLI utilities for server-side JavaScript hook and migration maintenance.
 
+import { bundleServerHooksAsync, defaultHooksFilesPattern } from "../plugins/jsvm/bundler.ts";
 import { Command } from "../tools/cli/command.ts";
 
 const rootValueFlags = new Set(["dir", "hooksDir", "hooksPool", "migrationsDir", "publicDir"]);
@@ -15,6 +16,26 @@ export function NewServerJSCommand(): Command {
 }
 
 export function isServerJSSourceUpgradeCommand(args: string[]): boolean {
+  const positional = commandPositionals(args);
+  return positional[0] === "server-js" && positional[1] === "upgrade-source";
+}
+
+export function NewHooksCommand(): Command {
+  const command = new Command({
+    use: "hooks",
+    short: "Server hook utilities",
+  });
+
+  command.addCommand(newHooksBuildCommand());
+  return command;
+}
+
+export function isHooksBuildCommand(args: string[]): boolean {
+  const positional = commandPositionals(args);
+  return positional[0] === "hooks" && positional[1] === "build";
+}
+
+function commandPositionals(args: string[]): string[] {
   const positional: string[] = [];
 
   for (let index = 0; index < args.length; index += 1) {
@@ -40,7 +61,63 @@ export function isServerJSSourceUpgradeCommand(args: string[]): boolean {
     }
   }
 
-  return positional[0] === "server-js" && positional[1] === "upgrade-source";
+  return positional;
+}
+
+function newHooksBuildCommand(): Command {
+  const state = {
+    hooksDir: "pb_hooks",
+    outDir: "dist/pb_hooks",
+    hooksFilesPattern: defaultHooksFilesPattern,
+  };
+
+  const command = new Command({
+    use: "build",
+    short: "Bundle server hooks for deploy artifacts",
+    long: `Bundles PocketBun server hook entry files with Bun so deploy artifacts can include generated hooks without the original workspace package tree.
+
+The build includes statically imported local files, workspace packages, npm packages, and JSON files. Dynamic import or require expressions that Bun cannot resolve at build time fail the command.`,
+    example: ["pocketbun hooks build", "pocketbun hooks build --hooksDir pb_hooks --outDir dist/pb_hooks"].join("\n"),
+    silenceUsage: true,
+  });
+
+  command.persistentFlags().stringVar(state, "hooksDir", "hooksDir", state.hooksDir, "the directory with JavaScript hooks");
+  command.persistentFlags().stringVar(state, "outDir", "outDir", state.outDir, "the directory to write bundled hooks");
+  command
+    .persistentFlags()
+    .stringVar(
+      state,
+      "hooksFilesPattern",
+      "hooksFilesPattern",
+      state.hooksFilesPattern,
+      "regular expression for hook entry files to bundle",
+    );
+
+  command.args = (_cmd, args) => {
+    if (args.length === 0) {
+      return null;
+    }
+    return new Error(`unexpected arguments: ${args.join(" ")}`);
+  };
+
+  command.runE = async () => {
+    try {
+      const result = await bundleServerHooksAsync({
+        hooksDir: state.hooksDir,
+        outDir: state.outDir,
+        hooksFilesPattern: state.hooksFilesPattern,
+      });
+      for (const log of result.logs) {
+        console.warn(log);
+      }
+      console.log(`Bundled ${result.files.length} server hook${result.files.length === 1 ? "" : "s"} to ${result.outDir}.`);
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err : new Error(String(err));
+    }
+  };
+
+  return command;
 }
 
 function newServerJSUpgradeSourceCommand(): Command {

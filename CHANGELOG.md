@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added deploy-ready server hook bundling with `pocketbun hooks build` and `registerServerJSAsync({ bundleHooks: true })`, so hooks can import shared workspace packages and JSON without copying the original package tree into production artifacts.
+
 ## 0.39.4-pocketbun.0 - 2026-06-15
 
 - Now compatible with PocketBase `v0.39.4` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0394) (upstream commit `507ecb2`).

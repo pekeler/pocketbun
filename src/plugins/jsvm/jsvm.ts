@@ -27,6 +27,7 @@ import {
   routerBinds,
   securityBinds,
 } from "./binds.ts";
+import { bundleServerHooksAsync, bundledHooksDirName, defaultHooksFilesPattern } from "./bundler.ts";
 
 const typesFileName = "types.d.ts";
 const generatedTypesSourcePath = resolveGeneratedTypesSourcePath(dirname(fileURLToPath(import.meta.url)));
@@ -42,6 +43,10 @@ export type Config = {
   hooksFilesPattern?: string;
   HooksPoolSize?: number;
   hooksPoolSize?: number;
+  BundleHooks?: boolean;
+  bundleHooks?: boolean;
+  BundledHooksDir?: string;
+  bundledHooksDir?: string;
   MigrationsDir?: string;
   migrationsDir?: string;
   MigrationsFilesPattern?: string;
@@ -67,6 +72,9 @@ export async function MustRegisterAsync(app: App, config: Config): Promise<void>
 
 export function Register(app: App, config: Config): Error | null {
   const normalized = normalizeConfig(app, config);
+  if (normalized.BundleHooks) {
+    return new Error("bundleHooks requires registerServerJSAsync because Bun.build is asynchronous");
+  }
 
   app.OnBootstrap().BindFunc((e) => {
     const err = e.Next();
@@ -100,6 +108,12 @@ export function Register(app: App, config: Config): Error | null {
 // same externally observable behavior while avoiding blocking fs calls on startup.
 export async function RegisterAsync(app: App, config: Config): Promise<Error | null> {
   const normalized = normalizeConfig(app, config);
+  let hooksConfig: Config;
+  try {
+    hooksConfig = await bundledHooksConfig(app, normalized);
+  } catch (err) {
+    return err instanceof Error ? err : new Error(String(err));
+  }
 
   app.OnBootstrap().BindFunc(async (e) => {
     const err = await e.Next();
@@ -119,7 +133,7 @@ export async function RegisterAsync(app: App, config: Config): Promise<Error | n
     return migrateErr;
   }
 
-  const hooksErr = await registerHooksAsync(app, normalized);
+  const hooksErr = await registerHooksAsync(app, hooksConfig);
   if (hooksErr) {
     return hooksErr;
   }
@@ -135,6 +149,8 @@ function normalizeConfig(app: App, config: Config): Config {
     HooksDir: config.HooksDir ?? config.hooksDir,
     HooksFilesPattern: config.HooksFilesPattern ?? config.hooksFilesPattern,
     HooksPoolSize: config.HooksPoolSize ?? config.hooksPoolSize,
+    BundleHooks: config.BundleHooks ?? config.bundleHooks,
+    BundledHooksDir: config.BundledHooksDir ?? config.bundledHooksDir,
     MigrationsDir: config.MigrationsDir ?? config.migrationsDir,
     MigrationsFilesPattern: config.MigrationsFilesPattern ?? config.migrationsFilesPattern,
     TypesDir: config.TypesDir ?? config.typesDir,
@@ -147,7 +163,7 @@ function normalizeConfig(app: App, config: Config): Config {
     normalized.MigrationsDir = join(app.DataDir(), "../pb_migrations");
   }
   if (!normalized.HooksFilesPattern) {
-    normalized.HooksFilesPattern = String.raw`^.*(\.pb\.js|\.pb\.ts)$`;
+    normalized.HooksFilesPattern = defaultHooksFilesPattern;
   }
   if (!normalized.MigrationsFilesPattern) {
     normalized.MigrationsFilesPattern = String.raw`^.*(\.js|\.ts)$`;
@@ -157,6 +173,24 @@ function normalizeConfig(app: App, config: Config): Config {
   }
 
   return normalized;
+}
+
+async function bundledHooksConfig(app: App, config: Config): Promise<Config> {
+  if (!config.BundleHooks) {
+    return config;
+  }
+
+  const result = await bundleServerHooksAsync({
+    hooksDir: config.HooksDir ?? "",
+    outDir: config.BundledHooksDir ?? join(app.DataDir(), bundledHooksDirName),
+    hooksFilesPattern: config.HooksFilesPattern,
+  });
+
+  return {
+    ...config,
+    HooksDir: result.outDir,
+    HooksFilesPattern: String.raw`^.*\.pb\.js$`,
+  };
 }
 
 function toMigrationScriptApp(app: App): App {

@@ -124,6 +124,7 @@ For `pb_hooks` module loading:
 
 - `.pb.ts` supports ESM imports from local files and dependencies (`node_modules`)
 - `.pb.js` supports `require(...)`
+- Deploy artifacts can use `pocketbun hooks build` or `registerServerJSAsync({ bundleHooks: true })` to bundle hook dependencies before loading copied hook files
 
 For code-first `BaseApp` usage:
 

@@ -317,6 +317,68 @@ routerAdd("GET", "/hello", (event) => event.json(200, { message: dependencyMessa
     }
   });
 
+  it.serial("bundles hooks so workspace package imports survive deploy artifact copying", async () => {
+    const { app, cleanup } = await newTestApp();
+    const rootDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-"));
+    const hooksDir = join(rootDir, "pb_hooks");
+    const bundledHooksDir = join(rootDir, "dist", "pb_hooks");
+    const dependencyDir = join(rootDir, "node_modules", "@example", "common");
+
+    await mkdir(hooksDir, { recursive: true });
+    await mkdir(dependencyDir, { recursive: true });
+    await writeFile(
+      join(dependencyDir, "package.json"),
+      JSON.stringify(
+        {
+          name: "@example/common",
+          type: "module",
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFile(join(dependencyDir, "pricing.json"), JSON.stringify({ plans: ["free", "pro", "team"] }));
+    await writeFile(
+      join(hooksDir, "main.pb.ts"),
+      `import pricing from "@example/common/pricing.json";
+routerAdd("GET", "/test-pricing", (event) => event.json(200, { plans: pricing.plans.length }));
+`,
+    );
+
+    try {
+      const bundleErr = await RegisterAsync(app, {
+        HooksDir: hooksDir,
+        TypesDir: rootDir,
+        BundleHooks: true,
+        BundledHooksDir: bundledHooksDir,
+      });
+      expect(bundleErr).toBeNull();
+
+      await cleanup();
+      await rm(join(rootDir, "node_modules"), { recursive: true, force: true });
+      await rm(hooksDir, { recursive: true, force: true });
+
+      const { app: deployApp, cleanup: deployCleanup } = await newTestApp();
+      try {
+        const deployErr = await RegisterAsync(deployApp, {
+          HooksDir: bundledHooksDir,
+          TypesDir: rootDir,
+        });
+        expect(deployErr).toBeNull();
+
+        const handler = buildServeHandler(deployApp);
+        const response = await handler(new Request("http://127.0.0.1/test-pricing"));
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ plans: 3 });
+      } finally {
+        await deployCleanup();
+      }
+    } finally {
+      await cleanup();
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
   it.serial("supports onRecordUpdateRequest hooks that return e.next()", async () => {
     const { app, cleanup } = await newTestApp();
     const rootDir = await mkdtemp(join(tmpdir(), "pocketbun-jsvm-"));
