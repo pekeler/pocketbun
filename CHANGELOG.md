@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.39.4-pocketbun.1 - 2026-06-15
 
 - Added deploy-ready server hook bundling with `pocketbun hooks build` and `registerServerJSAsync({ bundleHooks: true })`, so hooks can import shared workspace packages and JSON without copying the original package tree into production artifacts.
 
