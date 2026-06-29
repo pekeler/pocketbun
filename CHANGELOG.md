@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.39.5-pocketbun.0 - 2026-06-29
+
+- Now compatible with PocketBase `v0.39.5` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0395) (upstream commit `667a7650`).
+  - Includes upstream Admin UI fixes for long URL field display, the restored fullscreen editor option, and TinyMCE preload.
+
 ## 0.39.4-pocketbun.1 - 2026-06-15
 
 - Added deploy-ready server hook bundling with `pocketbun hooks build` and `registerServerJSAsync({ bundleHooks: true })`, so hooks can import shared workspace packages and JSON without copying the original package tree into production artifacts.
