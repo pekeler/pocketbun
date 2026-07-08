@@ -4,6 +4,7 @@
 
 - Now compatible with PocketBase `v0.39.6` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0396) (upstream commit `de3c3f71`).
   - Includes upstream Microsoft OAuth2 email-claim extraction options, sendmail `Cc`/`Bcc` handling, and Admin UI updates.
+- Fixed REST record creation when a create rule references fields from the record being created, such as `ownerId = @request.auth.id`.
 
 ## 0.39.5-pocketbun.0 - 2026-06-29
 

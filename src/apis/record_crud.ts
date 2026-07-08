@@ -566,25 +566,14 @@ export async function recordCreate(app: App, event: RequestEvent, createHook = a
     };
 
     if (collection.createRule && collection.createRule !== "") {
-      const staticRuleResult = evaluateStaticRequestRule(app, collection, collection.createRule, requestInfo);
-      if (staticRuleResult instanceof Error) {
-        return badRequest(event, "Failed to create record", staticRuleResult);
+      const createContextOrError = ensureCreateContext();
+      if (createContextOrError instanceof Error) {
+        return badRequest(event, "Failed to create record", createContextOrError);
       }
 
-      if (staticRuleResult.handled) {
-        if (!staticRuleResult.allowed) {
-          return badRequest(event, "Failed to create record", new Error("create rule failure"));
-        }
-      } else {
-        const createContextOrError = ensureCreateContext();
-        if (createContextOrError instanceof Error) {
-          return badRequest(event, "Failed to create record", createContextOrError);
-        }
-
-        const ruleErr = checkCreateRule(app, createContextOrError, requestInfo);
-        if (ruleErr) {
-          return badRequest(event, "Failed to create record", ruleErr);
-        }
+      const ruleErr = checkCreateRule(app, createContextOrError, requestInfo);
+      if (ruleErr) {
+        return badRequest(event, "Failed to create record", ruleErr);
       }
     }
 
@@ -1204,13 +1193,6 @@ export type CreateRuleContext = {
   params: SQLQueryBindings[];
 };
 
-type StaticRequestRuleResult =
-  | { handled: false }
-  | {
-      handled: true;
-      allowed: boolean;
-    };
-
 export function buildCreateRuleContext(collection: Collection, record: RecordModel): CreateRuleContext | Error {
   try {
     const dummyRecord = record.Clone();
@@ -1318,35 +1300,6 @@ function findRecordForRule(
   return RecordModel.fromRow(collection, row as RecordData);
 }
 
-function evaluateStaticRequestRule(
-  app: App,
-  collection: Collection,
-  rule: string,
-  requestInfo: RequestInfo,
-): StaticRequestRuleResult | Error {
-  try {
-    const resolver = new RecordFieldResolver(app, collection, requestInfo, true);
-    const expr = buildFilterExpr(rule, resolver, DefaultFilterExprLimit);
-
-    if (resolver.joins.length > 0 || (resolver.listRuleJoins?.size ?? 0) > 0) {
-      return { handled: false };
-    }
-
-    const sql = expr.sql ? `SELECT 1 WHERE ${expr.sql}` : "SELECT 1";
-    const row = app
-      .db()
-      .query(sql)
-      .get(...((expr.params as SQLQueryBindings[]) ?? [])) as Record<string, unknown> | undefined;
-
-    return {
-      handled: true,
-      allowed: Boolean(row),
-    };
-  } catch (error) {
-    return error as Error;
-  }
-}
-
 function hasAuthManageAccess(
   app: App,
   requestInfo: RequestInfo,
@@ -1438,6 +1391,9 @@ function safeErrorsData(data: unknown): Record<string, unknown> {
   }
   if (data instanceof ValidationError) {
     return { "": resolveSafeErrorItem(data) };
+  }
+  if (data instanceof Error) {
+    return {};
   }
   if (typeof data === "object" && !Array.isArray(data)) {
     return resolveSafeErrorsMap(data as Record<string, unknown>);

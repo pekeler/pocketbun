@@ -112,6 +112,18 @@ async function buildMultipartDataWithFile(
   return { body, contentType };
 }
 
+async function setDemo3TitleAuthCreateRule(app: TestApp): Promise<void> {
+  const collection = app.findCollectionByNameOrIdOrNull("demo3");
+  if (!collection) {
+    throw new Error("failed to find demo3 collection");
+  }
+  collection.createRule = Pointer("title = @request.auth.id");
+  const err = await app.Save(collection);
+  if (err) {
+    throw err;
+  }
+}
+
 describe("record CRUD list", () => {
   const scenarios: ApiScenario[] = [
     {
@@ -1668,6 +1680,40 @@ describe("record CRUD create", () => {
       url: "/api/collections/demo3/records",
       body: `{"title":"test123"}`,
       headers: { Authorization: regularUserToken },
+      expectedStatus: 400,
+      expectedContent: ['"data":{}'],
+      expectedEvents: { "*": 0 },
+    },
+    {
+      name: "auth record submit with create rule matching own field",
+      method: "POST",
+      url: "/api/collections/demo3/records",
+      body: `{"title":"4q1xlclmfloku33"}`,
+      headers: { Authorization: regularUserToken },
+      beforeTest: setDemo3TitleAuthCreateRule,
+      expectedStatus: 200,
+      expectedContent: ['"id":"', '"title":"4q1xlclmfloku33"'],
+      expectedEvents: {
+        "*": 0,
+        OnRecordCreateRequest: 1,
+        OnModelCreate: 1,
+        OnModelCreateExecute: 1,
+        OnModelAfterCreateSuccess: 1,
+        OnRecordCreate: 1,
+        OnRecordCreateExecute: 1,
+        OnRecordAfterCreateSuccess: 1,
+        OnModelValidate: 1,
+        OnRecordValidate: 1,
+        OnRecordEnrich: 1,
+      },
+    },
+    {
+      name: "auth record submit with create rule rejecting foreign own field",
+      method: "POST",
+      url: "/api/collections/demo3/records",
+      body: `{"title":"test123"}`,
+      headers: { Authorization: regularUserToken },
+      beforeTest: setDemo3TitleAuthCreateRule,
       expectedStatus: 400,
       expectedContent: ['"data":{}'],
       expectedEvents: { "*": 0 },
