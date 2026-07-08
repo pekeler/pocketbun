@@ -30,8 +30,8 @@ export class Sendmail implements Mailer, SendInterceptor {
     return findSendmailPath();
   }
 
-  protected runCommand(commandPath: string, recipients: string[], payload: string): Error | null {
-    const result = spawnSync(commandPath, [recipients.join(",")], {
+  protected runCommand(commandPath: string, args: string[], payload: string): Error | null {
+    const result = spawnSync(commandPath, args, {
       input: payload,
       encoding: "utf8",
       windowsHide: true,
@@ -61,7 +61,7 @@ export class Sendmail implements Mailer, SendInterceptor {
     }
 
     const payload = buildSendmailPayload(message, toAddresses);
-    return this.runCommand(cmdPath, toAddresses, payload);
+    return this.runCommand(cmdPath, ["-i", "-t"], payload);
   }
 }
 
@@ -72,6 +72,12 @@ function buildSendmailPayload(message: Message, toAddresses: string[]): string {
     "Content-Type: text/html; charset=UTF-8",
     `To: ${toAddresses.join(",")}`,
   ];
+  if (message.Cc.length > 0) {
+    headers.push(`Cc: ${addressesToStrings(message.Cc, false).join(",")}`);
+  }
+  if (message.Bcc.length > 0) {
+    headers.push(`Bcc: ${addressesToStrings(message.Bcc, false).join(",")}`);
+  }
 
   return `${headers.join("\r\n")}\r\n\r\n${message.HTML || message.Text || ""}`;
 }

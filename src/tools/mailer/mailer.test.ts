@@ -58,16 +58,16 @@ describe("detectReaderMimeType", () => {
 
 class MockSendmail extends Sendmail {
   commandPath = "";
-  recipients: string[] = [];
+  args: string[] = [];
   payload = "";
 
   protected override findCommandPath(): [string, Error | null] {
     return ["/mock/sendmail", null];
   }
 
-  protected override runCommand(commandPath: string, recipients: string[], payload: string): Error | null {
+  protected override runCommand(commandPath: string, args: string[], payload: string): Error | null {
     this.commandPath = commandPath;
-    this.recipients = recipients;
+    this.args = args;
     this.payload = payload;
     return null;
   }
@@ -80,8 +80,8 @@ describe("Sendmail", () => {
     const message: Message = {
       From: { Name: "PocketBun", Address: "noreply@example.com" },
       To: [{ Name: "John Doe", Address: "john@example.com" }, { Address: "jane@example.com" }],
-      Bcc: [],
-      Cc: [],
+      Bcc: [{ Address: "hidden@example.com" }],
+      Cc: [{ Name: "Jane Doe", Address: "jane.cc@example.com" }],
       Subject: "Auth update",
       HTML: "<p>Hello from PocketBun</p>",
       Text: "",
@@ -94,11 +94,13 @@ describe("Sendmail", () => {
     expect(err).toBeNull();
 
     expect(client.commandPath).toBe("/mock/sendmail");
-    expect(client.recipients).toEqual(["john@example.com", "jane@example.com"]);
+    expect(client.args).toEqual(["-i", "-t"]);
     expect(client.payload).toContain("Subject: =?UTF-8?B?QXV0aCB1cGRhdGU=?=");
     expect(client.payload).toContain(`From: "PocketBun" <noreply@example.com>`);
     expect(client.payload).toContain("Content-Type: text/html; charset=UTF-8");
     expect(client.payload).toContain("To: john@example.com,jane@example.com");
+    expect(client.payload).toContain("Cc: jane.cc@example.com");
+    expect(client.payload).toContain("Bcc: hidden@example.com");
     expect(client.payload).toContain("\r\n\r\n<p>Hello from PocketBun</p>");
   });
 });

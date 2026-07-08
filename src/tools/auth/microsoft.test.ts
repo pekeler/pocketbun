@@ -59,6 +59,74 @@ describe("microsoft provider", () => {
     expect(user.Email).toBe("");
   });
 
+  it("SetExtra adds openid scope when id_token email extraction is configured", () => {
+    const provider = new MicrosoftMock("{}");
+
+    expect(provider.Scopes()).toEqual(["User.Read"]);
+
+    provider.SetExtra({ idTokenEmailClaim: "email" });
+    provider.SetExtra({ idTokenEmailClaim: "email" });
+
+    expect(provider.Scopes()).toEqual(["User.Read", "openid"]);
+  });
+
+  it("FetchAuthUser extracts configured id_token email claims", async () => {
+    const scenarios = [
+      {
+        claim: "email",
+        claims: { email: "token@example.com" },
+        expected: "token@example.com",
+      },
+      {
+        claim: "email_and_xms_edov",
+        claims: { email: "domain@example.com", xms_edov: true },
+        expected: "domain@example.com",
+      },
+      {
+        claim: "email_and_xms_edov",
+        claims: { email: "unverified@example.com", xms_edov: false },
+        expected: "",
+      },
+      {
+        claim: "verified_primary_email",
+        claims: { verified_primary_email: "primary@example.com" },
+        expected: "primary@example.com",
+      },
+      {
+        claim: "any_verified",
+        claims: { email: "domain@example.com", xms_edov: true },
+        expected: "domain@example.com",
+      },
+      {
+        claim: "any_verified",
+        claims: {
+          email: "domain@example.com",
+          verified_primary_email: "primary@example.com",
+          xms_edov: true,
+        },
+        expected: "primary@example.com",
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const provider = new MicrosoftMock(
+        JSON.stringify({
+          id: "ms_user_3",
+          displayName: "Microsoft User",
+          mail: "graph@example.com",
+        }),
+      );
+      provider.SetExtra({ idTokenEmailClaim: scenario.claim });
+
+      const user = await provider.FetchAuthUser({
+        accessToken: "access_5",
+        id_token: buildIDToken(scenario.claims),
+      });
+
+      expect(user.Email).toBe(scenario.expected);
+    }
+  });
+
   it("FetchAuthUser rejects malformed user payload", async () => {
     const provider = new MicrosoftMock("{");
 
@@ -85,3 +153,16 @@ describe("microsoft provider", () => {
     }
   });
 });
+
+function buildIDToken(claims: Record<string, unknown>): string {
+  const now = Math.floor(Date.now() / 1000);
+  return [
+    encodeJWTPart({ alg: "none", typ: "JWT" }),
+    encodeJWTPart({ exp: now + 3600, iat: now, ...claims }),
+    encodeJWTPart("signature"),
+  ].join(".");
+}
+
+function encodeJWTPart(value: unknown): string {
+  return Buffer.from(typeof value === "string" ? value : JSON.stringify(value), "utf8").toString("base64url");
+}
