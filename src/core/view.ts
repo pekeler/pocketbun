@@ -8,6 +8,7 @@ import { columnify } from "../tools/inflector/inflector.ts";
 import { pseudorandomString } from "../tools/security/random.ts";
 import { Tokenizer } from "../tools/tokenizer/tokenizer.ts";
 import { Collection, NewViewCollection, collectionFromRow, parseCollectionFields } from "./collection_model.ts";
+import { normalizeViewQueryId } from "./collection_query.ts";
 import { FieldNameId } from "./field.ts";
 import { BoolField } from "./field_bool.ts";
 import { JSONField } from "./field_json.ts";
@@ -226,10 +227,15 @@ export async function DryRunView(app: App, dangerousSelectQuery: string, sampleS
     }
   }
 
-  const rows = app
-    .db()
-    .query(`SELECT * FROM (${normalizedQuery}) AS {{${tempCollection.name}}} LIMIT ?`)
-    .all(sampleSize) as RecordData[];
+  // apply the same normalization as in the collection view query
+  let query = normalizedQuery;
+  try {
+    query = await normalizeViewQueryId(app, query);
+  } catch (error) {
+    throw new Error(`failed to normalize view query id: ${(error as Error).message}`, { cause: error });
+  }
+
+  const rows = app.db().query(`SELECT * FROM (${query}) AS {{${tempCollection.name}}} LIMIT ?`).all(sampleSize) as RecordData[];
 
   const sample = Array.isArray(rows) ? rows.map((row) => RecordModel.fromRow(tempCollection, row)) : [];
   const ids = new Set<string>();
@@ -357,6 +363,14 @@ function parseQueryToFields(app: App, selectQuery: string): Map<string, QueryFie
   const mainTable = parser.tables.length > 0 ? parser.tables[0] : null;
 
   for (const col of parser.columns) {
+    // note: it should be safe to use the already parsed alias as there
+    // is no valid SQL where * column can be aliased to something else
+    if (col.alias === "*") {
+      throw new Error(
+        "wildcard columns (*) are not supported - manually type the collection field names you want the view query to have",
+      );
+    }
+
     const colLower = col.original.toLowerCase();
 
     if (col.alias === FieldNameId) {
@@ -432,10 +446,6 @@ function parseQueryToFields(app: App, selectQuery: string): Map<string, QueryFie
         original: null,
       });
       continue;
-    }
-
-    if (fieldName === "*") {
-      throw new Error("dynamic column names are not supported");
     }
 
     let found: Field | null = null;

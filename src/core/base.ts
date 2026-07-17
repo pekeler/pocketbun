@@ -4368,7 +4368,16 @@ export class BaseApp implements App {
       this.Logger().Warn("Failed to reload collections cache", "error", reloadErr);
     }
 
-    await resaveViewsWithChangedFields(this, collection.id);
+    // trigger an update for all views with changed fields as a result of the current collection save
+    // (only log the error to allow users to adjust the problematic view queries from the UI)
+    const depViewsErr = await resaveViewsWithChangedFields(this, collection.id);
+    if (depViewsErr) {
+      this.Logger().Warn(
+        `Dependent view collection(s) may need to be updated after ${collection.name} collection change`,
+        "error",
+        depViewsErr,
+      );
+    }
 
     return null;
   }
@@ -4480,7 +4489,16 @@ export class BaseApp implements App {
       this.Logger().Warn("Failed to reload collections cache", "error", reloadErr);
     }
 
-    resaveViewsWithChangedFieldsSync(this, collection.id);
+    // trigger an update for all views with changed fields as a result of the current collection save
+    // (only log the error to allow users to adjust the problematic view queries from the UI)
+    const depViewsErr = resaveViewsWithChangedFieldsSync(this, collection.id);
+    if (depViewsErr) {
+      this.Logger().Warn(
+        `Dependent view collection(s) may need to be updated after ${collection.name} collection change`,
+        "error",
+        depViewsErr,
+      );
+    }
 
     return null;
   }

@@ -211,6 +211,12 @@ describe("view helpers", () => {
           expectFields: null as Record<string, string> | null,
         },
         {
+          name: "wrapped query with wildcard column",
+          query: "select * from (select 1 as id)",
+          expectError: true,
+          expectFields: null as Record<string, string> | null,
+        },
+        {
           name: "query without id",
           query: "select text, url, created, updated from demo1",
           expectError: true,
@@ -608,7 +614,7 @@ describe("view helpers", () => {
         },
         {
           name: "select resolving to records with missing id",
-          query: "(select 'a' as id UNION ALL select null as id UNION ALL select 'c' as id)",
+          query: "select id from (select 'a' as id UNION ALL select null as id UNION ALL select 'c' as id)",
           sampleSize: 10,
           expectError: true,
           expectFields: null,
@@ -616,7 +622,7 @@ describe("view helpers", () => {
         },
         {
           name: "select resolving to records with duplicated ids",
-          query: "(select 'a' as id UNION ALL select 'a' as id UNION ALL select 'c' as id)",
+          query: "select id from (select 'a' as id UNION ALL select 'a' as id UNION ALL select 'c' as id)",
           sampleSize: 10,
           expectError: true,
           expectFields: null,
@@ -624,7 +630,7 @@ describe("view helpers", () => {
         },
         {
           name: "no sample size and valid select query but with invalid records result",
-          query: "(select 'a' as id UNION ALL select 'a' as id UNION ALL select 'c' as id)",
+          query: "select id from (select 'a' as id UNION ALL select 'a' as id UNION ALL select 'c' as id)",
           sampleSize: 0,
           expectError: false,
           expectFields: { id: FieldTypeText },
@@ -632,7 +638,8 @@ describe("view helpers", () => {
         },
         {
           name: "sample size < total select records",
-          query: "(select 'a' as id UNION ALL select 'b' as id UNION ALL select 'c' as id UNION ALL select 'd' as id)",
+          query:
+            "select id from (select 'a' as id UNION ALL select 'b' as id UNION ALL select 'c' as id UNION ALL select 'd' as id)",
           sampleSize: 3,
           expectError: false,
           expectFields: { id: FieldTypeText },

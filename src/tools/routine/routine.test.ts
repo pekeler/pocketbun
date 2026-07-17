@@ -28,4 +28,32 @@ describe("FireAndForget", () => {
     expect(warnings[0]?.[1]).toBe(error);
     expect(warnings[1]?.[0]).toBe("x".repeat(2048));
   });
+
+  it.serial("recovers rejected promises without an unhandled rejection", async () => {
+    const warnings: unknown[][] = [];
+    const unhandled: unknown[] = [];
+    const error = new Error("test_recover");
+    using _warnSpy = spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
+      warnings.push(args);
+    });
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", onUnhandled);
+
+    try {
+      FireAndForget(async () => {
+        throw error;
+      });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(warnings[0]?.[0]).toBe("RECOVERED FROM PANIC (safe to ignore):");
+      expect(warnings[0]?.[1]).toBe(error);
+      expect(unhandled).toHaveLength(0);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
 });

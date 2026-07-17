@@ -272,58 +272,6 @@ export async function TruncateCollection(app: App, collection: Collection): Prom
 
 // -------------------------------------------------------------------
 
-// saveViewCollection persists the provided View collection changes:
-//  - deletes the old related SQL view (if any)
-//  - creates a new SQL view with the latest newCollection.Options.Query
-//  - generates new feilds list  based on newCollection.Options.Query
-//  - updates newCollection.Fields based on the generated view table info and query
-//  - saves the newCollection
-//
-// This method returns an error if newCollection is not a "view".
-async function saveViewCollection(
-  app: App,
-  newCollection: Collection,
-  oldCollection: Collection | null,
-): Promise<Error | null> {
-  if (!newCollection.IsView()) {
-    return new Error("not a view collection");
-  }
-
-  return app.RunInTransaction(async (txApp) => {
-    const query = newCollection.ViewQuery;
-
-    let viewFields: Collection["Fields"];
-    try {
-      viewFields = await txApp.CreateViewFields(query);
-    } catch (error) {
-      return error as Error;
-    }
-
-    if (oldCollection) {
-      const deleteErr = txApp.DeleteView(oldCollection.name);
-      if (deleteErr) {
-        return deleteErr;
-      }
-    }
-
-    let normalizedQuery = query;
-    try {
-      normalizedQuery = await normalizeViewQueryId(txApp, query);
-    } catch (error) {
-      return new Error(`failed to normalize view query id: ${(error as Error).message}`);
-    }
-
-    const saveErr = await txApp.SaveView(newCollection.name, normalizedQuery);
-    if (saveErr) {
-      return saveErr;
-    }
-
-    newCollection.Fields = viewFields;
-
-    return txApp.Save(newCollection);
-  });
-}
-
 // normalizeViewQueryId wraps (if necessary) the provided view query
 // with a subselect to ensure that the id column is a text since
 // currently we don't support non-string model ids
@@ -393,52 +341,58 @@ export async function resaveViewsWithChangedFields(app: App, ...excludeIds: stri
   const excludedIds = excludeIds.length > 0 ? new Set(excludeIds) : null;
 
   return app.RunInTransaction(async (txApp) => {
+    const collectionErrors: Error[] = [];
+
     for (const collection of collections) {
       if (excludedIds?.has(collection.id)) {
         continue;
       }
 
-      let oldFields: Collection["Fields"];
-      try {
-        oldFields = collection.Fields.Clone();
-      } catch (error) {
-        return error as Error;
-      }
+      const check = async (): Promise<Error | null> => {
+        let oldFields: Collection["Fields"];
+        try {
+          oldFields = collection.Fields.Clone();
+        } catch (error) {
+          return error as Error;
+        }
 
-      let newFields: Collection["Fields"];
-      try {
-        newFields = await txApp.CreateViewFields(collection.ViewQuery);
-      } catch (error) {
-        return error as Error;
-      }
+        let newFields: Collection["Fields"];
+        try {
+          newFields = await txApp.CreateViewFields(collection.ViewQuery);
+        } catch (error) {
+          return error as Error;
+        }
 
-      for (const field of oldFields) {
-        field.SetId("");
-      }
-      for (const field of newFields) {
-        field.SetId("");
-      }
+        for (const field of oldFields) {
+          field.SetId("");
+        }
+        for (const field of newFields) {
+          field.SetId("");
+        }
 
-      let encodedNewFields = "";
-      let encodedOldFields = "";
-      try {
-        encodedNewFields = stableStringify(newFields);
-        encodedOldFields = stableStringify(oldFields);
-      } catch (error) {
-        return error as Error;
-      }
+        let encodedNewFields = "";
+        let encodedOldFields = "";
+        try {
+          encodedNewFields = stableStringify(newFields);
+          encodedOldFields = stableStringify(oldFields);
+        } catch (error) {
+          return error as Error;
+        }
 
-      if (encodedNewFields.toLowerCase() === encodedOldFields.toLowerCase()) {
-        continue;
-      }
+        if (encodedNewFields.toLowerCase() === encodedOldFields.toLowerCase()) {
+          return null;
+        }
 
-      const saveErr = await saveViewCollection(txApp, collection, null);
-      if (saveErr) {
-        return saveErr;
+        return txApp.Save(collection);
+      };
+
+      const checkErr = await check();
+      if (checkErr) {
+        collectionErrors.push(new Error(`[${collection.name}] ${checkErr.message}`, { cause: checkErr }));
       }
     }
 
-    return null;
+    return joinErrors(collectionErrors);
   });
 }
 
@@ -452,93 +406,63 @@ export function resaveViewsWithChangedFieldsSync(app: App, ...excludeIds: string
   const excludedIds = excludeIds.length > 0 ? new Set(excludeIds) : null;
 
   return app.RunInTransactionSync((txApp) => {
+    const collectionErrors: Error[] = [];
+
     for (const collection of collections) {
       if (excludedIds?.has(collection.id)) {
         continue;
       }
 
-      let oldFields: Collection["Fields"];
-      try {
-        oldFields = collection.Fields.Clone();
-      } catch (error) {
-        return error as Error;
-      }
+      const check = (): Error | null => {
+        let oldFields: Collection["Fields"];
+        try {
+          oldFields = collection.Fields.Clone();
+        } catch (error) {
+          return error as Error;
+        }
 
-      let newFields: Collection["Fields"];
-      try {
-        newFields = txApp.CreateViewFieldsSync(collection.ViewQuery);
-      } catch (error) {
-        return error as Error;
-      }
+        let newFields: Collection["Fields"];
+        try {
+          newFields = txApp.CreateViewFieldsSync(collection.ViewQuery);
+        } catch (error) {
+          return error as Error;
+        }
 
-      for (const field of oldFields) {
-        field.SetId("");
-      }
-      for (const field of newFields) {
-        field.SetId("");
-      }
+        for (const field of oldFields) {
+          field.SetId("");
+        }
+        for (const field of newFields) {
+          field.SetId("");
+        }
 
-      let encodedNewFields = "";
-      let encodedOldFields = "";
-      try {
-        encodedNewFields = stableStringify(newFields);
-        encodedOldFields = stableStringify(oldFields);
-      } catch (error) {
-        return error as Error;
-      }
+        let encodedNewFields = "";
+        let encodedOldFields = "";
+        try {
+          encodedNewFields = stableStringify(newFields);
+          encodedOldFields = stableStringify(oldFields);
+        } catch (error) {
+          return error as Error;
+        }
 
-      if (encodedNewFields.toLowerCase() === encodedOldFields.toLowerCase()) {
-        continue;
-      }
+        if (encodedNewFields.toLowerCase() === encodedOldFields.toLowerCase()) {
+          return null;
+        }
 
-      const saveErr = saveViewCollectionSync(txApp, collection, null);
-      if (saveErr) {
-        return saveErr;
+        return txApp.SaveSync(collection);
+      };
+
+      const checkErr = check();
+      if (checkErr) {
+        collectionErrors.push(new Error(`[${collection.name}] ${checkErr.message}`, { cause: checkErr }));
       }
     }
 
-    return null;
+    return joinErrors(collectionErrors);
   });
 }
 
-function saveViewCollectionSync(app: App, newCollection: Collection, oldCollection: Collection | null): Error | null {
-  if (!newCollection.IsView()) {
-    return new Error("not a view collection");
-  }
-
-  return app.RunInTransactionSync((txApp) => {
-    const query = newCollection.ViewQuery;
-
-    let viewFields: Collection["Fields"];
-    try {
-      viewFields = txApp.CreateViewFieldsSync(query);
-    } catch (error) {
-      return error as Error;
-    }
-
-    if (oldCollection) {
-      const deleteErr = txApp.DeleteView(oldCollection.name);
-      if (deleteErr) {
-        return deleteErr;
-      }
-    }
-
-    let normalizedQuery = query;
-    try {
-      normalizedQuery = normalizeViewQueryIdSync(txApp, query);
-    } catch (error) {
-      return new Error(`failed to normalize view query id: ${(error as Error).message}`);
-    }
-
-    const saveErr = txApp.SaveViewSync(newCollection.name, normalizedQuery);
-    if (saveErr) {
-      return saveErr;
-    }
-
-    newCollection.Fields = viewFields;
-
-    return txApp.SaveSync(newCollection);
-  });
+function joinErrors(errors: Error[]): Error | null {
+  return errors.length === 0 ? null : new AggregateError(errors, errors.map((error) => error.message).join("\n"));
 }
 
 function stableStringify(value: unknown): string {

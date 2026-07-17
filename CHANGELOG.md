@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.39.7-pocketbun.0 - 2026-07-17
+
+- Now compatible with PocketBase `v0.39.7` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0397) (upstream commit `636b7e28`).
+  - Includes upstream fixes for import-collection field review and View collection wildcard validation and error messages.
+  - PocketBun is not affected by the Go-specific internal worker panic because its promise-based workers already catch synchronous throws and rejected promises.
+
 ## 0.39.6-pocketbun.0 - 2026-07-08
 
 - Now compatible with PocketBase `v0.39.6` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0396) (upstream commit `de3c3f71`).

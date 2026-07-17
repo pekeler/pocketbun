@@ -1,109 +1,115 @@
-# Bundle Server Hooks for Deployable Artifacts
+# Upgrade PocketBun Compatibility to PocketBase v0.39.7
 
 This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds. This document follows `.agents/PLANS.md`.
 
 ## Purpose / Big Picture
 
-PocketBun currently loads server hook files from `pb_hooks` using Bun's normal module resolution from each hook file. That is correct for development repositories where `node_modules` or workspace links exist above `pb_hooks`, but it is fragile for deploy artifacts that copy only loose hook files and the PocketBun runtime. After this change, a user can bundle server hook entry files into deploy-ready hook files whose statically imported workspace packages, npm packages, local modules, and JSON files are included by Bun's bundler. Users can either run a CLI build command before packaging, or set a registration option that bundles hooks into a generated directory before loading them.
+PocketBun currently targets PocketBase v0.39.6. After this work, its version metadata, vendored Admin UI, generated upstream-derived artifacts, and observable server behavior will target PocketBase v0.39.7. Users should receive the v0.39.7 fixes for import-collection field access, View collection query validation, and safe handling of failures in internal asynchronous workers. The completed upgrade is demonstrated by focused compatibility tests and the repository's complete format, test, typecheck, and lint gate.
 
 ## Progress
 
-- [x] (2026-06-15T11:27:03Z) Read `.agents/PLANS.md`, inspected the current JSVM hook loader in `src/plugins/jsvm/jsvm.ts`, the CLI command shape in `src/cmd/server_js.ts`, current hook loading docs, and existing hook import tests.
-- [x] (2026-06-15T11:34:10Z) Added `src/plugins/jsvm/bundler.ts`, which discovers hook entry files, calls `Bun.build`, writes deterministic bundled output, disables environment variable inlining, and fails on unresolved dynamic specifiers.
-- [x] (2026-06-15T11:34:10Z) Integrated bundling into `RegisterAsync` through `bundleHooks` and `bundledHooksDir`; synchronous `Register` now returns a clear error if bundling is requested.
-- [x] (2026-06-15T11:34:10Z) Added the user-facing `pocketbun hooks build` CLI command and made the main CLI execute it before app startup.
-- [x] (2026-06-15T11:34:10Z) Added focused tests proving bundled hooks can import package JSON, then run after the original package tree and loose hooks are removed.
-- [x] (2026-06-15T11:34:10Z) Updated docs and `/CHANGELOG.md`.
-- [x] (2026-06-15T11:40:56Z) Added dynamic `require(...)` error regression coverage and reran the full project gate successfully: `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`, and `git diff --check`.
+- [x] (2026-07-17T13:45:56Z) Read `.agents/PLANS.md`, the repository instructions, the active PocketBun version metadata, and the PocketBase v0.39.7 release notes.
+- [x] (2026-07-17T13:48:12Z) Synced `.upstream/pocketbase` to v0.39.7 and inventoried every upstream change since v0.39.6.
+- [x] (2026-07-17T14:02:10Z) Ported View wildcard validation, dry-run query normalization, dependent-view error aggregation/logging, upstream View tests, and asynchronous worker rejection coverage.
+- [x] (2026-07-17T14:02:10Z) Updated the upstream pin, package/docs version, changelog, and vendored v0.39.7 Admin UI.
+- [x] (2026-07-17T14:11:04Z) Ran focused tests, `bun run format:fix`, the full 1,891-test suite, `bun run typecheck`, package build/type validation, `bun run lint`, version/docs checks, asset parity, and final diff review successfully.
 
 ## Surprises & Discoveries
 
-- Observation: PocketBun already supports normal package imports from hooks when dependencies are present in an ancestor `node_modules`.
-  Evidence: `src/plugins/jsvm/jsvm.ts` creates `require` with `createRequire(pathToFileURL(resolvedHookFile))`, and `src/plugins/jsvm/jsvm.test.ts` has a test named `supports dependency imports in .pb.ts hooks`.
-- Observation: Bun throws an `AggregateError` for non-static dynamic `require(...)` when `allowUnresolved: []` is set, and the detailed message is stored under the error's `errors` array.
-  Evidence: a local probe with `require(moduleName)` produced `AggregateError: Bundle failed` with a `BuildMessage` saying the expression would not be bundled because the argument is not a string literal.
+- Observation: PocketBase v0.39.7 is explicitly marked as a security release because internal worker goroutine panics could go unhandled.
+  Evidence: The GitHub release notes identify issue `#7762` and state that internal worker functions were wrapped so panics are recovered and returned as ordinary errors.
+- Observation: The import-collection `fields` fix is isolated to the upstream Admin UI review modal.
+  Evidence: Upstream commit `4221a1b8` changes `ui/src/settings/sync/importCollectionsReviewModal.js` from `imported.fields.find(...)` to optional access with `imported.fields?.find(...)`; syncing `ui/dist` carries the fix without PocketBun runtime changes.
+- Observation: PocketBun already contains the JavaScript equivalent of the upstream worker safety mechanism.
+  Evidence: Awaited concurrent work uses rejecting promises, while `src/tools/routine/routine.ts` catches both synchronous throws and rejected promises for detached tasks. Auditing the upstream `routine.SafeWrap` and `routine.FireAndForget` call sites found no unprotected PocketBun equivalent.
 
 ## Decision Log
 
-- Decision: Implement bundling with Bun's built-in `Bun.build` rather than adding a new dependency or a custom resolver.
-  Rationale: PocketBun is Bun-only, and Bun's bundler already handles TypeScript, JavaScript, package resolution, workspace-linked packages, local modules, and JSON imports. Using it keeps behavior close to what users expect from Bun.
-  Date/Author: 2026-06-15 / Codex
-- Decision: Preserve current hook loading as the default and make bundling opt-in.
-  Rationale: Existing development behavior is already correct and covered by tests. Bundling is a deploy packaging tool and should not change loose hook execution unless explicitly requested.
-  Date/Author: 2026-06-15 / Codex
-- Decision: Add the CLI as `pocketbun hooks build`.
-  Rationale: The feature is a deploy packaging command for hooks rather than a source-upgrade maintenance command, and the user-facing request explicitly proposed this shape. The main CLI detects it before hook registration so it does not accidentally load the current app hooks while building deploy output.
-  Date/Author: 2026-06-15 / Codex
+- Decision: Use a mechanical v0.39.6-to-v0.39.7 upstream diff as the source of truth, then port only behavior that maps to PocketBun's Bun/TypeScript architecture.
+  Rationale: PocketBun prioritizes observable PocketBase compatibility and upstream traceability while permitting runtime-specific implementation differences.
+  Date/Author: 2026-07-17 / Codex
+- Decision: Reset the PocketBun-specific version suffix to `0.39.7-pocketbun.0`.
+  Rationale: Repository versioning rules require the package base version to match `pocketbase_tag.txt` and reset the PocketBun patch counter for a new upstream release.
+  Date/Author: 2026-07-17 / Codex
+- Decision: Do not add a JavaScript `SafeWrap` helper.
+  Rationale: A Go panic inside `errgroup` must be recovered and converted to an error, whereas a throw inside an awaited JavaScript worker already rejects its promise and follows the caller's normal error path. Detached PocketBun workers already use `FireAndForget`, which catches sync and async failures. A new wrapper would duplicate these semantics and could accidentally turn a rejected operation into a successfully resolved `Error` value.
+  Date/Author: 2026-07-17 / Codex
 
 ## Outcomes & Retrospective
 
-Implementation is complete. The targeted test command `bun test src/plugins/jsvm/bundler.test.ts src/plugins/jsvm/jsvm.test.ts src/cmd/server_js.test.ts --concurrent` passed with 14 tests and 0 failures. The full gate also passed: `bun run format:fix`, `bun test --concurrent` with 1886 passing tests and 0 failures, `bun run typecheck`, `bun run lint`, and `git diff --check`.
+PocketBun now targets PocketBase v0.39.7 as `0.39.7-pocketbun.0`. The vendored Admin UI exactly matches `.upstream/pocketbase/ui/dist`, carrying the import-collection `fields` fix and updated View-query guidance. The TypeScript runtime now rejects wildcard View columns with the upstream message, normalizes dry-run View ids like persisted Views, and continues checking all dependent Views while aggregating and logging their errors.
+
+The upstream worker-panic security audit found that PocketBun already used the correct JavaScript mechanisms: awaited worker promises reject to callers and detached work is contained by `FireAndForget`. A new regression test proves rejected detached promises are logged without an `unhandledRejection`.
+
+Validation completed with 38 focused tests and the full repository suite: 1,891 tests passed, 0 failed, with 7 snapshots and 10,062 assertions. `bun run format:fix`, `bun run typecheck`, `bun run typecheck:package`, `bun run lint`, `bun run check:versions`, `bun run docs:check`, `git diff --check`, and vendored-asset parity also passed. The upstream mapping audit still reports the repository's two pre-existing unported `plugins/ghupdate` source files and their tests; v0.39.7 introduces no change there.
 
 ## Context and Orientation
 
-The server hook loader lives in `src/plugins/jsvm/jsvm.ts`. A hook entry file is a file in `pb_hooks` whose name matches the hook file pattern, currently `*.pb.js` or `*.pb.ts` by default. The loader reads matching files in sorted filename order and executes them with global PocketBase-compatible bindings such as `routerAdd`, `onBootstrap`, and `$app`. A "bundle" in this plan means a generated JavaScript file emitted by `Bun.build` that includes the code reachable through static `import` and resolvable `require` statements, including JSON and package files. A bundled hook should still be loaded by the existing JSVM loader so that all PocketBun hook globals and event behavior remain unchanged.
+`pocketbase_tag.txt` pins the upstream release and `package.json` carries the matching PocketBun SemVer version. `.upstream/pocketbase` is a read-only local checkout populated by `bun run upstream:sync`; comparing tags v0.39.6 and v0.39.7 there reveals the authoritative Go source and test changes. PocketBun source lives under `src/`, with ported tests normally adjacent to the corresponding TypeScript source. The vendored unchanged PocketBase Admin UI lives under `vendor/pocketbase-admin-ui/dist`. `CHANGELOG.md` records user-facing compatibility changes and must identify the upstream release and commit.
 
-The public API is exported from `index.ts`; tests for that exported type surface live in `src/public_api_types.test.ts`. CLI utilities for server-side JavaScript live in `src/cmd/server_js.ts`, with tests in `src/cmd/server_js.test.ts`. User docs for hooks live in `docs/users/extend.md`; compatibility notes live in `docs/users/differences.md`. `/CHANGELOG.md` must be updated before committing any user-facing or developer-relevant change.
+PocketBase uses goroutines for asynchronous work. PocketBun instead uses promises and Bun tasks, so a direct translation of panic recovery is not possible or desirable. The relevant observable requirement is that failures in internal asynchronous work are contained, reported through the existing error path, and do not become unhandled failures that can terminate or destabilize the process.
 
 ## Plan of Work
 
-First, create a small `src/plugins/jsvm/bundler.ts` module. It should expose `bundleServerHooksAsync(options)` and a result type. The options should include `hooksDir`, `outDir`, and optional `hooksFilesPattern`. The function should discover files using the same filename sorting semantics as `jsvm.ts`, then call `Bun.build` once with all matching hook entrypoints. The output format should be ESM targeting Bun, with `splitting` disabled so each generated hook entry is independently loadable from the output directory. The default naming should preserve each hook basename as a `.pb.js` output file so the existing loader finds it. It should return the output file list and throw or return a clear error when Bun reports build failures.
+First, change `pocketbase_tag.txt` to v0.39.7 and run `bun run upstream:sync`. Compare the pinned v0.39.6 and v0.39.7 tags by commit, file, and patch. Classify each upstream change as runtime behavior, test-only coverage, dependency-only Go maintenance, documentation, or vendored Admin UI.
 
-Second, integrate the bundler into `src/plugins/jsvm/jsvm.ts`. Extend `Config` with `BundleHooks` and `bundleHooks`, plus optional `BundledHooksDir` and `bundledHooksDir` if a caller wants to choose the generated location. `normalizeConfig` should map lower-camel and Go-style aliases. `RegisterAsync` should be able to run the bundler before `registerHooksAsync` and then load from the generated directory. The synchronous `Register` cannot call `Bun.build`, which is async, so if `bundleHooks` is true it should return a clear error telling callers to use `registerServerJSAsync`. This preserves the existing synchronous API without pretending to bundle synchronously.
+Second, map each runtime change to the corresponding PocketBun module by using the upstream source-path headers and repository searches. Port upstream comments and tests along with behavior. For import collections, verify that API-rule field resolution can access the imported collection's `fields` property. For View collections, port the `*` query validation and friendly error messages at the shared validator. For internal workers, trace all upstream `routine.SafeWrap` call sites and PocketBun equivalents, then add the smallest shared containment needed for any equivalent fire-and-forget promise paths. Add regression tests that fail on v0.39.6 behavior and pass after the port.
 
-Third, add CLI support in `src/cmd/server_js.ts`. Register `pocketbun hooks build` with flags `--hooksDir`, `--outDir`, and `--hooksFilesPattern`. The command should call `bundleServerHooksAsync`, print a concise success message listing the output directory and bundled file count, and return an error if the build fails. This command gives users an explicit deploy step without requiring code-first registration.
+Third, sync unchanged upstream-distributed assets using existing repository workflows. Copy the v0.39.7 Admin UI distribution and license only from `.upstream/pocketbase/ui/dist` if the upstream diff changed it. Rebuild generated docs or declarations only where the normal version checks or upstream diff require them. Update `package.json` to `0.39.7-pocketbun.0` and add a dated v0.39.7 entry at the top of `CHANGELOG.md`, linking the upstream changelog and recording commit `636b7e2`.
 
-Fourth, add focused tests. In `src/plugins/jsvm/jsvm.test.ts`, create a temporary app layout with `node_modules/@example/common` pointing at or containing a package with `pricing.json`, create `pb_hooks/main.pb.ts` importing that JSON, bundle to `dist/pb_hooks`, remove the original packages and `node_modules`, then register from the bundled output and call the route. In `src/cmd/server_js.test.ts`, add help/output coverage for `pocketbun hooks build` and a small successful build command test. Update `src/public_api_types.test.ts` if any new public types or exports are added.
-
-Fifth, update documentation and changelog. Add a concise hook bundling section to `docs/users/extend.md`, mention the CLI and registration option, and explain that dynamic requires must be statically resolvable or moved behind normal deploy packaging. Add an `Unreleased` changelog entry that describes deployable bundled hooks from the user's perspective.
+Finally, run focused tests while implementing, then the complete required gate. Review `git diff --check`, source headers, comments, and the final file list to ensure the upgrade contains no unrelated refactors or user changes.
 
 ## Concrete Steps
 
 Work from `/Users/pekeler/Projects/pocketbun`.
 
-1. Add `src/plugins/jsvm/bundler.ts`.
-2. Edit `src/plugins/jsvm/jsvm.ts` to add opt-in bundle config and async loading integration.
-3. Edit `src/cmd/server_js.ts` to add `pocketbun hooks build`.
-4. Edit tests in `src/plugins/jsvm/jsvm.test.ts` and `src/cmd/server_js.test.ts`.
-5. Edit docs in `docs/users/extend.md`, `docs/users/differences.md` if needed, and `/CHANGELOG.md`.
-6. Run targeted tests:
+1. Edit `pocketbase_tag.txt` to `v0.39.7`.
+2. Run `bun run upstream:sync`.
+3. Inspect `git -C .upstream/pocketbase diff v0.39.6..v0.39.7` and the release commit history.
+4. Locate the corresponding PocketBun source and tests with `rg`, then edit the minimum applicable files.
+5. Update version metadata, changelog, and upstream-derived assets.
+6. Run focused tests for each affected subsystem.
+7. Run:
 
-        bun test src/plugins/jsvm/jsvm.test.ts src/cmd/server_js.test.ts --concurrent
-
-7. Run the full required gate:
-
-        bun run format:fix
-        bun test --concurrent
-        bun run typecheck
-        bun run lint
+       bun run format:fix
+       bun test --concurrent
+       bun run typecheck
+       bun run lint
+       git diff --check
 
 ## Validation and Acceptance
 
-The feature is accepted when a test creates this layout:
-
-    app/
-      package.json
-      node_modules/@example/common
-      packages/common/pricing.json
-      pb_hooks/main.pb.ts
-
-The hook imports `@example/common/pricing.json`, the bundler writes a deploy hook under `dist/pb_hooks`, the original workspace package tree is removed, and `registerServerJSAsync` can still load the bundled hook and serve a route returning the expected pricing count. Existing hook tests for loose `.pb.ts` imports and dependency imports must continue to pass, proving dev behavior is unchanged. The CLI help must show `pocketbun hooks build`, and the CLI build test must create bundled output files.
+The upgrade is accepted when `pocketbase_tag.txt` contains `v0.39.7`, `package.json` contains `0.39.7-pocketbun.0`, and `bun run check:versions` accepts the synchronized version metadata. The vendored Admin UI must exactly match the pinned upstream distribution that contains the import-collection fix. Ported regression tests must demonstrate View `*` validation and dry-run normalization with the same successful or friendly-error behavior as upstream. Any PocketBun equivalent of an upstream internal worker must turn asynchronous failures into its normal logged or returned error path without an unhandled rejection. All pre-existing tests must continue to pass, and the four required repository checks must complete successfully.
 
 ## Idempotence and Recovery
 
-The bundler writes to an output directory and can be rerun. Tests should use temporary directories and remove only their own temporary paths. If bundling integration breaks loose hook loading, disable the `bundleHooks` branch and rerun existing `jsvm.test.ts` import tests before reintroducing the branch. Do not delete or rewrite unrelated files, and do not revert user changes.
+`bun run upstream:sync` is safe to rerun and treats `.upstream/pocketbase` as disposable read-only reference data. Generated asset sync commands should be rerunnable and must copy only from the pinned upstream checkout. Do not reset or discard repository changes; if a focused edit causes failures, inspect and repair that edit while preserving unrelated work. Temporary test data belongs in the repository's existing test helpers or system temporary directories.
 
 ## Artifacts and Notes
 
-Current evidence before implementation:
+Initial release evidence:
 
-    src/plugins/jsvm/jsvm.ts creates require from each hook file URL.
-    src/plugins/jsvm/jsvm.test.ts already verifies `.pb.ts` can import a dependency from parent node_modules.
+    PocketBase v0.39.7 release commit: 636b7e2
+    Release date: 2026-07-16
+    Announced fixes: import collection fields access, View `*` validator/errors,
+    and panic recovery for internal workers.
 
-Revision note, 2026-06-15 / Codex: Created this plan for the hook bundling feature request and replaced the completed prior ExecPlan so the active plan matches the current task.
+Final validation evidence:
 
-Revision note, 2026-06-15 / Codex: Updated progress and decisions after implementing `pocketbun hooks build`, `bundleHooks`, docs, changelog, and focused tests.
+    1891 pass
+    0 fail
+    7 snapshots, 10062 expect() calls
+    Ran 1891 tests across 241 files.
 
-Revision note, 2026-06-15 / Codex: Marked validation complete after the full required gate passed.
+    Version sources are aligned: PocketBase v0.39.7,
+    PocketBun 0.39.7-pocketbun.0
+    Generated docs parity checks passed.
+    Found 0 lint warnings and 0 lint errors.
 
-Revision note, 2026-06-15 / Codex: Added dynamic require error handling notes and updated validation counts after adding `src/plugins/jsvm/bundler.test.ts`.
+## Interfaces and Dependencies
+
+No new npm dependency is expected. PocketBase's Go-only switch from the original `go-ozzo/ozzo-validation` module to its trusted fork will be recorded as upstream dependency maintenance unless the source diff reveals behavior PocketBun must reproduce. Existing PocketBun validators, collection models, promise/error helpers, logging, and Bun/Web APIs should be reused.
+
+Revision note, 2026-07-17 / Codex: Replaced the completed hook-bundling plan with the active PocketBase v0.39.7 compatibility upgrade plan.
+
+Revision note, 2026-07-17 / Codex: Recorded the synchronized upstream diff, implementation decisions, completed runtime/UI/version changes, and successful full validation.
