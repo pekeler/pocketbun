@@ -654,6 +654,8 @@ export class System {
       return new Error("thumb width and height cannot be zero at the same time");
     }
 
+    // Keep the image processing inside this catch as an extra precaution since
+    // upstream has encountered several image decoder panic issues over the years.
     try {
       using reader = await this.#bucket.NewReader(this.#ctx, originalKey);
       const originalContentType = reader.ContentType();

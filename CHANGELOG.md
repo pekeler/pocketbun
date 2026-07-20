@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.39.8-pocketbun.0 - 2026-07-20
+
+- Now compatible with PocketBase `v0.39.8` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0398) (upstream commit `cc4e8570`).
+  - Properly resets server-side JavaScript `$app` assignments after hooks, route handlers, and middlewares finish.
+  - Includes Admin UI improvements for number inputs and `Shift + Click` range selection.
+
 ## 0.39.7-pocketbun.0 - 2026-07-17
 
 - Now compatible with PocketBase `v0.39.7` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0397) (upstream commit `636b7e28`).

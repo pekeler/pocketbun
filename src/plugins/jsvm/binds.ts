@@ -145,23 +145,33 @@ class NullPlaceholder {
   }
 }
 
-const hooksStorage = new AsyncLocalStorage<App>();
+type HooksAppState = { value: unknown };
+
+// Bun hook modules share one global target instead of pooled goja executors, so
+// keep $app overwrites in the current async context and discard them afterward.
+const hooksStorage = new AsyncLocalStorage<HooksAppState>();
 
 function runWithApp<T>(app: App, fn: () => T | Promise<T>): T | Promise<T> {
-  return hooksStorage.run(app, fn);
+  return hooksStorage.run({ value: app }, fn);
 }
 
 function defineAppAccessor(target: BindTarget, app: App): void {
+  let defaultApp: unknown = app;
+
   Object.defineProperty(target, "$app", {
     configurable: true,
     enumerable: false,
     get() {
-      const current = hooksStorage.getStore() ?? app;
-      return wrapApp(current as unknown as object);
+      const state = hooksStorage.getStore();
+      const current = state ? state.value : defaultApp;
+      return isAppLike(current) ? wrapApp(current) : current;
     },
     set(value) {
-      if (value) {
-        app = value as App;
+      const state = hooksStorage.getStore();
+      if (state) {
+        state.value = value;
+      } else {
+        defaultApp = value;
       }
     },
   });
