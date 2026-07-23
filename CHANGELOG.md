@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.39.9-pocketbun.0 - 2026-07-23
+
+- Now compatible with PocketBase `v0.39.9` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0399) (upstream commit `0cbfc046`).
+  - Speeds up large filter string literal parsing while aligning control character, escaped quote, and backslash handling.
+  - Includes the Admin UI fix for `Shift + Click` range selection in Firefox.
+
 ## 0.39.8-pocketbun.0 - 2026-07-20
 
 - Now compatible with PocketBase `v0.39.8` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0398) (upstream commit `cc4e8570`).

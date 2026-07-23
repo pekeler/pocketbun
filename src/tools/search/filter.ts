@@ -1,6 +1,6 @@
 // Ported from pocketbase/tools/search/filter.go
 
-// Note: upstream relies on fexpr parsing; this port uses a local lexer/parser.
+// Note: upstream relies on github.com/ganigeorgiev/fexpr/scanner.go; this port uses a local lexer/parser.
 // Keep behavior aligned with upstream even if the parsing implementation differs.
 
 import type { FieldResolver, ResolverResult } from "./field_resolver.ts";
@@ -494,7 +494,8 @@ function wrapLikeParams(params: unknown[]): unknown[] {
   return params.map((value) => {
     const stringValue = coerceToString(value);
     if (!containsUnescaped(stringValue, "%")) {
-      const escaped = escapeUnescaped(stringValue, ["%", "_"]);
+      // Preserve the original autoescape behavior while allowing explicit wildcards.
+      const escaped = escapeUnescaped(stringValue, ["\\", "%", "_"]);
       return `%${escaped}%`;
     }
     return stringValue;
@@ -502,7 +503,17 @@ function wrapLikeParams(params: unknown[]): unknown[] {
 }
 
 function containsUnescaped(value: string, char: string): boolean {
-  return value.includes(char);
+  let previous = "";
+
+  for (const current of value) {
+    if (current === char && previous !== "\\") {
+      return true;
+    }
+
+    previous = current === "\\" && previous === "\\" ? "" : current;
+  }
+
+  return false;
 }
 
 function escapeUnescaped(value: string, chars: string[]): string {
@@ -773,29 +784,44 @@ class Lexer {
   readString(quote: string): LexerToken {
     this.#pos += 1;
     let result = "";
+    let escapeNext = false;
+
     while (this.#pos < this.#input.length) {
       const char = this.#input[this.#pos] ?? "";
-      if (char === "\\") {
-        const next = this.#input[this.#pos + 1] ?? "";
-        if (next === quote) {
-          result += "\\";
-          result += next;
-          this.#pos += 2;
-          continue;
+
+      if (escapeNext) {
+        escapeNext = false;
+        switch (char) {
+          case "n":
+            result += "\n";
+            break;
+          case "r":
+            result += "\r";
+            break;
+          case "t":
+            result += "\t";
+            break;
+          case "\\":
+          case "'":
+          case '"':
+            result += char;
+            break;
+          default:
+            result += `\\${char}`;
+            break;
         }
-        result += "\\";
+      } else if (char === "\\") {
+        escapeNext = true;
+      } else if (char === quote) {
         this.#pos += 1;
-        continue;
+        return { type: "string", value: result };
+      } else {
+        result += char;
       }
-      if (char === quote) {
-        this.#pos += 1;
-        // Keep escaped wildcard/backslash sequences but collapse other double slashes.
-        const normalized = result.replace(/\\\\(?![%_])/g, "\\");
-        return { type: "string", value: normalized };
-      }
-      result += char;
+
       this.#pos += 1;
     }
+
     throw new Error("invalid string literal");
   }
 

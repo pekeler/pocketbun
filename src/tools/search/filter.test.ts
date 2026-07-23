@@ -1,4 +1,4 @@
-// Ported from pocketbase/tools/search/filter_test.go.
+// Ported from pocketbase/tools/search/filter_test.go and github.com/ganigeorgiev/fexpr/parser_test.go.
 
 import { describe, expect, it } from "bun:test";
 import { buildFilterExpr } from "./filter.ts";
@@ -207,7 +207,8 @@ describe("search filter", () => {
       test9 = {:test9} ||
       test10 = {:test10} ||
       test11 = {:test11} ||
-      test12 = {:test12}
+      test12 = {:test12} ||
+      test13 = {:test13}
     `;
 
     const replacements = [
@@ -215,10 +216,17 @@ describe("search filter", () => {
       { test2: false },
       { test3: 123.456 },
       { test4: null },
-      { test5: "", test6: "simple", test7: "'single_quotes'", test8: '"double_quotes"', test9: 'escape\\"quote' },
+      {
+        test5: "",
+        test6: "simple",
+        test7: "'single_quotes'",
+        test8: '"double_quotes"',
+        test9: "'\"quote_with_backslash\\",
+      },
       { test10: new Date("2023-01-01T00:00:00.000Z") },
-      { test11: ["a", "b", '"quote'] },
+      { test11: ["a", "'quote", '"quote'] },
       { test12: { a: 123, b: 'quote"' } },
+      { test13: "a\nb" },
     ];
 
     const expr = buildFilterExpr(filter, resolver, DefaultFilterExprLimit, replacements);
@@ -232,11 +240,33 @@ describe("search filter", () => {
     expect(rendered).toContain("([[test5]] = '' OR [[test5]] IS NULL)");
     expect(rendered).toContain("[[test6]] = 'simple'");
     expect(rendered).toContain("[[test7]] = '''single_quotes'''");
-    expect(rendered).toContain("[[test8]] = '\\\"double_quotes\\\"'");
-    expect(rendered).toContain("[[test9]] = 'escape\\\\\"quote'");
+    expect(rendered).toContain(`[[test8]] = '"double_quotes"'`);
+    expect(rendered).toContain(`[[test9]] = '''"quote_with_backslash\\'`);
     expect(rendered).toContain("[[test10]] = '2023-01-01T00:00:00.000Z'");
-    expect(rendered).toContain('[[test11]] = \'[\\"a\\",\\"b\\",\\"\\\\"quote\\"]\'');
-    expect(rendered).toContain('[[test12]] = \'{\\"a\\":123,\\"b\\":\\"quote\\\\"\\"}\'');
+    expect(rendered).toContain(`[[test11]] = '["a","''quote","\\"quote"]'`);
+    expect(rendered).toContain(`[[test12]] = '{"a":123,"b":"quote\\""}'`);
+    expect(rendered).toContain(`[[test13]] = 'a\nb'`);
+  });
+
+  it("parses escaped text literals", () => {
+    const resolver = new SimpleFieldResolver("test");
+    const scenarios = [
+      { filter: String.raw`test = 'a\b\c\d'`, expected: String.raw`a\b\c\d` },
+      { filter: String.raw`test = 'a\nb\r\t'`, expected: "a\nb\r\t" },
+      { filter: String.raw`test = 'te\'st'`, expected: "te'st" },
+      { filter: String.raw`test = "te\"st"`, expected: 'te"st' },
+      { filter: String.raw`test = "te\\\"st"`, expected: String.raw`te\"st` },
+      { filter: String.raw`test = "te\'st"`, expected: "te'st" },
+      { filter: String.raw`test = 'a\\'`, expected: "a\\" },
+    ];
+
+    for (const scenario of scenarios) {
+      const expr = buildFilterExpr(scenario.filter, resolver, DefaultFilterExprLimit);
+      expect(expr.params).toEqual([scenario.expected]);
+    }
+
+    expect(() => buildFilterExpr(String.raw`test = 'te\\'st'`, resolver, DefaultFilterExprLimit)).toThrow();
+    expect(() => buildFilterExpr(String.raw`test = "te\\"st"`, resolver, DefaultFilterExprLimit)).toThrow();
   });
 
   it("build filter expression with limit", () => {
@@ -294,7 +324,8 @@ describe("search filter", () => {
       test9 ~ {:p9} ||
       test10 ~ {:p10} ||
       test11 ~ {:p11} ||
-      test12 ~ {:p12}
+      test12 ~ {:p12} ||
+      test13 ~ {:p13}
     `;
 
     const replacements = [
@@ -310,13 +341,16 @@ describe("search filter", () => {
       { p10: "ab\\c" },
       { p11: "_ab\\c_" },
       { p12: "ab\\c%" },
+      { p13: "a\nb\\" },
     ];
 
     const expr = buildFilterExpr(filter, resolver, DefaultFilterExprLimit, replacements);
     const rendered = renderSql(expr.sql, expr.params);
 
     const expectedQuery =
-      "([[test1]] LIKE '%abc%' ESCAPE '\\' OR [[test2]] LIKE 'ab%c' ESCAPE '\\' OR [[test3]] LIKE 'ab\\\\%c' ESCAPE '\\' OR [[test4]] LIKE '%ab\\\\%c' ESCAPE '\\' OR [[test5]] LIKE 'ab\\\\\\%c' ESCAPE '\\' OR [[test6]] LIKE 'ab\\\\\\\\%c' ESCAPE '\\' OR [[test7]] LIKE '%ab\\_c%' ESCAPE '\\' OR [[test8]] LIKE '%ab\\\\_c%' ESCAPE '\\' OR [[test9]] LIKE '%ab_c' ESCAPE '\\' OR [[test10]] LIKE '%ab\\c%' ESCAPE '\\' OR [[test11]] LIKE '%\\_ab\\c\\_%' ESCAPE '\\' OR [[test12]] LIKE 'ab\\c%' ESCAPE '\\')";
+      String.raw`([[test1]] LIKE '%abc%' ESCAPE '\' OR [[test2]] LIKE 'ab%c' ESCAPE '\' OR [[test3]] LIKE '%ab\%c%' ESCAPE '\' OR [[test4]] LIKE '%ab\%c' ESCAPE '\' OR [[test5]] LIKE 'ab\\%c' ESCAPE '\' OR [[test6]] LIKE '%ab\\\%c%' ESCAPE '\' OR [[test7]] LIKE '%ab\_c%' ESCAPE '\' OR [[test8]] LIKE '%ab\_c%' ESCAPE '\' OR [[test9]] LIKE '%ab_c' ESCAPE '\' OR [[test10]] LIKE '%ab\\c%' ESCAPE '\' OR [[test11]] LIKE '%\_ab\\c\_%' ESCAPE '\' OR [[test12]] LIKE 'ab\c%' ESCAPE '\' OR [[test13]] LIKE '%a` +
+      "\n" +
+      String.raw`b\\%' ESCAPE '\')`;
 
     expect(stripParens(rendered)).toBe(stripParens(expectedQuery));
   });
