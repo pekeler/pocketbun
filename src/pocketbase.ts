@@ -174,7 +174,6 @@ export class PocketBase extends BaseApp {
       await this.bootstrapAsync();
     }
 
-    let commandErr: Error | null = null;
     let resolveDone: (() => void) | null = null;
     const done = new Promise<void>((resolve) => {
       resolveDone = resolve;
@@ -190,22 +189,13 @@ export class PocketBase extends BaseApp {
     process.once("SIGINT", signalHandler);
     process.once("SIGTERM", signalHandler);
 
-    void Promise.resolve(this.rootCmd.execute())
-      .then((err) => {
-        if (err) {
-          commandErr = err;
-        }
-        signalHandler();
-      })
-      .catch((err) => {
-        commandErr = err instanceof Error ? err : new Error(String(err));
-        signalHandler();
-      });
-
-    await done;
-
-    process.off("SIGINT", signalHandler);
-    process.off("SIGTERM", signalHandler);
+    let commandErr: Error | null;
+    try {
+      commandErr = await Promise.race([this.rootCmd.execute(), done.then(() => null)]);
+    } finally {
+      process.off("SIGINT", signalHandler);
+      process.off("SIGTERM", signalHandler);
+    }
 
     const terminateEvent = new TerminateEvent(this);
     const result = this.OnTerminate().Trigger(terminateEvent, (e) => {

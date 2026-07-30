@@ -1,162 +1,130 @@
-# Upgrade PocketBun Compatibility to PocketBase v0.39.9
+# Upgrade PocketBun Compatibility to PocketBase v0.39.10
 
 This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds. This document follows `.agents/PLANS.md`.
 
 ## Purpose / Big Picture
 
-PocketBun currently targets PocketBase v0.39.8. After this work, its package metadata, vendored Admin UI, and filter-expression behavior will target PocketBase v0.39.9. Users will receive the Firefox `Shift + Click` selection fix and filters will parse escaped quotes, backslashes, and control-character escapes like the new upstream `fexpr` v0.6 parser. A follow-up performance audit will also prove that parsing large string literals is faster than PocketBun v0.39.8 rather than assuming the upstream optimization carries over to Bun. The result is visible in focused filter tests, measured A/B results, exact Admin UI asset parity, and the repository's full validation gate.
+PocketBun currently targets PocketBase v0.39.9. After this work, its package metadata, command failure behavior, file-field compatibility tests, and vendored Admin UI will target PocketBase v0.39.10. CLI command callbacks that throw will reject instead of being converted into returned command errors, matching upstream's restored panic behavior, while ordinary returned command errors will continue to be returned. The result is visible through focused tests, exact Admin UI parity, and the repository's full validation gate.
 
 ## Progress
 
-- [x] (2026-07-23 06:48Z) Read the automation memory, repository instructions, ponytail coding skill, `.agents/PLANS.md`, `.agents/PERFORMANCE.md`, current version metadata, and prior v0.39.8 plan.
-- [x] (2026-07-23 06:51Z) Confirmed that PocketBase v0.39.9 is the latest official release at commit `0cbfc046` and inventoried its five commits and fifteen changed paths.
-- [x] (2026-07-23 06:54Z) Mapped the Admin UI change, Go-only goja updates, and `fexpr` v0.6 scanner behavior to PocketBun.
-- [x] (2026-07-23 06:58Z) Updated the upstream pin, package/docs version, changelog, vendored Admin UI, filter parser, and upstream-derived tests.
-- [x] (2026-07-23 06:59Z) Passed all six focused filter tests and verified exact Admin UI parity against the synchronized v0.39.9 checkout.
-- [x] (2026-07-23 07:05Z) Passed formatting, 1,896 concurrent tests, application and package typechecks, lint, version/docs checks, Admin UI parity, upstream mapping audit, and final diff review.
-- [x] (2026-07-23 07:23Z) Benchmarked PocketBun v0.39.8 and the v0.39.9 working tree twice on 64 KiB escaped/unescaped and 1 MiB unescaped filter literals.
-- [x] (2026-07-23 07:24Z) Confirmed the existing v0.39.9 one-pass scanner is consistently faster for large literals, so no additional hot-path code or dependency was needed.
+- [x] (2026-07-30 08:03Z) Read the automation memory, repository upgrade guide, ExecPlan instructions, Ponytail coding and review skills, and current repository state.
+- [x] (2026-07-30 08:03Z) Confirmed PocketBase v0.39.10 is the latest official mainline release at commit `0a74d2f2` and inventoried all 23 changed paths across seven commits.
+- [x] (2026-07-30 08:03Z) Mapped the upstream file-field nil handling, CLI panic behavior, Go-only SQLite dependency update, and Admin UI changes to PocketBun.
+- [x] (2026-07-30 08:05Z) Updated version metadata, changelog, vendored Admin UI, command execution behavior, and upstream-derived tests.
+- [x] (2026-07-30 08:06Z) Passed 21 focused tests, Admin UI parity, version/docs checks, and the upstream mapping audit with only the four pre-existing `plugins/ghupdate` gaps.
+- [x] (2026-07-30 08:10Z) Passed formatting, 1,897 concurrent tests, application and package typechecks, lint, deterministic docs checks, and diff checks.
+- [x] (2026-07-30 08:10Z) Completed the Ponytail complexity review with no simplification findings and left the working tree uncommitted for user review.
 
 ## Surprises & Discoveries
 
-- Observation: The release notes describe “minor filter improvements,” but the dependency bump changes observable literal values rather than only performance.
-  Evidence: `github.com/ganigeorgiev/fexpr` v0.6 changes quoted-text scanning so `\\n`, `\\r`, and `\\t` become control characters; escaped quote and backslash sequences are unescaped one character at a time. PocketBase updates `tools/search/filter_test.go` expected SQL accordingly.
-- Observation: The goja and regexp2 updates have no dependency equivalent in PocketBun.
-  Evidence: PocketBun runs server-side JavaScript in Bun rather than goja and has no goja or regexp2 package dependency.
-- Observation: The three source-level UI fixes are all compiled into the vendored `ui/dist` files PocketBun ships unchanged.
-  Evidence: Upstream modifies `ui/src/logs/logsList.js`, `ui/src/records/recordsList.js`, and `ui/src/settings/sync/pageExportCollections.js`; the tag diff also renames the compiled index asset and updates the HTML entrypoint.
-- Observation: Matching the new fexpr scanner also exposes the existing upstream distinction between escaped and explicit `%` wildcards.
-  Evidence: The v0.39.9 test now auto-wraps `ab\\%c` as `%ab\\%c%`, while an even number of preceding backslashes leaves `%` explicit. Porting `containsUnescapedChar` and backslash autoescaping alongside the lexer produces the exact upstream cases.
-- Observation: The upstream mapping audit remains unchanged apart from the new release work.
-  Evidence: It reports only the four pre-existing missing `plugins/ghupdate` source/test mappings; v0.39.9 introduces no unmapped source file.
-- Observation: Removing the v0.39.8 post-scan regular expression produces a measurable Bun speedup, especially when escapes are present.
-  Evidence: Two A/B runs measured the v0.39.9 scanner at 1.16–1.17× the throughput of v0.39.8 for 1 MiB plain literals and 1.49–1.56× for 64 KiB escape-heavy literals. The smaller 64 KiB plain case was 1.01–1.07× faster.
+- Observation: GitHub's rendered `/releases/latest` page initially still showed v0.39.9, while the live releases API already listed v0.39.10.
+  Evidence: `gh api repos/pocketbase/pocketbase/releases?per_page=10` returned v0.39.10 published at `2026-07-30T04:19:15Z` before the web page cache updated.
+- Observation: The upstream file-field source fix is already represented by PocketBun's JavaScript null handling.
+  Evidence: `FileField.toSliceValue` returns an empty array for `null` and recursively ignores null array entries, which matches the new Go checks for nil `*filesystem.File` values. Only the corresponding nested-null regression case is missing from the ported test.
+- Observation: The SQLite dependency bump is Go-runtime-specific.
+  Evidence: PocketBun uses Bun's `bun:sqlite`, not `modernc.org/sqlite`, so no package dependency maps to the upstream `go.mod`, `go.sum`, or `modernc_versions_check.go` edits.
+- Observation: Rebuilding from the unchanged pinned docs snapshot produced unrelated generated-output drift.
+  Evidence: `docs/users/extend.md` lost PocketBun-only hook-bundling guidance and changed unrelated casing even though `pocketbase_site_ref.txt` did not change. Those two generated files were restored to their pre-run state; `bun run docs:check` still passes with the scoped version metadata update.
 
 ## Decision Log
 
-- Decision: Port the `fexpr` v0.6 text-scanning semantics into PocketBun's existing local lexer instead of adding an npm parser dependency.
-  Rationale: `src/tools/search/filter.ts` intentionally implements the upstream grammar locally. A small change to `Lexer.readString` preserves the architecture, avoids a new dependency, and matches observable PocketBase behavior at the shared parser boundary.
-  Date/Author: 2026-07-23 / Codex
-- Decision: Port the changed PocketBase filter cases and relevant upstream fexpr scanner cases adjacent to `src/tools/search/filter.ts`.
-  Rationale: The repository requires corresponding upstream tests, and escaped-quote validity plus control characters are easiest to regress at the parser boundary.
-  Date/Author: 2026-07-23 / Codex
-- Decision: Work directly on clean `master`, leave all changes uncommitted, and create no branch.
-  Rationale: The repository uses trunk-based development and the user explicitly requested review before any commit.
-  Date/Author: 2026-07-23 / Codex
-- Decision: Keep the v0.39.9 scanner implementation unchanged after the A/B measurement.
-  Rationale: It already performs one pass and removes v0.39.8's full-literal cleanup regular expression. The measured large-literal cases are faster, so another buffer or scanning abstraction would be speculative and could add allocations.
-  Date/Author: 2026-07-23 / Codex
+- Decision: Port the upstream command panic change by allowing rejected command promises to propagate from `PocketBase.Execute`, while preserving the existing return path for ordinary `Error` values returned by commands.
+  Rationale: In PocketBun a thrown or rejected JavaScript error is the equivalent of an upstream panic. Returning it as a normal command error is the auto-recovery behavior that v0.39.10 deliberately reverted.
+  Date/Author: 2026-07-30 / Codex
+- Decision: Add the upstream nested nil-file scenario as `[null, f1]` without changing `FileField.toSliceValue`.
+  Rationale: JavaScript has no distinct typed nil pointer. The existing shared null branch already produces the new upstream behavior, and a focused regression test proves it without redundant code.
+  Date/Author: 2026-07-30 / Codex
+- Decision: Work directly on clean `master`, create no branch, and leave every change uncommitted.
+  Rationale: The repository uses trunk-based development and the automation explicitly requests review before commit.
+  Date/Author: 2026-07-30 / Codex
 
 ## Outcomes & Retrospective
 
-PocketBun now targets PocketBase v0.39.9 as `0.39.9-pocketbun.0`. Its vendored Admin UI exactly matches the v0.39.9 distribution and carries the Firefox range-selection workaround. The local filter lexer now follows fexpr v0.6 quoted-text behavior: control escapes decode correctly, quote and backslash escapes are consumed once, ordinary escaped characters remain escaped, and LIKE auto-wrapping distinguishes escaped from explicit `%` wildcards.
+PocketBun now targets PocketBase v0.39.10 as `0.39.10-pocketbun.0`. The vendored Admin UI exactly matches the new release and includes its logs-chart loading and layout improvements. Unexpected command callback throws now reject `PocketBase.execute()` instead of being converted into ordinary returned command errors, while deliberately returned command errors preserve their existing API. The upstream nil file-pointer behavior required no production change because JavaScript null values were already ignored; the ported regression test now pins nested null handling.
 
-No dependency or public API was added. PocketBase's goja and regexp2 updates are Go-runtime-specific because PocketBun executes JavaScript in Bun. The parser stays a single-pass state machine and eliminates v0.39.8's post-scan regular expression. Exact-source A/B benchmarks confirmed 16–17% higher throughput for 1 MiB plain literals and 49–56% higher throughput for 64 KiB escape-heavy literals, so no further speculative rewrite was justified.
-
-The complete gate passed 1,896 tests across 242 files with zero failures, 10,083 assertions, and seven snapshots. Formatting, application and package typechecks, lint, version/docs checks, vendored-asset parity, and diff checks all passed. Changes remain uncommitted on `master` for review, as requested.
+No dependency or public signature was added. PocketBase's `modernc.org/sqlite` update is Go-specific because PocketBun uses `bun:sqlite`. The complete gate passed 1,897 tests across 242 files with zero failures, 10,086 assertions, and seven snapshots. Formatting, application and package typechecks, lint, generated docs checks, version checks, vendored-asset parity, and whitespace checks all passed. The mapping audit still reports only four pre-existing `plugins/ghupdate` gaps. The final Ponytail review found no unnecessary abstraction or code to remove. Changes remain uncommitted on `master` for review.
 
 ## Context and Orientation
 
-PocketBun is a Bun-native TypeScript port of PocketBase. Observable compatibility includes filter syntax and matching behavior as well as the static Admin UI. `pocketbase_tag.txt` pins the PocketBase tag, while `package.json` uses the matching version with a `-pocketbun.0` suffix for the first PocketBun release against a new upstream version. `docs/_data/pocketbun.yml` is generated from that package version. `CHANGELOG.md` records user-visible compatibility updates.
+PocketBun is a Bun-native TypeScript port of PocketBase. `pocketbase_tag.txt` pins the upstream release. `package.json` uses the matching version with a `-pocketbun.0` suffix, and `docs/_data/pocketbun.yml` mirrors that package version. `CHANGELOG.md` records user-visible compatibility changes.
 
-The filter parser lives in `src/tools/search/filter.ts`; its adjacent `src/tools/search/filter.test.ts` is ported from PocketBase's `tools/search/filter_test.go`. PocketBase uses the Go module `fexpr` to scan filter strings. PocketBun instead has a local `Lexer` and `Parser` so there is no Go or npm parser dependency. Placeholder values are serialized into quoted filter literals and then parsed back into SQL parameters, making quoted-literal escape behavior observable in API filter parameters.
+The PocketBun application wrapper is `src/pocketbase.ts`. Its `PocketBase.Execute` method bootstraps the app, starts the selected root command, waits for command completion or a termination signal, triggers termination hooks, and returns ordinary command errors. `src/pocketbase.test.ts` pins this behavior. PocketBase v0.39.10 removes a panic-recovering goroutine wrapper around root command execution so a panic once again terminates with a non-zero status. In JavaScript, an unexpected callback throw or rejected promise is the corresponding failure mode.
 
-The unchanged compiled PocketBase Admin UI lives in `vendor/pocketbase-admin-ui/dist`. Running `bun run upstream:sync` checks out the tag from `pocketbase_tag.txt`, replaces this directory with `.upstream/pocketbase/ui/dist`, stages the vendored asset changes, and then removes only the upstream checkout's `.git` metadata. `.upstream/pocketbase` remains a read-only source reference and must never be committed.
+File normalization lives in `src/core/field_file.ts`, with the ported upstream tests adjacent in `src/core/field_file.test.ts`. A JavaScript `null` represents both an untyped nil and a nil pointer for this boundary. The current recursive normalization already discards null values.
+
+The compiled PocketBase Admin UI is vendored unchanged in `vendor/pocketbase-admin-ui/dist`. Running `bun run upstream:sync` checks out the tag from `pocketbase_tag.txt`, replaces the vendored distribution with `.upstream/pocketbase/ui/dist`, stages the generated asset changes, and removes only the upstream checkout's Git metadata. `.upstream/pocketbase` is ignored and read-only reference material.
 
 ## Plan of Work
 
-First, set `pocketbase_tag.txt` to `v0.39.9`, `package.json` and the generated docs version to `0.39.9-pocketbun.0`, and add a dated changelog entry naming upstream commit `0cbfc046`. Run `bun run upstream:sync` so the exact v0.39.9 source and compiled Admin UI are available locally. Confirm that the vendored distribution matches the upstream directory byte-for-byte.
+First, set `pocketbase_tag.txt` to `v0.39.10`, set `package.json` and generated docs metadata to `0.39.10-pocketbun.0`, and add a dated changelog section linked to the upstream v0.39.10 notes and commit `0a74d2f2`. Run `bun run upstream:sync` to refresh both the ignored source reference and the exact compiled Admin UI.
 
-Second, change `Lexer.readString` in `src/tools/search/filter.ts` to maintain a single `escapeNext` state. When escaped, translate `n`, `r`, and `t` to their control characters; remove the escape prefix from backslash and either quote type; preserve the prefix for ordinary characters such as `%`, `_`, and `c`. Only an unescaped quote matching the opening quote ends the literal. This is the direct TypeScript equivalent of fexpr v0.6 without changing the rest of the parser or adding abstractions.
+Second, minimally adjust `PocketBase.Execute` in `src/pocketbase.ts` so a rejection from `rootCmd.execute()` rejects the enclosing execution instead of being assigned to `commandErr`. Keep signal listener cleanup reliable and retain the termination hook path for normal command completion and external termination. Add an adjacent test proving returned command errors remain returned and thrown command failures reject.
 
-Third, update `src/tools/search/filter.test.ts` mechanically from the new upstream `tools/search/filter_test.go`: add the newline placeholder and newline-like case, and replace the expected backslash wrapping values. Add compact parser cases derived from upstream fexpr v0.6 for newline, carriage return, tab, escaped single/double quotes, trailing escaped backslashes, and invalid even-backslash quote sequences. These tests should fail under the v0.39.8 lexer and pass after the shared fix.
+Third, port the new file-field nil-pointer scenario into `src/core/field_file.test.ts` as an array containing `null` followed by a real file. Do not edit `src/core/field_file.ts` unless the test reveals a mismatch, because its shared null handling already matches upstream.
 
-Finally, run the focused filter file and the repository's complete gate. Because this parser is a request-time hot path, review the new loop for avoidable allocations; the intended state-machine change remains one pass and does not introduce regular expressions or extra intermediate strings inside the loop. Review every changed file and leave the tree uncommitted for the user.
-
-For the performance follow-up, load the v0.39.8 `src/tools/search/filter.ts` from `git show HEAD:src/tools/search/filter.ts` and the working-tree version through the same Bun transpiler. Expose only each module's private `Lexer.readString` through a temporary benchmark hook, alternate measurement order, and compare median throughput across nine samples. Use 64 KiB plain and escape-heavy literals plus a 1 MiB plain literal so both escape processing and the removed full-string cleanup pass are represented.
+Finally, run focused tests and the full repository gate. Verify the vendored Admin UI byte-for-byte against the synchronized upstream checkout, run the mapping audit, review every changed file, and apply the Ponytail review format to the final diff. Leave the tree uncommitted.
 
 ## Concrete Steps
 
 Work from `/Users/pekeler/Projects/pocketbun`.
 
-1. Edit `pocketbase_tag.txt`, `package.json`, `CHANGELOG.md`, and `.agents/EXECPLAN.md` with `apply_patch`; regenerate `docs/_data/pocketbun.yml` using `bun run docs:version`.
-2. Run `bun run upstream:sync` and inspect `.upstream/pocketbase` plus the staged Admin UI asset diff.
-3. Edit `src/tools/search/filter.ts` and `src/tools/search/filter.test.ts` with `apply_patch`.
-4. Run `bun test src/tools/search/filter.test.ts` and expect every case to pass.
-5. Run:
-
-       bun run format:fix
-       bun test --concurrent
-       bun run typecheck
-       bun run typecheck:package
-       bun run lint
-       bun run check:versions
-       bun run docs:check
-       git diff --check
-
-6. Compare `vendor/pocketbase-admin-ui/dist` with `.upstream/pocketbase/ui/dist`, inspect `git status --short`, and review the complete uncommitted diff.
-7. Run the temporary exact-source benchmark twice with `bun .tmp/filter_literal_bench.ts`, record the medians below, and remove the temporary harness before handoff.
+1. Edit `.agents/EXECPLAN.md`, `pocketbase_tag.txt`, `package.json`, and `CHANGELOG.md` with `apply_patch`; regenerate docs metadata with `bun run docs:version`.
+2. Run `bun run upstream:sync` and inspect the v0.39.9 to v0.39.10 source and vendored asset changes.
+3. Edit `src/pocketbase.ts`, `src/pocketbase.test.ts`, and `src/core/field_file.test.ts` with `apply_patch`.
+4. Run `bun test src/pocketbase.test.ts src/core/field_file.test.ts` and expect every case to pass.
+5. Run `bun run upstream:audit` and compare `vendor/pocketbase-admin-ui/dist` with `.upstream/pocketbase/ui/dist`.
+6. Run `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run typecheck:package`, and `bun run lint`.
+7. Run `bun run check:versions`, `bun run docs:check`, `git diff --check`, and inspect the complete uncommitted diff.
 
 ## Validation and Acceptance
 
-The upgrade is accepted when `pocketbase_tag.txt` contains `v0.39.9`; package and docs metadata contain `0.39.9-pocketbun.0`; the changelog names v0.39.9 and commit `0cbfc046`; and the vendored Admin UI exactly matches upstream v0.39.9. Filter tests must prove that placeholders containing newline characters survive parsing, escaped quotes are decoded once, ordinary escaped characters retain their backslash, and like-pattern escaping matches the v0.39.9 upstream expected values.
+The upgrade is accepted when `pocketbase_tag.txt` contains `v0.39.10`; package and docs metadata contain `0.39.10-pocketbun.0`; the changelog names v0.39.10 and upstream commit `0a74d2f2`; and the vendored Admin UI exactly matches upstream v0.39.10. A focused command test must show that a returned `Error` remains the resolved `PocketBase.execute()` result while a thrown error rejects. The file-field test must show that `[null, file]` serializes exactly like `[file]`.
 
-All required format, test, typecheck, and lint commands must exit zero without warnings. Repository-specific package, docs, and version checks must pass. `git diff --check` must report no whitespace errors. No commit or branch should be created.
-
-For the performance acceptance criterion, the v0.39.9 working-tree scanner must exceed v0.39.8 median throughput in both repeated 1 MiB plain-literal runs and both repeated 64 KiB escape-heavy runs. The benchmark must time the actual old and new `Lexer.readString` implementations, excluding transpilation and input construction.
+All required format, concurrent test, application and package typecheck, and lint commands must exit zero without warnings. Repository-specific mapping, version, docs, asset parity, and whitespace checks must pass or any pre-existing mapping exceptions must be explicitly identified. No commit or branch may be created.
 
 ## Idempotence and Recovery
 
-`bun run upstream:sync` is safe to rerun after setting the tag and deterministically replaces only the ignored upstream checkout plus the vendored Admin UI distribution. Version generation is deterministic. Preserve user changes and never use reset or checkout to discard work. If a test fails, repair only the scoped parser or test expectation and rerun the same stable command.
+`bun run upstream:sync` is safe to rerun after setting the tag and deterministically replaces only the ignored upstream checkout plus the vendored Admin UI distribution. Version and docs generation are deterministic. Preserve user changes and never use reset or checkout to discard work. If a validation step fails, repair only the scoped compatibility change and rerun the stable command.
 
 ## Artifacts and Notes
 
 Initial state:
 
     Branch: master, clean and aligned with origin/master
-    PocketBase pin: v0.39.8
-    PocketBun version: 0.39.8-pocketbun.0
-    Current commit: 6bc7c0e7 Upgrade PocketBase compatibility to v0.39.8
+    PocketBase pin: v0.39.9
+    PocketBun version: 0.39.9-pocketbun.0
+    Current commit: 059c624c Upgrade PocketBase compatibility to v0.39.9
 
 Release evidence:
 
-    PocketBase release: v0.39.9, marked Latest
-    Release commit: 0cbfc046
-    Release time shown by GitHub: 22 Jul 17:22
-    Tag range: 5 commits, 15 changed paths
+    PocketBase release: v0.39.10
+    Release commit: 0a74d2f25d6decfc9bd0fc64656ec431f23bf610
+    Published: 2026-07-30T04:19:15Z
+    Tag range: 7 commits, 23 changed paths
 
 Focused validation evidence:
 
-    6 pass, 0 fail, 55 assertions — bun test src/tools/search/filter.test.ts
+    21 pass, 0 fail, 255 assertions — bun test src/pocketbase.test.ts src/core/field_file.test.ts
     no differences — diff -qr .upstream/pocketbase/ui/dist vendor/pocketbase-admin-ui/dist
 
 Final validation evidence:
 
-    1896 pass, 0 fail, 10083 assertions, 7 snapshots — bun test --concurrent
+    1897 pass, 0 fail, 10086 assertions, 7 snapshots — bun test --concurrent
     pass — bun run format:fix
     pass — bun run typecheck
     pass — bun run typecheck:package
-    pass — bun run lint (0 warnings, 0 errors across 587 files)
+    pass — bun run lint (0 warnings, 0 errors across 588 files)
     pass — bun run check:versions
     pass — bun run docs:check
     pass — git diff --check and staged diff check
     pass — vendored Admin UI parity
-
-Large-literal A/B evidence (`bun .tmp/filter_literal_bench.ts`, nine samples per version/case, median throughput):
-
-    Run 1 — 64 KiB plain:   134.8 -> 144.3 MiB/s (1.07x)
-    Run 1 — 64 KiB escaped: 107.3 -> 167.2 MiB/s (1.56x)
-    Run 1 — 1 MiB plain:    100.2 -> 115.9 MiB/s (1.16x)
-    Run 2 — 64 KiB plain:   136.6 -> 138.3 MiB/s (1.01x)
-    Run 2 — 64 KiB escaped: 106.8 -> 159.3 MiB/s (1.49x)
-    Run 2 — 1 MiB plain:    101.3 -> 118.7 MiB/s (1.17x)
+    known only — upstream mapping audit reports the four pre-existing plugins/ghupdate gaps
 
 ## Interfaces and Dependencies
 
-No new package is allowed or needed. Keep the public `buildFilterExpr(filter, resolver, maxExpressions, replacements)` interface unchanged. Modify only the private `Lexer.readString` behavior and its adjacent tests. Continue using Bun, TypeScript, and the existing local parser, store, resolver, and SQL expression helpers. The goja, regexp2, and Go fexpr modules remain upstream reference dependencies only.
+No new package is allowed or needed. Keep `PocketBase.Execute(): Promise<Error | null>` and its lower-camel alias signature unchanged: a thrown callback is represented by promise rejection, while ordinary command failures continue to resolve to `Error`. Keep `FileField` public methods unchanged. Continue using Bun's native SQLite implementation; the modernc dependency remains an upstream-only implementation detail.
 
-Revision note, 2026-07-23 / Codex: Replaced the completed v0.39.8 plan with a self-contained v0.39.9 compatibility plan after confirming the new release and mapping its filter parser and Admin UI changes.
+Revision note, 2026-07-30 / Codex: Replaced the completed v0.39.9 plan with a self-contained v0.39.10 compatibility plan after confirming the live release and mapping all upstream changes.
 
-Revision note, 2026-07-23 / Codex: Closed the plan with implemented parser/UI/version changes, exact validation evidence, runtime-specific dependency classification, and the requested uncommitted review state.
-
-Revision note, 2026-07-23 / Codex: Added the requested large-literal performance audit, recorded two exact-source A/B runs, and confirmed the existing one-pass v0.39.9 scanner is faster without further code changes.
+Revision note, 2026-07-30 / Codex: Closed the plan with the implemented CLI, file-field, UI, version, and changelog updates; full validation evidence; docs-rebuild drift handling; Ponytail review; and the requested uncommitted state.

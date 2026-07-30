@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.39.10-pocketbun.0 - 2026-07-30
+
+- Now compatible with PocketBase `v0.39.10` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v03910) (upstream commit `0a74d2f2`).
+  - Restores non-zero CLI failure behavior when command callbacks throw unexpectedly.
+  - Includes Admin UI loading and layout improvements for the logs chart.
+
 ## 0.39.9-pocketbun.0 - 2026-07-23
 
 - Now compatible with PocketBase `v0.39.9` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0399) (upstream commit `0cbfc046`).

@@ -163,6 +163,38 @@ describe("pocketbase", () => {
     }
   });
 
+  it.serial("execute rejects when command callbacks throw", async () => {
+    const original = [...process.argv];
+    const tempDir = await mkdtemp(join(tmpdir(), "temp_pb_data-"));
+    let app: ReturnType<typeof newPocketBaseWithConfig> | null = null;
+
+    try {
+      process.argv = original.slice(0, 2);
+      process.argv.push("custom");
+
+      app = newPocketBaseWithConfig({ defaultDataDir: tempDir });
+      app.rootCmd.addCommand(
+        new Command({
+          use: "custom",
+          runE: () => {
+            throw new Error("custom command panicked");
+          },
+        }),
+      );
+
+      const rejection = await app.execute().then(
+        () => null,
+        (err: unknown) => err,
+      );
+      expect(rejection).toBeInstanceOf(Error);
+      expect((rejection as Error).message).toBe("custom command panicked");
+    } finally {
+      process.argv = original;
+      app?.resetBootstrapState();
+      await removeDirWithRetry(tempDir);
+    }
+  });
+
   it("version resolves to the PocketBun package version", () => {
     expect(version).not.toBe("(untracked)");
     expect(version).toContain("-pocketbun.");

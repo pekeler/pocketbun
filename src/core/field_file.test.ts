@@ -97,6 +97,11 @@ describe("file field", () => {
           field: Object.assign(new FileField(), { MaxSelect: 2 }),
           expected: `[${JSON.stringify(f1)}]`,
         },
+        {
+          raw: [null, f1],
+          field: Object.assign(new FileField(), { MaxSelect: 2 }),
+          expected: `[${JSON.stringify(f1)}]`,
+        },
         { raw: [], field: Object.assign(new FileField(), { MaxSelect: 2 }), expected: "[]" },
         {
           raw: ["a", "b", "c"],
