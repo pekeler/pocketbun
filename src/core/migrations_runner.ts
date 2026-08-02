@@ -11,6 +11,10 @@ export const DefaultMigrationsTable = "_migrations";
 export const AppMigrations = new MigrationsList();
 export const SystemMigrations = new MigrationsList();
 
+// PocketBun deviation: startup runners share one Bun database connection, so
+// initialize their shared history table only once per connection.
+const initializedMigrationsTables = new WeakSet<object>();
+
 // MigrationsRunner defines a simple struct for managing the execution of db migrations.
 export class MigrationsRunner {
   #app: App;
@@ -76,7 +80,7 @@ export class MigrationsRunner {
 
         let reverted: string[] = [];
         try {
-          reverted = this.down(toRevertCount);
+          reverted = this.downMigrations(names, toRevertCount);
         } catch (err) {
           return err as Error;
         }
@@ -111,11 +115,23 @@ export class MigrationsRunner {
 
   up(): string[] {
     this.initMigrationsTable();
+    const migrations = this.#migrationsList.items();
+    if (migrations.length === 0) {
+      return [];
+    }
+
+    // PocketBun deviation: load the history once instead of querying it for
+    // every migration, and skip the transaction when there is no work.
+    const appliedNames = this.appliedMigrationNames(this.#app);
+    if (migrations.every((migration) => appliedNames.has(migration.file) && !migration.reapplyCondition)) {
+      return [];
+    }
+
     const applied: string[] = [];
     const txErr = this.#app.AuxRunInTransactionSync((txApp) =>
       txApp.RunInTransactionSync((txApp) => {
-        for (const migration of this.#migrationsList.items()) {
-          const alreadyApplied = this.isMigrationApplied(txApp, migration.file);
+        for (const migration of migrations) {
+          const alreadyApplied = appliedNames.has(migration.file);
           if (alreadyApplied) {
             if (!migration.reapplyCondition) {
               continue;
@@ -135,9 +151,11 @@ export class MigrationsRunner {
             if (revertedErr) {
               return new Error(`failed to clear migration history for ${migration.file}: ${revertedErr.message}`);
             }
+            appliedNames.delete(migration.file);
           }
 
           if (migration.up) {
+            printMigrationLog(txApp, "Applying", migration.file);
             try {
               migration.up(txApp);
             } catch (err) {
@@ -149,6 +167,7 @@ export class MigrationsRunner {
           if (appliedErr) {
             return new Error(`failed to save applied migration info for ${migration.file}: ${appliedErr.message}`);
           }
+          appliedNames.add(migration.file);
           applied.push(migration.file);
         }
         return null;
@@ -167,7 +186,14 @@ export class MigrationsRunner {
 
   down(toRevertCount: number): string[] {
     this.initMigrationsTable();
-    const names = this.lastAppliedMigrations(toRevertCount);
+    return this.downMigrations(this.lastAppliedMigrations(toRevertCount), toRevertCount);
+  }
+
+  private downMigrations(names: string[], toRevertCount: number): string[] {
+    if (names.length === 0 || toRevertCount <= 0) {
+      return [];
+    }
+
     const reverted: string[] = [];
     const txErr = this.#app.AuxRunInTransactionSync((txApp) =>
       txApp.RunInTransactionSync((txApp) => {
@@ -182,6 +208,7 @@ export class MigrationsRunner {
           }
 
           if (migration.down) {
+            printMigrationLog(txApp, "Reverting", migration.file);
             try {
               migration.down(txApp);
             } catch (err) {
@@ -241,19 +268,23 @@ export class MigrationsRunner {
       return;
     }
 
-    this.#app
-      .db()
-      .query(`create table if not exists ${this.#tableName} (file text primary key not null, applied integer not null)`)
-      .run();
+    const db = this.#app.db();
+    if (initializedMigrationsTables.has(db)) {
+      this.#inited = true;
+      return;
+    }
+
+    db.query(`create table if not exists ${this.#tableName} (file text primary key not null, applied integer not null)`).run();
+    initializedMigrationsTables.add(db);
     this.#inited = true;
   }
 
-  private isMigrationApplied(app: App, file: string): boolean {
-    const row = app
+  private appliedMigrationNames(app: App): Set<string> {
+    const rows = app
       .db()
-      .query(`select 1 as found from ${this.#tableName} where file = ? limit 1`)
-      .get(file) as { found?: number } | undefined;
-    return Boolean(row?.found);
+      .query(`select file from ${this.#tableName}`)
+      .all() as Array<{ file: string }>;
+    return new Set(rows.map((row) => row.file));
   }
 
   private saveAppliedMigration(app: App, file: string): Error | null {
@@ -306,4 +337,10 @@ export class MigrationsRunner {
 
 export function NewMigrationsRunner(app: App, migrationsList: MigrationsList): MigrationsRunner {
   return new MigrationsRunner(app, migrationsList);
+}
+
+function printMigrationLog(app: App, action: "Applying" | "Reverting", file: string): void {
+  if (app.IsDev()) {
+    process.stderr.write(`${action} migration ${file}\n`);
+  }
 }

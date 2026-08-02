@@ -13,7 +13,7 @@ import { LogsTableName, type Log } from "./log_model.ts";
 import { printLog } from "./log_printer.ts";
 
 describe("BaseApp logger", () => {
-  it("prints logs in dev mode", async () => {
+  it.serial("prints logs in dev mode", async () => {
     const testLogLevel = 4;
 
     const scenarios = [

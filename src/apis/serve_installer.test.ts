@@ -42,8 +42,13 @@ describe("serve installer", () => {
       await rm(dataDir, { recursive: true, force: true });
     }
 
-    const appliedChecks = stderr.match(/select 1 as found from _migrations where file = \? limit 1/g) ?? [];
-    expect(appliedChecks.length).toBe(SystemMigrations.Items().length);
+    expect(stderr.match(/create table if not exists _migrations/g)).toHaveLength(1);
+    expect(stderr.match(/select file from _migrations/g)).toHaveLength(1);
+    expect(stderr).not.toContain("select 1 as found from _migrations");
+    for (const migration of SystemMigrations.Items()) {
+      const marker = `Applying migration ${migration.file}`;
+      expect(stderr.split(marker)).toHaveLength(2);
+    }
   });
 
   it("supports async OnServe hooks in serveAsync", async () => {

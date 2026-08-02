@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Improved dev migration logs to name each applied or reverted migration, batch history checks, and avoid no-op transactions.
+
 ## 0.39.10-pocketbun.0 - 2026-07-30
 
 - Now compatible with PocketBase `v0.39.10` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v03910) (upstream commit `0a74d2f2`).
