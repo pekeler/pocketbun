@@ -171,6 +171,8 @@ Add tests whenever:
 - If PocketBun intentionally deviates from PocketBase behavior, document it explicitly (README / docs).
 - For non-trivial code changes, do a quick performance review of affected paths; if there is potentially measurable overhead/regression, apply a simple optimization before merge (or document why not).
 - Keep `/CHANGELOG.md` up to date: every important user-facing change must be recorded under an appropriate version (or `Unreleased`) before release.
+- Treat every dated version section and every version with a matching Git tag as immutable released history. Never add new changes to one of those sections.
+- Put post-release changes under the top-level `Unreleased` section, creating it if missing. Do not assume the version in `package.json` is unreleased; it remains at the latest released version until the next release is prepared.
 - Keep changelog entries concise and outcome-focused; skip internal-only details (tests, refactors, CI/tooling churn) unless they directly affect users.
 - Write changelog entries from the user's point of view: lead with what is new, better, or fixed for users, not with implementation details or the internal work log.
 - Treat the changelog as lightly promotional as well as informative: it should help existing and potential users feel PocketBun is making meaningful progress, without turning into hype or marketing fluff.
