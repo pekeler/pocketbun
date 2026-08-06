@@ -67,7 +67,7 @@ export async function recordRequestOTP(app: App, event: RequestEvent): Promise<R
 
       let totalRecent = 0;
       for (const existing of otps) {
-        if (!existing.HasExpired(collection.OTP.DurationTime())) {
+        if (!existing.HasExpired(collection.OTP.DurationTime() * 1000)) {
           totalRecent += 1;
         }
         if (totalRecent > 9) {

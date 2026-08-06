@@ -171,6 +171,9 @@ const scenarios: Scenario[] = [
       otp.SetCollectionRef(user.collection().Id);
       otp.SetRecordRef(user.Id);
       otp.ProxyRecord().SetPassword("123456");
+      const created = NowDateTime().Add(-1000);
+      otp.ProxyRecord().SetRaw("created", created);
+      otp.ProxyRecord().SetRaw("updated", created);
       const err = await app.Save(otp);
       if (err) {
         throw new Error(err.message);

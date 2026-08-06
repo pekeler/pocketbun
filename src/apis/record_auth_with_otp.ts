@@ -57,7 +57,7 @@ export async function recordAuthWithOTP(app: App, event: RequestEvent): Promise<
     return badRequest(event, "Invalid or expired OTP");
   }
 
-  if (otp.HasExpired(collection.OTP.DurationTime())) {
+  if (otp.HasExpired(collection.OTP.DurationTime() * 1000)) {
     return badRequest(event, "Invalid or expired OTP");
   }
 
