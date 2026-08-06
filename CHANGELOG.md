@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.39.10-pocketbun.1 (Unreleased)
 
 - Improved dev migration logs to name each applied or reverted migration, batch history checks, and avoid no-op transactions.
 - Fixed OTP authentication and request limiting so configured OTP durations are honored in seconds instead of milliseconds.
