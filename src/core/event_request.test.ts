@@ -68,6 +68,13 @@ describe("RequestEvent", () => {
         useLeftmostIP: true,
         expected: "1.1.1.5",
       },
+      {
+        name: "trusted IPv6 is expanded",
+        headers: { "X-Forwarded-For": [":::,2001:DB8::1"] },
+        trustedHeaders: ["x-forwarded-for"],
+        useLeftmostIP: true,
+        expected: "2001:0db8:0000:0000:0000:0000:0000:0001",
+      },
     ];
 
     for (const scenario of scenarios) {

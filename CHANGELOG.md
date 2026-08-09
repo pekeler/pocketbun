@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed trusted-proxy IPv6 normalization so equivalent address formats no longer trigger duplicate new-location login alerts.
+
 ## 0.39.10-pocketbun.1 - 2026-08-07
 
 - Improved dev migration logs to name each applied or reverted migration, batch history checks, and avoid no-op transactions.

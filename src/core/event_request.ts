@@ -1,6 +1,7 @@
 // Ported from pocketbase/core/event_request.go
 
 import type { App } from "./app.ts";
+import { normalizeIP } from "../internal/compat/ip.ts";
 import { readRequestTextAndRebind } from "../internal/compat/request_body.ts";
 import { Event } from "../tools/router/event.ts";
 import { Record as RecordModel } from "./record_model.ts";
@@ -69,6 +70,15 @@ export class RequestEvent extends Event {
     }
   }
 
+  // RealIP returns the "real" IP address from the configured trusted proxy headers.
+  //
+  // If Settings.TrustedProxy is not configured or the found IP is empty,
+  // it fallbacks to e.RemoteIP().
+  //
+  // NB!
+  // Be careful when used in a security critical context as it relies on
+  // the trusted proxy to be properly configured and your app to be accessible only through it.
+  // If you are not sure, use e.RemoteIP().
   realIP(): string {
     const settings = this.app.settings();
 
@@ -89,8 +99,9 @@ export class RequestEvent extends Event {
 
       if (settings.trustedProxy.useLeftmostIP) {
         for (const ip of ips) {
-          if (isValidIP(ip)) {
-            return ip;
+          const normalized = normalizeIP(ip);
+          if (normalized) {
+            return normalized;
           }
         }
       } else {
@@ -99,8 +110,9 @@ export class RequestEvent extends Event {
           if (!ip) {
             continue;
           }
-          if (isValidIP(ip)) {
-            return ip;
+          const normalized = normalizeIP(ip);
+          if (normalized) {
+            return normalized;
           }
         }
       }
@@ -307,23 +319,4 @@ function parseRequestInfoHeaders(headers: Headers): Record<string, string> {
     out[normalizedKey] = value;
   }
   return out;
-}
-
-function isValidIP(ip: string): boolean {
-  if (ip.includes(":")) {
-    return /^[0-9a-fA-F:]+$/.test(ip);
-  }
-
-  const parts = ip.split(".");
-  if (parts.length !== 4) {
-    return false;
-  }
-
-  return parts.every((part) => {
-    if (!/^[0-9]+$/.test(part)) {
-      return false;
-    }
-    const value = Number(part);
-    return value >= 0 && value <= 255;
-  });
 }

@@ -12,6 +12,16 @@ export function isIPOrSubnet(value: string): boolean {
   return parseIPOrSubnet(value) !== null;
 }
 
+export function normalizeIP(value: string): string | null {
+  const version = isIP(value);
+  if (version === 4) {
+    return value;
+  }
+
+  const groups = version === 6 ? expandIPv6(value) : null;
+  return groups?.map((group) => group.toString(16).padStart(4, "0")).join(":") ?? null;
+}
+
 export function isIPInList(ipsOrSubnets: string[], ip: string): boolean {
   if (ipsOrSubnets.length === 0 || ip === "") {
     return false;
