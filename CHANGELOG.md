@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.39.11-pocketbun.0 - 2026-08-14
 
+- Now compatible with PocketBase `v0.39.11` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v03911) (upstream commit `5d217ddb`).
+  - Corrects Admin UI API previews for record creation, OAuth2 authentication, and realtime subscriptions.
+  - Includes Admin UI keyboard, drag-and-drop, collection duplication, file handling, and search filter improvements.
 - Fixed trusted-proxy IPv6 normalization so equivalent address formats no longer trigger duplicate new-location login alerts.
 
 ## 0.39.10-pocketbun.1 - 2026-08-07
