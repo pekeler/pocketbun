@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-- Fixed the superuser SQL endpoint for read queries on Bun 1.4 while preserving compatibility with earlier Bun releases.
+- Fixed the superuser SQL endpoint for read queries on Bun 1.4.
+- Fixed realtime disconnect cleanup on Bun 1.4 so clients are removed before their SSE streams close.
 
 ## 0.39.11-pocketbun.0 - 2026-08-14
 

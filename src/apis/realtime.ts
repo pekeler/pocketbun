@@ -103,13 +103,9 @@ function realtimeConnect(event: RequestEvent): Response {
       };
 
       const signal = event.request.signal;
-      if (signal) {
-        const abortHandler = () => closeStream();
-        if (signal.aborted) {
-          abortHandler();
-          return;
-        }
-        signal.addEventListener("abort", abortHandler, { once: true });
+      if (signal.aborted) {
+        closeStream();
+        return;
       }
 
       const result = await event.app.OnRealtimeConnectRequest().Trigger(connectEvent, async (ce) => {
