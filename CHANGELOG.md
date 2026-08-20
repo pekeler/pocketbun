@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed the superuser SQL endpoint for read queries on Bun 1.4 while preserving compatibility with earlier Bun releases.
+
 ## 0.39.11-pocketbun.0 - 2026-08-14
 
 - Now compatible with PocketBase `v0.39.11` [changelog](https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v03911) (upstream commit `5d217ddb`).

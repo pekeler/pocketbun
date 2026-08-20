@@ -133,9 +133,10 @@ async function executeQuery(app: App, query: string, maxRows: number): Promise<R
     }
 
     const stmt = db.query(lastStatement) as Statement<Record<string, unknown>, never[]>;
-    const native = (stmt as unknown as { native?: StatementNativeMetadata }).native;
+    // Bun requires the statement to be executed before accessing declaredTypes.
+    const rows = stmt.values() as unknown[][];
     const columnNames = stmt.columnNames ?? [];
-    const declaredTypes = native?.declaredTypes ?? [];
+    const declaredTypes = stmt.declaredTypes ?? [];
 
     for (let i = 0; i < columnNames.length; i++) {
       result.columns.push({
@@ -145,7 +146,6 @@ async function executeQuery(app: App, query: string, maxRows: number): Promise<R
       });
     }
 
-    const rows = stmt.values() as unknown[][];
     const limitedRows = maxRows >= 0 ? rows.slice(0, maxRows) : rows;
     for (const row of limitedRows) {
       result.rows.push(row.map(normalizeCellValue));
@@ -158,10 +158,6 @@ async function executeQuery(app: App, query: string, maxRows: number): Promise<R
     result.execTime = Math.floor(performance.now() - startedAt);
   }
 }
-
-type StatementNativeMetadata = {
-  declaredTypes?: Array<string | null | undefined>;
-};
 
 function normalizeCellValue(value: unknown): unknown {
   if (value == null) {
