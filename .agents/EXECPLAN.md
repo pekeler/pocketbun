@@ -43,7 +43,7 @@ Success is observable, not architectural. First, the complete test suite must pa
 - [x] (2026-08-21 18:35 CEST) Completed Milestone 4: local static responses now keep PocketBun's router behavior while using lazy native `Bun.file()` bodies, and the 16 MiB/256-entry byte cache is gone without adding a replacement compatibility layer.
 - [x] (2026-08-21 20:30Z) Completed the local Milestone 5 work and gate: documented the native package-maintenance commands, bound the SSR CSRF example to a per-session identifier, retained normal Playwright after the Bun-hosted runner reproduced oven-sh/bun#28609, and passed both complete test modes plus E2E and repository checks.
 - [x] (2026-08-21 20:40Z) Completed Milestone 5 after hosted run 32524400031 passed the pinned Bun v1.4.0 Ubuntu, macOS, Windows, and downstream Playwright gates.
-- [ ] Qualify Bun v1.4 clustering on Linux, Windows, and macOS in Milestone 6. The source and bundled probes plus the single-worker baseline pass locally on macOS; the short hosted matrix and manual extended matrix remain.
+- [ ] Qualify Bun v1.4 clustering on Linux, Windows, and macOS in Milestone 6. The source and bundled probes, single-worker baseline, and short hosted matrix pass. The first extended run passed on Ubuntu and Windows but exposed macOS short-lived-port exhaustion caused by the probe forcing every sustained request to close both TCP hops; normal connection reuse now passes beyond that failure point locally, and the corrected extended hosted matrix remains.
 - [ ] Implement the cluster primary, worker roles, CLI surface, startup ordering, one-primary guard, readiness, shutdown, and crash recovery in Milestone 7.
 - [ ] Make built-in process-local behavior cluster-correct in Milestone 8: migrations, bootstrap cleanup, cron, installer, settings/collection caches, rate limits, email cooldowns, OAuth2 redirects, and realtime.
 - [ ] Make backup, restore, and application restart cluster-wide in Milestone 9.
@@ -99,6 +99,8 @@ Success is observable, not architectural. First, the complete test suite must pa
   Evidence: at exact commit `34cbb9a40`, `cluster.fork()` delegates to `child_process.fork()` with the configured executable, arguments, environment, and IPC serialization; the worker-side disconnect handler exits immediately when the primary channel disappears unexpectedly. The probe kills the primary and independently confirms that both child PIDs disappear.
 - Observation: graceful `Bun.serve().stop()` waits for an open SSE response in a cluster child, while `stop(true)` remains the required bounded fallback.
   Evidence: the macOS probe held an SSE body open, observed that `stop()` remained pending after 150 milliseconds, canceled the client body, and then observed clean worker shutdown. A separate slow request made graceful stop wait approximately 251 milliseconds until the in-flight response completed.
+- Observation: forcing every request in a sustained proxy smoke test to send `Connection: close` exhausts short-lived TCP ports on hosted macOS before it tests cluster longevity.
+  Evidence: extended run 32528891337 passed its ten-minute probe on Ubuntu and Windows, but macOS failed after four minutes when the test proxy could no longer open a backend socket (`FailedToOpenSocket`). Retaining fresh connections only for worker-distribution assertions and using normal HTTP connection reuse during the sustained phase passed a five-minute local macOS run with 10,000 IPC messages, 100 restarts, 2,692,375 HTTP requests, and 107,695 SSE requests.
 - Observation: Linux-only port sharing does not imply Linux-only clustering.
   Evidence: Bun documents worker handle passing and therefore built-in HTTP load balancing as the missing non-Linux capability. Worker creation, lifecycle events, and ordinary IPC are separate `node:cluster` capabilities. On Windows/macOS, an external reverse proxy can listen on the public endpoint and balance across worker ports without asking Bun to pass a listening socket. This remains an inference to prove with Bun v1.4.0 integration tests on each operating system.
 - Observation: The current Bun implementation automatically recognizes cluster workers, but PocketBun should still set `reusePort: true` explicitly.
@@ -162,6 +164,9 @@ Success is observable, not architectural. First, the complete test suite must pa
   Date/Author: 2026-08-02 / Codex and repository owner
 - Decision: keep a short cluster runtime probe in the normal cross-platform CI matrix and run its 10,000-message, 100-restart, ten-minute form through a manual qualification workflow.
   Rationale: source/bundled entrypoints, IPC, native serving, replacement, shutdown, proxy routing, and orphan cleanup are runtime contracts worth retaining. Adding ten minutes to every ordinary CI run is not; the extended workflow provides the release evidence without permanently slowing unrelated changes.
+  Date/Author: 2026-08-21 / Codex
+- Decision: force fresh HTTP connections only while asserting worker distribution; let the extended smoke phase and its test proxy use normal persistent connection reuse.
+  Rationale: connection distribution is a bounded assertion, while production HTTP traffic normally reuses connections. Repeatedly tearing down both proxy hops turned the longevity probe into a macOS ephemeral-port exhaustion test and did not add cluster coverage.
   Date/Author: 2026-08-21 / Codex
 - Decision: use `node:cluster` for the control plane on every supported OS, explicit `Bun.serve({ reusePort: true })` on one shared Linux port, and distinct predictable worker ports behind an external traffic distributor on Windows/macOS.
   Rationale: this keeps Bun's fastest native Linux path while retaining worker registry, IPC, lifecycle events, and parent-death behavior elsewhere. The PocketBun primary never accepts or proxies HTTP, so it cannot become the scaling bottleneck.
@@ -818,7 +823,15 @@ Milestone 6 local qualification in progress:
       100 ordered messages, 1 restart, 4,250 HTTP and 170 SSE requests
     Extended hosted gate:
       bun run test:cluster-runtime --extended
-      10,000 IPC messages, 100 restarts, and ten-minute HTTP/SSE smoke pending
+      Short matrix run 32528050568: Ubuntu, macOS, and Windows passed
+      Extended run 32528891337: Ubuntu and Windows passed
+      First macOS attempt: probe exhausted short-lived TCP ports after four
+                            minutes because both proxy hops forced Connection:
+                            close; this was test-induced, not a cluster failure
+      Corrected local macOS stress: 10,000 IPC messages, 100 restarts,
+                                     five-minute smoke, 2,692,375 HTTP and
+                                     107,695 SSE requests passed
+      Corrected ten-minute hosted matrix: pending
 
     Pre-change single-worker benchmark:
       Raw artifact: .tmp/milestone6-single-worker-baseline.json
@@ -942,3 +955,5 @@ Revision note, 2026-08-21 / Codex: Completed Milestone 4 by replacing local stat
 Revision note, 2026-08-21 / Codex: Completed Milestone 5 locally with direct Bun license/audit/dedupe/dependency-diff maintenance guidance, per-session CSRF documentation, and the final local repository gate. Retained the normal Playwright runtime after `bun --bun playwright test` reproduced open oven-sh/bun#28609 despite Bun 1.4's advertised support; added the issue to the watchlist and left hosted CI as the final gate before clustering.
 
 Revision note, 2026-08-21 / Codex: Closed Milestone 5 after hosted run 32524400031 passed on Ubuntu, macOS, Windows, and Playwright E2E. Started Milestone 6 without production cluster code: added a short cross-platform source/bundled `node:cluster` runtime probe plus a manual extended workflow, passed the local macOS probe, and recorded five-run single-worker read/write throughput, latency, and RSS baselines.
+
+Revision note, 2026-08-21 / Codex: Recorded successful short cluster qualification on all hosted platforms and the first extended run's Ubuntu/Windows passes. Diagnosed the macOS failure as probe-induced short-lived-port exhaustion from forcing `Connection: close` across both proxy hops, retained fresh connections for distribution assertions only, and passed a five-minute corrected macOS stress run beyond the previous failure point. The corrected hosted extended matrix remains the Milestone 6 gate.

@@ -394,10 +394,11 @@ async function collectWorkerIds(url: string, expected: number): Promise<number[]
   return [...ids].sort((left, right) => left - right);
 }
 
-async function fetchIdentity(url: string): Promise<{ id: number; pid: number; port: number }> {
-  const response = await fetch(`${url}/identity?request=${crypto.randomUUID()}`, {
-    headers: { Connection: "close" },
-  });
+async function fetchIdentity(url: string, freshConnection = true): Promise<{ id: number; pid: number; port: number }> {
+  const response = await fetch(
+    `${url}/identity?request=${crypto.randomUUID()}`,
+    freshConnection ? { headers: { Connection: "close" } } : undefined,
+  );
   assert(response.ok, `identity request failed with status ${response.status}`);
   return (await response.json()) as { id: number; pid: number; port: number };
 }
@@ -407,12 +408,10 @@ async function runSmoke(url: string, durationMs: number): Promise<{ httpRequests
   let httpRequests = 0;
   let sseRequests = 0;
   while (performance.now() < deadline) {
-    await fetchIdentity(url);
+    await fetchIdentity(url, false);
     httpRequests += 1;
     if (httpRequests % 25 === 0) {
-      const response = await fetch(`${url}/sse?request=${crypto.randomUUID()}`, {
-        headers: { Connection: "close" },
-      });
+      const response = await fetch(`${url}/sse?request=${crypto.randomUUID()}`);
       const reader = response.body!.getReader();
       await reader.read();
       await reader.cancel();
@@ -456,7 +455,6 @@ async function runProxy(rawBackends: string): Promise<void> {
       const url = new URL(request.url);
       return fetch(`${backend}${url.pathname}${url.search}`, {
         method: request.method,
-        headers: { Connection: "close" },
       });
     },
   });
