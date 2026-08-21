@@ -174,6 +174,49 @@ describe("Command", () => {
     expect(state.ran).toBeTrue();
   });
 
+  it("Resolve selects commands without executing them", () => {
+    const root = new Command({ Use: "pocketbun" });
+    const state = { workers: 1, http: "", ran: false };
+    root.FParseErrWhitelist.UnknownFlags = true;
+    root.PersistentFlags().IntVar(state, "workers", "workers", 1, "workers");
+    const serve = new Command({
+      Use: "serve",
+      Run: () => {
+        state.ran = true;
+      },
+    });
+    serve.PersistentFlags().StringVar(state, "http", "http", "", "http address");
+    root.AddCommand(serve);
+
+    const [before, beforeArgs, beforeErr] = root.Resolve(["--workers=3", "serve", "--http", "127.0.0.1:9000"]);
+    expect(beforeErr).toBeNull();
+    expect(before).toBe(serve);
+    expect(beforeArgs).toEqual([]);
+    expect(state).toEqual({ workers: 3, http: "127.0.0.1:9000", ran: false });
+
+    const [after, afterArgs, afterErr] = root.resolve(["serve", "--workers", "4", "--http=127.0.0.1:9001"]);
+    expect(afterErr).toBeNull();
+    expect(after).toBe(serve);
+    expect(afterArgs).toEqual([]);
+    expect(state).toEqual({ workers: 4, http: "127.0.0.1:9001", ran: false });
+  });
+
+  it("rejects non-integer int flags", async () => {
+    const root = new Command({ Use: "pocketbun" });
+    const state = { workers: 1 };
+    root.SetErr({ write: () => {} });
+    root.PersistentFlags().IntVar(state, "workers", "workers", 1, "workers");
+
+    const err = await root.Execute(["--workers=2.5"]);
+
+    expect(err?.message).toBe('invalid value "2.5" for --workers: expected an integer');
+    expect(state.workers).toBe(1);
+
+    const emptyErr = await root.Execute(["--workers="]);
+    expect(emptyErr?.message).toBe('invalid value "" for --workers: expected an integer');
+    expect(state.workers).toBe(1);
+  });
+
   it("Execute passes positional args to runnable leaf command", async () => {
     const root = new Command({ Use: "pocketbun" });
     const received: string[] = [];

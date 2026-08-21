@@ -2,15 +2,24 @@
 
 import type { App } from "../core/app.ts";
 import { serveAsync, unsupportedAutomaticHTTPSError } from "../apis/serve.ts";
+import { clusterEnabled, clusterWorkerAddress } from "../internal/cluster/context.ts";
 import { Command } from "../tools/cli/command.ts";
 
-export function NewServeCommand(app: App, showStartBanner: boolean): Command {
-  const state = {
+export type ServeCommandState = {
+  allowedOrigins: string[];
+  httpAddr: string;
+  httpsAddr: string;
+};
+
+export function newServeCommandState(): ServeCommandState {
+  return {
     allowedOrigins: ["*"],
     httpAddr: "",
     httpsAddr: "",
   };
+}
 
+export function NewServeCommand(app: App, showStartBanner: boolean, state = newServeCommandState()): Command {
   const command = new Command({
     Use: "serve",
     Short: "Starts the web server (default to 127.0.0.1:8090)",
@@ -22,18 +31,21 @@ export function NewServeCommand(app: App, showStartBanner: boolean): Command {
       return unsupportedAutomaticHTTPSError();
     }
 
-    if (!state.httpAddr) {
-      state.httpAddr = "127.0.0.1:8090";
-    }
+    state.httpAddr = clusterWorkerAddress() || state.httpAddr || "127.0.0.1:8090";
 
     try {
-      await serveAsync(app, {
+      const server = await serveAsync(app, {
         httpAddr: state.httpAddr,
         httpsAddr: state.httpsAddr,
-        showStartBanner,
+        showStartBanner: showStartBanner && !clusterEnabled(),
         allowedOrigins: state.allowedOrigins,
         certificateDomains: args,
       });
+
+      if (clusterEnabled()) {
+        const { notifyClusterWorkerReady } = await import("../internal/cluster/worker.ts");
+        await notifyClusterWorkerReady(server);
+      }
 
       // Keep the command alive until app termination and resolve after the
       // terminate hook chain finishes (including graceful server shutdown).

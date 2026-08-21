@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { bootstrapIfNeededAsync, type App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { ServeEvent } from "../core/events.ts";
+import { clusterReusePort } from "../internal/cluster/context.ts";
 import { Router } from "../tools/router/router.ts";
 import { FireAndForget } from "../tools/routine/routine.ts";
 import { NewRouter, Static, StaticWildcardParam } from "./base.ts";
@@ -193,6 +194,7 @@ function startServerSync(app: App, config: ServeConfig): ReturnType<typeof Bun.s
   const server = Bun.serve({
     hostname,
     port,
+    reusePort: clusterReusePort(),
     // PocketBun deviation: Bun's default idleTimeout can close quiet SSE streams too early.
     // Keep it aligned with realtime connect idle behavior (5 minutes).
     idleTimeout: defaultServerIdleTimeoutSeconds,
@@ -214,6 +216,7 @@ async function startServerAsync(app: App, config: ServeConfig): Promise<ReturnTy
   const server = Bun.serve({
     hostname,
     port,
+    reusePort: clusterReusePort(),
     // PocketBun deviation: Bun's default idleTimeout can close quiet SSE streams too early.
     // Keep it aligned with realtime connect idle behavior (5 minutes).
     idleTimeout: defaultServerIdleTimeoutSeconds,

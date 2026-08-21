@@ -7,3 +7,5 @@ export const LocalBackupsDirName = "backups";
 export const LocalNotifyDirName = ".notify";
 export const LocalTempDirName = ".pb_temp_to_delete"; // temp pb_data sub directory that will be deleted on each app.Bootstrap()
 export const LocalAutocertCacheDirName = ".autocert_cache";
+// PocketBun-only: the multi-worker primary ownership guard must never be archived.
+export const LocalClusterGuardFileName = ".pocketbun-cluster.lock";

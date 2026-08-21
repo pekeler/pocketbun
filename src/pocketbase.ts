@@ -2,7 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { NewServeCommand } from "./cmd/serve.ts";
+import { NewServeCommand, newServeCommandState, type ServeCommandState } from "./cmd/serve.ts";
 import { NewSuperuserCommand } from "./cmd/superuser.ts";
 import { BaseApp, type BaseAppConfig } from "./core/base.ts";
 import { TerminateEvent } from "./core/events.ts";
@@ -141,8 +141,7 @@ export class PocketBase extends BaseApp {
 
   // Start registers the default system commands and executes the root command.
   async Start(): Promise<Error | null> {
-    this.rootCmd.addCommand(NewSuperuserCommand(this));
-    this.rootCmd.addCommand(NewServeCommand(this, !this.hideStartBanner));
+    registerDefaultCommands(this);
     return this.Execute();
   }
 
@@ -250,6 +249,21 @@ export class PocketBase extends BaseApp {
 
     return false;
   }
+}
+
+export type DefaultCommands = {
+  serve: Command;
+  serveState: ServeCommandState;
+};
+
+// PocketBun-only: the executable registers defaults before loading hooks so
+// cluster primaries can resolve `serve` without bootstrapping an application.
+export function registerDefaultCommands(app: PocketBase): DefaultCommands {
+  const serveState = newServeCommandState();
+  const serve = NewServeCommand(app, !app.hideStartBanner, serveState);
+  app.rootCmd.addCommand(NewSuperuserCommand(app));
+  app.rootCmd.addCommand(serve);
+  return { serve, serveState };
 }
 
 // New creates a new PocketBase instance with the default configuration.

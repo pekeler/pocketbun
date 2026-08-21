@@ -290,7 +290,10 @@ export class FlagSet {
           }
           value = args[index] ?? "";
         }
-        applyFlagValue(flag, value);
+        const valueError = applyFlagValue(flag, value);
+        if (valueError) {
+          return { args: remaining, error: valueError };
+        }
         index += 1;
         continue;
       }
@@ -324,7 +327,10 @@ export class FlagSet {
           return { args: remaining, error: new Error(`missing value for -${short}`) };
         }
         const value = args[index] ?? "";
-        applyFlagValue(flag, value);
+        const valueError = applyFlagValue(flag, value);
+        if (valueError) {
+          return { args: remaining, error: valueError };
+        }
         index += 1;
         continue;
       }
@@ -564,59 +570,77 @@ export class Command {
     return this.Find(args);
   }
 
-  async Execute(args: string[] = process.argv.slice(2)): Promise<Error | null> {
+  // Resolve parses inherited flags and returns the selected command without
+  // executing it. PocketBun uses this to choose the cluster primary path
+  // before application hooks or databases are loaded.
+  Resolve(args: string[] = process.argv.slice(2)): [Command, string[], Error | null] {
     let [cmd, cmdArgs, findErr] = this.Find(args);
     if (findErr) {
-      this.writeError(findErr.message);
-      return findErr;
-    }
-
-    if (cmd.shouldShowHelp(cmdArgs)) {
-      cmd.printHelp();
-      return null;
-    }
-
-    if (cmd.shouldShowVersion(cmdArgs)) {
-      cmd.printVersion();
-      return null;
+      return [cmd, cmdArgs, findErr];
     }
 
     let allowUnknown = cmd.allowsUnknownFlags();
     let { args: remaining, error } = cmd.Flags().Parse(cmdArgs, allowUnknown);
     if (error) {
-      cmd.writeError(error.message);
-      return error;
+      return [cmd, remaining, error];
     }
 
     // Allow root persistent flags before subcommands, e.g. `pocketbun --dev serve`.
     if (cmd === this && !cmd.RunE && !cmd.Run && remaining.length > 0) {
       const [nestedCmd, nestedArgs, nestedErr] = this.Find(remaining);
       if (nestedErr) {
-        this.writeError(nestedErr.message);
-        return nestedErr;
+        return [nestedCmd, nestedArgs, nestedErr];
       }
 
       if (nestedCmd !== this) {
         cmd = nestedCmd;
         cmdArgs = nestedArgs;
-
-        if (cmd.shouldShowHelp(cmdArgs)) {
-          cmd.printHelp();
-          return null;
-        }
-
-        if (cmd.shouldShowVersion(cmdArgs)) {
-          cmd.printVersion();
-          return null;
-        }
-
         allowUnknown = cmd.allowsUnknownFlags();
         ({ args: remaining, error } = cmd.Flags().Parse(cmdArgs, allowUnknown));
         if (error) {
-          cmd.writeError(error.message);
-          return error;
+          return [cmd, remaining, error];
         }
       }
+    }
+
+    return [cmd, remaining, null];
+  }
+
+  resolve(args: string[] = process.argv.slice(2)): [Command, string[], Error | null] {
+    return this.Resolve(args);
+  }
+
+  async Execute(args: string[] = process.argv.slice(2)): Promise<Error | null> {
+    const [initialCmd, initialArgs, findErr] = this.Find(args);
+    if (findErr) {
+      this.writeError(findErr.message);
+      return findErr;
+    }
+
+    if (initialCmd.shouldShowHelp(initialArgs)) {
+      initialCmd.printHelp();
+      return null;
+    }
+
+    if (initialCmd.shouldShowVersion(initialArgs)) {
+      initialCmd.printVersion();
+      return null;
+    }
+
+    const [cmd, remaining, resolveErr] = this.Resolve(args);
+    if (resolveErr) {
+      this.writeError(resolveErr.message);
+      return resolveErr;
+    }
+
+    if (cmd !== initialCmd && cmd.shouldShowHelp(initialArgs)) {
+      cmd.printHelp();
+      return null;
+    }
+
+    if (cmd !== initialCmd && cmd.shouldShowVersion(initialArgs)) {
+      cmd.printVersion();
+      return null;
     }
 
     if (cmd.Args) {
@@ -819,26 +843,32 @@ export class Command {
   }
 }
 
-function applyFlagValue(flag: Flag, raw: string): void {
+function applyFlagValue(flag: Flag, raw: string): Error | null {
   switch (flag.type) {
     case "int": {
-      const parsed = Number.parseInt(raw, 10);
-      flag.setValue(Number.isFinite(parsed) ? parsed : 0);
-      return;
+      if (!/^[+-]?\d+$/.test(raw)) {
+        return new Error(`invalid value ${JSON.stringify(raw)} for --${flag.name}: expected an integer`);
+      }
+      const parsed = Number(raw);
+      if (!Number.isSafeInteger(parsed)) {
+        return new Error(`invalid value ${JSON.stringify(raw)} for --${flag.name}: expected an integer`);
+      }
+      flag.setValue(parsed);
+      return null;
     }
     case "stringSlice": {
       const parts = raw === "" ? [""] : raw.split(",");
       const existing = flag.isSet && Array.isArray(flag.value) ? flag.value : [];
       flag.setValue([...existing, ...parts]);
-      return;
+      return null;
     }
     case "bool": {
       flag.setValue(parseBool(raw));
-      return;
+      return null;
     }
     default:
       flag.setValue(raw);
-      return;
+      return null;
   }
 }
 

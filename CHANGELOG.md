@@ -13,6 +13,7 @@
 - Local static files now use Bun's lazy file bodies instead of a whole-file memory cache, reducing retained memory for large files.
 - Clarified custom-route CSRF guidance so cookie-authenticated forms bind tokens to a stable per-session identifier.
 - Improved maintainer benchmarks with latency percentiles and server RSS reporting.
+- Added the opt-in `--workers=N` server lifecycle foundation with native shared-port workers on Linux, predictable proxy backends on macOS and Windows, same-slot crash recovery, graceful shutdown, and single-primary protection per data directory. Built-in cross-worker state coordination remains part of the upcoming release work.
 
 ## 0.39.11-pocketbun.0 - 2026-08-14
 

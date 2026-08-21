@@ -44,7 +44,7 @@ Success is observable, not architectural. First, the complete test suite must pa
 - [x] (2026-08-21 20:30Z) Completed the local Milestone 5 work and gate: documented the native package-maintenance commands, bound the SSR CSRF example to a per-session identifier, retained normal Playwright after the Bun-hosted runner reproduced oven-sh/bun#28609, and passed both complete test modes plus E2E and repository checks.
 - [x] (2026-08-21 20:40Z) Completed Milestone 5 after hosted run 32524400031 passed the pinned Bun v1.4.0 Ubuntu, macOS, Windows, and downstream Playwright gates.
 - [x] (2026-08-21 22:05Z) Completed Milestone 6: Bun v1.4.0 source and bundled cluster probes, single-worker baselines, the normal CI matrix, and the extended 10,000-message/100-restart/ten-minute matrix passed on Ubuntu, macOS, and Windows. Linux qualified native shared-port serving; macOS and Windows qualified distinct worker ports behind an external proxy.
-- [ ] Implement the cluster primary, worker roles, CLI surface, startup ordering, one-primary guard, readiness, shutdown, and crash recovery in Milestone 7.
+- [ ] (2026-08-22 00:30Z) Implemented the Milestone 7 cluster primary, worker roles, CLI surface, leader-first startup, data-directory guard, readiness, bounded same-slot recovery, and graceful/forced shutdown. The complete local lifecycle and repository gates pass; the required hosted Ubuntu, macOS, and Windows integration matrix remains the completion gate.
 - [ ] Make built-in process-local behavior cluster-correct in Milestone 8: migrations, bootstrap cleanup, cron, installer, settings/collection caches, rate limits, email cooldowns, OAuth2 redirects, and realtime.
 - [ ] Make backup, restore, and application restart cluster-wide in Milestone 9.
 - [ ] Complete cluster integration tests, failure tests, performance measurements, documentation, and the final release gate in Milestone 10.
@@ -107,6 +107,10 @@ Success is observable, not architectural. First, the complete test suite must pa
   Evidence: Bun's server configuration source currently detects the `NODE_UNIQUE_ID` environment set by `cluster.fork()` and defaults cluster-child `Bun.serve()` instances to port reuse. Explicit configuration makes PocketBun's intended data path visible and prevents a future Bun implementation detail from silently changing it.
 - Observation: `node:cluster` does not make a stateful PocketBun application multi-process-correct by itself.
   Evidence: it supplies worker creation, IDs, events, exit detection, and IPC. It does not supply PocketBun readiness, restart policy, migration leadership, cron leadership, realtime fan-out, global rate limits, backup exclusion, or coordinated `Bun.serve().stop()`.
+- Observation: PocketBun's integer flag parser previously accepted a numeric prefix instead of validating the complete value.
+  Evidence: `Number.parseInt("2.5", 10)` silently produced `2`, which would make a mistyped worker count fork processes. Integer flags now require a complete safe-integer string, and focused CLI tests cover fractional and empty values.
+- Observation: the cluster primary can resolve the existing `serve` command and its final inherited flags without loading hooks or opening a database.
+  Evidence: default command registration is now reusable, and the command parser exposes a non-executing resolver. The real-process ownership test starts a competing primary against the same `pb_data` and rejects it before worker bootstrap.
 - Observation: PocketBun's SQLite configuration is already suitable for multi-process access, within SQLite's normal single-writer limit.
   Evidence: `src/tools/dbx/connect_pragmas.ts` configures a 10-second busy timeout, WAL mode, `synchronous=NORMAL`, and foreign keys for every connection. WAL permits concurrent readers from separate processes; writes remain serialized. Each worker will have independent SQLite page caches and log writers, so memory and write contention must be measured rather than assumed.
 - Observation: the existing `.notify` mechanism already solves settings and collection-cache invalidation for several application instances sharing one `pb_data` directory.
@@ -207,6 +211,12 @@ Success is observable, not architectural. First, the complete test suite must pa
 - Decision: user record/model hooks run only in the worker that performs the operation; singleton cron callbacks run only in the leader; startup and serve hooks run once per worker.
   Rationale: replaying mutation hooks in all workers would duplicate business side effects. Each worker needs its own router and runtime, so `OnBootstrap` and `OnServe` are per worker. Document the role environment so advanced hooks can guard any external startup side effect.
   Date/Author: 2026-08-02 / Codex
+- Decision: implement the Milestone 7 control plane with four direct internal modules and no public cluster API or generic RPC abstraction.
+  Rationale: the lifecycle needs only process-local context, a closed handshake/shutdown protocol, one primary supervisor, and one worker adapter. Keeping these internal preserves the unchanged programmatic one-worker API and leaves Milestone 8 to add only concrete coordinator operations.
+  Date/Author: 2026-08-22 / Codex
+- Decision: use an exclusive token-owned file under `pb_data` for primary ownership and exclude it from backup archives.
+  Rationale: an atomic native file operation prevents unrelated primaries from creating separate coordination domains without adding a dependency or holding a database transaction for the process lifetime. PID liveness plus a heartbeat permits stale recovery, while invalid or ambiguous guards fail safe with an inspectable path.
+  Date/Author: 2026-08-22 / Codex
 
 ## Outcomes & Retrospective
 
@@ -221,6 +231,8 @@ Milestone 4 is complete locally. `Event.FileFS()` now returns lazy `Bun.file()` 
 Milestone 5 is complete locally and on hosted CI. Maintainers now have direct license, audit-fix preview, deduplication, and dependency-diff commands without added scripts. The custom-route CSRF guidance binds tokens to a stable per-session identifier and keeps the secret outside source control. Normal Playwright E2E passes; forcing Playwright itself onto Bun reproduces the open `.esm.preflight` resolver issue, so PocketBun keeps its working runner and watchlist entry. No dependency, runtime wrapper, global-store configuration, pruning step, platform-support claim, or standalone executable work was added.
 
 Milestone 6 is complete without production cluster code. A self-contained Bun-only probe covers source and bundled execution paths, IPC ordering, native shared/distinct-port data paths, external test proxying, readiness, replacement, graceful request/SSE stop, and primary-death cleanup. The short matrix and corrected ten-minute extended matrix pass on Bun v1.4.0 across Ubuntu, macOS, and Windows. Five-run single-worker read/write medians are recorded before request-path edits. The first extended macOS attempt also usefully separated cluster behavior from a probe-induced short-lived-port exhaustion failure; normal connection reuse is both simpler and representative of sustained HTTP traffic.
+
+Milestone 7 is locally complete and awaits hosted cross-platform confirmation. `pocketbun --workers=N serve` now enters a lightweight primary before hooks or databases open, starts the leader before followers, and uses Bun's qualified shared-port or distinct-port topology. A closed token-authenticated lifecycle protocol verifies readiness, the primary restarts the same role and slot under a bounded crash budget, and shutdown reuses PocketBun's existing termination hooks before force-killing stragglers. An exclusive heartbeat guard prevents two cluster primaries from sharing one data directory and is omitted from backups. Real-process tests cover three worker identities, both role replacements, a competing primary, crash-budget exhaustion, one banner, no orphan processes, and the unchanged `--workers=1` path. Singleton built-ins and shared transient state are not yet cluster-correct; that remains the explicit Milestone 8 scope.
 
 The expected result is simpler than a built-in general-purpose process manager: one primary file, one typed IPC protocol, worker-role checks at existing singleton boundaries, and focused adapters for the handful of process-local features. The performance benefit is expected primarily for concurrent reads and CPU-heavy request/hook work. Writes remain serialized by SQLite, each worker adds memory, and the primary-coordinated rate limiter adds an IPC round trip on routes for which a rate-limit rule applies. Those costs must be measured before the feature is described as a performance advantage.
 
@@ -866,6 +878,38 @@ Milestone 6 qualification complete:
       bun run build: passed
       git diff --check: passed
 
+Milestone 7 local qualification:
+
+    Date: 2026-08-22
+    Bun: 1.4.0 (34cbb9a40)
+    Public CLI: --workers=<1..256>, serve only for counts above one
+    Primary: no hooks, bootstrap, HTTP listener, or SQLite connection
+    Startup: leader ready before followers are forked
+    Linux data plane: explicit Bun.serve({ reusePort: true }) on one address
+    macOS/Windows data plane: consecutive loopback backend ports
+    Ownership: exclusive .pocketbun-cluster.lock with PID, token, start time,
+               one-second heartbeat, fail-safe collision, and stale recovery
+    Recovery: same role and slot; five crashes per role in 30 seconds is fatal
+    Shutdown: ten-second graceful deadline followed by a two-second force deadline
+    Focused parser, protocol, context, guard, and lifecycle tests:
+      38 pass, 0 fail, 173 expect() calls in 3.08 seconds
+    Real-process lifecycle coverage:
+      three distinct workers, one banner, follower and leader same-slot replacement,
+      competing-primary rejection, crash-budget exhaustion, graceful cleanup,
+      no orphan PIDs, and unchanged --workers=1 behavior
+    bun run test: 1,928 pass, 0 fail, 10,268 expect() calls
+                  across 246 files in 25.78 seconds
+    bun test --concurrent: 1,928 pass, 0 fail, 7 snapshots,
+                           10,268 expect() calls across 246 files in 67.66 seconds
+    bun run format:fix and bun run format: passed
+    bun run typecheck: passed
+    bun run typecheck:package: passed, including build and declarations
+    bun run lint: 0 warnings, 0 errors
+    bun run check:versions: passed
+    bun run docs:check: passed
+    git diff --check: passed
+    Hosted Ubuntu/macOS/Windows lifecycle confirmation: pending commit push
+
 Current PocketBun coordination inventory:
 
     SQLite database truth              already cross-process through WAL/busy timeout
@@ -962,3 +1006,5 @@ Revision note, 2026-08-21 / Codex: Closed Milestone 5 after hosted run 325244000
 Revision note, 2026-08-21 / Codex: Recorded successful short cluster qualification on all hosted platforms and the first extended run's Ubuntu/Windows passes. Diagnosed the macOS failure as probe-induced short-lived-port exhaustion from forcing `Connection: close` across both proxy hops, retained fresh connections for distribution assertions only, and passed a five-minute corrected macOS stress run beyond the previous failure point. The corrected hosted extended matrix remains the Milestone 6 gate.
 
 Revision note, 2026-08-21 / Codex: Closed Milestone 6 after corrected extended run 32530714864 passed its 10,000-message, 100-restart, ten-minute probe on Ubuntu, macOS, and Windows at commit 7a8f9a48. Bun v1.4.0 is qualified for native shared-port cluster serving on Linux and the planned distinct-port/external-proxy topology on macOS and Windows; Milestone 7 production implementation can begin from the recorded single-worker baselines.
+
+Revision note, 2026-08-22 / Codex: Implemented Milestone 7's minimal production cluster lifecycle with an internal four-module control plane, strict `--workers` parsing, pre-bootstrap command resolution, explicit Bun serving topology, leader-first readiness, same-slot crash recovery, bounded shutdown, and a backup-excluded data-directory ownership guard. Recorded complete local real-process and repository gates; hosted Ubuntu, macOS, and Windows confirmation remains the milestone gate before Milestone 8.
