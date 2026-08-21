@@ -70,7 +70,7 @@ const knownInterfaceMemberAdditions = new Map<string, Set<string>>([
 ]);
 const knownInterfaceMemberOmissions = new Map<string, Set<string>>([
   ["core.SMTPConfig", new Set(["marshalJSON"])],
-  ["cron.Cron", new Set(["setInterval", "setTimezone"])],
+  ["cron.Cron", new Set(["setInterval"])],
   ["os.dirFS", new Set(["lstat", "readLink"])],
   [
     "os.Root",

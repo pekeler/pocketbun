@@ -9,7 +9,11 @@ type BunCronHandle = {
 };
 
 const bunWithCron = Bun as typeof Bun & {
-  cron: (cronExpr: string, handler: () => void) => BunCronHandle;
+  cron: (cronExpr: string, handler: () => void, options?: Bun.CronOptions) => BunCronHandle;
+};
+
+export type TimezoneLocation = {
+  string(): string;
 };
 
 // Cron is a crontab-like struct for tasks/jobs scheduling.
@@ -17,6 +21,24 @@ export class Cron {
   private handles = new Map<string, BunCronHandle>();
   private jobs: Job[] = [];
   private started = false;
+  private timezone = "UTC";
+
+  // SetTimezone changes the current cron tick timezone.
+  SetTimezone(location: TimezoneLocation): void {
+    const timezone = location.string();
+    // A time.Location is already validated in PocketBase. Validate the
+    // structural TypeScript equivalent at this public boundary too.
+    NewSchedule("* * * * *", timezone);
+    this.timezone = timezone;
+    if (this.started) {
+      this.Start();
+    }
+  }
+
+  // setTimezone is the PocketBase JSVM-compatible method name.
+  setTimezone(location: TimezoneLocation): void {
+    this.SetTimezone(location);
+  }
 
   // MustAdd is similar to Add() but panic on failure.
   MustAdd(jobId: string, cronExpr: string, fn: (() => void) | null): void {
@@ -41,7 +63,7 @@ export class Cron {
 
     let schedule: ReturnType<typeof NewSchedule>;
     try {
-      schedule = NewSchedule(cronExpr);
+      schedule = NewSchedule(cronExpr, this.timezone);
     } catch (error) {
       return new Error(`failed to add new cron job: ${(error as Error).message}`);
     }
@@ -110,9 +132,13 @@ export class Cron {
     this.stopBunJob(job.Id());
     this.handles.set(
       job.Id(),
-      bunWithCron.cron(job.Expression(), () => {
-        FireAndForget(() => job.Run());
-      }),
+      bunWithCron.cron(
+        job.Expression(),
+        () => {
+          FireAndForget(() => job.Run());
+        },
+        { tz: this.timezone },
+      ),
     );
   }
 

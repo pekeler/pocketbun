@@ -26,20 +26,14 @@ const macros: Record<string, string> = {
   "@hourly": "0 * * * *",
 };
 
-const bunWithCronParser = Bun as unknown as {
-  cron: {
-    parse: (cronExpr: string) => Date;
-  };
-};
-
-const bunCronParse = bunWithCronParser.cron.parse.bind(bunWithCronParser.cron);
+const bunCronParse = Bun.cron.parse.bind(Bun.cron);
 
 // NewSchedule creates a new Schedule from a cron expression.
 //
 // The accepted syntax matches Bun.cron(...), including standard 5-field cron
 // expressions, macros such as @daily/@hourly, named months/weekdays, and
 // Sunday represented as either 0 or 7.
-export function NewSchedule(cronExpr: string): Schedule {
+export function NewSchedule(cronExpr: string, timezone = "UTC"): Schedule {
   cronExpr = cronExpr.trim();
 
   const mapped = macros[cronExpr];
@@ -49,7 +43,7 @@ export function NewSchedule(cronExpr: string): Schedule {
     cronExpr = cronExpr.split(/\s+/).join(" ");
   }
 
-  bunCronParse(cronExpr);
+  bunCronParse(cronExpr, undefined, { tz: timezone });
 
   return new Schedule(cronExpr);
 }

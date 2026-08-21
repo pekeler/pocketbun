@@ -68,4 +68,19 @@ describe("Schedule", () => {
       expect(() => NewSchedule(cronExpr)).toThrow();
     }
   });
+
+  it("validates expressions in the selected timezone", () => {
+    expect(() => NewSchedule("0 9 * * *", "Asia/Tokyo")).not.toThrow();
+    expect(() => NewSchedule("0 9 * * *", "invalid")).toThrow("unknown time zone");
+  });
+
+  it("uses Bun timezone and daylight-saving semantics", () => {
+    const tokyo = Bun.cron.parse("0 9 * * *", new Date("2025-12-31T23:00:00.000Z"), { tz: "Asia/Tokyo" });
+    expect(tokyo?.toISOString()).toBe("2026-01-01T00:00:00.000Z");
+
+    const springForward = Bun.cron.parse("30 2 * * *", new Date("2026-03-08T06:00:00.000Z"), {
+      tz: "America/New_York",
+    });
+    expect(springForward?.toISOString()).toBe("2026-03-08T07:30:00.000Z");
+  });
 });

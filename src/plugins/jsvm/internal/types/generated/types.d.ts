@@ -756,7 +756,8 @@ interface Timezone extends time.Location {} // merge
  * const zone = new Timezone("America/New_York")
  * ```
  *
- * PocketBun app cron expressions are interpreted in UTC, regardless of the server's local timezone.
+ * PocketBun app cron expressions are interpreted in UTC by default, regardless of the server's local timezone.
+ * Pass a Timezone value to `$app.cron().setTimezone(...)` to use another location.
  * Expression validation follows Bun's 5-field cron parser, including named months/weekdays and Sunday as `7`.
  *
  * @group PocketBase
@@ -22039,6 +22040,12 @@ namespace cron {
    * Cron is a crontab-like struct for tasks/jobs scheduling.
    */
   interface Cron {}
+  interface Cron {
+    /**
+     * setTimezone changes the current cron tick timezone.
+     */
+    setTimezone(l: time.Location): void;
+  }
   interface Cron {
     /**
      * mustAdd is similar to Add() but panic on failure.

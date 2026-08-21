@@ -7,6 +7,7 @@ import { Cron } from "./cron.ts";
 type FakeBunCronRegistration = {
   cronExpr: string;
   handler: () => void;
+  options?: Bun.CronOptions;
   stopCalls: number;
 };
 
@@ -14,6 +15,7 @@ type FakeBunWithCron = Omit<typeof Bun, "cron"> & {
   cron: (
     cronExpr: string,
     handler: () => void,
+    options?: Bun.CronOptions,
   ) => {
     stop(): void;
   };
@@ -26,6 +28,7 @@ function createFakeBunCron(): {
   register: (
     cronExpr: string,
     handler: () => void,
+    options?: Bun.CronOptions,
   ) => {
     cron: string;
     ref(): void;
@@ -38,10 +41,11 @@ function createFakeBunCron(): {
 
   return {
     registrations,
-    register: (cronExpr, handler) => {
+    register: (cronExpr, handler, options) => {
       const registration: FakeBunCronRegistration = {
         cronExpr,
         handler,
+        options,
         stopCalls: 0,
       };
       registrations.push(registration);
@@ -70,11 +74,47 @@ describe("Cron", () => {
       handles: Map<string, unknown>;
       started: boolean;
       jobs: Job[];
+      timezone: string;
     };
 
     expect(internal.handles.size).toBe(0);
     expect(internal.started).toBe(false);
     expect(internal.jobs.length).toBe(0);
+    expect(internal.timezone).toBe("UTC");
+  });
+
+  it("keeps UTC as the default in a non-UTC process", async () => {
+    const cronUrl = new URL("./cron.ts", import.meta.url).href;
+    const script = `
+const { Cron } = await import(${JSON.stringify(cronUrl)});
+const registrations = [];
+Bun.cron = (cronExpr, handler, options) => {
+  registrations.push({ cronExpr, options });
+  return { stop() {} };
+};
+const cron = new Cron();
+cron.Add("job", "0 9 * * *", () => {});
+cron.Start();
+console.log(JSON.stringify({ host: Intl.DateTimeFormat().resolvedOptions().timeZone, registration: registrations[0] }));
+cron.Stop();
+`;
+    const child = Bun.spawn({
+      cmd: [process.execPath, "-e", script],
+      env: { ...process.env, TZ: "America/Los_Angeles" },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+
+    expect(exitCode, stderr).toBe(0);
+    expect(JSON.parse(stdout)).toEqual({
+      host: "America/Los_Angeles",
+      registration: { cronExpr: "0 9 * * *", options: { tz: "UTC" } },
+    });
   });
 
   it("does not expose interval configuration", () => {
@@ -82,9 +122,24 @@ describe("Cron", () => {
     expect("SetInterval" in (c as object)).toBe(false);
   });
 
-  it("does not expose timezone configuration", () => {
+  it("sets timezone before start", () => {
     const c = new Cron();
-    expect("SetTimezone" in (c as object)).toBe(false);
+    const location = { string: () => "Asia/Tokyo" };
+
+    c.SetTimezone(location);
+
+    const internal = c as unknown as { timezone: string };
+    expect(internal.timezone).toBe("Asia/Tokyo");
+    expect(c.HasStarted()).toBe(false);
+    expect(() => c.SetTimezone({ string: () => "invalid" })).toThrow("unknown time zone");
+  });
+
+  it("exposes the PocketBase JSVM timezone method", () => {
+    const c = new Cron();
+    c.setTimezone({ string: () => "Asia/Tokyo" });
+
+    const internal = c as unknown as { timezone: string };
+    expect(internal.timezone).toBe("Asia/Tokyo");
   });
 
   it("adds and removes jobs", () => {
@@ -209,6 +264,7 @@ describe("Cron", () => {
 
     expect(c.HasStarted()).toBe(true);
     expect(fake.registrations.map((registration) => registration.cronExpr)).toEqual(["1 * * * *", "2 * * * *"]);
+    expect(fake.registrations.map((registration) => registration.options)).toEqual([{ tz: "UTC" }, { tz: "UTC" }]);
 
     fake.registrations[1]?.handler();
     fake.registrations[0]?.handler();
@@ -232,6 +288,24 @@ describe("Cron", () => {
     c.Stop();
     expect(fake.registrations[2]?.stopCalls).toBe(1);
     expect(c.HasStarted()).toBe(false);
+  });
+
+  it("restarts running jobs after changing timezone", () => {
+    const fake = createFakeBunCron();
+    using _bunCronSpy = spyOn(bunWithCron, "cron").mockImplementation(fake.register);
+
+    const c = new Cron();
+    c.Add("job", "0 9 * * *", () => {});
+    c.Start();
+    c.SetTimezone({ string: () => "Asia/Tokyo" });
+
+    expect(fake.registrations).toHaveLength(2);
+    expect(fake.registrations[0]?.options).toEqual({ tz: "UTC" });
+    expect(fake.registrations[0]?.stopCalls).toBe(1);
+    expect(fake.registrations[1]?.options).toEqual({ tz: "Asia/Tokyo" });
+    expect(c.HasStarted()).toBe(true);
+
+    c.Stop();
   });
 
   it("recovers cron job panics", async () => {

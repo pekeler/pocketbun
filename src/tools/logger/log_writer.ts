@@ -31,11 +31,15 @@ export class LogWriter {
   #syncDb: Database | null = null;
   #closed = false;
   #ready = false;
+  private workerClosedPromise: Promise<void> | null = null;
 
   constructor(dbPath: string) {
     const workerScriptPath = resolveLogWriterWorkerScriptPath(dirname(fileURLToPath(import.meta.url)));
     if (workerScriptPath) {
       this.#worker = new Worker(pathToFileURL(workerScriptPath), { type: "module" });
+      this.workerClosedPromise = new Promise<void>((resolveClosed) => {
+        this.#worker?.addEventListener("close", () => resolveClosed(), { once: true });
+      });
       this.#worker.onmessage = (event) => {
         const data = event.data as WorkerResponse;
         if (data.id === -1 && this.#readyResolve) {
@@ -168,6 +172,9 @@ export class LogWriter {
     }
 
     this.#worker.terminate();
+    await this.workerClosedPromise;
+    this.#worker = null;
+    this.workerClosedPromise = null;
     this.#closePromise = null;
   }
 }

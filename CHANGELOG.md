@@ -7,6 +7,8 @@
 - Fixed synchronous server-side JavaScript HTTP requests intermittently failing on Windows with Bun 1.4.
 - Fixed the superuser SQL endpoint for read queries on Bun 1.4.
 - Fixed realtime disconnect cleanup on Bun 1.4 so clients are removed before their SSE streams close.
+- Added PocketBase-compatible `$app.cron().setTimezone(...)` support while keeping UTC as the default on every host.
+- Faster test runs now isolate files across four Bun worker processes, with `bun run test:changed` available for focused local checks.
 
 ## 0.39.11-pocketbun.0 - 2026-08-14
 

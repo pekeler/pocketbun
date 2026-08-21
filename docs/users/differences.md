@@ -221,13 +221,14 @@ PocketBun persists activity logs through a background worker to reduce main-thre
 
 ## Cron Scheduling
 
-PocketBun app cron scheduling uses Bun's native `Bun.cron(...)` scheduler and interprets cron expressions in UTC.
+PocketBun app cron scheduling uses Bun's native `Bun.cron(...)` scheduler and interprets cron expressions in UTC by default.
 
-- the `$app.cron().setInterval(...)` and `$app.cron().setTimezone(...)` APIs are not available in PocketBun
+- `$app.cron().setTimezone(new Timezone("America/New_York"))` changes the timezone for subsequently scheduled jobs and safely reschedules jobs when the scheduler is already running
+- the `$app.cron().setInterval(...)` API is not available in PocketBun because Bun owns the scheduler tick cadence
 - programmatic cron setup is expression-based; pass the cron string directly to `cronAdd(...)` or `add(...)`
 - cron expression validation follows Bun's parser, so PocketBun accepts a wider grammar than PocketBase, including named months/weekdays and Sunday as `7`
 - the Admin UI cron management pages do not rely on per-job timezone settings and assume UTC for built-in backup scheduling
-- if your hook code calls `setInterval(...)` or `setTimezone(...)`, remove those calls; in-process cron expressions are interpreted in UTC regardless of the server's local timezone
+- cron expressions without an explicit `setTimezone(...)` call are interpreted in UTC regardless of the server's local timezone
 
 ### Thumbnails
 

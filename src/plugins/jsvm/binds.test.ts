@@ -1182,6 +1182,24 @@ describe("jsvm binds", () => {
     expect(new scope.Timezone("EET").string()).toBe("EET");
   });
 
+  it("uses timezone values with the app cron scheduler", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      baseBinds(scope);
+      appBinds(scope, app);
+
+      const cron = scope.$app.cron();
+      cron.setTimezone(new scope.Timezone("Asia/Tokyo"));
+      expect(cron.timezone).toBe("Asia/Tokyo");
+
+      cron.setTimezone(new scope.Timezone("invalid"));
+      expect(cron.timezone).toBe("UTC");
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("base binds datetime", () => {
     const scope: BindScope = {};
     baseBinds(scope);
