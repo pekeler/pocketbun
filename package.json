@@ -32,6 +32,7 @@
     "test": "bun test --parallel=4 --concurrent --max-concurrency=8",
     "test:changed": "bun test --changed --parallel=4 --concurrent --max-concurrency=8",
     "test:randomize": "bun test --parallel=4 --concurrent --max-concurrency=8 --randomize",
+    "test:cluster-runtime": "bun run scripts/repro/bun_issues/cluster_runtime_probe.ts",
     "agent-script": "bun run scripts/agent_script.ts",
     "start": "bun run index.ts",
     "typecheck": "bun x tsc -p tsconfig.typecheck.json --noEmit",

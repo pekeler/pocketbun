@@ -1,0 +1,34 @@
+name: Cluster Runtime Qualification
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: Extended probe (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-2022
+
+    steps:
+      - name: Configure Git line endings (Windows)
+        if: matrix.os == 'windows-2022'
+        run: git config --global core.autocrlf false
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          # Keep this aligned with PocketBun's minimum supported Bun runtime.
+          bun-version: 1.4.0
+
+      - name: Extended Bun cluster runtime probe
+        run: bun run test:cluster-runtime --extended

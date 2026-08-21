@@ -52,6 +52,7 @@ This file is intentionally short and practical. Use it for changes that affect r
    - For repeat local A/B throughput checks where the command itself should stay stable for approvals, edit `scripts/agent_script.ts` and rerun:
      - `bun run agent-script`
    - The default agent script should point at `scripts/measure_records_scenario.ts`, which starts a temporary app/server and drives the selected benchmark-shaped HTTP scenario without inspector overhead.
+   - That scenario command reports throughput, p50/p95/p99 latency, and idle/peak server RSS so pre/post-change runs use the same metrics.
 2. Compare with upstream implementation to avoid compatibility drift.
 3. Make the smallest effective change.
 4. Add or update tests when behavior-sensitive.

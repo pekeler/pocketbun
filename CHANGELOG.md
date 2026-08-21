@@ -12,6 +12,7 @@
 - Improved XML handling for S3-compatible storage and custom XML endpoints, including native single-root response serialization, namespaces, entities, repeated and empty values, and malformed-input errors.
 - Local static files now use Bun's lazy file bodies instead of a whole-file memory cache, reducing retained memory for large files.
 - Clarified custom-route CSRF guidance so cookie-authenticated forms bind tokens to a stable per-session identifier.
+- Improved maintainer benchmarks with latency percentiles and server RSS reporting.
 
 ## 0.39.11-pocketbun.0 - 2026-08-14
 

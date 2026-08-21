@@ -61,10 +61,12 @@ for (const path of [
   }
 }
 
-const ci = await Bun.file(".github/workflows/ci.yml").text();
-const ciBunVersions = [...ci.matchAll(/bun-version:\s*([^\s]+)/g)].map((match) => match[1]);
-if (!ciBunVersions.length || ciBunVersions.some((version) => version !== bunMinimum)) {
-  fail(`Expected every .github/workflows/ci.yml Bun pin to be ${bunMinimum}.`);
+for (const path of [".github/workflows/ci.yml", ".github/workflows/cluster-runtime-qualification.yml"]) {
+  const workflow = await Bun.file(path).text();
+  const versions = [...workflow.matchAll(/bun-version:\s*([^\s]+)/g)].map((match) => match[1]);
+  if (!versions.length || versions.some((version) => version !== bunMinimum)) {
+    fail(`Expected every ${path} Bun pin to be ${bunMinimum}.`);
+  }
 }
 
 const readme = await Bun.file("README.md").text();

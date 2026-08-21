@@ -22,6 +22,15 @@ type ScenarioRequest = {
   url: string;
 };
 
+type LoadResult = {
+  completedRequests: number;
+  latencyMs: {
+    p50: number;
+    p95: number;
+    p99: number;
+  };
+};
+
 function parseArgs(argv: string[]): Options {
   const options: Options = {
     authorId: null,
@@ -229,9 +238,10 @@ async function warmup(options: Options, headers: Headers, runTag: string): Promi
   }
 }
 
-async function runLoad(options: Options, headers: Headers, runTag: string): Promise<number> {
+async function runLoad(options: Options, headers: Headers, runTag: string): Promise<LoadResult> {
   let completed = 0;
   let nextIndex = options.warmupRequests;
+  const latenciesMs: number[] = [];
   const deadline = options.durationMs == null ? null : Date.now() + options.durationMs;
   const totalIterations = options.iterations ?? Number.POSITIVE_INFINITY;
 
@@ -252,17 +262,34 @@ async function runLoad(options: Options, headers: Headers, runTag: string): Prom
       }
       nextIndex += 1;
       const request = buildRequest(options, headers, index, runTag);
+      const start = performance.now();
       const response = await fetch(request.url, request.init);
       if (!response.ok) {
         throw new Error(`profile request failed with status ${response.status}`);
       }
       await response.arrayBuffer();
+      latenciesMs.push(performance.now() - start);
       completed += 1;
     }
   };
 
   await Promise.all(Array.from({ length: options.concurrency }, () => worker()));
-  return completed;
+  latenciesMs.sort((left, right) => left - right);
+  return {
+    completedRequests: completed,
+    latencyMs: {
+      p50: percentile(latenciesMs, 0.5),
+      p95: percentile(latenciesMs, 0.95),
+      p99: percentile(latenciesMs, 0.99),
+    },
+  };
+}
+
+function percentile(sortedValues: number[], percentile: number): number {
+  if (sortedValues.length === 0) {
+    return 0;
+  }
+  return sortedValues[Math.min(Math.ceil(sortedValues.length * percentile) - 1, sortedValues.length - 1)]!;
 }
 
 const options = parseArgs(Bun.argv.slice(2));
@@ -273,6 +300,6 @@ if (options.authorization) {
 
 const runTag = Date.now().toString(36);
 await warmup(options, headers, runTag);
-const completedRequests = await runLoad(options, headers, runTag);
+const result = await runLoad(options, headers, runTag);
 
-console.log(JSON.stringify({ completedRequests }));
+console.log(JSON.stringify(result));

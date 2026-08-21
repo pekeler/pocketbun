@@ -42,8 +42,8 @@ Success is observable, not architectural. First, the complete test suite must pa
 - [x] (2026-08-21 18:15Z) Completed Milestone 3: replaced the S3 and HTTP request XML regex/DOM fallbacks and the response serializer with `Bun.XML`, preserving PocketBase scalar roots while rejecting the old malformed multi-root and numeric-element output.
 - [x] (2026-08-21 18:35 CEST) Completed Milestone 4: local static responses now keep PocketBun's router behavior while using lazy native `Bun.file()` bodies, and the 16 MiB/256-entry byte cache is gone without adding a replacement compatibility layer.
 - [x] (2026-08-21 20:30Z) Completed the local Milestone 5 work and gate: documented the native package-maintenance commands, bound the SSR CSRF example to a per-session identifier, retained normal Playwright after the Bun-hosted runner reproduced oven-sh/bun#28609, and passed both complete test modes plus E2E and repository checks.
-- [ ] Complete Milestone 5 after the finishing documentation/watchlist commit passes hosted CI; do not start clustering before that final Bun v1.4 baseline confirmation.
-- [ ] After Milestones 1 through 5 are complete, qualify Bun v1.4 clustering on Linux, Windows, and macOS in Milestone 6.
+- [x] (2026-08-21 20:40Z) Completed Milestone 5 after hosted run 32524400031 passed the pinned Bun v1.4.0 Ubuntu, macOS, Windows, and downstream Playwright gates.
+- [ ] Qualify Bun v1.4 clustering on Linux, Windows, and macOS in Milestone 6. The source and bundled probes plus the single-worker baseline pass locally on macOS; the short hosted matrix and manual extended matrix remain.
 - [ ] Implement the cluster primary, worker roles, CLI surface, startup ordering, one-primary guard, readiness, shutdown, and crash recovery in Milestone 7.
 - [ ] Make built-in process-local behavior cluster-correct in Milestone 8: migrations, bootstrap cleanup, cron, installer, settings/collection caches, rate limits, email cooldowns, OAuth2 redirects, and realtime.
 - [ ] Make backup, restore, and application restart cluster-wide in Milestone 9.
@@ -92,7 +92,13 @@ Success is observable, not architectural. First, the complete test suite must pa
 - Observation: Bun's `Worker.terminate()` remains synchronous and returns `void`; the v1.4 worker `close` event is the usable shutdown-completion signal.
   Evidence: Bun v1.4.0's runtime and declarations both return `undefined`/`void` from `terminate()`, while `WorkerEventMap` includes `close`. The log writer now registers the close listener when it creates the worker, calls `terminate()` after its graceful close-or-timeout path, and resolves `close()` only after that event.
 - Observation: Bun's preferred fast HTTP clustering path and `node:cluster` are complementary in PocketBun, not competing server implementations.
-  Evidence: Bun's cluster guide says explicit `reusePort` is the faster, more limited alternative, while its compatibility page says `node:cluster` HTTP load balancing is Linux-only because handles cannot be passed between workers. PocketBun can use `node:cluster` as the cross-platform control plane while workers continue to use `Bun.serve()`: kernel load balancing on one Linux port, or distinct ports behind an external load balancer elsewhere.
+  Evidence: Bun's cluster guide says explicit `reusePort` is the faster, more limited alternative, while the v1.4 compatibility notes say `node:http`/`node:https` worker sockets are not shared even though `net` and `dgram` handles now are. PocketBun can use `node:cluster` as the cross-platform control plane while workers continue to use `Bun.serve()`: kernel load balancing on one Linux port, or distinct ports behind an external load balancer elsewhere.
+- Observation: Bun v1.4.0's `node:cluster` control plane works with native distinct-port `Bun.serve()` workers on macOS, including source and bundled entrypoints.
+  Evidence: `bun run test:cluster-runtime` passed argument preservation, distinct IDs/PIDs, 1,000 ordered structured-clone messages, direct and external-proxy traffic to both workers, five same-slot restarts, graceful request and SSE shutdown, and worker exit after a killed primary. The bundled probe passed the same entry/lifecycle checks with a smaller workload. The extended 10,000-message, 100-restart, ten-minute matrix remains a hosted gate.
+- Observation: Bun v1.4.0's cluster source already supplies the minimum parent-death behavior PocketBun needs.
+  Evidence: at exact commit `34cbb9a40`, `cluster.fork()` delegates to `child_process.fork()` with the configured executable, arguments, environment, and IPC serialization; the worker-side disconnect handler exits immediately when the primary channel disappears unexpectedly. The probe kills the primary and independently confirms that both child PIDs disappear.
+- Observation: graceful `Bun.serve().stop()` waits for an open SSE response in a cluster child, while `stop(true)` remains the required bounded fallback.
+  Evidence: the macOS probe held an SSE body open, observed that `stop()` remained pending after 150 milliseconds, canceled the client body, and then observed clean worker shutdown. A separate slow request made graceful stop wait approximately 251 milliseconds until the in-flight response completed.
 - Observation: Linux-only port sharing does not imply Linux-only clustering.
   Evidence: Bun documents worker handle passing and therefore built-in HTTP load balancing as the missing non-Linux capability. Worker creation, lifecycle events, and ordinary IPC are separate `node:cluster` capabilities. On Windows/macOS, an external reverse proxy can listen on the public endpoint and balance across worker ports without asking Bun to pass a listening socket. This remains an inference to prove with Bun v1.4.0 integration tests on each operating system.
 - Observation: The current Bun implementation automatically recognizes cluster workers, but PocketBun should still set `reusePort: true` explicitly.
@@ -154,6 +160,9 @@ Success is observable, not architectural. First, the complete test suite must pa
 - Decision: qualify stable Bun v1.4.0 specifically before implementing vertical scaling.
   Rationale: Bun v1.4.0 is now released, but `node:cluster` remains less battle-tested than PocketBun's existing single-process path. PocketBun must finish the higher-priority v1.4 work and then convert cluster source assumptions into executable probes before cluster production code is written.
   Date/Author: 2026-08-02 / Codex and repository owner
+- Decision: keep a short cluster runtime probe in the normal cross-platform CI matrix and run its 10,000-message, 100-restart, ten-minute form through a manual qualification workflow.
+  Rationale: source/bundled entrypoints, IPC, native serving, replacement, shutdown, proxy routing, and orphan cleanup are runtime contracts worth retaining. Adding ten minutes to every ordinary CI run is not; the extended workflow provides the release evidence without permanently slowing unrelated changes.
+  Date/Author: 2026-08-21 / Codex
 - Decision: use `node:cluster` for the control plane on every supported OS, explicit `Bun.serve({ reusePort: true })` on one shared Linux port, and distinct predictable worker ports behind an external traffic distributor on Windows/macOS.
   Rationale: this keeps Bun's fastest native Linux path while retaining worker registry, IPC, lifecycle events, and parent-death behavior elsewhere. The PocketBun primary never accepts or proxies HTTP, so it cannot become the scaling bottleneck.
   Date/Author: 2026-08-02 / Codex and repository owner
@@ -204,7 +213,9 @@ Milestone 3 is complete locally. S3 error, copy, multipart-init, and list respon
 
 Milestone 4 is complete locally. `Event.FileFS()` now returns lazy `Bun.file()` bodies instead of reading and retaining every local static file in a 16 MiB/256-entry byte cache. Bun handles transfer and common uncompressed byte ranges directly; PocketBun keeps content metadata, path resolution, canonical redirects, `pb_public` SPA fallback, Admin UI branding, CSP, and cache policy. Conditional and multipart-range parity with Go `http.ServeContent` is intentionally not reimplemented because these routes did not previously provide it and their clients do not require it. The separate file API delivery path is unchanged.
 
-Milestone 5 is complete locally, with hosted CI remaining as its final gate. Maintainers now have direct license, audit-fix preview, deduplication, and dependency-diff commands without added scripts. The custom-route CSRF guidance binds tokens to a stable per-session identifier and keeps the secret outside source control. Normal Playwright E2E passes; forcing Playwright itself onto Bun reproduces the open `.esm.preflight` resolver issue, so PocketBun keeps its working runner and watchlist entry. No dependency, runtime wrapper, global-store configuration, pruning step, platform-support claim, or standalone executable work was added.
+Milestone 5 is complete locally and on hosted CI. Maintainers now have direct license, audit-fix preview, deduplication, and dependency-diff commands without added scripts. The custom-route CSRF guidance binds tokens to a stable per-session identifier and keeps the secret outside source control. Normal Playwright E2E passes; forcing Playwright itself onto Bun reproduces the open `.esm.preflight` resolver issue, so PocketBun keeps its working runner and watchlist entry. No dependency, runtime wrapper, global-store configuration, pruning step, platform-support claim, or standalone executable work was added.
+
+Milestone 6 is in qualification, without production cluster code. A self-contained Bun-only probe now covers the source and bundled execution paths, IPC ordering, native shared/distinct-port data paths, external test proxy, readiness, replacement, graceful request/SSE stop, and primary-death cleanup. The local macOS short probe passes, and five-run single-worker read/write medians are recorded before request-path edits. Hosted short and extended results remain the completion gate.
 
 The expected result is simpler than a built-in general-purpose process manager: one primary file, one typed IPC protocol, worker-role checks at existing singleton boundaries, and focused adapters for the handful of process-local features. The performance benefit is expected primarily for concurrent reads and CPU-heavy request/hook work. Writes remain serialized by SQLite, each worker adds memory, and the primary-coordinated rate limiter adds an IPC round trip on routes for which a rate-limit rule applies. Those costs must be measured before the feature is described as a performance advantage.
 
@@ -776,6 +787,69 @@ Milestone 5 local qualification:
     bun run docs:check: passed
     git diff --check: passed
 
+Milestone 5 hosted qualification:
+
+    Commit: fc483d6f6d3263b3bbfa112442e2fedc67e25956
+    Hosted CI run 32524400031:
+      Ubuntu checks: passed
+      macOS checks: passed
+      Windows checks: passed
+      Ubuntu Playwright E2E: passed
+    Milestone 5 hosted confirmation: complete
+
+Milestone 6 local qualification in progress:
+
+    Date: 2026-08-21
+    Host: MacBook Pro, Apple M2 Max, 12 cores, 32 GiB RAM,
+          macOS arm64 / Darwin 25.5.0
+    Bun: 1.4.0 (34cbb9a40)
+    Command: bun run test:cluster-runtime
+    Source entrypoint:
+      distinct worker IDs/PIDs and argument preservation: passed
+      ordered plain-value IPC: 1,000 messages passed
+      native distinct worker ports and external test proxy: both workers reached
+      same-slot replacement: 5 restarts passed
+      slow-request graceful stop: passed, approximately 251 ms
+      SSE graceful stop: remained pending until client cancellation, then passed
+      unexpected primary death: both worker PIDs exited
+      two-second smoke: 8,633 HTTP and 345 SSE requests passed
+    Bundled entrypoint:
+      entrypoint, IPC, ports/proxy, replacement, stop, and smoke checks: passed
+      100 ordered messages, 1 restart, 4,250 HTTP and 170 SSE requests
+    Extended hosted gate:
+      bun run test:cluster-runtime --extended
+      10,000 IPC messages, 100 restarts, and ten-minute HTTP/SSE smoke pending
+
+    Pre-change single-worker benchmark:
+      Raw artifact: .tmp/milestone6-single-worker-baseline.json
+      Command per run: bun run scripts/measure_records_scenario.ts
+                       --scenario <name> --duration-ms 10000 --concurrency 10
+      Runs: 5 per scenario; medians below
+      list-records:
+        20,971.2 requests/second
+        p50 0.401 ms, p95 0.829 ms, p99 1.621 ms
+        idle RSS 72.19 MiB, peak RSS 121.92 MiB
+      create-organizations-rule:
+        15,991.7 requests/second
+        p50 0.424 ms, p95 0.974 ms, p99 7.059 ms
+        idle RSS 83.97 MiB, peak RSS 163.11 MiB
+      request-path production edits after this baseline: none
+
+    Local repository gate:
+      bun run test:cluster-runtime: passed
+      bun run test: 1,915 pass, 0 fail, 10,185 expect() calls
+                    across 242 files in 27.95 seconds
+      bun test --concurrent: 1,915 pass, 0 fail, 7 snapshots,
+                             10,185 expect() calls across 242 files in 64.34 seconds
+      bun run format:fix: passed
+      bun run typecheck: passed
+      bun run typecheck:package: passed, including build and declarations
+      bun run lint: 0 warnings, 0 errors
+      bun run check:versions: passed for both CI workflow pins
+      bun run docs:check: passed
+      bun run build: passed
+      git diff --check: passed
+
 Current PocketBun coordination inventory:
 
     SQLite database truth              already cross-process through WAL/busy timeout
@@ -866,3 +940,5 @@ Revision note, 2026-08-21 / Codex: Completed Milestone 3 with native Bun XML par
 Revision note, 2026-08-21 / Codex: Completed Milestone 4 by replacing local static-file byte loading and the bounded whole-file cache with direct lazy `Bun.file()` responses. After reviewing the actual consumers with the repository owner, removed the proposed Go `http.ServeContent` compatibility layer: Admin UI and `pb_public` routes retain their routing, headers, and common native uncompressed range behavior without owning conditional and multipart-range machinery they did not previously provide.
 
 Revision note, 2026-08-21 / Codex: Completed Milestone 5 locally with direct Bun license/audit/dedupe/dependency-diff maintenance guidance, per-session CSRF documentation, and the final local repository gate. Retained the normal Playwright runtime after `bun --bun playwright test` reproduced open oven-sh/bun#28609 despite Bun 1.4's advertised support; added the issue to the watchlist and left hosted CI as the final gate before clustering.
+
+Revision note, 2026-08-21 / Codex: Closed Milestone 5 after hosted run 32524400031 passed on Ubuntu, macOS, Windows, and Playwright E2E. Started Milestone 6 without production cluster code: added a short cross-platform source/bundled `node:cluster` runtime probe plus a manual extended workflow, passed the local macOS probe, and recorded five-run single-worker read/write throughput, latency, and RSS baselines.

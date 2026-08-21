@@ -46,3 +46,4 @@ test-results/
 !examples/advanced/pb_migrations/**
 
 .upstream/
+.tmp/

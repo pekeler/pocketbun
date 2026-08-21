@@ -26,6 +26,16 @@ type Options = {
   warmupRequests: number | null;
 };
 
+type LoadResult = {
+  completedRequests: number;
+  latencyMs: {
+    p50: number;
+    p95: number;
+    p99: number;
+  };
+  peakRssBytes: number;
+};
+
 function usage(): void {
   console.log(`Usage:
   bun run scripts/measure_records_scenario.ts [options]
@@ -167,7 +177,7 @@ async function runExternalLoad(
   token: string | null,
   options: Options,
   extraArgs: string[] = [],
-): Promise<number> {
+): Promise<LoadResult> {
   const cmd = [
     "bun",
     "run",
@@ -204,19 +214,35 @@ async function runExternalLoad(
     stderr: "inherit",
   });
 
-  const stdout = await new Response(child.stdout).text();
-  const exitCode = await child.exited;
+  let peakRssBytes = process.memoryUsage().rss;
+  const rssInterval = setInterval(() => {
+    peakRssBytes = Math.max(peakRssBytes, process.memoryUsage().rss);
+  }, 25);
+  const [stdout, exitCode] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+  clearInterval(rssInterval);
   if (exitCode !== 0) {
     throw new Error(`load client exited with status ${exitCode}`);
   }
 
-  const payload = JSON.parse(stdout) as { completedRequests?: unknown };
+  const payload = JSON.parse(stdout) as {
+    completedRequests?: unknown;
+    latencyMs?: { p50?: unknown; p95?: unknown; p99?: unknown };
+  };
   const completedRequests = Number(payload.completedRequests);
-  if (!Number.isFinite(completedRequests) || completedRequests < 0) {
-    throw new Error("load client returned invalid completedRequests value");
+  const latencyMs = {
+    p50: Number(payload.latencyMs?.p50),
+    p95: Number(payload.latencyMs?.p95),
+    p99: Number(payload.latencyMs?.p99),
+  };
+  if (
+    !Number.isFinite(completedRequests) ||
+    completedRequests < 0 ||
+    Object.values(latencyMs).some((value) => !Number.isFinite(value) || value < 0)
+  ) {
+    throw new Error("load client returned invalid metrics");
   }
 
-  return completedRequests;
+  return { completedRequests, latencyMs, peakRssBytes };
 }
 
 const options = parseArgs(Bun.argv.slice(2));
@@ -231,12 +257,17 @@ try {
   server = await retryServerStart(() => serve(app, { httpAddr: "127.0.0.1:0", showStartBanner: false }));
   const baseUrl = `http://127.0.0.1:${server.port}`;
   const token = await resolveAuthToken(app, runnerAuth);
-  const completedRequests = await runExternalLoad(baseUrl, token, options, prepared.extraArgs ?? []);
+  const idleRssBytes = process.memoryUsage().rss;
+  const result = await runExternalLoad(baseUrl, token, options, prepared.extraArgs ?? []);
 
-  console.log(`Completed requests: ${completedRequests}`);
+  console.log(`Completed requests: ${result.completedRequests}`);
   if (options.durationMs != null) {
-    console.log(`Requests/sec: ${(completedRequests / (options.durationMs / 1000)).toFixed(2)}`);
+    console.log(`Requests/sec: ${(result.completedRequests / (options.durationMs / 1000)).toFixed(2)}`);
   }
+  console.log(
+    `Latency: p50=${result.latencyMs.p50.toFixed(3)}ms p95=${result.latencyMs.p95.toFixed(3)}ms p99=${result.latencyMs.p99.toFixed(3)}ms`,
+  );
+  console.log(`RSS: idle=${toMiB(idleRssBytes)}MiB peak=${toMiB(result.peakRssBytes)}MiB`);
   console.log(`Scenario: ${options.scenario}`);
   console.log(`Measured request: ${prepared.label}`);
   console.log(`Auth mode: ${runnerAuth}`);
@@ -250,4 +281,8 @@ try {
 } finally {
   await server?.stop(true);
   await prepared.afterRun?.();
+}
+
+function toMiB(bytes: number): string {
+  return (bytes / 1024 / 1024).toFixed(2);
 }
