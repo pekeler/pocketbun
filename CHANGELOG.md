@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Requires Bun `v1.4.0` or newer.
+- Fixed responses with multiple cookies on Bun 1.4 so every `Set-Cookie` header is preserved.
 - Fixed the superuser SQL endpoint for read queries on Bun 1.4.
 - Fixed realtime disconnect cleanup on Bun 1.4 so clients are removed before their SSE streams close.
 

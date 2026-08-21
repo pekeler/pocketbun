@@ -281,7 +281,7 @@ function mergeEventHeaders(response: Response, eventHeaders: Headers): Response 
       if (!merged) {
         merged = new Headers(response.headers);
       }
-      merged.set(key, value);
+      merged.append(key, value);
     }
   }
 

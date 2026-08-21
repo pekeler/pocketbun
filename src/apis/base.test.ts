@@ -58,6 +58,8 @@ describe("apis base", () => {
       const event = new RequestEvent({ app, request });
       event.responseHeaders.set("X-PocketBun", "event");
       event.responseHeaders.set("X-Override", "event");
+      event.responseHeaders.append("Set-Cookie", "first=1");
+      event.responseHeaders.append("Set-Cookie", "second=2");
 
       const response = await WrapStdHandler(() => {
         return new Response("ok", {
@@ -72,6 +74,7 @@ describe("apis base", () => {
       expect(await response.text()).toBe("ok");
       expect(response.headers.get("X-PocketBun")).toBe("event");
       expect(response.headers.get("X-Override")).toBe("handler");
+      expect(response.headers.getSetCookie()).toEqual(["first=1", "second=2"]);
     } finally {
       await cleanup();
     }

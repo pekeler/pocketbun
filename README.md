@@ -32,7 +32,7 @@ PocketBase is still under active development and NOT recommended for production.
 
 `bun add pocketbun` to add to an existing project, or `bun create pocketbun my-app` to create a new project.
 
-PocketBun requires Bun `v1.3.12` or newer.
+PocketBun requires Bun `v1.4.0` or newer.
 
 ## Quick Start
 

@@ -102,6 +102,27 @@ describe("RequestEvent", () => {
     }
   });
 
+  it("realIP handles Bun-joined duplicate trusted headers", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      app.settings().trustedProxy.headers = ["x-forwarded-for"];
+
+      const headers = new Headers();
+      headers.append("X-Forwarded-For", "1.1.1.1");
+      headers.append("X-Forwarded-For", "1.1.1.2");
+
+      const event = new RequestEvent({
+        app,
+        request: new Request("http://example.com/", { headers }),
+        remoteAddress: "127.0.0.1:80",
+      });
+
+      expect(event.realIP()).toBe("1.1.1.2");
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("hasSuperuserAuth", async () => {
     const { app, cleanup } = await newTestApp();
     try {

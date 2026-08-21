@@ -17,7 +17,7 @@ Useful maintainer commands:
 - `bun run profile:heap -- serve --dev`: runs the real PocketBun CLI with Bun heap profiling enabled and writes markdown heap reports to `.tmp/profile-heap/`.
 - `bun run profile:heap:scenario -- --duration-ms 3000 --concurrency 16`: runs a benchmark-shaped request scenario under Bun's heap profiler and writes a markdown heap report plus a summary JSON to `.tmp/profile-heap-scenario/`.
   Use this when you want heap data for the same focused CRUD/list/delete scenarios we use for CPU profiling, without profiling the whole normal CLI workflow.
-  Bun `1.3.12` does not currently support `HeapProfiler.*` through `node:inspector` at runtime, so this is the maintained narrow heap-profiling path.
+  Bun `1.4.0` does not support `HeapProfiler.*` through `node:inspector` at runtime, so this remains the maintained narrow heap-profiling path.
 - `bun run profile:inspector:list -- --duration-ms 3000 --concurrency 16`: captures a targeted `node:inspector` CPU profile for an in-process authenticated records-list load and writes a `.cpuprofile` to `.tmp/profile-inspector/`.
   Open the resulting `.cpuprofile` in Chrome DevTools or another DevTools-compatible profiler viewer.
 - `bun run agent-script`: stable no-arg wrapper for repeated local probes that need a reusable approved command.

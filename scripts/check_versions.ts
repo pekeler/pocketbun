@@ -3,6 +3,8 @@
 
 type PackageJson = {
   version?: unknown;
+  engines?: { bun?: unknown };
+  devDependencies?: { "@types/bun"?: unknown };
 };
 
 function fail(message: string): never {
@@ -35,4 +37,39 @@ if (packageUpstreamVersion !== upstreamVersion) {
   );
 }
 
-console.log(`Version sources are aligned: PocketBase ${pocketbaseTag}, PocketBun ${packageVersion}`);
+const bunEngine = packageJson.engines?.bun;
+const bunEngineMatch = typeof bunEngine === "string" ? bunEngine.match(/^>=([0-9]+\.[0-9]+\.[0-9]+)$/) : null;
+if (!bunEngineMatch) {
+  fail(`Missing or invalid package.json engines.bun '${String(bunEngine)}'. Expected >=X.Y.Z.`);
+}
+
+const bunMinimum = bunEngineMatch[1];
+const expectedBunEngine = `>=${bunMinimum}`;
+if (packageJson.devDependencies?.["@types/bun"] !== `^${bunMinimum}`) {
+  fail(`Expected package.json @types/bun to be ^${bunMinimum}.`);
+}
+
+for (const path of [
+  "create-pocketbun/package.json",
+  "create-pocketbun/template/simple/package.json",
+  "examples/simple/package.json",
+  "examples/advanced/package.json",
+]) {
+  const value = (await Bun.file(path).json()) as PackageJson;
+  if (value.engines?.bun !== expectedBunEngine) {
+    fail(`Expected ${path} engines.bun to be ${expectedBunEngine}.`);
+  }
+}
+
+const ci = await Bun.file(".github/workflows/ci.yml").text();
+const ciBunVersions = [...ci.matchAll(/bun-version:\s*([^\s]+)/g)].map((match) => match[1]);
+if (!ciBunVersions.length || ciBunVersions.some((version) => version !== bunMinimum)) {
+  fail(`Expected every .github/workflows/ci.yml Bun pin to be ${bunMinimum}.`);
+}
+
+const readme = await Bun.file("README.md").text();
+if (!readme.includes(`PocketBun requires Bun \`v${bunMinimum}\` or newer.`)) {
+  fail(`Expected README.md to require Bun v${bunMinimum}.`);
+}
+
+console.log(`Version sources are aligned: PocketBase ${pocketbaseTag}, PocketBun ${packageVersion}, Bun ${bunMinimum}`);
