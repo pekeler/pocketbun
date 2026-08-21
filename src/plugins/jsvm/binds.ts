@@ -2,6 +2,7 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import {
+  existsSync,
   lstatSync,
   mkdtempSync,
   readFileSync,
@@ -2185,30 +2186,38 @@ type SyncFetchResponse = {
   body: Uint8Array;
 };
 
+type SyncFetchResult = {
+  response?: SyncFetchPayload;
+  error?: string;
+};
+
 const syncFetchScript = String.raw`
 const { request: httpRequest } = require("node:http");
 const { request: httpsRequest } = require("node:https");
-const { writeFileSync } = require("node:fs");
+const { readFileSync, renameSync, writeFileSync } = require("node:fs");
 
 const rawUrl = process.env.PB_SYNC_URL ?? "";
 const method = process.env.PB_SYNC_METHOD ?? "GET";
 const headers = JSON.parse(process.env.PB_SYNC_HEADERS ?? "{}");
 const timeout = Math.max(1, Number(process.env.PB_SYNC_TIMEOUT ?? "120"));
 const hasBody = process.env.PB_SYNC_HAS_BODY === "1";
+const bodyPath = process.env.PB_SYNC_BODY ?? "";
 const outputPath = process.env.PB_SYNC_OUTPUT ?? "";
 
-if (!rawUrl || !outputPath) {
-  console.error("missing url or output path");
+if (!rawUrl || !outputPath || (hasBody && !bodyPath)) {
+  console.error("missing url, body, or output path");
   process.exit(1);
 }
 
+const publish = (result) => {
+  const tempPath = outputPath + ".tmp";
+  writeFileSync(tempPath, JSON.stringify(result));
+  renameSync(tempPath, outputPath);
+};
+
 (async () => {
   try {
-    let body;
-    if (hasBody) {
-      const input = await new Response(Bun.stdin).arrayBuffer();
-      body = new Uint8Array(input);
-    }
+    const body = hasBody ? readFileSync(bodyPath) : undefined;
 
     const lowerHeaders = {};
     for (const [key, value] of Object.entries(headers)) {
@@ -2283,9 +2292,9 @@ if (!rawUrl || !outputPath) {
       req.end();
     });
 
-    writeFileSync(outputPath, JSON.stringify(payload));
+    publish({ response: payload });
   } catch (err) {
-    console.error(String(err));
+    publish({ error: String(err) });
     process.exit(1);
   }
 })();`;
@@ -2300,14 +2309,18 @@ function runSyncFetch(
       : options.body != null
         ? new TextEncoder().encode(toPrimitiveString(options.body))
         : undefined;
-  // Bun 1.4 can drop spawnSync pipe output on Windows (oven-sh/bun#27482).
-  // Have the child write its result directly instead of retrying requests that may
-  // already have completed. Bun's Windows spawn redirection can lose output too.
+  // Bun 1.4 can report spawnSync completion early on Windows (oven-sh/bun#27482).
+  // Launch one child and wait for its atomically published result instead of
+  // retrying requests that may already have completed.
   const outputDir = mkdtempSync(join(tmpdir(), "pocketbun-sync-fetch-"));
+  const bodyPath = join(outputDir, "request.bin");
   const outputPath = join(outputDir, "response.json");
 
   try {
-    const result = Bun.spawnSync({
+    if (bodyBytes) {
+      writeFileSync(bodyPath, bodyBytes);
+    }
+    const child = Bun.spawn({
       cmd: [process.execPath, "-e", syncFetchScript],
       env: {
         ...process.env,
@@ -2316,36 +2329,50 @@ function runSyncFetch(
         PB_SYNC_HEADERS: JSON.stringify(options.headers ?? {}),
         PB_SYNC_TIMEOUT: String(options.timeoutSeconds),
         PB_SYNC_HAS_BODY: bodyBytes ? "1" : "0",
+        PB_SYNC_BODY: bodyPath,
         PB_SYNC_OUTPUT: outputPath,
       },
-      stdin: bodyBytes,
+      stdin: "ignore",
       stdout: "ignore",
-      stderr: "pipe",
+      stderr: "ignore",
     });
 
-    const stderr = new TextDecoder().decode(result.stderr ?? new Uint8Array()).trim();
-    if (result.exitCode !== 0) {
-      throw new Error(stderr || "sync fetch failed");
+    const waitSeconds = Number.isFinite(options.timeoutSeconds) ? Math.max(1, options.timeoutSeconds) : 1;
+    const deadline = Date.now() + waitSeconds * 1000 + 1000;
+    while (!existsSync(outputPath)) {
+      if (Date.now() >= deadline) {
+        child.kill();
+        throw new Error("sync fetch failed: child timed out");
+      }
+      Bun.sleepSync(5);
     }
 
     const output = readFileSync(outputPath, "utf8").trim();
     if (!output) {
-      throw new Error(stderr ? `sync fetch failed: empty response (${stderr})` : "sync fetch failed: empty response");
+      throw new Error("sync fetch failed: empty response");
     }
 
+    let result: SyncFetchResult;
     try {
-      const payload = JSON.parse(output) as SyncFetchPayload;
-      const body = Uint8Array.from(Buffer.from(payload.bodyBase64 ?? "", "base64"));
-      return {
-        status: payload.status,
-        headers: payload.headers ?? [],
-        setCookie: payload.setCookie ?? null,
-        body,
-      };
+      result = JSON.parse(output) as SyncFetchResult;
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown parse error";
       throw new Error(`sync fetch failed: invalid response (${message})`);
     }
+    if (result.error) {
+      throw new Error(result.error);
+    }
+    if (!result.response) {
+      throw new Error("sync fetch failed: invalid response (missing response)");
+    }
+    const payload = result.response;
+    const body = Uint8Array.from(Buffer.from(payload.bodyBase64 ?? "", "base64"));
+    return {
+      status: payload.status,
+      headers: payload.headers ?? [],
+      setCookie: payload.setCookie ?? null,
+      body,
+    };
   } finally {
     rmSync(outputDir, { recursive: true, force: true });
   }

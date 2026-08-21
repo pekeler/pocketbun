@@ -36,7 +36,8 @@ Success is observable, not architectural. First, the complete test suite must pa
 - [x] (2026-08-21 14:15Z) Passed the complete local gate with file-backed synchronous child output: 1,899 tests, focused JSVM HTTP coverage, formatting, both typechecks, package build, lint, version and docs checks, and whitespace checks all passed.
 - [x] (2026-08-21 14:55Z) Ran the second hosted matrix. Ubuntu and macOS passed again, but Windows showed that redirecting `Bun.spawnSync()` stdout to `Bun.file(...)` can also leave the target empty after exit code zero. Changed the child to write its private result file directly, removing spawn stdout from the result path entirely.
 - [x] (2026-08-21 14:57Z) Locally implemented Milestone 2: explicit UTC and PocketBase-compatible cron timezone control, close-event-backed logger worker shutdown, four-process isolated tests, and `test:changed`. After a repeat run exposed port-zero flakiness at Bun's default 20 concurrent tests per worker, capped each worker at eight; three full suites then passed 1,906 tests in 28.17, 27.95, and 28.09 seconds, down from the 63.47-second non-isolated baseline.
-- [ ] Complete Milestone 1 by confirming the child-written synchronous JSVM HTTP result transport in hosted Windows CI; Ubuntu and macOS are already green on the pinned baseline.
+- [x] (2026-08-21 15:25Z) Ran the third hosted matrix. Ubuntu and macOS passed the isolated suite, and Windows passed 1,903 tests plus the new cron and worker-close coverage, but `Bun.spawnSync()` again returned exit code zero before the child-created result file existed. Removed `spawnSync` from this path: one asynchronous child now reads and atomically publishes private files while the synchronous caller waits without replaying the request. Ten focused local reruns passed.
+- [ ] Complete Milestone 1 by confirming the asynchronous-child synchronous JSVM HTTP transport in hosted Windows CI; Ubuntu and macOS are already green on the pinned baseline.
 - [ ] Complete Milestone 2 by confirming the four-process isolated test workflow and worker close-event behavior on hosted Ubuntu, macOS, and Windows CI.
 - [ ] Complete Milestone 3: replace the S3 XML regex parsers and then the HTTP XML body parser with `Bun.XML`, retaining a compatibility adapter wherever Bun's output shape differs.
 - [ ] Complete Milestone 4: qualify `Bun.file()` for local static responses, remove the byte cache only if HTTP parity holds, and add memory-pressure eviction only if a disposable cache remains.
@@ -73,8 +74,8 @@ Success is observable, not architectural. First, the complete test suite must pa
   Evidence: `bun install` and `bun install --frozen-lockfile` succeeded; the only lockfile changes update `@types/bun` and `bun-types` from 1.3.14 to 1.4.0 while retaining lockfile version 1.
 - Observation: `onTestFinished()` now works from `test.concurrent` on Bun v1.4.0, while the watched issue remains open for documentation; `node:inspector` heap profiling and `--no-orphans` with port zero remain blocked.
   Evidence: focused local reproductions passed for concurrent test cleanup, still rejected `HeapProfiler.enable`, and still produced `EADDRINUSE` for the port-zero orphan check. The maintainer watchlist now distinguishes the fixed runtime behavior from the remaining limitations.
-- Observation: Bun v1.4.0 regresses or incompletely fixes the Windows `Bun.spawnSync()` stdout loss tracked by oven-sh/bun#27482, including stdout redirected to a `Bun.file(...)`.
-  Evidence: hosted Windows CI first completed the synchronous HTTP child with exit code zero but returned empty piped stdout for a small POST response. Run 32493618840 then returned exit code zero while leaving its redirected result file empty. Each run passed 1,896 other tests, while Ubuntu and macOS passed their complete jobs. The child now writes the result file itself so no successful request is retried.
+- Observation: Bun v1.4.0 regresses or incompletely fixes Windows `Bun.spawnSync()` completion tracked by oven-sh/bun#27482; the problem is broader than captured stdout.
+  Evidence: hosted Windows CI first returned exit code zero with empty piped stdout, run 32493618840 did the same while leaving redirected `Bun.file(...)` output empty, and run 32497069829 returned zero before a child-written file existed. The JSVM HTTP path no longer uses `spawnSync`: one asynchronous child atomically publishes its result while the synchronous caller waits, so no successful request is retried.
 - Observation: Bun's `Worker.terminate()` remains synchronous and returns `void`; the v1.4 worker `close` event is the usable shutdown-completion signal.
   Evidence: Bun v1.4.0's runtime and declarations both return `undefined`/`void` from `terminate()`, while `WorkerEventMap` includes `close`. The log writer now registers the close listener when it creates the worker, calls `terminate()` after its graceful close-or-timeout path, and resolves `close()` only after that event.
 - Observation: Bun's preferred fast HTTP clustering path and `node:cluster` are complementary in PocketBun, not competing server implementations.
@@ -116,8 +117,8 @@ Success is observable, not architectural. First, the complete test suite must pa
 - Decision: pin the initial v1.4 baseline and CI to Bun v1.4.0 exactly, declare `>=1.4.0` for consumers, and keep the existing lockfile format.
   Rationale: v1.4.0 is the stable runtime used for qualification and the minimum that exposes the planned native APIs. An exact CI pin makes failures reproducible, while the package engine remains a normal compatible minimum. Bun v1.4 installs the existing lockfile cleanly, so a format-only rewrite would add noise without value.
   Date/Author: 2026-08-21 / Codex
-- Decision: return synchronous JSVM HTTP child results through a private one-shot file rather than `Bun.spawnSync()` stdout or request retries.
-  Rationale: the Windows pipe can lose a successful child result, and hosted CI proved that Bun's direct stdout-to-file redirection can do the same. Retrying cannot distinguish a lost response from an unexecuted request and could repeat POST side effects. The child therefore writes a temporary result file itself; the parent removes it in `finally`.
+- Decision: implement synchronous JSVM HTTP through one asynchronous child and private atomic request/result files rather than `Bun.spawnSync()` or request retries.
+  Rationale: three hosted Windows runs showed that `spawnSync` can return zero after losing piped output, losing redirected output, or before a direct child write is visible. Retrying cannot distinguish a lost response from an unexecuted request and could repeat POST side effects. The caller therefore launches exactly one child and blocks until that child atomically publishes success or error; the parent removes the private directory in `finally`.
   Date/Author: 2026-08-21 / Codex
 - Decision: preserve PocketBase behavior around each Bun-native replacement and keep a compatibility adapter when Bun's generic API does not directly match it.
   Rationale: Bun adoption is an implementation choice, while PocketBase-compatible HTTP, cron, backup, upload, S3, XML, and JavaScript APIs are the product contract. The native implementation is accepted only after differential or regression tests prove that contract.
@@ -173,7 +174,7 @@ Success is observable, not architectural. First, the complete test suite must pa
 
 ## Outcomes & Retrospective
 
-Milestone 1 is locally implemented and qualified on Bun v1.4.0. Every declared minimum and CI pin is aligned, version drift is checked automatically, clean installs work without a lockfile-format migration, and the local full gate passes. The breaking-change audit found and fixed one response-cookie merge regression and added coverage for Bun-joined duplicate request headers. Hosted Ubuntu and macOS pass. Windows exposed a Bun v1.4.0 regression in synchronous child stdout and then in direct stdout-to-file redirection; PocketBun now has the child write its private result file without retrying potentially mutating HTTP requests, and a Windows rerun is the final acceptance item.
+Milestone 1 is locally implemented and qualified on Bun v1.4.0. Every declared minimum and CI pin is aligned, version drift is checked automatically, clean installs work without a lockfile-format migration, and the local full gate passes. The breaking-change audit found and fixed one response-cookie merge regression and added coverage for Bun-joined duplicate request headers. Hosted Ubuntu and macOS pass. Three Windows runs showed that `Bun.spawnSync()` can return zero while losing piped output, losing redirected output, or before a direct child result is visible. PocketBun now avoids `spawnSync` for this path and waits for one asynchronous child's atomically published result without retrying potentially mutating HTTP requests; a Windows rerun is the final acceptance item.
 
 Milestone 2 is also locally implemented and qualified. Cron remains explicitly UTC on every host, accepts PocketBase `Timezone` values through `SetTimezone`/`setTimezone`, validates and schedules in the same selected zone, and safely restarts active handles after a timezone change. Logger shutdown waits for Bun's worker `close` event after termination, and repeated close remains safe. Four isolated Bun test workers, capped at eight concurrent tests each for listener stability, cut the local full-suite time from about 64 to about 28 seconds across repeated successful runs, while `test:changed` provides the requested direct changed-file command. Hosted cross-platform confirmation is the remaining acceptance item. When the Bun v1.4 workstream is complete, record the deleted compatibility code, HTTP and cron parity evidence, final test-time result, retained dependencies, and any rejected native substitutions. When the scaling work is complete, add measured single-worker and multi-worker results, the chosen recommended worker counts, memory and SQLite-contention observations, Bun issues found or ruled out, deviations from this design, and the final validation evidence.
 
@@ -599,7 +600,18 @@ Milestone 1 local qualification:
                child exited zero but stdout redirected to Bun.file was empty
       E2E: skipped because Windows failed
     Local child-written result test: 1 pass, 0 fail in 2.26 seconds
-    Hosted Windows confirmation of the child-written transport: pending commit push
+    Hosted CI run 32497069829:
+      Ubuntu: passed in 1m10s
+      macOS: passed in 1m13s
+      Windows: 1,903 pass, 2 skip, 1 fail in 170.18 seconds;
+               Bun.spawnSync returned zero before the child-created file existed
+      E2E: skipped because Windows failed
+    Local asynchronous-child result test: 10 consecutive passes, 0 fail
+                                           in 22.42 seconds
+    Local full suite after workaround: 1,906 pass, 0 fail in 28.34 seconds
+    Local format, application/package typechecks, build, lint, versions,
+      generated docs, and whitespace checks after workaround: passed
+    Hosted Windows confirmation of the asynchronous-child transport: pending commit push
 
     Breaking-change audit: SQL reads and realtime cleanup were already fixed in
                             b48cece1 and 0b7f0421. Separate Set-Cookie values exposed
@@ -719,3 +731,5 @@ Revision note, 2026-08-21 / Codex: Recorded the locally complete Bun v1.4.0 base
 Revision note, 2026-08-21 / Codex: Recorded the first hosted Bun v1.4.0 matrix and its Windows-only recurrence of oven-sh/bun#27482. Chose a private file for synchronous child results instead of retrying requests, updated the watchlist after the upstream reopening request, and kept Windows confirmation as the remaining Milestone 1 gate.
 
 Revision note, 2026-08-21 / Codex: Recorded the second Windows failure showing that `Bun.spawnSync()` stdout redirected to `Bun.file(...)` can also disappear, moved the result write into the child, and kept hosted confirmation as the final Milestone 1 gate. Recorded the locally complete Milestone 2 cron, worker-close, isolated-test, changed-file, documentation, and timing evidence; cross-platform CI remains its final gate.
+
+Revision note, 2026-08-21 / Codex: Recorded the third Windows failure showing that `Bun.spawnSync()` can return zero before even a direct child-created file exists. Removed `spawnSync` from synchronous JSVM HTTP, retained a single non-retried request through an asynchronous child and atomically published private files, and kept one further Windows run as the Milestone 1 and 2 acceptance gate.
