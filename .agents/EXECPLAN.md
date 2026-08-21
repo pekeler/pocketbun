@@ -39,7 +39,7 @@ Success is observable, not architectural. First, the complete test suite must pa
 - [x] (2026-08-21 15:25Z) Ran the third hosted matrix. Ubuntu and macOS passed the isolated suite, and Windows passed 1,903 tests plus the new cron and worker-close coverage, but `Bun.spawnSync()` again returned exit code zero before the child-created result file existed. Removed `spawnSync` from this path: one asynchronous child now reads and atomically publishes private files while the synchronous caller waits without replaying the request. Ten focused local reruns passed.
 - [x] (2026-08-21 15:40Z) Completed Milestone 1: hosted run 32498391333 passed on Ubuntu, macOS, and Windows, confirming the asynchronous-child synchronous JSVM HTTP transport on the pinned Bun v1.4.0 baseline; the downstream Playwright E2E job passed too.
 - [x] (2026-08-21 15:40Z) Completed Milestone 2: the four-process isolated suite, explicit UTC/cron timezone behavior, and close-event-backed logger worker shutdown passed on Ubuntu, macOS, and Windows without retries.
-- [ ] Complete Milestone 3: replace the S3 XML regex parsers and then the HTTP XML body parser with `Bun.XML`, retaining a compatibility adapter wherever Bun's output shape differs.
+- [x] (2026-08-21 16:20Z) Completed Milestone 3: replaced the S3 and HTTP request XML regex/DOM fallbacks with `Bun.XML`, preserved their typed/binding shapes through small adapters, and retained the existing response serializer after Bun's serializer failed public-input parity.
 - [ ] Complete Milestone 4: qualify `Bun.file()` for local static responses, remove the byte cache only if HTTP parity holds, and add memory-pressure eviction only if a disposable cache remains.
 - [ ] Complete Milestone 5: add low-risk Bun package-maintenance checks, qualify Playwright running under Bun, document deliberate non-adoptions, update user-facing documentation/changelog where required, and pass the full repository gate.
 - [ ] After Milestones 1 through 5 are complete, qualify Bun v1.4 clustering on Linux, Windows, and macOS in Milestone 6.
@@ -76,6 +76,10 @@ Success is observable, not architectural. First, the complete test suite must pa
   Evidence: focused local reproductions passed for concurrent test cleanup, still rejected `HeapProfiler.enable`, and still produced `EADDRINUSE` for the port-zero orphan check. The maintainer watchlist now distinguishes the fixed runtime behavior from the remaining limitations.
 - Observation: Bun v1.4.0 regresses or incompletely fixes Windows `Bun.spawnSync()` completion tracked by oven-sh/bun#27482; the problem is broader than captured stdout.
   Evidence: hosted Windows CI first returned exit code zero with empty piped stdout, run 32493618840 did the same while leaving redirected `Bun.file(...)` output empty, and run 32497069829 returned zero before a child-written file existed. The JSVM HTTP path no longer uses `spawnSync`: one asynchronous child atomically publishes its result while the synchronous caller waits, so no successful request is retried.
+- Observation: Bun's XML parser is intentionally stricter about declaration placement than PocketBun's old S3 fixtures.
+  Evidence: `Bun.XML.parse()` rejects an XML declaration preceded by indentation because declarations are only legal at the start of a document. Trimming leading whitespace in the internal adapters preserves the earlier tolerance without making malformed XML lenient.
+- Observation: `Bun.XML.stringify()` cannot replace `Event.XML()` without a larger and behavior-changing adapter.
+  Evidence: Bun rejects strings, numbers, booleans, null, arrays, and objects with several top-level keys because it requires one root element; with a valid root it also leaves quotes and apostrophes unescaped in text. `Event.XML()` accepts all of those inputs, emits sibling fields for objects/arrays, escapes five XML characters, and prepends the required declaration.
 - Observation: Bun's `Worker.terminate()` remains synchronous and returns `void`; the v1.4 worker `close` event is the usable shutdown-completion signal.
   Evidence: Bun v1.4.0's runtime and declarations both return `undefined`/`void` from `terminate()`, while `WorkerEventMap` includes `close`. The log writer now registers the close listener when it creates the worker, calls `terminate()` after its graceful close-or-timeout path, and resolves `close()` only after that event.
 - Observation: Bun's preferred fast HTTP clustering path and `node:cluster` are complementary in PocketBun, not competing server implementations.
@@ -123,6 +127,9 @@ Success is observable, not architectural. First, the complete test suite must pa
 - Decision: preserve PocketBase behavior around each Bun-native replacement and keep a compatibility adapter when Bun's generic API does not directly match it.
   Rationale: Bun adoption is an implementation choice, while PocketBase-compatible HTTP, cron, backup, upload, S3, XML, and JavaScript APIs are the product contract. The native implementation is accepted only after differential or regression tests prove that contract.
   Date/Author: 2026-08-21 / Codex and repository owner
+- Decision: adopt `Bun.XML.parse()` for S3 responses and request bodies, but retain the handwritten `Event.XML()` serializer.
+  Rationale: native parsing removes every XML extraction regex and correctly handles namespaces, entities, attributes, repeated nodes, empty nodes, nesting, and malformed documents with one small shape adapter. Native serialization would narrow accepted public inputs and change exact output escaping, so keeping the short existing serializer is the smaller compatibility-preserving choice.
+  Date/Author: 2026-08-21 / Codex
 - Decision: retain Playwright, the ZIP archive implementation, the streaming multipart parser, the custom S3 client, and the current template/compiler/tooling dependencies.
   Rationale: Bun v1.4 does not provide equivalent semantics. Replacing them would either lose compatibility or require more custom code. Revisit the S3 client only when the listed Bun API gaps close, and revisit other components only when a measured or compatibility-driven need appears.
   Date/Author: 2026-08-21 / Codex
@@ -178,6 +185,8 @@ Milestone 1 is complete and qualified on Bun v1.4.0. Every declared minimum and 
 
 Milestone 2 is also complete and qualified. Cron remains explicitly UTC on every host, accepts PocketBase `Timezone` values through `SetTimezone`/`setTimezone`, validates and schedules in the same selected zone, and safely restarts active handles after a timezone change. Logger shutdown waits for Bun's worker `close` event after termination, and repeated close remains safe. Four isolated Bun test workers, capped at eight concurrent tests each for listener stability, cut the local full-suite time from about 64 to about 28 seconds across repeated successful runs, while `test:changed` provides the requested direct changed-file command. The complete isolated suite passes on hosted Ubuntu, macOS, and Windows without retries, and Playwright E2E passes downstream. When the Bun v1.4 workstream is complete, record the deleted compatibility code, HTTP and cron parity evidence, final test-time result, retained dependencies, and any rejected native substitutions. When the scaling work is complete, add measured single-worker and multi-worker results, the chosen recommended worker counts, memory and SQLite-contention observations, Bun issues found or ruled out, deviations from this design, and the final validation evidence.
 
+Milestone 3 is complete locally. S3 error, copy, multipart-init, and list responses now share a small compact-shape adapter over `Bun.XML.parse()`; the repeated tag regexes are gone. Request XML uses Bun's ordered tree shape to preserve direct-child names and DOM-style recursive text content. Focused fixtures pin default and prefixed namespaces, attributes, entities, singleton/repeated children, empty tags, nested text, checksums, dates, pagination, malformed S3 error preservation, and the route-level 400 response for malformed request XML. `Event.XML()` remains unchanged because Bun's serializer cannot preserve its primitive, array, multi-field, declaration, or escaping behavior with a smaller adapter.
+
 The expected result is simpler than a built-in general-purpose process manager: one primary file, one typed IPC protocol, worker-role checks at existing singleton boundaries, and focused adapters for the handful of process-local features. The performance benefit is expected primarily for concurrent reads and CPU-heavy request/hook work. Writes remain serialized by SQLite, each worker adds memory, and the primary-coordinated rate limiter adds an IPC round trip on routes for which a rate-limit rule applies. Those costs must be measured before the feature is described as a performance advantage.
 
 ## Context and Orientation
@@ -186,7 +195,7 @@ PocketBun is a Bun-native TypeScript port of PocketBase. The standard CLI entryp
 
 The current minimum runtime is declared as Bun 1.4.0 in `package.json`, with matching `@types/bun`; `.github/workflows/ci.yml` pins the same exact version for its operating-system jobs. Generated example/template packages carry the same minimum, and `scripts/check_versions.ts` rejects drift among these sources and the README. `bun.lock` remains at format version 1 because Bun v1.4 installs it cleanly; its deliberate Milestone 1 diff contains only the matching Bun type-package updates.
 
-The first workstream touches four runtime paths. `src/tools/cron/cron.ts` wraps `Bun.cron`, while `src/tools/cron/schedule.ts` validates expressions and `src/tools/cron/cron.test.ts` currently asserts that `SetTimezone` is absent. The S3 response modules under `src/tools/filesystem/internal/s3blob/s3/` contain repeated regular-expression XML extraction; `src/tools/router/event.ts` contains the general request XML parser, response XML serializer, and `Event.FileFS()`. `Event.FileFS()` currently reads local files into a bounded byte cache before returning a `Response`. Finally, `src/tools/logger/log_writer.ts` owns the logger worker and currently calls `terminate()` without awaiting completion.
+The first workstream touches four runtime paths. Cron now passes explicit timezone options through `src/tools/cron/cron.ts` and `src/tools/cron/schedule.ts`; logger shutdown awaits the worker close event in `src/tools/logger/log_writer.ts`. S3 response modules under `src/tools/filesystem/internal/s3blob/s3/` and request binding in `src/tools/router/event.ts` now use `Bun.XML.parse()` through compatibility adapters, while the public XML serializer is retained for output parity. `Event.FileFS()` still reads local files into a bounded byte cache before returning a `Response`, which is the next qualification target.
 
 The test and maintenance entrypoints are in `package.json`. The default test command uses `bun test --concurrent`; `scripts/e2e_run.ts` launches Playwright; build analysis and CPU/heap profiling already use Bun's newer native tooling. The optional `go-text-template` peer dependency, TypeScript compiler dependency, Playwright, oxlint/oxfmt, and PocketBase JavaScript SDK coverage remain in place for the reasons recorded in the Decision Log.
 
@@ -655,7 +664,33 @@ Milestone 2 local qualification:
     bun run lint: 0 warnings, 0 errors
     bun run check:versions: passed
     bun run docs:check: passed
-    Hosted isolated-test and worker-close confirmation: pending commit push
+    Hosted isolated-test and worker-close confirmation: run 32498391333 passed
+
+Milestone 3 local qualification:
+
+    Date: 2026-08-21
+    Bun: 1.4.0 (34cbb9a40)
+    S3 XML parsing: Bun compact shape plus one-or-many/local-name normalization
+    Request XML parsing: Bun ordered tree plus recursive DOM-style text content
+    Focused S3 and router XML fixtures: passed
+    Malformed S3 XML: AggregateError retains SyntaxError and ResponseError
+    Malformed routed request XML: standard 400 JSON error response retained
+    XML extraction regexes and DOMParser fallback: removed
+    Bun.XML.stringify qualification:
+      primitives, null, and arrays: rejected because they are not root objects
+      object with several fields: rejected because XML requires one root
+      valid single root: quotes and apostrophes remain literal in text
+      result: retained the existing short serializer and exact public outputs
+    Full local repository gate:
+      bun test --concurrent: 1,912 pass, 0 fail, 7 snapshots,
+                             10,163 expect() calls across 242 files in 61.92 seconds
+      bun run format: passed
+      bun run typecheck: passed
+      bun run typecheck:package: passed, including build and consumer declarations
+      bun run lint: 0 warnings, 0 errors
+      bun run check:versions: passed
+      bun run docs:check: passed
+      git diff --check: passed
 
 Current PocketBun coordination inventory:
 
@@ -685,7 +720,6 @@ The Bun v1.4 work uses these native interfaces directly and keeps adapters inter
     Bun.cron(expression, callback, { tz: timezoneName })
     Bun.cron.parse(expression, { tz: timezoneName })
     Bun.XML.parse(xml)
-    Bun.XML.stringify(value)
     Bun.file(absolutePath)
     new Response(Bun.file(absolutePath), responseInit)
     await worker.terminate()
@@ -693,6 +727,8 @@ The Bun v1.4 work uses these native interfaces directly and keeps adapters inter
 Use the actual v1.4 type signatures after updating `@types/bun`; the conceptual signatures above describe intent rather than authorizing casts around type errors. If a memory-pressure listener remains useful after cache removal, use Bun's documented process event directly and register it once. Do not export XML normalization, static cache controls, or Bun-specific cron handles from `index.ts`. The public scheduler surface should gain PocketBase-compatible `SetTimezone` and JavaScript-facing `setTimezone`; the stored value is an IANA timezone name with UTC as the default.
 
 The project remains an npm library with the executable supplied by that package. Do not add compiled-asset lookup, `$bunfs` paths, `Bun.isStandaloneExecutable` branches, or standalone build outputs.
+
+`Bun.XML.stringify()` was qualified but is deliberately not used: its single-root input contract and text escaping do not preserve the existing `Event.XML()` public behavior.
 
 The initial public CLI contract is:
 
@@ -741,3 +777,5 @@ Revision note, 2026-08-21 / Codex: Recorded the second Windows failure showing t
 Revision note, 2026-08-21 / Codex: Recorded the third Windows failure showing that `Bun.spawnSync()` can return zero before even a direct child-created file exists. Removed `spawnSync` from synchronous JSVM HTTP, retained a single non-retried request through an asynchronous child and atomically published private files, and kept one further Windows run as the Milestone 1 and 2 acceptance gate.
 
 Revision note, 2026-08-21 / Codex: Recorded successful hosted run 32498391333 across Ubuntu, macOS, Windows, and downstream Playwright E2E. Marked Milestones 1 and 2 complete after the asynchronous-child JSVM HTTP transport, isolated test workflow, cron timezone behavior, and worker-close shutdown all passed their cross-platform acceptance gates.
+
+Revision note, 2026-08-21 / Codex: Completed Milestone 3 with native Bun XML parsing for fixed S3 schemas and request binding, including normalization and malformed-input coverage. Retained the response serializer after direct qualification showed that Bun's serializer rejects existing public input shapes and changes escaping.

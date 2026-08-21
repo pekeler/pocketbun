@@ -26,9 +26,15 @@ describe("S3 CopyObject", () => {
         }),
       Response: responseWithBody(`
         <?xml version="1.0" encoding="UTF-8"?>
-        <CopyObjectResult>
+        <CopyObjectResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
           <LastModified>2025-01-02T03:04:05.123Z</LastModified>
-          <ETag>test_etag</ETag>
+          <ETag quoted="true">&quot;test&amp;etag&quot;</ETag>
+          <ChecksumType>COMPOSITE</ChecksumType>
+          <ChecksumCRC32>crc32</ChecksumCRC32>
+          <ChecksumCRC32C>crc32c</ChecksumCRC32C>
+          <ChecksumCRC64NVME>crc64</ChecksumCRC64NVME>
+          <ChecksumSHA1>sha1</ChecksumSHA1>
+          <ChecksumSHA256/>
         </CopyObjectResult>
       `),
     });
@@ -46,7 +52,7 @@ describe("S3 CopyObject", () => {
 
     const raw = JSON.stringify(result);
     const expected =
-      '{"etag":"test_etag","lastModified":"2025-01-02T03:04:05.123Z","checksumType":"","checksumCRC32":"","checksumCRC32C":"","checksumCRC64NVME":"","checksumSHA1":"","checksumSHA256":""}';
+      '{"etag":"\\"test&etag\\"","lastModified":"2025-01-02T03:04:05.123Z","checksumType":"COMPOSITE","checksumCRC32":"crc32","checksumCRC32C":"crc32c","checksumCRC64NVME":"crc64","checksumSHA1":"sha1","checksumSHA256":""}';
     if (raw !== expected) {
       throw new Error(`Expected\n${expected}\ngot\n${raw}`);
     }

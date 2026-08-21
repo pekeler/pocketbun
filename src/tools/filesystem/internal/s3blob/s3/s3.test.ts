@@ -1,14 +1,14 @@
 // Ported from pocketbase/tools/filesystem/internal/s3blob/s3/s3_test.go
 
-import { describe, it } from "bun:test";
-import { S3 } from "./s3.ts";
+import { describe, expect, it } from "bun:test";
+import { ResponseError, S3 } from "./s3.ts";
 import { BytesBody } from "./s3.ts";
 import { NewClient } from "./tests/client.ts";
 import { ExpectHeaders } from "./tests/headers.ts";
 
-function responseWithBody(body: string) {
+function responseWithBody(body: string, status = 200) {
   return {
-    status: 200,
+    status,
     headers: new Headers(),
     body: new BytesBody(new TextEncoder().encode(body)),
   };
@@ -236,5 +236,39 @@ describe("S3", () => {
         throw err;
       }
     }
+  });
+
+  it("SignAndSend preserves the response error when its XML is malformed", async () => {
+    const raw = "<Error><Code>broken</Error>";
+    const s3Client = Object.assign(new S3(), {
+      Region: "test_region",
+      Bucket: "test_bucket",
+      Endpoint: "https://example.com/",
+      AccessKey: "123",
+      SecretKey: "abc",
+      Client: NewClient({
+        Method: "GET",
+        URL: "https://test_bucket.example.com/test",
+        Response: responseWithBody(raw, 500),
+      }),
+    });
+
+    let thrown: unknown;
+    try {
+      await s3Client.SignAndSend({
+        method: "GET",
+        url: s3Client.URL("/test"),
+        headers: new Headers({ "x-amz-date": "20250102T150405Z" }),
+        body: null,
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(AggregateError);
+    const errors = (thrown as AggregateError).errors;
+    expect(errors[0]).toBeInstanceOf(SyntaxError);
+    expect(errors[1]).toBeInstanceOf(ResponseError);
+    expect(errors[1]).toMatchObject({ Status: 500, Raw: new TextEncoder().encode(raw) });
   });
 });

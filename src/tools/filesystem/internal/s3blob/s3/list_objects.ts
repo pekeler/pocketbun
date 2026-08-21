@@ -2,6 +2,7 @@
 
 import type { HttpRequest, S3 } from "./s3.ts";
 import { newRequest } from "./s3.ts";
+import { parseXmlRoot, xmlChild, xmlElement, xmlText, xmlValues } from "./xml.ts";
 
 export type ListParams = {
   ContinuationToken: string;
@@ -97,42 +98,36 @@ function encodeListParams(params: ListParams): string {
 }
 
 function parseListObjectsResponse(raw: string): ListObjectsResponse {
-  const topLevelRaw = raw
-    .replace(new RegExp("<Contents>[\\s\\S]*?</Contents>", "g"), "")
-    .replace(new RegExp("<CommonPrefixes>[\\s\\S]*?</CommonPrefixes>", "g"), "");
+  const root = parseXmlRoot(raw);
   const response: ListObjectsResponse = {
-    EncodingType: extractXmlTag(topLevelRaw, "EncodingType"),
-    Name: extractXmlTag(topLevelRaw, "Name"),
-    Prefix: extractXmlTag(topLevelRaw, "Prefix"),
-    Delimiter: extractXmlTag(topLevelRaw, "Delimiter"),
-    ContinuationToken: extractXmlTag(topLevelRaw, "ContinuationToken"),
-    NextContinuationToken: extractXmlTag(topLevelRaw, "NextContinuationToken"),
-    StartAfter: extractXmlTag(topLevelRaw, "StartAfter"),
+    EncodingType: xmlText(xmlChild(root, "EncodingType")),
+    Name: xmlText(xmlChild(root, "Name")),
+    Prefix: xmlText(xmlChild(root, "Prefix")),
+    Delimiter: xmlText(xmlChild(root, "Delimiter")),
+    ContinuationToken: xmlText(xmlChild(root, "ContinuationToken")),
+    NextContinuationToken: xmlText(xmlChild(root, "NextContinuationToken")),
+    StartAfter: xmlText(xmlChild(root, "StartAfter")),
     CommonPrefixes: [],
     Contents: [],
-    KeyCount: Number.parseInt(extractXmlTag(topLevelRaw, "KeyCount") || "0", 10),
-    MaxKeys: Number.parseInt(extractXmlTag(topLevelRaw, "MaxKeys") || "0", 10),
-    IsTruncated: extractXmlTag(topLevelRaw, "IsTruncated").toLowerCase() === "true",
+    KeyCount: Number.parseInt(xmlText(xmlChild(root, "KeyCount")) || "0", 10),
+    MaxKeys: Number.parseInt(xmlText(xmlChild(root, "MaxKeys")) || "0", 10),
+    IsTruncated: xmlText(xmlChild(root, "IsTruncated")).toLowerCase() === "true",
   };
 
-  const contents = extractXmlTags(raw, "Contents");
-  for (const block of contents) {
-    const key = extractXmlTag(block, "Key");
-    const lastModified = extractXmlTag(block, "LastModified");
-    const sizeRaw = extractXmlTag(block, "Size");
-    const etag = extractXmlTag(block, "ETag");
+  for (const value of xmlValues(xmlChild(root, "Contents"))) {
+    const content = xmlElement(value);
+    const lastModified = xmlText(xmlChild(content, "LastModified"));
+    const sizeRaw = xmlText(xmlChild(content, "Size"));
     response.Contents.push({
-      Key: key,
+      Key: xmlText(xmlChild(content, "Key")),
       LastModified: lastModified ? new Date(lastModified) : new Date(0),
       Size: sizeRaw ? Number.parseInt(sizeRaw, 10) : 0,
-      ETag: etag,
+      ETag: xmlText(xmlChild(content, "ETag")),
     });
   }
 
-  const prefixes = extractXmlTags(raw, "CommonPrefixes");
-  for (const block of prefixes) {
-    const prefix = extractXmlTag(block, "Prefix");
-    response.CommonPrefixes.push({ Prefix: prefix });
+  for (const value of xmlValues(xmlChild(root, "CommonPrefixes"))) {
+    response.CommonPrefixes.push({ Prefix: xmlText(xmlChild(xmlElement(value), "Prefix")) });
   }
 
   return {
@@ -159,22 +154,6 @@ function parseListObjectsResponse(raw: string): ListObjectsResponse {
       };
     },
   } as ListObjectsResponse;
-}
-
-function extractXmlTag(xml: string, tag: string): string {
-  const regex = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`);
-  const match = regex.exec(xml);
-  return match?.[1]?.trim() ?? "";
-}
-
-function extractXmlTags(xml: string, tag: string): string[] {
-  const regex = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, "g");
-  const matches: string[] = [];
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(xml)) !== null) {
-    matches.push(match[1] ?? "");
-  }
-  return matches;
 }
 
 function formatTime(value: Date): string {

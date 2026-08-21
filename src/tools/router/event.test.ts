@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ApiError } from "./api_error.ts";
 import { ErrInvalidRedirectStatusCode, Event } from "./event.ts";
+import { Router } from "./router.ts";
 
 type ResponseScenario<T> = {
   name: string;
@@ -310,7 +311,7 @@ describe("Event", () => {
   });
 
   it("XML", async () => {
-    const scenarios: ResponseScenario<string>[] = [
+    const scenarios: ResponseScenario<unknown>[] = [
       {
         name: "no explicit content-type",
         status: 234,
@@ -327,6 +328,44 @@ describe("Event", () => {
         expectedStatus: 234,
         expectedHeaders: { "content-type": "text/test" },
         expectedBody: `<?xml version="1.0" encoding="UTF-8"?>\n<string>test</string>`,
+      },
+      {
+        name: "number",
+        status: 200,
+        body: 123,
+        expectedStatus: 200,
+        expectedBody: `<?xml version="1.0" encoding="UTF-8"?>\n<number>123</number>`,
+      },
+      {
+        name: "boolean",
+        status: 200,
+        body: false,
+        expectedStatus: 200,
+        expectedBody: `<?xml version="1.0" encoding="UTF-8"?>\n<boolean>false</boolean>`,
+      },
+      {
+        name: "object",
+        status: 200,
+        body: { text: `<&>"'`, count: 1, enabled: true, empty: null, nested: { value: "test" }, list: [1, 2] },
+        expectedStatus: 200,
+        expectedBody:
+          `<?xml version="1.0" encoding="UTF-8"?>\n` +
+          `<text>&lt;&amp;&gt;&quot;&apos;</text><count>1</count><enabled>true</enabled><empty></empty>` +
+          `<nested>{&quot;value&quot;:&quot;test&quot;}</nested><list>[1,2]</list>`,
+      },
+      {
+        name: "null",
+        status: 200,
+        body: null,
+        expectedStatus: 200,
+        expectedBody: `<?xml version="1.0" encoding="UTF-8"?>\n<null></null>`,
+      },
+      {
+        name: "array",
+        status: 200,
+        body: ["first", "second"],
+        expectedStatus: 200,
+        expectedBody: `<?xml version="1.0" encoding="UTF-8"?>\n<0>first</0><1>second</1>`,
       },
     ];
 
@@ -533,6 +572,73 @@ describe("Event", () => {
       invalidErr = error;
     }
     expect(Boolean(invalidErr)).toBe(true);
+  });
+
+  it("BindBody normalizes Bun XML without changing the binding shape", async () => {
+    const request = new Request("http://example.com/", {
+      method: "POST",
+      headers: { "content-type": "application/xml" },
+      body: `
+        <?xml version="1.0" encoding="UTF-8"?>
+        <pb:root xmlns:pb="urn:pocketbun">
+          <item id="1">first &amp; <nested>value</nested></item>
+          <item id="2"/>
+          <pb:single kind="text">one</pb:single>
+          <empty/>
+        </pb:root>
+      `,
+    });
+    const event = new Event({ request });
+    const dest: Record<string, unknown> = {};
+
+    await event.bindBody(dest);
+
+    expect(dest).toEqual({
+      item: ["first & value", ""],
+      "pb:single": "one",
+      empty: "",
+    });
+  });
+
+  it("BindBody rejects malformed XML and routes return the standard bad request error", async () => {
+    const body = "<root><a>broken</root>";
+    const request = new Request("http://example.com/", {
+      method: "POST",
+      headers: { "content-type": "application/xml" },
+      body,
+    });
+    const event = new Event({ request });
+
+    let parseError: unknown;
+    try {
+      await event.bindBody({});
+    } catch (error) {
+      parseError = error;
+    }
+    expect(parseError).toEqual(new SyntaxError("XML Parse error: Expected closing tag </a> but found </root>"));
+
+    const router = new Router<Event>();
+    router.POST("/xml", async (routeEvent) => {
+      await routeEvent.bindBody({});
+      return routeEvent.JSON(200, {});
+    });
+    const handler = router.buildHandler(
+      ({ request: routeRequest, params, remoteAddress }) => new Event({ request: routeRequest, params, remoteAddress }),
+    );
+    const response = await handler(
+      new Request("http://example.com/xml", {
+        method: "POST",
+        headers: { "content-type": "application/xml" },
+        body,
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      status: 400,
+      message: "Something went wrong while processing your request.",
+      data: {},
+    });
   });
 
   // unsupported content types are covered in the BindBody scenarios above.

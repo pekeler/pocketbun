@@ -2,6 +2,7 @@
 
 import type { HttpRequest, S3 } from "./s3.ts";
 import { newRequest } from "./s3.ts";
+import { parseXmlRoot, xmlChild, xmlText } from "./xml.ts";
 
 export type CopyObjectResponse = {
   ETag: string;
@@ -39,15 +40,16 @@ export async function copyObject(
 }
 
 function parseCopyObjectResponse(raw: string): CopyObjectResponse {
+  const root = parseXmlRoot(raw);
   return {
-    ETag: extractXmlTag(raw, "ETag"),
-    LastModified: new Date(extractXmlTag(raw, "LastModified") || 0),
-    ChecksumType: extractXmlTag(raw, "ChecksumType"),
-    ChecksumCRC32: extractXmlTag(raw, "ChecksumCRC32"),
-    ChecksumCRC32C: extractXmlTag(raw, "ChecksumCRC32C"),
-    ChecksumCRC64NVME: extractXmlTag(raw, "ChecksumCRC64NVME"),
-    ChecksumSHA1: extractXmlTag(raw, "ChecksumSHA1"),
-    ChecksumSHA256: extractXmlTag(raw, "ChecksumSHA256"),
+    ETag: xmlText(xmlChild(root, "ETag")),
+    LastModified: new Date(xmlText(xmlChild(root, "LastModified")) || 0),
+    ChecksumType: xmlText(xmlChild(root, "ChecksumType")),
+    ChecksumCRC32: xmlText(xmlChild(root, "ChecksumCRC32")),
+    ChecksumCRC32C: xmlText(xmlChild(root, "ChecksumCRC32C")),
+    ChecksumCRC64NVME: xmlText(xmlChild(root, "ChecksumCRC64NVME")),
+    ChecksumSHA1: xmlText(xmlChild(root, "ChecksumSHA1")),
+    ChecksumSHA256: xmlText(xmlChild(root, "ChecksumSHA256")),
     toJSON() {
       return {
         etag: this.ETag,
@@ -61,12 +63,6 @@ function parseCopyObjectResponse(raw: string): CopyObjectResponse {
       };
     },
   };
-}
-
-function extractXmlTag(xml: string, tag: string): string {
-  const regex = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`);
-  const match = regex.exec(xml);
-  return match?.[1]?.trim() ?? "";
 }
 
 function formatTime(value: Date): string {

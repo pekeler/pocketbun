@@ -3,6 +3,7 @@
 
 import type { Body, HttpRequest, S3 } from "./s3.ts";
 import { metadataPrefix, newRequest } from "./s3.ts";
+import { parseXmlRoot, xmlChild, xmlText } from "./xml.ts";
 
 export class Uploader {
   S3: S3 | null = null;
@@ -110,7 +111,7 @@ export class Uploader {
     const body = new TextDecoder().decode(resp.body.readAll());
     resp.body.close();
 
-    this.uploadId = extractXmlTag(body, "UploadId");
+    this.uploadId = xmlText(xmlChild(parseXmlRoot(body), "UploadId"));
   }
 
   private async multipartAbort(ctx: AbortSignal | null, optReqFuncs: Array<(req: HttpRequest) => void>): Promise<void> {
@@ -217,10 +218,4 @@ function readAllPayload(payload: Uint8Array | string | Body): Uint8Array {
   }
 
   return payload.readAll();
-}
-
-function extractXmlTag(xml: string, tag: string): string {
-  const regex = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`);
-  const match = regex.exec(xml);
-  return match?.[1]?.trim() ?? "";
 }

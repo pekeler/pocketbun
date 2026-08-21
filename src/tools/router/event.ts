@@ -69,23 +69,6 @@ type FormDataLike = {
   [Symbol.iterator]?: () => IterableIterator<[string, unknown]>;
 };
 
-type XmlChildNode = {
-  tagName?: string;
-  textContent?: string | null;
-};
-
-type XmlElementNode = {
-  children?: Iterable<XmlChildNode> | ArrayLike<XmlChildNode> | null;
-};
-
-type XmlDocument = {
-  documentElement: XmlElementNode | null;
-};
-
-type DomParserLike = {
-  parseFromString: (raw: string, mime: string) => XmlDocument;
-};
-
 type EventOptions = {
   request: Request;
   params?: Record<string, string>;
@@ -793,38 +776,26 @@ function collectFormData(form: FormDataLike): Record<string, string[]> {
 
 function parseXmlBody(raw: string): Record<string, string[]> {
   const result: Record<string, string[]> = {};
-
-  const domParserCtor = (globalThis as { DOMParser?: { new (): DomParserLike } }).DOMParser;
-  if (domParserCtor) {
-    const parser = new domParserCtor();
-    const doc = parser.parseFromString(raw, "application/xml");
-    const root = doc.documentElement;
-    if (root) {
-      const children = root.children ?? [];
-      for (const child of Array.from(children as ArrayLike<XmlChildNode>)) {
-        const key = typeof child.tagName === "string" ? child.tagName : "";
-        const value = typeof child.textContent === "string" ? child.textContent : "";
-        result[key] = result[key] ?? [];
-        result[key]?.push(value);
-      }
-      if (Object.keys(result).length > 0) {
-        return result;
-      }
-    }
-  }
-
-  const regex = new RegExp("<([A-Za-z0-9_:-]+)>([^<]*)</\\1>", "g");
-  let match: RegExpExecArray | null;
-  while ((match = regex.exec(raw)) !== null) {
-    const key = match[1] ?? "";
-    const value = match[2] ?? "";
-    if (!key) {
+  const root = Bun.XML.parse(raw.trimStart(), { compact: false });
+  for (const child of root.children) {
+    if (typeof child !== "object" || !("name" in child)) {
       continue;
     }
-    result[key] = result[key] ?? [];
-    result[key]?.push(value);
+    result[child.name] = result[child.name] ?? [];
+    result[child.name]?.push(xmlNodeText(child));
   }
+  return result;
+}
 
+function xmlNodeText(node: Bun.XML.Node): string {
+  let result = "";
+  for (const child of node.children) {
+    if (typeof child === "string") {
+      result += child;
+    } else if ("name" in child) {
+      result += xmlNodeText(child);
+    }
+  }
   return result;
 }
 
@@ -832,6 +803,9 @@ function xmlHeader(): string {
   return '<?xml version="1.0" encoding="UTF-8"?>\n';
 }
 
+// Bun.XML.stringify requires one object root and preserves quotes in text,
+// while this public helper also accepts primitives and emits object fields as
+// sibling elements with Go-compatible escaping.
 function serializeXml(value: unknown): string {
   if (typeof value === "string") {
     return `<string>${escapeXml(value)}</string>`;

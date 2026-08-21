@@ -4,7 +4,7 @@ exports[`S3 ListObjects retrieves list: response 1`] = `
 {
   "commonPrefixes": [
     {
-      "prefix": "prefixA",
+      "prefix": "prefix&A",
     },
     {
       "prefix": "prefixB",
@@ -13,7 +13,7 @@ exports[`S3 ListObjects retrieves list: response 1`] = `
   "contents": [
     {
       "etag": "etag1",
-      "key": "prefixB/test/example.txt",
+      "key": "prefixB/test&example.txt",
       "lastModified": "2025-01-01T01:02:03.123Z",
       "size": 123,
     },
@@ -24,14 +24,14 @@ exports[`S3 ListObjects retrieves list: response 1`] = `
       "size": 456,
     },
   ],
-  "continuationToken": "ct",
+  "continuationToken": "ct&more",
   "delimiter": "",
   "encodingType": "",
   "isTruncated": false,
   "keyCount": 1,
   "maxKeys": 3,
   "name": "example",
-  "nextContinuationToken": "test_next",
+  "nextContinuationToken": "test&next",
   "prefix": "",
   "startAfter": "example0.txt",
 }

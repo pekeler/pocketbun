@@ -1,5 +1,7 @@
 // Ported from pocketbase/tools/filesystem/internal/s3blob/s3/error.go
 
+import { parseXmlRoot, xmlChild, xmlText } from "./xml.ts";
+
 export class ResponseError extends Error {
   Code = "";
   Message = "";
@@ -44,16 +46,11 @@ export class ResponseError extends Error {
 }
 
 export function parseResponseErrorXml(raw: string): { Code: string; Message: string; RequestId: string; Resource: string } {
+  const root = parseXmlRoot(raw);
   return {
-    Code: extractXmlTag(raw, "Code"),
-    Message: extractXmlTag(raw, "Message"),
-    RequestId: extractXmlTag(raw, "RequestId"),
-    Resource: extractXmlTag(raw, "Resource"),
+    Code: xmlText(xmlChild(root, "Code")),
+    Message: xmlText(xmlChild(root, "Message")),
+    RequestId: xmlText(xmlChild(root, "RequestId")),
+    Resource: xmlText(xmlChild(root, "Resource")),
   };
-}
-
-function extractXmlTag(xml: string, tag: string): string {
-  const regex = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`);
-  const match = regex.exec(xml);
-  return match?.[1]?.trim() ?? "";
 }

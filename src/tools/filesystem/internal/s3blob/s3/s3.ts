@@ -163,7 +163,14 @@ export class S3 {
       err.Status = resp.status;
       err.Raw = rawBody;
       if (rawBody.length > 0) {
-        const parsed = parseResponseErrorXml(new TextDecoder().decode(rawBody));
+        let parsed: ReturnType<typeof parseResponseErrorXml>;
+        try {
+          parsed = parseResponseErrorXml(new TextDecoder().decode(rawBody));
+        } catch (parseError) {
+          // Match Go's errors.Join(parseErr, responseErr): retain both the XML
+          // failure and the response status/raw body for downstream inspection.
+          throw new AggregateError([parseError, err]);
+        }
         err.Code = parsed.Code;
         err.Message = parsed.Message;
         err.RequestId = parsed.RequestId;

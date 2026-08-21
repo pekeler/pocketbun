@@ -124,16 +124,16 @@ describe("S3 Uploader", () => {
             }),
           Response: responseWithBody(`
             <?xml version="1.0" encoding="UTF-8"?>
-            <InitiateMultipartUploadResult>
+            <InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
               <Bucket>test_bucket</Bucket>
               <Key>test_key</Key>
-              <UploadId>test_id</UploadId>
+              <UploadId kind="multipart">test&amp;id</UploadId>
             </InitiateMultipartUploadResult>
           `),
         },
         {
           Method: "PUT",
-          URL: "http://test_bucket.example.com/test_key?partNumber=1&uploadId=test_id",
+          URL: "http://test_bucket.example.com/test_key?partNumber=1&uploadId=test%26id",
           Match: (req) => {
             const body = req.body ? new TextDecoder().decode(req.body) : "";
             return (
@@ -149,7 +149,7 @@ describe("S3 Uploader", () => {
         },
         {
           Method: "PUT",
-          URL: "http://test_bucket.example.com/test_key?partNumber=2&uploadId=test_id",
+          URL: "http://test_bucket.example.com/test_key?partNumber=2&uploadId=test%26id",
           Match: (req) => {
             const body = req.body ? new TextDecoder().decode(req.body) : "";
             return (
@@ -165,7 +165,7 @@ describe("S3 Uploader", () => {
         },
         {
           Method: "PUT",
-          URL: "http://test_bucket.example.com/test_key?partNumber=3&uploadId=test_id",
+          URL: "http://test_bucket.example.com/test_key?partNumber=3&uploadId=test%26id",
           Match: (req) => {
             const body = req.body ? new TextDecoder().decode(req.body) : "";
             return (
@@ -181,7 +181,7 @@ describe("S3 Uploader", () => {
         },
         {
           Method: "POST",
-          URL: "http://test_bucket.example.com/test_key?uploadId=test_id",
+          URL: "http://test_bucket.example.com/test_key?uploadId=test%26id",
           Match: (req) => {
             const body = req.body ? new TextDecoder().decode(req.body) : "";
             const expected =

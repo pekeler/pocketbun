@@ -1,28 +1,13 @@
 // Ported from pocketbase/tools/filesystem/internal/s3blob/s3/error_test.go
 
 import { describe, expect, it } from "bun:test";
-import { ResponseError } from "./s3.ts";
-
-function parseResponseErrorXml(raw: string): ResponseError {
-  const err = new ResponseError();
-  err.Code = extractXmlTag(raw, "Code");
-  err.Message = extractXmlTag(raw, "Message");
-  err.RequestId = extractXmlTag(raw, "RequestId");
-  err.Resource = extractXmlTag(raw, "Resource");
-  return err;
-}
-
-function extractXmlTag(xml: string, tag: string): string {
-  const regex = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`);
-  const match = regex.exec(xml);
-  return match?.[1]?.trim() ?? "";
-}
+import { parseResponseErrorXml, ResponseError } from "./error.ts";
 
 describe("ResponseError", () => {
   it.serial("serialization", () => {
     const raw = `
       <?xml version="1.0" encoding="UTF-8"?>
-      <Error>
+      <Error xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
         <Code>test_code</Code>
         <Message>test_message</Message>
         <RequestId>test_request_id</RequestId>
@@ -41,6 +26,28 @@ describe("ResponseError", () => {
     respErr.Resource = parsed.Resource;
 
     expect(JSON.parse(JSON.stringify(respErr))).toMatchSnapshot("serialization");
+  });
+
+  it("parses namespaces, attributes, entities, and empty tags", () => {
+    const parsed = parseResponseErrorXml(`
+      <s3:Error xmlns:s3="http://s3.amazonaws.com/doc/2006-03-01/">
+        <s3:Code retryable="false">Invalid&amp;Code</s3:Code>
+        <s3:Message>bad &lt;request&gt;</s3:Message>
+        <s3:RequestId>request-id</s3:RequestId>
+        <s3:Resource/>
+      </s3:Error>
+    `);
+
+    expect(parsed).toEqual({
+      Code: "Invalid&Code",
+      Message: "bad <request>",
+      RequestId: "request-id",
+      Resource: "",
+    });
+  });
+
+  it("rejects malformed XML", () => {
+    expect(() => parseResponseErrorXml("<Error><Code>broken</Error>")).toThrow(SyntaxError);
   });
 
   it("error interface", () => {
