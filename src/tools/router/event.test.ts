@@ -330,48 +330,61 @@ describe("Event", () => {
         expectedBody: `<?xml version="1.0" encoding="UTF-8"?>\n<string>test</string>`,
       },
       {
-        name: "number",
+        name: "integer",
         status: 200,
         body: 123,
         expectedStatus: 200,
-        expectedBody: `<?xml version="1.0" encoding="UTF-8"?>\n<number>123</number>`,
+        expectedBody: `<?xml version="1.0" encoding="UTF-8"?>\n<int64>123</int64>`,
+      },
+      {
+        name: "float",
+        status: 200,
+        body: 1.5,
+        expectedStatus: 200,
+        expectedBody: `<?xml version="1.0" encoding="UTF-8"?>\n<float64>1.5</float64>`,
       },
       {
         name: "boolean",
         status: 200,
         body: false,
         expectedStatus: 200,
-        expectedBody: `<?xml version="1.0" encoding="UTF-8"?>\n<boolean>false</boolean>`,
+        expectedBody: `<?xml version="1.0" encoding="UTF-8"?>\n<bool>false</bool>`,
       },
       {
-        name: "object",
+        name: "Bun XML document",
         status: 200,
-        body: { text: `<&>"'`, count: 1, enabled: true, empty: null, nested: { value: "test" }, list: [1, 2] },
+        body: {
+          order: {
+            "@id": "A1",
+            text: `<&>"'`,
+            item: ["Tea", "Mug"],
+            paid: null,
+          },
+        },
         expectedStatus: 200,
         expectedBody:
           `<?xml version="1.0" encoding="UTF-8"?>\n` +
-          `<text>&lt;&amp;&gt;&quot;&apos;</text><count>1</count><enabled>true</enabled><empty></empty>` +
-          `<nested>{&quot;value&quot;:&quot;test&quot;}</nested><list>[1,2]</list>`,
+          `<order id="A1"><text>&lt;&amp;&gt;"'</text><item>Tea</item><item>Mug</item><paid/></order>`,
       },
       {
         name: "null",
         status: 200,
         body: null,
         expectedStatus: 200,
-        expectedBody: `<?xml version="1.0" encoding="UTF-8"?>\n<null></null>`,
-      },
-      {
-        name: "array",
-        status: 200,
-        body: ["first", "second"],
-        expectedStatus: 200,
-        expectedBody: `<?xml version="1.0" encoding="UTF-8"?>\n<0>first</0><1>second</1>`,
+        expectedBody: `<?xml version="1.0" encoding="UTF-8"?>\n`,
       },
     ];
 
     for (const scenario of scenarios) {
       await testEventResponseWrite(scenario, (event) => event.XML(scenario.status, scenario.body));
     }
+  });
+
+  it("XML rejects invalid Bun XML documents", () => {
+    const event = new Event({ request: new Request("http://example.com/") });
+
+    expect(() => event.XML(200, { first: 1, second: 2 })).toThrow("exactly one root element");
+    expect(() => event.XML(200, ["first", "second"])).toThrow("expects an object");
   });
 
   it("Stream", async () => {

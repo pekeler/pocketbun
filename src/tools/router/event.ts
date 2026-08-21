@@ -803,40 +803,20 @@ function xmlHeader(): string {
   return '<?xml version="1.0" encoding="UTF-8"?>\n';
 }
 
-// Bun.XML.stringify requires one object root and preserves quotes in text,
-// while this public helper also accepts primitives and emits object fields as
-// sibling elements with Go-compatible escaping.
 function serializeXml(value: unknown): string {
-  if (typeof value === "string") {
-    return `<string>${escapeXml(value)}</string>`;
+  if (value == null) {
+    return "";
   }
-  if (typeof value === "number") {
-    return `<number>${value}</number>`;
-  }
-  if (typeof value === "boolean") {
-    return `<boolean>${value}</boolean>`;
-  }
-  if (value && typeof value === "object") {
-    const parts: string[] = [];
-    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-      const raw =
-        entry == null
-          ? ""
-          : typeof entry === "string" || typeof entry === "number" || typeof entry === "boolean"
-            ? String(entry)
-            : JSON.stringify(entry);
-      parts.push(`<${key}>${escapeXml(raw)}</${key}>`);
-    }
-    return parts.join("");
-  }
-  return "<null></null>";
-}
 
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+  let document = value;
+  if (typeof value === "string") {
+    document = { string: value };
+  } else if (typeof value === "boolean") {
+    document = { bool: value };
+  } else if (typeof value === "number") {
+    // PocketBase's JSVM exports integral JS numbers as int64 and the rest as float64.
+    document = { [Number.isSafeInteger(value) ? "int64" : "float64"]: value };
+  }
+
+  return Bun.XML.stringify(document) ?? "";
 }
