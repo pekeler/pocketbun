@@ -1,12 +1,16 @@
-# Add Vertical Scaling with Bun `node:cluster`
+# Adopt Bun v1.4 Before Adding Vertical Scaling
 
 This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds. This document follows `.agents/PLANS.md`.
 
-Implementation is deliberately paused until stable Bun v1.4.0 is released. Do not start changing production code merely because this plan exists. Resume only after v1.4.0 is available and Milestone 1's runtime qualification passes.
+Stable Bun v1.4.0 is now available. The Bun v1.4 compatibility and native-runtime work in Milestones 1 through 5 is the active, higher-priority workstream. The vertical-scaling work in Milestones 6 through 10 remains planned, but must not begin until the Bun v1.4 workstream has passed its full release gate. PocketBun remains primarily an npm library that includes an executable; producing a standalone compiled executable is explicitly outside this plan.
 
 ## Purpose / Big Picture
 
-PocketBun currently runs one Bun process and one JavaScript event loop. A single process is already competitive with PocketBase, but a server with several CPU cores cannot use those cores for parallel HTTP request handling. After this work, an operator will be able to run:
+PocketBun is a TypeScript port of PocketBase whose observable behavior must remain compatible with PocketBase while its implementation embraces Bun. Bun v1.4 adds native capabilities that can remove fragile PocketBun code, close an existing cron compatibility gap, reduce static-file memory use, make shutdown more deterministic, and shorten the test feedback loop. After the first workstream, PocketBun will use those capabilities only where they preserve or improve PocketBase compatibility: cron will retain PocketBase's UTC default and gain the missing timezone API, S3 and request XML will use Bun's parser, local static files will use Bun's streaming file responses where their HTTP behavior matches, and the project will test and maintain itself with the useful new Bun v1.4 tooling.
+
+The Bun v1.4 work deliberately does not replace working components merely because Bun now has a similarly named API. Playwright remains the real-browser test framework, backups remain ZIP-compatible, the multipart parser continues to spool uploads to disk, and the custom S3 client remains until Bun exposes the metadata, conditional-operation, response-header, arbitrary-header, and native-copy behavior PocketBase compatibility requires. No new runtime dependency is expected.
+
+After that work is complete, the lower-priority vertical-scaling work begins. PocketBun currently runs one Bun process and one JavaScript event loop. A single process is already competitive with PocketBase, but a server with several CPU cores cannot use those cores for parallel HTTP request handling. After the scaling work, an operator will be able to run:
 
     pocketbun --workers=4 serve --http=127.0.0.1:8090
 
@@ -14,7 +18,7 @@ One lightweight primary process will supervise four PocketBun worker processes. 
 
 The operator will still supervise the one cluster primary with systemd, a Windows service host, Docker, or an equivalent operating-system service manager. No npm process manager or PocketBun-specific daemon dependency will be added. The default remains one process (`--workers=1`) on every operating system. Multi-worker mode is opt-in. Linux has the zero-extra-hop shared-port path; Windows and macOS require the external traffic distributor.
 
-Success is observable, not architectural: several worker process IDs must answer through one public endpoint; read-heavy throughput must improve on a multi-core machine; migrations and scheduled work must run once; realtime, OAuth2 redirects, rate limits, backups, settings reloads, and shutdown must behave as one PocketBun application; and killing a worker must not take down the service.
+Success is observable, not architectural. First, the complete test suite must pass under Bun v1.4 with explicit tests for timezone, XML, static-file HTTP semantics, and clean shutdown, while the parallel test command is measurably faster and no incompatible dependency replacement is introduced. Later, several worker process IDs must answer through one public endpoint; read-heavy throughput must improve on a multi-core machine; migrations and scheduled work must run once; realtime, OAuth2 redirects, rate limits, backups, settings reloads, and shutdown must behave as one PocketBun application; and killing a worker must not take down the service.
 
 ## Progress
 
@@ -23,14 +27,35 @@ Success is observable, not architectural: several worker process IDs must answer
 - [x] (2026-08-02 16:00Z) Recorded the current Bun documentation and source-level assumptions that must be revalidated with stable Bun v1.4.0.
 - [x] (2026-08-02 16:00Z) Replaced the completed PocketBase v0.39.10 upgrade plan with this deferred, self-contained implementation plan.
 - [x] (2026-08-02 16:30Z) Corrected the gate to Bun v1.4.0 and expanded the plan beyond Linux port sharing: Windows/macOS use predictable worker ports behind an external traffic distributor, subject to v1.4 qualification.
-- [ ] Wait for stable Bun v1.4.0; update the PocketBun Bun baseline separately or at the start of this work, then complete the runtime qualification in Milestone 1 on Linux, Windows, and macOS.
-- [ ] Implement the cluster primary, worker roles, CLI surface, startup ordering, one-primary guard, readiness, shutdown, and crash recovery in Milestone 2.
-- [ ] Make built-in process-local behavior cluster-correct in Milestone 3: migrations, bootstrap cleanup, cron, installer, settings/collection caches, rate limits, email cooldowns, OAuth2 redirects, and realtime.
-- [ ] Make backup, restore, and application restart cluster-wide in Milestone 4.
-- [ ] Complete cross-platform integration tests, failure tests, performance measurements, documentation, and the full repository gate in Milestone 5.
+- [x] (2026-08-21 00:00Z) Reviewed the complete Bun v1.4 release announcement against PocketBun's dependencies, runtime paths, tests, CI, documentation, and known Bun issue workarounds; measured 1,898 passing tests in 30.21 seconds with `--parallel=4` and 28.70 seconds with `--parallel=4 --concurrent` on the local Bun v1.4.0 checkout.
+- [x] (2026-08-21 00:00Z) Agreed to complete the compatibility-preserving Bun v1.4 work before vertical scaling and to exclude a standalone compiled executable because PocketBun remains primarily an npm library with an included executable.
+- [ ] Complete Milestone 1: establish and validate the Bun v1.4 baseline in package metadata, generated templates, lockfile policy, and CI before depending on v1.4-only APIs.
+- [ ] Complete Milestone 2: preserve UTC cron behavior, add PocketBase-compatible timezone control, await logger-worker termination, and adopt the faster isolated test workflow.
+- [ ] Complete Milestone 3: replace the S3 XML regex parsers and then the HTTP XML body parser with `Bun.XML`, retaining a compatibility adapter wherever Bun's output shape differs.
+- [ ] Complete Milestone 4: qualify `Bun.file()` for local static responses, remove the byte cache only if HTTP parity holds, and add memory-pressure eviction only if a disposable cache remains.
+- [ ] Complete Milestone 5: add low-risk Bun package-maintenance checks, qualify Playwright running under Bun, document deliberate non-adoptions, update user-facing documentation/changelog where required, and pass the full repository gate.
+- [ ] After Milestones 1 through 5 are complete, qualify Bun v1.4 clustering on Linux, Windows, and macOS in Milestone 6.
+- [ ] Implement the cluster primary, worker roles, CLI surface, startup ordering, one-primary guard, readiness, shutdown, and crash recovery in Milestone 7.
+- [ ] Make built-in process-local behavior cluster-correct in Milestone 8: migrations, bootstrap cleanup, cron, installer, settings/collection caches, rate limits, email cooldowns, OAuth2 redirects, and realtime.
+- [ ] Make backup, restore, and application restart cluster-wide in Milestone 9.
+- [ ] Complete cluster integration tests, failure tests, performance measurements, documentation, and the final release gate in Milestone 10.
 
 ## Surprises & Discoveries
 
+- Observation: Bun v1.4 changes in-process cron interpretation from UTC to the host's local timezone, which conflicts with PocketBun's documented and upstream-compatible UTC default unless PocketBun passes an explicit timezone.
+  Evidence: `src/tools/cron/cron.ts` currently calls `Bun.cron(job.Expression(), handler)` without options, while `docs/users/differences.md` promises UTC. The v1.4 release adds a final timezone option to both scheduling and parsing, and PocketBun currently omits PocketBase's `setTimezone` API.
+- Observation: process-isolated test parallelism is already a measured win without test failures.
+  Evidence: on the local Bun v1.4.0 checkout, `bun test --parallel=4` passed 1,898 tests in 30.21 seconds and `bun test --parallel=4 --concurrent` passed the same 1,898 tests in 28.70 seconds, compared with the earlier approximately 64-second concurrent run.
+- Observation: `Bun.XML` can replace fragile internal parsing, but its generic JavaScript shape is not identical to PocketBun's existing public XML binding and serialization shapes.
+  Evidence: S3 XML responses currently use repeated regular-expression helpers in `src/tools/filesystem/internal/s3blob/s3/`, while `src/tools/router/event.ts` uses `DOMParser` plus a regular-expression fallback and a handwritten serializer. Bun parses repeated tags as arrays, exposes namespace attributes, and requires one root for serialization, so fixed-schema normalization must precede deleting compatibility code.
+- Observation: Bun v1.4's file responses are a better replacement for PocketBun's local byte-loading path than Bun's directory routes.
+  Evidence: `Event.FileFS()` currently reads complete files and keeps a 16 MiB/256-entry byte cache. A `Bun.file()` response can stream and handle range/precondition behavior, but a direct directory route would bypass PocketBun's canonical redirects, SPA fallback, logging, hooks, CSP, cache policy, and Admin UI branding.
+- Observation: no current npm dependency has a safe Bun v1.4 replacement.
+  Evidence: `go-text-template` supplies Go template semantics; TypeScript is used through its compiler API; Playwright supplies real-browser locators, fixtures, assertions, and cross-platform coverage; oxlint/oxfmt have no Bun equivalent; and the PocketBase JavaScript SDK is intentional compatibility coverage.
+- Observation: several attractive Bun-native substitutions remain incompatible with PocketBase requirements.
+  Evidence: `Bun.Archive` produces tar rather than PocketBase-compatible ZIP backups; `Request.formData()` materializes uploads rather than preserving PocketBun's disk-spooling behavior; `Bun.WebView` is experimental and is not a Playwright replacement; and open Bun S3 issues still block PocketBun metadata, response-header, arbitrary-header/query, conditional-write, and native-copy behavior.
+- Observation: Bun v1.4 still does not make `--no-orphans` safe for PocketBun's ephemeral-port server path.
+  Evidence: the existing `Bun.serve({ port: 0 })` reproduction still fails with `EADDRINUSE` under Bun v1.4.0 when `--no-orphans` is enabled, so the existing explicit child cleanup remains necessary.
 - Observation: Bun's preferred fast HTTP clustering path and `node:cluster` are complementary in PocketBun, not competing server implementations.
   Evidence: Bun's cluster guide says explicit `reusePort` is the faster, more limited alternative, while its compatibility page says `node:cluster` HTTP load balancing is Linux-only because handles cannot be passed between workers. PocketBun can use `node:cluster` as the cross-platform control plane while workers continue to use `Bun.serve()`: kernel load balancing on one Linux port, or distinct ports behind an external load balancer elsewhere.
 - Observation: Linux-only port sharing does not imply Linux-only clustering.
@@ -58,8 +83,26 @@ Success is observable, not architectural: several worker process IDs must answer
 
 ## Decision Log
 
-- Decision: wait specifically for stable Bun v1.4.0 and qualify that exact version before implementation.
-  Rationale: the user intentionally deferred the project until Bun v1.4. `node:cluster` is documented as implemented but not battle-tested, so PocketBun should convert source assumptions into executable probes on the runtime it will support.
+- Decision: complete the Bun v1.4 compatibility and native-runtime work before starting vertical scaling.
+  Rationale: the runtime upgrade has an immediate cron correctness issue and several small, independently verifiable simplifications. Landing those first gives the later cluster work a qualified, stable baseline and prevents both workstreams from changing cron, shutdown, static serving, CI, and tests simultaneously.
+  Date/Author: 2026-08-21 / Codex and repository owner
+- Decision: do not build or plan a standalone compiled executable in this work.
+  Rationale: PocketBun remains primarily an npm library that includes an executable. Embedding the Admin UI into a compiled artifact does not advance that distribution model enough to justify another asset-resolution and platform matrix.
+  Date/Author: 2026-08-21 / repository owner
+- Decision: adopt Bun v1.4 as the project baseline before production code depends on `Bun.XML` or cron timezone options, while keeping individual changes compatible with Bun v1.3 where that happens naturally.
+  Rationale: feature-detection fallbacks would preserve two implementations of the very code this work is intended to delete. A clear minimum runtime and CI baseline is simpler. Incidental compatibility, such as awaiting a non-Promise worker termination result, is welcome but is not a reason to retain duplicated parsers.
+  Date/Author: 2026-08-21 / Codex
+- Decision: preserve PocketBase behavior around each Bun-native replacement and keep a compatibility adapter when Bun's generic API does not directly match it.
+  Rationale: Bun adoption is an implementation choice, while PocketBase-compatible HTTP, cron, backup, upload, S3, XML, and JavaScript APIs are the product contract. The native implementation is accepted only after differential or regression tests prove that contract.
+  Date/Author: 2026-08-21 / Codex and repository owner
+- Decision: retain Playwright, the ZIP archive implementation, the streaming multipart parser, the custom S3 client, and the current template/compiler/tooling dependencies.
+  Rationale: Bun v1.4 does not provide equivalent semantics. Replacing them would either lose compatibility or require more custom code. Revisit the S3 client only when the listed Bun API gaps close, and revisit other components only when a measured or compatibility-driven need appears.
+  Date/Author: 2026-08-21 / Codex
+- Decision: use Bun's process-isolated parallel test runner after cross-platform qualification, but do not add retries by default.
+  Rationale: local measurements show a large speedup with no failures. Retries would instead conceal races and contradict the purpose of isolation.
+  Date/Author: 2026-08-21 / Codex
+- Decision: qualify stable Bun v1.4.0 specifically before implementing vertical scaling.
+  Rationale: Bun v1.4.0 is now released, but `node:cluster` remains less battle-tested than PocketBun's existing single-process path. PocketBun must finish the higher-priority v1.4 work and then convert cluster source assumptions into executable probes before cluster production code is written.
   Date/Author: 2026-08-02 / Codex and repository owner
 - Decision: use `node:cluster` for the control plane on every supported OS, explicit `Bun.serve({ reusePort: true })` on one shared Linux port, and distinct predictable worker ports behind an external traffic distributor on Windows/macOS.
   Rationale: this keeps Bun's fastest native Linux path while retaining worker registry, IPC, lifecycle events, and parent-death behavior elsewhere. The PocketBun primary never accepts or proxies HTTP, so it cannot become the scaling bottleneck.
@@ -103,13 +146,19 @@ Success is observable, not architectural: several worker process IDs must answer
 
 ## Outcomes & Retrospective
 
-No implementation has started. The plan is intentionally paused at the Bun release gate. When the work is complete, replace this paragraph with measured single-worker and multi-worker results, the chosen recommended worker counts, memory and SQLite-contention observations, Bun issues found or ruled out, deviations from this design, and the final validation evidence.
+No implementation has started. Research and local test-runner qualification are complete, and the active implementation sequence is now Bun v1.4 adoption followed by vertical scaling. When the Bun v1.4 workstream is complete, record the deleted compatibility code, runtime baseline, HTTP and cron parity evidence, test-time result, retained dependencies, and any rejected native substitutions. When the scaling work is complete, add measured single-worker and multi-worker results, the chosen recommended worker counts, memory and SQLite-contention observations, Bun issues found or ruled out, deviations from this design, and the final validation evidence.
 
 The expected result is simpler than a built-in general-purpose process manager: one primary file, one typed IPC protocol, worker-role checks at existing singleton boundaries, and focused adapters for the handful of process-local features. The performance benefit is expected primarily for concurrent reads and CPU-heavy request/hook work. Writes remain serialized by SQLite, each worker adds memory, and the primary-coordinated rate limiter adds an IPC round trip on routes for which a rate-limit rule applies. Those costs must be measured before the feature is described as a performance advantage.
 
 ## Context and Orientation
 
 PocketBun is a Bun-native TypeScript port of PocketBase. The standard CLI entrypoint is `bin/pocketbun`, which imports `src/cli.ts`. `src/cli.ts` constructs a `PocketBase`, registers plugin flags, loads server-side JavaScript hooks and migrations, registers the migrate command and static route, and calls `app.start()`. `PocketBase.Start()` in `src/pocketbase.ts` adds the `serve` and superuser commands, while `PocketBase.Execute()` bootstraps the app, listens for SIGINT/SIGTERM, executes the command, and triggers termination hooks.
+
+The current minimum runtime is declared as Bun 1.3.14 in `package.json`, with matching `@types/bun`; `.github/workflows/ci.yml` pins the same version for its operating-system jobs. Generated example/template packages also carry Bun minimum versions and must be found with `rg` and updated consistently when the baseline changes. `bun.lock` is currently an older lockfile format. Do not accept a lockfile rewrite accidentally: decide and record whether Bun v1.4 must rewrite it, verify clean installs, and include the resulting file deliberately if needed.
+
+The first workstream touches four runtime paths. `src/tools/cron/cron.ts` wraps `Bun.cron`, while `src/tools/cron/schedule.ts` validates expressions and `src/tools/cron/cron.test.ts` currently asserts that `SetTimezone` is absent. The S3 response modules under `src/tools/filesystem/internal/s3blob/s3/` contain repeated regular-expression XML extraction; `src/tools/router/event.ts` contains the general request XML parser, response XML serializer, and `Event.FileFS()`. `Event.FileFS()` currently reads local files into a bounded byte cache before returning a `Response`. Finally, `src/tools/logger/log_writer.ts` owns the logger worker and currently calls `terminate()` without awaiting completion.
+
+The test and maintenance entrypoints are in `package.json`. The default test command uses `bun test --concurrent`; `scripts/e2e_run.ts` launches Playwright; build analysis and CPU/heap profiling already use Bun's newer native tooling. The optional `go-text-template` peer dependency, TypeScript compiler dependency, Playwright, oxlint/oxfmt, and PocketBase JavaScript SDK coverage remain in place for the reasons recorded in the Decision Log.
 
 The `serve` command is defined in `src/cmd/serve.ts`. It calls `serveAsync()` from `src/apis/serve.ts`, then waits for termination. `serveAsync()` bootstraps, runs application migrations, builds the router, calls `Bun.serve()`, registers the `pbGracefulShutdown` hook that calls `server.stop()`, starts the first-superuser installer, and prints the startup banner.
 
@@ -128,15 +177,63 @@ The Bun facts to revalidate are documented at:
 
 ### Scope boundaries
 
+The Bun v1.4 work covers the runtime baseline and CI; explicit UTC cron behavior and PocketBase-compatible timezone control; deterministic logger-worker shutdown; isolated parallel test execution; native XML parsing for fixed S3 schemas and HTTP request binding; native local-file response streaming where HTTP parity holds; safe cache eviction under memory pressure only if such a cache remains; low-risk package license, audit, diff, deduplication, and changed-test workflows; and an experiment running the existing Playwright suite under Bun. It does not cover a standalone compiled executable, replacement of Playwright with WebView, migration from ZIP to tar, replacement of the disk-spooling multipart parser, migration from `bun:sqlite` to `Bun.sql`, replacement of the custom S3 client, production HTTP/3, global outbound request compression, Temporal migration, rebuilding the vendored Admin UI, or speculative use of unrelated v1.4 parsers, terminal, FFI, crypto, or cgroup APIs.
+
 This feature covers vertical scaling on one host, one `pb_data` directory, one cluster primary, and several worker processes. Linux uses native shared-port balancing. Windows and macOS use distinct loopback worker ports and require an operator-managed traffic distributor; PocketBun will not bundle or recommend a runtime dependency for that external role. It does not cover a shared data directory across servers, network filesystems, Postgres, worker threads, arbitrary independently launched PocketBun processes, automatic worker-count tuning, rolling code deployment, zero-downtime schema migration across two versions, PM2, or a general public supervisor library. Domain-specific CPU work can still use Bun workers or other techniques inside application hooks, but that is separate from framework request scaling.
 
 Package consumers that construct an `App` and call `serveAsync()` directly remain single-process in the first release. They must not set undocumented cluster environment variables. A later public factory can be considered after the CLI feature is proven, using a separate ExecPlan and a concrete package-user requirement.
 
 ## Plan of Work
 
-### Milestone 1: qualify stable Bun v1.4.0
+### Milestone 1: establish the Bun v1.4 baseline and compatibility guardrails
 
-Do not edit PocketBun cluster production code until stable Bun v1.4.0 exists. First update `package.json`'s `engines.bun`, `@types/bun`, Bun lockfile, and `.github/workflows/ci.yml` to v1.4.0 or a later v1.4 patch chosen during the normal runtime-upgrade process. Record the exact version in this plan. Review that release's notes and current official docs for `node:cluster`, `Bun.serve({ reusePort })`, process IPC, signals, and compiled executables.
+Record the exact stable Bun v1.4 patch selected for PocketBun. Update `package.json`'s `engines.bun` and `@types/bun`, both platform pins in `.github/workflows/ci.yml`, `create-pocketbun/package.json`, `create-pocketbun/template/simple/package.json`, and the package files under `examples/` so newly generated and documented projects do not claim an older runtime than the library actually uses. Search the repository for every remaining v1.3 minimum rather than relying only on this list. Run `bun install`, inspect the lockfile diff, and keep a Bun v1.4 lockfile migration only when it is required and clean installs of the root package and generated templates prove it works. Do not use nested overrides, catalogs, or other package-file features solely because v1.4 supports them.
+
+Before replacing implementations, turn the relevant v1.4 breaking changes into focused checks. Confirm cron behavior under a non-UTC `TZ`; duplicate request headers and separate `Set-Cookie` values; every `Request` or `Response` clone occurs before body consumption; graceful `server.stop()` waits for active requests without reintroducing the realtime cleanup race; closing `bun:sqlite` databases finalizes cached statements without breaking application shutdown; fetch failures are treated as generic errors rather than relying on an old error class; and current SQL JSON/date binding remains correct. Keep `--no-orphans` disabled because its ephemeral-port reproduction still fails. Record resolved or still-open workarounds in `docs/maintainers/bun-issues-watchlist.md` only when the evidence changes that document.
+
+Run the full repository gate on the chosen Bun v1.4 patch before depending on new APIs. CI must exercise Ubuntu, macOS, and Windows using that same baseline. Fix warnings as failures. Milestone 1 is complete when package metadata, templates, CI, types, lockfile policy, and documentation agree on the Bun minimum; a clean install works; the existing suite passes on all supported platforms; and the breaking-change audit has either passing regression coverage or a recorded, scoped follow-up in a later milestone.
+
+### Milestone 2: fix cron compatibility and adopt low-risk runtime improvements
+
+Update `src/tools/cron/cron.ts` so UTC is stored as the scheduler default and is passed explicitly to every `Bun.cron()` handle. Pass the same timezone to validation in `src/tools/cron/schedule.ts`, so an expression accepted for a timezone is the expression Bun will execute in that timezone. Port the upstream `SetTimezone` behavior and expose the JavaScript-facing `setTimezone` form required by the repository's API naming rules. Reuse the existing JSVM `Timezone` representation or the smallest shared timezone-name helper rather than inventing a second timezone abstraction. Because Bun cron handles capture their timezone when scheduled, changing timezone on a started scheduler must safely restart its handles; changing it before `Start()` only updates stored configuration. Preserve the default UTC behavior and do not implement PocketBase's independently configurable tick interval in this milestone because Bun owns the tick cadence and v1.4 does not expose an equivalent.
+
+Replace the tests that assert `SetTimezone`/`setTimezone` are absent with upstream-derived and Bun-specific regression tests. Cover the default UTC behavior while the process `TZ` is non-UTC, a named zone such as `Asia/Tokyo`, invalid timezone input at the public boundary, changing timezone before and after start, validation using the selected timezone, and one daylight-saving transition. Process-global timezone tests must be serial or run in a child process. Update generated JSVM declarations and remove only the `setTimezone` omission from `src/plugins/jsvm/types_runtime_contract.test.ts`; leave `setInterval` explicitly unsupported and documented.
+
+In `src/tools/logger/log_writer.ts`, await `Worker.terminate()` after the existing graceful close-or-timeout path. Add or adjust the smallest shutdown test that proves no worker remains and repeated `close()` calls remain safe. Do not redesign the log protocol.
+
+Update the normal test scripts to use Bun v1.4's process-isolated `--parallel` together with in-file `--concurrent` execution after CI determines a stable worker count. Add a small changed-files command for local iteration and a timing command only if they can be expressed directly in `package.json`; do not create wrapper scripts for one-line Bun commands. Use timings to choose the worker count and retain `test.serial` for tests that mutate process state or shared resources. Do not add default retries. Milestone 2 is complete when cron matches PocketBase's UTC and timezone behavior, logger shutdown is deterministic, all tests pass on every CI platform with isolation, and the new default is measurably faster without increased flakiness.
+
+### Milestone 3: replace handwritten XML parsing with `Bun.XML`
+
+Begin with the fixed S3 response schemas under `src/tools/filesystem/internal/s3blob/s3/`. Replace the repeated `extractXmlTag` and `extractXmlTags` regular expressions in error, copy-object, multipart-upload, and list-object handling with one small internal normalization helper around `Bun.XML.parse()`. The helper must turn Bun's singleton-or-array representation into the exact existing typed S3 values, decode entities, tolerate expected namespaces, preserve empty values, and continue producing the current normalized errors. Add fixture tests for S3-compatible providers, including a default namespace, one and several `Contents`/`CommonPrefixes` elements, escaped keys/messages, empty tags, malformed XML, checksums, dates, and pagination tokens. Do not change request signing, metadata, upload concurrency, list semantics, or public filesystem behavior in the same change.
+
+After the S3 migration is stable, replace `parseXmlBody()` in `src/tools/router/event.ts` with `Bun.XML.parse()` plus a compatibility adapter that preserves the current request-binding shape. Differential tests must cover repeated and singleton children, namespaces and attributes, entity decoding, empty values, nested values, malformed XML, and the exact errors returned by PocketBase-compatible routes. Delete the `DOMParser` and regular-expression fallback only after these tests pass.
+
+Treat `serializeXml()` separately. Compare `Bun.XML.stringify()` against PocketBun's accepted public inputs, especially primitives, arrays, several top-level fields, escaping, and the required XML declaration. Use Bun's serializer only behind the smallest adapter that preserves every supported output. If that adapter would be larger or less clear than the existing serializer, retain the serializer and record that outcome rather than forcing a native replacement. Milestone 3 is complete when the parsing regexes are gone, XML behavior is pinned by focused tests, no S3 or API response shape changes, and no dependency or compatibility fallback for Bun v1.3 remains.
+
+### Milestone 4: stream local static files through `Bun.file()`
+
+Change only the local-file body path in `Event.FileFS()` in `src/tools/router/event.ts`. Preserve its path resolution, traversal protection, canonical redirects, index/SPA fallback, router middleware, hooks, logging, content headers, CSP, Admin UI cache policy, and runtime branding. Return a `Bun.file()`-backed response rather than eagerly reading bytes, and allow Bun v1.4 to provide streaming and sendfile behavior where applicable. Do not replace PocketBun routes with Bun directory routes.
+
+Before deleting existing logic, add differential tests against pinned upstream PocketBase and the current PocketBun behavior for `GET` and `HEAD`, missing files, directories and canonical redirects, content type and length, empty and large files, `Range` including invalid, suffix, open-ended, and multipart cases, `If-Modified-Since`, `If-Unmodified-Since`, `If-Match`, `If-None-Match`, and interaction between ranges and preconditions. Verify Admin UI branding, CSP, cache headers, and `pb_public` SPA fallback through the actual router rather than only calling `FileFS()` directly. If Bun's automatic behavior differs from PocketBase, keep the smallest explicit header/range adapter needed for parity.
+
+If parity holds without the current 16 MiB/256-entry byte cache, delete that cache and its eviction code. If a disposable byte or branded-asset cache remains for a measured reason, register one process memory-pressure listener that clears only those reconstructible caches; do not call `Bun.gc()` or clear collection, settings, template, or application state. Keep `src/tools/filesystem/filesystem.ts`'s remote/S3 and multipart-range `ServeResponse()` path unless a separate differential test proves an equally small native path. Milestone 4 is complete when local static responses preserve PocketBase-visible behavior, large files are not fully copied into PocketBun's byte cache, and memory-pressure handling is either narrowly implemented or explicitly skipped because no safe material cache remains.
+
+### Milestone 5: finish Bun v1.4 tooling, documentation, and release qualification
+
+Add or document the useful package-maintenance commands with the least permanent machinery. Use `bun pm licenses --prod --json` to inspect production license obligations, `bun pm diff` during dependency updates, `bun audit fix --dry-run` for review rather than automatic mutation, and `bun dedupe --check` for maintenance. Add scripts only for commands that belong in a repeatable release or CI gate; otherwise document them in `docs/maintainers/README.md`. Do not enable the isolated global package store until a clean-install benchmark and direct-binary audit prove that all invoked tools are declared dependencies. Do not add `bun prune --production` until PocketBun has a container or deployment artifact that benefits from it.
+
+Run the existing Playwright Admin UI suite under Bun with the v1.4 Bun-runtime option while retaining `@playwright/test`, its locators, assertions, fixtures, browser installation, and the normal execution path. Promote the Bun-hosted command only if Linux, macOS, and Windows results are equally reliable; otherwise keep it as an optional experiment with the evidence recorded here. Do not replace Playwright with experimental `Bun.WebView`.
+
+Update the custom SSR documentation example to bind `Bun.CSRF` tokens to an authenticated session identifier where one exists. Document automatic v1.4 benefits such as lower runtime overhead, stream/backpressure improvements, connection reuse, zlib improvements, and security hardening only when useful to operators; they require no PocketBun wrapper. Do not claim new FreeBSD, Windows ARM64, older-Linux, or other platform support until a smoke test covers `Bun.serve`, `bun:sqlite`, `Bun.Image`, hooks, and ZIP backup/restore there. Do not move the TypeScript peer range to TypeScript 7 until that compiler is stable and PocketBun's compiler-API usage passes separately.
+
+Record deliberate non-adoptions in `docs/maintainers/bun-issues-watchlist.md` or this plan only where future maintainers need the constraint: the custom S3 client remains until the open Bun metadata/header/conditional/native-copy gaps close; backups remain ZIP; multipart remains disk-spooled; HTTP/3 remains experimental; fetch compression is not enabled globally because it can affect signed requests; `Bun.sql`, Temporal, WebView, and unrelated format/terminal/FFI/crypto APIs are not product work; and `--no-orphans` remains blocked by the port-zero failure. Do not add user-facing documentation noise for internal non-decisions.
+
+Update `CHANGELOG.md` under `Unreleased` for the user-visible cron/timezone, XML correctness, static serving, runtime baseline, and any operational changes. Run the deterministic documentation pipeline and the full repository gate. Milestone 5 is complete when all Bun v1.4 work in Milestones 1 through 4 is shipped and documented, the test/maintenance workflow is stable, retained dependencies and rejected substitutions still have valid reasons, the worktree contains no standalone-executable work, and vertical scaling can start from a clean v1.4 baseline.
+
+### Milestone 6: qualify stable Bun v1.4.0 for clustering
+
+Do not edit PocketBun cluster production code until Milestones 1 through 5 are complete. Use the exact Bun v1.4 patch established there and review its current official docs and source for `node:cluster`, `Bun.serve({ reusePort })`, process IPC, signals, and the normal source/package executable paths.
 
 Create a temporary or committed PocketBun-only runtime probe under `scripts/repro/bun_issues/` only if the behavior is worth keeping as a regression. The probe must establish all of the following across the applicable Linux, Windows, and macOS matrix:
 
@@ -148,15 +245,15 @@ Create a temporary or committed PocketBun-only runtime probe under `scripts/repr
 6. `await server.stop()` and `await server.stop(true)` behave as documented in a cluster child. Determine how SSE connections affect graceful stop and record the chosen graceful deadline.
 7. An unexpected primary IPC disconnect terminates children, or PocketBun can reliably make it do so. Kill the primary with the platform's ungraceful termination mechanism, verify no orphan workers remain, and treat failure as a blocker.
 8. Primary termination handlers, child shutdown messages, worker exit/disconnect events, and exit codes work without double handling by `bin/pocketbun`. Test POSIX signals on Linux/macOS and the Windows console/service termination path separately.
-9. `cluster.fork()` works both from `bun run src/cli.ts` and from PocketBun's built `dist/src/cli.js`. If PocketBun officially supports compiled standalone executables by then, add a compiled-executable probe; otherwise record that compiled clustering is outside the release scope.
+9. `cluster.fork()` works both from `bun run src/cli.ts` and from PocketBun's built `dist/src/cli.js`, which is the executable path shipped with the npm library. Standalone compiled executables are outside scope.
 10. IPC preserves ordering from one sender, reports send/disconnect failures, and rejects values PocketBun will not send. Use only strings, numbers, booleans, nulls, arrays, and plain objects in the final protocol.
 11. The runtime remains stable through at least 10,000 worker messages, 100 worker restarts, and a ten-minute HTTP/realtime smoke run on every supported platform.
 
 If any required behavior fails, reduce the failing case to a standalone Bun reproduction, file or link a Bun issue, add it to `docs/maintainers/bun-issues-watchlist.md`, update `Surprises & Discoveries`, and pause. Do not hide a runtime defect behind a complex PocketBun supervisor.
 
-Milestone 1 is complete when the exact Bun v1.4 release and probe output are recorded in `Artifacts and Notes`, the shared-port path passes on Linux, and the distinct-port control plane and external-proxy test path pass on Windows and macOS. A platform whose Bun v1.4 cluster lifecycle or IPC fails these probes remains explicitly unsupported until Bun fixes it; lack of `reusePort` alone is not grounds to exclude it.
+Milestone 6 is complete when the exact Bun v1.4 release and probe output are recorded in `Artifacts and Notes`, the shared-port path passes on Linux, and the distinct-port control plane and external-proxy test path pass on Windows and macOS. A platform whose Bun v1.4 cluster lifecycle or IPC fails these probes remains explicitly unsupported until Bun fixes it; lack of `reusePort` alone is not grounds to exclude it.
 
-### Milestone 2: add the minimal cluster lifecycle
+### Milestone 7: add the minimal cluster lifecycle
 
 Create a small PocketBun-only cluster subsystem under `src/internal/cluster/`, with the required non-upstream header comment. Prefer four straightforward files over a framework:
 
@@ -179,9 +276,9 @@ Implement a bounded restart policy in the primary. Unexpected follower exit crea
 
 On a platform termination event, the primary stops forking, tells every worker to terminate through the existing `PocketBase.Execute()`/`OnTerminate()` path, waits for acknowledgements and exits, then force-kills stragglers after a documented deadline. Do not duplicate server cleanup: the existing `pbGracefulShutdown` hook remains responsible for `server.stop()`, logger flushing, watcher cleanup, and database close. Preserve POSIX signal exit codes through `bin/pocketbun` and the equivalent Windows exit behavior. Test ungraceful primary termination separately because graceful hooks cannot run.
 
-Milestone 2 is complete when a Linux integration test starts at least three workers on one port and Windows/macOS integration tests start three workers on three predictable loopback ports. Each test observes three distinct PIDs through its public test endpoint, receives a single startup banner, kills each role in turn and observes the correct same-slot replacement, cleanly terminates the primary with no orphan workers, rejects a second primary on the same data directory, and shows unchanged behavior with `--workers=1`.
+Milestone 7 is complete when a Linux integration test starts at least three workers on one port and Windows/macOS integration tests start three workers on three predictable loopback ports. Each test observes three distinct PIDs through its public test endpoint, receives a single startup banner, kills each role in turn and observes the correct same-slot replacement, cleanly terminates the primary with no orphan workers, rejects a second primary on the same data directory, and shows unchanged behavior with `--workers=1`.
 
-### Milestone 3: make built-in application behavior cluster-correct
+### Milestone 8: make built-in application behavior cluster-correct
 
 #### Singleton startup and scheduled work
 
@@ -211,9 +308,9 @@ Forward auth-record update/delete and auth-collection secret/delete invalidation
 
 For OAuth2 redirect delivery, publish a targeted-client message through the primary. Every worker checks its local broker for the client ID; only the owner sends. The result reports delivered, absent, or duplicate ownership. Treat duplicate ownership as an invariant error and absent as the current missing-client behavior. Store Apple's temporary name through the expiring-state operation before delivering the redirect message, so the later auth request can consume it from any worker.
 
-Milestone 3 is complete when real-process tests force the producer and consumer onto different worker PIDs and prove: record create/update/delete SSE delivery; auth invalidation; OAuth2 redirect delivery; Apple name handoff; aggregate rate limits; password-reset and verification resend guards; one migration application; one installer attempt; one cron/autobackup execution; and settings/collection cache reloads. Run the complete state-coordination suite on Linux and at least one distinct-port end-to-end case for every coordinator operation on Windows/macOS. Tests must verify no duplicate SSE event and no duplicate singleton side effect.
+Milestone 8 is complete when real-process tests force the producer and consumer onto different worker PIDs and prove: record create/update/delete SSE delivery; auth invalidation; OAuth2 redirect delivery; Apple name handoff; aggregate rate limits; password-reset and verification resend guards; one migration application; one installer attempt; one cron/autobackup execution; and settings/collection cache reloads. Run the complete state-coordination suite on Linux and at least one distinct-port end-to-end case for every coordinator operation on Windows/macOS. Tests must verify no duplicate SSE event and no duplicate singleton side effect.
 
-### Milestone 4: coordinate backup, restore, and restart
+### Milestone 9: coordinate backup, restore, and restart
 
 Replace the cluster-mode use of the local `StoreKeyActiveBackup` guard with an exclusive primary lease while keeping the existing local path for one worker. Broadcast lease state to all workers so the backup API, delete protection, and health response see a consistent active operation without an IPC query on every read. The lease records worker ID and backup name; the primary releases it if that worker exits. Concurrent create/restore calls through different workers must produce the same "another backup/restore" outcome as one process.
 
@@ -232,9 +329,9 @@ PocketBun currently rejects backup restore on Windows, and clustering does not c
 
 Make `BaseApp.Restart()` and `RestartAsync()` cluster-aware. A restart request from any worker asks the primary to quiesce and recreate the complete worker set; it never replaces only that child. Recycle workers under the existing primary when that reloads all application state, which also works on Windows without `execve`. Re-execute the primary only when restoring data or replacing primary code actually requires it and the platform supports it. This also gives future hook-watch behavior the correct primitive. Preserve current direct `execve` behavior outside cluster mode.
 
-Milestone 4 is complete when tests create a backup while other workers read and write, reject overlapping operations across workers, restore a known database on supported platforms without any worker retaining an old connection, automatically return with the configured worker count and new data, recover from a deliberately failed restore, preserve the existing Windows restore rejection, and prove `app.restart()` replaces every worker without orphaning processes.
+Milestone 9 is complete when tests create a backup while other workers read and write, reject overlapping operations across workers, restore a known database on supported platforms without any worker retaining an old connection, automatically return with the configured worker count and new data, recover from a deliberately failed restore, preserve the existing Windows restore rejection, and prove `app.restart()` replaces every worker without orphaning processes.
 
-### Milestone 5: hardening, performance, documentation, and release gate
+### Milestone 10: hardening, performance, documentation, and release gate
 
 Add cross-platform integration coverage adjacent to `src/internal/cluster/` or in one clearly marked PocketBun-only test file. Use actual child processes and a temporary `pb_data`; in-process multiple `BaseApp` objects are insufficient. Tests that mutate process globals, fixed ports, signals, or shared paths must be serial. Run native same-port tests on Ubuntu and distinct-port tests through a small test-only proxy on macOS and Windows. The proxy must use existing test/runtime facilities and must not become a PocketBun dependency. Keep platform-specific restore and signal cases explicit and raise CI timeouts only with evidence.
 
@@ -281,26 +378,43 @@ Update user documentation through the deterministic docs pipeline, not only the 
 
 Update CLI help and README only where they provide discoverability; keep detailed operations in Going to Production. Add a concise user-facing `CHANGELOG.md` item under `Unreleased`, never under an already released version. If runtime qualification exposes a Bun limitation or workaround, update `docs/maintainers/bun-issues-watchlist.md`.
 
-Milestone 5 is complete only after focused and full tests, performance evidence, docs regeneration, package typing, build output, and the full repository gate pass without warnings.
+Milestone 10 is complete only after focused and full tests, performance evidence, docs regeneration, package typing, build output, and the full repository gate pass without warnings.
 
 ## Concrete Steps
 
 Work from `/Users/pekeler/Projects/pocketbun` on `master`. Preserve unrelated user changes. Update this plan after every milestone and whenever evidence changes a decision.
 
-1. After stable Bun v1.4.0 is released, record the exact `bun --version`, update the Bun baseline files, inspect current official docs/source, and run the Milestone 1 probes on Linux, Windows, and macOS.
-2. Run the pre-change single-worker benchmark matrix and save commands, host details, medians, latency, and RSS in `Artifacts and Notes` before editing the request path.
-3. Add focused failing tests for CLI worker parsing/platform rules, process roles, protocol validation, startup ordering, and lifecycle behavior.
-4. Implement `src/internal/cluster/{protocol,context,primary,worker}.ts`, integrate it into `src/cli.ts`, `src/cmd/serve.ts`, and `src/apis/serve.ts`, then satisfy Milestone 2.
-5. Add failing cross-worker tests for each built-in state gap, then update `src/core/base.ts`, `src/core/notify_watcher.ts` only if evidence requires it, `src/apis/middlewares_rate_limit.ts`, `src/apis/realtime.ts`, the OAuth2 files, the reset/verification files, and installer startup to satisfy Milestone 3.
-6. Add failing cross-worker backup/restore/restart tests, then update `src/core/base_backup.ts`, `src/apis/backup.ts`, `src/apis/health.ts`, and `src/core/base.ts` to satisfy Milestone 4.
-7. Run focused tests after each small change. Use `bun test --only-failures --concurrent` for quieter reruns, while keeping shared-process integration tests serial.
-8. Add the benchmark/soak support that remains necessary, run the final one/two/four-worker matrix on Linux plus the smaller Windows/macOS proxy matrix, and record results without selectively dropping bad workloads.
-9. Update CLI help, deterministic docs overlays, generated docs, `CHANGELOG.md` under `Unreleased`, and the Bun watchlist if needed.
-10. Run `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run typecheck:package`, `bun run lint`, `bun run check:versions`, `bun run docs:check`, `bun run build`, and `git diff --check`.
-11. Inspect the complete diff for upstream traceability, comments, unnecessary abstractions, single-worker overhead, secret/token leakage, orphan processes, and destructive recovery behavior. Commit only when the repository owner asks or normal task scope at that time includes a commit.
+1. Record `bun --version`, update every Bun minimum/type/CI pin named in Milestone 1, run `bun install`, inspect the complete lockfile diff, and prove clean installation in the root package and generated template.
+2. Before using v1.4-only APIs, run the existing full suite and add the focused breaking-change checks from Milestone 1. Run them on Ubuntu, macOS, and Windows and update the Bun watchlist only from reproduced evidence.
+3. Add the failing non-UTC and timezone API cron tests, update `src/tools/cron/cron.ts` and `src/tools/cron/schedule.ts`, refresh the JSVM public types/contracts, and update the generated user documentation through its source overlays.
+4. Await logger-worker termination and add the focused repeated-close/timeout test. Qualify `--parallel --concurrent` on every CI operating system, then update the direct `package.json` test commands and record before/after timing evidence.
+5. Add S3 XML fixtures, introduce the smallest `Bun.XML.parse()` normalization helper, migrate each S3 response parser to it, and delete the repeated tag regular expressions when all focused filesystem tests pass.
+6. Add public request/response XML compatibility tests, migrate request parsing, and adopt `Bun.XML.stringify()` only if its compatibility adapter is simpler than retaining the serializer.
+7. Add local static-file HTTP differential tests, switch `Event.FileFS()` to a `Bun.file()` response, and delete the byte cache only after router-level behavior and memory use pass. Add memory-pressure eviction only if a material disposable cache remains.
+8. Add only the repeatable package-maintenance commands that belong in CI/release scripts, document the remaining commands for maintainers, and run the existing Playwright suite under Bun as a cross-platform experiment without removing Playwright.
+9. Update `CHANGELOG.md` under `Unreleased`, deterministic documentation sources and output, and relevant maintainer notes. Run the full repository gate and update `Progress`, `Surprises & Discoveries`, `Outcomes & Retrospective`, and `Artifacts and Notes` with the Bun v1.4 results. Do not begin cluster implementation until Milestones 1 through 5 are complete.
+10. Run the Milestone 6 cluster probes on Linux, Windows, and macOS using the established Bun baseline. If they pass, run the pre-change single-worker benchmark matrix and save commands, host details, medians, latency, and RSS in `Artifacts and Notes` before editing the request path.
+11. Add focused failing tests for CLI worker parsing/platform rules, process roles, protocol validation, startup ordering, and lifecycle behavior.
+12. Implement `src/internal/cluster/{protocol,context,primary,worker}.ts`, integrate it into `src/cli.ts`, `src/cmd/serve.ts`, and `src/apis/serve.ts`, then satisfy Milestone 7.
+13. Add failing cross-worker tests for each built-in state gap, then update `src/core/base.ts`, `src/core/notify_watcher.ts` only if evidence requires it, `src/apis/middlewares_rate_limit.ts`, `src/apis/realtime.ts`, the OAuth2 files, the reset/verification files, and installer startup to satisfy Milestone 8.
+14. Add failing cross-worker backup/restore/restart tests, then update `src/core/base_backup.ts`, `src/apis/backup.ts`, `src/apis/health.ts`, and `src/core/base.ts` to satisfy Milestone 9.
+15. Run focused tests after each small change. Use `bun test --only-failures --concurrent` for quieter reruns, while keeping shared-process integration tests serial.
+16. Add the benchmark/soak support that remains necessary, run the final one/two/four-worker matrix on Linux plus the smaller Windows/macOS proxy matrix, and record results without selectively dropping bad workloads.
+17. Update CLI help, deterministic docs overlays, generated docs, `CHANGELOG.md` under `Unreleased`, and the Bun watchlist if needed for clustering.
+18. Run `bun run format:fix`, the configured isolated parallel suite, `bun test --concurrent`, `bun run typecheck`, `bun run typecheck:package`, `bun run lint`, `bun run check:versions`, `bun run docs:check`, `bun run build`, and `git diff --check`.
+19. Inspect the complete diff for upstream traceability, comments, unnecessary abstractions, single-worker overhead, secret/token leakage, orphan processes, and destructive recovery behavior. Commit only when the repository owner asks or normal task scope at that time includes a commit.
 
 Representative commands will be finalized after the benchmark wrapper and tests exist. They should settle into stable forms similar to:
 
+    bun --version
+    bun test src/tools/cron --concurrent
+    bun test src/tools/filesystem/internal/s3blob/s3 --concurrent
+    bun test src/tools/router/event.test.ts --concurrent
+    bun test --parallel=4 --concurrent
+    bun pm licenses --prod --json
+    bun audit fix --dry-run
+    bun dedupe --check
+    bun --bun playwright test
     bun test src/internal/cluster --timeout 60000
     bun run scripts/measure_cluster_scenario.ts --workers 1 --scenario read --runs 5
     bun run scripts/measure_cluster_scenario.ts --workers 2 --scenario read --runs 5
@@ -319,9 +433,22 @@ Do not invent the final script or test names merely to match these examples. Upd
 
 ## Validation and Acceptance
 
-The feature is accepted only when all of the following are true.
+The complete plan is accepted only when all of the following are true. Milestones 1 through 5 have their own release gate and must be accepted before cluster work starts.
 
-Functional acceptance:
+Bun v1.4 adoption acceptance:
+
+- Every package, generated template, example, type package, CI job, lockfile, and runtime document agrees on the selected Bun v1.4 minimum, and clean installation plus the full repository gate succeeds on Ubuntu, macOS, and Windows.
+- A cron expression scheduled with no timezone runs in UTC even when the host process uses a non-UTC timezone. `SetTimezone` and `setTimezone` accept PocketBun's timezone value, named-zone execution matches Bun across a DST boundary, changing a running scheduler safely reschedules jobs, and `setInterval` remains the only documented missing upstream scheduler control.
+- Logger shutdown waits for the worker to terminate after graceful close or timeout, repeated close remains harmless, and no test/process worker is left behind.
+- The configured isolated parallel test suite passes all tests on every CI platform without default retries and is materially faster than the prior `--concurrent`-only baseline. Tests that mutate process globals or shared resources remain serial.
+- S3 XML errors, copy results, multipart upload IDs, object listings, namespaces, entities, empty values, pagination, dates, and malformed responses retain their typed behavior through `Bun.XML`; the old tag-extraction regexes are removed.
+- HTTP XML request binding retains its observable shape and errors. XML response serialization uses Bun only if primitives, arrays, roots, escaping, and declarations remain compatible; otherwise the existing serializer remains with that decision recorded.
+- Static and Admin UI routes preserve redirects, fallback, hooks, logging, branding, CSP, caching, content metadata, `GET`/`HEAD`, ranges, and conditional requests. Large local files use a `Bun.file()` body without a redundant whole-file cache. Memory-pressure handling clears only reconstructible caches and is omitted when none remain.
+- Package license/audit/deduplication commands and the Bun-hosted Playwright experiment have recorded outcomes. No dependency is removed without semantic equivalence, and no new runtime dependency is added.
+- Playwright, ZIP backups, disk-spooled multipart uploads, the custom S3 client, `bun:sqlite`, and the vendored Admin UI build strategy remain intact. HTTP/3, global fetch compression, Temporal, WebView replacement, `Bun.sql`, `--no-orphans`, unrelated Bun APIs, and standalone compiled executable work remain outside scope.
+- `CHANGELOG.md`, deterministic generated documentation, maintainer notes, type declarations, formatting, tests, typechecks, lint, version checks, docs checks, build, and whitespace checks all pass without warnings. The recorded result identifies every Bun v1.4 item that was adopted, automatically benefited PocketBun, or was deliberately rejected.
+
+Vertical-scaling functional acceptance:
 
 - `--workers=1` is the default and preserves existing CLI, API, logs, migrations, startup, shutdown, and performance behavior on Linux, macOS, and Windows.
 - `--workers=N`, for `N > 1`, starts exactly one primary plus N ready workers on every platform that passes the Bun v1.4 qualification.
@@ -353,6 +480,10 @@ Repository acceptance:
 
 ## Idempotence and Recovery
 
+The Bun baseline update and package-maintenance checks are repeatable. Inspect rather than blindly accept lockfile changes; `bun audit fix --dry-run`, `bun dedupe --check`, and license reporting must not mutate dependencies. XML and static-file migrations proceed one schema/path at a time with focused tests passing before old code is deleted, so a failed step can be reverted without a data migration. Cron timezone changes affect only in-memory scheduling and store no persistent state. Test and CI script changes can be returned to `--concurrent` if a platform exposes an isolation defect, with the evidence recorded before retrying.
+
+All Bun v1.4 probes and differential HTTP tests use temporary directories, dynamic ports, fixed fixtures, and cleanup in `finally`. They must not write to a user's `pb_data`, contact a real S3 bucket, rewrite vendored Admin UI assets, or leave browsers/workers running. If `Bun.file()` cannot match an HTTP edge case with a small adapter, retain the current path for that case. If `Bun.XML.stringify()` cannot preserve the public API simply, retain the current serializer. These are valid evidence-based outcomes, not incomplete milestones.
+
 Runtime probes and benchmarks must use temporary directories and explicit ports and must clean up only processes they created. Every integration harness records child PIDs, terminates them in `finally`, and verifies they are gone. Never use broad process-name kills.
 
 The primary ownership guard must be safe after normal exit, ungraceful platform termination, power loss, and PID reuse. Creation is atomic; stale recovery uses the recorded token, heartbeat, and platform PID-liveness evidence before moving or deleting the exact guard path. Failure to prove staleness stops startup rather than risking two primaries.
@@ -381,6 +512,26 @@ Current relevant Bun documentation says:
     node:cluster: implemented but not battle-tested; descriptor passing is incomplete.
     Linux node:cluster HTTP load balancing: SO_REUSEPORT.
 
+Bun v1.4 adoption audit snapshot:
+
+    Date: 2026-08-21
+    Branch: master
+    Commit before plan revision: 0b7f0421
+    Local Bun: 1.4.0
+    Declared Bun minimum and CI baseline: 1.3.14
+    bun test --parallel=4: 1,898 pass, 0 fail, 30.21 seconds
+    bun test --parallel=4 --concurrent: 1,898 pass, 0 fail, 28.70 seconds
+
+    Adopt first: explicit cron timezone and SetTimezone, awaited worker termination,
+                 isolated parallel tests, Bun.XML parsing, Bun.file static bodies.
+    Adopt if still useful: memory-pressure cache eviction, package maintenance checks,
+                           Playwright hosted by Bun.
+    Retain: Playwright, ZIP archive, multipart spooler, custom S3, bun:sqlite,
+            go-text-template, TypeScript compiler API, oxlint, and oxfmt.
+    Excluded: standalone compiled executable, WebView replacement, tar backups,
+              experimental HTTP/3, global fetch compression, Temporal/Bun.sql rewrites,
+              --no-orphans, and unrelated v1.4 APIs.
+
 Current PocketBun coordination inventory:
 
     SQLite database truth              already cross-process through WAL/busy timeout
@@ -403,6 +554,20 @@ Add the exact Bun qualification transcript, reproduction links, benchmark host, 
 ## Interfaces and Dependencies
 
 No runtime dependency is permitted. Use Bun, Web, and Bun-supported `node:` APIs only: `node:cluster`, `node:process`, `node:fs`/`node:fs/promises`, and the existing Bun server and SQLite APIs.
+
+The Bun v1.4 work uses these native interfaces directly and keeps adapters internal:
+
+    Bun.cron(expression, callback, { tz: timezoneName })
+    Bun.cron.parse(expression, { tz: timezoneName })
+    Bun.XML.parse(xml)
+    Bun.XML.stringify(value)
+    Bun.file(absolutePath)
+    new Response(Bun.file(absolutePath), responseInit)
+    await worker.terminate()
+
+Use the actual v1.4 type signatures after updating `@types/bun`; the conceptual signatures above describe intent rather than authorizing casts around type errors. If a memory-pressure listener remains useful after cache removal, use Bun's documented process event directly and register it once. Do not export XML normalization, static cache controls, or Bun-specific cron handles from `index.ts`. The public scheduler surface should gain PocketBase-compatible `SetTimezone` and JavaScript-facing `setTimezone`; the stored value is an IANA timezone name with UTC as the default.
+
+The project remains an npm library with the executable supplied by that package. Do not add compiled-asset lookup, `$bunfs` paths, `Bun.isStandaloneExecutable` branches, or standalone build outputs.
 
 The initial public CLI contract is:
 
@@ -439,3 +604,5 @@ Keep concrete operation variants beside this union and validate both directions.
 Revision note, 2026-08-02 / Codex: Replaced the completed PocketBase v0.39.10 upgrade plan with a deferred implementation plan for vertical scaling. The plan records the agreed Bun `node:cluster` control plane, native Linux `reusePort` data plane, PocketBun process-local correctness inventory, lifecycle and IPC design, backup/restore recovery, performance work, documentation, and release acceptance criteria.
 
 Revision note, 2026-08-02 / Codex: Corrected the implementation gate to stable Bun v1.4.0 and separated clustering from Linux-only port sharing. Added the portable Windows/macOS design using predictable consecutive loopback worker ports behind an external traffic distributor, plus cross-platform qualification, lifecycle, test, documentation, and acceptance requirements.
+
+Revision note, 2026-08-21 / Codex: Made the Bun v1.4 compatibility and native-runtime audit the active first workstream and moved the existing vertical-scaling plan to Milestones 6 through 10. Added executable milestones for the runtime/CI baseline, cron UTC and timezone compatibility, logger shutdown, isolated parallel tests, `Bun.XML`, `Bun.file`, cache pressure, package maintenance, Playwright-on-Bun qualification, documentation, and full acceptance. Recorded the retained dependencies and native substitutions that would sacrifice PocketBase compatibility. Explicitly excluded a standalone compiled executable because PocketBun remains an npm library with an included executable.
