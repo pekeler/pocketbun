@@ -2188,15 +2188,17 @@ type SyncFetchResponse = {
 const syncFetchScript = String.raw`
 const { request: httpRequest } = require("node:http");
 const { request: httpsRequest } = require("node:https");
+const { writeFileSync } = require("node:fs");
 
 const rawUrl = process.env.PB_SYNC_URL ?? "";
 const method = process.env.PB_SYNC_METHOD ?? "GET";
 const headers = JSON.parse(process.env.PB_SYNC_HEADERS ?? "{}");
 const timeout = Math.max(1, Number(process.env.PB_SYNC_TIMEOUT ?? "120"));
 const hasBody = process.env.PB_SYNC_HAS_BODY === "1";
+const outputPath = process.env.PB_SYNC_OUTPUT ?? "";
 
-if (!rawUrl) {
-  console.error("missing url");
+if (!rawUrl || !outputPath) {
+  console.error("missing url or output path");
   process.exit(1);
 }
 
@@ -2281,16 +2283,7 @@ if (!rawUrl) {
       req.end();
     });
 
-    await new Promise((resolve, reject) => {
-      process.stdout.on("error", reject);
-      process.stdout.end(JSON.stringify(payload), (err) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve(undefined);
-      });
-    });
+    writeFileSync(outputPath, JSON.stringify(payload));
   } catch (err) {
     console.error(String(err));
     process.exit(1);
@@ -2308,7 +2301,8 @@ function runSyncFetch(
         ? new TextEncoder().encode(toPrimitiveString(options.body))
         : undefined;
   // Bun 1.4 can drop spawnSync pipe output on Windows (oven-sh/bun#27482).
-  // Use file-backed stdout instead of retrying requests that may already have completed.
+  // Have the child write its result directly instead of retrying requests that may
+  // already have completed. Bun's Windows spawn redirection can lose output too.
   const outputDir = mkdtempSync(join(tmpdir(), "pocketbun-sync-fetch-"));
   const outputPath = join(outputDir, "response.json");
 
@@ -2322,9 +2316,10 @@ function runSyncFetch(
         PB_SYNC_HEADERS: JSON.stringify(options.headers ?? {}),
         PB_SYNC_TIMEOUT: String(options.timeoutSeconds),
         PB_SYNC_HAS_BODY: bodyBytes ? "1" : "0",
+        PB_SYNC_OUTPUT: outputPath,
       },
       stdin: bodyBytes,
-      stdout: Bun.file(outputPath),
+      stdout: "ignore",
       stderr: "pipe",
     });
 
