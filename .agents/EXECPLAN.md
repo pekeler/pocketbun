@@ -32,7 +32,9 @@ Success is observable, not architectural. First, the complete test suite must pa
 - [x] (2026-08-21 13:15Z) Selected Bun v1.4.0 as the exact baseline; aligned package engines, generated templates, examples, `@types/bun`, README, and both CI pins; added a version-drift guard; and verified root plus generated-template clean installs without rewriting the lockfile format.
 - [x] (2026-08-21 13:15Z) Audited the Bun v1.4 breaking changes against PocketBun. Fixed and regression-tested preservation of separate `Set-Cookie` values, pinned Bun-joined duplicate proxy-header handling, and recorded the current status of affected Bun workarounds.
 - [x] (2026-08-21 13:15Z) Passed the complete local Milestone 1 gate on Bun v1.4.0: 1,899 tests, formatting, application and package typechecks, lint, version alignment, generated-doc parity, build, and whitespace checks all passed without warnings.
-- [ ] Complete Milestone 1 by confirming the pinned baseline and full suite in hosted Ubuntu, macOS, and Windows CI after this local commit is pushed.
+- [x] (2026-08-21 14:00Z) Ran the pinned Bun v1.4.0 hosted matrix: Ubuntu and macOS passed; Windows reproduced Bun issue #27482 with one empty `Bun.spawnSync()` stdout result after 1,896 tests passed. Requested that upstream reopen the issue and replaced the unsafe pipe transport locally without replaying requests.
+- [x] (2026-08-21 14:15Z) Passed the complete local gate with file-backed synchronous child output: 1,899 tests, focused JSVM HTTP coverage, formatting, both typechecks, package build, lint, version and docs checks, and whitespace checks all passed.
+- [ ] Complete Milestone 1 by confirming the file-backed synchronous JSVM HTTP result transport in hosted Windows CI; Ubuntu and macOS are already green on the pinned baseline.
 - [ ] Complete Milestone 2: preserve UTC cron behavior, add PocketBase-compatible timezone control, await logger-worker termination, and adopt the faster isolated test workflow.
 - [ ] Complete Milestone 3: replace the S3 XML regex parsers and then the HTTP XML body parser with `Bun.XML`, retaining a compatibility adapter wherever Bun's output shape differs.
 - [ ] Complete Milestone 4: qualify `Bun.file()` for local static responses, remove the byte cache only if HTTP parity holds, and add memory-pressure eviction only if a disposable cache remains.
@@ -67,6 +69,8 @@ Success is observable, not architectural. First, the complete test suite must pa
   Evidence: `bun install` and `bun install --frozen-lockfile` succeeded; the only lockfile changes update `@types/bun` and `bun-types` from 1.3.14 to 1.4.0 while retaining lockfile version 1.
 - Observation: `onTestFinished()` now works from `test.concurrent` on Bun v1.4.0, while the watched issue remains open for documentation; `node:inspector` heap profiling and `--no-orphans` with port zero remain blocked.
   Evidence: focused local reproductions passed for concurrent test cleanup, still rejected `HeapProfiler.enable`, and still produced `EADDRINUSE` for the port-zero orphan check. The maintainer watchlist now distinguishes the fixed runtime behavior from the remaining limitations.
+- Observation: Bun v1.4.0 regresses or incompletely fixes the Windows `Bun.spawnSync()` stdout loss tracked by oven-sh/bun#27482.
+  Evidence: hosted Windows CI completed the synchronous HTTP child with exit code zero but returned empty stdout for a small POST response; 1,896 other tests passed. Ubuntu and macOS passed their complete jobs. The same test had passed on the prior Bun v1.3.14 baseline, and the upstream issue's follow-up already questioned whether its closing fix covered small outputs.
 - Observation: Bun's preferred fast HTTP clustering path and `node:cluster` are complementary in PocketBun, not competing server implementations.
   Evidence: Bun's cluster guide says explicit `reusePort` is the faster, more limited alternative, while its compatibility page says `node:cluster` HTTP load balancing is Linux-only because handles cannot be passed between workers. PocketBun can use `node:cluster` as the cross-platform control plane while workers continue to use `Bun.serve()`: kernel load balancing on one Linux port, or distinct ports behind an external load balancer elsewhere.
 - Observation: Linux-only port sharing does not imply Linux-only clustering.
@@ -105,6 +109,9 @@ Success is observable, not architectural. First, the complete test suite must pa
   Date/Author: 2026-08-21 / Codex
 - Decision: pin the initial v1.4 baseline and CI to Bun v1.4.0 exactly, declare `>=1.4.0` for consumers, and keep the existing lockfile format.
   Rationale: v1.4.0 is the stable runtime used for qualification and the minimum that exposes the planned native APIs. An exact CI pin makes failures reproducible, while the package engine remains a normal compatible minimum. Bun v1.4 installs the existing lockfile cleanly, so a format-only rewrite would add noise without value.
+  Date/Author: 2026-08-21 / Codex
+- Decision: return synchronous JSVM HTTP child results through a private one-shot file rather than `Bun.spawnSync()` stdout or request retries.
+  Rationale: the Windows pipe can lose a successful child result. Retrying cannot distinguish a lost response from an unexecuted request and could repeat POST side effects. A temporary result file uses existing platform APIs, is removed in `finally`, and changes only the unreliable one-way transport.
   Date/Author: 2026-08-21 / Codex
 - Decision: preserve PocketBase behavior around each Bun-native replacement and keep a compatibility adapter when Bun's generic API does not directly match it.
   Rationale: Bun adoption is an implementation choice, while PocketBase-compatible HTTP, cron, backup, upload, S3, XML, and JavaScript APIs are the product contract. The native implementation is accepted only after differential or regression tests prove that contract.
@@ -160,7 +167,7 @@ Success is observable, not architectural. First, the complete test suite must pa
 
 ## Outcomes & Retrospective
 
-Milestone 1 is locally implemented and qualified on Bun v1.4.0. Every declared minimum and CI pin is aligned, version drift is checked automatically, clean installs work without a lockfile-format migration, and the local full gate passes. The breaking-change audit found and fixed one response-cookie merge regression and added coverage for Bun-joined duplicate request headers. Hosted Ubuntu, macOS, and Windows CI remains the final Milestone 1 acceptance item after the commit is pushed. When the Bun v1.4 workstream is complete, record the deleted compatibility code, HTTP and cron parity evidence, final test-time result, retained dependencies, and any rejected native substitutions. When the scaling work is complete, add measured single-worker and multi-worker results, the chosen recommended worker counts, memory and SQLite-contention observations, Bun issues found or ruled out, deviations from this design, and the final validation evidence.
+Milestone 1 is locally implemented and qualified on Bun v1.4.0. Every declared minimum and CI pin is aligned, version drift is checked automatically, clean installs work without a lockfile-format migration, and the local full gate passes. The breaking-change audit found and fixed one response-cookie merge regression and added coverage for Bun-joined duplicate request headers. Hosted Ubuntu and macOS pass. Windows exposed a Bun v1.4.0 regression in synchronous child stdout; PocketBun now avoids that pipe without retrying potentially mutating HTTP requests, and a Windows rerun is the final acceptance item. When the Bun v1.4 workstream is complete, record the deleted compatibility code, HTTP and cron parity evidence, final test-time result, retained dependencies, and any rejected native substitutions. When the scaling work is complete, add measured single-worker and multi-worker results, the chosen recommended worker counts, memory and SQLite-contention observations, Bun issues found or ruled out, deviations from this design, and the final validation evidence.
 
 The expected result is simpler than a built-in general-purpose process manager: one primary file, one typed IPC protocol, worker-role checks at existing singleton boundaries, and focused adapters for the handful of process-local features. The performance benefit is expected primarily for concurrent reads and CPU-heavy request/hook work. Writes remain serialized by SQLite, each worker adds memory, and the primary-coordinated rate limiter adds an IPC round trip on routes for which a rate-limit rule applies. Those costs must be measured before the feature is described as a performance advantage.
 
@@ -565,7 +572,17 @@ Milestone 1 local qualification:
     bun run check:versions: passed
     bun run docs:check: passed
     git diff --check: passed
-    Hosted Ubuntu/macOS/Windows CI: pending commit push
+    Hosted CI run 32487391130:
+      Ubuntu: passed in 1m34s
+      macOS: passed in 1m41s
+      Windows: 1,896 pass, 2 skip, 1 fail in 586.27 seconds;
+               jsvm http client sync send received empty Bun.spawnSync stdout
+      E2E: skipped because Windows failed
+    Local file-backed sync result test: 1 pass, 0 fail in 2.27 seconds
+    Local full suite after workaround: 1,899 pass, 0 fail in 65.29 seconds
+    Local format, application/package typechecks, build, lint, versions,
+      generated docs, and whitespace checks after workaround: passed
+    Hosted Windows confirmation of the file-backed transport: pending commit push
 
     Breaking-change audit: SQL reads and realtime cleanup were already fixed in
                             b48cece1 and 0b7f0421. Separate Set-Cookie values exposed
@@ -651,3 +668,5 @@ Revision note, 2026-08-02 / Codex: Corrected the implementation gate to stable B
 Revision note, 2026-08-21 / Codex: Made the Bun v1.4 compatibility and native-runtime audit the active first workstream and moved the existing vertical-scaling plan to Milestones 6 through 10. Added executable milestones for the runtime/CI baseline, cron UTC and timezone compatibility, logger shutdown, isolated parallel tests, `Bun.XML`, `Bun.file`, cache pressure, package maintenance, Playwright-on-Bun qualification, documentation, and full acceptance. Recorded the retained dependencies and native substitutions that would sacrifice PocketBase compatibility. Explicitly excluded a standalone compiled executable because PocketBun remains an npm library with an included executable.
 
 Revision note, 2026-08-21 / Codex: Recorded the locally complete Bun v1.4.0 baseline implementation and breaking-change audit. Added the exact install and validation evidence, the response-cookie regression found during qualification, the request-header guard, retained lockfile-format decision, and hosted cross-platform CI as the sole remaining Milestone 1 acceptance item.
+
+Revision note, 2026-08-21 / Codex: Recorded the first hosted Bun v1.4.0 matrix and its Windows-only recurrence of oven-sh/bun#27482. Chose a private file for synchronous child results instead of retrying requests, updated the watchlist after the upstream reopening request, and kept Windows confirmation as the remaining Milestone 1 gate.

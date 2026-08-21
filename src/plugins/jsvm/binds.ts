@@ -3,6 +3,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import {
   lstatSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
   statSync,
@@ -2306,46 +2307,52 @@ function runSyncFetch(
       : options.body != null
         ? new TextEncoder().encode(toPrimitiveString(options.body))
         : undefined;
-  const env = {
-    ...process.env,
-    PB_SYNC_URL: url,
-    PB_SYNC_METHOD: options.method,
-    PB_SYNC_HEADERS: JSON.stringify(options.headers ?? {}),
-    PB_SYNC_TIMEOUT: String(options.timeoutSeconds),
-    PB_SYNC_HAS_BODY: bodyBytes ? "1" : "0",
-  };
-  const result = Bun.spawnSync({
-    cmd: [process.execPath, "-e", syncFetchScript],
-    env,
-    stdin: bodyBytes,
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-
-  if (result.exitCode !== 0) {
-    const stderr = new TextDecoder().decode(result.stderr ?? new Uint8Array()).trim();
-    const stdout = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
-    throw new Error(stderr || stdout || "sync fetch failed");
-  }
-
-  const stderr = new TextDecoder().decode(result.stderr ?? new Uint8Array()).trim();
-  const output = new TextDecoder().decode(result.stdout ?? new Uint8Array()).trim();
-  if (!output) {
-    throw new Error(stderr ? `sync fetch failed: empty response (${stderr})` : "sync fetch failed: empty response");
-  }
+  // Bun 1.4 can drop spawnSync pipe output on Windows (oven-sh/bun#27482).
+  // Use file-backed stdout instead of retrying requests that may already have completed.
+  const outputDir = mkdtempSync(join(tmpdir(), "pocketbun-sync-fetch-"));
+  const outputPath = join(outputDir, "response.json");
 
   try {
-    const payload = JSON.parse(output) as SyncFetchPayload;
-    const body = Uint8Array.from(Buffer.from(payload.bodyBase64 ?? "", "base64"));
-    return {
-      status: payload.status,
-      headers: payload.headers ?? [],
-      setCookie: payload.setCookie ?? null,
-      body,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "unknown parse error";
-    throw new Error(`sync fetch failed: invalid response (${message})`);
+    const result = Bun.spawnSync({
+      cmd: [process.execPath, "-e", syncFetchScript],
+      env: {
+        ...process.env,
+        PB_SYNC_URL: url,
+        PB_SYNC_METHOD: options.method,
+        PB_SYNC_HEADERS: JSON.stringify(options.headers ?? {}),
+        PB_SYNC_TIMEOUT: String(options.timeoutSeconds),
+        PB_SYNC_HAS_BODY: bodyBytes ? "1" : "0",
+      },
+      stdin: bodyBytes,
+      stdout: Bun.file(outputPath),
+      stderr: "pipe",
+    });
+
+    const stderr = new TextDecoder().decode(result.stderr ?? new Uint8Array()).trim();
+    if (result.exitCode !== 0) {
+      throw new Error(stderr || "sync fetch failed");
+    }
+
+    const output = readFileSync(outputPath, "utf8").trim();
+    if (!output) {
+      throw new Error(stderr ? `sync fetch failed: empty response (${stderr})` : "sync fetch failed: empty response");
+    }
+
+    try {
+      const payload = JSON.parse(output) as SyncFetchPayload;
+      const body = Uint8Array.from(Buffer.from(payload.bodyBase64 ?? "", "base64"));
+      return {
+        status: payload.status,
+        headers: payload.headers ?? [],
+        setCookie: payload.setCookie ?? null,
+        body,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "unknown parse error";
+      throw new Error(`sync fetch failed: invalid response (${message})`);
+    }
+  } finally {
+    rmSync(outputDir, { recursive: true, force: true });
   }
 }
 
