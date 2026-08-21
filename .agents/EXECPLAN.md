@@ -43,7 +43,7 @@ Success is observable, not architectural. First, the complete test suite must pa
 - [x] (2026-08-21 18:35 CEST) Completed Milestone 4: local static responses now keep PocketBun's router behavior while using lazy native `Bun.file()` bodies, and the 16 MiB/256-entry byte cache is gone without adding a replacement compatibility layer.
 - [x] (2026-08-21 20:30Z) Completed the local Milestone 5 work and gate: documented the native package-maintenance commands, bound the SSR CSRF example to a per-session identifier, retained normal Playwright after the Bun-hosted runner reproduced oven-sh/bun#28609, and passed both complete test modes plus E2E and repository checks.
 - [x] (2026-08-21 20:40Z) Completed Milestone 5 after hosted run 32524400031 passed the pinned Bun v1.4.0 Ubuntu, macOS, Windows, and downstream Playwright gates.
-- [ ] Qualify Bun v1.4 clustering on Linux, Windows, and macOS in Milestone 6. The source and bundled probes, single-worker baseline, and short hosted matrix pass. The first extended run passed on Ubuntu and Windows but exposed macOS short-lived-port exhaustion caused by the probe forcing every sustained request to close both TCP hops; normal connection reuse now passes beyond that failure point locally, and the corrected extended hosted matrix remains.
+- [x] (2026-08-21 22:05Z) Completed Milestone 6: Bun v1.4.0 source and bundled cluster probes, single-worker baselines, the normal CI matrix, and the extended 10,000-message/100-restart/ten-minute matrix passed on Ubuntu, macOS, and Windows. Linux qualified native shared-port serving; macOS and Windows qualified distinct worker ports behind an external proxy.
 - [ ] Implement the cluster primary, worker roles, CLI surface, startup ordering, one-primary guard, readiness, shutdown, and crash recovery in Milestone 7.
 - [ ] Make built-in process-local behavior cluster-correct in Milestone 8: migrations, bootstrap cleanup, cron, installer, settings/collection caches, rate limits, email cooldowns, OAuth2 redirects, and realtime.
 - [ ] Make backup, restore, and application restart cluster-wide in Milestone 9.
@@ -220,7 +220,7 @@ Milestone 4 is complete locally. `Event.FileFS()` now returns lazy `Bun.file()` 
 
 Milestone 5 is complete locally and on hosted CI. Maintainers now have direct license, audit-fix preview, deduplication, and dependency-diff commands without added scripts. The custom-route CSRF guidance binds tokens to a stable per-session identifier and keeps the secret outside source control. Normal Playwright E2E passes; forcing Playwright itself onto Bun reproduces the open `.esm.preflight` resolver issue, so PocketBun keeps its working runner and watchlist entry. No dependency, runtime wrapper, global-store configuration, pruning step, platform-support claim, or standalone executable work was added.
 
-Milestone 6 is in qualification, without production cluster code. A self-contained Bun-only probe now covers the source and bundled execution paths, IPC ordering, native shared/distinct-port data paths, external test proxy, readiness, replacement, graceful request/SSE stop, and primary-death cleanup. The local macOS short probe passes, and five-run single-worker read/write medians are recorded before request-path edits. Hosted short and extended results remain the completion gate.
+Milestone 6 is complete without production cluster code. A self-contained Bun-only probe covers source and bundled execution paths, IPC ordering, native shared/distinct-port data paths, external test proxying, readiness, replacement, graceful request/SSE stop, and primary-death cleanup. The short matrix and corrected ten-minute extended matrix pass on Bun v1.4.0 across Ubuntu, macOS, and Windows. Five-run single-worker read/write medians are recorded before request-path edits. The first extended macOS attempt also usefully separated cluster behavior from a probe-induced short-lived-port exhaustion failure; normal connection reuse is both simpler and representative of sustained HTTP traffic.
 
 The expected result is simpler than a built-in general-purpose process manager: one primary file, one typed IPC protocol, worker-role checks at existing singleton boundaries, and focused adapters for the handful of process-local features. The performance benefit is expected primarily for concurrent reads and CPU-heavy request/hook work. Writes remain serialized by SQLite, each worker adds memory, and the primary-coordinated rate limiter adds an IPC round trip on routes for which a rate-limit rule applies. Those costs must be measured before the feature is described as a performance advantage.
 
@@ -802,7 +802,7 @@ Milestone 5 hosted qualification:
       Ubuntu Playwright E2E: passed
     Milestone 5 hosted confirmation: complete
 
-Milestone 6 local qualification in progress:
+Milestone 6 qualification complete:
 
     Date: 2026-08-21
     Host: MacBook Pro, Apple M2 Max, 12 cores, 32 GiB RAM,
@@ -831,7 +831,10 @@ Milestone 6 local qualification in progress:
       Corrected local macOS stress: 10,000 IPC messages, 100 restarts,
                                      five-minute smoke, 2,692,375 HTTP and
                                      107,695 SSE requests passed
-      Corrected ten-minute hosted matrix: pending
+      Corrected extended run 32530714864 at commit 7a8f9a48:
+        Ubuntu: passed the full ten-minute probe
+        macOS: passed the full ten-minute probe
+        Windows: passed the full ten-minute probe
 
     Pre-change single-worker benchmark:
       Raw artifact: .tmp/milestone6-single-worker-baseline.json
@@ -957,3 +960,5 @@ Revision note, 2026-08-21 / Codex: Completed Milestone 5 locally with direct Bun
 Revision note, 2026-08-21 / Codex: Closed Milestone 5 after hosted run 32524400031 passed on Ubuntu, macOS, Windows, and Playwright E2E. Started Milestone 6 without production cluster code: added a short cross-platform source/bundled `node:cluster` runtime probe plus a manual extended workflow, passed the local macOS probe, and recorded five-run single-worker read/write throughput, latency, and RSS baselines.
 
 Revision note, 2026-08-21 / Codex: Recorded successful short cluster qualification on all hosted platforms and the first extended run's Ubuntu/Windows passes. Diagnosed the macOS failure as probe-induced short-lived-port exhaustion from forcing `Connection: close` across both proxy hops, retained fresh connections for distribution assertions only, and passed a five-minute corrected macOS stress run beyond the previous failure point. The corrected hosted extended matrix remains the Milestone 6 gate.
+
+Revision note, 2026-08-21 / Codex: Closed Milestone 6 after corrected extended run 32530714864 passed its 10,000-message, 100-restart, ten-minute probe on Ubuntu, macOS, and Windows at commit 7a8f9a48. Bun v1.4.0 is qualified for native shared-port cluster serving on Linux and the planned distinct-port/external-proxy topology on macOS and Windows; Milestone 7 production implementation can begin from the recorded single-worker baselines.
