@@ -18,7 +18,7 @@ One lightweight primary process will supervise four PocketBun worker processes. 
 
 The operator will still supervise the one cluster primary with systemd, a Windows service host, Docker, or an equivalent operating-system service manager. No npm process manager or PocketBun-specific daemon dependency will be added. The default remains one process (`--workers=1`) on every operating system. Multi-worker mode is opt-in. Linux has the zero-extra-hop shared-port path; Windows and macOS require the external traffic distributor.
 
-Success is observable, not architectural. First, the complete test suite must pass under Bun v1.4 with explicit tests for timezone, XML, static-file HTTP semantics, and clean shutdown, while the parallel test command is measurably faster and no incompatible dependency replacement is introduced. Later, several worker process IDs must answer through one public endpoint; read-heavy throughput must improve on a multi-core machine; migrations and scheduled work must run once; realtime, OAuth2 redirects, rate limits, backups, settings reloads, and shutdown must behave as one PocketBun application; and killing a worker must not take down the service.
+Success is observable, not architectural. First, the complete test suite must pass under Bun v1.4 with explicit tests for timezone, XML, static-file routing and delivery, and clean shutdown, while the parallel test command is measurably faster and no incompatible dependency replacement is introduced. Later, several worker process IDs must answer through one public endpoint; read-heavy throughput must improve on a multi-core machine; migrations and scheduled work must run once; realtime, OAuth2 redirects, rate limits, backups, settings reloads, and shutdown must behave as one PocketBun application; and killing a worker must not take down the service.
 
 ## Progress
 
@@ -40,7 +40,7 @@ Success is observable, not architectural. First, the complete test suite must pa
 - [x] (2026-08-21 15:40Z) Completed Milestone 1: hosted run 32498391333 passed on Ubuntu, macOS, and Windows, confirming the asynchronous-child synchronous JSVM HTTP transport on the pinned Bun v1.4.0 baseline; the downstream Playwright E2E job passed too.
 - [x] (2026-08-21 15:40Z) Completed Milestone 2: the four-process isolated suite, explicit UTC/cron timezone behavior, and close-event-backed logger worker shutdown passed on Ubuntu, macOS, and Windows without retries.
 - [x] (2026-08-21 18:15Z) Completed Milestone 3: replaced the S3 and HTTP request XML regex/DOM fallbacks and the response serializer with `Bun.XML`, preserving PocketBase scalar roots while rejecting the old malformed multi-root and numeric-element output.
-- [ ] Complete Milestone 4: qualify `Bun.file()` for local static responses, remove the byte cache only if HTTP parity holds, and add memory-pressure eviction only if a disposable cache remains.
+- [x] (2026-08-21 18:35 CEST) Completed Milestone 4: local static responses now keep PocketBun's router behavior while using lazy native `Bun.file()` bodies, and the 16 MiB/256-entry byte cache is gone without adding a replacement compatibility layer.
 - [ ] Complete Milestone 5: add low-risk Bun package-maintenance checks, qualify Playwright running under Bun, document deliberate non-adoptions, update user-facing documentation/changelog where required, and pass the full repository gate.
 - [ ] After Milestones 1 through 5 are complete, qualify Bun v1.4 clustering on Linux, Windows, and macOS in Milestone 6.
 - [ ] Implement the cluster primary, worker roles, CLI surface, startup ordering, one-primary guard, readiness, shutdown, and crash recovery in Milestone 7.
@@ -60,8 +60,10 @@ Success is observable, not architectural. First, the complete test suite must pa
   Evidence: after the final Milestone 3 single-process gate, the normal four-worker command failed the same 64 listener-heavy tests in 27.93 seconds; an immediate `--only-failures` rerun passed all 1,913 tests in 28.22 seconds. Hosted CI remains stable, but Milestone 5 should treat another recurrence as a test-runner qualification issue rather than adding retries.
 - Observation: `Bun.XML` can replace fragile internal parsing, but its generic JavaScript shape is not identical to PocketBun's existing public XML binding and serialization shapes.
   Evidence: S3 XML responses currently use repeated regular-expression helpers in `src/tools/filesystem/internal/s3blob/s3/`, while `src/tools/router/event.ts` uses `DOMParser` plus a regular-expression fallback and a handwritten serializer. Bun parses repeated tags as arrays, exposes namespace attributes, and requires one root for serialization, so fixed-schema normalization must precede deleting compatibility code.
-- Observation: Bun v1.4's file responses are a better replacement for PocketBun's local byte-loading path than Bun's directory routes.
-  Evidence: `Event.FileFS()` currently reads complete files and keeps a 16 MiB/256-entry byte cache. A `Bun.file()` response can stream and handle range/precondition behavior, but a direct directory route would bypass PocketBun's canonical redirects, SPA fallback, logging, hooks, CSP, cache policy, and Admin UI branding.
+- Observation: Bun v1.4's dynamic `Bun.file()` responses provide lazy transfer/sendfile and common single byte ranges, but not all of Go `http.ServeContent`.
+  Evidence: a local `Bun.serve()` probe returned correct `206` responses for closed, suffix, and open-ended single ranges, but emitted no `Last-Modified`, ignored conditional request headers, and returned the full `200` body for a multipart range. The old PocketBun `FileFS()` byte response did not implement those missing behaviors either, and the Admin UI and `pb_public` clients do not require them. Reimplementing `http.ServeContent` would therefore add a large new subsystem without preserving an existing PocketBun contract; the separate `/api/files` path retains its own range-aware implementation.
+- Observation: PocketBun's existing gzip middleware consumes and transforms file bodies when the client requests gzip, so Bun's automatic single-range handling applies to identity-encoded responses.
+  Evidence: the real Admin UI route returns native `206`/`Content-Range` behavior with `Accept-Encoding: identity`; with gzip accepted, the middleware returns the full compressed `200` representation. Ignoring a range and returning the complete representation is valid HTTP behavior and does not require another file-serving layer.
 - Observation: no current npm dependency has a safe Bun v1.4 replacement.
   Evidence: `go-text-template` supplies Go template semantics; TypeScript is used through its compiler API; Playwright supplies real-browser locators, fixtures, assertions, and cross-platform coverage; oxlint/oxfmt have no Bun equivalent; and the PocketBase JavaScript SDK is intentional compatibility coverage.
 - Observation: several attractive Bun-native substitutions remain incompatible with PocketBase requirements.
@@ -132,6 +134,9 @@ Success is observable, not architectural. First, the complete test suite must pa
 - Decision: use `Bun.XML` for both parsing and response serialization; do not preserve accidental PocketBun-only malformed output.
   Rationale: native parsing removes every XML extraction regex and correctly handles namespaces, entities, attributes, repeated nodes, empty nodes, nesting, and malformed documents. `Event.XML()` has no built-in consumer, and custom route clients benefit from well-formed output. A scalar adapter retains PocketBase's tested `<string>` behavior and Go/JSVM-style `bool`, `int64`, and `float64` roots; structured data uses Bun's single-root document format without a second serializer.
   Date/Author: 2026-08-21 / Codex and repository owner
+- Decision: use native `Bun.file()` bodies directly for local static responses; do not reimplement Go `http.ServeContent` for conditional and multipart-range edge cases.
+  Rationale: the native body removes eager whole-file reads and enables lazy streaming/sendfile plus common byte ranges. PocketBun retains path selection, redirects, SPA fallback, hooks, logging, branding, CSP, cache policy, content type, and content length. The missing Go edge cases were not supported by the previous PocketBun implementation and are unnecessary for the static UI/public routes, while file API delivery remains separately range-aware. The old material byte cache is deleted, so no process memory-pressure listener is justified for the remaining small branding strings.
+  Date/Author: 2026-08-21 / Codex and repository owner
 - Decision: retain Playwright, the ZIP archive implementation, the streaming multipart parser, the custom S3 client, and the current template/compiler/tooling dependencies.
   Rationale: Bun v1.4 does not provide equivalent semantics. Replacing them would either lose compatibility or require more custom code. Revisit the S3 client only when the listed Bun API gaps close, and revisit other components only when a measured or compatibility-driven need appears.
   Date/Author: 2026-08-21 / Codex
@@ -189,6 +194,8 @@ Milestone 2 is also complete and qualified. Cron remains explicitly UTC on every
 
 Milestone 3 is complete locally. S3 error, copy, multipart-init, and list responses now share a small compact-shape adapter over `Bun.XML.parse()`; the repeated tag regexes are gone. Request XML uses Bun's ordered tree shape to preserve direct-child names and DOM-style recursive text content. Focused fixtures pin default and prefixed namespaces, attributes, entities, singleton/repeated children, empty tags, nested text, checksums, dates, pagination, malformed S3 error preservation, and the route-level 400 response for malformed request XML. `Event.XML()` now uses `Bun.XML.stringify()` with only scalar-root normalization and the required declaration; structured responses use Bun's valid single-root document shape, and invalid multi-root/root-array input fails instead of emitting malformed XML.
 
+Milestone 4 is complete locally. `Event.FileFS()` now returns lazy `Bun.file()` bodies instead of reading and retaining every local static file in a 16 MiB/256-entry byte cache. Bun handles transfer and common uncompressed byte ranges directly; PocketBun keeps content metadata, path resolution, canonical redirects, `pb_public` SPA fallback, Admin UI branding, CSP, and cache policy. Conditional and multipart-range parity with Go `http.ServeContent` is intentionally not reimplemented because these routes did not previously provide it and their clients do not require it. The separate file API delivery path is unchanged.
+
 The expected result is simpler than a built-in general-purpose process manager: one primary file, one typed IPC protocol, worker-role checks at existing singleton boundaries, and focused adapters for the handful of process-local features. The performance benefit is expected primarily for concurrent reads and CPU-heavy request/hook work. Writes remain serialized by SQLite, each worker adds memory, and the primary-coordinated rate limiter adds an IPC round trip on routes for which a rate-limit rule applies. Those costs must be measured before the feature is described as a performance advantage.
 
 ## Context and Orientation
@@ -197,7 +204,7 @@ PocketBun is a Bun-native TypeScript port of PocketBase. The standard CLI entryp
 
 The current minimum runtime is declared as Bun 1.4.0 in `package.json`, with matching `@types/bun`; `.github/workflows/ci.yml` pins the same exact version for its operating-system jobs. Generated example/template packages carry the same minimum, and `scripts/check_versions.ts` rejects drift among these sources and the README. `bun.lock` remains at format version 1 because Bun v1.4 installs it cleanly; its deliberate Milestone 1 diff contains only the matching Bun type-package updates.
 
-The first workstream touches four runtime paths. Cron now passes explicit timezone options through `src/tools/cron/cron.ts` and `src/tools/cron/schedule.ts`; logger shutdown awaits the worker close event in `src/tools/logger/log_writer.ts`. S3 response modules under `src/tools/filesystem/internal/s3blob/s3/` and request binding in `src/tools/router/event.ts` now use `Bun.XML.parse()` through compatibility adapters, and XML responses use `Bun.XML.stringify()`. `Event.FileFS()` still reads local files into a bounded byte cache before returning a `Response`, which is the next qualification target.
+The first workstream touches four runtime paths. Cron now passes explicit timezone options through `src/tools/cron/cron.ts` and `src/tools/cron/schedule.ts`; logger shutdown awaits the worker close event in `src/tools/logger/log_writer.ts`. S3 response modules under `src/tools/filesystem/internal/s3blob/s3/` and request binding in `src/tools/router/event.ts` now use `Bun.XML.parse()` through compatibility adapters, and XML responses use `Bun.XML.stringify()`. `Event.FileFS()` now passes lazy `Bun.file()` bodies directly to Bun while retaining PocketBun's routing and response headers.
 
 The test and maintenance entrypoints are in `package.json`. The default test command uses `bun test --concurrent`; `scripts/e2e_run.ts` launches Playwright; build analysis and CPU/heap profiling already use Bun's newer native tooling. The optional `go-text-template` peer dependency, TypeScript compiler dependency, Playwright, oxlint/oxfmt, and PocketBase JavaScript SDK coverage remain in place for the reasons recorded in the Decision Log.
 
@@ -256,7 +263,7 @@ Treat `serializeXml()` separately. Compare `Bun.XML.stringify()` against PocketB
 
 Change only the local-file body path in `Event.FileFS()` in `src/tools/router/event.ts`. Preserve its path resolution, traversal protection, canonical redirects, index/SPA fallback, router middleware, hooks, logging, content headers, CSP, Admin UI cache policy, and runtime branding. Return a `Bun.file()`-backed response rather than eagerly reading bytes, and allow Bun v1.4 to provide streaming and sendfile behavior where applicable. Do not replace PocketBun routes with Bun directory routes.
 
-Before deleting existing logic, add differential tests against pinned upstream PocketBase and the current PocketBun behavior for `GET` and `HEAD`, missing files, directories and canonical redirects, content type and length, empty and large files, `Range` including invalid, suffix, open-ended, and multipart cases, `If-Modified-Since`, `If-Unmodified-Since`, `If-Match`, `If-None-Match`, and interaction between ranges and preconditions. Verify Admin UI branding, CSP, cache headers, and `pb_public` SPA fallback through the actual router rather than only calling `FileFS()` directly. If Bun's automatic behavior differs from PocketBase, keep the smallest explicit header/range adapter needed for parity.
+Qualify native behavior for `GET`, `HEAD`, content type and length, and common byte ranges. Preserve missing-file handling, directories and canonical redirects, Admin UI branding, CSP, cache headers, and `pb_public` SPA fallback through focused router and live-server tests. Probe conditional and multipart ranges to understand the boundary, but add an adapter only if an existing PocketBun consumer or file-serving contract requires it; these static UI/public routes do not need byte-for-byte Go `http.ServeContent` behavior.
 
 If parity holds without the current 16 MiB/256-entry byte cache, delete that cache and its eviction code. If a disposable byte or branded-asset cache remains for a measured reason, register one process memory-pressure listener that clears only those reconstructible caches; do not call `Bun.gc()` or clear collection, settings, template, or application state. Keep `src/tools/filesystem/filesystem.ts`'s remote/S3 and multipart-range `ServeResponse()` path unless a separate differential test proves an equally small native path. Milestone 4 is complete when local static responses preserve PocketBase-visible behavior, large files are not fully copied into PocketBun's byte cache, and memory-pressure handling is either narrowly implemented or explicitly skipped because no safe material cache remains.
 
@@ -431,7 +438,7 @@ Work from `/Users/pekeler/Projects/pocketbun` on `master`. Preserve unrelated us
 4. Await logger-worker termination and add the focused repeated-close/timeout test. Qualify `--parallel --concurrent` on every CI operating system, then update the direct `package.json` test commands and record before/after timing evidence.
 5. Add S3 XML fixtures, introduce the smallest `Bun.XML.parse()` normalization helper, migrate each S3 response parser to it, and delete the repeated tag regular expressions when all focused filesystem tests pass.
 6. Add public request/response XML compatibility tests, migrate request parsing, and adopt `Bun.XML.stringify()` only if its compatibility adapter is simpler than retaining the serializer.
-7. Add local static-file HTTP differential tests, switch `Event.FileFS()` to a `Bun.file()` response, and delete the byte cache only after router-level behavior and memory use pass. Add memory-pressure eviction only if a material disposable cache remains.
+7. Add focused local static-file route and live-delivery tests, switch `Event.FileFS()` to a direct `Bun.file()` response, and delete the byte cache after existing router behavior and native single-range delivery pass. Add memory-pressure eviction only if a material disposable cache remains.
 8. Add only the repeatable package-maintenance commands that belong in CI/release scripts, document the remaining commands for maintainers, and run the existing Playwright suite under Bun as a cross-platform experiment without removing Playwright.
 9. Update `CHANGELOG.md` under `Unreleased`, deterministic documentation sources and output, and relevant maintainer notes. Run the full repository gate and update `Progress`, `Surprises & Discoveries`, `Outcomes & Retrospective`, and `Artifacts and Notes` with the Bun v1.4 results. Do not begin cluster implementation until Milestones 1 through 5 are complete.
 10. Run the Milestone 6 cluster probes on Linux, Windows, and macOS using the established Bun baseline. If they pass, run the pre-change single-worker benchmark matrix and save commands, host details, medians, latency, and RSS in `Artifacts and Notes` before editing the request path.
@@ -484,7 +491,7 @@ Bun v1.4 adoption acceptance:
 - The configured isolated parallel test suite passes all tests on every CI platform without default retries and is materially faster than the prior `--concurrent`-only baseline. Tests that mutate process globals or shared resources remain serial.
 - S3 XML errors, copy results, multipart upload IDs, object listings, namespaces, entities, empty values, pagination, dates, and malformed responses retain their typed behavior through `Bun.XML`; the old tag-extraction regexes are removed.
 - HTTP XML request binding retains its observable shape and errors. XML response serialization uses Bun with PocketBase-style scalar roots and the required declaration; structured input must be a valid single-root Bun XML document.
-- Static and Admin UI routes preserve redirects, fallback, hooks, logging, branding, CSP, caching, content metadata, `GET`/`HEAD`, ranges, and conditional requests. Large local files use a `Bun.file()` body without a redundant whole-file cache. Memory-pressure handling clears only reconstructible caches and is omitted when none remain.
+- Static and Admin UI routes preserve redirects, fallback, hooks, logging, branding, CSP, caching, content metadata, and `GET`/`HEAD`; Bun provides common single-range delivery for identity-encoded responses at the server boundary. Large local files use a `Bun.file()` body without a redundant whole-file cache. Memory-pressure handling clears only reconstructible caches and is omitted when none remain.
 - Package license/audit/deduplication commands and the Bun-hosted Playwright experiment have recorded outcomes. No dependency is removed without semantic equivalence, and no new runtime dependency is added.
 - Playwright, ZIP backups, disk-spooled multipart uploads, the custom S3 client, `bun:sqlite`, and the vendored Admin UI build strategy remain intact. HTTP/3, global fetch compression, Temporal, WebView replacement, `Bun.sql`, `--no-orphans`, unrelated Bun APIs, and standalone compiled executable work remain outside scope.
 - `CHANGELOG.md`, deterministic generated documentation, maintainer notes, type declarations, formatting, tests, typechecks, lint, version checks, docs checks, build, and whitespace checks all pass without warnings. The recorded result identifies every Bun v1.4 item that was adopted, automatically benefited PocketBun, or was deliberately rejected.
@@ -523,7 +530,7 @@ Repository acceptance:
 
 The Bun baseline update and package-maintenance checks are repeatable. Inspect rather than blindly accept lockfile changes; `bun audit fix --dry-run`, `bun dedupe --check`, and license reporting must not mutate dependencies. XML and static-file migrations proceed one schema/path at a time with focused tests passing before old code is deleted, so a failed step can be reverted without a data migration. Cron timezone changes affect only in-memory scheduling and store no persistent state. Test and CI script changes can be returned to `--concurrent` if a platform exposes an isolation defect, with the evidence recorded before retrying.
 
-All Bun v1.4 probes and differential HTTP tests use temporary directories, dynamic ports, fixed fixtures, and cleanup in `finally`. They must not write to a user's `pb_data`, contact a real S3 bucket, rewrite vendored Admin UI assets, or leave browsers/workers running. If `Bun.file()` cannot match an HTTP edge case with a small adapter, retain the current path for that case.
+All Bun v1.4 probes and HTTP tests use temporary directories, dynamic ports, fixed fixtures, and cleanup in `finally`. They must not write to a user's `pb_data`, contact a real S3 bucket, rewrite vendored Admin UI assets, or leave browsers/workers running. Add a static-file compatibility adapter only when a real PocketBun contract requires behavior Bun does not provide.
 
 Runtime probes and benchmarks must use temporary directories and explicit ports and must clean up only processes they created. Every integration harness records child PIDs, terminates them in `finally`, and verifies they are gone. Never use broad process-name kills.
 
@@ -699,6 +706,33 @@ Milestone 3 local qualification:
       bun run docs:check: passed
       git diff --check: passed
 
+Milestone 4 local qualification:
+
+    Date: 2026-08-21
+    Bun: 1.4.0 (34cbb9a40)
+    Native Bun.file probe:
+      ordinary GET/HEAD and single closed/suffix/open ranges: passed
+      Last-Modified and conditional request handling: not provided
+      multipart byte ranges: ignored with a full 200 response
+    Local file body: direct lazy Bun.file response
+    Native range coverage: Admin UI asset through the real server with identity encoding
+    Deliberate non-adoption: no Go http.ServeContent compatibility layer for
+      conditional or multipart ranges; prior PocketBun static routes did not provide them
+    Removed cache: 16 MiB / 256 whole-file entries and all eviction code
+    Memory-pressure listener: omitted; no material disposable byte cache remains
+    Focused router, live Bun.serve, Admin UI, and pb_public-style tests: passed
+    bun test --concurrent: 1,915 pass, 0 fail, 7 snapshots,
+                           10,185 expect() calls across 242 files in 62.02 seconds
+    bun run test: 1,915 pass, 0 fail, 10,185 expect() calls
+                  across 242 files in 27.95 seconds
+    bun run format:fix: passed
+    bun run typecheck: passed
+    bun run typecheck:package: passed, including build and consumer declarations
+    bun run lint: 0 warnings, 0 errors
+    bun run check:versions: passed
+    bun run docs:check: passed
+    git diff --check: passed
+
 Current PocketBun coordination inventory:
 
     SQLite database truth              already cross-process through WAL/busy timeout
@@ -785,3 +819,5 @@ Revision note, 2026-08-21 / Codex: Recorded the third Windows failure showing th
 Revision note, 2026-08-21 / Codex: Recorded successful hosted run 32498391333 across Ubuntu, macOS, Windows, and downstream Playwright E2E. Marked Milestones 1 and 2 complete after the asynchronous-child JSVM HTTP transport, isolated test workflow, cron timezone behavior, and worker-close shutdown all passed their cross-platform acceptance gates.
 
 Revision note, 2026-08-21 / Codex: Completed Milestone 3 with native Bun XML parsing for fixed S3 schemas and request binding, including normalization and malformed-input coverage. After reviewing consumers with the repository owner, also adopted native Bun response serialization: PocketBase scalar roots remain supported, while undocumented PocketBun multi-root and numeric-element output is treated as a porting bug rather than a compatibility contract.
+
+Revision note, 2026-08-21 / Codex: Completed Milestone 4 by replacing local static-file byte loading and the bounded whole-file cache with direct lazy `Bun.file()` responses. After reviewing the actual consumers with the repository owner, removed the proposed Go `http.ServeContent` compatibility layer: Admin UI and `pb_public` routes retain their routing, headers, and common native uncompressed range behavior without owning conditional and multipart-range machinery they did not previously provide.

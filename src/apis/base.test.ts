@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { RequestEvent } from "../core/event_request.ts";
 import { newTestApp } from "../tests/app.ts";
 import { ApiError, ToApiError } from "../tools/router/api_error.ts";
+import { Router } from "../tools/router/router.ts";
 import { MustSubFS, Static, StaticWildcardParam, WrapStdHandler, WrapStdMiddleware } from "./base.ts";
 
 describe("apis base", () => {
@@ -235,6 +236,41 @@ describe("apis base", () => {
         rmSync(dir, { recursive: true, force: true });
       }
     } finally {
+      await cleanup();
+    }
+  });
+
+  // PocketBun-only: exercise the pb_public-style wildcard route rather than
+  // calling Static directly, including GET-to-HEAD fallback and SPA fallback.
+  it("serves a static SPA through the actual router", async () => {
+    const { app, cleanup } = await newTestApp();
+    const dir = createTestDir();
+    try {
+      const router = new Router<RequestEvent>();
+      router.GET("/{path...}", Static({ root: join(dir, "sub") }, true));
+      const handler = router.buildHandler(
+        ({ request, requestUrl, params, remoteAddress, remoteAddressResolver, pattern }) =>
+          new RequestEvent({ app, request, requestUrl, params, remoteAddress, remoteAddressResolver, pattern }),
+      );
+
+      const file = await handler(new Request("http://localhost/test"));
+      expect(file.status).toBe(200);
+      expect(await file.text()).toBe("sub test");
+
+      const head = await handler(new Request("http://localhost/test", { method: "HEAD" }));
+      expect(head.status).toBe(200);
+      expect(head.headers.get("Content-Length")).toBe(String("sub test".length));
+      expect(await head.text()).toBe("");
+
+      const fallback = await handler(new Request("http://localhost/client/side/route"));
+      expect(fallback.status).toBe(200);
+      expect(await fallback.text()).toBe("sub index.html");
+
+      const redirect = await handler(new Request("http://localhost/sub2"));
+      expect(redirect.status).toBe(301);
+      expect(redirect.headers.get("Location")).toBe("/sub2/");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
       await cleanup();
     }
   });

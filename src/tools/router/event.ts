@@ -4,7 +4,7 @@
 
 import type { BodyInit } from "bun";
 import type { Stats } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { NextFunc, Resolver } from "../hook/event.ts";
 import { readRequestTextAndRebind } from "../../internal/compat/request_body.ts";
@@ -37,19 +37,6 @@ export const DefaultMaxMemory = 32 << 20;
 
 const headerContentType = "Content-Type";
 const jsonFieldsParam = "fields";
-
-type FileCacheEntry = {
-  content: Uint8Array;
-  contentType: string;
-  mtimeMs: number;
-  size: number;
-};
-
-// PocketBun-only: in-memory cache for static file responses (upstream reads from disk each time).
-const fileCacheMaxBytes = 16 * 1024 * 1024;
-const fileCacheMaxEntries = 256;
-const fileCache = new Map<string, FileCacheEntry>();
-let fileCacheBytes = 0;
 
 export type CookieLike = {
   Name?: string;
@@ -345,29 +332,10 @@ export class Event implements Resolver {
       }
     }
 
-    const cached = fileCache.get(resolved);
-    if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size) {
-      fileCache.delete(resolved);
-      fileCache.set(resolved, cached);
-      this.setResponseHeaderIfEmpty(headerContentType, cached.contentType);
-      this.responseHeaders.set("Content-Length", String(cached.size));
-      return this.buildResponse(200, cached.content);
-    }
-
-    const contentType = Bun.file(resolved).type || "application/octet-stream";
-    this.setResponseHeaderIfEmpty(headerContentType, contentType);
-
-    const content = await readFile(resolved);
-    this.responseHeaders.set("Content-Length", String(content.length));
-
-    cacheFile(resolved, {
-      content,
-      contentType,
-      mtimeMs: stats.mtimeMs,
-      size: content.length,
-    });
-
-    return this.buildResponse(200, content);
+    const file = Bun.file(resolved);
+    this.setResponseHeaderIfEmpty(headerContentType, file.type || "application/octet-stream");
+    this.responseHeaders.set("Content-Length", String(stats.size));
+    return this.buildResponse(200, file);
   }
 
   NoContent(status: number): Response {
@@ -577,33 +545,6 @@ export class Event implements Resolver {
     Object.defineProperty(fallback, "status", { value: status });
     return fallback;
   }
-}
-
-function cacheFile(path: string, entry: FileCacheEntry): void {
-  if (entry.size > fileCacheMaxBytes) {
-    return;
-  }
-
-  const existing = fileCache.get(path);
-  if (existing) {
-    fileCacheBytes -= existing.size;
-    fileCache.delete(path);
-  }
-
-  while (fileCache.size >= fileCacheMaxEntries || fileCacheBytes + entry.size > fileCacheMaxBytes) {
-    const oldestKey = fileCache.keys().next().value as string | undefined;
-    if (!oldestKey) {
-      break;
-    }
-    const oldest = fileCache.get(oldestKey);
-    if (oldest) {
-      fileCacheBytes -= oldest.size;
-    }
-    fileCache.delete(oldestKey);
-  }
-
-  fileCache.set(path, entry);
-  fileCacheBytes += entry.size;
 }
 
 function serializeCookie(cookie: CookieLike): string {

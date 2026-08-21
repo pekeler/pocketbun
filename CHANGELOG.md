@@ -10,6 +10,7 @@
 - Added PocketBase-compatible `$app.cron().setTimezone(...)` support while keeping UTC as the default on every host.
 - Faster test runs now isolate files across four Bun worker processes, with `bun run test:changed` available for focused local checks.
 - Improved XML handling for S3-compatible storage and custom XML endpoints, including native single-root response serialization, namespaces, entities, repeated and empty values, and malformed-input errors.
+- Local static files now use Bun's lazy file bodies instead of a whole-file memory cache, reducing retained memory for large files.
 
 ## 0.39.11-pocketbun.0 - 2026-08-14
 
