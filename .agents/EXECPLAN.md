@@ -41,7 +41,8 @@ Success is observable, not architectural. First, the complete test suite must pa
 - [x] (2026-08-21 15:40Z) Completed Milestone 2: the four-process isolated suite, explicit UTC/cron timezone behavior, and close-event-backed logger worker shutdown passed on Ubuntu, macOS, and Windows without retries.
 - [x] (2026-08-21 18:15Z) Completed Milestone 3: replaced the S3 and HTTP request XML regex/DOM fallbacks and the response serializer with `Bun.XML`, preserving PocketBase scalar roots while rejecting the old malformed multi-root and numeric-element output.
 - [x] (2026-08-21 18:35 CEST) Completed Milestone 4: local static responses now keep PocketBun's router behavior while using lazy native `Bun.file()` bodies, and the 16 MiB/256-entry byte cache is gone without adding a replacement compatibility layer.
-- [ ] Complete Milestone 5: add low-risk Bun package-maintenance checks, qualify Playwright running under Bun, document deliberate non-adoptions, update user-facing documentation/changelog where required, and pass the full repository gate.
+- [x] (2026-08-21 20:30Z) Completed the local Milestone 5 work and gate: documented the native package-maintenance commands, bound the SSR CSRF example to a per-session identifier, retained normal Playwright after the Bun-hosted runner reproduced oven-sh/bun#28609, and passed both complete test modes plus E2E and repository checks.
+- [ ] Complete Milestone 5 after the finishing documentation/watchlist commit passes hosted CI; do not start clustering before that final Bun v1.4 baseline confirmation.
 - [ ] After Milestones 1 through 5 are complete, qualify Bun v1.4 clustering on Linux, Windows, and macOS in Milestone 6.
 - [ ] Implement the cluster primary, worker roles, CLI surface, startup ordering, one-primary guard, readiness, shutdown, and crash recovery in Milestone 7.
 - [ ] Make built-in process-local behavior cluster-correct in Milestone 8: migrations, bootstrap cleanup, cron, installer, settings/collection caches, rate limits, email cooldowns, OAuth2 redirects, and realtime.
@@ -78,6 +79,10 @@ Success is observable, not architectural. First, the complete test suite must pa
   Evidence: `bun install` and `bun install --frozen-lockfile` succeeded; the only lockfile changes update `@types/bun` and `bun-types` from 1.3.14 to 1.4.0 while retaining lockfile version 1.
 - Observation: `onTestFinished()` now works from `test.concurrent` on Bun v1.4.0, while the watched issue remains open for documentation; `node:inspector` heap profiling and `--no-orphans` with port zero remain blocked.
   Evidence: focused local reproductions passed for concurrent test cleanup, still rejected `HeapProfiler.enable`, and still produced `EADDRINUSE` for the port-zero orphan check. The maintainer watchlist now distinguishes the fixed runtime behavior from the remaining limitations.
+- Observation: Bun v1.4.0's advertised Playwright runtime support still fails for PocketBun's current `@playwright/test` 1.58.2 ESM configuration.
+  Evidence: `bun --bun playwright test` exits before loading `playwright.config.ts` because it cannot resolve the synthetic `playwright.config.ts.esm.preflight` module, matching open oven-sh/bun#28609. The normal `bun run e2e` path passes all four tests because the installed Playwright CLI keeps its normal Node runtime.
+- Observation: the new Bun package-maintenance commands need no PocketBun wrapper or CI service.
+  Evidence: `bun pm licenses --prod --json` reports the installed production TypeScript peer as Apache-2.0, `bun audit fix --dry-run` reports no vulnerabilities across 36 packages, `bun dedupe --check` reports no duplicates across 37 packages, and `bun pm diff typescript@5.9.2 5.9.3` produces the expected source/package diff. `bun pm diff` works even though Bun v1.4.0 omits it from the generic `bun pm --help` command list.
 - Observation: Bun v1.4.0 regresses or incompletely fixes Windows `Bun.spawnSync()` completion tracked by oven-sh/bun#27482; the problem is broader than captured stdout.
   Evidence: hosted Windows CI first returned exit code zero with empty piped stdout, run 32493618840 did the same while leaving redirected `Bun.file(...)` output empty, and run 32497069829 returned zero before a child-written file existed. The JSVM HTTP path no longer uses `spawnSync`: one asynchronous child atomically publishes its result while the synchronous caller waits, so no successful request is retried.
 - Observation: Bun's XML parser is intentionally stricter about declaration placement than PocketBun's old S3 fixtures.
@@ -140,6 +145,9 @@ Success is observable, not architectural. First, the complete test suite must pa
 - Decision: retain Playwright, the ZIP archive implementation, the streaming multipart parser, the custom S3 client, and the current template/compiler/tooling dependencies.
   Rationale: Bun v1.4 does not provide equivalent semantics. Replacing them would either lose compatibility or require more custom code. Revisit the S3 client only when the listed Bun API gaps close, and revisit other components only when a measured or compatibility-driven need appears.
   Date/Author: 2026-08-21 / Codex
+- Decision: document Bun's package-maintenance commands directly instead of adding package scripts, and keep Playwright on its normal runtime until oven-sh/bun#28609 is fixed.
+  Rationale: the maintenance commands are already short, read-only review operations and do not justify wrappers. The Bun-hosted Playwright experiment fails before PocketBun code runs, while the existing runner passes. Automatic Bun v1.4 memory, stream, connection-reuse, zlib, and security improvements require no PocketBun integration and are not given project-specific performance claims without PocketBun measurements.
+  Date/Author: 2026-08-21 / Codex
 - Decision: use Bun's process-isolated parallel test runner after cross-platform qualification, but do not add retries by default.
   Rationale: four workers with eight concurrent tests each retain the measured speedup while avoiding the port-zero failures seen at Bun's default per-worker concurrency. Retries would instead conceal races and contradict the purpose of isolation.
   Date/Author: 2026-08-21 / Codex
@@ -196,6 +204,8 @@ Milestone 3 is complete locally. S3 error, copy, multipart-init, and list respon
 
 Milestone 4 is complete locally. `Event.FileFS()` now returns lazy `Bun.file()` bodies instead of reading and retaining every local static file in a 16 MiB/256-entry byte cache. Bun handles transfer and common uncompressed byte ranges directly; PocketBun keeps content metadata, path resolution, canonical redirects, `pb_public` SPA fallback, Admin UI branding, CSP, and cache policy. Conditional and multipart-range parity with Go `http.ServeContent` is intentionally not reimplemented because these routes did not previously provide it and their clients do not require it. The separate file API delivery path is unchanged.
 
+Milestone 5 is complete locally, with hosted CI remaining as its final gate. Maintainers now have direct license, audit-fix preview, deduplication, and dependency-diff commands without added scripts. The custom-route CSRF guidance binds tokens to a stable per-session identifier and keeps the secret outside source control. Normal Playwright E2E passes; forcing Playwright itself onto Bun reproduces the open `.esm.preflight` resolver issue, so PocketBun keeps its working runner and watchlist entry. No dependency, runtime wrapper, global-store configuration, pruning step, platform-support claim, or standalone executable work was added.
+
 The expected result is simpler than a built-in general-purpose process manager: one primary file, one typed IPC protocol, worker-role checks at existing singleton boundaries, and focused adapters for the handful of process-local features. The performance benefit is expected primarily for concurrent reads and CPU-heavy request/hook work. Writes remain serialized by SQLite, each worker adds memory, and the primary-coordinated rate limiter adds an IPC round trip on routes for which a rate-limit rule applies. Those costs must be measured before the feature is described as a performance advantage.
 
 ## Context and Orientation
@@ -206,7 +216,7 @@ The current minimum runtime is declared as Bun 1.4.0 in `package.json`, with mat
 
 The first workstream touches four runtime paths. Cron now passes explicit timezone options through `src/tools/cron/cron.ts` and `src/tools/cron/schedule.ts`; logger shutdown awaits the worker close event in `src/tools/logger/log_writer.ts`. S3 response modules under `src/tools/filesystem/internal/s3blob/s3/` and request binding in `src/tools/router/event.ts` now use `Bun.XML.parse()` through compatibility adapters, and XML responses use `Bun.XML.stringify()`. `Event.FileFS()` now passes lazy `Bun.file()` bodies directly to Bun while retaining PocketBun's routing and response headers.
 
-The test and maintenance entrypoints are in `package.json`. The default test command uses `bun test --concurrent`; `scripts/e2e_run.ts` launches Playwright; build analysis and CPU/heap profiling already use Bun's newer native tooling. The optional `go-text-template` peer dependency, TypeScript compiler dependency, Playwright, oxlint/oxfmt, and PocketBase JavaScript SDK coverage remain in place for the reasons recorded in the Decision Log.
+The test and maintenance entrypoints are in `package.json`. The configured test command uses four isolated Bun workers with eight concurrent tests each; `scripts/e2e_run.ts` launches Playwright with its normal runtime; build analysis and CPU/heap profiling already use Bun's newer native tooling. The optional `go-text-template` peer dependency, TypeScript compiler dependency, Playwright, oxlint/oxfmt, and PocketBase JavaScript SDK coverage remain in place for the reasons recorded in the Decision Log.
 
 The `serve` command is defined in `src/cmd/serve.ts`. It calls `serveAsync()` from `src/apis/serve.ts`, then waits for termination. `serveAsync()` bootstraps, runs application migrations, builds the router, calls `Bun.serve()`, registers the `pbGracefulShutdown` hook that calls `server.stop()`, starts the first-superuser installer, and prints the startup banner.
 
@@ -733,6 +743,39 @@ Milestone 4 local qualification:
     bun run docs:check: passed
     git diff --check: passed
 
+Milestone 5 local qualification:
+
+    Date: 2026-08-21
+    Bun: 1.4.0 (34cbb9a40)
+    Package maintenance:
+      bun pm licenses --prod --json: TypeScript 5.9.3, Apache-2.0
+      bun audit fix --dry-run: no vulnerabilities across 36 packages
+      bun dedupe --check: no duplicates across 37 packages
+      bun pm diff typescript@5.9.2 5.9.3: passed, source/package diff produced
+    Playwright:
+      bun run e2e: 4 passed in 3.7 seconds
+      bun --bun playwright test: failed before config load with
+        playwright.config.ts.esm.preflight resolution error; oven-sh/bun#28609
+      decision: retain normal Playwright runtime; no Bun-hosted script or CI path added
+    SSR CSRF guidance:
+      generation and verification use the same stable per-session sessionId
+      csrfSecret remains outside source control
+      deterministic generated-doc assertions: passed
+    Deliberate non-adoptions:
+      no global virtual store, production prune step, platform expansion,
+      TypeScript 7 change, standalone executable, or replacement dependency
+    bun run test: 1,915 pass, 0 fail, 10,185 expect() calls
+                  across 242 files in 29.21 seconds
+    bun test --concurrent: 1,915 pass, 0 fail, 7 snapshots,
+                           10,185 expect() calls across 242 files in 64.95 seconds
+    bun run format:fix: passed
+    bun run typecheck: passed
+    bun run typecheck:package: passed, including build and consumer declarations
+    bun run lint: 0 warnings, 0 errors
+    bun run check:versions: passed
+    bun run docs:check: passed
+    git diff --check: passed
+
 Current PocketBun coordination inventory:
 
     SQLite database truth              already cross-process through WAL/busy timeout
@@ -821,3 +864,5 @@ Revision note, 2026-08-21 / Codex: Recorded successful hosted run 32498391333 ac
 Revision note, 2026-08-21 / Codex: Completed Milestone 3 with native Bun XML parsing for fixed S3 schemas and request binding, including normalization and malformed-input coverage. After reviewing consumers with the repository owner, also adopted native Bun response serialization: PocketBase scalar roots remain supported, while undocumented PocketBun multi-root and numeric-element output is treated as a porting bug rather than a compatibility contract.
 
 Revision note, 2026-08-21 / Codex: Completed Milestone 4 by replacing local static-file byte loading and the bounded whole-file cache with direct lazy `Bun.file()` responses. After reviewing the actual consumers with the repository owner, removed the proposed Go `http.ServeContent` compatibility layer: Admin UI and `pb_public` routes retain their routing, headers, and common native uncompressed range behavior without owning conditional and multipart-range machinery they did not previously provide.
+
+Revision note, 2026-08-21 / Codex: Completed Milestone 5 locally with direct Bun license/audit/dedupe/dependency-diff maintenance guidance, per-session CSRF documentation, and the final local repository gate. Retained the normal Playwright runtime after `bun --bun playwright test` reproduced open oven-sh/bun#28609 despite Bun 1.4's advertised support; added the issue to the watchlist and left hosted CI as the final gate before clustering.

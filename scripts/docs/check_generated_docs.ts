@@ -186,6 +186,7 @@ function main(): void {
   assertIncludes(introDoc, "`bun create pocketbun my-app`", "docs/users/introduction.md");
   assertIncludes(introDoc, "`pocketbun serve`", "docs/users/introduction.md");
   assertIncludes(introDoc, "Bun.CSRF.generate", "docs/users/introduction.md");
+  assertIncludes(introDoc, "per-session `sessionId`", "docs/users/introduction.md");
   assertIncludes(jsDoc, "`.pb.ts`", "docs/users/extend.md");
   assertIncludes(jsDoc, "`RegisterServerJS*` / `MustRegisterServerJS*`", "docs/users/extend.md");
   assertIncludes(jsDoc, "`RequestInfo`", "docs/users/extend.md");
@@ -198,6 +199,7 @@ function main(): void {
   assertIncludes(jsDoc, "$http.sendAsync", "docs/users/extend.md");
   assertIncludes(jsDoc, "$apis.static()", "docs/users/extend.md");
   assertIncludes(jsDoc, "Bun.CSRF.generate", "docs/users/extend.md");
+  assertIncludes(jsDoc, "sessionId: session.id", "docs/users/extend.md");
   assertIncludes(jsDoc, "app.forMigrations()", "docs/users/extend.md");
   assertIncludes(jsDoc, "Do not use current app behavior from migrations", "docs/users/extend.md");
   assertIncludes(
