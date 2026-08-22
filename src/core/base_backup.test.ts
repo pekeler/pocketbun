@@ -44,6 +44,24 @@ async function verifyBackupContent(path: string) {
   }
 }
 
+async function verifyPocketBaseBackupFixture(path: string) {
+  const dir = await mkdtemp(join(tmpdir(), "pocketbase_backup_fixture_"));
+  try {
+    await ExtractAsync(path, dir);
+
+    using db = new Database(join(dir, "data.db"), { readonly: true });
+    expect(db.query("select value from pb_backup_fixture").get()).toEqual({ value: "pocketbase-main" });
+
+    using auxDb = new Database(join(dir, "auxiliary.db"), { readonly: true });
+    expect(auxDb.query("select message from _logs where id = ?").get("pbfixturelog001")).toEqual({
+      message: "pocketbase-auxiliary",
+    });
+    expect(await readFile(join(dir, "storage", "pocketbase-fixture.txt"), "utf8")).toBe("pocketbase-file");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
 describe("backups", () => {
   it("CreateBackup", async () => {
     const { app, cleanup } = await newTestApp();
@@ -126,7 +144,15 @@ describe("backups", () => {
       const backupsDir = join(app.DataDir(), LocalBackupsDirName);
       const name = "pocketbase-backup-fixture.zip";
       await mkdir(backupsDir, { recursive: true });
-      await copyFile(new URL("./testdata/pocketbase-backup-fixture.zip", import.meta.url), join(backupsDir, name));
+      const backupPath = join(backupsDir, name);
+      await copyFile(new URL("./testdata/pocketbase-backup-fixture.zip", import.meta.url), backupPath);
+      await verifyPocketBaseBackupFixture(backupPath);
+
+      if (process.platform === "win32") {
+        const error = await app.RestoreBackup({}, name);
+        expect(error?.message).toBe("restore is not supported on Windows");
+        return;
+      }
 
       // Keep this test process alive so it can reopen the restored databases.
       (app as unknown as { RestartAsync: () => Promise<Error | null> }).RestartAsync = async () => null;
