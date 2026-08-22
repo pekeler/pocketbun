@@ -599,10 +599,9 @@ export async function acquirePrimaryGuard(dataDir: string): Promise<PrimaryGuard
         await file.close();
       }
 
-      let heartbeatUpdate = Promise.resolve();
       const heartbeat = setInterval(() => {
         const now = new Date();
-        heartbeatUpdate = heartbeatUpdate.then(() => utimes(path, now, now)).catch(() => {});
+        void utimes(path, now, now).catch(() => {});
       }, heartbeatIntervalMs);
       heartbeat.unref?.();
 
@@ -615,10 +614,6 @@ export async function acquirePrimaryGuard(dataDir: string): Promise<PrimaryGuard
           }
           released = true;
           clearInterval(heartbeat);
-          // Windows cannot unlink the guard while its heartbeat update still has
-          // the file open. Clearing the timer prevents new work; wait for the
-          // already queued update before reading and removing our token.
-          await heartbeatUpdate;
           const current = await readGuardOwner(path);
           if (current?.token === token) {
             await unlink(path).catch((error) => {

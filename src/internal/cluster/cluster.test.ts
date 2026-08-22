@@ -554,7 +554,10 @@ routerAdd("POST", "/__pocketbun_cluster_operation/{kind}", async (event) => {
         expect(recoveryResponse.status).toBe(204);
       }
 
-      primary.process.kill(process.platform === "win32" ? "SIGTERM" : "SIGINT");
+      // Bun.spawn().kill() force-terminates Windows children without dispatching
+      // their JavaScript signal handlers, so this remains a primary-death case
+      // there. POSIX can additionally exercise the graceful final shutdown.
+      primary.process.kill(process.platform === "win32" ? "SIGKILL" : "SIGINT");
       await withTimeout(primary.process.exited, "primary-fault cluster shutdown", 20_000);
       await primary.output.done;
       await waitFor(
@@ -562,7 +565,13 @@ routerAdd("POST", "/__pocketbun_cluster_operation/{kind}", async (event) => {
         "primary-fault final worker cleanup",
         10_000,
       );
-      expect(await Bun.file(guardPath).exists()).toBeFalse();
+      if (process.platform === "win32") {
+        const staleOwner = JSON.parse(await readFile(guardPath, "utf8")) as { pid: number };
+        expect(staleOwner.pid).toBe(primary.process.pid);
+        expect(isProcessAlive(staleOwner.pid)).toBeFalse();
+      } else {
+        expect(await Bun.file(guardPath).exists()).toBeFalse();
+      }
     } finally {
       if (isProcessAlive(primary.process.pid)) {
         primary.process.kill("SIGKILL");
