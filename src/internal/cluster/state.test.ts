@@ -675,7 +675,9 @@ it.serial(
         states.filter((state) => state.pid !== collectionUpdateWorker.pid).map((state) => state.pid),
       );
       if (collectionUpdate.response.status !== 200) {
-        throw new Error(`public collection update returned ${collectionUpdate.response.status}: ${await collectionUpdate.response.text()}`);
+        throw new Error(
+          `public collection update returned ${collectionUpdate.response.status}: ${await collectionUpdate.response.text()}`,
+        );
       }
       await waitFor(
         async () => {
