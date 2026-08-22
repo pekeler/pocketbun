@@ -6,6 +6,8 @@ import { dirname, join, posix, relative } from "node:path";
 import { createDeflateRaw, deflateRawSync } from "node:zlib";
 
 const textEncoder = new TextEncoder();
+const uint16Max = 0xffff;
+const uint32Max = 0xffffffff;
 
 // Create creates a new zip archive from src dir content and saves it in dest path.
 //
@@ -229,8 +231,14 @@ async function buildZipAsync(entries: AsyncZipEntry[], dest: string): Promise<vo
   for (const entry of entries) {
     const nameBytes = textEncoder.encode(entry.name);
     const { date, time } = toDosDateTime(entry.modTime);
-    const extra = buildExtendedTimestampExtra(entry.modTime);
     const localHeaderOffset = offset;
+    const sourceInfo = await stat(entry.source);
+    // Reserve ZIP64 local-header fields before streaming when a source may exceed
+    // classic ZIP's 32-bit size fields. Compression can grow a little, too.
+    const useZip64 = sourceInfo.size >= uint32Max - 0x100000 || offset >= uint32Max;
+    const extra = useZip64
+      ? concatBytes(buildExtendedTimestampExtra(entry.modTime), buildZip64Extra(0, 0))
+      : buildExtendedTimestampExtra(entry.modTime);
     const flags = 0x08;
 
     await write(
@@ -243,6 +251,7 @@ async function buildZipAsync(entries: AsyncZipEntry[], dest: string): Promise<vo
         uncompressedSize: 0,
         nameLength: nameBytes.length,
         extraLength: extra.length,
+        version: useZip64 ? 45 : 20,
       }),
     );
     await write(nameBytes);
@@ -251,7 +260,6 @@ async function buildZipAsync(entries: AsyncZipEntry[], dest: string): Promise<vo
     let crc = 0xffffffff;
     let uncompressedSize = 0;
     let compressedSize = 0;
-    const sourceInfo = await stat(entry.source);
     const input = createReadStream(entry.source);
     input.on("data", (chunk: Buffer) => {
       const bytes = new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
@@ -266,7 +274,15 @@ async function buildZipAsync(entries: AsyncZipEntry[], dest: string): Promise<vo
       await write(bytes);
     }
     crc = (crc ^ 0xffffffff) >>> 0;
-    await write(buildDataDescriptor(crc, compressedSize, uncompressedSize));
+    const entryUsesZip64 = useZip64 || compressedSize > uint32Max || uncompressedSize > uint32Max;
+    await write(buildDataDescriptor(crc, compressedSize, uncompressedSize, entryUsesZip64));
+
+    const centralExtra = entryUsesZip64
+      ? concatBytes(
+          buildExtendedTimestampExtra(entry.modTime),
+          buildZip64Extra(uncompressedSize, compressedSize, localHeaderOffset >= uint32Max ? localHeaderOffset : undefined),
+        )
+      : buildExtendedTimestampExtra(entry.modTime);
 
     central.push(
       buildCentralHeader({
@@ -274,31 +290,39 @@ async function buildZipAsync(entries: AsyncZipEntry[], dest: string): Promise<vo
         time,
         date,
         crc,
-        compressedSize,
-        uncompressedSize,
+        compressedSize: entryUsesZip64 ? uint32Max : compressedSize,
+        uncompressedSize: entryUsesZip64 ? uint32Max : uncompressedSize,
         nameLength: nameBytes.length,
-        extraLength: extra.length,
+        extraLength: centralExtra.length,
         externalAttrs: (entry.mode & 0xffff) << 16,
-        localHeaderOffset,
+        localHeaderOffset: localHeaderOffset >= uint32Max ? uint32Max : localHeaderOffset,
+        version: entryUsesZip64 ? 45 : 20,
       }),
     );
     central.push(nameBytes);
-    central.push(extra);
+    central.push(centralExtra);
   }
 
   const centralOffset = offset;
   const centralBytes = central.concat();
   await write(centralBytes);
+  const archiveUsesZip64 = entries.length >= uint16Max || centralBytes.length >= uint32Max || centralOffset >= uint32Max;
+  if (archiveUsesZip64) {
+    const zip64EndOffset = offset;
+    await write(buildZip64EndOfCentralDirectory(entries.length, centralBytes.length, centralOffset));
+    await write(buildZip64EndOfCentralDirectoryLocator(zip64EndOffset));
+  }
   await write(
     buildEndOfCentralDirectory({
-      entries: entries.length,
-      centralSize: centralBytes.length,
-      centralOffset,
+      entries: archiveUsesZip64 ? uint16Max : entries.length,
+      centralSize: archiveUsesZip64 ? uint32Max : centralBytes.length,
+      centralOffset: archiveUsesZip64 ? uint32Max : centralOffset,
     }),
   );
 }
 
 type HeaderInput = {
+  version?: number;
   flags: number;
   time: number;
   date: number;
@@ -312,6 +336,7 @@ type HeaderInput = {
 type CentralHeaderInput = HeaderInput & {
   externalAttrs: number;
   localHeaderOffset: number;
+  version?: number;
 };
 
 type EndInput = {
@@ -324,7 +349,7 @@ function buildLocalHeader(input: HeaderInput): Uint8Array {
   const buf = new Uint8Array(30);
   const view = new DataView(buf.buffer);
   view.setUint32(0, 0x04034b50, true);
-  view.setUint16(4, 20, true);
+  view.setUint16(4, input.version ?? 20, true);
   view.setUint16(6, input.flags, true);
   view.setUint16(8, 8, true);
   view.setUint16(10, input.time, true);
@@ -342,7 +367,7 @@ function buildCentralHeader(input: CentralHeaderInput): Uint8Array {
   const view = new DataView(buf.buffer);
   view.setUint32(0, 0x02014b50, true);
   view.setUint16(4, 20, true);
-  view.setUint16(6, 20, true);
+  view.setUint16(6, input.version ?? 20, true);
   view.setUint16(8, input.flags, true);
   view.setUint16(10, 8, true);
   view.setUint16(12, input.time, true);
@@ -385,14 +410,69 @@ function buildExtendedTimestampExtra(modTime: Date): Uint8Array {
   return buf;
 }
 
-function buildDataDescriptor(crc: number, compressedSize: number, uncompressedSize: number): Uint8Array {
-  const buf = new Uint8Array(16);
+function buildDataDescriptor(crc: number, compressedSize: number, uncompressedSize: number, zip64 = false): Uint8Array {
+  const buf = new Uint8Array(zip64 ? 24 : 16);
   const view = new DataView(buf.buffer);
   view.setUint32(0, 0x08074b50, true);
   view.setUint32(4, crc >>> 0, true);
-  view.setUint32(8, compressedSize >>> 0, true);
-  view.setUint32(12, uncompressedSize >>> 0, true);
+  if (zip64) {
+    view.setBigUint64(8, BigInt(compressedSize), true);
+    view.setBigUint64(16, BigInt(uncompressedSize), true);
+  } else {
+    view.setUint32(8, compressedSize >>> 0, true);
+    view.setUint32(12, uncompressedSize >>> 0, true);
+  }
   return buf;
+}
+
+function buildZip64Extra(uncompressedSize: number, compressedSize: number, localHeaderOffset?: number): Uint8Array {
+  const values = localHeaderOffset === undefined ? 2 : 3;
+  const buf = new Uint8Array(4 + values * 8);
+  const view = new DataView(buf.buffer);
+  view.setUint16(0, 0x0001, true);
+  view.setUint16(2, values * 8, true);
+  view.setBigUint64(4, BigInt(uncompressedSize), true);
+  view.setBigUint64(12, BigInt(compressedSize), true);
+  if (localHeaderOffset !== undefined) {
+    view.setBigUint64(20, BigInt(localHeaderOffset), true);
+  }
+  return buf;
+}
+
+function buildZip64EndOfCentralDirectory(entries: number, centralSize: number, centralOffset: number): Uint8Array {
+  const buf = new Uint8Array(56);
+  const view = new DataView(buf.buffer);
+  view.setUint32(0, 0x06064b50, true);
+  view.setBigUint64(4, 44n, true);
+  view.setUint16(12, 45, true);
+  view.setUint16(14, 45, true);
+  view.setUint32(16, 0, true);
+  view.setUint32(20, 0, true);
+  view.setBigUint64(24, BigInt(entries), true);
+  view.setBigUint64(32, BigInt(entries), true);
+  view.setBigUint64(40, BigInt(centralSize), true);
+  view.setBigUint64(48, BigInt(centralOffset), true);
+  return buf;
+}
+
+function buildZip64EndOfCentralDirectoryLocator(offset: number): Uint8Array {
+  const buf = new Uint8Array(20);
+  const view = new DataView(buf.buffer);
+  view.setUint32(0, 0x07064b50, true);
+  view.setUint32(4, 0, true);
+  view.setBigUint64(8, BigInt(offset), true);
+  view.setUint32(16, 1, true);
+  return buf;
+}
+
+function concatBytes(...parts: Uint8Array[]): Uint8Array {
+  const result = new Uint8Array(parts.reduce((total, part) => total + part.length, 0));
+  let offset = 0;
+  for (const part of parts) {
+    result.set(part, offset);
+    offset += part.length;
+  }
+  return result;
 }
 
 function toDosDateTime(date: Date): { date: number; time: number } {
