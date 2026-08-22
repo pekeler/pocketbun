@@ -617,6 +617,7 @@ it.serial(
         primary.process.kill("SIGKILL");
         await primary.process.exited;
       }
+      await withTimeout(primary.output.done, "cluster state output shutdown", 20_000);
       await rm(root, { recursive: true, force: true });
     }
   },
@@ -777,14 +778,14 @@ function collectOutput(child: ReturnType<typeof Bun.spawn>) {
       }
     }
   };
-  void Promise.all([
+  const done = Promise.all([
     read(child.stdout as ReadableStream<Uint8Array>, (value) => {
       stdout += value;
     }),
     read(child.stderr as ReadableStream<Uint8Array>, (value) => {
       stderr += value;
     }),
-  ]);
+  ]).then(() => undefined);
   return {
     get stdout() {
       return stdout;
@@ -792,6 +793,7 @@ function collectOutput(child: ReturnType<typeof Bun.spawn>) {
     get stderr() {
       return stderr;
     },
+    done,
     waitFor(text: string): Promise<void> {
       if (stdout.includes(text)) {
         return Promise.resolve();
