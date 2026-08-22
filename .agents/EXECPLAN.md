@@ -180,7 +180,13 @@ The repository owner intends to deploy cluster mode in production as soon as pra
 - Observation: the new four-vCPU dedicated Ubuntu host exposes two physical AMD EPYC-Milan cores with two SMT threads each, not four physical cores.
   Evidence: Linux maps logical CPUs 0 and 1 to one core and CPUs 2 and 3 to the other. Pin one-worker and two-worker acceptance runs to CPUs 0 and 2 so they use separate cores; label four-worker stress and soak results as SMT-assisted, and use a larger host if four-physical-core scaling remains necessary.
 - Observation: the original transaction-wrapped live-file backup is not safe under independent cluster writers and checkpoints.
-  Evidence: the first Ubuntu pressure run produced a transient checkpoint collision; the second reproduced `SQLiteError: locking protocol` when the manual backup transaction committed after other workers wrote and checkpointed. The same scenario had passed ten times on macOS, demonstrating why a real Linux shared-database gate is required. Bun's synchronous SQLite serialization produces a coherent main and auxiliary database image before asynchronous ZIP compression, so the archive no longer races live database, WAL, or SHM files.
+  Evidence: the first Ubuntu pressure run produced a transient checkpoint collision; the second reproduced `SQLiteError: locking protocol` when the manual backup transaction committed after other workers wrote and checkpointed. The same scenario had passed ten times on macOS, demonstrating why a real Linux shared-database gate is required.
+- Observation: Bun's `Database.serialize()` is not an acceptable clustered-backup mechanism even though it produces a coherent SQLite image.
+  Evidence: it allocates an in-memory byte copy proportional to each database's full size. A production database may be larger than available RAM, so a routine backup could terminate PocketBun through OOM. The existing asynchronous ZIP helper also collected every archive input and the final ZIP in memory, so replacing only the database copy would not remove the unbounded-memory failure mode.
+- Observation: the standard auxiliary database is independent activity-log storage.
+  Evidence: `src/migrations/1640988000_aux_init.ts` creates `_logs`; `src/apis/logs.ts` only queries that table and the unchanged Admin UI consumes that API independently. A slightly different capture time cannot corrupt `data.db` or crash the Admin UI, though a restored audit trail can be marginally incomplete around the backup boundary.
+- Observation: streaming archive input removes the database-size RAM ceiling but the current ZIP metadata is still classic ZIP, not ZIP64.
+  Evidence: `src/tools/archive/create.ts` writes 32-bit entry sizes and offsets. A database larger than 4 GiB can therefore no longer OOM the archive writer, but it must not be claimed as a supported backup until ZIP64 metadata and an over-4-GiB regression gate are added.
 - Observation: random test listener ports must not overlap Linux's ephemeral client-port range during connection-heavy repetitions.
   Evidence: two otherwise healthy Ubuntu repetitions selected ports still used transiently by local outgoing connections and failed startup with `EADDRINUSE`. The state harness now probes consecutive ports below the default ephemeral range before starting workers; this is test isolation, not a production listener change.
 - Observation: the historical `posts25k` result is not a controlled Bun v1.4 performance comparison.
@@ -288,8 +294,8 @@ The repository owner intends to deploy cluster mode in production as soon as pra
 - Decision: keep backup exclusion in one token-owned primary lease, mirror only its name into each worker's existing active-backup store key, and release ownership when the worker exits.
   Rationale: this preserves the existing backup API, delete protection, and health response without adding an IPC query to every read or distributing arbitrary user store values. The primary makes overlapping operations atomic, while the unchanged one-worker path remains local.
   Date/Author: 2026-08-22 / Codex
-- Decision: snapshot `data.db` and `auxiliary.db` with Bun's SQLite serialization before building a backup archive, and exclude their live WAL, SHM, and journal sidecars.
-  Rationale: a process-local transaction cannot block independent cluster connections and can fail with SQLite's locking-protocol error while checkpoints and writes continue. Serialization synchronously freezes each complete SQLite image, including committed WAL state, then lets ZIP compression and upload remain asynchronous. This preserves restorable PocketBase database files, avoids a cluster-wide write gate, and removes the long-lived transaction from the request-handling event loop.
+- Decision: snapshot `data.db` and `auxiliary.db` sequentially with on-disk `VACUUM INTO`, stream the archive to disk, and exclude their live WAL, SHM, and journal sidecars.
+  Rationale: a process-local transaction cannot block independent cluster connections and can fail with SQLite's locking-protocol error while checkpoints and writes continue. `Database.serialize()` was rejected because its full in-memory copies can OOM a production server. `VACUUM INTO` is available through Bun's public SQL API, creates standard restorable SQLite files without JavaScript-sized copies, and needs no external SQLite shell. SQLite's online-backup API is lower-CPU and incremental but is not exposed by Bun; do not add a system dependency for it. The standard auxiliary database contains independent logs, so a sequential capture is safe for the first release. True parallel captures would require dedicated workers/processes, would only narrow rather than eliminate the timing gap, and are deferred until this path is pressure-qualified. Streaming ZIP output is mandatory because the prior helper loaded all input files and the completed archive into memory. The new temporary snapshot increases worst-case free-disk-space needs to roughly three times the data-directory size. This is not an atomic whole-directory snapshot: concurrent uploads/deletions can fall on either side of the database capture, so document that applications requiring strict database/file alignment must pause writes themselves.
   Date/Author: 2026-08-22 / Codex
 - Decision: retain the primary across cluster restart and restore, but reset its transient coordinator and recycle every worker; during restore, force-stop the initiator's HTTP server through a narrow registered callback before directory replacement.
   Rationale: only workers own durable application state and database connections, so fresh workers plus a fresh limiter/expiry coordinator reproduce process replacement. Keeping the primary avoids unnecessary `execve` and works uniformly across platforms, while stopping only the initiator's server preserves the app state needed by the existing transaction. Recoverable post-quiesce failure also recycles the initiator before service resumes.
@@ -1256,9 +1262,15 @@ Milestone 10 shared-SQLite pressure and backup correction:
     Original Linux failure: manual backup returned HTTP 400 with SQLiteError
                             "locking protocol" at transaction commit while independent
                             workers wrote and checkpointed
-    Correction: Bun SQLite serialize() freezes data.db and auxiliary.db before asynchronous
-                ZIP creation; archive overrides those entries and excludes live WAL, SHM,
-                and journal sidecars
+    Rejected correction: Bun SQLite serialize() froze data.db and auxiliary.db before ZIP
+                         creation. It was discarded before release because its peak RAM is
+                         proportional to database size.
+    Replacement in progress: create standard on-disk SQLite snapshots with sequential
+                             `VACUUM INTO`, stream every ZIP entry to its temporary archive,
+                             and exclude live WAL, SHM, and journal sidecars. This needs
+                             temporary disk space for the original database, its snapshot,
+                             and the ZIP; document the resulting roughly 3x worst-case
+                             data-directory free-space requirement.
     Local focused backup/archive/state gate: 46 pass, 0 fail, 112 expect() calls
     Complete local concurrent suite: 1,940 pass, 0 fail, 7 snapshots,
                                      10,503 expect() calls across 248 files in 113.22 seconds

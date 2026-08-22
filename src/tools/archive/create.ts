@@ -1,9 +1,9 @@
 // Ported from pocketbase/tools/archive/create.go
 
-import { lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { lstat, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { createReadStream, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { lstat, mkdir, open, readdir, rm, stat } from "node:fs/promises";
 import { dirname, join, posix, relative } from "node:path";
-import { deflateRaw, deflateRawSync } from "node:zlib";
+import { createDeflateRaw, deflateRawSync } from "node:zlib";
 
 const textEncoder = new TextEncoder();
 
@@ -36,19 +36,18 @@ export async function CreateAsync(src: string, dest: string, ...skipPaths: strin
 }
 
 // CreateAsyncWithFileOverrides is a PocketBun-only backup helper that replaces
-// selected archive entries with already snapshotted bytes.
+// selected archive entries with files containing an already-created snapshot.
 export async function CreateAsyncWithFileOverrides(
   src: string,
   dest: string,
-  overrides: ReadonlyMap<string, Uint8Array>,
+  overrides: ReadonlyMap<string, string>,
   ...skipPaths: string[]
 ): Promise<void> {
   await mkdir(dirname(dest), { recursive: true });
 
   try {
     const files = await collectFilesAsync(src, skipPaths, overrides);
-    const zip = await buildZipAsync(files);
-    await writeFile(dest, zip);
+    await buildZipAsync(files, dest);
   } catch (error) {
     try {
       await rm(dest, { force: true });
@@ -62,6 +61,13 @@ export async function CreateAsyncWithFileOverrides(
 type ZipEntry = {
   name: string;
   data: Uint8Array;
+  modTime: Date;
+  mode: number;
+};
+
+type AsyncZipEntry = {
+  name: string;
+  source: string;
   modTime: Date;
   mode: number;
 };
@@ -103,9 +109,9 @@ function collectFilesSync(src: string, skipPaths: string[]): ZipEntry[] {
 async function collectFilesAsync(
   src: string,
   skipPaths: string[],
-  overrides: ReadonlyMap<string, Uint8Array> = new Map(),
-): Promise<ZipEntry[]> {
-  const entries: ZipEntry[] = [];
+  overrides: ReadonlyMap<string, string> = new Map(),
+): Promise<AsyncZipEntry[]> {
+  const entries: AsyncZipEntry[] = [];
   const unusedOverrides = new Set(overrides.keys());
 
   const walk = async (dir: string): Promise<void> => {
@@ -122,13 +128,13 @@ async function collectFilesAsync(
         continue;
       }
 
-      const [info, fileData] = await Promise.all([lstat(fullPath), overrides.has(rel) ? null : readFile(fullPath)]);
-      const data = overrides.get(rel) ?? fileData!;
+      const info = await lstat(fullPath);
+      const source = overrides.get(rel) ?? fullPath;
       unusedOverrides.delete(rel);
 
       entries.push({
         name: rel,
-        data: new Uint8Array(data),
+        source,
         modTime: info.mtime,
         mode: info.mode,
       });
@@ -206,28 +212,28 @@ function buildZip(entries: ZipEntry[]): Uint8Array {
   return writer.concat();
 }
 
-async function buildZipAsync(entries: ZipEntry[]): Promise<Uint8Array> {
-  const writer = new ChunkWriter();
+async function buildZipAsync(entries: AsyncZipEntry[], dest: string): Promise<void> {
+  await using output = await open(dest, "w");
   const central = new ChunkWriter();
+  let offset = 0;
 
-  const compressedEntries = await Promise.all(
-    entries.map(async (entry) => {
-      const compressed = entry.data.length === 0 ? await deflateRawAsync(entry.data, 0) : await deflateRawAsync(entry.data, 1);
-      const crc = crc32(entry.data);
-      return { entry, compressed, crc };
-    }),
-  );
+  const write = async (data: Uint8Array): Promise<void> => {
+    let written = 0;
+    while (written < data.length) {
+      const result = await output.write(data, written);
+      written += result.bytesWritten;
+    }
+    offset += data.length;
+  };
 
-  for (const item of compressedEntries) {
-    const entry = item.entry;
+  for (const entry of entries) {
     const nameBytes = textEncoder.encode(entry.name);
-    const localHeaderOffset = writer.length;
-
     const { date, time } = toDosDateTime(entry.modTime);
     const extra = buildExtendedTimestampExtra(entry.modTime);
+    const localHeaderOffset = offset;
     const flags = 0x08;
 
-    writer.push(
+    await write(
       buildLocalHeader({
         flags,
         time,
@@ -239,19 +245,37 @@ async function buildZipAsync(entries: ZipEntry[]): Promise<Uint8Array> {
         extraLength: extra.length,
       }),
     );
-    writer.push(nameBytes);
-    writer.push(extra);
-    writer.push(item.compressed);
-    writer.push(buildDataDescriptor(item.crc, item.compressed.length, entry.data.length));
+    await write(nameBytes);
+    await write(extra);
+
+    let crc = 0xffffffff;
+    let uncompressedSize = 0;
+    let compressedSize = 0;
+    const sourceInfo = await stat(entry.source);
+    const input = createReadStream(entry.source);
+    input.on("data", (chunk: Buffer) => {
+      const bytes = new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+      crc = updateCrc32(crc, bytes);
+      uncompressedSize += bytes.length;
+    });
+    const compressor = createDeflateRaw({ level: sourceInfo.size === 0 ? 0 : 1 });
+    input.pipe(compressor);
+    for await (const chunk of compressor) {
+      const bytes = new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+      compressedSize += bytes.length;
+      await write(bytes);
+    }
+    crc = (crc ^ 0xffffffff) >>> 0;
+    await write(buildDataDescriptor(crc, compressedSize, uncompressedSize));
 
     central.push(
       buildCentralHeader({
         flags,
         time,
         date,
-        crc: item.crc,
-        compressedSize: item.compressed.length,
-        uncompressedSize: entry.data.length,
+        crc,
+        compressedSize,
+        uncompressedSize,
         nameLength: nameBytes.length,
         extraLength: extra.length,
         externalAttrs: (entry.mode & 0xffff) << 16,
@@ -262,18 +286,16 @@ async function buildZipAsync(entries: ZipEntry[]): Promise<Uint8Array> {
     central.push(extra);
   }
 
-  const centralOffset = writer.length;
-  writer.push(central.concat());
-
-  writer.push(
+  const centralOffset = offset;
+  const centralBytes = central.concat();
+  await write(centralBytes);
+  await write(
     buildEndOfCentralDirectory({
       entries: entries.length,
-      centralSize: central.length,
+      centralSize: centralBytes.length,
       centralOffset,
     }),
   );
-
-  return writer.concat();
 }
 
 type HeaderInput = {
@@ -422,16 +444,24 @@ function crc32(data: Uint8Array): number {
   return Bun.hash.crc32(data);
 }
 
-async function deflateRawAsync(data: Uint8Array, level: number): Promise<Uint8Array> {
-  return await new Promise((resolve, reject) => {
-    deflateRaw(data, { level }, (err, out) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      resolve(new Uint8Array(out));
-    });
-  });
+const crc32Table = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < table.length; i += 1) {
+    let value = i;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[i] = value >>> 0;
+  }
+  return table;
+})();
+
+function updateCrc32(crc: number, data: Uint8Array): number {
+  let value = crc;
+  for (const byte of data) {
+    value = crc32Table[(value ^ byte) & 0xff]! ^ (value >>> 8);
+  }
+  return value >>> 0;
 }
 
 class ChunkWriter {

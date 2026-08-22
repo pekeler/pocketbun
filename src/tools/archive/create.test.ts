@@ -55,19 +55,16 @@ describe("archive create", () => {
     }
   });
 
-  it("create async with frozen file overrides", async () => {
+  it("create async with snapshot file overrides", async () => {
     const testDir = createTestDir();
     const outputDir = mkdtempSync(join(tmpdir(), "pb_zip_override"));
     const zipPath = join(tmpdir(), "pb_test_override.zip");
     try {
       writeFileSync(join(testDir, "data.db"), "live");
       writeFileSync(join(testDir, "data.db-wal"), "live wal");
-      await CreateAsyncWithFileOverrides(
-        testDir,
-        zipPath,
-        new Map([["data.db", new TextEncoder().encode("snapshot")]]),
-        "data.db-wal",
-      );
+      const snapshotPath = join(outputDir, "snapshot.db");
+      writeFileSync(snapshotPath, "snapshot");
+      await CreateAsyncWithFileOverrides(testDir, zipPath, new Map([["data.db", snapshotPath]]), "data.db-wal");
       await ExtractAsync(zipPath, outputDir);
 
       expect(readFileSync(join(outputDir, "data.db"), "utf8")).toBe("snapshot");

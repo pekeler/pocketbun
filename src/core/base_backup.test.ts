@@ -1,5 +1,6 @@
 // Ported from pocketbase/core/base_backup_test.go.
 
+import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -19,7 +20,7 @@ async function verifyBackupContent(path: string) {
   try {
     await ExtractAsync(path, dir);
 
-    // PocketBun archives Bun SQLite serialization snapshots instead of live WAL/SHM sidecars.
+    // PocketBun archives disk-backed SQLite snapshots instead of live WAL/SHM sidecars.
     const expectedRootEntries = ["storage", "data.db", "auxiliary.db", ".gitignore"];
 
     const entries = await readdir(dir, { withFileTypes: true });
@@ -32,6 +33,11 @@ async function verifyBackupContent(path: string) {
       if (!existInSliceWithRegex(entry.name, expectedRootEntries)) {
         throw new Error(`Didn't expect ${entry.name} entry`);
       }
+    }
+
+    for (const name of ["data.db", "auxiliary.db"]) {
+      using db = new Database(join(dir, name), { readonly: true });
+      expect(db.query("PRAGMA integrity_check").get()).toEqual({ integrity_check: "ok" });
     }
   } finally {
     await rm(dir, { recursive: true, force: true });

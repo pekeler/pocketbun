@@ -8476,7 +8476,7 @@ namespace core {
      * will be temporary "blocked" until the backup file is generated.
      *
      * To safely perform the backup, it is recommended to have free disk space
-     * for at least 2x the size of the pb_data directory.
+     * for at least 3x the size of the pb_data directory.
      *
      * By default backups are stored in pb_data/backups
      * (the backups directory itself is excluded from the generated backup).

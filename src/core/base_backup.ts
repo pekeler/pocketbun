@@ -1,9 +1,9 @@
 // Ported from pocketbase/core/base_backup.go
 // Deviation: backup/restore file I/O uses async fs + async archive helpers to avoid blocking the event loop.
-// Deviation: database files use Bun's SQLite serialization so cluster writes cannot race live WAL files during archiving.
+// Deviation: database files use SQLite VACUUM INTO snapshots so cluster writes cannot race live WAL files during archiving.
 // Deviation: cluster mode delegates backup exclusion and worker recycling to the primary process.
 
-import { mkdir, open, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, open, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { clusterEnabled } from "../internal/cluster/context.ts";
 import { CreateAsyncWithFileOverrides, ExtractAsync } from "../tools/archive/index.ts";
@@ -33,11 +33,11 @@ const lostFoundDirName = "lost+found";
 //
 // The backup is executed within a transaction, meaning that new writes
 // will be temporary "blocked" until the backup file is generated.
-// PocketBun instead serializes coherent SQLite snapshots synchronously before
+// PocketBun instead writes coherent SQLite snapshots to temporary files before
 // archiving, so ZIP generation no longer holds a transaction or blocks writes.
 //
 // To safely perform the backup, it is recommended to have free disk space
-// for at least 2x the size of the pb_data directory.
+// for at least 3x the size of the pb_data directory.
 //
 // By default backups are stored in pb_data/backups
 // (the backups directory itself is excluded from the generated backup).
@@ -78,22 +78,29 @@ export async function CreateBackup(app: App, ctx: unknown, name: string): Promis
       // ---
       const tempPath = join(localTempDir, `pb_backup_${pseudorandomString(6)}`);
       try {
-        const snapshots = new Map<string, Uint8Array>([
-          ["data.db", e.App.db().serialize()],
-          ["auxiliary.db", e.App.auxDb().serialize()],
-        ]);
-        await CreateAsyncWithFileOverrides(
-          e.App.dataDir(),
-          tempPath,
-          snapshots,
-          ...e.Exclude,
-          "data.db-wal",
-          "data.db-shm",
-          "data.db-journal",
-          "auxiliary.db-wal",
-          "auxiliary.db-shm",
-          "auxiliary.db-journal",
-        );
+        const snapshotDir = await mkdtemp(join(localTempDir, "pb_backup_snapshot_"));
+        try {
+          const snapshots = new Map<string, string>([
+            ["data.db", join(snapshotDir, "data.db")],
+            ["auxiliary.db", join(snapshotDir, "auxiliary.db")],
+          ]);
+          e.App.db().query("VACUUM INTO ?").run(snapshots.get("data.db")!);
+          e.App.auxDb().query("VACUUM INTO ?").run(snapshots.get("auxiliary.db")!);
+          await CreateAsyncWithFileOverrides(
+            e.App.dataDir(),
+            tempPath,
+            snapshots,
+            ...e.Exclude,
+            "data.db-wal",
+            "data.db-shm",
+            "data.db-journal",
+            "auxiliary.db-wal",
+            "auxiliary.db-shm",
+            "auxiliary.db-journal",
+          );
+        } finally {
+          await rm(snapshotDir, { recursive: true, force: true });
+        }
       } catch (error) {
         return error as Error;
       }
