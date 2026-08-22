@@ -1,6 +1,9 @@
 // PocketBun-only: attaches the Bun cluster worker handshake to the existing PocketBase lifecycle.
 
 import cluster from "node:cluster";
+import type { App } from "../../core/app.ts";
+import { TerminateEvent } from "../../core/events.ts";
+import { StoreKeyActiveBackup } from "../../core/store.ts";
 import {
   ClusterEnvAddress,
   ClusterEnvReusePort,
@@ -30,6 +33,8 @@ import {
 
 let attached = false;
 let shutdownRequested = false;
+let workerApp: App | null = null;
+let stopWorkerServer: (() => Promise<void>) | null = null;
 const coordinatorTimeoutMs = 5_000;
 const pendingCoordinatorRequests = new Map<
   string,
@@ -83,6 +88,10 @@ export function attachClusterWorker(): void {
       void handleCoordinatorDelivery(message.requestId, message.operation);
       return;
     }
+    if (message.kind === "control.recycle") {
+      void recycleClusterWorker(message.reason);
+      return;
+    }
     if (message.kind !== "control.shutdown") {
       return;
     }
@@ -99,6 +108,14 @@ export function attachClusterWorker(): void {
     rejectPendingCoordinatorRequests(new Error("PocketBun cluster primary disconnected"));
     process.exit(1);
   });
+}
+
+export function registerClusterWorkerApp(app: App): void {
+  workerApp = app;
+}
+
+export function registerClusterWorkerServerStop(stop: () => Promise<void>): void {
+  stopWorkerServer = stop;
 }
 
 export function clusterWorkerShutdownRequested(): boolean {
@@ -208,6 +225,57 @@ export async function deliverClusterOAuth2Redirect(
   return "absent";
 }
 
+export async function acquireClusterBackupLease(name: string): Promise<string | null> {
+  const value = await requestCoordinator({ kind: "backup.acquire", name });
+  return typeof value === "string" ? value : null;
+}
+
+export async function releaseClusterBackupLease(leaseToken: string): Promise<void> {
+  await requestCoordinator({ kind: "backup.release", leaseToken });
+}
+
+export async function restartClusterWorkers(): Promise<void> {
+  const accepted = await requestCoordinator({ kind: "lifecycle.restart" });
+  if (accepted !== true) {
+    throw new Error("PocketBun cluster restart was not accepted");
+  }
+}
+
+export async function beginClusterRestore(leaseToken: string): Promise<void> {
+  try {
+    const accepted = await requestCoordinator({ kind: "restore.begin", leaseToken });
+    if (accepted !== true) {
+      throw new Error("PocketBun cluster restore quiesce was not accepted");
+    }
+    if (!stopWorkerServer) {
+      throw new Error("PocketBun cluster worker server is not registered");
+    }
+    await stopWorkerServer();
+  } catch (error) {
+    await requestCoordinator({
+      kind: "restore.abort",
+      leaseToken,
+      fatal: false,
+      error: error instanceof Error ? error.message : String(error),
+    }).catch(() => {});
+    throw error;
+  }
+}
+
+export async function completeClusterRestore(leaseToken: string): Promise<void> {
+  const accepted = await requestCoordinator({ kind: "restore.complete", leaseToken });
+  if (accepted !== true) {
+    throw new Error("PocketBun cluster restore completion was not accepted");
+  }
+}
+
+export async function abortClusterRestore(leaseToken: string, fatal: boolean, error: string): Promise<void> {
+  const accepted = await requestCoordinator({ kind: "restore.abort", leaseToken, fatal, error });
+  if (accepted !== true) {
+    throw new Error("PocketBun cluster restore recovery was not accepted");
+  }
+}
+
 async function handleCoordinatorDelivery(requestId: string, operation: import("./protocol.ts").CoordinatorDeliveryOperation) {
   const workerId = clusterWorkerId();
   if (workerId === null) {
@@ -215,7 +283,17 @@ async function handleCoordinatorDelivery(requestId: string, operation: import(".
   }
   try {
     let value: string;
-    if (operation.kind === "realtime.publish") {
+    if (operation.kind === "backup.state") {
+      if (!workerApp) {
+        throw new Error("PocketBun cluster worker app is not registered");
+      }
+      if (operation.name === null) {
+        workerApp.store().remove(StoreKeyActiveBackup);
+      } else {
+        workerApp.store().set(StoreKeyActiveBackup, operation.name);
+      }
+      value = "updated";
+    } else if (operation.kind === "realtime.publish") {
       const handler = getClusterRealtimeEventHandler();
       if (!handler) {
         throw new Error("PocketBun cluster realtime delivery handler is not registered");
@@ -263,17 +341,46 @@ async function handleCoordinatorDelivery(requestId: string, operation: import(".
   }
 }
 
+async function recycleClusterWorker(reason: "restart" | "restore"): Promise<void> {
+  if (shutdownRequested) {
+    return;
+  }
+  shutdownRequested = true;
+  if (!workerApp) {
+    process.exit(1);
+  }
+
+  const event = new TerminateEvent(workerApp, true);
+  try {
+    const result = workerApp.OnTerminate().Trigger(event, (e) => {
+      e.App.resetBootstrapState();
+      return null;
+    });
+    const resolved = result instanceof Promise ? await result : result;
+    if (resolved instanceof Error) {
+      throw resolved;
+    }
+    await notifyClusterWorkerStopped();
+    process.exit(0);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error(`[cluster] failed to stop worker for ${reason}: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+}
+
 function requestCoordinator(operation: CoordinatorOperation): Promise<CoordinatorValue> {
   const workerId = clusterWorkerId();
   if (workerId === null) {
     return Promise.reject(new Error("PocketBun cluster worker is not configured"));
   }
   const requestId = crypto.randomUUID();
+  const timeoutMs = operation.kind === "restore.begin" ? 30_000 : coordinatorTimeoutMs;
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       pendingCoordinatorRequests.delete(requestId);
-      reject(new Error(`PocketBun cluster coordinator request timed out after ${coordinatorTimeoutMs}ms`));
-    }, coordinatorTimeoutMs);
+      reject(new Error(`PocketBun cluster coordinator request timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
     pendingCoordinatorRequests.set(requestId, { resolve, reject, timeout });
     void send({
       version: ClusterProtocolVersion,

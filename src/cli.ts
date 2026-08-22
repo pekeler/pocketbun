@@ -151,7 +151,9 @@ export async function main(): Promise<void> {
   });
 
   if (clusterEnabled()) {
-    const { clusterWorkerShutdownRequested, notifyClusterWorkerStopped } = await import("./internal/cluster/worker.ts");
+    const { clusterWorkerShutdownRequested, notifyClusterWorkerStopped, registerClusterWorkerApp } =
+      await import("./internal/cluster/worker.ts");
+    registerClusterWorkerApp(app);
     if (clusterWorkerShutdownRequested()) {
       await notifyClusterWorkerStopped();
       return;

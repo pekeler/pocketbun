@@ -1,8 +1,10 @@
 // Ported from pocketbase/core/base_backup.go
 // Deviation: backup/restore file I/O uses async fs + async archive helpers to avoid blocking the event loop.
+// Deviation: cluster mode delegates backup exclusion and worker recycling to the primary process.
 
 import { mkdir, open, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
+import { clusterEnabled } from "../internal/cluster/context.ts";
 import { CreateAsync, ExtractAsync } from "../tools/archive/index.ts";
 import { NewFileFromPathAsync } from "../tools/filesystem/file.ts";
 import { snakecase } from "../tools/inflector/inflector.ts";
@@ -42,11 +44,11 @@ const lostFoundDirName = "lost+found";
 //
 // Backups can be stored on S3 if it is configured in app.Settings().Backups.
 export async function CreateBackup(app: App, ctx: unknown, name: string): Promise<Error | null> {
-  if (app.store().has(StoreKeyActiveBackup)) {
+  const leaseToken = await acquireBackupLease(app, name);
+  if (!leaseToken) {
     return new Error("try again later - another backup/restore operation has already been started");
   }
 
-  app.store().set(StoreKeyActiveBackup, name);
   try {
     // default root dir entries to exclude from the backup generation
     const event = new BackupEvent(app, ctx, name, [
@@ -122,7 +124,7 @@ export async function CreateBackup(app: App, ctx: unknown, name: string): Promis
       return null;
     })) as Error | null;
   } finally {
-    app.store().remove(StoreKeyActiveBackup);
+    await releaseBackupLease(app, leaseToken);
   }
 }
 
@@ -159,11 +161,12 @@ export async function CreateBackup(app: App, ctx: unknown, name: string): Promis
 // it is possible the restore to fail during the `os.Rename` operations
 // (see https://github.com/pocketbase/pocketbase/issues/4647).
 export async function RestoreBackup(app: App, ctx: unknown, name: string): Promise<Error | null> {
-  if (app.store().has(StoreKeyActiveBackup)) {
+  const leaseToken = await acquireBackupLease(app, name);
+  if (!leaseToken) {
     return new Error("try again later - another backup/restore operation has already been started");
   }
 
-  app.store().set(StoreKeyActiveBackup, name);
+  let clusterQuiesced = false;
   try {
     // default root dir entries to exclude from the backup restore
     const event = new BackupEvent(app, ctx, name, [
@@ -232,6 +235,16 @@ export async function RestoreBackup(app: App, ctx: unknown, name: string): Promi
             return new Error(`data.db file is missing or invalid: ${(error as Error).message}`);
           }
 
+          if (clusterEnabled()) {
+            const { beginClusterRestore } = await import("../internal/cluster/worker.ts");
+            try {
+              await beginClusterRestore(leaseToken);
+              clusterQuiesced = true;
+            } catch (error) {
+              return error instanceof Error ? error : new Error(String(error));
+            }
+          }
+
           const oldTempDataDir = join(localTempDir, `old_pb_data_${pseudorandomString(8)}`);
 
           const replaceErr = await e.App.RunInTransaction((txApp) => {
@@ -281,10 +294,26 @@ export async function RestoreBackup(app: App, ctx: unknown, name: string): Promi
           };
 
           // restart the app
-          const restartErr = typeof e.App.RestartAsync === "function" ? await e.App.RestartAsync() : e.App.Restart();
+          let restartErr: Error | null = null;
+          if (clusterEnabled()) {
+            try {
+              const { completeClusterRestore } = await import("../internal/cluster/worker.ts");
+              await completeClusterRestore(leaseToken);
+              clusterQuiesced = false;
+            } catch (error) {
+              restartErr = error instanceof Error ? error : new Error(String(error));
+            }
+          } else {
+            restartErr = typeof e.App.RestartAsync === "function" ? await e.App.RestartAsync() : e.App.Restart();
+          }
           if (restartErr) {
             const revertErr = await revertDataDirChanges();
             if (revertErr) {
+              if (clusterEnabled()) {
+                const { abortClusterRestore } = await import("../internal/cluster/worker.ts");
+                await abortClusterRestore(leaseToken, true, revertErr.message).catch(() => {});
+                clusterQuiesced = false;
+              }
               throw revertErr;
             }
 
@@ -300,8 +329,37 @@ export async function RestoreBackup(app: App, ctx: unknown, name: string): Promi
       return null;
     })) as Error | null;
   } finally {
-    app.store().remove(StoreKeyActiveBackup);
+    if (clusterQuiesced) {
+      const { abortClusterRestore } = await import("../internal/cluster/worker.ts");
+      await abortClusterRestore(leaseToken, false, "restore did not complete").catch((error) => {
+        app.Logger().Error("Failed to resume cluster after restore error", "error", error);
+      });
+    }
+    await releaseBackupLease(app, leaseToken).catch((error) => {
+      app.Logger().Error("Failed to release backup operation", "error", error);
+    });
   }
+}
+
+async function acquireBackupLease(app: App, name: string): Promise<string | null> {
+  if (clusterEnabled()) {
+    const { acquireClusterBackupLease } = await import("../internal/cluster/worker.ts");
+    return acquireClusterBackupLease(name);
+  }
+  if (app.store().has(StoreKeyActiveBackup)) {
+    return null;
+  }
+  app.store().set(StoreKeyActiveBackup, name);
+  return "local";
+}
+
+async function releaseBackupLease(app: App, leaseToken: string): Promise<void> {
+  if (clusterEnabled()) {
+    const { releaseClusterBackupLease } = await import("../internal/cluster/worker.ts");
+    await releaseClusterBackupLease(leaseToken);
+    return;
+  }
+  app.store().remove(StoreKeyActiveBackup);
 }
 
 // registerAutobackupHooks registers the autobackup app serve hooks.

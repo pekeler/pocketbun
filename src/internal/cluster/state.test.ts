@@ -120,6 +120,12 @@ onMailerRecordVerificationSend(() => {
   return null;
 }, "users");
 
+onBackupCreate((event) => {
+  if (event.name === "held.zip") sleep(500);
+  if (event.name === "crash.zip") sleep(15000);
+  return event.next();
+});
+
 routerAdd("GET", "/__cluster_state", (event) => event.json(200, {
   pid: process.pid,
   role: process.env.POCKETBUN_CLUSTER_ROLE,
@@ -137,6 +143,22 @@ routerAdd("GET", "/__cluster_state", (event) => event.json(200, {
 }));
 
 routerAdd("GET", "/__cluster_rate", (event) => event.json(200, { pid: process.pid }));
+
+routerAdd("GET", "/__cluster_superuser_token", (event) => {
+  const superuser = $app.findAuthRecordByEmail("_superusers", "__pbinstaller@example.com");
+  return event.json(200, { token: superuser.newAuthToken() });
+});
+
+routerAdd("POST", "/__cluster_restart", (event) => {
+  setTimeout(() => $app.restart(), 50);
+  return event.noContent(204);
+});
+
+routerAdd("POST", "/__cluster_restore_direct", async (event) => {
+  const name = event.request.url.query().get("name");
+  const error = await $app.restoreBackup(null, name);
+  return event.json(error ? 400 : 200, { error: error ? error.message : "" });
+});
 
 routerAdd("POST", "/__cluster_settings", (event) => {
   const settings = $app.settings();
@@ -215,7 +237,7 @@ routerAdd("GET", "/__cluster_client_auth", (event) => {
 `;
 
 it.serial(
-  "coordinates singleton work, caches, limits, cooldowns, realtime, and OAuth2 across workers",
+  "coordinates singleton work, state, backups, restart, and restore across workers",
   async () => {
     const root = await mkdtemp(join(tmpdir(), "pocketbun-cluster-state-"));
     const dataDir = join(root, "pb_data");
@@ -448,6 +470,138 @@ it.serial(
             state.effects.verification === 1,
         ),
       );
+      expect(states).toHaveLength(3);
+
+      const superuserTokenResult = await requester.fetch("/__cluster_superuser_token");
+      const superuserToken = ((await superuserTokenResult.response.json()) as { token: string }).token;
+      const superuserHeaders = { Authorization: superuserToken, "Content-Type": "application/json" };
+
+      const backupWorker = states[0]!.pid;
+      const heldBackup = requester.fetch(
+        "/api/backups",
+        {
+          method: "POST",
+          headers: superuserHeaders,
+          body: JSON.stringify({ name: "held.zip" }),
+        },
+        states.filter((state) => state.pid !== backupWorker).map((state) => state.pid),
+      );
+      await waitFor(
+        async () => {
+          const health = await requester.fetch("/api/health", { headers: { Authorization: superuserToken } }, [backupWorker]);
+          const body = (await health.response.json()) as { data: { canBackup: boolean } };
+          return body.data.canBackup === false;
+        },
+        "cluster backup lease visibility",
+        5_000,
+      );
+
+      const overlappingBackup = await requester.fetch(
+        "/api/backups",
+        {
+          method: "POST",
+          headers: superuserHeaders,
+          body: JSON.stringify({ name: "overlap.zip" }),
+        },
+        [backupWorker],
+      );
+      expect(overlappingBackup.response.status).toBe(400);
+      const activeDelete = await requester.fetch(
+        "/api/backups/held.zip",
+        { method: "DELETE", headers: { Authorization: superuserToken } },
+        [backupWorker],
+      );
+      expect(activeDelete.response.status).toBe(400);
+      expect(
+        (await requester.fetch("/__cluster_settings?name=backup-write", { method: "POST" }, [backupWorker])).response.status,
+      ).toBe(200);
+      expect((await heldBackup).response.status).toBe(204);
+
+      await waitFor(
+        async () => {
+          const health = await requester.fetch("/api/health", { headers: { Authorization: superuserToken } });
+          const body = (await health.response.json()) as { data: { canBackup: boolean } };
+          return body.data.canBackup === true;
+        },
+        "cluster backup lease release",
+        5_000,
+      );
+
+      states = await waitForStates(requester, () => true);
+      const leaseOwner = states.find((state) => state.role === "follower")!;
+      const crashedBackup = requester
+        .fetch(
+          "/api/backups",
+          {
+            method: "POST",
+            headers: superuserHeaders,
+            body: JSON.stringify({ name: "crash.zip" }),
+          },
+          states.filter((state) => state.pid !== leaseOwner.pid).map((state) => state.pid),
+        )
+        .catch(() => null);
+      await waitFor(
+        async () => {
+          const health = await requester.fetch("/api/health", { headers: { Authorization: superuserToken } }, [leaseOwner.pid]);
+          const body = (await health.response.json()) as { data: { canBackup: boolean } };
+          return body.data.canBackup === false;
+        },
+        "crashed worker backup lease",
+        10_000,
+      );
+      process.kill(leaseOwner.pid, "SIGKILL");
+      await crashedBackup;
+      states = await waitForStates(requester, (items) => items.every((state) => state.pid !== leaseOwner.pid));
+      await waitFor(
+        async () => {
+          const health = await requester.fetch("/api/health", { headers: { Authorization: superuserToken } });
+          const body = (await health.response.json()) as { data: { canBackup: boolean } };
+          return body.data.canBackup === true;
+        },
+        "crashed worker backup lease release",
+        5_000,
+      );
+
+      expect((await requester.fetch("/__cluster_settings?name=backup-snapshot", { method: "POST" })).response.status).toBe(200);
+      await waitForStates(requester, (items) => items.every((state) => state.appName === "backup-snapshot"));
+      const knownBackup = await requester.fetch("/api/backups", {
+        method: "POST",
+        headers: superuserHeaders,
+        body: JSON.stringify({ name: "known.zip" }),
+      });
+      expect(knownBackup.response.status).toBe(204);
+
+      await writeFile(join(dataDir, "backups", "invalid.zip"), "not a zip archive");
+      const failedRestore = await requester.fetch("/__cluster_restore_direct?name=invalid.zip", { method: "POST" });
+      expect(failedRestore.response.status).toBe(400);
+      expect((await waitForStates(requester, () => true)).map((state) => state.pid).sort((a, b) => a - b)).toEqual(
+        states.map((state) => state.pid).sort((a, b) => a - b),
+      );
+
+      expect((await requester.fetch("/__cluster_settings?name=after-backup", { method: "POST" })).response.status).toBe(200);
+      states = await waitForStates(requester, (items) => items.every((state) => state.appName === "after-backup"));
+      const beforeRestart = new Set(states.map((state) => state.pid));
+      expect((await requester.fetch("/__cluster_restart", { method: "POST" })).response.status).toBe(204);
+      states = await waitForStates(requester, (items) => items.every((state) => !beforeRestart.has(state.pid)));
+      expect(states.every((state) => state.appName === "after-backup")).toBeTrue();
+      expect((await requester.fetch("/__cluster_rate")).response.status).toBe(200);
+
+      const beforeRestore = new Set(states.map((state) => state.pid));
+      if (process.platform === "win32") {
+        const unsupported = await requester.fetch("/__cluster_restore_direct?name=known.zip", { method: "POST" });
+        expect(unsupported.response.status).toBe(400);
+        states = await waitForStates(requester, (items) => items.every((state) => beforeRestore.has(state.pid)));
+        expect(states.every((state) => state.appName === "after-backup")).toBeTrue();
+      } else {
+        const restore = await requester.fetch("/api/backups/known.zip/restore", {
+          method: "POST",
+          headers: { Authorization: superuserToken },
+        });
+        expect(restore.response.status).toBe(204);
+        states = await waitForStates(requester, (items) =>
+          items.every((state) => !beforeRestore.has(state.pid) && state.appName === "backup-snapshot"),
+        );
+      }
       expect(states).toHaveLength(3);
 
       primary.process.kill("SIGTERM");

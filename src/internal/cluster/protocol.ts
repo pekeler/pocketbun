@@ -30,6 +30,13 @@ export type ControlShutdownMessage = {
   force: boolean;
 };
 
+export type ControlRecycleMessage = {
+  version: typeof ClusterProtocolVersion;
+  kind: "control.recycle";
+  token: string;
+  reason: "restart" | "restore";
+};
+
 export type CoordinatorOperation =
   | { kind: "rate-limit.consume"; limiterId: string; clientKey: string; maxRequests: number; duration: number }
   | { kind: "rate-limit.check"; limiterId: string; clientKey: string }
@@ -40,7 +47,13 @@ export type CoordinatorOperation =
   | { kind: "realtime.publish"; event: RealtimeBroadcastEvent }
   | { kind: "realtime.prepare"; eventId: string; collectionId: string; recordJson: string }
   | { kind: "realtime.subscribe"; clientId: string; requestJson: string }
-  | { kind: "oauth2.deliver"; clientId: string; requestIP: string; data: string; mode: "probe" | "deliver" };
+  | { kind: "oauth2.deliver"; clientId: string; requestIP: string; data: string; mode: "probe" | "deliver" }
+  | { kind: "backup.acquire"; name: string }
+  | { kind: "backup.release"; leaseToken: string }
+  | { kind: "lifecycle.restart" }
+  | { kind: "restore.begin"; leaseToken: string }
+  | { kind: "restore.complete"; leaseToken: string }
+  | { kind: "restore.abort"; leaseToken: string; fatal: boolean; error: string };
 
 export type CoordinatorValue = boolean | string | null;
 
@@ -74,7 +87,8 @@ export type CoordinatorDeliveryOperation =
   | Extract<CoordinatorOperation, { kind: "realtime.publish" }>
   | Extract<CoordinatorOperation, { kind: "realtime.prepare" }>
   | Extract<CoordinatorOperation, { kind: "realtime.subscribe" }>
-  | Extract<CoordinatorOperation, { kind: "oauth2.deliver" }>;
+  | Extract<CoordinatorOperation, { kind: "oauth2.deliver" }>
+  | { kind: "backup.state"; name: string | null };
 
 export type CoordinatorDeliveryMessage = {
   version: typeof ClusterProtocolVersion;
@@ -100,7 +114,11 @@ export type WorkerToPrimaryMessage =
   | WorkerStoppedMessage
   | CoordinatorRequestMessage
   | CoordinatorDeliveryResultMessage;
-export type PrimaryToWorkerMessage = ControlShutdownMessage | CoordinatorResponseMessage | CoordinatorDeliveryMessage;
+export type PrimaryToWorkerMessage =
+  | ControlShutdownMessage
+  | ControlRecycleMessage
+  | CoordinatorResponseMessage
+  | CoordinatorDeliveryMessage;
 export type ClusterMessage = WorkerToPrimaryMessage | PrimaryToWorkerMessage;
 
 export function parseClusterMessage(value: unknown): ClusterMessage | null {
@@ -135,6 +153,13 @@ export function parseClusterMessage(value: unknown): ClusterMessage | null {
       return null;
     }
     return value as ControlShutdownMessage;
+  }
+
+  if (value.kind === "control.recycle") {
+    if (!hasToken(value) || (value.reason !== "restart" && value.reason !== "restore")) {
+      return null;
+    }
+    return value as ControlRecycleMessage;
   }
 
   if (value.kind === "coordinator.request") {
@@ -237,10 +262,28 @@ function isCoordinatorOperation(value: unknown): value is CoordinatorOperation {
       (value.mode === "probe" || value.mode === "deliver")
     );
   }
+  if (value.kind === "backup.acquire") {
+    return typeof value.name === "string";
+  }
+  if (value.kind === "backup.release") {
+    return isNonEmptyString(value.leaseToken);
+  }
+  if (value.kind === "lifecycle.restart") {
+    return true;
+  }
+  if (value.kind === "restore.begin" || value.kind === "restore.complete") {
+    return isNonEmptyString(value.leaseToken);
+  }
+  if (value.kind === "restore.abort") {
+    return isNonEmptyString(value.leaseToken) && typeof value.fatal === "boolean" && typeof value.error === "string";
+  }
   return false;
 }
 
 function isCoordinatorDeliveryOperation(value: unknown): value is CoordinatorDeliveryOperation {
+  if (isPlainRecord(value) && value.kind === "backup.state") {
+    return value.name === null || typeof value.name === "string";
+  }
   return (
     isCoordinatorOperation(value) &&
     (value.kind === "realtime.publish" ||

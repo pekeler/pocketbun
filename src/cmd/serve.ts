@@ -43,7 +43,9 @@ export function NewServeCommand(app: App, showStartBanner: boolean, state = newS
       });
 
       if (clusterEnabled()) {
-        const { notifyClusterWorkerReady } = await import("../internal/cluster/worker.ts");
+        const { notifyClusterWorkerReady, registerClusterWorkerServerStop } = await import("../internal/cluster/worker.ts");
+        // Restore must stop new HTTP work without closing the app state used by its replacement transaction.
+        registerClusterWorkerServerStop(() => Promise.resolve(server.stop(true)));
         await notifyClusterWorkerReady(server);
       }
 

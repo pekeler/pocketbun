@@ -45,8 +45,8 @@ Success is observable, not architectural. First, the complete test suite must pa
 - [x] (2026-08-21 20:40Z) Completed Milestone 5 after hosted run 32524400031 passed the pinned Bun v1.4.0 Ubuntu, macOS, Windows, and downstream Playwright gates.
 - [x] (2026-08-21 22:05Z) Completed Milestone 6: Bun v1.4.0 source and bundled cluster probes, single-worker baselines, the normal CI matrix, and the extended 10,000-message/100-restart/ten-minute matrix passed on Ubuntu, macOS, and Windows. Linux qualified native shared-port serving; macOS and Windows qualified distinct worker ports behind an external proxy.
 - [x] (2026-08-22 00:30Z) Completed Milestone 7: the cluster primary, worker roles, CLI surface, leader-first startup, data-directory guard, readiness, bounded same-slot recovery, and graceful/forced shutdown passed the complete local gate and the hosted Ubuntu, macOS, and Windows CI matrix.
-- [ ] (2026-08-22 09:25Z) Locally implemented Milestone 8: singleton startup gates, existing cross-process cache notifications, primary-atomic rate limits and expiring claims, cross-worker realtime subscriptions/events/auth invalidation, and targeted OAuth2 delivery. Both complete 1,934-test modes and the real three-worker state suite pass; hosted Ubuntu, macOS, and Windows confirmation remains the completion gate.
-- [ ] Make backup, restore, and application restart cluster-wide in Milestone 9.
+- [x] (2026-08-22 09:30Z) Completed Milestone 8: singleton startup gates, existing cross-process cache notifications, primary-atomic rate limits and expiring claims, cross-worker realtime subscriptions/events/auth invalidation, and targeted OAuth2 delivery passed locally and in hosted Ubuntu, macOS, and Windows CI after commit `4dc010eb`.
+- [ ] (2026-08-22 09:56Z) Locally implemented Milestone 9: one primary-owned backup lease is mirrored to every worker, owner death releases it, restart recycles the full worker set, and restore quiesces every HTTP server before replacing data and starting fresh workers. Both complete 1,935-test modes and the real three-worker lifecycle suite pass; hosted Ubuntu, macOS, and Windows confirmation remains the completion gate.
 - [ ] Complete cluster integration tests, failure tests, performance measurements, documentation, and the final release gate in Milestone 10.
 
 ## Surprises & Discoveries
@@ -127,6 +127,10 @@ Success is observable, not architectural. First, the complete test suite must pa
   Evidence: `src/apis/record_auth_password_reset_request.ts` and `src/apis/record_auth_verification_request.ts` place expiring keys in `app.store()`. Without coordination, requests routed to different workers can bypass the intended two-minute guard.
 - Observation: backup restore and `app.restart()` cannot be allowed to replace only one cluster child.
   Evidence: `src/core/base_backup.ts` moves the shared data directory and then calls `RestartAsync()`. In cluster mode all other workers must first close the old databases, and the primary—not a child with `NODE_UNIQUE_ID`—must restart the whole application.
+- Observation: the restore initiator must stop its HTTP server without running the full termination chain before directory replacement.
+  Evidence: the official restore endpoint returns `204` and starts restore asynchronously, so the initiator can force-stop `Bun.serve()` after the response. Running `OnTerminate` at that point would also close the app databases needed by the existing restore transaction; leaving the server open would allow new requests during replacement.
+- Observation: successful restore does not require replacing the cluster primary.
+  Evidence: the primary has no `App`, SQLite connection, hook runtime, or HTTP listener. Retaining it preserves the ownership guard while replacing every child against the restored data; resetting its small transient coordinator preserves the clean in-memory state of process replacement without platform-specific re-execution machinery.
 - Observation: native `Bun.serve()` readiness and shutdown should not be inferred from Node `net.Server` cluster events.
   Evidence: Bun's `cluster` compatibility is built around Node APIs, while PocketBun starts a native Bun server. The worker must explicitly tell the primary when migrations, hooks, and `Bun.serve()` have completed, and PocketBun must explicitly invoke its termination hook chain so `server.stop()` runs.
 - Observation: SO_REUSEPORT balances TCP connections, not logical HTTP requests.
@@ -227,6 +231,12 @@ Success is observable, not architectural. First, the complete test suite must pa
 - Decision: route realtime subscription updates and use two-phase OAuth2 ownership checks.
   Rationale: HTTP load balancing does not preserve affinity with the worker that accepted an SSE stream. Targeted routing preserves PocketBase's client behavior, while a non-mutating OAuth2 probe prevents duplicate callbacks when the broker ownership invariant is violated.
   Date/Author: 2026-08-22 / Codex
+- Decision: keep backup exclusion in one token-owned primary lease, mirror only its name into each worker's existing active-backup store key, and release ownership when the worker exits.
+  Rationale: this preserves the existing backup API, delete protection, and health response without adding an IPC query to every read or distributing arbitrary user store values. The primary makes overlapping operations atomic, while the unchanged one-worker path remains local.
+  Date/Author: 2026-08-22 / Codex
+- Decision: retain the primary across cluster restart and restore, but reset its transient coordinator and recycle every worker; during restore, force-stop the initiator's HTTP server through a narrow registered callback before directory replacement.
+  Rationale: only workers own durable application state and database connections, so fresh workers plus a fresh limiter/expiry coordinator reproduce process replacement. Keeping the primary avoids unnecessary `execve` and works uniformly across platforms, while stopping only the initiator's server preserves the app state needed by the existing transaction. Recoverable post-quiesce failure also recycles the initiator before service resumes.
+  Date/Author: 2026-08-22 / Codex
 
 ## Outcomes & Retrospective
 
@@ -244,7 +254,9 @@ Milestone 6 is complete without production cluster code. A self-contained Bun-on
 
 Milestone 7 is complete locally and on hosted CI. `pocketbun --workers=N serve` now enters a lightweight primary before hooks or databases open, starts the leader before followers, and uses Bun's qualified shared-port or distinct-port topology. A closed token-authenticated lifecycle protocol verifies readiness, the primary restarts the same role and slot under a bounded crash budget, and shutdown reuses PocketBun's existing termination hooks before force-killing stragglers. An exclusive heartbeat guard prevents two cluster primaries from sharing one data directory and is omitted from backups. Real-process tests cover three worker identities, both role replacements, a competing primary, crash-budget exhaustion, one banner, no orphan processes, and the unchanged `--workers=1` path. The same lifecycle passed hosted Ubuntu, macOS, and Windows CI.
 
-Milestone 8 is locally complete and awaits hosted cross-platform confirmation. Only the leader performs migration, restore-temp cleanup, generated-type refresh, installer, and cron startup work; the existing `.notify` watcher keeps settings and collection caches converged in every worker. The primary owns the exact existing rate-limiter algorithm plus narrowly scoped expiring resend and Apple OAuth2 values. Realtime create/update/delete, auth invalidation, and subscription updates cross worker boundaries with local access checks preserved; OAuth2 uses a non-mutating ownership probe before one targeted delivery. A real three-worker test forces distinct producer/consumer PIDs and covers singleton effects, caches, aggregate limits, resend guards, realtime sequencing/no duplicates, auth invalidation, OAuth2 delivery, and Apple handoff. Both complete local suites pass 1,934 tests. Hosted Ubuntu, macOS, and Windows CI is the remaining milestone gate.
+Milestone 8 is complete locally and on hosted CI. Only the leader performs migration, restore-temp cleanup, generated-type refresh, installer, and cron startup work; the existing `.notify` watcher keeps settings and collection caches converged in every worker. The primary owns the exact existing rate-limiter algorithm plus narrowly scoped expiring resend and Apple OAuth2 values. Realtime create/update/delete, auth invalidation, and subscription updates cross worker boundaries with local access checks preserved; OAuth2 uses a non-mutating ownership probe before one targeted delivery. A real three-worker test forces distinct producer/consumer PIDs and covers singleton effects, caches, aggregate limits, resend guards, realtime sequencing/no duplicates, auth invalidation, OAuth2 delivery, and Apple handoff. Both complete local suites pass 1,934 tests, and commit `4dc010eb` passed Ubuntu, macOS, and Windows CI.
+
+Milestone 9 is locally complete and awaits hosted cross-platform confirmation. Backup and restore exclusion is primary-atomic and mirrored through the existing active-backup store key, including automatic owner-death release. `app.restart()` recycles every worker under the lightweight primary. Restore validates while serving, then closes all non-initiators, force-stops the initiator's HTTP server, performs the existing replacement transaction, and starts a completely fresh worker set; Windows retains its explicit unsupported restore result without disturbing the cluster. The real three-worker test covers cross-worker exclusion, delete and health state, a concurrent write, owner death, invalid restore recovery, full restart, restored data, new PIDs, and clean shutdown. Both complete local suites pass 1,935 tests; hosted CI is the remaining milestone gate.
 
 The expected result is simpler than a built-in general-purpose process manager: one primary file, one typed IPC protocol, worker-role checks at existing singleton boundaries, and focused adapters for the handful of process-local features. The performance benefit is expected primarily for concurrent reads and CPU-heavy request/hook work. Writes remain serialized by SQLite, each worker adds memory, and the primary-coordinated rate limiter adds an IPC round trip on routes for which a rate-limit rule applies. Those costs must be measured before the feature is described as a performance advantage.
 
@@ -950,7 +962,40 @@ Milestone 8 local qualification:
     bun run check:versions: passed
     bun run docs:check: passed
     git diff --check: passed
-    Hosted Ubuntu/macOS/Windows state-coordination confirmation: pending commit push
+    Hosted Ubuntu/macOS/Windows state-coordination confirmation: passed after commit 4dc010eb
+
+Milestone 9 local qualification:
+
+    Date: 2026-08-22
+    Bun: 1.4.0 (34cbb9a40)
+    Backup exclusion: one token-owned primary lease mirrored through StoreKeyActiveBackup
+    Owner failure: worker exit releases the lease and clears the surviving worker mirrors
+    Restart: app.restart() resets transient coordination and recycles every worker
+    Restore preparation: validate and extract while serving; stop non-initiators; force-stop
+                         the initiator HTTP server while retaining its restore transaction state
+    Restore completion: reset transient coordination and recycle all workers against restored
+                        data; keep the lightweight primary and data-directory ownership guard
+    Recovery: invalid archives leave the live worker set unchanged; recoverable post-quiesce
+              failures recycle the initiator and repopulate every slot; rollback failure is fatal
+    Windows: restore remains explicitly unsupported and leaves all workers healthy
+    Focused backup/base/protocol/coordinator qualification: 70 pass, 0 fail, 286 expect() calls
+    Real-process state coverage: global health/delete exclusion; overlapping backup rejection;
+                                 concurrent settings write; owner SIGKILL lease recovery;
+                                 invalid restore; app.restart full PID replacement; known-data
+                                 restore with all-new PIDs; configured three-worker recovery
+    bun run test: 1,935 pass, 0 fail, 10,371 expect() calls
+                  across 248 files in 25.86 seconds
+    bun test --concurrent: 1,935 pass, 0 fail, 7 snapshots,
+                           10,371 expect() calls across 248 files in 69.84 seconds
+    bun run format:fix and bun run format: passed
+    bun run typecheck: passed
+    bun run typecheck:package: passed, including build and declarations
+    bun run lint: 0 warnings, 0 errors
+    bun run check:versions: passed
+    bun run docs:check: passed
+    bun run build: passed
+    git diff --check: passed
+    Hosted Ubuntu/macOS/Windows backup/lifecycle confirmation: pending commit push
 
 Current PocketBun coordination inventory:
 
@@ -965,8 +1010,8 @@ Current PocketBun coordination inventory:
     Cron and autobackup                 process-local; start leader only
     Installer                          process-local; run leader only
     Migration/temp startup work        process-local invocation; run leader only
-    Backup active marker               process-local; replace with cluster lease
-    Restore and app.restart             process-local exec; make primary-wide
+    Backup active marker               primary lease mirrored into each worker
+    Restore and app.restart             primary-coordinated full-worker recycle
     Logger/log writer                  per worker; SQLite coordinates, measure contention
 
 Add the exact Bun qualification transcript, reproduction links, benchmark host, commands, raw result paths, five-run medians, RSS, SQLite contention, and final test counts here as work proceeds. Keep short extracts in this plan and store bulky machine-readable output under ignored `.tmp/` paths or the established benchmark artifact location.
@@ -1053,3 +1098,5 @@ Revision note, 2026-08-21 / Codex: Closed Milestone 6 after corrected extended r
 Revision note, 2026-08-22 / Codex: Implemented Milestone 7's minimal production cluster lifecycle with an internal four-module control plane, strict `--workers` parsing, pre-bootstrap command resolution, explicit Bun serving topology, leader-first readiness, same-slot crash recovery, bounded shutdown, and a backup-excluded data-directory ownership guard. Recorded complete local real-process and repository gates; hosted Ubuntu, macOS, and Windows confirmation remains the milestone gate before Milestone 8.
 
 Revision note, 2026-08-22 / Codex: Closed Milestone 7 after the lifecycle commit passed hosted Ubuntu, macOS, and Windows CI. Implemented Milestone 8 locally with leader-only singleton work, primary-atomic limiter/expiry state, acknowledged realtime fan-out and subscription routing, and probe-then-deliver OAuth2 routing. Recorded the complete 1,934-test local gates and real three-worker state evidence; hosted cross-platform confirmation remains the milestone gate.
+
+Revision note, 2026-08-22 / Codex: Closed Milestone 8 after commit `4dc010eb` passed hosted Ubuntu, macOS, and Windows CI. Implemented Milestone 9 locally with a worker-owned primary backup lease and mirrored health/delete state, owner-death cleanup, full-worker `app.restart()`, and restore quiescence that force-stops every HTTP server before directory replacement. Kept the stateless primary across restore instead of re-executing it, and recorded the complete 1,935-test local gates; hosted cross-platform confirmation remains the milestone gate.

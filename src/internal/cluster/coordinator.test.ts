@@ -39,4 +39,17 @@ describe("cluster coordinator", () => {
     expect(coordinator.handle({ kind: "expiring.take", key: "apple/code" })).toBe("Test User");
     expect(coordinator.handle({ kind: "expiring.take", key: "apple/code" })).toBeNull();
   });
+
+  it("owns one token-protected backup lease and releases it with its worker", () => {
+    const coordinator = new ClusterCoordinator();
+    const lease = coordinator.acquireBackup(2, "test.zip");
+    expect(typeof lease).toBe("string");
+    expect(coordinator.activeBackupName()).toBe("test.zip");
+    expect(coordinator.acquireBackup(3, "other.zip")).toBeNull();
+    expect(coordinator.releaseBackup(3, String(lease))).toBeFalse();
+    expect(coordinator.releaseBackup(2, "stale")).toBeFalse();
+    expect(coordinator.ownsBackup(2, String(lease))).toBeTrue();
+    expect(coordinator.releaseBackupForWorker(2)).toBeTrue();
+    expect(coordinator.activeBackupName()).toBeNull();
+  });
 });

@@ -12,7 +12,7 @@ import type { Model } from "./db_model.ts";
 import type { RequestInfo } from "./event_request.ts";
 import type { BatchRequestEvent } from "./event_request_batch.ts";
 import type { RecordProxy } from "./record_proxy.ts";
-import { runsClusterSingletons } from "../internal/cluster/context.ts";
+import { clusterEnabled, runsClusterSingletons } from "../internal/cluster/context.ts";
 import * as slog from "../internal/compat/slog.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { Providers } from "../tools/auth/auth.ts";
@@ -2493,6 +2493,14 @@ export class BaseApp implements App {
   //
   // NB! It relies on execve which is supported only on UNIX based systems.
   Restart(): Error | null {
+    // PocketBun cluster deviation: the primary must recycle every worker, not only this child.
+    if (clusterEnabled()) {
+      void import("../internal/cluster/worker.ts")
+        .then(({ restartClusterWorkers }) => restartClusterWorkers())
+        .catch((error) => this.Logger().Error("Failed to restart cluster", "error", error));
+      return null;
+    }
+
     if (process.platform === "win32") {
       return new Error("restart is not supported on windows");
     }
@@ -2536,6 +2544,17 @@ export class BaseApp implements App {
 
   // RestartAsync is a PocketBun-only async alternative to Restart().
   async RestartAsync(): Promise<Error | null> {
+    // PocketBun cluster deviation: the primary must recycle every worker, not only this child.
+    if (clusterEnabled()) {
+      try {
+        const { restartClusterWorkers } = await import("../internal/cluster/worker.ts");
+        await restartClusterWorkers();
+        return null;
+      } catch (error) {
+        return error instanceof Error ? error : new Error(String(error));
+      }
+    }
+
     if (process.platform === "win32") {
       return new Error("restart is not supported on windows");
     }

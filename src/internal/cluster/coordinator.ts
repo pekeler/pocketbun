@@ -15,9 +15,16 @@ type ExpiringEntry = {
   claimToken?: string;
 };
 
+type BackupLease = {
+  workerId: number;
+  name: string;
+  token: string;
+};
+
 export class ClusterCoordinator {
   private readonly limiters = new Map<string, LimiterEntry>();
   private readonly expiring = new Map<string, ExpiringEntry>();
+  private backupLease: BackupLease | null = null;
   private lastLimiterCleanup = Date.now();
 
   handle(operation: CoordinatorOperation): CoordinatorValue {
@@ -45,8 +52,47 @@ export class ClusterCoordinator {
       case "realtime.prepare":
       case "realtime.subscribe":
       case "oauth2.deliver":
+      case "backup.acquire":
+      case "backup.release":
+      case "lifecycle.restart":
+      case "restore.begin":
+      case "restore.complete":
+      case "restore.abort":
         throw new Error(`${operation.kind} must be coordinated with ready workers`);
     }
+  }
+
+  acquireBackup(workerId: number, name: string): string | null {
+    if (this.backupLease) {
+      return null;
+    }
+    const token = crypto.randomUUID();
+    this.backupLease = { workerId, name, token };
+    return token;
+  }
+
+  releaseBackup(workerId: number, token: string): boolean {
+    if (!this.backupLease || this.backupLease.workerId !== workerId || this.backupLease.token !== token) {
+      return false;
+    }
+    this.backupLease = null;
+    return true;
+  }
+
+  releaseBackupForWorker(workerId: number): boolean {
+    if (this.backupLease?.workerId !== workerId) {
+      return false;
+    }
+    this.backupLease = null;
+    return true;
+  }
+
+  ownsBackup(workerId: number, token: string): boolean {
+    return this.backupLease?.workerId === workerId && this.backupLease.token === token;
+  }
+
+  activeBackupName(): string | null {
+    return this.backupLease?.name ?? null;
   }
 
   private consumeRateLimit(operation: Extract<CoordinatorOperation, { kind: "rate-limit.consume" }>): boolean {

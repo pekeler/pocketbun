@@ -21,6 +21,14 @@ describe("cluster protocol", () => {
     expect(
       parseClusterMessage({
         version: ClusterProtocolVersion,
+        kind: "control.recycle",
+        token: "secret",
+        reason: "restart",
+      }),
+    ).not.toBeNull();
+    expect(
+      parseClusterMessage({
+        version: ClusterProtocolVersion,
         kind: "worker.stopped",
         token: "secret",
         workerId: 1,
@@ -83,6 +91,12 @@ describe("cluster protocol", () => {
         data: '{"code":"code"}',
         mode: "deliver",
       },
+      { kind: "backup.acquire", name: "test.zip" },
+      { kind: "backup.release", leaseToken: "lease" },
+      { kind: "lifecycle.restart" },
+      { kind: "restore.begin", leaseToken: "lease" },
+      { kind: "restore.complete", leaseToken: "lease" },
+      { kind: "restore.abort", leaseToken: "lease", fatal: false, error: "failed" },
     ];
 
     for (const operation of operations) {
@@ -106,6 +120,15 @@ describe("cluster protocol", () => {
         requestId: "request",
         ok: true,
         value: false,
+      }),
+    ).not.toBeNull();
+    expect(
+      parseClusterMessage({
+        version: ClusterProtocolVersion,
+        kind: "coordinator.delivery",
+        token: "secret",
+        requestId: "backup-state",
+        operation: { kind: "backup.state", name: "test.zip" },
       }),
     ).not.toBeNull();
     expect(

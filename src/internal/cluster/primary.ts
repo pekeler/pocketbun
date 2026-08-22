@@ -74,6 +74,18 @@ type PendingDelivery = {
   timeout: ReturnType<typeof setTimeout>;
 };
 
+type LifecycleOperation = Extract<
+  import("./protocol.ts").CoordinatorOperation,
+  { kind: "lifecycle.restart" | "restore.begin" | "restore.complete" | "restore.abort" }
+>;
+
+type LifecycleRequestResult = {
+  value: import("./protocol.ts").CoordinatorValue;
+  afterResponse?: () => void;
+};
+
+type LifecycleState = "running" | "restarting" | "restoring";
+
 export type PrimaryGuard = {
   path: string;
   release: () => Promise<void>;
@@ -87,11 +99,14 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
   const plans = planClusterWorkers(options.workers, options.httpAddr);
   const guard = await acquirePrimaryGuard(options.dataDir);
   const token = crypto.randomUUID();
-  const coordinator = new ClusterCoordinator();
+  let coordinator = new ClusterCoordinator();
   const records = new Map<number, ManagedWorker>();
   const pendingDeliveries = new Map<string, PendingDelivery>();
   const replacements = new Map<number, Promise<void>>();
   const crashes: Record<ClusterWorkerRole, number[]> = { leader: [], follower: [] };
+  let lifecycleState: LifecycleState = "running";
+  let restoreOwnerId: number | null = null;
+  let restoreLeaseToken = "";
   let shuttingDown = false;
   let shutdownPromise: Promise<void> | null = null;
   let shutdownSignals = 0;
@@ -104,6 +119,14 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
   const log = (message: string) => {
     // eslint-disable-next-line no-console
     console.log(message);
+  };
+
+  const broadcastBackupState = async (name: string | null): Promise<void> => {
+    await Promise.all(
+      readyWorkers(records).map((worker) =>
+        sendCoordinatorDelivery(worker, token, pendingDeliveries, { kind: "backup.state", name }),
+      ),
+    );
   };
 
   const forceWorkers = () => {
@@ -181,7 +204,7 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
     }
     log(`[cluster] restarting ${record.role} slot=${record.slot} after ${delay}ms`);
     await Bun.sleep(delay);
-    if (!shuttingDown) {
+    if (!shuttingDown && lifecycleState === "running") {
       await ensureSlot(record.slot).catch(fail);
     }
   };
@@ -243,7 +266,19 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
           worker.kill();
           return;
         }
-        void respondToCoordinatorRequest(worker, token, coordinator, records, pendingDeliveries, message);
+        void respondToCoordinatorRequest(
+          worker,
+          token,
+          coordinator,
+          records,
+          pendingDeliveries,
+          message,
+          handleLifecycleRequest,
+          (operation) =>
+            lifecycleState === "running" || operation.kind === "backup.release"
+              ? null
+              : new Error(`cluster is ${lifecycleState}`),
+        );
         return;
       }
 
@@ -259,9 +294,18 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
         worker.kill();
         return;
       }
-      record.ready = true;
-      record.resolveReady(message);
-      log(`[cluster] ready ${record.role} slot=${record.slot} worker=${worker.id} pid=${message.pid}`);
+      void (async () => {
+        const activeBackup = coordinator.activeBackupName();
+        if (activeBackup !== null) {
+          await sendCoordinatorDelivery(worker, token, pendingDeliveries, { kind: "backup.state", name: activeBackup });
+        }
+        record.ready = true;
+        record.resolveReady(message);
+        log(`[cluster] ready ${record.role} slot=${record.slot} worker=${worker.id} pid=${message.pid}`);
+      })().catch((error) => {
+        record.rejectReady(error instanceof Error ? error : new Error(String(error)));
+        worker.kill();
+      });
     });
 
     worker.once("error", (error) => {
@@ -275,10 +319,17 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
       if (records.get(record.slot) === record) {
         records.delete(record.slot);
       }
+      if (coordinator.releaseBackupForWorker(worker.id)) {
+        void broadcastBackupState(null).catch((error) =>
+          log(`[cluster] failed to clear backup state after worker exit: ${errorMessage(error)}`),
+        );
+      }
       log(
         `[cluster] exit ${record.role} slot=${record.slot} worker=${worker.id} pid=${worker.process.pid ?? 0} code=${code ?? "null"} signal=${signal ?? "null"}`,
       );
-      if (!record.intentional && !shuttingDown && record.ready) {
+      if (!record.intentional && lifecycleState === "restoring" && restoreOwnerId === worker.id) {
+        fail(new Error("restore worker exited before completing the cluster restore"));
+      } else if (!record.intentional && !shuttingDown && lifecycleState === "running" && record.ready) {
         void scheduleReplacement(record);
       }
     });
@@ -330,6 +381,112 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
     });
     replacements.set(slot, replacement);
     return replacement;
+  };
+
+  const stopWorkers = async (targets: ManagedWorker[], reason: "restart" | "restore"): Promise<void> => {
+    for (const record of targets) {
+      record.intentional = true;
+      await sendToWorker(record.worker, {
+        version: ClusterProtocolVersion,
+        kind: "control.recycle",
+        token,
+        reason,
+      }).catch(() => {});
+    }
+
+    await Promise.race([Promise.all(targets.map((record) => record.exitPromise)), Bun.sleep(gracefulShutdownTimeoutMs)]);
+    for (const record of targets) {
+      if (records.get(record.slot) !== record) {
+        continue;
+      }
+      try {
+        record.worker.kill("SIGKILL");
+      } catch {
+        // The worker may already have exited.
+      }
+    }
+    await Promise.race([Promise.all(targets.map((record) => record.exitPromise)), Bun.sleep(forcedShutdownTimeoutMs)]);
+    const remaining = targets.filter((record) => records.get(record.slot) === record);
+    if (remaining.length > 0) {
+      throw new Error(`workers failed to exit after ${reason}: ${remaining.map((record) => record.worker.id).join(", ")}`);
+    }
+  };
+
+  const startMissingWorkers = async (): Promise<void> => {
+    await ensureSlot(0);
+    await Promise.all(plans.slice(1).map((plan) => ensureSlot(plan.slot)));
+  };
+
+  const recycleWorkers = async (reason: "restart" | "restore"): Promise<void> => {
+    try {
+      await stopWorkers([...records.values()], reason);
+      await startMissingWorkers();
+      lifecycleState = "running";
+      log(`[cluster] ${reason} complete with ${plans.length} workers`);
+    } catch (error) {
+      fail(error instanceof Error ? error : new Error(String(error)));
+    }
+  };
+
+  const handleLifecycleRequest = async (source: Worker, operation: LifecycleOperation): Promise<LifecycleRequestResult> => {
+    if (operation.kind === "lifecycle.restart") {
+      if (lifecycleState !== "running") {
+        throw new Error(`cluster is ${lifecycleState}`);
+      }
+      if (coordinator.activeBackupName() !== null) {
+        throw new Error("cannot restart while a backup/restore operation is active");
+      }
+      coordinator = new ClusterCoordinator();
+      lifecycleState = "restarting";
+      return { value: true, afterResponse: () => void recycleWorkers("restart") };
+    }
+
+    if (operation.kind === "restore.begin") {
+      if (lifecycleState !== "running") {
+        throw new Error(`cluster is ${lifecycleState}`);
+      }
+      if (!coordinator.ownsBackup(source.id, operation.leaseToken)) {
+        throw new Error("restore worker does not own the active backup lease");
+      }
+      lifecycleState = "restoring";
+      restoreOwnerId = source.id;
+      restoreLeaseToken = operation.leaseToken;
+      await stopWorkers(
+        [...records.values()].filter((record) => record.worker.id !== source.id),
+        "restore",
+      );
+      return { value: true };
+    }
+
+    if (
+      lifecycleState !== "restoring" ||
+      restoreOwnerId !== source.id ||
+      restoreLeaseToken !== operation.leaseToken ||
+      !coordinator.ownsBackup(source.id, operation.leaseToken)
+    ) {
+      throw new Error("restore worker does not own the active restore transition");
+    }
+
+    coordinator.releaseBackup(source.id, operation.leaseToken);
+    await broadcastBackupState(null);
+    coordinator = new ClusterCoordinator();
+    restoreOwnerId = null;
+    restoreLeaseToken = "";
+
+    if (operation.kind === "restore.complete") {
+      lifecycleState = "restarting";
+      return { value: true, afterResponse: () => void recycleWorkers("restore") };
+    }
+
+    if (operation.fatal) {
+      return {
+        value: true,
+        afterResponse: () => fail(new Error(`restore rollback failed: ${operation.error || "unknown error"}`)),
+      };
+    }
+
+    lifecycleState = "restarting";
+    return { value: true, afterResponse: () => void recycleWorkers("restore") };
   };
 
   const onSignal = () => {
@@ -542,17 +699,30 @@ async function respondToCoordinatorRequest(
   records: Map<number, ManagedWorker>,
   pendingDeliveries: Map<string, PendingDelivery>,
   message: CoordinatorRequestMessage,
+  handleLifecycle: (worker: Worker, operation: LifecycleOperation) => Promise<LifecycleRequestResult>,
+  operationGuard: (operation: import("./protocol.ts").CoordinatorOperation) => Error | null,
 ): Promise<void> {
   let response: CoordinatorResponseMessage;
+  let afterResponse: (() => void) | undefined;
   try {
+    const lifecycle = isLifecycleOperation(message.operation) ? await handleLifecycle(worker, message.operation) : null;
+    if (!lifecycle) {
+      const guardError = operationGuard(message.operation);
+      if (guardError) {
+        throw guardError;
+      }
+    }
     response = {
       version: ClusterProtocolVersion,
       kind: "coordinator.response",
       token,
       requestId: message.requestId,
       ok: true,
-      value: await handleCoordinatorOperation(worker, token, coordinator, records, pendingDeliveries, message.operation),
+      value:
+        lifecycle?.value ??
+        (await handleCoordinatorOperation(worker, token, coordinator, records, pendingDeliveries, message.operation)),
     };
+    afterResponse = lifecycle?.afterResponse;
   } catch (error) {
     response = {
       version: ClusterProtocolVersion,
@@ -564,6 +734,9 @@ async function respondToCoordinatorRequest(
     };
   }
   await sendToWorker(worker, response).catch(() => {});
+  if (response.ok) {
+    afterResponse?.();
+  }
 }
 
 async function handleCoordinatorOperation(
@@ -574,6 +747,38 @@ async function handleCoordinatorOperation(
   pendingDeliveries: Map<string, PendingDelivery>,
   operation: import("./protocol.ts").CoordinatorOperation,
 ): Promise<import("./protocol.ts").CoordinatorValue> {
+  if (operation.kind === "backup.acquire") {
+    const leaseToken = coordinator.acquireBackup(source.id, operation.name);
+    if (!leaseToken) {
+      return null;
+    }
+    try {
+      await Promise.all(
+        readyWorkers(records).map((worker) =>
+          sendCoordinatorDelivery(worker, token, pendingDeliveries, { kind: "backup.state", name: operation.name }),
+        ),
+      );
+      return leaseToken;
+    } catch (error) {
+      coordinator.releaseBackup(source.id, leaseToken);
+      await Promise.allSettled(
+        readyWorkers(records).map((worker) =>
+          sendCoordinatorDelivery(worker, token, pendingDeliveries, { kind: "backup.state", name: null }),
+        ),
+      );
+      throw error;
+    }
+  }
+  if (operation.kind === "backup.release") {
+    if (coordinator.releaseBackup(source.id, operation.leaseToken)) {
+      await Promise.all(
+        readyWorkers(records).map((worker) =>
+          sendCoordinatorDelivery(worker, token, pendingDeliveries, { kind: "backup.state", name: null }),
+        ),
+      );
+    }
+    return true;
+  }
   if (operation.kind === "realtime.publish") {
     const targets = readyWorkers(records).filter((worker) => worker.id !== source.id);
     await Promise.all(targets.map((worker) => sendCoordinatorDelivery(worker, token, pendingDeliveries, operation)));
@@ -619,6 +824,15 @@ async function handleCoordinatorOperation(
     return sendCoordinatorDelivery(owners[0].worker, token, pendingDeliveries, operation);
   }
   return coordinator.handle(operation);
+}
+
+function isLifecycleOperation(operation: import("./protocol.ts").CoordinatorOperation): operation is LifecycleOperation {
+  return (
+    operation.kind === "lifecycle.restart" ||
+    operation.kind === "restore.begin" ||
+    operation.kind === "restore.complete" ||
+    operation.kind === "restore.abort"
+  );
 }
 
 function readyWorkers(records: Map<number, ManagedWorker>): Worker[] {
