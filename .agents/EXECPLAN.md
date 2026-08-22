@@ -44,8 +44,8 @@ Success is observable, not architectural. First, the complete test suite must pa
 - [x] (2026-08-21 20:30Z) Completed the local Milestone 5 work and gate: documented the native package-maintenance commands, bound the SSR CSRF example to a per-session identifier, retained normal Playwright after the Bun-hosted runner reproduced oven-sh/bun#28609, and passed both complete test modes plus E2E and repository checks.
 - [x] (2026-08-21 20:40Z) Completed Milestone 5 after hosted run 32524400031 passed the pinned Bun v1.4.0 Ubuntu, macOS, Windows, and downstream Playwright gates.
 - [x] (2026-08-21 22:05Z) Completed Milestone 6: Bun v1.4.0 source and bundled cluster probes, single-worker baselines, the normal CI matrix, and the extended 10,000-message/100-restart/ten-minute matrix passed on Ubuntu, macOS, and Windows. Linux qualified native shared-port serving; macOS and Windows qualified distinct worker ports behind an external proxy.
-- [ ] (2026-08-22 00:30Z) Implemented the Milestone 7 cluster primary, worker roles, CLI surface, leader-first startup, data-directory guard, readiness, bounded same-slot recovery, and graceful/forced shutdown. The complete local lifecycle and repository gates pass; the required hosted Ubuntu, macOS, and Windows integration matrix remains the completion gate.
-- [ ] Make built-in process-local behavior cluster-correct in Milestone 8: migrations, bootstrap cleanup, cron, installer, settings/collection caches, rate limits, email cooldowns, OAuth2 redirects, and realtime.
+- [x] (2026-08-22 00:30Z) Completed Milestone 7: the cluster primary, worker roles, CLI surface, leader-first startup, data-directory guard, readiness, bounded same-slot recovery, and graceful/forced shutdown passed the complete local gate and the hosted Ubuntu, macOS, and Windows CI matrix.
+- [ ] (2026-08-22 09:25Z) Locally implemented Milestone 8: singleton startup gates, existing cross-process cache notifications, primary-atomic rate limits and expiring claims, cross-worker realtime subscriptions/events/auth invalidation, and targeted OAuth2 delivery. Both complete 1,934-test modes and the real three-worker state suite pass; hosted Ubuntu, macOS, and Windows confirmation remains the completion gate.
 - [ ] Make backup, restore, and application restart cluster-wide in Milestone 9.
 - [ ] Complete cluster integration tests, failure tests, performance measurements, documentation, and the final release gate in Milestone 10.
 
@@ -119,6 +119,10 @@ Success is observable, not architectural. First, the complete test suite must pa
   Evidence: `src/apis/realtime.ts` deliberately computes and dry-caches delete messages before the record and possibly its parent are deleted, because access rules can depend on data that no longer exists after commit. Remote workers must prepare their own subscribers before the writer continues the delete, then send or discard those cached messages after success or failure.
 - Observation: OAuth2 has two process-affinity assumptions that ordinary record-event fan-out does not cover.
   Evidence: `src/apis/record_auth_with_oauth2_redirect.ts` finds a realtime client by ID in the local broker, and temporarily stores Apple's returned name in the local `app.store()`. With kernel connection distribution, the redirect and follow-up request may hit workers other than the worker that owns the realtime client.
+- Observation: realtime subscription updates have the same process-affinity requirement as OAuth2 redirects.
+  Evidence: the SSE connect response creates the client in one worker's broker, but the later `POST /api/realtime` request can be balanced to another worker. Milestone 8 therefore routes subscription updates to the client owner and reconstructs the request/auth context there instead of assuming transport affinity.
+- Observation: detecting duplicate OAuth2 client ownership after delivery is too late.
+  Evidence: a one-phase broadcast could report the invariant violation only after both owners had sent the callback. The primary now probes every worker without mutating the subscription, rejects duplicate ownership, and delivers exactly once only when one valid owner remains.
 - Observation: the built-in password-reset and verification resend guards are also process-local.
   Evidence: `src/apis/record_auth_password_reset_request.ts` and `src/apis/record_auth_verification_request.ts` place expiring keys in `app.store()`. Without coordination, requests routed to different workers can bypass the intended two-minute guard.
 - Observation: backup restore and `app.restart()` cannot be allowed to replace only one cluster child.
@@ -217,6 +221,12 @@ Success is observable, not architectural. First, the complete test suite must pa
 - Decision: use an exclusive token-owned file under `pb_data` for primary ownership and exclude it from backup archives.
   Rationale: an atomic native file operation prevents unrelated primaries from creating separate coordination domains without adding a dependency or holding a database transaction for the process lifetime. PID liveness plus a heartbeat permits stale recovery, while invalid or ambiguous guards fail safe with an inspectable path.
   Date/Author: 2026-08-22 / Codex
+- Decision: extend the lifecycle protocol with only concrete Milestone 8 operations and keep the normal path local.
+  Rationale: primary-owned limiter/expiry state and acknowledged realtime/OAuth2 routing solve the identified built-in consistency gaps without distributing arbitrary app-store values or introducing a generic RPC layer. Dynamic imports and promise handling occur only in configured cluster workers, so `--workers=1` retains its existing synchronous rate-limit path.
+  Date/Author: 2026-08-22 / Codex
+- Decision: route realtime subscription updates and use two-phase OAuth2 ownership checks.
+  Rationale: HTTP load balancing does not preserve affinity with the worker that accepted an SSE stream. Targeted routing preserves PocketBase's client behavior, while a non-mutating OAuth2 probe prevents duplicate callbacks when the broker ownership invariant is violated.
+  Date/Author: 2026-08-22 / Codex
 
 ## Outcomes & Retrospective
 
@@ -232,7 +242,9 @@ Milestone 5 is complete locally and on hosted CI. Maintainers now have direct li
 
 Milestone 6 is complete without production cluster code. A self-contained Bun-only probe covers source and bundled execution paths, IPC ordering, native shared/distinct-port data paths, external test proxying, readiness, replacement, graceful request/SSE stop, and primary-death cleanup. The short matrix and corrected ten-minute extended matrix pass on Bun v1.4.0 across Ubuntu, macOS, and Windows. Five-run single-worker read/write medians are recorded before request-path edits. The first extended macOS attempt also usefully separated cluster behavior from a probe-induced short-lived-port exhaustion failure; normal connection reuse is both simpler and representative of sustained HTTP traffic.
 
-Milestone 7 is locally complete and awaits hosted cross-platform confirmation. `pocketbun --workers=N serve` now enters a lightweight primary before hooks or databases open, starts the leader before followers, and uses Bun's qualified shared-port or distinct-port topology. A closed token-authenticated lifecycle protocol verifies readiness, the primary restarts the same role and slot under a bounded crash budget, and shutdown reuses PocketBun's existing termination hooks before force-killing stragglers. An exclusive heartbeat guard prevents two cluster primaries from sharing one data directory and is omitted from backups. Real-process tests cover three worker identities, both role replacements, a competing primary, crash-budget exhaustion, one banner, no orphan processes, and the unchanged `--workers=1` path. Singleton built-ins and shared transient state are not yet cluster-correct; that remains the explicit Milestone 8 scope.
+Milestone 7 is complete locally and on hosted CI. `pocketbun --workers=N serve` now enters a lightweight primary before hooks or databases open, starts the leader before followers, and uses Bun's qualified shared-port or distinct-port topology. A closed token-authenticated lifecycle protocol verifies readiness, the primary restarts the same role and slot under a bounded crash budget, and shutdown reuses PocketBun's existing termination hooks before force-killing stragglers. An exclusive heartbeat guard prevents two cluster primaries from sharing one data directory and is omitted from backups. Real-process tests cover three worker identities, both role replacements, a competing primary, crash-budget exhaustion, one banner, no orphan processes, and the unchanged `--workers=1` path. The same lifecycle passed hosted Ubuntu, macOS, and Windows CI.
+
+Milestone 8 is locally complete and awaits hosted cross-platform confirmation. Only the leader performs migration, restore-temp cleanup, generated-type refresh, installer, and cron startup work; the existing `.notify` watcher keeps settings and collection caches converged in every worker. The primary owns the exact existing rate-limiter algorithm plus narrowly scoped expiring resend and Apple OAuth2 values. Realtime create/update/delete, auth invalidation, and subscription updates cross worker boundaries with local access checks preserved; OAuth2 uses a non-mutating ownership probe before one targeted delivery. A real three-worker test forces distinct producer/consumer PIDs and covers singleton effects, caches, aggregate limits, resend guards, realtime sequencing/no duplicates, auth invalidation, OAuth2 delivery, and Apple handoff. Both complete local suites pass 1,934 tests. Hosted Ubuntu, macOS, and Windows CI is the remaining milestone gate.
 
 The expected result is simpler than a built-in general-purpose process manager: one primary file, one typed IPC protocol, worker-role checks at existing singleton boundaries, and focused adapters for the handful of process-local features. The performance benefit is expected primarily for concurrent reads and CPU-heavy request/hook work. Writes remain serialized by SQLite, each worker adds memory, and the primary-coordinated rate limiter adds an IPC round trip on routes for which a rate-limit rule applies. Those costs must be measured before the feature is described as a performance advantage.
 
@@ -908,7 +920,37 @@ Milestone 7 local qualification:
     bun run check:versions: passed
     bun run docs:check: passed
     git diff --check: passed
-    Hosted Ubuntu/macOS/Windows lifecycle confirmation: pending commit push
+    Hosted Ubuntu/macOS/Windows lifecycle confirmation: passed after commit 8f5dc4d8
+
+Milestone 8 local qualification:
+
+    Date: 2026-08-22
+    Bun: 1.4.0 (34cbb9a40)
+    Singleton role: migrations, restore-temp cleanup, generated types, installer,
+                    and Cron.Start run only in disabled/leader roles
+    Shared durable cache state: existing pb_data/.notify watcher in every worker
+    Primary transient state: aggregate rate limiter; token-owned expiring claims;
+                             one-shot Apple OAuth2 values
+    Realtime: remote subscription routing; lossless record snapshots; create/update
+              fan-out; acknowledged delete prepare/commit/abort; auth invalidation
+    OAuth2: non-mutating all-worker ownership probe followed by one targeted delivery
+    Focused final OAuth/protocol/OTP/state qualification: 44 pass, 0 fail
+    Real-process state coverage: three workers; one migration, installer, and cron effect;
+                                 settings/collection convergence; aggregate limits;
+                                 resend claims; remote subscribe/create/update/delete;
+                                 no duplicate SSE; auth invalidation; OAuth2/Apple handoff
+    bun run test: 1,934 pass, 0 fail, 10,341 expect() calls
+                  across 248 files in 25.59 seconds
+    bun test --concurrent: 1,934 pass, 0 fail, 7 snapshots,
+                           10,341 expect() calls across 248 files in 68.15 seconds
+    bun run format:fix and bun run format: passed
+    bun run typecheck: passed
+    bun run typecheck:package: passed, including build and declarations
+    bun run lint: 0 warnings, 0 errors
+    bun run check:versions: passed
+    bun run docs:check: passed
+    git diff --check: passed
+    Hosted Ubuntu/macOS/Windows state-coordination confirmation: pending commit push
 
 Current PocketBun coordination inventory:
 
@@ -970,9 +1012,10 @@ The IPC envelope must be a closed discriminated union. Use a protocol version in
     type Envelope =
       | { version: 1; kind: "worker.ready"; role: "leader" | "follower"; workerId: number; pid: number; hostname: string; port: number }
       | { version: 1; kind: "worker.stopped"; workerId: number }
-      | { version: 1; kind: "request"; requestId: string; operation: CoordinatorOperation }
-      | { version: 1; kind: "response"; requestId: string; ok: boolean; value?: unknown; error?: { message: string } }
-      | { version: 1; kind: "realtime.event"; eventId: string; event: RealtimeEnvelope }
+      | { version: 1; kind: "coordinator.request"; requestId: string; workerId: number; operation: CoordinatorOperation }
+      | { version: 1; kind: "coordinator.response"; requestId: string; ok: boolean; value?: boolean | string | null; error?: { message: string } }
+      | { version: 1; kind: "coordinator.delivery"; requestId: string; operation: CoordinatorDeliveryOperation }
+      | { version: 1; kind: "coordinator.delivery-result"; requestId: string; workerId: number; ok: boolean; value?: string; error?: { message: string } }
       | { version: 1; kind: "control.shutdown"; force: boolean }
       | { version: 1; kind: "control.restart" }
       | { version: 1; kind: "control.quiesce"; reason: "restore" | "restart" };
@@ -1008,3 +1051,5 @@ Revision note, 2026-08-21 / Codex: Recorded successful short cluster qualificati
 Revision note, 2026-08-21 / Codex: Closed Milestone 6 after corrected extended run 32530714864 passed its 10,000-message, 100-restart, ten-minute probe on Ubuntu, macOS, and Windows at commit 7a8f9a48. Bun v1.4.0 is qualified for native shared-port cluster serving on Linux and the planned distinct-port/external-proxy topology on macOS and Windows; Milestone 7 production implementation can begin from the recorded single-worker baselines.
 
 Revision note, 2026-08-22 / Codex: Implemented Milestone 7's minimal production cluster lifecycle with an internal four-module control plane, strict `--workers` parsing, pre-bootstrap command resolution, explicit Bun serving topology, leader-first readiness, same-slot crash recovery, bounded shutdown, and a backup-excluded data-directory ownership guard. Recorded complete local real-process and repository gates; hosted Ubuntu, macOS, and Windows confirmation remains the milestone gate before Milestone 8.
+
+Revision note, 2026-08-22 / Codex: Closed Milestone 7 after the lifecycle commit passed hosted Ubuntu, macOS, and Windows CI. Implemented Milestone 8 locally with leader-only singleton work, primary-atomic limiter/expiry state, acknowledged realtime fan-out and subscription routing, and probe-then-deliver OAuth2 routing. Recorded the complete 1,934-test local gates and real three-worker state evidence; hosted cross-platform confirmation remains the milestone gate.

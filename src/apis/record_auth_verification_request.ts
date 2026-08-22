@@ -4,6 +4,7 @@ import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import { CollectionNameSuperusers } from "../core/collection_model.ts";
 import { RecordRequestVerificationRequestEvent } from "../core/events.ts";
+import { claimExpiringValue, releaseExpiringValue } from "../internal/cluster/expiring.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { SendRecordVerification } from "../mails/record.ts";
 import { FireAndForget } from "../tools/routine/routine.ts";
@@ -43,34 +44,34 @@ export async function recordRequestVerification(app: App, event: RequestEvent): 
   }
 
   const resendKey = getVerificationResendKey(record);
-  if (!record.Verified() && app.store().has(resendKey)) {
-    return noContent(event, 204);
+  let resendClaim: string | null = null;
+  if (!record.Verified()) {
+    resendClaim = await claimExpiringValue(app, resendKey, 2 * 60 * 1000);
+    if (!resendClaim) {
+      return noContent(event, 204);
+    }
   }
-
   const hookEvent = new RecordRequestVerificationRequestEvent(event, collection, record);
+  let sendStarted = false;
 
   const out = await app.OnRecordRequestVerificationRequest().Trigger(hookEvent, async () => {
     if (record.Verified()) {
       return noContent(event, 204);
     }
-
+    sendStarted = true;
     FireAndForget(async () => {
       const sendErr = await SendRecordVerification(app, record);
       if (sendErr) {
         app.Logger().Error("Failed to send verification email", "error", sendErr);
+        await releaseExpiringValue(app, resendKey, resendClaim!);
       }
-
-      app.store().set(resendKey, {});
-      setTimeout(
-        () => {
-          app.store().remove(resendKey);
-        },
-        2 * 60 * 1000,
-      );
     });
 
     return execAfterSuccessTx(true, app, () => noContent(event, 204));
   });
+  if (!record.Verified() && !sendStarted) {
+    await releaseExpiringValue(app, resendKey, resendClaim!);
+  }
 
   if (out instanceof Response) {
     return out;

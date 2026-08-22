@@ -4,17 +4,24 @@ import type { SQLQueryBindings } from "bun:sqlite";
 import type { App } from "../core/app.ts";
 import type { Collection } from "../core/collection_model.ts";
 import type { Model } from "../core/db_model.ts";
-import type { RequestEvent, RequestInfo } from "../core/event_request.ts";
+import type { RequestInfo } from "../core/event_request.ts";
 import type { RecordProxy } from "../core/record_proxy.ts";
 import type { RouterGroup } from "../tools/router/group.ts";
 import type { Client } from "../tools/subscriptions/client.ts";
 import type { MessageWriter } from "../tools/subscriptions/message.ts";
 import { CollectionTypeAuth } from "../core/collection_model.ts";
-import { RequestInfoContextRealtime } from "../core/event_request.ts";
+import { RequestEvent, RequestInfoContextRealtime } from "../core/event_request.ts";
 import { RealtimeConnectRequestEvent, RealtimeMessageEvent, RealtimeSubscribeRequestEvent } from "../core/events.ts";
 import { LogsTableName } from "../core/log_model.ts";
 import { RecordFieldResolver } from "../core/record_field_resolver.ts";
 import { Record as RecordModel } from "../core/record_model.ts";
+import {
+  clusterEnabled,
+  registerClusterRealtimeEventHandler,
+  registerClusterRealtimePrepareHandler,
+  registerClusterRealtimeSubscribeHandler,
+  type ClusterRealtimeEvent,
+} from "../internal/cluster/context.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { Pick } from "../tools/picker/pick.ts";
 import { FireAndForget } from "../tools/routine/routine.ts";
@@ -45,6 +52,7 @@ export const RealtimeClientIPKey = "pbRealtimeClientIP";
 
 const expandQueryParam = "expand";
 const fieldsQueryParam = "fields";
+const clusterDeleteEventStorePrefix = "@clusterRealtimeDelete/";
 
 // bindRealtimeApi registers the realtime api endpoints.
 export function bindRealtimeApi(app: App, rg: RouterGroup<RequestEvent>): void {
@@ -181,6 +189,22 @@ class RealtimeSubscribeForm {
   }
 }
 
+type ClusterRealtimeSubscribeRequest = {
+  url: string;
+  headers: Array<[string, string]>;
+  remoteIP: string;
+  authCollectionId: string;
+  authRecordJson: string;
+  subscriptions: string[];
+};
+
+type ClusterRealtimeSubscribeResponse = {
+  status: number;
+  statusText: string;
+  headers: Array<[string, string]>;
+  body: string;
+};
+
 function validateRealtimeSubscribeForm(form: RealtimeSubscribeForm): Error | null {
   const errors: Record<string, Error> = {};
 
@@ -237,9 +261,16 @@ async function realtimeSetSubscriptions(event: RequestEvent): Promise<Response> 
   try {
     client = event.app.SubscriptionsBroker().ClientById(form.ClientId);
   } catch (_error) {
+    if (clusterEnabled()) {
+      return routeClusterRealtimeSubscriptions(event, form);
+    }
     return notFound(event, "Missing or invalid client id.");
   }
 
+  return applyRealtimeSubscriptions(event, form, client);
+}
+
+async function applyRealtimeSubscriptions(event: RequestEvent, form: RealtimeSubscribeForm, client: Client): Promise<Response> {
   // for just in case to prevent someone changing a guest subscription
   //
   // note1: this is an extra precaution against clientId bruteforce attempts
@@ -291,6 +322,41 @@ async function realtimeSetSubscriptions(event: RequestEvent): Promise<Response> 
   return badRequest(event, "", out as Error);
 }
 
+async function routeClusterRealtimeSubscriptions(event: RequestEvent, form: RealtimeSubscribeForm): Promise<Response> {
+  const authRecordJson = event.auth ? encodeClusterRealtimeRecord(event.auth) : "";
+  if (event.auth && !authRecordJson) {
+    throw new Error("Failed to encode realtime subscription auth state");
+  }
+  const request: ClusterRealtimeSubscribeRequest = {
+    url: event.request.url,
+    headers: [...event.request.headers],
+    remoteIP: event.realIP(),
+    authCollectionId: event.auth?.collection().Id ?? "",
+    authRecordJson: authRecordJson ?? "",
+    subscriptions: form.Subscriptions,
+  };
+  const { routeClusterRealtimeSubscription } = await import("../internal/cluster/worker.ts");
+  const result = await routeClusterRealtimeSubscription(form.ClientId, JSON.stringify(request));
+  if (result === "absent") {
+    return notFound(event, "Missing or invalid client id.");
+  }
+
+  const response = JSON.parse(result) as ClusterRealtimeSubscribeResponse;
+  if (
+    !response ||
+    !Number.isSafeInteger(response.status) ||
+    !Array.isArray(response.headers) ||
+    typeof response.body !== "string"
+  ) {
+    throw new Error("Invalid cluster realtime subscription response");
+  }
+  return new Response(response.body || null, {
+    status: response.status,
+    statusText: typeof response.statusText === "string" ? response.statusText : "",
+    headers: response.headers,
+  });
+}
+
 // realtimeUpdateClientsAuth updates the auth state of all clients related to the provided authRecord.
 //
 // Realtime connections has short lifetime by design, but to minimize abuse
@@ -323,12 +389,16 @@ function realtimeUnsetClientsAuthByRecordModelOrProxy(app: App, authModel: Model
     return null;
   }
 
+  return realtimeUnsetClientsAuthByIdentity(app, authModel.TableName(), pk);
+}
+
+function realtimeUnsetClientsAuthByIdentity(app: App, collectionName: string, recordId: string): Error | null {
   const chunks = app.SubscriptionsBroker().ChunkedClients(clientsChunkSize);
 
   for (const chunk of chunks) {
     for (const client of chunk) {
       const clientAuth = client.Get(RealtimeClientAuthKey) as RecordModel | null;
-      if (clientAuth && clientAuth.Id === pk && clientAuth.collection().name === authModel.TableName()) {
+      if (clientAuth && clientAuth.Id === recordId && clientAuth.collection().name === collectionName) {
         client.Unset(RealtimeClientAuthKey);
       }
     }
@@ -339,12 +409,16 @@ function realtimeUnsetClientsAuthByRecordModelOrProxy(app: App, authModel: Model
 
 // realtimeUnsetClientsAuthByCollection unsets the auth state of all authenticated clients related to the collection.
 function realtimeUnsetClientsAuthByCollection(app: App, collection: Collection): Error | null {
+  return realtimeUnsetClientsAuthByCollectionName(app, collection.name);
+}
+
+function realtimeUnsetClientsAuthByCollectionName(app: App, collectionName: string): Error | null {
   const chunks = app.SubscriptionsBroker().ChunkedClients(clientsChunkSize);
 
   for (const chunk of chunks) {
     for (const client of chunk) {
       const clientAuth = client.Get(RealtimeClientAuthKey) as RecordModel | null;
-      if (clientAuth && clientAuth.collection().name === collection.name) {
+      if (clientAuth && clientAuth.collection().name === collectionName) {
         client.Unset(RealtimeClientAuthKey);
       }
     }
@@ -354,6 +428,12 @@ function realtimeUnsetClientsAuthByCollection(app: App, collection: Collection):
 }
 
 function bindRealtimeEvents(app: App): void {
+  if (clusterEnabled()) {
+    registerClusterRealtimeEventHandler((event) => deliverClusterRealtimeEvent(app, event));
+    registerClusterRealtimePrepareHandler((operation) => prepareClusterRealtimeDeleteLocally(app, operation));
+    registerClusterRealtimeSubscribeHandler((operation) => deliverClusterRealtimeSubscriptionLocally(app, operation));
+  }
+
   // reset the clients auth on collection secret change
   // (@todo with the future tracking of old collections data consider replacing with *AfterUpdateSuccess to account for transaction rollback)
   app.OnCollectionUpdate().Bind({
@@ -389,6 +469,7 @@ function bindRealtimeEvents(app: App): void {
                 err.message,
               );
           }
+          publishClusterRealtimeEvent(e.App, { kind: "auth.collection", collectionName: collection.Name });
         }
 
         return null;
@@ -418,6 +499,7 @@ function bindRealtimeEvents(app: App): void {
               err.message,
             );
         }
+        publishClusterRealtimeEvent(e.App, { kind: "auth.collection", collectionName: e.Collection.Name });
       }
 
       return e.Next();
@@ -443,6 +525,14 @@ function bindRealtimeEvents(app: App): void {
               "error",
               err.message,
             );
+        }
+        const recordJson = encodeClusterRealtimeRecord(authRecord);
+        if (recordJson) {
+          publishClusterRealtimeEvent(e.App, {
+            kind: "auth.record-update",
+            collectionId: authRecord.collection().Id,
+            recordJson,
+          });
         }
       }
 
@@ -471,6 +561,14 @@ function bindRealtimeEvents(app: App): void {
               err.message,
             );
         }
+        const recordId = e.Model?.PK();
+        if (typeof recordId === "string") {
+          publishClusterRealtimeEvent(e.App, {
+            kind: "auth.record-delete",
+            collectionName: collection.Name,
+            recordId,
+          });
+        }
       }
 
       return e.Next();
@@ -496,6 +594,7 @@ function bindRealtimeEvents(app: App): void {
               err.message,
             );
         }
+        publishClusterRecordEvent(e.App, "create", record);
       }
 
       return e.Next();
@@ -521,6 +620,7 @@ function bindRealtimeEvents(app: App): void {
               err.message,
             );
         }
+        publishClusterRecordEvent(e.App, "update", record);
       }
 
       return e.Next();
@@ -532,27 +632,48 @@ function bindRealtimeEvents(app: App): void {
   app.OnModelDelete().Bind({
     Func: (e) => {
       const record = realtimeResolveRecord(e.App, e.Model as Model, "");
-      if (record) {
-        // note: use the outside scoped app instance for the access checks so that the API rules
-        // are performed out of the delete transaction ensuring that they would still work even if
-        // a cascade-deleted record's API rule relies on an already deleted parent record
-        const err = realtimeBroadcastRecord(e.App, "delete", record, true, app);
-        if (err) {
-          app
-            .Logger()
-            .Debug(
-              "Failed to dry cache record delete",
-              "id",
-              record.Id,
-              "collectionName",
-              record.collection().name,
-              "error",
-              err.message,
-            );
-        }
+      if (!record) {
+        return e.Next();
       }
 
-      return e.Next();
+      // note: use the outside scoped app instance for the access checks so that the API rules
+      // are performed out of the delete transaction ensuring that they would still work even if
+      // a cascade-deleted record's API rule relies on an already deleted parent record
+      const err = realtimeBroadcastRecord(e.App, "delete", record, true, app);
+      if (err) {
+        app
+          .Logger()
+          .Debug(
+            "Failed to dry cache record delete",
+            "id",
+            record.Id,
+            "collectionName",
+            record.collection().name,
+            "error",
+            err.message,
+          );
+      }
+
+      if (!clusterEnabled()) {
+        return e.Next();
+      }
+
+      const recordJson = encodeClusterRealtimeRecord(record);
+      if (!recordJson) {
+        realtimeUnsetDryCacheKey(e.App, getDryCacheKey("delete", record));
+        return new Error("Failed to encode record for cluster realtime delete preparation");
+      }
+      const eventId = crypto.randomUUID();
+      return import("../internal/cluster/worker.ts")
+        .then(({ prepareClusterRealtimeDelete }) => prepareClusterRealtimeDelete(eventId, record.collection().Id, recordJson))
+        .then(() => {
+          app.store().set(clusterDeleteStateKey(record), eventId);
+          return e.Next();
+        })
+        .catch((error) => {
+          realtimeUnsetDryCacheKey(e.App, getDryCacheKey("delete", record));
+          return error instanceof Error ? error : new Error(String(error));
+        });
     },
     Priority: 99, // execute as later as possible
   });
@@ -565,7 +686,8 @@ function bindRealtimeEvents(app: App): void {
       // custom model it'll fail to resolve since the record is already deleted
       const collection = realtimeResolveRecordCollection(e.App, e.Model as Model);
       if (collection) {
-        const err = realtimeBroadcastDryCacheKey(e.App, getDryCacheKey("delete", e.Model as Model));
+        const model = e.Model as Model;
+        const err = realtimeBroadcastDryCacheKey(e.App, getDryCacheKey("delete", model));
         if (err) {
           app
             .Logger()
@@ -579,6 +701,11 @@ function bindRealtimeEvents(app: App): void {
               err.message,
             );
         }
+        const eventId = app.store().get(clusterDeleteStateKey(model));
+        if (typeof eventId === "string") {
+          app.store().remove(clusterDeleteStateKey(model));
+          publishClusterRealtimeEvent(e.App, { kind: "delete.commit", eventId });
+        }
       }
 
       return e.Next();
@@ -591,6 +718,7 @@ function bindRealtimeEvents(app: App): void {
     Func: (e) => {
       const record = realtimeResolveRecord(e.App, e.Model as Model, "");
       if (record) {
+        const model = e.Model as Model;
         const err = realtimeUnsetDryCacheKey(e.App, getDryCacheKey("delete", record));
         if (err) {
           app
@@ -605,12 +733,183 @@ function bindRealtimeEvents(app: App): void {
               err.message,
             );
         }
+        const eventId = app.store().get(clusterDeleteStateKey(model));
+        if (typeof eventId === "string") {
+          app.store().remove(clusterDeleteStateKey(model));
+          publishClusterRealtimeEvent(e.App, { kind: "delete.abort", eventId });
+        }
       }
 
       return e.Next();
     },
     Priority: -99,
   });
+}
+
+export function encodeClusterRealtimeRecord(record: RecordModel): string | null {
+  try {
+    return JSON.stringify(record.DBExport());
+  } catch {
+    return null;
+  }
+}
+
+export function decodeClusterRealtimeRecord(app: App, collectionId: string, recordJson: string): RecordModel {
+  const collection = app.FindCachedCollectionByNameOrId(collectionId);
+  const data = JSON.parse(recordJson) as unknown;
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new Error("Invalid cluster realtime record snapshot");
+  }
+  return RecordModel.fromRow(collection, data as Record<string, unknown>);
+}
+
+function publishClusterRecordEvent(app: App, action: "create" | "update", record: RecordModel): void {
+  if (!clusterEnabled()) {
+    return;
+  }
+  const recordJson = encodeClusterRealtimeRecord(record);
+  if (!recordJson) {
+    app.Logger().Debug("Failed to encode cluster realtime record", "id", record.Id, "action", action);
+    return;
+  }
+  publishClusterRealtimeEvent(app, {
+    kind: "record",
+    eventId: crypto.randomUUID(),
+    action,
+    collectionId: record.collection().Id,
+    recordJson,
+  });
+}
+
+function publishClusterRealtimeEvent(app: App, event: ClusterRealtimeEvent): void {
+  if (!clusterEnabled()) {
+    return;
+  }
+  FireAndForget(async () => {
+    try {
+      const { broadcastClusterRealtimeEvent } = await import("../internal/cluster/worker.ts");
+      await broadcastClusterRealtimeEvent(event);
+    } catch (error) {
+      app.Logger().Debug("Failed to publish cluster realtime event", "kind", event.kind, "error", String(error));
+    }
+  });
+}
+
+async function deliverClusterRealtimeEvent(app: App, event: ClusterRealtimeEvent): Promise<void> {
+  switch (event.kind) {
+    case "record": {
+      const record = decodeClusterRealtimeRecord(app, event.collectionId, event.recordJson);
+      const err = realtimeBroadcastRecord(app, event.action, record, false);
+      if (err) {
+        throw err;
+      }
+      return;
+    }
+    case "delete.commit": {
+      const err = realtimeBroadcastDryCacheKey(app, clusterDeleteCacheKey(event.eventId));
+      if (err) {
+        throw err;
+      }
+      return;
+    }
+    case "delete.abort": {
+      const err = realtimeUnsetDryCacheKey(app, clusterDeleteCacheKey(event.eventId));
+      if (err) {
+        throw err;
+      }
+      return;
+    }
+    case "auth.record-update": {
+      const err = realtimeUpdateClientsAuth(app, decodeClusterRealtimeRecord(app, event.collectionId, event.recordJson));
+      if (err) {
+        throw err;
+      }
+      return;
+    }
+    case "auth.record-delete": {
+      const err = realtimeUnsetClientsAuthByIdentity(app, event.collectionName, event.recordId);
+      if (err) {
+        throw err;
+      }
+      return;
+    }
+    case "auth.collection": {
+      const err = realtimeUnsetClientsAuthByCollectionName(app, event.collectionName);
+      if (err) {
+        throw err;
+      }
+    }
+  }
+}
+
+function prepareClusterRealtimeDeleteLocally(
+  app: App,
+  operation: Extract<import("../internal/cluster/protocol.ts").CoordinatorOperation, { kind: "realtime.prepare" }>,
+): string {
+  const record = decodeClusterRealtimeRecord(app, operation.collectionId, operation.recordJson);
+  const err = realtimeBroadcastRecord(app, "delete", record, true, app, clusterDeleteCacheKey(operation.eventId));
+  if (err) {
+    throw err;
+  }
+  setTimeout(() => {
+    realtimeUnsetDryCacheKey(app, clusterDeleteCacheKey(operation.eventId));
+  }, 30_000);
+  return "prepared";
+}
+
+async function deliverClusterRealtimeSubscriptionLocally(
+  app: App,
+  operation: Extract<import("../internal/cluster/protocol.ts").CoordinatorOperation, { kind: "realtime.subscribe" }>,
+): Promise<string> {
+  let client: Client;
+  try {
+    client = app.SubscriptionsBroker().ClientById(operation.clientId);
+  } catch {
+    return "absent";
+  }
+
+  const data = JSON.parse(operation.requestJson) as ClusterRealtimeSubscribeRequest;
+  if (
+    !data ||
+    !Array.isArray(data.headers) ||
+    !Array.isArray(data.subscriptions) ||
+    data.subscriptions.some((item) => typeof item !== "string")
+  ) {
+    throw new Error("Invalid cluster realtime subscription request");
+  }
+  const request = new Request(data.url, {
+    method: "POST",
+    headers: data.headers,
+    body: JSON.stringify({ clientId: operation.clientId, subscriptions: data.subscriptions }),
+  });
+  const event = new RequestEvent({
+    app,
+    request,
+    remoteAddress: `${data.remoteIP}:0`,
+    pattern: "/api/realtime",
+  });
+  if (data.authRecordJson) {
+    event.auth = decodeClusterRealtimeRecord(app, data.authCollectionId, data.authRecordJson);
+  }
+  const form = new RealtimeSubscribeForm();
+  form.ClientId = operation.clientId;
+  form.Subscriptions = data.subscriptions;
+  const response = await applyRealtimeSubscriptions(event, form, client);
+  const encoded: ClusterRealtimeSubscribeResponse = {
+    status: response.status,
+    statusText: response.statusText,
+    headers: [...response.headers],
+    body: response.body ? await response.text() : "",
+  };
+  return JSON.stringify(encoded);
+}
+
+function clusterDeleteCacheKey(eventId: string): string {
+  return `@clusterDelete/${eventId}`;
+}
+
+function clusterDeleteStateKey(model: Model): string {
+  return clusterDeleteEventStorePrefix + getDryCacheKey("delete", model);
 }
 
 // resolveRecord converts *if possible* the provided model interface to a Record.
@@ -694,7 +993,8 @@ function realtimeBroadcastRecord(
   action: string,
   record: RecordModel,
   dryCache: boolean,
-  ...optAccessCheckApp: App[]
+  optAccessCheckApp?: App,
+  dryCacheKeyOverride?: string,
 ): Error | null {
   const collection = record.collection();
   if (!collection) {
@@ -717,9 +1017,9 @@ function realtimeBroadcastRecord(
     [`${collection.id}?`]: collection.listRule,
   };
 
-  const dryCacheKey = getDryCacheKey(action, record);
+  const dryCacheKey = dryCacheKeyOverride ?? getDryCacheKey(action, record);
 
-  const accessCheckApp = optAccessCheckApp[0] ?? app;
+  const accessCheckApp = optAccessCheckApp ?? app;
 
   for (const chunk of chunks) {
     let clientAuth: RecordModel | null = null;

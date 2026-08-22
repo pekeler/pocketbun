@@ -55,4 +55,99 @@ describe("cluster protocol", () => {
       }),
     ).toBeNull();
   });
+
+  it("validates concrete coordinator requests and responses", () => {
+    const operations = [
+      { kind: "rate-limit.consume", limiterId: "GET /api/health", clientKey: "127.0.0.1", maxRequests: 2, duration: 60 },
+      { kind: "rate-limit.check", limiterId: "GET /api/health", clientKey: "127.0.0.1" },
+      { kind: "expiring.claim", key: "password-reset/user", ttlMs: 120_000 },
+      { kind: "expiring.release", key: "password-reset/user", claimToken: "claim" },
+      { kind: "expiring.put", key: "apple/code", value: "Test User", ttlMs: 60_000 },
+      { kind: "expiring.take", key: "apple/code" },
+      {
+        kind: "realtime.publish",
+        event: {
+          kind: "record",
+          eventId: "event",
+          action: "create",
+          collectionId: "collection",
+          recordJson: '{"id":"record"}',
+        },
+      },
+      { kind: "realtime.prepare", eventId: "event", collectionId: "collection", recordJson: '{"id":"record"}' },
+      { kind: "realtime.subscribe", clientId: "client", requestJson: '{"subscriptions":[]}' },
+      {
+        kind: "oauth2.deliver",
+        clientId: "client",
+        requestIP: "127.0.0.1",
+        data: '{"code":"code"}',
+        mode: "deliver",
+      },
+    ];
+
+    for (const operation of operations) {
+      expect(
+        parseClusterMessage({
+          version: ClusterProtocolVersion,
+          kind: "coordinator.request",
+          token: "secret",
+          requestId: crypto.randomUUID(),
+          workerId: 2,
+          operation,
+        }),
+      ).not.toBeNull();
+    }
+
+    expect(
+      parseClusterMessage({
+        version: ClusterProtocolVersion,
+        kind: "coordinator.response",
+        token: "secret",
+        requestId: "request",
+        ok: true,
+        value: false,
+      }),
+    ).not.toBeNull();
+    expect(
+      parseClusterMessage({
+        version: ClusterProtocolVersion,
+        kind: "coordinator.response",
+        token: "secret",
+        requestId: "request",
+        ok: false,
+        error: { message: "failed" },
+      }),
+    ).not.toBeNull();
+    expect(
+      parseClusterMessage({
+        version: ClusterProtocolVersion,
+        kind: "coordinator.request",
+        token: "secret",
+        requestId: "request",
+        workerId: 2,
+        operation: { kind: "expiring.claim", key: "", ttlMs: 0 },
+      }),
+    ).toBeNull();
+
+    expect(
+      parseClusterMessage({
+        version: ClusterProtocolVersion,
+        kind: "coordinator.delivery",
+        token: "secret",
+        requestId: "delivery",
+        operation: { kind: "realtime.subscribe", clientId: "client", requestJson: "{}" },
+      }),
+    ).not.toBeNull();
+    expect(
+      parseClusterMessage({
+        version: ClusterProtocolVersion,
+        kind: "coordinator.delivery-result",
+        token: "secret",
+        requestId: "delivery",
+        workerId: 2,
+        ok: true,
+        value: "delivered",
+      }),
+    ).not.toBeNull();
+  });
 });

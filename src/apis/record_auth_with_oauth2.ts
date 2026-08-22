@@ -18,6 +18,7 @@ import { TextField } from "../core/field_text.ts";
 import { MFAMethodOAuth2 } from "../core/mfa_model.ts";
 import { FieldNameEmail, FieldNamePassword, NewRecord } from "../core/record_model.ts";
 import { RecordUpsert } from "../forms/record_upsert.ts";
+import { takeExpiringValue } from "../internal/cluster/expiring.ts";
 import { readRequestTextAndRebind } from "../internal/compat/request_body.ts";
 import { ValidationErrors, ErrRequired, newError, required } from "../internal/compat/validation.ts";
 import { AuthUser } from "../tools/auth/auth.ts";
@@ -144,9 +145,8 @@ export async function recordAuthWithOAuth2(app: App, event: RequestEvent): Promi
 
   if (form.provider === "apple" && !authUser.Name) {
     const nameKey = oauth2RedirectAppleNameStoreKeyPrefix + form.code;
-    const storedName = app.store().get(nameKey);
-    if (typeof storedName === "string") {
-      app.store().remove(nameKey);
+    const storedName = await takeExpiringValue(app, nameKey);
+    if (storedName !== null) {
       authUser.Name = storedName;
     } else {
       app.Logger().Warn("Missing or already removed Apple user's name");

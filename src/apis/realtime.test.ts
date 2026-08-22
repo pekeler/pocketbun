@@ -1,18 +1,27 @@
 // Ported from pocketbase/apis/realtime_test.go.
 
-import { describe, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { CollectionNameSuperusers, NewBaseCollection } from "../core/collection_model.ts";
 import { GenerateDefaultRandomId } from "../core/db.ts";
 import { BaseModel } from "../core/db_model.ts";
 import { ModelEvent, ModelEventTypeDelete, ModelEventTypeUpdate } from "../core/events.ts";
 import { AutodateField } from "../core/field_autodate.ts";
+import { DateField } from "../core/field_date.ts";
+import { FileField } from "../core/field_file.ts";
+import { JSONField } from "../core/field_json.ts";
+import { RelationField } from "../core/field_relation.ts";
 import { TextField } from "../core/field_text.ts";
 import { NewRecord, Record as RecordModel } from "../core/record_model.ts";
 import { BaseRecordProxy } from "../core/record_proxy.ts";
 import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 import { newTestApp } from "../tests/app.ts";
 import { DefaultClient } from "../tools/subscriptions/client.ts";
-import { RealtimeClientAuthKey, RealtimeClientIPKey } from "./realtime.ts";
+import {
+  decodeClusterRealtimeRecord,
+  encodeClusterRealtimeRecord,
+  RealtimeClientAuthKey,
+  RealtimeClientIPKey,
+} from "./realtime.ts";
 import { buildServeHandler } from "./serve.ts";
 
 const superuserToken =
@@ -963,6 +972,63 @@ describe("realtime record resolve", () => {
       } finally {
         await cleanup();
       }
+    }
+  });
+});
+
+describe("cluster realtime record snapshots", () => {
+  it("preserves auth, date, file, relation, JSON, null, hidden, and deleted record values", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const target = app.FindCachedCollectionByNameOrId("demo1");
+      const collection = NewBaseCollection("cluster_snapshots");
+      collection.Fields.Add(
+        Object.assign(new DateField(), { Name: "date" }),
+        Object.assign(new FileField(), { Name: "files", MaxSelect: 3 }),
+        Object.assign(new RelationField(), { Name: "relations", CollectionId: target.Id, MaxSelect: 3 }),
+        Object.assign(new JSONField(), { Name: "json" }),
+        Object.assign(new JSONField(), { Name: "nullable" }),
+        Object.assign(new TextField(), { Name: "hidden", Hidden: true }),
+      );
+      const collectionErr = await app.Save(collection);
+      if (collectionErr) {
+        throw collectionErr;
+      }
+
+      const targetRecord = app.FindFirstRecordByFilter(target, "1=1");
+      const record = NewRecord(collection);
+      record.Id = "snaprec12345678";
+      record.Set("date", "2026-08-22 12:34:56.789Z");
+      record.Set("files", ["first.txt", "second.png"]);
+      record.Set("relations", [targetRecord.Id]);
+      record.Set("json", { nested: [1, true, "value"] });
+      record.Set("nullable", null);
+      record.Set("hidden", "secret");
+
+      const encoded = encodeClusterRealtimeRecord(record);
+      expect(encoded).not.toBeNull();
+      const decoded = decodeClusterRealtimeRecord(app, collection.Id, encoded!);
+      expect(decoded.DBExport()).toEqual(record.DBExport());
+
+      const auth = app.FindAuthRecordByEmail("users", "test@example.com");
+      const decodedAuth = decodeClusterRealtimeRecord(app, auth.collection().Id, encodeClusterRealtimeRecord(auth)!);
+      expect(decodedAuth.DBExport()).toEqual(auth.DBExport());
+
+      const deleted = NewRecord(collection);
+      deleted.Id = "deleted12345678";
+      deleted.Set("date", "2026-08-22 12:34:56.789Z");
+      const saveErr = await app.Save(deleted);
+      if (saveErr) {
+        throw saveErr;
+      }
+      const deletedSnapshot = encodeClusterRealtimeRecord(deleted)!;
+      const deleteErr = await app.Delete(deleted);
+      if (deleteErr) {
+        throw deleteErr;
+      }
+      expect(decodeClusterRealtimeRecord(app, collection.Id, deletedSnapshot).DBExport()).toEqual(deleted.DBExport());
+    } finally {
+      await cleanup();
     }
   });
 });

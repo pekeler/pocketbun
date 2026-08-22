@@ -10,6 +10,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { App } from "../../core/app.ts";
 import { AppMigrations } from "../../core/migrations_runner.ts";
+import { runsClusterSingletons } from "../../internal/cluster/context.ts";
 import { NewRegistry } from "../../tools/template/registry.ts";
 import {
   appBinds,
@@ -81,10 +82,12 @@ export function Register(app: App, config: Config): Error | null {
     if (err) {
       return err;
     }
-    try {
-      refreshTypesFile(normalized.TypesDir ?? app.DataDir());
-    } catch {
-      // ignore types refresh failures
+    if (runsClusterSingletons()) {
+      try {
+        refreshTypesFile(normalized.TypesDir ?? app.DataDir());
+      } catch {
+        // ignore types refresh failures
+      }
     }
     return null;
   });
@@ -120,10 +123,12 @@ export async function RegisterAsync(app: App, config: Config): Promise<Error | n
     if (err) {
       return err as Error;
     }
-    try {
-      await refreshTypesFileAsync(normalized.TypesDir ?? app.DataDir());
-    } catch {
-      // ignore types refresh failures
+    if (runsClusterSingletons()) {
+      try {
+        await refreshTypesFileAsync(normalized.TypesDir ?? app.DataDir());
+      } catch {
+        // ignore types refresh failures
+      }
     }
     return null;
   });

@@ -12,11 +12,16 @@ import {
   ClusterEnvToken,
   validateWorkerCount,
 } from "./context.ts";
+import { ClusterCoordinator } from "./coordinator.ts";
 import {
   ClusterProtocolVersion,
   parseClusterMessage,
   type ClusterWorkerRole,
-  type ControlShutdownMessage,
+  type CoordinatorDeliveryOperation,
+  type CoordinatorDeliveryResultMessage,
+  type CoordinatorRequestMessage,
+  type CoordinatorResponseMessage,
+  type PrimaryToWorkerMessage,
   type WorkerReadyMessage,
 } from "./protocol.ts";
 
@@ -27,6 +32,7 @@ const crashWindowMs = 30_000;
 const crashBudget = 5;
 const heartbeatIntervalMs = 1_000;
 const staleHeartbeatMs = 3_000;
+const coordinatorDeliveryTimeoutMs = 4_000;
 
 export type ClusterPrimaryOptions = {
   workers: number;
@@ -61,6 +67,13 @@ type GuardOwner = {
   startedAt: string;
 };
 
+type PendingDelivery = {
+  workerId: number;
+  resolve: (value: string) => void;
+  reject: (error: Error) => void;
+  timeout: ReturnType<typeof setTimeout>;
+};
+
 export type PrimaryGuard = {
   path: string;
   release: () => Promise<void>;
@@ -74,7 +87,9 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
   const plans = planClusterWorkers(options.workers, options.httpAddr);
   const guard = await acquirePrimaryGuard(options.dataDir);
   const token = crypto.randomUUID();
+  const coordinator = new ClusterCoordinator();
   const records = new Map<number, ManagedWorker>();
+  const pendingDeliveries = new Map<string, PendingDelivery>();
   const replacements = new Map<number, Promise<void>>();
   const crashes: Record<ClusterWorkerRole, number[]> = { leader: [], follower: [] };
   let shuttingDown = false;
@@ -218,6 +233,20 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
         return;
       }
 
+      if (message.kind === "coordinator.delivery-result") {
+        resolveCoordinatorDelivery(worker, pendingDeliveries, message);
+        return;
+      }
+
+      if (message.kind === "coordinator.request") {
+        if (message.workerId !== worker.id) {
+          worker.kill();
+          return;
+        }
+        void respondToCoordinatorRequest(worker, token, coordinator, records, pendingDeliveries, message);
+        return;
+      }
+
       if (message.kind !== "worker.ready" || record.ready) {
         record.rejectReady(new Error(`worker ${worker.id} sent an unexpected ${message.kind} message`));
         worker.kill();
@@ -240,6 +269,7 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
     });
 
     worker.once("exit", (code, signal) => {
+      rejectWorkerDeliveries(pendingDeliveries, worker.id);
       record.resolveExit();
       record.rejectReady(new Error(`worker ${worker.id} exited before ready`));
       if (records.get(record.slot) === record) {
@@ -505,7 +535,154 @@ function printClusterBanner(plans: ClusterWorkerPlan[], show: boolean): void {
   );
 }
 
-function sendToWorker(worker: Worker, message: ControlShutdownMessage): Promise<void> {
+async function respondToCoordinatorRequest(
+  worker: Worker,
+  token: string,
+  coordinator: ClusterCoordinator,
+  records: Map<number, ManagedWorker>,
+  pendingDeliveries: Map<string, PendingDelivery>,
+  message: CoordinatorRequestMessage,
+): Promise<void> {
+  let response: CoordinatorResponseMessage;
+  try {
+    response = {
+      version: ClusterProtocolVersion,
+      kind: "coordinator.response",
+      token,
+      requestId: message.requestId,
+      ok: true,
+      value: await handleCoordinatorOperation(worker, token, coordinator, records, pendingDeliveries, message.operation),
+    };
+  } catch (error) {
+    response = {
+      version: ClusterProtocolVersion,
+      kind: "coordinator.response",
+      token,
+      requestId: message.requestId,
+      ok: false,
+      error: { message: errorMessage(error) },
+    };
+  }
+  await sendToWorker(worker, response).catch(() => {});
+}
+
+async function handleCoordinatorOperation(
+  source: Worker,
+  token: string,
+  coordinator: ClusterCoordinator,
+  records: Map<number, ManagedWorker>,
+  pendingDeliveries: Map<string, PendingDelivery>,
+  operation: import("./protocol.ts").CoordinatorOperation,
+): Promise<import("./protocol.ts").CoordinatorValue> {
+  if (operation.kind === "realtime.publish") {
+    const targets = readyWorkers(records).filter((worker) => worker.id !== source.id);
+    await Promise.all(targets.map((worker) => sendCoordinatorDelivery(worker, token, pendingDeliveries, operation)));
+    return true;
+  }
+  if (operation.kind === "realtime.prepare") {
+    const targets = readyWorkers(records).filter((worker) => worker.id !== source.id);
+    await Promise.all(targets.map((worker) => sendCoordinatorDelivery(worker, token, pendingDeliveries, operation)));
+    return true;
+  }
+  if (operation.kind === "realtime.subscribe") {
+    const results = await Promise.all(
+      readyWorkers(records).map((worker) => sendCoordinatorDelivery(worker, token, pendingDeliveries, operation)),
+    );
+    const responses = results.filter((result) => result !== "absent");
+    if (responses.length > 1) {
+      throw new Error(`realtime client ${operation.clientId} is owned by multiple workers`);
+    }
+    return responses[0] ?? "absent";
+  }
+  if (operation.kind === "oauth2.deliver") {
+    if (operation.mode !== "deliver") {
+      throw new Error("workers may only request OAuth2 delivery");
+    }
+    const workers = readyWorkers(records);
+    const probe = { ...operation, mode: "probe" as const };
+    const results = await Promise.all(
+      workers.map(async (worker) => ({
+        worker,
+        result: await sendCoordinatorDelivery(worker, token, pendingDeliveries, probe),
+      })),
+    );
+    const owners = results.filter(({ result }) => result !== "absent");
+    if (owners.length > 1) {
+      return "duplicate";
+    }
+    if (owners[0]?.result === "invalid") {
+      return "invalid";
+    }
+    if (!owners[0]) {
+      return "absent";
+    }
+    return sendCoordinatorDelivery(owners[0].worker, token, pendingDeliveries, operation);
+  }
+  return coordinator.handle(operation);
+}
+
+function readyWorkers(records: Map<number, ManagedWorker>): Worker[] {
+  return [...records.values()].filter((record) => record.ready).map((record) => record.worker);
+}
+
+function sendCoordinatorDelivery(
+  worker: Worker,
+  token: string,
+  pendingDeliveries: Map<string, PendingDelivery>,
+  operation: CoordinatorDeliveryOperation,
+): Promise<string> {
+  const requestId = crypto.randomUUID();
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      pendingDeliveries.delete(requestId);
+      reject(new Error(`worker ${worker.id} coordinator delivery timed out after ${coordinatorDeliveryTimeoutMs}ms`));
+    }, coordinatorDeliveryTimeoutMs);
+    pendingDeliveries.set(requestId, { workerId: worker.id, resolve, reject, timeout });
+    void sendToWorker(worker, {
+      version: ClusterProtocolVersion,
+      kind: "coordinator.delivery",
+      token,
+      requestId,
+      operation,
+    }).catch((error) => {
+      clearTimeout(timeout);
+      pendingDeliveries.delete(requestId);
+      reject(error instanceof Error ? error : new Error(String(error)));
+    });
+  });
+}
+
+function resolveCoordinatorDelivery(
+  worker: Worker,
+  pendingDeliveries: Map<string, PendingDelivery>,
+  message: CoordinatorDeliveryResultMessage,
+): void {
+  const pending = pendingDeliveries.get(message.requestId);
+  if (!pending || pending.workerId !== worker.id || message.workerId !== worker.id) {
+    worker.kill();
+    return;
+  }
+  clearTimeout(pending.timeout);
+  pendingDeliveries.delete(message.requestId);
+  if (message.ok) {
+    pending.resolve(message.value ?? "");
+  } else {
+    pending.reject(new Error(message.error?.message ?? `worker ${worker.id} coordinator delivery failed`));
+  }
+}
+
+function rejectWorkerDeliveries(pendingDeliveries: Map<string, PendingDelivery>, workerId: number): void {
+  for (const [requestId, pending] of pendingDeliveries) {
+    if (pending.workerId !== workerId) {
+      continue;
+    }
+    clearTimeout(pending.timeout);
+    pendingDeliveries.delete(requestId);
+    pending.reject(new Error(`worker ${workerId} exited during coordinator delivery`));
+  }
+}
+
+function sendToWorker(worker: Worker, message: PrimaryToWorkerMessage): Promise<void> {
   return new Promise((resolveSend, rejectSend) => {
     if (!worker.isConnected()) {
       rejectSend(new Error(`worker ${worker.id} IPC channel is closed`));

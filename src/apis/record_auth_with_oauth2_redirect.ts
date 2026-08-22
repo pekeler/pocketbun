@@ -2,6 +2,9 @@
 
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
+import type { CoordinatorDeliveryOperation } from "../internal/cluster/protocol.ts";
+import { clusterEnabled } from "../internal/cluster/context.ts";
+import { putExpiringValue } from "../internal/cluster/expiring.ts";
 import { readRequestTextAndRebind } from "../internal/compat/request_body.ts";
 import { Message } from "../tools/subscriptions/message.ts";
 import { RealtimeClientIPKey } from "./realtime.ts";
@@ -25,6 +28,10 @@ export async function oauth2SubscriptionRedirect(app: App, event: RequestEvent):
   if (!data.State) {
     app.Logger().Warn("Missing OAuth2 state parameter");
     return redirectResponse(redirectStatusCode, oauth2RedirectFailurePath);
+  }
+
+  if (clusterEnabled()) {
+    return clusterOAuth2SubscriptionRedirect(app, event, data, redirectStatusCode);
   }
 
   let client = null;
@@ -57,7 +64,11 @@ export async function oauth2SubscriptionRedirect(app: App, event: RequestEvent):
   }
 
   if (data.AppleUser && !data.Error && data.Code) {
-    const nameErr = parseAndStoreAppleRedirectName(app, oauth2RedirectAppleNameStoreKeyPrefix + data.Code, data.AppleUser);
+    const nameErr = await parseAndStoreAppleRedirectName(
+      app,
+      oauth2RedirectAppleNameStoreKeyPrefix + data.Code,
+      data.AppleUser,
+    );
     if (nameErr) {
       app.Logger().Warn("Failed to parse and load Apple Redirect name data", "error", nameErr);
     }
@@ -82,6 +93,81 @@ export async function oauth2SubscriptionRedirect(app: App, event: RequestEvent):
   }
 
   return redirectResponse(redirectStatusCode, oauth2RedirectSuccessPath);
+}
+
+async function clusterOAuth2SubscriptionRedirect(
+  app: App,
+  event: RequestEvent,
+  data: OAuth2RedirectData,
+  redirectStatusCode: number,
+): Promise<Response> {
+  if (data.AppleUser && !data.Error && data.Code) {
+    const nameErr = await parseAndStoreAppleRedirectName(
+      app,
+      oauth2RedirectAppleNameStoreKeyPrefix + data.Code,
+      data.AppleUser,
+    );
+    if (nameErr) {
+      app.Logger().Warn("Failed to parse and load Apple Redirect name data", "error", nameErr);
+    }
+  }
+
+  let encoded: string;
+  try {
+    encoded = JSON.stringify({ state: data.State, code: data.Code, error: data.Error || undefined });
+  } catch (error) {
+    app.Logger().Warn("Failed to marshalize OAuth2 redirect data", "error", error);
+    return redirectResponse(redirectStatusCode, oauth2RedirectFailurePath);
+  }
+
+  const { deliverClusterOAuth2Redirect } = await import("../internal/cluster/worker.ts");
+  const delivered = await deliverClusterOAuth2Redirect(data.State, event.realIP(), encoded);
+  if (delivered !== "delivered") {
+    app.Logger().Warn("Missing or invalid OAuth2 subscription client", "clientId", data.State, "result", delivered);
+    return redirectResponse(redirectStatusCode, oauth2RedirectFailurePath);
+  }
+
+  if (data.Error || !data.Code) {
+    app
+      .Logger()
+      .Warn("Failed OAuth2 redirect due to an error or missing code parameter", "error", data.Error, "clientId", data.State);
+    return redirectResponse(redirectStatusCode, oauth2RedirectFailurePath);
+  }
+
+  return redirectResponse(redirectStatusCode, oauth2RedirectSuccessPath);
+}
+
+export function deliverClusterOAuth2RedirectLocally(
+  app: App,
+  operation: Extract<CoordinatorDeliveryOperation, { kind: "oauth2.deliver" }>,
+): "present" | "delivered" | "absent" | "invalid" {
+  let client;
+  try {
+    client = app.SubscriptionsBroker().ClientById(operation.clientId);
+  } catch {
+    return "absent";
+  }
+  if (!client || client.IsDiscarded() || !client.HasSubscription(oauth2SubscriptionTopic)) {
+    return "absent";
+  }
+
+  const clientIP = client.Get(RealtimeClientIPKey);
+  if (typeof clientIP === "string" && clientIP !== "" && clientIP !== operation.requestIP) {
+    app
+      .Logger()
+      .Debug(
+        "The client IP that completed the authentication is different from the one that initialized the OAuth2 realtime connection",
+      );
+    return "invalid";
+  }
+
+  if (operation.mode === "probe") {
+    return "present";
+  }
+
+  client.Unsubscribe(oauth2SubscriptionTopic);
+  client.Send(new Message(oauth2SubscriptionTopic, operation.data));
+  return "delivered";
 }
 
 async function readRedirectData(event: RequestEvent): Promise<OAuth2RedirectData> {
@@ -148,7 +234,7 @@ function redirectResponse(status: number, location: string): Response {
 //
 // Ideally this shouldn't be needed and will be removed in the future
 // once Apple adds a dedicated userinfo endpoint.
-function parseAndStoreAppleRedirectName(app: App, nameKey: string, serializedNameData: string): Error | null {
+async function parseAndStoreAppleRedirectName(app: App, nameKey: string, serializedNameData: string): Promise<Error | null> {
   if (!serializedNameData) {
     return null;
   }
@@ -176,10 +262,7 @@ function parseAndStoreAppleRedirectName(app: App, nameKey: string, serializedNam
     return null;
   }
 
-  app.store().set(nameKey, fullName);
-  setTimeout(() => {
-    app.store().remove(nameKey);
-  }, 60 * 1000);
+  await putExpiringValue(app, nameKey, fullName, 60 * 1000);
 
   return null;
 }

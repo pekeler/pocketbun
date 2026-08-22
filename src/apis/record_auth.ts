@@ -3,6 +3,7 @@
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { RouterGroup } from "../tools/router/group.ts";
+import { clusterEnabled, registerClusterOAuth2DeliveryHandler } from "../internal/cluster/context.ts";
 import { RequireSameCollectionContextAuth, RequireSuperuserAuth, SkipSuccessActivityLog } from "./middlewares.ts";
 import { collectionPathRateLimit } from "./middlewares_rate_limit.ts";
 import { recordConfirmEmailChange } from "./record_auth_email_change_confirm.ts";
@@ -16,13 +17,17 @@ import { recordAuthRefresh } from "./record_auth_refresh.ts";
 import { recordConfirmVerification } from "./record_auth_verification_confirm.ts";
 import { recordRequestVerification } from "./record_auth_verification_request.ts";
 import { recordAuthWithOAuth2 } from "./record_auth_with_oauth2.ts";
-import { oauth2SubscriptionRedirect } from "./record_auth_with_oauth2_redirect.ts";
+import { deliverClusterOAuth2RedirectLocally, oauth2SubscriptionRedirect } from "./record_auth_with_oauth2_redirect.ts";
 import { recordAuthWithOTP } from "./record_auth_with_otp.ts";
 import { recordAuthWithPassword } from "./record_auth_with_password.ts";
 
 // bindRecordAuthApi registers the auth record api endpoints and
 // the corresponding handlers.
 export function bindRecordAuthApi(app: App, rg: RouterGroup<RequestEvent>): void {
+  if (clusterEnabled()) {
+    registerClusterOAuth2DeliveryHandler((operation) => deliverClusterOAuth2RedirectLocally(app, operation));
+  }
+
   rg.get("/oauth2-redirect", (event) => oauth2SubscriptionRedirect(app, event)).Bind(SkipSuccessActivityLog());
   rg.post("/oauth2-redirect", (event) => oauth2SubscriptionRedirect(app, event)).Bind(SkipSuccessActivityLog());
 

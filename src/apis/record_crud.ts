@@ -259,7 +259,8 @@ async function recordsList(app: App, event: RequestEvent): Promise<Response> {
     return notFound(event, "Missing collection context.");
   }
 
-  const rateLimitResponse = checkCollectionRateLimit(event, collection, "list");
+  const rateLimitResult = checkCollectionRateLimit(event, collection, "list");
+  const rateLimitResponse = rateLimitResult instanceof Promise ? await rateLimitResult : rateLimitResult;
   if (rateLimitResponse) {
     return rateLimitResponse;
   }
@@ -373,7 +374,8 @@ async function recordView(app: App, event: RequestEvent): Promise<Response> {
     return notFound(event, "Missing collection context.");
   }
 
-  const rateLimitResponse = checkCollectionRateLimit(event, collection, "view");
+  const rateLimitResult = checkCollectionRateLimit(event, collection, "view");
+  const rateLimitResponse = rateLimitResult instanceof Promise ? await rateLimitResult : rateLimitResult;
   if (rateLimitResponse) {
     return rateLimitResponse;
   }
@@ -468,7 +470,8 @@ export async function recordCreate(app: App, event: RequestEvent, createHook = a
     return badRequest(event, "Unsupported collection type.", null);
   }
 
-  const rateLimitResponse = checkCollectionRateLimit(event, collection, "create");
+  const rateLimitResult = checkCollectionRateLimit(event, collection, "create");
+  const rateLimitResponse = rateLimitResult instanceof Promise ? await rateLimitResult : rateLimitResult;
   if (rateLimitResponse) {
     return rateLimitResponse;
   }
@@ -650,7 +653,8 @@ export async function recordUpdate(app: App, event: RequestEvent, updateHook = a
     return badRequest(event, "Unsupported collection type.", null);
   }
 
-  const rateLimitResponse = checkCollectionRateLimit(event, collection, "update");
+  const rateLimitResult = checkCollectionRateLimit(event, collection, "update");
+  const rateLimitResponse = rateLimitResult instanceof Promise ? await rateLimitResult : rateLimitResult;
   if (rateLimitResponse) {
     return rateLimitResponse;
   }
@@ -790,7 +794,8 @@ export async function recordDelete(app: App, event: RequestEvent, deleteHook = a
     return badRequest(event, "Unsupported collection type.", null);
   }
 
-  const rateLimitResponse = checkCollectionRateLimit(event, collection, "delete");
+  const rateLimitResult = checkCollectionRateLimit(event, collection, "delete");
+  const rateLimitResponse = rateLimitResult instanceof Promise ? await rateLimitResult : rateLimitResult;
   if (rateLimitResponse) {
     return rateLimitResponse;
   }

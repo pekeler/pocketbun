@@ -12,6 +12,7 @@ import type { Model } from "./db_model.ts";
 import type { RequestInfo } from "./event_request.ts";
 import type { BatchRequestEvent } from "./event_request_batch.ts";
 import type { RecordProxy } from "./record_proxy.ts";
+import { runsClusterSingletons } from "../internal/cluster/context.ts";
 import * as slog from "../internal/compat/slog.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { Providers } from "../tools/auth/auth.ts";
@@ -1382,20 +1383,24 @@ export class BaseApp implements App {
       if (loggerErr) {
         return loggerErr;
       }
-      try {
-        this.runSystemMigrations();
-      } catch (error) {
-        return error as Error;
+      if (runsClusterSingletons()) {
+        try {
+          this.runSystemMigrations();
+        } catch (error) {
+          return error as Error;
+        }
       }
       const reloadErr = this.ReloadCachedCollections();
       if (reloadErr) {
         return reloadErr;
       }
       this.reloadSettings();
-      try {
-        rmSync(join(this.#dataDir, LocalTempDirName), { recursive: true, force: true });
-      } catch {
-        // ignore cleanup failures
+      if (runsClusterSingletons()) {
+        try {
+          rmSync(join(this.#dataDir, LocalTempDirName), { recursive: true, force: true });
+        } catch {
+          // ignore cleanup failures
+        }
       }
       this.#bootstrapped = true;
       return null;
@@ -1432,20 +1437,24 @@ export class BaseApp implements App {
       if (loggerErr) {
         return loggerErr;
       }
-      try {
-        this.runSystemMigrations();
-      } catch (error) {
-        return error as Error;
+      if (runsClusterSingletons()) {
+        try {
+          this.runSystemMigrations();
+        } catch (error) {
+          return error as Error;
+        }
       }
       const reloadErr = this.ReloadCachedCollections();
       if (reloadErr) {
         return reloadErr;
       }
       await this.reloadSettingsAsync();
-      try {
-        await rm(join(this.#dataDir, LocalTempDirName), { recursive: true, force: true });
-      } catch {
-        // ignore cleanup failures
+      if (runsClusterSingletons()) {
+        try {
+          await rm(join(this.#dataDir, LocalTempDirName), { recursive: true, force: true });
+        } catch {
+          // ignore cleanup failures
+        }
       }
       this.#bootstrapped = true;
       return null;
@@ -4618,7 +4627,9 @@ export class BaseApp implements App {
       Id: "__pbCronStart__",
       Priority: 999,
       Func: (event) => {
-        this.Cron().Start();
+        if (runsClusterSingletons()) {
+          this.Cron().Start();
+        }
         return event.Next();
       },
     });

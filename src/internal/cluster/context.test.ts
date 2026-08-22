@@ -12,6 +12,7 @@ import {
   clusterWorkerSlot,
   configureClusterWorker,
   resetClusterContextForTest,
+  runsClusterSingletons,
   validateWorkerCount,
 } from "./context.ts";
 
@@ -27,6 +28,7 @@ describe("cluster context", () => {
     expect(clusterWorkerSlot()).toBeNull();
     expect(clusterWorkerAddress()).toBe("");
     expect(clusterReusePort()).toBeFalse();
+    expect(runsClusterSingletons()).toBeTrue();
 
     configureClusterWorker({
       role: "leader",
@@ -43,6 +45,7 @@ describe("cluster context", () => {
     expect(clusterWorkerSlot()).toBe(0);
     expect(clusterWorkerAddress()).toBe("127.0.0.1:8090");
     expect(clusterReusePort()).toBeTrue();
+    expect(runsClusterSingletons()).toBeTrue();
     expect(clusterToken()).toBe("secret");
     expect(() =>
       configureClusterWorker({
@@ -54,6 +57,19 @@ describe("cluster context", () => {
         workerId: 3,
       }),
     ).toThrow("already configured");
+  });
+
+  it.serial("reserves singleton work for the leader", () => {
+    configureClusterWorker({
+      role: "follower",
+      slot: 1,
+      address: "127.0.0.1:8091",
+      reusePort: false,
+      token: "secret",
+      workerId: 3,
+    });
+
+    expect(runsClusterSingletons()).toBeFalse();
   });
 
   it("accepts only the documented worker range", () => {

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { bootstrapIfNeededAsync, type App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { ServeEvent } from "../core/events.ts";
-import { clusterReusePort } from "../internal/cluster/context.ts";
+import { clusterReusePort, runsClusterSingletons } from "../internal/cluster/context.ts";
 import { Router } from "../tools/router/router.ts";
 import { FireAndForget } from "../tools/routine/routine.ts";
 import { NewRouter, Static, StaticWildcardParam } from "./base.ts";
@@ -72,7 +72,9 @@ export function resolveServeAssetPath(baseDir: string, relativeCandidates: strin
 
 async function ensureReady(app: App): Promise<void> {
   await bootstrapIfNeededAsync(app);
-  app.runAppMigrations();
+  if (runsClusterSingletons()) {
+    app.runAppMigrations();
+  }
 }
 
 export function buildServeHandler(app: App, config: ServeConfig = {}): (req: Request, server?: unknown) => Promise<Response> {
@@ -158,7 +160,9 @@ export function serve(app: App, config: ServeConfig = {}): ReturnType<typeof Bun
     app.bootstrap();
   }
 
-  app.runAppMigrations();
+  if (runsClusterSingletons()) {
+    app.runAppMigrations();
+  }
 
   return startServerSync(app, config);
 }
@@ -303,7 +307,7 @@ function startInstallerAsync(
   server: ReturnType<typeof Bun.serve>,
   serveEvent: ServeEvent,
 ): void {
-  if (!serveEvent.InstallerFunc) {
+  if (!serveEvent.InstallerFunc || !runsClusterSingletons()) {
     return;
   }
   const baseURL = buildBaseURL(server, config);

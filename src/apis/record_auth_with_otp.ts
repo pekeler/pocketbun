@@ -68,12 +68,13 @@ export async function recordAuthWithOTP(app: App, event: RequestEvent): Promise<
     return badRequest(event, "Invalid or expired OTP");
   }
 
-  const rateLimitResponse = checkRateLimit(event, `@pb_otp_${record.Id}`, {
+  const rateLimitResult = checkRateLimit(event, `@pb_otp_${record.Id}`, {
     label: "",
     audience: "",
     duration: 180,
     maxRequests: 5,
   });
+  const rateLimitResponse = rateLimitResult instanceof Promise ? await rateLimitResult : rateLimitResult;
   if (rateLimitResponse) {
     return tooManyRequests(event, "Too many attempts, please try again later with a new OTP.");
   }

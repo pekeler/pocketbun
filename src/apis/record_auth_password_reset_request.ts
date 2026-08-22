@@ -3,6 +3,7 @@
 import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import { RecordRequestPasswordResetRequestEvent } from "../core/events.ts";
+import { claimExpiringValue, releaseExpiringValue } from "../internal/cluster/expiring.ts";
 import { ValidationErrors, newError, required } from "../internal/compat/validation.ts";
 import { SendRecordPasswordReset } from "../mails/record.ts";
 import { FireAndForget } from "../tools/routine/routine.ts";
@@ -42,31 +43,29 @@ export async function recordRequestPasswordReset(app: App, event: RequestEvent):
   }
 
   const resendKey = getPasswordResetResendKey(record);
-  if (app.store().has(resendKey)) {
+  const resendClaim = await claimExpiringValue(app, resendKey, 2 * 60 * 1000);
+  if (!resendClaim) {
     return noContent(event, 204);
   }
-
   const hookEvent = new RecordRequestPasswordResetRequestEvent(event, collection, record);
+  let sendStarted = false;
 
   const out = await app.OnRecordRequestPasswordResetRequest().Trigger(hookEvent, async () => {
+    sendStarted = true;
     FireAndForget(async () => {
       const sendErr = await SendRecordPasswordReset(app, record);
       if (sendErr) {
         app.Logger().Error("Failed to send password reset email", "error", sendErr);
+        await releaseExpiringValue(app, resendKey, resendClaim);
         return;
       }
-
-      app.store().set(resendKey, {});
-      setTimeout(
-        () => {
-          app.store().remove(resendKey);
-        },
-        2 * 60 * 1000,
-      );
     });
 
     return execAfterSuccessTx(true, app, () => noContent(event, 204));
   });
+  if (!sendStarted) {
+    await releaseExpiringValue(app, resendKey, resendClaim);
+  }
 
   if (out instanceof Response) {
     return out;
