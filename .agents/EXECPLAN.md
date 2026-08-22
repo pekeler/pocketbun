@@ -55,9 +55,10 @@ The repository owner intends to deploy cluster mode in production as soon as pra
 - [x] (2026-08-22 12:00Z) Added real-process coverage for an SSE-owning worker dying: a low-level client observes the disconnect, the primary replaces the worker, and a fresh connection resubscribes and receives a mutation produced by another worker. Corrected hosted run 32572636371 passed Ubuntu, macOS, Windows, and downstream Playwright E2E.
 - [x] (2026-08-22 12:21Z) The first SSE reconnect matrix passed Ubuntu and macOS. Windows completed the reconnect scenario, then exposed that the later backup-owner-death check sampled only one asynchronously cleared worker mirror before sending the next backup to an arbitrary worker. The harness now waits for `canBackup=true` on every current PID; five focused local reruns and corrected hosted run 32572636371 pass.
 - [x] (2026-08-22 13:00Z) Added a real-process forced-stop case in which a follower enters but never completes `onTerminate`; the primary reaches its existing ten-second deadline, kills it, and recreates the full worker set. Hosted run 32573179866 showed that `Bun.spawn().kill("SIGTERM")` terminates the Windows primary directly instead of reaching its JS signal handler, so the corrected test now uses `app.restart()` to exercise the same bounded worker-stop path portably. The same run showed that mirrored backup-idle state alone does not guarantee the first real backup after a hard-killed owner; the test now requires bounded eventual success of the idempotent named backup on the surviving leader and preserves the last response on failure. Corrected hosted run 32573835408 passed Ubuntu, macOS, Windows, and downstream Playwright E2E at commit `f5dd61f3`.
-- [ ] (2026-08-22 13:04Z) Added one real-process migration-boundary scenario: the first leader exits inside the application-migration transaction, its replacement exits from `onServe` after commit but before readiness, the next leader proves HTTP readiness, and that ready leader is then killed and replaced. Durable test markers identify each distinct process; the final shared database contains one effect row and one migration-history row, and no failed leader was advertised ready. Ten consecutive focused reruns, the complete lifecycle file, both 1,937-test suites, format, typecheck, and lint pass locally; hosted qualification is pending.
-- [ ] (2026-08-22 13:20Z) Added real-process follower failure boundaries to the shared three-worker state harness. A follower exits from inside an open SQLite transaction, its replacement observes no partial row, and a later transaction commits normally. A second follower exits while its realtime subscription request awaits the primary; the owner finishes the already-delivered idempotent update, the disconnected HTTP request rejects, and the replacement follower can repeat the update. Five consecutive focused runs plus the complete 1,937-test concurrent suite, format, typecheck, and lint pass locally; hosted qualification is pending.
-- [ ] Complete the remaining production fault matrix: primary death during each coordinated operation, real stale-guard recovery, no-ready startup, and late/duplicate IPC cleanup.
+- [x] (2026-08-22 13:07Z) Completed hosted qualification of the leader migration transaction, post-commit/pre-ready, and post-ready failure boundaries. Run 32574869343 passed Ubuntu, macOS, Windows, and downstream Playwright E2E at commit `e855e24e`.
+- [x] (2026-08-22 13:22Z) Completed hosted qualification of follower transaction rollback and pending-primary-response death. Run 32575568119 passed Ubuntu, macOS, Windows, and downstream Playwright E2E at commit `19ada7d0`.
+- [ ] (2026-08-22 13:39Z) Added one table-driven real-process primary-death scenario covering `rate-limit.consume`, `realtime.prepare`, `oauth2.deliver`, `backup.acquire`, and `restore.begin`. A test hook intercepts only the selected completed coordinator response, then the test kills the real primary while the source still awaits it. Every request disconnects, all workers exit, the next production primary atomically replaces the stale guard, and the same or a lease-equivalent operation succeeds. Five consecutive focused matrices (25 kills/recoveries total), the complete seven-test lifecycle file, all 1,938 tests, format, typecheck, and lint pass locally; hosted qualification is pending.
+- [ ] Complete the remaining production fault matrix: no-ready startup and late/duplicate IPC cleanup.
 - [ ] Qualify shared SQLite behavior under concurrent read/write traffic, WAL checkpoints, manual backup, autobackup, worker death, and restart; prove committed counts/checksums, rollback of interrupted writes, bounded busy handling, and continued service without lock leaks.
 - [ ] Run the required stateful Linux soak at both two and four workers for at least 60 minutes, continuously mixing CRUD, settings changes, realtime clients, rate-limited traffic, backups, worker replacement, and primary restart while checking correctness and resource stability.
 - [ ] Measure primary CPU/latency under rate limiting and realtime fan-out, repeat the current PocketBase benchmark on one matching clean Ubuntu host, and run the final PocketBun one/two/four-worker matrix on the matching host with identical fixtures and load generation.
@@ -165,6 +166,8 @@ The repository owner intends to deploy cluster mode in production as soon as pra
   Evidence: a temporary JavaScript migration exits one leader after transactional schema/data changes, a temporary `onServe` hook exits the replacement after migration commit but before `worker.ready`, and the existing identity route proves readiness before the test kills the third leader. External marker files preserve the PID at each boundary even though the database transaction rolls back.
 - Observation: killing a coordinator-requesting follower cannot cancel work that the primary has already delivered to another worker.
   Evidence: the realtime client owner entered a held subscription hook before the source follower was killed. After the source process disappeared, releasing the hook still completed the subscription locally even though the source HTTP request rejected and could receive no primary response. This is the normal ambiguous-outcome boundary of distributed requests, not a partial coordinator failure; callers may retry only operations whose contract is idempotent or otherwise deduplicated.
+- Observation: the same ambiguous-outcome rule applies when the primary dies after completing an operation but before the source worker accepts its response.
+  Evidence: a test hook intercepted the selected coordinator response before PocketBun's worker listener for rate limiting, realtime delete preparation, OAuth2 delivery, backup acquisition, and restore begin. Killing the primary at that boundary closed every source request and child process. A new primary recovered the real stale ownership guard after its three-second heartbeat proof and started with no inherited limiter, delivery, backup lease, or restore transition. Tests must therefore prove recovery invariants rather than assume that a disconnected caller means the operation did not run.
 
 ## Decision Log
 
@@ -276,6 +279,9 @@ The repository owner intends to deploy cluster mode in production as soon as pra
 - Decision: exercise follower transaction and pending-response death in the existing shared-data state harness, using a realtime subscription update for the pending operation.
   Rationale: the harness already provides stable worker affinity, a shared SQLite database, a realtime client owner, PID replacement, and cleanup. Realtime subscription replacement is idempotent, so the test can prove both that an already-delivered operation may finish after its source dies and that retry from the replacement is safe without inventing a production-only coordinator operation or risking duplicate side effects.
   Date/Author: 2026-08-22 / Codex
+- Decision: simulate a lost coordinator response in a temporary server-side JavaScript hook instead of adding a primary pause or fault-injection branch to production.
+  Rationale: the hook records outgoing request IDs, intercepts only the armed matching response before the existing worker listener, and leaves all other IPC untouched. The real primary must fully execute each concrete operation and send its response before the test kills it, giving one deterministic cross-platform boundary for all five cases while keeping production code and protocol unchanged.
+  Date/Author: 2026-08-22 / Codex
 
 ## Outcomes & Retrospective
 
@@ -297,7 +303,7 @@ Milestone 8 is complete locally and on hosted CI. Only the leader performs migra
 
 Milestone 9 is complete locally and on hosted CI. Backup and restore exclusion is primary-atomic and mirrored through the existing active-backup store key, including automatic owner-death release. `app.restart()` recycles every worker under the lightweight primary. Restore validates while serving, then closes all non-initiators, force-stops the initiator's HTTP server, performs the existing replacement transaction, and starts a completely fresh worker set; Windows retains its explicit unsupported restore result without disturbing the cluster. The real three-worker test covers cross-worker exclusion, delete and health state, a concurrent write, owner death, invalid restore recovery, full restart, restored data, new PIDs, and clean shutdown. Corrected hosted run 32568697758 passed Ubuntu, macOS, Windows, and downstream Playwright E2E.
 
-Milestone 10 is the remaining production-release gate. Functional compatibility and the existing real-process cluster tests provide a strong base, but they do not yet qualify prolonged multi-process SQLite contention, every process-death boundary, or resource stability under production-like traffic. The leader migration transaction, post-commit/pre-ready, post-ready, follower transaction, and follower pending-primary-response death boundaries now pass locally without production fault controls; hosted qualification remains pending. The follower transaction rolls back completely and later writes succeed. An already-delivered idempotent subscription update may finish after its source dies even though the source HTTP request rejects, and the replacement can repeat it safely. Release remains blocked on the rest of the deterministic fault matrix, shared-database pressure checks, successful 60-minute two-worker and four-worker Linux soaks, primary saturation measurements, matched current PocketBase/PocketBun benchmarks, operational documentation, and the complete repository and hosted gates. No unexplained flaky result may be waived by adding a default retry.
+Milestone 10 is the remaining production-release gate. Functional compatibility and the existing real-process cluster tests provide a strong base, but they do not yet qualify prolonged multi-process SQLite contention, every process-death boundary, or resource stability under production-like traffic. Hosted CI now qualifies the leader migration transaction, post-commit/pre-ready, post-ready, follower transaction, and follower pending-primary-response death boundaries. The follower transaction rolls back completely and later writes succeed. An already-delivered idempotent subscription update may finish after its source dies even though the source HTTP request rejects, and the replacement can repeat it safely. Primary death after completing rate-limit, realtime-prepare, OAuth2, backup-acquire, and restore-begin work now also passes locally: source requests disconnect, workers terminate with their IPC parent, and a new real primary recovers the stale guard and has no inherited transient coordinator state. Release remains blocked on hosted qualification of that boundary, no-ready and late/duplicate IPC coverage, shared-database pressure checks, successful 60-minute two-worker and four-worker Linux soaks, primary saturation measurements, matched current PocketBase/PocketBun benchmarks, operational documentation, and the complete repository and hosted gates. No unexplained flaky result may be waived by adding a default retry.
 
 The expected result is simpler than a built-in general-purpose process manager: one primary file, one typed IPC protocol, worker-role checks at existing singleton boundaries, and focused adapters for the handful of process-local features. The performance benefit is expected primarily for concurrent reads and CPU-heavy request/hook work. Writes remain serialized by SQLite, each worker adds memory, and the primary-coordinated rate limiter adds an IPC round trip on routes for which a rate-limit rule applies. Those costs must be measured before the feature is described as a performance advantage.
 
@@ -1098,7 +1104,7 @@ Milestone 10 migration-boundary local qualification:
     bun run typecheck: passed
     bun run lint: 0 warnings, 0 errors
     git diff --check: passed
-    Hosted Ubuntu/macOS/Windows qualification: pending
+    Hosted run 32574869343: Ubuntu, macOS, Windows, and Playwright E2E passed
 
 Milestone 10 follower-failure local qualification:
 
@@ -1121,6 +1127,30 @@ Milestone 10 follower-failure local qualification:
     bun run format:fix: passed
     bun run typecheck: passed
     bun run lint: 0 warnings, 0 errors
+    Hosted run 32575568119: Ubuntu, macOS, Windows, and Playwright E2E passed
+
+Milestone 10 primary-death local qualification:
+
+    Date: 2026-08-22
+    Bun: 1.4.0 (34cbb9a40)
+    Boundaries: rate-limit.consume, realtime.prepare, oauth2.deliver,
+                backup.acquire, restore.begin
+    Injection: temporary hook records each outgoing coordinator request and intercepts
+               only the armed matching response before PocketBun's worker listener
+    Failure outcome: SIGKILL primary; source HTTP request rejects; every old worker exits
+                     through IPC-parent disconnect; no orphan remains
+    Recovery outcome: the next production primary waits for and atomically replaces the
+                      dead owner's real guard, starts two workers, and completes the same
+                      operation or the restore-equivalent backup lease operation
+    Production changes: none; one temporary hook fixture in the lifecycle test
+    Focused reruns: 5 pass, 0 fail, 230 expect() calls in 76.38 seconds
+    Complete lifecycle file: 7 pass, 0 fail, 90 expect() calls in 29.61 seconds
+    bun test --concurrent: 1,938 pass, 0 fail, 7 snapshots,
+                           10,444 expect() calls across 248 files in 102.55 seconds
+    bun run format:fix: passed
+    bun run typecheck: passed
+    bun run lint: 0 warnings, 0 errors
+    git diff --check: passed
     Hosted Ubuntu/macOS/Windows qualification: pending
 
 Current PocketBun coordination inventory:
@@ -1246,3 +1276,5 @@ Revision note, 2026-08-22 / Codex: Raised Milestone 10 to an explicit production
 Revision note, 2026-08-22 / Codex: Closed the forced-stop and backup-recovery correction after hosted run 32573835408 passed Ubuntu, macOS, Windows, and downstream E2E at commit `f5dd61f3`. Added deterministic leader migration-boundary coverage using only temporary JavaScript migration and hook fixtures: transaction death, post-commit/pre-ready death, and post-ready replacement now pass ten focused reruns and the complete 1,937-test local concurrent gate; hosted qualification remains pending.
 
 Revision note, 2026-08-22 / Codex: Added deterministic follower death coverage to the existing shared-data state harness without production changes. A process exit inside `runInTransaction` rolls back fully and permits later writes; a follower killed while awaiting an already-routed realtime subscription loses its HTTP response while the idempotent owner operation may still finish, and the replacement safely repeats it. Five focused runs and the complete 1,937-test local concurrent gate pass; hosted qualification remains pending.
+
+Revision note, 2026-08-22 / Codex: Closed the leader and follower failure checkpoints after hosted runs 32574869343 and 32575568119 passed Ubuntu, macOS, Windows, and downstream E2E at commits `e855e24e` and `19ada7d0`. Added a table-driven primary-death matrix for rate limiting, realtime preparation, OAuth2 delivery, backup acquisition, and restore begin. A temporary hook loses only the armed response after the real primary completes it; SIGKILL then proves request and worker disconnect, real stale-guard replacement, and clean coordinator recovery without production fault controls. Five local matrices and the complete lifecycle file pass; hosted qualification remains pending.

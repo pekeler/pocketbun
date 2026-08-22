@@ -364,6 +364,223 @@ routerAdd("POST", "/__pocketbun_cluster_forced_restart", (event) => {
 );
 
 it.serial(
+  "recovers when the primary dies during coordinated operations",
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "pocketbun-cluster-primary-faults-"));
+    const dataDir = join(root, "pb_data");
+    const hooksDir = join(root, "pb_hooks");
+    const armPath = join(root, "coordinator-arm");
+    const responsePath = join(root, "coordinator-response");
+    const guardPath = join(dataDir, LocalClusterGuardFileName);
+    const sourceData = resolve(fileURLToPath(new URL("../../tests/data", import.meta.url)));
+    const clusterWorkerModule = new URL("./worker.ts", import.meta.url).href;
+    const realtimeModule = new URL("../../apis/realtime.ts", import.meta.url).href;
+    await cp(sourceData, dataDir, { recursive: true });
+    await mkdir(hooksDir, { recursive: true });
+    await writeFile(
+      join(hooksDir, "primary-faults.pb.js"),
+      `const fs = require("node:fs");
+const armPath = ${JSON.stringify(armPath)};
+const responsePath = ${JSON.stringify(responsePath)};
+const clusterWorkerModule = ${JSON.stringify(clusterWorkerModule)};
+const realtimeModule = ${JSON.stringify(realtimeModule)};
+const pendingKinds = new Map();
+const originalSend = process.send;
+
+process.send = function (...args) {
+  const message = args[0];
+  if (message && message.kind === "coordinator.request") {
+    pendingKinds.set(message.requestId, message.operation.kind);
+  }
+  return originalSend.apply(process, args);
+};
+
+const messageListeners = process.listeners("message");
+process.removeAllListeners("message");
+process.on("message", (message, ...args) => {
+  if (message && message.kind === "coordinator.response") {
+    const kind = pendingKinds.get(message.requestId);
+    pendingKinds.delete(message.requestId);
+    if (kind && fs.existsSync(armPath) && fs.readFileSync(armPath, "utf8") === kind) {
+      fs.writeFileSync(responsePath, JSON.stringify({ kind, pid: process.pid, requestId: message.requestId }));
+      return;
+    }
+  }
+  for (const listener of messageListeners) {
+    listener.call(process, message, ...args);
+  }
+});
+
+async function runOperation(kind) {
+  const cluster = await import(clusterWorkerModule);
+  if (kind === "rate-limit.consume") {
+    await cluster.consumeClusterRateLimit("primary-fault", "client", 2, 60);
+    return;
+  }
+  if (kind === "realtime.prepare") {
+    const realtime = await import(realtimeModule);
+    const record = $app.findRecordById("demo1", "imy661ixudk5izi");
+    const eventId = crypto.randomUUID();
+    await cluster.prepareClusterRealtimeDelete(
+      eventId,
+      record.collection().id,
+      realtime.encodeClusterRealtimeRecord(record),
+    );
+    await cluster.broadcastClusterRealtimeEvent({ kind: "delete.abort", eventId });
+    return;
+  }
+  if (kind === "oauth2.deliver") {
+    await cluster.deliverClusterOAuth2Redirect("missing-client", "127.0.0.1", "{}");
+    return;
+  }
+  if (kind === "backup.acquire") {
+    const lease = await cluster.acquireClusterBackupLease("primary-fault.zip");
+    if (!lease) throw new Error("backup lease was not acquired");
+    await cluster.releaseClusterBackupLease(lease);
+    return;
+  }
+  if (kind === "restore.begin") {
+    const lease = await cluster.acquireClusterBackupLease("primary-fault-restore.zip");
+    if (!lease) throw new Error("restore lease was not acquired");
+    await cluster.beginClusterRestore(lease);
+    return;
+  }
+  throw new Error("unknown operation " + kind);
+}
+
+routerAdd("GET", "/__pocketbun_cluster_test", (event) => event.json(200, {
+  pid: process.pid,
+  role: process.env.POCKETBUN_CLUSTER_ROLE,
+  slot: Number(process.env.POCKETBUN_CLUSTER_SLOT),
+  workerId: Number(process.env.POCKETBUN_CLUSTER_WORKER_ID),
+}));
+
+routerAdd("POST", "/__pocketbun_cluster_operation/{kind}", async (event) => {
+  try {
+    await runOperation(event.request.pathValue("kind"));
+    return event.noContent(204);
+  } catch (error) {
+    return event.json(500, { error: String(error) });
+  }
+});
+`,
+    );
+
+    const operations = ["rate-limit.consume", "realtime.prepare", "oauth2.deliver", "backup.acquire", "restore.begin"] as const;
+    const ports = await findConsecutivePorts(2);
+    const address = `127.0.0.1:${ports[0]}`;
+    const args = [
+      "bin/pocketbun",
+      "--dir",
+      dataDir,
+      "--hooksDir",
+      hooksDir,
+      "--hooksWatch=false",
+      "--hooksPool=1",
+      "--automigrate=false",
+      "--workers=2",
+      "serve",
+      "--http",
+      address,
+    ];
+    const backendUrls = process.platform === "linux" ? [`http://${address}`] : ports.map((port) => `http://127.0.0.1:${port}`);
+    const startPrimary = async (label: string) => {
+      const child = spawnPocketBun(args);
+      try {
+        await withTimeout(child.output.waitFor("[cluster] 2 workers"), label, 60_000);
+        return child;
+      } catch (error) {
+        throw new Error(
+          `${error instanceof Error ? error.message : String(error)}\nstdout:\n${child.output.stdout}\nstderr:\n${child.output.stderr}`,
+        );
+      }
+    };
+    const currentIdentities = () =>
+      process.platform === "linux"
+        ? collectIdentities(backendUrls[0]!, 2)
+        : Promise.all(backendUrls.map((url) => fetchIdentity(url)));
+    let primary = await startPrimary("primary-fault cluster startup");
+    const knownWorkerPids = new Set<number>();
+
+    try {
+      for (const operation of operations) {
+        const identities = await currentIdentities();
+        identities.forEach((identity) => knownWorkerPids.add(identity.pid));
+        await rm(responsePath, { force: true });
+        await writeFile(armPath, operation);
+        const pendingRequest = fetch(`${backendUrls[0]!}/__pocketbun_cluster_operation/${operation}`, {
+          method: "POST",
+          headers: { Connection: "close" },
+        }).catch((error) => error as Error);
+
+        await waitFor(() => Bun.file(responsePath).exists(), `${operation} intercepted response`, 10_000);
+        const intercepted = JSON.parse(await readFile(responsePath, "utf8")) as {
+          kind: string;
+          pid: number;
+          requestId: string;
+        };
+        expect(intercepted.kind).toBe(operation);
+        expect(identities.some((identity) => identity.pid === intercepted.pid)).toBeTrue();
+        expect(intercepted.requestId).not.toBe("");
+
+        const oldPrimaryPid = primary.process.pid;
+        const guardOwner = JSON.parse(await readFile(guardPath, "utf8")) as { pid: number };
+        expect(guardOwner.pid).toBe(oldPrimaryPid);
+        primary.process.kill("SIGKILL");
+        await withTimeout(primary.process.exited, `${operation} primary death`, 5_000);
+        await withTimeout(primary.output.done, `${operation} descendant cleanup`, 10_000);
+        expect(await withTimeout(pendingRequest, `${operation} request disconnect`, 5_000)).toBeInstanceOf(Error);
+        await waitFor(
+          () => identities.every((identity) => !isProcessAlive(identity.pid)),
+          `${operation} worker cleanup`,
+          5_000,
+        );
+
+        await rm(armPath, { force: true });
+        await rm(responsePath, { force: true });
+        primary = await startPrimary(`${operation} stale-guard recovery`);
+        const recoveredOwner = JSON.parse(await readFile(guardPath, "utf8")) as { pid: number };
+        expect(recoveredOwner.pid).toBe(primary.process.pid);
+        expect(recoveredOwner.pid).not.toBe(oldPrimaryPid);
+        const recovered = await currentIdentities();
+        recovered.forEach((identity) => knownWorkerPids.add(identity.pid));
+        expect(recovered).toHaveLength(2);
+
+        const recoveryOperation = operation === "restore.begin" ? "backup.acquire" : operation;
+        const recoveryResponse = await fetch(`${backendUrls[0]!}/__pocketbun_cluster_operation/${recoveryOperation}`, {
+          method: "POST",
+          headers: { Connection: "close" },
+        });
+        expect(recoveryResponse.status).toBe(204);
+      }
+
+      primary.process.kill(process.platform === "win32" ? "SIGTERM" : "SIGINT");
+      await withTimeout(primary.process.exited, "primary-fault cluster shutdown", 20_000);
+      await primary.output.done;
+      await waitFor(
+        () => [...knownWorkerPids].every((pid) => !isProcessAlive(pid)),
+        "primary-fault final worker cleanup",
+        10_000,
+      );
+      expect(await Bun.file(guardPath).exists()).toBeFalse();
+    } finally {
+      if (isProcessAlive(primary.process.pid)) {
+        primary.process.kill("SIGKILL");
+        await primary.process.exited;
+      }
+      for (const pid of knownWorkerPids) {
+        if (isProcessAlive(pid)) {
+          process.kill(pid, "SIGKILL");
+        }
+      }
+      await withTimeout(primary.output.done, "primary-fault output cleanup", 10_000).catch(() => {});
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  180_000,
+);
+
+it.serial(
   "starts, replaces, excludes, and stops real cluster workers",
   async () => {
     const root = await mkdtemp(join(tmpdir(), "pocketbun-cluster-integration-"));
