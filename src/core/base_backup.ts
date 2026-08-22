@@ -1,11 +1,12 @@
 // Ported from pocketbase/core/base_backup.go
 // Deviation: backup/restore file I/O uses async fs + async archive helpers to avoid blocking the event loop.
+// Deviation: database files use Bun's SQLite serialization so cluster writes cannot race live WAL files during archiving.
 // Deviation: cluster mode delegates backup exclusion and worker recycling to the primary process.
 
 import { mkdir, open, rm, stat } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { clusterEnabled } from "../internal/cluster/context.ts";
-import { CreateAsync, ExtractAsync } from "../tools/archive/index.ts";
+import { CreateAsyncWithFileOverrides, ExtractAsync } from "../tools/archive/index.ts";
 import { NewFileFromPathAsync } from "../tools/filesystem/file.ts";
 import { snakecase } from "../tools/inflector/inflector.ts";
 import { MoveDirContentAsync } from "../tools/osutils/dir.ts";
@@ -32,6 +33,8 @@ const lostFoundDirName = "lost+found";
 //
 // The backup is executed within a transaction, meaning that new writes
 // will be temporary "blocked" until the backup file is generated.
+// PocketBun instead serializes coherent SQLite snapshots synchronously before
+// archiving, so ZIP generation no longer holds a transaction or blocks writes.
 //
 // To safely perform the backup, it is recommended to have free disk space
 // for at least 2x the size of the pb_data directory.
@@ -71,39 +74,28 @@ export async function CreateBackup(app: App, ctx: unknown, name: string): Promis
       const localTempDir = join(e.App.dataDir(), LocalTempDirName);
       await mkdir(localTempDir, { recursive: true });
 
-      // archive pb_data in a temp directory, exluding the "backups" and the temp dirs
-      //
-      // run in transaction to temporary block other writes (transactions uses the NonconcurrentDB connection)
+      // archive pb_data in a temp directory, excluding backups, temp dirs, and live SQLite sidecars
       // ---
       const tempPath = join(localTempDir, `pb_backup_${pseudorandomString(6)}`);
-
-      const createErr = await e.App.RunInTransaction((txApp) => {
-        return txApp.AuxRunInTransaction(async (auxApp) => {
-          // run manual checkpoint and truncate the WAL files
-          // (errors are ignored because it is not that important and the PRAGMA may not be supported by the used driver)
-          try {
-            auxApp.db().query("PRAGMA wal_checkpoint(TRUNCATE)").run();
-          } catch {
-            // ignore
-          }
-
-          try {
-            auxApp.auxDb().query("PRAGMA wal_checkpoint(TRUNCATE)").run();
-          } catch {
-            // ignore
-          }
-
-          try {
-            await CreateAsync(auxApp.dataDir(), tempPath, ...e.Exclude);
-            return null;
-          } catch (error) {
-            return error as Error;
-          }
-        });
-      });
-
-      if (createErr) {
-        return createErr;
+      try {
+        const snapshots = new Map<string, Uint8Array>([
+          ["data.db", e.App.db().serialize()],
+          ["auxiliary.db", e.App.auxDb().serialize()],
+        ]);
+        await CreateAsyncWithFileOverrides(
+          e.App.dataDir(),
+          tempPath,
+          snapshots,
+          ...e.Exclude,
+          "data.db-wal",
+          "data.db-shm",
+          "data.db-journal",
+          "auxiliary.db-wal",
+          "auxiliary.db-shm",
+          "auxiliary.db-journal",
+        );
+      } catch (error) {
+        return error as Error;
       }
 
       // persist the backup in the backups filesystem

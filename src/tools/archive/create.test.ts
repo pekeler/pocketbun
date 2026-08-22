@@ -1,10 +1,11 @@
 // Ported from pocketbase/tools/archive/create_test.go
 
 import { describe, expect, it } from "bun:test";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { Create, CreateAsync } from "./create.ts";
+import { Create, CreateAsync, CreateAsyncWithFileOverrides } from "./create.ts";
+import { ExtractAsync } from "./extract.ts";
 
 describe("archive create", () => {
   it("create failure", () => {
@@ -51,6 +52,31 @@ describe("archive create", () => {
     } finally {
       rmSync(testDir, { recursive: true, force: true });
       rmSync(join(tmpdir(), "pb_test_async.zip"), { recursive: true, force: true });
+    }
+  });
+
+  it("create async with frozen file overrides", async () => {
+    const testDir = createTestDir();
+    const outputDir = mkdtempSync(join(tmpdir(), "pb_zip_override"));
+    const zipPath = join(tmpdir(), "pb_test_override.zip");
+    try {
+      writeFileSync(join(testDir, "data.db"), "live");
+      writeFileSync(join(testDir, "data.db-wal"), "live wal");
+      await CreateAsyncWithFileOverrides(
+        testDir,
+        zipPath,
+        new Map([["data.db", new TextEncoder().encode("snapshot")]]),
+        "data.db-wal",
+      );
+      await ExtractAsync(zipPath, outputDir);
+
+      expect(readFileSync(join(outputDir, "data.db"), "utf8")).toBe("snapshot");
+      expect(existsSync(join(outputDir, "data.db-wal"))).toBeFalse();
+      expect(existsSync(join(outputDir, "test2"))).toBeTrue();
+    } finally {
+      rmSync(testDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+      rmSync(zipPath, { force: true });
     }
   });
 });

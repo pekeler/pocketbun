@@ -1,12 +1,14 @@
 // PocketBun-only: verifies built-in application state across real Bun cluster workers.
 
+import { Database } from "bun:sqlite";
 import { expect, it } from "bun:test";
-import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
+import { ExtractAsync } from "../../tools/archive/index.ts";
 
 type ClusterState = {
   pid: number;
@@ -31,6 +33,13 @@ type SSEEvent = {
   data: string;
 };
 
+type PressureSummary = {
+  opCount: number;
+  rowCount: number;
+  checksum: number;
+  partialOps: number;
+};
+
 const migrationSource = `migrate((app) => {
   const migrationApp = app.forMigrations();
 
@@ -48,10 +57,16 @@ const migrationSource = `migrate((app) => {
   items.fields.add(new TextField({ name: "value" }));
   migrationApp.save(items);
 
+  migrationApp.db().newQuery(
+    "CREATE TABLE cluster_pressure (op INTEGER NOT NULL, part INTEGER NOT NULL, value INTEGER NOT NULL, PRIMARY KEY (op, part), CHECK (part IN (1, 2)), CHECK (value = op * 100 + part))",
+  ).execute();
+
   const settings = migrationApp.settings();
   settings.meta.appName = "cluster-before";
   settings.rateLimits.enabled = true;
   settings.rateLimits.rules = [{ label: "GET /__cluster_rate", maxRequests: 2, duration: 60 }];
+  settings.backups.cron = "0 0 1 1 *";
+  settings.backups.cronMaxKeep = 2;
   migrationApp.save(settings);
 
   migrationApp.db().newQuery("DELETE FROM _superusers").execute();
@@ -69,6 +84,8 @@ const transactionCrashMarker = path.join($app.dataDir(), ".cluster-transaction-c
 const coordinatorDeliveryMarker = path.join($app.dataDir(), ".cluster-coordinator-delivery");
 const coordinatorReleaseMarker = path.join($app.dataDir(), ".cluster-coordinator-release");
 const coordinatorCompletionMarker = path.join($app.dataDir(), ".cluster-coordinator-completion");
+const pressureCrashMarker = path.join($app.dataDir(), ".cluster-pressure-crash");
+const autoBackupMarker = path.join($app.dataDir(), ".cluster-auto-backup");
 
 function recordEffect(kind, app = $app) {
   const effect = new Record(app.findCollectionByNameOrId("cluster_effects"));
@@ -132,17 +149,28 @@ onMailerRecordVerificationSend(() => {
 onBackupCreate(async (event) => {
   if (event.name === "held.zip") await new Promise((resolve) => setTimeout(resolve, 500));
   if (event.name === "crash.zip") await new Promise((resolve) => setTimeout(resolve, 15000));
+  let result = null;
+  let thrown = null;
   try {
-    const result = await event.next();
+    result = await event.next();
     if (event.name === "held.zip" && result) {
       console.error("[cluster-test] held backup error", result.stack || result.message || String(result));
     }
     return result;
   } catch (error) {
+    thrown = error;
     if (event.name === "held.zip") {
       console.error("[cluster-test] held backup threw", error.stack || error.message || String(error));
     }
     throw error;
+  } finally {
+    if (event.name.startsWith("@auto_pb_backup_")) {
+      const error = thrown || result;
+      fs.writeFileSync(autoBackupMarker, JSON.stringify({
+        name: event.name,
+        error: error ? error.stack || error.message || String(error) : "",
+      }));
+    }
   }
 });
 
@@ -195,6 +223,58 @@ routerAdd("POST", "/__cluster_transaction_crash", (event) => {
 routerAdd("POST", "/__cluster_transaction_commit", (event) => {
   const error = $app.runInTransaction((txApp) => recordEffect("transaction-commit", txApp));
   return event.json(error ? 500 : 200, { error: error ? error.message : "" });
+});
+
+routerAdd("POST", "/__cluster_pressure/write", (event) => {
+  const op = Number(event.request.url.query().get("op"));
+  if (!Number.isSafeInteger(op) || op < 1) {
+    return event.json(400, { error: "invalid pressure operation" });
+  }
+  const error = $app.runInTransaction((txApp) => {
+    for (const part of [1, 2]) {
+      txApp.db().newQuery(
+        "INSERT INTO cluster_pressure (op, part, value) VALUES ({:op}, {:part}, {:value})",
+      ).bind({ op, part, value: op * 100 + part }).execute();
+    }
+  });
+  return event.json(error ? 500 : 200, { error: error ? error.message : "", op, pid: process.pid });
+});
+
+routerAdd("POST", "/__cluster_pressure/crash", (event) => {
+  const op = Number(event.request.url.query().get("op"));
+  $app.runInTransaction((txApp) => {
+    txApp.db().newQuery(
+      "INSERT INTO cluster_pressure (op, part, value) VALUES ({:op}, 1, {:value})",
+    ).bind({ op, value: op * 100 + 1 }).execute();
+    fs.writeFileSync(pressureCrashMarker, String(process.pid));
+    process.exit(94);
+  });
+  return event.json(500, { error: "pressure crash did not exit" });
+});
+
+routerAdd("GET", "/__cluster_pressure/summary", (event) => {
+  const result = {};
+  $app.db().newQuery(
+    "SELECT COUNT(*) AS opCount, COALESCE(SUM(row_count), 0) AS rowCount, COALESCE(SUM(checksum), 0) AS checksum, COALESCE(SUM(CASE WHEN row_count = 2 AND part1 = 1 AND part2 = 1 THEN 0 ELSE 1 END), 0) AS partialOps FROM (SELECT op, COUNT(*) AS row_count, SUM(value) AS checksum, SUM(CASE WHEN part = 1 THEN 1 ELSE 0 END) AS part1, SUM(CASE WHEN part = 2 THEN 1 ELSE 0 END) AS part2 FROM cluster_pressure GROUP BY op)",
+  ).one(result);
+  return event.json(200, { ...result, pid: process.pid });
+});
+
+routerAdd("POST", "/__cluster_pressure/checkpoint", (event) => {
+  try {
+    const result = {};
+    $app.db().newQuery("PRAGMA wal_checkpoint(TRUNCATE)").one(result);
+    return event.json(200, { ...result, error: "", pid: process.pid });
+  } catch (error) {
+    return event.json(200, { error: error.stack || error.message || String(error), pid: process.pid });
+  }
+});
+
+routerAdd("POST", "/__cluster_pressure/autobackup", (event) => {
+  const job = $app.cron().Jobs().find((item) => item.Id() === "__pbAutoBackup__");
+  if (!job) return event.json(500, { error: "autobackup job is missing" });
+  job.Run();
+  return event.noContent(204);
 });
 
 routerAdd("GET", "/__cluster_superuser_token", (event) => {
@@ -300,6 +380,8 @@ it.serial(
     const coordinatorDeliveryMarker = join(dataDir, ".cluster-coordinator-delivery");
     const coordinatorReleaseMarker = join(dataDir, ".cluster-coordinator-release");
     const coordinatorCompletionMarker = join(dataDir, ".cluster-coordinator-completion");
+    const pressureCrashMarker = join(dataDir, ".cluster-pressure-crash");
+    const autoBackupMarker = join(dataDir, ".cluster-auto-backup");
     const sourceData = resolve(fileURLToPath(new URL("../../tests/data", import.meta.url)));
     await cp(sourceData, dataDir, { recursive: true });
     await mkdir(hooksDir, { recursive: true });
@@ -721,26 +803,36 @@ it.serial(
         5_000,
       );
 
-      const overlappingBackup = await requester.fetch(
-        "/api/backups",
-        {
-          method: "POST",
-          headers: superuserHeaders,
-          body: JSON.stringify({ name: "overlap.zip" }),
-        },
-        [backupWorker],
+      const pressureSequence = { next: 1 };
+      const committedPressure = new Set<number>();
+      const pressureCheckpointErrors: string[] = [];
+      const heldBackupResult = await withTimeout(
+        runWithPressure(requester, states, pressureSequence, committedPressure, pressureCheckpointErrors, async () => {
+          const overlappingBackup = await requester.fetch(
+            "/api/backups",
+            {
+              method: "POST",
+              headers: superuserHeaders,
+              body: JSON.stringify({ name: "overlap.zip" }),
+            },
+            [backupWorker],
+          );
+          expect(overlappingBackup.response.status).toBe(400);
+          const activeDelete = await requester.fetch(
+            "/api/backups/held.zip",
+            { method: "DELETE", headers: { Authorization: superuserToken } },
+            [backupWorker],
+          );
+          expect(activeDelete.response.status).toBe(400);
+          expect(
+            (await requester.fetch("/__cluster_settings?name=backup-write", { method: "POST" }, [backupWorker])).response
+              .status,
+          ).toBe(200);
+          return heldBackup;
+        }),
+        "manual backup under SQLite pressure",
+        30_000,
       );
-      expect(overlappingBackup.response.status).toBe(400);
-      const activeDelete = await requester.fetch(
-        "/api/backups/held.zip",
-        { method: "DELETE", headers: { Authorization: superuserToken } },
-        [backupWorker],
-      );
-      expect(activeDelete.response.status).toBe(400);
-      expect(
-        (await requester.fetch("/__cluster_settings?name=backup-write", { method: "POST" }, [backupWorker])).response.status,
-      ).toBe(200);
-      const heldBackupResult = await heldBackup;
       if (heldBackupResult.response.status !== 204) {
         throw new Error(
           `held backup returned ${heldBackupResult.response.status}: ${await heldBackupResult.response.text()}\nstdout:\n${primary.output.stdout}\nstderr:\n${primary.output.stderr}`,
@@ -757,7 +849,82 @@ it.serial(
         5_000,
       );
 
+      const heldSnapshot = await inspectPressureBackup(join(dataDir, "backups", "held.zip"), join(root, "held-extracted"));
+      expect(heldSnapshot.opCount).toBeGreaterThan(0);
+      expect(heldSnapshot.opCount).toBeLessThanOrEqual(committedPressure.size);
+      expect(heldSnapshot.partialOps).toBe(0);
+      expect(heldSnapshot.rowCount).toBe(heldSnapshot.opCount * 2);
+
+      await rm(autoBackupMarker, { force: true });
+      const autoBackup = await withTimeout(
+        runWithPressure(requester, states, pressureSequence, committedPressure, pressureCheckpointErrors, async () => {
+          const leader = states.find((state) => state.role === "leader")!;
+          const trigger = await requester.fetch(
+            "/__cluster_pressure/autobackup",
+            { method: "POST" },
+            states.filter((state) => state.pid !== leader.pid).map((state) => state.pid),
+          );
+          expect(trigger.response.status).toBe(204);
+          await waitFor(() => Bun.file(autoBackupMarker).exists(), "autobackup completion", 20_000);
+          return JSON.parse(await Bun.file(autoBackupMarker).text()) as { name: string; error: string };
+        }),
+        "autobackup under SQLite pressure",
+        30_000,
+      );
+      expect(autoBackup.error).toBe("");
+      expect((await readdir(join(dataDir, "backups"))).includes(autoBackup.name)).toBeTrue();
+      const autoSnapshot = await inspectPressureBackup(join(dataDir, "backups", autoBackup.name), join(root, "auto-extracted"));
+      expect(autoSnapshot.opCount).toBeGreaterThan(0);
+      expect(autoSnapshot.opCount).toBeLessThanOrEqual(committedPressure.size);
+      expect(autoSnapshot.partialOps).toBe(0);
+      expect(autoSnapshot.rowCount).toBe(autoSnapshot.opCount * 2);
+
       states = await waitForStates(requester, () => true);
+      const pressureCrashWorker = states.find((state) => state.role === "leader")!;
+      const pressureCrashOp = 9_000_000;
+      const pressureCrash = requester
+        .fetch(
+          `/__cluster_pressure/crash?op=${pressureCrashOp}`,
+          { method: "POST" },
+          states.filter((state) => state.pid !== pressureCrashWorker.pid).map((state) => state.pid),
+        )
+        .then(() => null)
+        .catch((error) => error as Error);
+      await waitFor(() => Bun.file(pressureCrashMarker).exists(), "pressure transaction crash", 5_000);
+      expect(Number(await Bun.file(pressureCrashMarker).text())).toBe(pressureCrashWorker.pid);
+      expect(await withTimeout(pressureCrash, "pressure writer disconnect", 5_000)).toBeInstanceOf(Error);
+      states = await waitForStates(requester, (items) => items.every((state) => state.pid !== pressureCrashWorker.pid));
+      for (const state of states) {
+        const op = pressureSequence.next++;
+        const write = await requester.fetch(
+          `/__cluster_pressure/write?op=${op}`,
+          { method: "POST" },
+          states.filter((candidate) => candidate.pid !== state.pid).map((candidate) => candidate.pid),
+        );
+        expect(write.response.status).toBe(200);
+        expect(write.pid).toBe(state.pid);
+        committedPressure.add(op);
+      }
+      for (const state of states) {
+        const checkpoint = await requester.fetch(
+          "/__cluster_pressure/checkpoint",
+          { method: "POST" },
+          states.filter((candidate) => candidate.pid !== state.pid).map((candidate) => candidate.pid),
+        );
+        expect(checkpoint.response.status).toBe(200);
+        const body = (await checkpoint.response.json()) as { error?: string };
+        expect(body.error ?? "").toBe("");
+      }
+      const expectedPressure = expectedPressureSummary(committedPressure);
+      for (const state of states) {
+        const summary = await readPressureSummary(
+          requester,
+          states.filter((candidate) => candidate.pid !== state.pid).map((candidate) => candidate.pid),
+        );
+        expect(summary.pid).toBe(state.pid);
+        expect(summary.value).toEqual(expectedPressure);
+      }
+
       const leaseOwner = states.find((state) => state.role === "follower")!;
       const crashedBackup = requester
         .fetch(
@@ -860,12 +1027,24 @@ it.serial(
         );
       }
       expect(states).toHaveLength(3);
+      for (const state of states) {
+        const summary = await readPressureSummary(
+          requester,
+          states.filter((candidate) => candidate.pid !== state.pid).map((candidate) => candidate.pid),
+        );
+        expect(summary.pid).toBe(state.pid);
+        expect(summary.value).toEqual(expectedPressure);
+      }
 
       primary.process.kill("SIGTERM");
       const exitCode = await withTimeout(primary.process.exited, "cluster state shutdown", 20_000);
+      await primary.output.done;
       if (process.platform !== "win32") {
         expect(exitCode).toBe(0);
       }
+      expect(`${primary.output.stdout}\n${primary.output.stderr}`).not.toMatch(
+        /SQLITE_(?:BUSY|LOCKED)|database is (?:busy|locked)|Failed to (?:write log|run periodic PRAGMA wal_checkpoint)/i,
+      );
     } finally {
       for (const stream of readers) {
         await stream.reader.cancel().catch(() => {});
@@ -904,6 +1083,144 @@ class ClusterRequester {
     }
     throw new Error(`request ${path} could not reach a non-excluded worker`);
   }
+}
+
+async function runWithPressure<T>(
+  requester: ClusterRequester,
+  states: ClusterState[],
+  sequence: { next: number },
+  committed: Set<number>,
+  checkpointErrors: string[],
+  operation: () => Promise<T>,
+): Promise<T> {
+  const control = { stop: false };
+  const target = (pid: number) => states.filter((state) => state.pid !== pid).map((state) => state.pid);
+  const writers = states.map(async (state) => {
+    while (!control.stop) {
+      const op = sequence.next++;
+      const result = await requester.fetch(`/__cluster_pressure/write?op=${op}`, { method: "POST" }, target(state.pid));
+      if (result.response.status !== 200 || result.pid !== state.pid) {
+        throw new Error(
+          `pressure write ${op} failed on ${state.pid}: ${result.response.status} ${await result.response.text()}`,
+        );
+      }
+      committed.add(op);
+      await Bun.sleep(5);
+    }
+  });
+  const reader = (async () => {
+    let index = 0;
+    while (!control.stop) {
+      const state = states[index++ % states.length]!;
+      const summary = await readPressureSummary(requester, target(state.pid));
+      if (summary.pid !== state.pid || summary.value.partialOps !== 0 || summary.value.rowCount !== summary.value.opCount * 2) {
+        throw new Error(`invalid pressure read from ${state.pid}: ${JSON.stringify(summary)}`);
+      }
+      await Bun.sleep(10);
+    }
+  })();
+  const checkpointer = (async () => {
+    let index = 0;
+    while (!control.stop) {
+      const state = states[index++ % states.length]!;
+      const result = await requester.fetch("/__cluster_pressure/checkpoint", { method: "POST" }, target(state.pid));
+      if (result.response.status !== 200 || result.pid !== state.pid) {
+        throw new Error(
+          `pressure checkpoint failed on ${state.pid}: ${result.response.status} ${await result.response.text()}`,
+        );
+      }
+      const body = (await result.response.json()) as { error?: string };
+      if (body.error) {
+        if (!/locked|busy/i.test(body.error)) {
+          throw new Error(`unexpected pressure checkpoint error on ${state.pid}: ${body.error}`);
+        }
+        checkpointErrors.push(body.error);
+      }
+      await Bun.sleep(50);
+    }
+  })();
+
+  let backgroundError: unknown;
+  const background = Promise.all([...writers, reader, checkpointer]).catch((error) => {
+    backgroundError = error;
+    control.stop = true;
+  });
+  await waitFor(() => committed.size >= states.length * 2 || backgroundError !== undefined, "pressure writers", 10_000);
+
+  let result!: T;
+  let operationError: unknown;
+  let operationFailed = false;
+  try {
+    result = await operation();
+  } catch (error) {
+    operationError = error;
+    operationFailed = true;
+  }
+  control.stop = true;
+  await background;
+  if (backgroundError) {
+    throw backgroundError;
+  }
+  if (operationFailed) {
+    throw operationError;
+  }
+  return result;
+}
+
+async function readPressureSummary(
+  requester: ClusterRequester,
+  excludedPids: number[] = [],
+): Promise<{ pid: number; value: PressureSummary }> {
+  const result = await requester.fetch("/__cluster_pressure/summary", {}, excludedPids);
+  if (result.response.status !== 200) {
+    throw new Error(`pressure summary failed: ${result.response.status} ${await result.response.text()}`);
+  }
+  const body = (await result.response.json()) as PressureSummary & { pid: number };
+  return {
+    pid: result.pid,
+    value: {
+      opCount: Number(body.opCount),
+      rowCount: Number(body.rowCount),
+      checksum: Number(body.checksum),
+      partialOps: Number(body.partialOps),
+    },
+  };
+}
+
+function expectedPressureSummary(committed: Set<number>): PressureSummary {
+  let checksum = 0;
+  for (const op of committed) {
+    checksum += op * 200 + 3;
+  }
+  return { opCount: committed.size, rowCount: committed.size * 2, checksum, partialOps: 0 };
+}
+
+async function inspectPressureBackup(archivePath: string, outputDir: string): Promise<PressureSummary> {
+  await rm(outputDir, { recursive: true, force: true });
+  await ExtractAsync(archivePath, outputDir);
+  const db = new Database(join(outputDir, "data.db"));
+  try {
+    const integrity = db.query("PRAGMA integrity_check").get() as { integrity_check?: string } | null;
+    expect(integrity?.integrity_check).toBe("ok");
+    return normalizePressureSummary(
+      db
+        .query(
+          "SELECT COUNT(*) AS opCount, COALESCE(SUM(row_count), 0) AS rowCount, COALESCE(SUM(checksum), 0) AS checksum, COALESCE(SUM(CASE WHEN row_count = 2 AND part1 = 1 AND part2 = 1 THEN 0 ELSE 1 END), 0) AS partialOps FROM (SELECT op, COUNT(*) AS row_count, SUM(value) AS checksum, SUM(CASE WHEN part = 1 THEN 1 ELSE 0 END) AS part1, SUM(CASE WHEN part = 2 THEN 1 ELSE 0 END) AS part2 FROM cluster_pressure GROUP BY op)",
+        )
+        .get() as PressureSummary,
+    );
+  } finally {
+    db.close();
+  }
+}
+
+function normalizePressureSummary(value: PressureSummary): PressureSummary {
+  return {
+    opCount: Number(value.opCount),
+    rowCount: Number(value.rowCount),
+    checksum: Number(value.checksum),
+    partialOps: Number(value.partialOps),
+  };
 }
 
 async function openSSE(
@@ -1102,8 +1419,24 @@ function collectOutput(child: ReturnType<typeof Bun.spawn>) {
 }
 
 async function findConsecutivePorts(count: number): Promise<number[]> {
-  const first = 20_000 + Math.floor(Math.random() * (40_000 - count));
-  return Array.from({ length: count }, (_, offset) => first + offset);
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const first = 10_000 + Math.floor(Math.random() * (10_000 - count));
+    const ports = Array.from({ length: count }, (_, offset) => first + offset);
+    const probes: Array<ReturnType<typeof Bun.serve>> = [];
+    try {
+      for (const port of ports) {
+        probes.push(Bun.serve({ hostname: "127.0.0.1", port, fetch: () => new Response(null, { status: 204 }) }));
+      }
+      return ports;
+    } catch {
+      // Try another range when a local service or platform reservation owns one of the ports.
+    } finally {
+      for (const probe of probes) {
+        await probe.stop(true);
+      }
+    }
+  }
+  throw new Error(`could not reserve ${count} consecutive cluster test ports`);
 }
 
 async function waitFor(check: () => boolean | Promise<boolean>, label: string, timeoutMs: number): Promise<void> {

@@ -19,16 +19,8 @@ async function verifyBackupContent(path: string) {
   try {
     await ExtractAsync(path, dir);
 
-    const expectedRootEntries = [
-      "storage",
-      "data.db",
-      "data.db-shm",
-      "data.db-wal",
-      "auxiliary.db",
-      "auxiliary.db-shm",
-      "auxiliary.db-wal",
-      ".gitignore",
-    ];
+    // PocketBun archives Bun SQLite serialization snapshots instead of live WAL/SHM sidecars.
+    const expectedRootEntries = ["storage", "data.db", "auxiliary.db", ".gitignore"];
 
     const entries = await readdir(dir, { withFileTypes: true });
     if (entries.length !== expectedRootEntries.length) {

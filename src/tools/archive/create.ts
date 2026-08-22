@@ -32,10 +32,21 @@ export function Create(src: string, dest: string, ...skipPaths: string[]): void 
 //
 // It preserves the same behavior while avoiding synchronous filesystem I/O.
 export async function CreateAsync(src: string, dest: string, ...skipPaths: string[]): Promise<void> {
+  return CreateAsyncWithFileOverrides(src, dest, new Map(), ...skipPaths);
+}
+
+// CreateAsyncWithFileOverrides is a PocketBun-only backup helper that replaces
+// selected archive entries with already snapshotted bytes.
+export async function CreateAsyncWithFileOverrides(
+  src: string,
+  dest: string,
+  overrides: ReadonlyMap<string, Uint8Array>,
+  ...skipPaths: string[]
+): Promise<void> {
   await mkdir(dirname(dest), { recursive: true });
 
   try {
-    const files = await collectFilesAsync(src, skipPaths);
+    const files = await collectFilesAsync(src, skipPaths, overrides);
     const zip = await buildZipAsync(files);
     await writeFile(dest, zip);
   } catch (error) {
@@ -89,8 +100,13 @@ function collectFilesSync(src: string, skipPaths: string[]): ZipEntry[] {
   return entries;
 }
 
-async function collectFilesAsync(src: string, skipPaths: string[]): Promise<ZipEntry[]> {
+async function collectFilesAsync(
+  src: string,
+  skipPaths: string[],
+  overrides: ReadonlyMap<string, Uint8Array> = new Map(),
+): Promise<ZipEntry[]> {
   const entries: ZipEntry[] = [];
+  const unusedOverrides = new Set(overrides.keys());
 
   const walk = async (dir: string): Promise<void> => {
     const items = await readdir(dir, { withFileTypes: true });
@@ -106,7 +122,9 @@ async function collectFilesAsync(src: string, skipPaths: string[]): Promise<ZipE
         continue;
       }
 
-      const [info, data] = await Promise.all([lstat(fullPath), readFile(fullPath)]);
+      const [info, fileData] = await Promise.all([lstat(fullPath), overrides.has(rel) ? null : readFile(fullPath)]);
+      const data = overrides.get(rel) ?? fileData!;
+      unusedOverrides.delete(rel);
 
       entries.push({
         name: rel,
@@ -118,6 +136,9 @@ async function collectFilesAsync(src: string, skipPaths: string[]): Promise<ZipE
   };
 
   await walk(src);
+  if (unusedOverrides.size > 0) {
+    throw new Error(`archive override files not found: ${[...unusedOverrides].join(", ")}`);
+  }
   return entries;
 }
 
