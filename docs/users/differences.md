@@ -221,7 +221,7 @@ PocketBun persists activity logs through a background worker to reduce main-thre
 
 ### Backups
 
-PocketBun creates disk-backed SQLite snapshots with `VACUUM INTO` before it writes a backup ZIP. This avoids retaining a full database copy in server memory and lets clustered SQLite writers continue while the archive is generated. The resulting archive still uses PocketBase's normal ZIP layout and can restore older PocketBase/PocketBun backup archives.
+PocketBun creates disk-backed SQLite snapshots with `VACUUM INTO` before it writes a backup ZIP. This avoids retaining a full database copy in server memory and lets clustered SQLite writers continue while the archive is generated. The resulting archive still uses PocketBase's normal ZIP layout and can restore older PocketBase/PocketBun backup archives, including PocketBase's `auxiliary.db` activity logs.
 
 The database snapshots are individually consistent. Because files are added to the ZIP after those snapshots, an upload or deletion that happens during backup can appear on either side of the backup boundary: a restored backup can contain an unreferenced file or omit a newly changed file referenced by the database snapshot. This does not corrupt SQLite, but applications that require an atomic database-and-files backup should temporarily stop writes while creating it.
 

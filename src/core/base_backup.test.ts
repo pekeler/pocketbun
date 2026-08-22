@@ -2,7 +2,7 @@
 
 import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { newTestApp } from "../tests/app.ts";
@@ -114,6 +114,31 @@ describe("backups", () => {
 
       const missingErr = await app.RestoreBackup({}, "missing");
       expect(missingErr).not.toBeNull();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("restores a backup created by PocketBase", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      // Generated with the pinned PocketBase source's actual CreateBackup implementation.
+      const backupsDir = join(app.DataDir(), LocalBackupsDirName);
+      const name = "pocketbase-backup-fixture.zip";
+      await mkdir(backupsDir, { recursive: true });
+      await copyFile(new URL("./testdata/pocketbase-backup-fixture.zip", import.meta.url), join(backupsDir, name));
+
+      // Keep this test process alive so it can reopen the restored databases.
+      (app as unknown as { RestartAsync: () => Promise<Error | null> }).RestartAsync = async () => null;
+      expect(await app.RestoreBackup({}, name)).toBeNull();
+      app.resetBootstrapState();
+      app.bootstrap();
+
+      expect(app.db().query("select value from pb_backup_fixture").get()).toEqual({ value: "pocketbase-main" });
+      expect(app.auxDb().query("select message from _logs where id = ?").get("pbfixturelog001")).toEqual({
+        message: "pocketbase-auxiliary",
+      });
+      expect(await readFile(join(app.DataDir(), "storage", "pocketbase-fixture.txt"), "utf8")).toBe("pocketbase-file");
     } finally {
       await cleanup();
     }
