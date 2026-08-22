@@ -2,8 +2,10 @@
 
 import { expect, it } from "bun:test";
 import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 type ClusterState = {
@@ -472,6 +474,58 @@ it.serial(
       );
       expect(states).toHaveLength(3);
 
+      const interruptedStream = await openNodeSSE(backendUrls[0]!);
+      readers.push(interruptedStream.reader);
+      const interruptedConnect = await readSSE(interruptedStream.reader, 5_000);
+      const interruptedClientId = (JSON.parse(interruptedConnect.data) as { clientId: string }).clientId;
+      expect(
+        (
+          await requester.fetch(
+            "/api/realtime",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ clientId: interruptedClientId, subscriptions: ["cluster_items/*"] }),
+            },
+            [interruptedStream.pid],
+          )
+        ).response.status,
+      ).toBe(204);
+      process.kill(interruptedStream.pid, "SIGKILL");
+      await expectSSEDisconnect(interruptedStream.reader, 10_000);
+      states = await waitForStates(requester, (items) => items.every((state) => state.pid !== interruptedStream.pid));
+
+      const reconnectedStream = await openNodeSSE(backendUrls[0]!);
+      readers.push(reconnectedStream.reader);
+      expect(reconnectedStream.pid).not.toBe(interruptedStream.pid);
+      const reconnectedConnect = await readSSE(reconnectedStream.reader, 5_000);
+      const reconnectedClientId = (JSON.parse(reconnectedConnect.data) as { clientId: string }).clientId;
+      expect(
+        (
+          await requester.fetch(
+            "/api/realtime",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ clientId: reconnectedClientId, subscriptions: ["cluster_items/*"] }),
+            },
+            [reconnectedStream.pid],
+          )
+        ).response.status,
+      ).toBe(204);
+      const reconnectedMutation = await requester.fetch("/__cluster_record/create", { method: "POST" }, [
+        reconnectedStream.pid,
+      ]);
+      expect(reconnectedMutation.response.status).toBe(200);
+      expect(reconnectedMutation.pid).not.toBe(reconnectedStream.pid);
+      const reconnectedEvent = await readSSE(reconnectedStream.reader, 5_000);
+      expect(JSON.parse(reconnectedEvent.data)).toMatchObject({
+        action: "create",
+        record: { value: "created" },
+      });
+      await reconnectedStream.reader.reader.cancel();
+      readers.splice(readers.indexOf(reconnectedStream.reader), 1);
+
       const superuserTokenResult = await requester.fetch("/__cluster_superuser_token");
       const superuserToken = ((await superuserTokenResult.response.json()) as { token: string }).token;
       const superuserHeaders = { Authorization: superuserToken, "Content-Type": "application/json" };
@@ -663,6 +717,28 @@ async function openSSE(
   };
 }
 
+function openNodeSSE(baseUrl: string): Promise<{ reader: SSEReader; pid: number }> {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(`${baseUrl}/api/realtime`, { headers: { Connection: "close" } }, (response) => {
+      if (response.statusCode !== 200) {
+        response.resume();
+        reject(new Error(`SSE connection failed with status ${response.statusCode ?? 0}`));
+        return;
+      }
+
+      resolve({
+        pid: Number(response.headers["x-pocketbun-worker-pid"]),
+        reader: {
+          buffer: "",
+          reader: Readable.toWeb(response).getReader() as SSEReader["reader"],
+        },
+      });
+    });
+    request.once("error", reject);
+    request.end();
+  });
+}
+
 async function readSSE(stream: SSEReader, timeoutMs: number): Promise<SSEEvent> {
   const deadline = Date.now() + timeoutMs;
   const decoder = new TextDecoder();
@@ -714,6 +790,24 @@ async function expectNoSSEEvent(stream: SSEReader, timeoutMs: number): Promise<v
       throw error;
     }
   }
+}
+
+async function expectSSEDisconnect(stream: SSEReader, timeoutMs: number): Promise<void> {
+  await withTimeout(
+    (async () => {
+      try {
+        for (;;) {
+          if ((await stream.reader.read()).done) {
+            return;
+          }
+        }
+      } catch {
+        // A killed worker may close cleanly or reset the socket.
+      }
+    })(),
+    "SSE worker disconnect",
+    timeoutMs,
+  );
 }
 
 async function waitForStates(
