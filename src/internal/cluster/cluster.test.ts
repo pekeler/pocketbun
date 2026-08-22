@@ -152,6 +152,11 @@ it.serial(
     await new Promise(() => {});
   });
 }
+
+routerAdd("POST", "/__pocketbun_cluster_forced_restart", (event) => {
+  setTimeout(() => $app.restart(), 50);
+  return event.noContent(204);
+});
 `,
     );
     const ports = await findConsecutivePorts(2);
@@ -173,17 +178,25 @@ it.serial(
 
     try {
       await withTimeout(primary.output.waitFor("[cluster] 2 workers"), "cluster startup", 30_000);
-      workerPids = [...primary.output.stdout.matchAll(/\[cluster\] ready .* pid=(\d+)/g)].map((match) => Number(match[1]));
-      expect(workerPids).toHaveLength(2);
+      const initialPids = [...primary.output.stdout.matchAll(/\[cluster\] ready .* pid=(\d+)/g)].map((match) =>
+        Number(match[1]),
+      );
+      expect(initialPids).toHaveLength(2);
 
-      primary.process.kill("SIGTERM");
-      const exitCode = await withTimeout(primary.process.exited, "forced cluster shutdown", 20_000);
-      await primary.output.done;
-      if (process.platform !== "win32") {
-        expect(exitCode).toBe(143);
-      }
+      const response = await fetch(`http://127.0.0.1:${ports[0]}/__pocketbun_cluster_forced_restart`, {
+        method: "POST",
+      });
+      expect(response.status).toBe(204);
+      await withTimeout(primary.output.waitFor("[cluster] restart complete with 2 workers"), "forced cluster restart", 20_000);
       expect(primary.output.stdout).toContain("[cluster-test] hanging termination");
-      await waitFor(() => workerPids.every((pid) => !isProcessAlive(pid)), "forced worker cleanup", 5_000);
+      workerPids = [...primary.output.stdout.matchAll(/\[cluster\] ready .* pid=(\d+)/g)].map((match) => Number(match[1]));
+      expect(workerPids).toHaveLength(4);
+      await waitFor(() => initialPids.every((pid) => !isProcessAlive(pid)), "forced worker cleanup", 5_000);
+
+      primary.process.kill("SIGKILL");
+      await withTimeout(primary.process.exited, "forced cluster primary cleanup", 5_000);
+      await primary.output.done;
+      await waitFor(() => workerPids.every((pid) => !isProcessAlive(pid)), "replacement worker cleanup", 5_000);
     } finally {
       if (isProcessAlive(primary.process.pid)) {
         primary.process.kill("SIGKILL");
@@ -194,6 +207,7 @@ it.serial(
           process.kill(pid, "SIGKILL");
         }
       }
+      await withTimeout(primary.output.done, "forced cluster output cleanup", 10_000).catch(() => {});
       await rm(root, { recursive: true, force: true });
     }
   },

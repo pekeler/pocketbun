@@ -627,13 +627,29 @@ it.serial(
 
       expect((await requester.fetch("/__cluster_settings?name=backup-snapshot", { method: "POST" })).response.status).toBe(200);
       await waitForStates(requester, (items) => items.every((state) => state.appName === "backup-snapshot"));
-      const knownBackup = await requester.fetch("/api/backups", {
-        method: "POST",
-        headers: superuserHeaders,
-        body: JSON.stringify({ name: "known.zip" }),
-      });
-      if (knownBackup.response.status !== 204) {
-        throw new Error(`known backup failed: ${knownBackup.response.status} ${await knownBackup.response.text()}`);
+      const backupTarget = states.find((state) => state.role === "leader")!;
+      const excludedBackupPids = states.filter((state) => state.pid !== backupTarget.pid).map((state) => state.pid);
+      const backupDeadline = Date.now() + 10_000;
+      let knownBackupFailure = "";
+      while (Date.now() < backupDeadline) {
+        const knownBackup = await requester.fetch(
+          "/api/backups",
+          {
+            method: "POST",
+            headers: superuserHeaders,
+            body: JSON.stringify({ name: "known.zip" }),
+          },
+          excludedBackupPids,
+        );
+        if (knownBackup.response.status === 204) {
+          knownBackupFailure = "";
+          break;
+        }
+        knownBackupFailure = `${knownBackup.response.status} ${await knownBackup.response.text()}`;
+        await Bun.sleep(100);
+      }
+      if (knownBackupFailure !== "") {
+        throw new Error(`known backup did not recover after worker death: ${knownBackupFailure}`);
       }
 
       await writeFile(join(dataDir, "backups", "invalid.zip"), "not a zip archive");
