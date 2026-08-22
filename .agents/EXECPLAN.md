@@ -48,7 +48,8 @@ Success is observable, not architectural. First, the complete test suite must pa
 - [x] (2026-08-22 09:30Z) Completed Milestone 8: singleton startup gates, existing cross-process cache notifications, primary-atomic rate limits and expiring claims, cross-worker realtime subscriptions/events/auth invalidation, and targeted OAuth2 delivery passed locally and in hosted Ubuntu, macOS, and Windows CI after commit `4dc010eb`.
 - [x] (2026-08-22 09:56Z) Locally implemented Milestone 9: one primary-owned backup lease is mirrored to every worker, owner death releases it, restart recycles the full worker set, and restore quiesces every HTTP server before replacing data and starting fresh workers. Both complete 1,935-test modes and the real three-worker lifecycle suite pass.
 - [x] (2026-08-22 10:56Z) Completed Milestone 9 after correcting the Linux-only test race exposed by the first matrix. Hosted run 32568697758 passed Ubuntu, macOS, Windows, and downstream Playwright E2E with the asynchronous backup-owner test hook.
-- [ ] Complete cluster integration tests, failure tests, performance measurements, documentation, and the final release gate in Milestone 10.
+- [ ] (2026-08-22 11:08Z) Started Milestone 10 by auditing the existing real-process coverage instead of duplicating it. The main cluster lifecycle test now exercises POSIX `SIGINT`; POSIX `SIGTERM` remains covered by the state/lifecycle test, Windows retains its supported graceful termination path, and forced primary death remains covered by the qualified runtime probe. The four focused lifecycle tests pass locally.
+- [ ] Complete the remaining cluster integration tests, performance measurements, documentation, and final release gate in Milestone 10.
 
 ## Surprises & Discoveries
 

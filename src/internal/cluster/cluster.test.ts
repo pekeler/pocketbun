@@ -223,10 +223,10 @@ it.serial(
       expect(competing.output.stderr).toContain("already owns");
       expect(competing.output.stderr).toContain(dataDir);
 
-      primary.process.kill("SIGTERM");
+      primary.process.kill(process.platform === "win32" ? "SIGTERM" : "SIGINT");
       const exitCode = await withTimeout(primary.process.exited, "cluster shutdown", 20_000);
       if (process.platform !== "win32") {
-        expect(exitCode).toBe(143);
+        expect(exitCode).toBe(130);
       }
       await primary.output.done;
       expect(primary.output.stdout.match(/\[cluster\] 3 workers/g)?.length ?? 0).toBe(1);
