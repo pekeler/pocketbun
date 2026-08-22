@@ -136,6 +136,71 @@ it.serial(
 );
 
 it.serial(
+  "force-kills a worker that ignores graceful shutdown",
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "pocketbun-cluster-forced-shutdown-"));
+    const dataDir = join(root, "pb_data");
+    const hooksDir = join(root, "pb_hooks");
+    const sourceData = resolve(fileURLToPath(new URL("../../tests/data", import.meta.url)));
+    await cp(sourceData, dataDir, { recursive: true });
+    await mkdir(hooksDir, { recursive: true });
+    await writeFile(
+      join(hooksDir, "hang.pb.js"),
+      `if (process.env.POCKETBUN_CLUSTER_ROLE === "follower") {
+  onTerminate(async () => {
+    console.log(\`[cluster-test] hanging termination pid=\${process.pid}\`);
+    await new Promise(() => {});
+  });
+}
+`,
+    );
+    const ports = await findConsecutivePorts(2);
+    const primary = spawnPocketBun([
+      "bin/pocketbun",
+      "--dir",
+      dataDir,
+      "--hooksDir",
+      hooksDir,
+      "--hooksWatch=false",
+      "--hooksPool=1",
+      "--automigrate=false",
+      "--workers=2",
+      "serve",
+      "--http",
+      `127.0.0.1:${ports[0]}`,
+    ]);
+    let workerPids: number[] = [];
+
+    try {
+      await withTimeout(primary.output.waitFor("[cluster] 2 workers"), "cluster startup", 30_000);
+      workerPids = [...primary.output.stdout.matchAll(/\[cluster\] ready .* pid=(\d+)/g)].map((match) => Number(match[1]));
+      expect(workerPids).toHaveLength(2);
+
+      primary.process.kill("SIGTERM");
+      const exitCode = await withTimeout(primary.process.exited, "forced cluster shutdown", 20_000);
+      await primary.output.done;
+      if (process.platform !== "win32") {
+        expect(exitCode).toBe(143);
+      }
+      expect(primary.output.stdout).toContain("[cluster-test] hanging termination");
+      await waitFor(() => workerPids.every((pid) => !isProcessAlive(pid)), "forced worker cleanup", 5_000);
+    } finally {
+      if (isProcessAlive(primary.process.pid)) {
+        primary.process.kill("SIGKILL");
+        await primary.process.exited;
+      }
+      for (const pid of workerPids) {
+        if (isProcessAlive(pid)) {
+          process.kill(pid, "SIGKILL");
+        }
+      }
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  45_000,
+);
+
+it.serial(
   "starts, replaces, excludes, and stops real cluster workers",
   async () => {
     const root = await mkdtemp(join(tmpdir(), "pocketbun-cluster-integration-"));
