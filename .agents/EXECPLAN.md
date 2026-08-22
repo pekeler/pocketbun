@@ -56,7 +56,8 @@ The repository owner intends to deploy cluster mode in production as soon as pra
 - [x] (2026-08-22 12:21Z) The first SSE reconnect matrix passed Ubuntu and macOS. Windows completed the reconnect scenario, then exposed that the later backup-owner-death check sampled only one asynchronously cleared worker mirror before sending the next backup to an arbitrary worker. The harness now waits for `canBackup=true` on every current PID; five focused local reruns and corrected hosted run 32572636371 pass.
 - [x] (2026-08-22 13:00Z) Added a real-process forced-stop case in which a follower enters but never completes `onTerminate`; the primary reaches its existing ten-second deadline, kills it, and recreates the full worker set. Hosted run 32573179866 showed that `Bun.spawn().kill("SIGTERM")` terminates the Windows primary directly instead of reaching its JS signal handler, so the corrected test now uses `app.restart()` to exercise the same bounded worker-stop path portably. The same run showed that mirrored backup-idle state alone does not guarantee the first real backup after a hard-killed owner; the test now requires bounded eventual success of the idempotent named backup on the surviving leader and preserves the last response on failure. Corrected hosted run 32573835408 passed Ubuntu, macOS, Windows, and downstream Playwright E2E at commit `f5dd61f3`.
 - [ ] (2026-08-22 13:04Z) Added one real-process migration-boundary scenario: the first leader exits inside the application-migration transaction, its replacement exits from `onServe` after commit but before readiness, the next leader proves HTTP readiness, and that ready leader is then killed and replaced. Durable test markers identify each distinct process; the final shared database contains one effect row and one migration-history row, and no failed leader was advertised ready. Ten consecutive focused reruns, the complete lifecycle file, both 1,937-test suites, format, typecheck, and lint pass locally; hosted qualification is pending.
-- [ ] Complete the production fault matrix: leader death during migration and between commit/readiness, follower death during a transaction and while awaiting the primary, primary death during each coordinated operation, real stale-guard recovery, no-ready startup, and late/duplicate IPC cleanup.
+- [ ] (2026-08-22 13:20Z) Added real-process follower failure boundaries to the shared three-worker state harness. A follower exits from inside an open SQLite transaction, its replacement observes no partial row, and a later transaction commits normally. A second follower exits while its realtime subscription request awaits the primary; the owner finishes the already-delivered idempotent update, the disconnected HTTP request rejects, and the replacement follower can repeat the update. Five consecutive focused runs plus the complete 1,937-test concurrent suite, format, typecheck, and lint pass locally; hosted qualification is pending.
+- [ ] Complete the remaining production fault matrix: primary death during each coordinated operation, real stale-guard recovery, no-ready startup, and late/duplicate IPC cleanup.
 - [ ] Qualify shared SQLite behavior under concurrent read/write traffic, WAL checkpoints, manual backup, autobackup, worker death, and restart; prove committed counts/checksums, rollback of interrupted writes, bounded busy handling, and continued service without lock leaks.
 - [ ] Run the required stateful Linux soak at both two and four workers for at least 60 minutes, continuously mixing CRUD, settings changes, realtime clients, rate-limited traffic, backups, worker replacement, and primary restart while checking correctness and resource stability.
 - [ ] Measure primary CPU/latency under rate limiting and realtime fan-out, repeat the current PocketBase benchmark on one matching clean Ubuntu host, and run the final PocketBun one/two/four-worker matrix on the matching host with identical fixtures and load generation.
@@ -162,6 +163,8 @@ The repository owner intends to deploy cluster mode in production as soon as pra
   Evidence: ordinary tests construct isolated applications and temporary databases. The dedicated real-process files under `src/internal/cluster/` are the tests that deliberately share one `pb_data`, route traffic across worker PIDs, kill processes, and inspect cluster invariants. Test count alone therefore cannot measure cluster confidence.
 - Observation: all three leader migration failure boundaries can be exercised through PocketBun's existing public extension lifecycle without a production-only fault API.
   Evidence: a temporary JavaScript migration exits one leader after transactional schema/data changes, a temporary `onServe` hook exits the replacement after migration commit but before `worker.ready`, and the existing identity route proves readiness before the test kills the third leader. External marker files preserve the PID at each boundary even though the database transaction rolls back.
+- Observation: killing a coordinator-requesting follower cannot cancel work that the primary has already delivered to another worker.
+  Evidence: the realtime client owner entered a held subscription hook before the source follower was killed. After the source process disappeared, releasing the hook still completed the subscription locally even though the source HTTP request rejected and could receive no primary response. This is the normal ambiguous-outcome boundary of distributed requests, not a partial coordinator failure; callers may retry only operations whose contract is idempotent or otherwise deduplicated.
 
 ## Decision Log
 
@@ -270,6 +273,9 @@ The repository owner intends to deploy cluster mode in production as soon as pra
 - Decision: keep deterministic startup fault injection in temporary test migrations and hooks rather than adding cluster fault controls to production code.
   Rationale: the normal migration, `onServe`, readiness, and process-exit surfaces reach the exact transaction/commit/ready boundaries. Reusing them tests the real application lifecycle and avoids shipping an inactive testing protocol or environment-variable branch.
   Date/Author: 2026-08-22 / Codex
+- Decision: exercise follower transaction and pending-response death in the existing shared-data state harness, using a realtime subscription update for the pending operation.
+  Rationale: the harness already provides stable worker affinity, a shared SQLite database, a realtime client owner, PID replacement, and cleanup. Realtime subscription replacement is idempotent, so the test can prove both that an already-delivered operation may finish after its source dies and that retry from the replacement is safe without inventing a production-only coordinator operation or risking duplicate side effects.
+  Date/Author: 2026-08-22 / Codex
 
 ## Outcomes & Retrospective
 
@@ -291,7 +297,7 @@ Milestone 8 is complete locally and on hosted CI. Only the leader performs migra
 
 Milestone 9 is complete locally and on hosted CI. Backup and restore exclusion is primary-atomic and mirrored through the existing active-backup store key, including automatic owner-death release. `app.restart()` recycles every worker under the lightweight primary. Restore validates while serving, then closes all non-initiators, force-stops the initiator's HTTP server, performs the existing replacement transaction, and starts a completely fresh worker set; Windows retains its explicit unsupported restore result without disturbing the cluster. The real three-worker test covers cross-worker exclusion, delete and health state, a concurrent write, owner death, invalid restore recovery, full restart, restored data, new PIDs, and clean shutdown. Corrected hosted run 32568697758 passed Ubuntu, macOS, Windows, and downstream Playwright E2E.
 
-Milestone 10 is the remaining production-release gate. Functional compatibility and the existing real-process cluster tests provide a strong base, but they do not yet qualify prolonged multi-process SQLite contention, every process-death boundary, or resource stability under production-like traffic. The leader migration transaction, post-commit/pre-ready, and post-ready death boundaries now pass locally without production fault hooks; hosted qualification remains pending. Release remains blocked on the rest of the deterministic fault matrix, shared-database pressure checks, successful 60-minute two-worker and four-worker Linux soaks, primary saturation measurements, matched current PocketBase/PocketBun benchmarks, operational documentation, and the complete repository and hosted gates. No unexplained flaky result may be waived by adding a default retry.
+Milestone 10 is the remaining production-release gate. Functional compatibility and the existing real-process cluster tests provide a strong base, but they do not yet qualify prolonged multi-process SQLite contention, every process-death boundary, or resource stability under production-like traffic. The leader migration transaction, post-commit/pre-ready, post-ready, follower transaction, and follower pending-primary-response death boundaries now pass locally without production fault controls; hosted qualification remains pending. The follower transaction rolls back completely and later writes succeed. An already-delivered idempotent subscription update may finish after its source dies even though the source HTTP request rejects, and the replacement can repeat it safely. Release remains blocked on the rest of the deterministic fault matrix, shared-database pressure checks, successful 60-minute two-worker and four-worker Linux soaks, primary saturation measurements, matched current PocketBase/PocketBun benchmarks, operational documentation, and the complete repository and hosted gates. No unexplained flaky result may be waived by adding a default retry.
 
 The expected result is simpler than a built-in general-purpose process manager: one primary file, one typed IPC protocol, worker-role checks at existing singleton boundaries, and focused adapters for the handful of process-local features. The performance benefit is expected primarily for concurrent reads and CPU-heavy request/hook work. Writes remain serialized by SQLite, each worker adds memory, and the primary-coordinated rate limiter adds an IPC round trip on routes for which a rate-limit rule applies. Those costs must be measured before the feature is described as a performance advantage.
 
@@ -1094,6 +1100,29 @@ Milestone 10 migration-boundary local qualification:
     git diff --check: passed
     Hosted Ubuntu/macOS/Windows qualification: pending
 
+Milestone 10 follower-failure local qualification:
+
+    Date: 2026-08-22
+    Bun: 1.4.0 (34cbb9a40)
+    Fault 1: follower process exited with code 93 from inside runInTransaction after
+             inserting a test effect row
+    Transaction outcome: the replacement and every other worker observe zero interrupted
+                         rows; a later transaction commits one row and converges everywhere
+    Fault 2: another follower was killed after the realtime client owner entered a held
+             coordinator delivery and before the primary could respond to the source
+    Coordinator outcome: the source HTTP request rejected; the owner completed the already
+                         delivered subscription update; the replacement repeated the
+                         idempotent update successfully with HTTP 204
+    Production changes: none; temporary hook routes and marker files in the existing
+                        real-process state harness only
+    Focused reruns: 5 pass, 0 fail, 310 expect() calls in 25.14 seconds
+    bun test --concurrent: 1,937 pass, 0 fail, 7 snapshots,
+                           10,398 expect() calls across 248 files in 88.29 seconds
+    bun run format:fix: passed
+    bun run typecheck: passed
+    bun run lint: 0 warnings, 0 errors
+    Hosted Ubuntu/macOS/Windows qualification: pending
+
 Current PocketBun coordination inventory:
 
     SQLite database truth              already cross-process through WAL/busy timeout
@@ -1215,3 +1244,5 @@ Revision note, 2026-08-22 / Codex: Recorded hosted run 32573179866: Ubuntu and m
 Revision note, 2026-08-22 / Codex: Raised Milestone 10 to an explicit production-confidence release gate at the repository owner's request. Distinguished inherited single-process PocketBase compatibility from PocketBun's multi-process coordination risks, made shared-database fault injection and 60-minute two-worker and four-worker Linux soaks mandatory, added primary saturation and current PocketBase comparison work, and required no known reproducible correctness or unbounded-resource defect before release.
 
 Revision note, 2026-08-22 / Codex: Closed the forced-stop and backup-recovery correction after hosted run 32573835408 passed Ubuntu, macOS, Windows, and downstream E2E at commit `f5dd61f3`. Added deterministic leader migration-boundary coverage using only temporary JavaScript migration and hook fixtures: transaction death, post-commit/pre-ready death, and post-ready replacement now pass ten focused reruns and the complete 1,937-test local concurrent gate; hosted qualification remains pending.
+
+Revision note, 2026-08-22 / Codex: Added deterministic follower death coverage to the existing shared-data state harness without production changes. A process exit inside `runInTransaction` rolls back fully and permits later writes; a follower killed while awaiting an already-routed realtime subscription loses its HTTP response while the idempotent owner operation may still finish, and the replacement safely repeats it. Five focused runs and the complete 1,937-test local concurrent gate pass; hosted qualification remains pending.

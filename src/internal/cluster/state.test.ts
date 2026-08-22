@@ -63,11 +63,18 @@ const migrationSource = `migrate((app) => {
 });
 `;
 
-const hooksSource = `function recordEffect(kind) {
-  const effect = new Record($app.findCollectionByNameOrId("cluster_effects"));
+const hooksSource = `const fs = require("node:fs");
+const path = require("node:path");
+const transactionCrashMarker = path.join($app.dataDir(), ".cluster-transaction-crash");
+const coordinatorDeliveryMarker = path.join($app.dataDir(), ".cluster-coordinator-delivery");
+const coordinatorReleaseMarker = path.join($app.dataDir(), ".cluster-coordinator-release");
+const coordinatorCompletionMarker = path.join($app.dataDir(), ".cluster-coordinator-completion");
+
+function recordEffect(kind, app = $app) {
+  const effect = new Record(app.findCollectionByNameOrId("cluster_effects"));
   effect.set("kind", kind);
   effect.set("worker", String(process.pid));
-  $app.save(effect);
+  app.save(effect);
 }
 
 function collectionState() {
@@ -128,6 +135,20 @@ onBackupCreate(async (event) => {
   return event.next();
 });
 
+onRealtimeSubscribeRequest(async (event) => {
+  if (event.subscriptions.includes("cluster_pending") && !fs.existsSync(coordinatorReleaseMarker)) {
+    fs.writeFileSync(coordinatorDeliveryMarker, String(process.pid));
+    while (!fs.existsSync(coordinatorReleaseMarker)) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+  const response = await event.next();
+  if (event.subscriptions.includes("cluster_pending")) {
+    fs.writeFileSync(coordinatorCompletionMarker, String(process.pid));
+  }
+  return response;
+});
+
 routerAdd("GET", "/__cluster_state", (event) => event.json(200, {
   pid: process.pid,
   role: process.env.POCKETBUN_CLUSTER_ROLE,
@@ -141,10 +162,29 @@ routerAdd("GET", "/__cluster_state", (event) => event.json(200, {
     cron: effectCount("cron"),
     passwordReset: effectCount("password-reset"),
     verification: effectCount("verification"),
+    transactionCrash: effectCount("transaction-crash"),
+    transactionCommit: effectCount("transaction-commit"),
   },
 }));
 
 routerAdd("GET", "/__cluster_rate", (event) => event.json(200, { pid: process.pid }));
+
+routerAdd("POST", "/__cluster_transaction_crash", (event) => {
+  if (fs.existsSync(transactionCrashMarker)) {
+    return event.json(409, { error: "transaction crash already injected" });
+  }
+  $app.runInTransaction((txApp) => {
+    recordEffect("transaction-crash", txApp);
+    fs.writeFileSync(transactionCrashMarker, String(process.pid));
+    process.exit(93);
+  });
+  return event.json(500, { error: "transaction crash did not exit" });
+});
+
+routerAdd("POST", "/__cluster_transaction_commit", (event) => {
+  const error = $app.runInTransaction((txApp) => recordEffect("transaction-commit", txApp));
+  return event.json(error ? 500 : 200, { error: error ? error.message : "" });
+});
 
 routerAdd("GET", "/__cluster_superuser_token", (event) => {
   const superuser = $app.findAuthRecordByEmail("_superusers", "__pbinstaller@example.com");
@@ -245,6 +285,10 @@ it.serial(
     const dataDir = join(root, "pb_data");
     const hooksDir = join(root, "pb_hooks");
     const migrationsDir = join(root, "pb_migrations");
+    const transactionCrashMarker = join(dataDir, ".cluster-transaction-crash");
+    const coordinatorDeliveryMarker = join(dataDir, ".cluster-coordinator-delivery");
+    const coordinatorReleaseMarker = join(dataDir, ".cluster-coordinator-release");
+    const coordinatorCompletionMarker = join(dataDir, ".cluster-coordinator-completion");
     const sourceData = resolve(fileURLToPath(new URL("../../tests/data", import.meta.url)));
     await cp(sourceData, dataDir, { recursive: true });
     await mkdir(hooksDir, { recursive: true });
@@ -300,6 +344,85 @@ it.serial(
       expect(states.every((state) => state.effects.migration === 1)).toBeTrue();
       expect(states.every((state) => state.effects.installer === 1)).toBeTrue();
       expect(states.every((state) => state.effects.cron === 1)).toBeTrue();
+
+      const transactionWorker = states.find((state) => state.slot === 1)!;
+      const transactionRequest = requester
+        .fetch(
+          "/__cluster_transaction_crash",
+          { method: "POST" },
+          states.filter((state) => state.pid !== transactionWorker.pid).map((state) => state.pid),
+        )
+        .then(() => null)
+        .catch((error) => error as Error);
+      await waitFor(() => Bun.file(transactionCrashMarker).exists(), "transaction crash marker", 5_000);
+      expect(Number(await Bun.file(transactionCrashMarker).text())).toBe(transactionWorker.pid);
+      expect(await withTimeout(transactionRequest, "transaction worker disconnect", 5_000)).toBeInstanceOf(Error);
+      states = await waitForStates(requester, (items) =>
+        items.every((state) => state.pid !== transactionWorker.pid && state.effects.transactionCrash === 0),
+      );
+      const transactionReplacement = states.find((state) => state.slot === transactionWorker.slot)!;
+      const committedTransaction = await requester.fetch(
+        "/__cluster_transaction_commit",
+        { method: "POST" },
+        states.filter((state) => state.pid !== transactionReplacement.pid).map((state) => state.pid),
+      );
+      expect(committedTransaction.response.status).toBe(200);
+      states = await waitForStates(requester, (items) =>
+        items.every((state) => state.effects.transactionCrash === 0 && state.effects.transactionCommit === 1),
+      );
+
+      const coordinatorLeader = states.find((state) => state.role === "leader")!;
+      const coordinatorStream = await openSSE(
+        requester,
+        {},
+        states.filter((state) => state.pid !== coordinatorLeader.pid).map((state) => state.pid),
+      );
+      readers.push(coordinatorStream.reader);
+      const coordinatorConnect = await readSSE(coordinatorStream.reader, 5_000);
+      const coordinatorClientId = (JSON.parse(coordinatorConnect.data) as { clientId: string }).clientId;
+      const coordinatorSource = states.find((state) => state.slot === 2)!;
+      const pendingCoordinatorRequest = requester
+        .fetch(
+          "/api/realtime",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clientId: coordinatorClientId, subscriptions: ["cluster_pending"] }),
+          },
+          states.filter((state) => state.pid !== coordinatorSource.pid).map((state) => state.pid),
+        )
+        .then(() => null)
+        .catch((error) => error as Error);
+      await waitFor(() => Bun.file(coordinatorDeliveryMarker).exists(), "pending coordinator delivery", 5_000);
+      expect(Number(await Bun.file(coordinatorDeliveryMarker).text())).toBe(coordinatorLeader.pid);
+      process.kill(coordinatorSource.pid, "SIGKILL");
+      await waitFor(() => !isProcessAlive(coordinatorSource.pid), "pending coordinator source exit", 2_000);
+      await writeFile(coordinatorReleaseMarker, "release");
+      expect(await withTimeout(pendingCoordinatorRequest, "pending coordinator source disconnect", 5_000)).toBeInstanceOf(
+        Error,
+      );
+      await waitFor(() => Bun.file(coordinatorCompletionMarker).exists(), "coordinator completion marker", 5_000);
+      expect(Number(await Bun.file(coordinatorCompletionMarker).text())).toBe(coordinatorLeader.pid);
+      states = await waitForStates(requester, (items) => items.every((state) => state.pid !== coordinatorSource.pid));
+      const coordinatorReplacement = states.find((state) => state.slot === coordinatorSource.slot)!;
+      const repeatedCoordinatorRequest = await requester.fetch(
+        "/api/realtime",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId: coordinatorClientId, subscriptions: ["cluster_pending"] }),
+        },
+        states.filter((state) => state.pid !== coordinatorReplacement.pid).map((state) => state.pid),
+      );
+      expect(repeatedCoordinatorRequest.response.status).toBe(204);
+      await coordinatorStream.reader.reader.cancel();
+      readers.splice(readers.indexOf(coordinatorStream.reader), 1);
+      workerPids = states.map((state) => state.pid);
+      await Promise.all(
+        [transactionCrashMarker, coordinatorDeliveryMarker, coordinatorReleaseMarker, coordinatorCompletionMarker].map((path) =>
+          rm(path, { force: true }),
+        ),
+      );
 
       expect((await requester.fetch("/__cluster_settings?name=cluster-after", { method: "POST" })).response.status).toBe(200);
       states = await waitForStates(requester, (items) => items.every((state) => state.appName === "cluster-after"));
@@ -733,8 +856,9 @@ class ClusterRequester {
 async function openSSE(
   requester: ClusterRequester,
   headers: Record<string, string> = {},
+  excludedPids: number[] = [],
 ): Promise<{ reader: SSEReader; pid: number }> {
-  const result = await requester.fetch("/api/realtime", { headers });
+  const result = await requester.fetch("/api/realtime", { headers }, excludedPids);
   if (!result.response.ok || !result.response.body) {
     throw new Error(`SSE connection failed with status ${result.response.status}`);
   }
