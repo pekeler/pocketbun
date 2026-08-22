@@ -608,11 +608,20 @@ it.serial(
       states = await waitForStates(requester, (items) => items.every((state) => state.pid !== leaseOwner.pid));
       await waitFor(
         async () => {
-          const health = await requester.fetch("/api/health", { headers: { Authorization: superuserToken } });
-          const body = (await health.response.json()) as { data: { canBackup: boolean } };
-          return body.data.canBackup === true;
+          for (const target of states) {
+            const health = await requester.fetch(
+              "/api/health",
+              { headers: { Authorization: superuserToken } },
+              states.filter((state) => state.pid !== target.pid).map((state) => state.pid),
+            );
+            const body = (await health.response.json()) as { data: { canBackup: boolean } };
+            if (health.pid !== target.pid || !body.data.canBackup) {
+              return false;
+            }
+          }
+          return true;
         },
-        "crashed worker backup lease release",
+        "crashed worker backup state convergence",
         5_000,
       );
 
@@ -623,7 +632,9 @@ it.serial(
         headers: superuserHeaders,
         body: JSON.stringify({ name: "known.zip" }),
       });
-      expect(knownBackup.response.status).toBe(204);
+      if (knownBackup.response.status !== 204) {
+        throw new Error(`known backup failed: ${knownBackup.response.status} ${await knownBackup.response.text()}`);
+      }
 
       await writeFile(join(dataDir, "backups", "invalid.zip"), "not a zip archive");
       const failedRestore = await requester.fetch("/__cluster_restore_direct?name=invalid.zip", { method: "POST" });
