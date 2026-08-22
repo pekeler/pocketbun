@@ -88,20 +88,124 @@ it.serial("keeps --workers=1 on the existing single-process serve path", async (
 });
 
 it.serial(
-  "terminates the cluster after the worker crash budget is exhausted",
+  "terminates the cluster when the leader or follower never becomes ready",
   async () => {
-    const root = await mkdtemp(join(tmpdir(), "pocketbun-cluster-crash-loop-"));
+    const sourceData = resolve(fileURLToPath(new URL("../../tests/data", import.meta.url)));
+    for (const role of ["leader", "follower"] as const) {
+      const root = await mkdtemp(join(tmpdir(), `pocketbun-cluster-${role}-crash-loop-`));
+      const dataDir = join(root, "pb_data");
+      const hooksDir = join(root, "pb_hooks");
+      await cp(sourceData, dataDir, { recursive: true });
+      await mkdir(hooksDir, { recursive: true });
+      await writeFile(
+        join(hooksDir, "crash.pb.js"),
+        `if (process.env.POCKETBUN_CLUSTER_ROLE === ${JSON.stringify(role)}) process.exit(91);\n`,
+      );
+      const [port] = await findConsecutivePorts(2);
+      const child = spawnPocketBun([
+        "bin/pocketbun",
+        "--dir",
+        dataDir,
+        "--hooksDir",
+        hooksDir,
+        "--hooksWatch=false",
+        "--hooksPool=1",
+        "--automigrate=false",
+        "--workers=2",
+        "serve",
+        "--http",
+        `127.0.0.1:${port}`,
+      ]);
+
+      try {
+        const exitCode = await withTimeout(child.process.exited, `${role} crash-loop shutdown`, 30_000);
+        await child.output.done;
+        expect(exitCode).not.toBe(0);
+        expect(child.output.stdout).toContain(`${role} workers crashed 5 times within 30 seconds`);
+        const readyRoles = [...child.output.stdout.matchAll(/\[cluster\] ready (leader|follower)/g)].map((match) => match[1]);
+        expect(readyRoles).toEqual(role === "leader" ? [] : ["leader"]);
+        const pids = [...child.output.stdout.matchAll(/pid=(\d+)/g)].map((match) => Number(match[1])).filter((pid) => pid > 0);
+        await waitFor(() => pids.every((pid) => !isProcessAlive(pid)), `${role} crash-loop worker cleanup`, 10_000);
+        expect(await Bun.file(join(dataDir, LocalClusterGuardFileName)).exists()).toBeFalse();
+      } finally {
+        if (isProcessAlive(child.process.pid)) {
+          child.process.kill("SIGKILL");
+          await child.process.exited;
+        }
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+  },
+  90_000,
+);
+
+it.serial(
+  "replaces workers that send malformed, duplicate, or late IPC messages",
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "pocketbun-cluster-ipc-faults-"));
     const dataDir = join(root, "pb_data");
     const hooksDir = join(root, "pb_hooks");
+    const markerPath = join(root, "ipc-fault");
     const sourceData = resolve(fileURLToPath(new URL("../../tests/data", import.meta.url)));
+    const contextModule = new URL("./context.ts", import.meta.url).href;
     await cp(sourceData, dataDir, { recursive: true });
     await mkdir(hooksDir, { recursive: true });
     await writeFile(
-      join(hooksDir, "crash.pb.js"),
-      `if (process.env.POCKETBUN_CLUSTER_ROLE === "follower") process.exit(91);\n`,
+      join(hooksDir, "ipc-faults.pb.js"),
+      `const fs = require("node:fs");
+const markerPath = ${JSON.stringify(markerPath)};
+const contextModule = ${JSON.stringify(contextModule)};
+
+routerAdd("GET", "/__pocketbun_cluster_test", (event) => event.json(200, {
+  pid: process.pid,
+  role: process.env.POCKETBUN_CLUSTER_ROLE,
+  slot: Number(process.env.POCKETBUN_CLUSTER_SLOT),
+  workerId: Number(process.env.POCKETBUN_CLUSTER_WORKER_ID),
+}));
+
+routerAdd("POST", "/__pocketbun_cluster_ipc_fault/{kind}", async (event) => {
+  const cluster = await import(contextModule);
+  const kind = event.request.pathValue("kind");
+  const workerId = cluster.clusterWorkerId();
+  let message;
+  if (kind === "malformed") {
+    message = { version: 2, kind: "worker.stopped", token: cluster.clusterToken(), workerId };
+  } else if (kind === "duplicate-ready") {
+    message = {
+      version: 1,
+      kind: "worker.ready",
+      token: cluster.clusterToken(),
+      role: cluster.clusterRole(),
+      slot: cluster.clusterWorkerSlot(),
+      workerId,
+      pid: process.pid,
+      hostname: "127.0.0.1",
+      port: 1,
+    };
+  } else if (kind === "late-result") {
+    message = {
+      version: 1,
+      kind: "coordinator.delivery-result",
+      token: cluster.clusterToken(),
+      requestId: "already-completed",
+      workerId,
+      ok: true,
+      value: "late",
+    };
+  } else {
+    return event.json(400, { error: "unknown IPC fault" });
+  }
+
+  fs.writeFileSync(markerPath, JSON.stringify({ kind, pid: process.pid }));
+  process.send(message);
+  return event.noContent(204);
+});
+`,
     );
-    const [port] = await findConsecutivePorts(1);
-    const child = spawnPocketBun([
+
+    const ports = await findConsecutivePorts(2);
+    const address = `127.0.0.1:${ports[0]}`;
+    const primary = spawnPocketBun([
       "bin/pocketbun",
       "--dir",
       dataDir,
@@ -110,29 +214,60 @@ it.serial(
       "--hooksWatch=false",
       "--hooksPool=1",
       "--automigrate=false",
-      "--workers=3",
+      "--workers=2",
       "serve",
       "--http",
-      `127.0.0.1:${port}`,
+      address,
     ]);
+    const backendUrls = process.platform === "linux" ? [`http://${address}`] : ports.map((port) => `http://127.0.0.1:${port}`);
+    const currentIdentities = () =>
+      process.platform === "linux"
+        ? collectIdentities(backendUrls[0]!, 2)
+        : Promise.all(backendUrls.map((url) => fetchIdentity(url)));
+    const knownWorkerPids = new Set<number>();
 
     try {
-      const exitCode = await withTimeout(child.process.exited, "crash-loop shutdown", 30_000);
-      await child.output.done;
-      expect(exitCode).not.toBe(0);
-      expect(child.output.stdout).toContain("follower workers crashed 5 times within 30 seconds");
-      const pids = [...child.output.stdout.matchAll(/pid=(\d+)/g)].map((match) => Number(match[1]));
-      await waitFor(() => pids.every((pid) => !isProcessAlive(pid)), "crash-loop worker cleanup", 10_000);
-      expect(await Bun.file(join(dataDir, LocalClusterGuardFileName)).exists()).toBeFalse();
-    } finally {
-      if (isProcessAlive(child.process.pid)) {
-        child.process.kill("SIGKILL");
-        await child.process.exited;
+      await withTimeout(primary.output.waitFor("[cluster] 2 workers"), "IPC-fault cluster startup", 60_000);
+      for (const kind of ["malformed", "duplicate-ready", "late-result"] as const) {
+        const before = await currentIdentities();
+        before.forEach((identity) => knownWorkerPids.add(identity.pid));
+        await rm(markerPath, { force: true });
+        await fetch(`${backendUrls[0]!}/__pocketbun_cluster_ipc_fault/${kind}`, {
+          method: "POST",
+          headers: { Connection: "close" },
+        }).catch(() => null);
+        await waitFor(() => Bun.file(markerPath).exists(), `${kind} IPC marker`, 10_000);
+        const injected = JSON.parse(await readFile(markerPath, "utf8")) as { kind: string; pid: number };
+        expect(injected.kind).toBe(kind);
+        const previous = before.find((identity) => identity.pid === injected.pid)!;
+        expect(previous).toBeDefined();
+        const replacement = await waitForReplacement(backendUrls, previous);
+        knownWorkerPids.add(replacement.pid);
+        expect(replacement.role).toBe(previous.role);
+        expect(replacement.slot).toBe(previous.slot);
+        expect(replacement.pid).not.toBe(previous.pid);
+        expect(await currentIdentities()).toHaveLength(2);
       }
+
+      primary.process.kill("SIGTERM");
+      await withTimeout(primary.process.exited, "IPC-fault cluster shutdown", 20_000);
+      await primary.output.done;
+      await waitFor(() => [...knownWorkerPids].every((pid) => !isProcessAlive(pid)), "IPC-fault worker cleanup", 10_000);
+    } finally {
+      if (isProcessAlive(primary.process.pid)) {
+        primary.process.kill("SIGKILL");
+        await primary.process.exited;
+      }
+      for (const pid of knownWorkerPids) {
+        if (isProcessAlive(pid)) {
+          process.kill(pid, "SIGKILL");
+        }
+      }
+      await withTimeout(primary.output.done, "IPC-fault output cleanup", 10_000).catch(() => {});
       await rm(root, { recursive: true, force: true });
     }
   },
-  45_000,
+  120_000,
 );
 
 it.serial(
