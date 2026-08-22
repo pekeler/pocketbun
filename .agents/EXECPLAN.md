@@ -50,11 +50,12 @@ The repository owner intends to deploy cluster mode in production as soon as pra
 - [x] (2026-08-22 09:30Z) Completed Milestone 8: singleton startup gates, existing cross-process cache notifications, primary-atomic rate limits and expiring claims, cross-worker realtime subscriptions/events/auth invalidation, and targeted OAuth2 delivery passed locally and in hosted Ubuntu, macOS, and Windows CI after commit `4dc010eb`.
 - [x] (2026-08-22 09:56Z) Locally implemented Milestone 9: one primary-owned backup lease is mirrored to every worker, owner death releases it, restart recycles the full worker set, and restore quiesces every HTTP server before replacing data and starting fresh workers. Both complete 1,935-test modes and the real three-worker lifecycle suite pass.
 - [x] (2026-08-22 10:56Z) Completed Milestone 9 after correcting the Linux-only test race exposed by the first matrix. Hosted run 32568697758 passed Ubuntu, macOS, Windows, and downstream Playwright E2E with the asynchronous backup-owner test hook.
-- [ ] (2026-08-22 11:08Z) Started Milestone 10 by auditing the existing real-process coverage instead of duplicating it. The main cluster lifecycle test now exercises POSIX `SIGINT`; POSIX `SIGTERM` remains covered by the state/lifecycle test, Windows retains its supported graceful termination path, and forced primary death remains covered by the qualified runtime probe. The four focused lifecycle tests pass locally.
+- [x] (2026-08-22 11:08Z) Started Milestone 10 by auditing the existing real-process coverage instead of duplicating it. The main cluster lifecycle test now exercises POSIX `SIGINT`; POSIX `SIGTERM` remains covered by the state/lifecycle test, Windows retains its supported graceful termination path, and forced primary death remains covered by the qualified runtime probe. The four focused lifecycle tests pass locally.
 - [x] (2026-08-22 12:00Z) Corrected Milestone 10 teardown qualification passed hosted run 32571549616 on Ubuntu, macOS, Windows, and downstream Playwright E2E. The state harness now awaits descendant output-pipe closure before deleting its temporary database, eliminating the Windows `EBUSY` race without sleeps or filesystem retries.
 - [x] (2026-08-22 12:00Z) Added real-process coverage for an SSE-owning worker dying: a low-level client observes the disconnect, the primary replaces the worker, and a fresh connection resubscribes and receives a mutation produced by another worker. Corrected hosted run 32572636371 passed Ubuntu, macOS, Windows, and downstream Playwright E2E.
 - [x] (2026-08-22 12:21Z) The first SSE reconnect matrix passed Ubuntu and macOS. Windows completed the reconnect scenario, then exposed that the later backup-owner-death check sampled only one asynchronously cleared worker mirror before sending the next backup to an arbitrary worker. The harness now waits for `canBackup=true` on every current PID; five focused local reruns and corrected hosted run 32572636371 pass.
-- [ ] (2026-08-22 13:00Z) Added a real-process forced-stop case in which a follower enters but never completes `onTerminate`; the primary reaches its existing ten-second deadline, kills it, and recreates the full worker set. Hosted run 32573179866 showed that `Bun.spawn().kill("SIGTERM")` terminates the Windows primary directly instead of reaching its JS signal handler, so the corrected test now uses `app.restart()` to exercise the same bounded worker-stop path portably. The same run showed that mirrored backup-idle state alone does not guarantee the first real backup after a hard-killed owner; the test now requires bounded eventual success of the idempotent named backup on the surviving leader and preserves the last response on failure. The focused files, complete 1,936-test concurrent suite, four-process suite, format, typecheck, and lint pass locally; hosted qualification is pending.
+- [x] (2026-08-22 13:00Z) Added a real-process forced-stop case in which a follower enters but never completes `onTerminate`; the primary reaches its existing ten-second deadline, kills it, and recreates the full worker set. Hosted run 32573179866 showed that `Bun.spawn().kill("SIGTERM")` terminates the Windows primary directly instead of reaching its JS signal handler, so the corrected test now uses `app.restart()` to exercise the same bounded worker-stop path portably. The same run showed that mirrored backup-idle state alone does not guarantee the first real backup after a hard-killed owner; the test now requires bounded eventual success of the idempotent named backup on the surviving leader and preserves the last response on failure. Corrected hosted run 32573835408 passed Ubuntu, macOS, Windows, and downstream Playwright E2E at commit `f5dd61f3`.
+- [ ] (2026-08-22 13:04Z) Added one real-process migration-boundary scenario: the first leader exits inside the application-migration transaction, its replacement exits from `onServe` after commit but before readiness, the next leader proves HTTP readiness, and that ready leader is then killed and replaced. Durable test markers identify each distinct process; the final shared database contains one effect row and one migration-history row, and no failed leader was advertised ready. Ten consecutive focused reruns, the complete lifecycle file, both 1,937-test suites, format, typecheck, and lint pass locally; hosted qualification is pending.
 - [ ] Complete the production fault matrix: leader death during migration and between commit/readiness, follower death during a transaction and while awaiting the primary, primary death during each coordinated operation, real stale-guard recovery, no-ready startup, and late/duplicate IPC cleanup.
 - [ ] Qualify shared SQLite behavior under concurrent read/write traffic, WAL checkpoints, manual backup, autobackup, worker death, and restart; prove committed counts/checksums, rollback of interrupted writes, bounded busy handling, and continued service without lock leaks.
 - [ ] Run the required stateful Linux soak at both two and four workers for at least 60 minutes, continuously mixing CRUD, settings changes, realtime clients, rate-limited traffic, backups, worker replacement, and primary restart while checking correctness and resource stability.
@@ -159,6 +160,8 @@ The repository owner intends to deploy cluster mode in production as soon as pra
   Evidence: PocketBase scales concurrent work inside one Go process, where goroutines share caches, brokers, lifecycle state, and coordination memory. PocketBun cluster workers are separate Bun processes with independent heaps, stores, subscription brokers, SQLite connections, and log writers; only the primary protocol and `.notify` files connect the state that must converge.
 - Observation: Bun's process-isolated parallel test command is a faster compatibility gate, not a shared-database cluster stress test.
   Evidence: ordinary tests construct isolated applications and temporary databases. The dedicated real-process files under `src/internal/cluster/` are the tests that deliberately share one `pb_data`, route traffic across worker PIDs, kill processes, and inspect cluster invariants. Test count alone therefore cannot measure cluster confidence.
+- Observation: all three leader migration failure boundaries can be exercised through PocketBun's existing public extension lifecycle without a production-only fault API.
+  Evidence: a temporary JavaScript migration exits one leader after transactional schema/data changes, a temporary `onServe` hook exits the replacement after migration commit but before `worker.ready`, and the existing identity route proves readiness before the test kills the third leader. External marker files preserve the PID at each boundary even though the database transaction rolls back.
 
 ## Decision Log
 
@@ -264,6 +267,9 @@ The repository owner intends to deploy cluster mode in production as soon as pra
 - Decision: treat multi-worker production confidence as a separate release gate; do not infer it from PocketBase compatibility tests or Bun's process-isolated parallel test suite.
   Rationale: PocketBase's Go concurrency shares one process, whereas PocketBun cluster correctness depends on IPC, process-local cache/broker/store convergence, independent SQLite connections, and recovery from operating-system process death. Before release, require deterministic shared-`pb_data` fault tests, sustained SQLite pressure, stateful two-worker and four-worker Linux soaks, primary bottleneck measurements, and matched current PocketBase/PocketBun benchmarks.
   Date/Author: 2026-08-22 / repository owner and Codex
+- Decision: keep deterministic startup fault injection in temporary test migrations and hooks rather than adding cluster fault controls to production code.
+  Rationale: the normal migration, `onServe`, readiness, and process-exit surfaces reach the exact transaction/commit/ready boundaries. Reusing them tests the real application lifecycle and avoids shipping an inactive testing protocol or environment-variable branch.
+  Date/Author: 2026-08-22 / Codex
 
 ## Outcomes & Retrospective
 
@@ -285,7 +291,7 @@ Milestone 8 is complete locally and on hosted CI. Only the leader performs migra
 
 Milestone 9 is complete locally and on hosted CI. Backup and restore exclusion is primary-atomic and mirrored through the existing active-backup store key, including automatic owner-death release. `app.restart()` recycles every worker under the lightweight primary. Restore validates while serving, then closes all non-initiators, force-stops the initiator's HTTP server, performs the existing replacement transaction, and starts a completely fresh worker set; Windows retains its explicit unsupported restore result without disturbing the cluster. The real three-worker test covers cross-worker exclusion, delete and health state, a concurrent write, owner death, invalid restore recovery, full restart, restored data, new PIDs, and clean shutdown. Corrected hosted run 32568697758 passed Ubuntu, macOS, Windows, and downstream Playwright E2E.
 
-Milestone 10 is the remaining production-release gate. Functional compatibility and the existing real-process cluster tests provide a strong base, but they do not yet qualify prolonged multi-process SQLite contention, every process-death boundary, or resource stability under production-like traffic. Release remains blocked on the deterministic fault matrix, shared-database pressure checks, successful 60-minute two-worker and four-worker Linux soaks, primary saturation measurements, matched current PocketBase/PocketBun benchmarks, operational documentation, and the complete repository and hosted gates. No unexplained flaky result may be waived by adding a default retry.
+Milestone 10 is the remaining production-release gate. Functional compatibility and the existing real-process cluster tests provide a strong base, but they do not yet qualify prolonged multi-process SQLite contention, every process-death boundary, or resource stability under production-like traffic. The leader migration transaction, post-commit/pre-ready, and post-ready death boundaries now pass locally without production fault hooks; hosted qualification remains pending. Release remains blocked on the rest of the deterministic fault matrix, shared-database pressure checks, successful 60-minute two-worker and four-worker Linux soaks, primary saturation measurements, matched current PocketBase/PocketBun benchmarks, operational documentation, and the complete repository and hosted gates. No unexplained flaky result may be waived by adding a default retry.
 
 The expected result is simpler than a built-in general-purpose process manager: one primary file, one typed IPC protocol, worker-role checks at existing singleton boundaries, and focused adapters for the handful of process-local features. The performance benefit is expected primarily for concurrent reads and CPU-heavy request/hook work. Writes remain serialized by SQLite, each worker adds memory, and the primary-coordinated rate limiter adds an IPC round trip on routes for which a rate-limit rule applies. Those costs must be measured before the feature is described as a performance advantage.
 
@@ -1064,6 +1070,30 @@ Milestone 9 local qualification:
       Ubuntu Playwright E2E: passed
     Hosted Ubuntu/macOS/Windows backup/lifecycle confirmation: complete
 
+Milestone 10 migration-boundary local qualification:
+
+    Date: 2026-08-22
+    Bun: 1.4.0 (34cbb9a40)
+    Fault 1: leader process exited with code 91 after transactional schema/data writes
+    Fault 2: replacement leader exited with code 92 from onServe after migration commit
+             and before worker.ready
+    Fault 3: ready leader was killed and replaced in the same leader slot
+    Durable evidence: three distinct marker PIDs; neither pre-ready PID appeared in a
+                      ready-leader message; leader ready preceded follower ready
+    Final database: one cluster_migration_fault row and one matching _migrations row
+    Production changes: none; temporary migration and hook fixtures only
+    Focused reruns: 10 pass, 0 fail, 110 expect() calls in 13.66 seconds
+    Complete lifecycle file: 6 pass, 0 fail, 44 expect() calls in 14.11 seconds
+    bun run test: 1,937 pass, 0 fail, 10,391 expect() calls
+                  across 248 files in 32.82 seconds
+    bun test --concurrent: 1,937 pass, 0 fail, 7 snapshots,
+                           10,391 expect() calls across 248 files in 83.14 seconds
+    bun run format:fix: passed
+    bun run typecheck: passed
+    bun run lint: 0 warnings, 0 errors
+    git diff --check: passed
+    Hosted Ubuntu/macOS/Windows qualification: pending
+
 Current PocketBun coordination inventory:
 
     SQLite database truth              already cross-process through WAL/busy timeout
@@ -1183,3 +1213,5 @@ Revision note, 2026-08-22 / Codex: Closed the SSE reconnect and backup-state con
 Revision note, 2026-08-22 / Codex: Recorded hosted run 32573179866: Ubuntu and macOS passed, while Windows exposed two test-boundary assumptions. `Bun.spawn().kill("SIGTERM")` killed the primary immediately rather than invoking its JS handler, so the portable forced-stop test now triggers `app.restart()`, which uses the same production ten-second worker deadline. Backup mirrors all converged after owner death, but the immediate next real backup returned 400; the recovery assertion now waits for the idempotent named backup itself to succeed on the surviving leader within a bounded deadline and retains the last failure for diagnostics. Focused and complete local gates pass.
 
 Revision note, 2026-08-22 / Codex: Raised Milestone 10 to an explicit production-confidence release gate at the repository owner's request. Distinguished inherited single-process PocketBase compatibility from PocketBun's multi-process coordination risks, made shared-database fault injection and 60-minute two-worker and four-worker Linux soaks mandatory, added primary saturation and current PocketBase comparison work, and required no known reproducible correctness or unbounded-resource defect before release.
+
+Revision note, 2026-08-22 / Codex: Closed the forced-stop and backup-recovery correction after hosted run 32573835408 passed Ubuntu, macOS, Windows, and downstream E2E at commit `f5dd61f3`. Added deterministic leader migration-boundary coverage using only temporary JavaScript migration and hook fixtures: transaction death, post-commit/pre-ready death, and post-ready replacement now pass ten focused reruns and the complete 1,937-test local concurrent gate; hosted qualification remains pending.

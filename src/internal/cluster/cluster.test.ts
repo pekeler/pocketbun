@@ -1,7 +1,7 @@
 // PocketBun-only: exercises the real multi-process CLI lifecycle across the supported Bun platforms.
 
 import { expect, it } from "bun:test";
-import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -133,6 +133,155 @@ it.serial(
     }
   },
   45_000,
+);
+
+it.serial(
+  "recovers when the leader dies during migration, after commit, and after readiness",
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "pocketbun-cluster-migration-faults-"));
+    const dataDir = join(root, "pb_data");
+    const hooksDir = join(root, "pb_hooks");
+    const migrationsDir = join(root, "pb_migrations");
+    const migrationMarker = join(root, "migration-entered");
+    const committedMarker = join(root, "migration-committed");
+    const readyMarker = join(root, "leader-ready");
+    const migrationFile = "9999999999_cluster_migration_fault.js";
+    const sourceData = resolve(fileURLToPath(new URL("../../tests/data", import.meta.url)));
+    await cp(sourceData, dataDir, { recursive: true });
+    await mkdir(hooksDir, { recursive: true });
+    await mkdir(migrationsDir, { recursive: true });
+    await writeFile(
+      join(migrationsDir, migrationFile),
+      `const fs = require("node:fs");
+const marker = ${JSON.stringify(migrationMarker)};
+
+migrate((app) => {
+  app.db().newQuery("CREATE TABLE cluster_migration_fault (id TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL)").execute();
+  app.db().newQuery("INSERT INTO cluster_migration_fault (id, value) VALUES ('committed', 'yes')").execute();
+  if (!fs.existsSync(marker)) {
+    fs.writeFileSync(marker, String(process.pid));
+    process.exit(91);
+  }
+});
+`,
+    );
+    await writeFile(
+      join(hooksDir, "migration-faults.pb.js"),
+      `const fs = require("node:fs");
+const committedMarker = ${JSON.stringify(committedMarker)};
+const readyMarker = ${JSON.stringify(readyMarker)};
+const migrationFile = ${JSON.stringify(migrationFile)};
+
+$app.onServe().bind({
+  id: "cluster-migration-after-commit-fault",
+  priority: -1000,
+  func: (event) => {
+    if (process.env.POCKETBUN_CLUSTER_ROLE === "leader" && !fs.existsSync(committedMarker)) {
+      fs.writeFileSync(committedMarker, String(process.pid));
+      process.exit(92);
+    }
+    return event.next();
+  },
+});
+
+routerAdd("GET", "/__pocketbun_cluster_test", (event) => {
+  const role = process.env.POCKETBUN_CLUSTER_ROLE;
+  if (role === "leader" && !fs.existsSync(readyMarker)) {
+    fs.writeFileSync(readyMarker, String(process.pid));
+  }
+  const state = {};
+  $app.db().newQuery(
+    "SELECT (SELECT COUNT(*) FROM cluster_migration_fault) AS records, " +
+    "(SELECT COUNT(*) FROM _migrations WHERE file = {:file}) AS history"
+  ).bind({ file: migrationFile }).one(state);
+  return event.json(200, {
+    pid: process.pid,
+    role,
+    slot: Number(process.env.POCKETBUN_CLUSTER_SLOT),
+    workerId: Number(process.env.POCKETBUN_CLUSTER_WORKER_ID),
+    records: Number(state.records),
+    history: Number(state.history),
+  });
+});
+`,
+    );
+
+    const ports = await findConsecutivePorts(2);
+    const address = `127.0.0.1:${ports[0]}`;
+    const primary = spawnPocketBun([
+      "bin/pocketbun",
+      "--dir",
+      dataDir,
+      "--hooksDir",
+      hooksDir,
+      "--migrationsDir",
+      migrationsDir,
+      "--hooksWatch=false",
+      "--hooksPool=1",
+      "--workers=2",
+      "serve",
+      "--http",
+      address,
+    ]);
+    const backendUrls = process.platform === "linux" ? [`http://${address}`] : ports.map((port) => `http://127.0.0.1:${port}`);
+
+    try {
+      await withTimeout(primary.output.waitFor("[cluster] 2 workers"), "migration-fault cluster startup", 60_000);
+      const identities =
+        process.platform === "linux"
+          ? await collectIdentities(backendUrls[0]!, 2)
+          : await Promise.all(backendUrls.map((url) => fetchIdentity(url)));
+      const leader = identities.find((identity) => identity.role === "leader")!;
+      const failedInMigration = Number(await readFile(migrationMarker, "utf8"));
+      const failedAfterCommit = Number(await readFile(committedMarker, "utf8"));
+      const reachedReady = Number(await readFile(readyMarker, "utf8"));
+
+      expect(new Set([failedInMigration, failedAfterCommit, reachedReady]).size).toBe(3);
+      expect(leader.pid).toBe(reachedReady);
+      expect(primary.output.stdout).toContain("code=91");
+      expect(primary.output.stdout).toContain("code=92");
+      const readyLeaderPids = [...primary.output.stdout.matchAll(/\[cluster\] ready leader .* pid=(\d+)/g)].map((match) =>
+        Number(match[1]),
+      );
+      expect(readyLeaderPids).not.toContain(failedInMigration);
+      expect(readyLeaderPids).not.toContain(failedAfterCommit);
+      expect(primary.output.stdout.indexOf("[cluster] ready leader")).toBeLessThan(
+        primary.output.stdout.indexOf("[cluster] ready follower"),
+      );
+
+      process.kill(leader.pid, "SIGKILL");
+      const replacement = await waitForReplacement(backendUrls, leader);
+      expect(replacement.role).toBe("leader");
+      expect(replacement.pid).not.toBe(reachedReady);
+
+      const stateResponse = await fetch(`${backendUrls[0]!}/__pocketbun_cluster_test?state=${crypto.randomUUID()}`, {
+        headers: { Connection: "close" },
+      });
+      const state = (await stateResponse.json()) as Identity & { records: number; history: number };
+      expect(state.records).toBe(1);
+      expect(state.history).toBe(1);
+
+      primary.process.kill("SIGTERM");
+      await withTimeout(primary.process.exited, "migration-fault cluster shutdown", 20_000);
+      await primary.output.done;
+      const workerPids = [...primary.output.stdout.matchAll(/pid=(\d+)/g)].map((match) => Number(match[1]));
+      await waitFor(() => workerPids.every((pid) => !isProcessAlive(pid)), "migration-fault worker cleanup", 10_000);
+    } finally {
+      if (isProcessAlive(primary.process.pid)) {
+        primary.process.kill("SIGKILL");
+        await primary.process.exited;
+      }
+      await withTimeout(primary.output.done, "migration-fault output cleanup", 10_000).catch(() => {});
+      const workerPids = [...primary.output.stdout.matchAll(/pid=(\d+)/g)].map((match) => Number(match[1]));
+      for (const pid of workerPids) {
+        if (isProcessAlive(pid)) {
+          process.kill(pid, "SIGKILL");
+        }
+      }
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  120_000,
 );
 
 it.serial(
