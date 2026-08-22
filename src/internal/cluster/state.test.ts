@@ -120,9 +120,9 @@ onMailerRecordVerificationSend(() => {
   return null;
 }, "users");
 
-onBackupCreate((event) => {
-  if (event.name === "held.zip") sleep(500);
-  if (event.name === "crash.zip") sleep(15000);
+onBackupCreate(async (event) => {
+  if (event.name === "held.zip") await new Promise((resolve) => setTimeout(resolve, 500));
+  if (event.name === "crash.zip") await new Promise((resolve) => setTimeout(resolve, 15000));
   return event.next();
 });
 

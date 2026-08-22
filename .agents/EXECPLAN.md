@@ -47,6 +47,7 @@ Success is observable, not architectural. First, the complete test suite must pa
 - [x] (2026-08-22 00:30Z) Completed Milestone 7: the cluster primary, worker roles, CLI surface, leader-first startup, data-directory guard, readiness, bounded same-slot recovery, and graceful/forced shutdown passed the complete local gate and the hosted Ubuntu, macOS, and Windows CI matrix.
 - [x] (2026-08-22 09:30Z) Completed Milestone 8: singleton startup gates, existing cross-process cache notifications, primary-atomic rate limits and expiring claims, cross-worker realtime subscriptions/events/auth invalidation, and targeted OAuth2 delivery passed locally and in hosted Ubuntu, macOS, and Windows CI after commit `4dc010eb`.
 - [ ] (2026-08-22 09:56Z) Locally implemented Milestone 9: one primary-owned backup lease is mirrored to every worker, owner death releases it, restart recycles the full worker set, and restore quiesces every HTTP server before replacing data and starting fresh workers. Both complete 1,935-test modes and the real three-worker lifecycle suite pass; hosted Ubuntu, macOS, and Windows confirmation remains the completion gate.
+- [ ] (2026-08-22 10:50Z) The first hosted Milestone 9 matrix passed on macOS and Windows. Ubuntu exposed a test-only shared-port race: the backup-owner hook synchronously blocked its event loop for 15 seconds, so a health request assigned to that same `reusePort` listener could not receive the affinity-rejection response before its deadline. The hook now holds the lease with an asynchronous timer; five focused reruns and the complete 1,935-test concurrent suite pass locally, with a corrected hosted run pending.
 - [ ] Complete cluster integration tests, failure tests, performance measurements, documentation, and the final release gate in Milestone 10.
 
 ## Surprises & Discoveries
@@ -101,6 +102,8 @@ Success is observable, not architectural. First, the complete test suite must pa
   Evidence: the macOS probe held an SSE body open, observed that `stop()` remained pending after 150 milliseconds, canceled the client body, and then observed clean worker shutdown. A separate slow request made graceful stop wait approximately 251 milliseconds until the in-flight response completed.
 - Observation: forcing every request in a sustained proxy smoke test to send `Connection: close` exhausts short-lived TCP ports on hosted macOS before it tests cluster longevity.
   Evidence: extended run 32528891337 passed its ten-minute probe on Ubuntu and Windows, but macOS failed after four minutes when the test proxy could no longer open a backend socket (`FailedToOpenSocket`). Retaining fresh connections only for worker-distribution assertions and using normal HTTP connection reuse during the sustained phase passed a five-minute local macOS run with 10,000 IPC messages, 100 restarts, 2,692,375 HTTP requests, and 107,695 SSE requests.
+- Observation: a synchronous delay in one Linux `reusePort` worker can also delay a request intended for another worker when the kernel first assigns that connection to the blocked listener.
+  Evidence: hosted run 32568199007 passed macOS and Windows but timed out an Ubuntu affinity request after it was assigned to the synchronously sleeping backup owner. Replacing the test hook's `sleep(15000)` with an asynchronous timer keeps the lease active without blocking the listener; five focused local reruns complete in about 3.5 seconds each.
 - Observation: Linux-only port sharing does not imply Linux-only clustering.
   Evidence: Bun documents worker handle passing and therefore built-in HTTP load balancing as the missing non-Linux capability. Worker creation, lifecycle events, and ordinary IPC are separate `node:cluster` capabilities. On Windows/macOS, an external reverse proxy can listen on the public endpoint and balance across worker ports without asking Bun to pass a listening socket. This remains an inference to prove with Bun v1.4.0 integration tests on each operating system.
 - Observation: The current Bun implementation automatically recognizes cluster workers, but PocketBun should still set `reusePort: true` explicitly.
@@ -995,7 +998,11 @@ Milestone 9 local qualification:
     bun run docs:check: passed
     bun run build: passed
     git diff --check: passed
-    Hosted Ubuntu/macOS/Windows backup/lifecycle confirmation: pending commit push
+    Hosted run 32568199007:
+      macOS and Windows: passed
+      Ubuntu: one test-only affinity timeout while the selected reusePort worker synchronously slept
+      Correction: asynchronous hook timers; 5 focused passes and the complete 1,935-test concurrent suite pass locally
+    Hosted Ubuntu/macOS/Windows backup/lifecycle confirmation: pending corrected commit push
 
 Current PocketBun coordination inventory:
 
@@ -1100,3 +1107,5 @@ Revision note, 2026-08-22 / Codex: Implemented Milestone 7's minimal production 
 Revision note, 2026-08-22 / Codex: Closed Milestone 7 after the lifecycle commit passed hosted Ubuntu, macOS, and Windows CI. Implemented Milestone 8 locally with leader-only singleton work, primary-atomic limiter/expiry state, acknowledged realtime fan-out and subscription routing, and probe-then-deliver OAuth2 routing. Recorded the complete 1,934-test local gates and real three-worker state evidence; hosted cross-platform confirmation remains the milestone gate.
 
 Revision note, 2026-08-22 / Codex: Closed Milestone 8 after commit `4dc010eb` passed hosted Ubuntu, macOS, and Windows CI. Implemented Milestone 9 locally with a worker-owned primary backup lease and mirrored health/delete state, owner-death cleanup, full-worker `app.restart()`, and restore quiescence that force-stops every HTTP server before directory replacement. Kept the stateless primary across restore instead of re-executing it, and recorded the complete 1,935-test local gates; hosted cross-platform confirmation remains the milestone gate.
+
+Revision note, 2026-08-22 / Codex: Recorded Milestone 9 hosted run 32568199007: macOS and Windows passed, while Ubuntu exposed a test-only interaction between a synchronous 15-second hook delay and kernel `reusePort` connection assignment. Changed the test hook to hold the primary backup lease asynchronously so every listener remains responsive, then passed five focused lifecycle reruns and the complete concurrent suite locally; corrected hosted confirmation remains the milestone gate.
