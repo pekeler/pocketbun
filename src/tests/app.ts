@@ -169,7 +169,7 @@ export async function newTestApp(dataDir?: string, options: NewTestAppOptions = 
   };
 }
 
-async function terminateTestApp(app: TestApp): Promise<void> {
+export async function terminateTestApp(app: TestApp): Promise<void> {
   if (!app.isBootstrapped()) {
     app.resetBootstrapState();
     return;

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { CollectionNameSuperusers } from "../src/core/collection_model.ts";
 import { NewRecord } from "../src/core/record_model.ts";
-import { TestApp, newTestApp, type ManagedTestApp } from "../src/tests/app.ts";
+import { TestApp, newTestApp, terminateTestApp, type ManagedTestApp } from "../src/tests/app.ts";
 import { benchmarkSchema } from "./bench_upstream_pocketbun/schema.ts";
 
 export type AuthMode = "none" | "user" | "superuser";
@@ -114,8 +114,11 @@ export async function newScenarioApp(scenario: Scenario): Promise<ManagedTestApp
     cleaned = true;
     app.resetEventCalls();
     app.testMailer.reset();
-    app.resetBootstrapState();
-    await rm(tempDir, { recursive: true, force: true });
+    try {
+      await terminateTestApp(app);
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   };
 
   return {
@@ -321,12 +324,15 @@ async function ensureBenchmarkTemplate(): Promise<string> {
       `${JSON.stringify({ version: benchmarkTemplateVersion, counts: benchmarkBuildCounts }, null, 2)}\n`,
     );
   } catch (error) {
-    app.resetBootstrapState();
-    await rm(buildDir, { recursive: true, force: true });
+    try {
+      await terminateTestApp(app);
+    } finally {
+      await rm(buildDir, { recursive: true, force: true });
+    }
     throw error;
   }
 
-  app.resetBootstrapState();
+  await terminateTestApp(app);
   await rm(benchmarkTemplateDir, { recursive: true, force: true });
   await rename(buildDir, benchmarkTemplateDir);
   return benchmarkTemplateDir;

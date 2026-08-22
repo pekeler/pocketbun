@@ -16,6 +16,7 @@
 - Added opt-in `--workers=N` vertical scaling with native shared-port workers on Linux, predictable proxy backends on macOS and Windows, same-slot crash recovery, graceful shutdown, and single-primary protection per data directory.
 - Multi-worker servers now coordinate migrations, scheduled work, rate limits, email resend guards, realtime subscriptions and events, auth invalidation, and OAuth2 redirects as one PocketBun application.
 - Multi-worker backups, restores, and application restarts now coordinate cluster-wide, preventing overlapping backup operations and workers from retaining stale database connections.
+- Graceful CLI shutdown now exits successfully after `SIGINT` or `SIGTERM`, so service managers no longer report a normal stop as a failure.
 
 ## 0.39.11-pocketbun.0 - 2026-08-14
 

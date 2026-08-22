@@ -76,7 +76,7 @@ it.serial("keeps --workers=1 on the existing single-process serve path", async (
     child.process.kill("SIGTERM");
     const exitCode = await withTimeout(child.process.exited, "single-worker shutdown", 15_000);
     if (process.platform !== "win32") {
-      expect(exitCode).toBe(143);
+      expect(exitCode).toBe(0);
     }
   } finally {
     if (isProcessAlive(child.process.pid)) {
@@ -671,7 +671,7 @@ it.serial(
       primary.process.kill(process.platform === "win32" ? "SIGTERM" : "SIGINT");
       const exitCode = await withTimeout(primary.process.exited, "cluster shutdown", 20_000);
       if (process.platform !== "win32") {
-        expect(exitCode).toBe(130);
+        expect(exitCode).toBe(0);
       }
       await primary.output.done;
       expect(primary.output.stdout.match(/\[cluster\] 3 workers/g)?.length ?? 0).toBe(1);

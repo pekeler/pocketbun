@@ -132,7 +132,18 @@ onMailerRecordVerificationSend(() => {
 onBackupCreate(async (event) => {
   if (event.name === "held.zip") await new Promise((resolve) => setTimeout(resolve, 500));
   if (event.name === "crash.zip") await new Promise((resolve) => setTimeout(resolve, 15000));
-  return event.next();
+  try {
+    const result = await event.next();
+    if (event.name === "held.zip" && result) {
+      console.error("[cluster-test] held backup error", result.stack || result.message || String(result));
+    }
+    return result;
+  } catch (error) {
+    if (event.name === "held.zip") {
+      console.error("[cluster-test] held backup threw", error.stack || error.message || String(error));
+    }
+    throw error;
+  }
 });
 
 onRealtimeSubscribeRequest(async (event) => {
@@ -653,6 +664,41 @@ it.serial(
       const superuserToken = ((await superuserTokenResult.response.json()) as { token: string }).token;
       const superuserHeaders = { Authorization: superuserToken, "Content-Type": "application/json" };
 
+      const collectionUpdateWorker = states.find((state) => state.role === "follower")!;
+      const collectionUpdate = await requester.fetch(
+        "/api/collections/cluster_items",
+        {
+          method: "PATCH",
+          headers: superuserHeaders,
+          body: JSON.stringify({ listRule: "id != ''", indexes: [] }),
+        },
+        states.filter((state) => state.pid !== collectionUpdateWorker.pid).map((state) => state.pid),
+      );
+      if (collectionUpdate.response.status !== 200) {
+        throw new Error(`public collection update returned ${collectionUpdate.response.status}: ${await collectionUpdate.response.text()}`);
+      }
+      await waitFor(
+        async () => {
+          for (const state of states) {
+            const result = await requester.fetch(
+              "/api/collections/cluster_items",
+              { headers: { Authorization: superuserToken } },
+              states.filter((candidate) => candidate.pid !== state.pid).map((candidate) => candidate.pid),
+            );
+            if (result.response.status !== 200) {
+              return false;
+            }
+            const collection = (await result.response.json()) as { listRule?: unknown };
+            if (collection.listRule !== "id != ''") {
+              return false;
+            }
+          }
+          return true;
+        },
+        "public collection update convergence",
+        5_000,
+      );
+
       const backupWorker = states[0]!.pid;
       const heldBackup = requester.fetch(
         "/api/backups",
@@ -692,7 +738,12 @@ it.serial(
       expect(
         (await requester.fetch("/__cluster_settings?name=backup-write", { method: "POST" }, [backupWorker])).response.status,
       ).toBe(200);
-      expect((await heldBackup).response.status).toBe(204);
+      const heldBackupResult = await heldBackup;
+      if (heldBackupResult.response.status !== 204) {
+        throw new Error(
+          `held backup returned ${heldBackupResult.response.status}: ${await heldBackupResult.response.text()}\nstdout:\n${primary.output.stdout}\nstderr:\n${primary.output.stderr}`,
+        );
+      }
 
       await waitFor(
         async () => {
@@ -811,7 +862,7 @@ it.serial(
       primary.process.kill("SIGTERM");
       const exitCode = await withTimeout(primary.process.exited, "cluster state shutdown", 20_000);
       if (process.platform !== "win32") {
-        expect(exitCode).toBe(143);
+        expect(exitCode).toBe(0);
       }
     } finally {
       for (const stream of readers) {
