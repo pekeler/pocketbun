@@ -46,8 +46,8 @@ Success is observable, not architectural. First, the complete test suite must pa
 - [x] (2026-08-21 22:05Z) Completed Milestone 6: Bun v1.4.0 source and bundled cluster probes, single-worker baselines, the normal CI matrix, and the extended 10,000-message/100-restart/ten-minute matrix passed on Ubuntu, macOS, and Windows. Linux qualified native shared-port serving; macOS and Windows qualified distinct worker ports behind an external proxy.
 - [x] (2026-08-22 00:30Z) Completed Milestone 7: the cluster primary, worker roles, CLI surface, leader-first startup, data-directory guard, readiness, bounded same-slot recovery, and graceful/forced shutdown passed the complete local gate and the hosted Ubuntu, macOS, and Windows CI matrix.
 - [x] (2026-08-22 09:30Z) Completed Milestone 8: singleton startup gates, existing cross-process cache notifications, primary-atomic rate limits and expiring claims, cross-worker realtime subscriptions/events/auth invalidation, and targeted OAuth2 delivery passed locally and in hosted Ubuntu, macOS, and Windows CI after commit `4dc010eb`.
-- [ ] (2026-08-22 09:56Z) Locally implemented Milestone 9: one primary-owned backup lease is mirrored to every worker, owner death releases it, restart recycles the full worker set, and restore quiesces every HTTP server before replacing data and starting fresh workers. Both complete 1,935-test modes and the real three-worker lifecycle suite pass; hosted Ubuntu, macOS, and Windows confirmation remains the completion gate.
-- [ ] (2026-08-22 10:50Z) The first hosted Milestone 9 matrix passed on macOS and Windows. Ubuntu exposed a test-only shared-port race: the backup-owner hook synchronously blocked its event loop for 15 seconds, so a health request assigned to that same `reusePort` listener could not receive the affinity-rejection response before its deadline. The hook now holds the lease with an asynchronous timer; five focused reruns and the complete 1,935-test concurrent suite pass locally, with a corrected hosted run pending.
+- [x] (2026-08-22 09:56Z) Locally implemented Milestone 9: one primary-owned backup lease is mirrored to every worker, owner death releases it, restart recycles the full worker set, and restore quiesces every HTTP server before replacing data and starting fresh workers. Both complete 1,935-test modes and the real three-worker lifecycle suite pass.
+- [x] (2026-08-22 10:56Z) Completed Milestone 9 after correcting the Linux-only test race exposed by the first matrix. Hosted run 32568697758 passed Ubuntu, macOS, Windows, and downstream Playwright E2E with the asynchronous backup-owner test hook.
 - [ ] Complete cluster integration tests, failure tests, performance measurements, documentation, and the final release gate in Milestone 10.
 
 ## Surprises & Discoveries
@@ -1002,7 +1002,12 @@ Milestone 9 local qualification:
       macOS and Windows: passed
       Ubuntu: one test-only affinity timeout while the selected reusePort worker synchronously slept
       Correction: asynchronous hook timers; 5 focused passes and the complete 1,935-test concurrent suite pass locally
-    Hosted Ubuntu/macOS/Windows backup/lifecycle confirmation: pending corrected commit push
+    Hosted run 32568697758:
+      Ubuntu checks: passed
+      macOS checks: passed
+      Windows checks: passed
+      Ubuntu Playwright E2E: passed
+    Hosted Ubuntu/macOS/Windows backup/lifecycle confirmation: complete
 
 Current PocketBun coordination inventory:
 
@@ -1109,3 +1114,5 @@ Revision note, 2026-08-22 / Codex: Closed Milestone 7 after the lifecycle commit
 Revision note, 2026-08-22 / Codex: Closed Milestone 8 after commit `4dc010eb` passed hosted Ubuntu, macOS, and Windows CI. Implemented Milestone 9 locally with a worker-owned primary backup lease and mirrored health/delete state, owner-death cleanup, full-worker `app.restart()`, and restore quiescence that force-stops every HTTP server before directory replacement. Kept the stateless primary across restore instead of re-executing it, and recorded the complete 1,935-test local gates; hosted cross-platform confirmation remains the milestone gate.
 
 Revision note, 2026-08-22 / Codex: Recorded Milestone 9 hosted run 32568199007: macOS and Windows passed, while Ubuntu exposed a test-only interaction between a synchronous 15-second hook delay and kernel `reusePort` connection assignment. Changed the test hook to hold the primary backup lease asynchronously so every listener remains responsive, then passed five focused lifecycle reruns and the complete concurrent suite locally; corrected hosted confirmation remains the milestone gate.
+
+Revision note, 2026-08-22 / Codex: Closed Milestone 9 after corrected hosted run 32568697758 passed the complete Ubuntu, macOS, Windows, and downstream Playwright E2E matrix at commit `bb15bad4`. Cluster-wide backup exclusion, owner-death recovery, restart, supported-platform restore, and Windows restore rejection are now qualified; Milestone 10 is the remaining hardening, performance, documentation, and release gate.
