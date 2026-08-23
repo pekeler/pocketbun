@@ -614,25 +614,6 @@ it.serial(
           expect(data.record.value).toBe(action === "create" ? "created" : "updated");
         }
       }
-      const invalidate = await requester.fetch("/__cluster_auth_invalidate", { method: "POST" }, [recordStream.pid]);
-      expect(invalidate.pid).not.toBe(recordStream.pid);
-      await waitFor(
-        async () => {
-          const excluded = workerPids.filter((pid) => pid !== recordStream.pid);
-          const result = await requester.fetch(
-            `/__cluster_client_auth?clientId=${encodeURIComponent(recordClientId)}`,
-            {},
-            excluded,
-          );
-          if (result.response.status !== 200) {
-            return false;
-          }
-          return ((await result.response.json()) as { authId: string }).authId === "";
-        },
-        "cross-worker auth invalidation",
-        10_000,
-      );
-
       const oauthToken = ((await (await requester.fetch("/__cluster_superuser_token")).response.json()) as { token: string })
         .token;
       const oauthStream = await openSSE(requester, { Authorization: oauthToken }, [recordStream.pid]);
@@ -683,6 +664,25 @@ it.serial(
         record: { value: "created" },
       });
       await expectNoSSEEvent(oauthStream.reader, 150);
+
+      const invalidate = await requester.fetch("/__cluster_auth_invalidate", { method: "POST" }, [recordStream.pid]);
+      expect(invalidate.pid).not.toBe(recordStream.pid);
+      await waitFor(
+        async () => {
+          const excluded = workerPids.filter((pid) => pid !== recordStream.pid);
+          const result = await requester.fetch(
+            `/__cluster_client_auth?clientId=${encodeURIComponent(recordClientId)}`,
+            {},
+            excluded,
+          );
+          if (result.response.status !== 200) {
+            return false;
+          }
+          return ((await result.response.json()) as { authId: string }).authId === "";
+        },
+        "cross-worker auth invalidation",
+        10_000,
+      );
 
       for (const stream of readers) {
         await stream.reader.cancel();
