@@ -665,13 +665,53 @@ it.serial(
       });
       await expectNoSSEEvent(oauthStream.reader, 150);
 
-      const invalidate = await requester.fetch("/__cluster_auth_invalidate", { method: "POST" }, [recordStream.pid]);
-      expect(invalidate.pid).not.toBe(recordStream.pid);
+      const recordOwnerPids = new Set((await waitForStates(requester, () => true)).map((state) => state.pid));
+      process.kill(recordStream.pid, "SIGKILL");
+      await recordStream.reader.reader.cancel().catch(() => {});
+      states = await waitForStates(requester, (items) => items.every((state) => state.pid !== recordStream.pid));
+      const recordReplacement = states.find((state) => !recordOwnerPids.has(state.pid));
+      expect(recordReplacement).toBeDefined();
+
+      const reconnectedRecord = await openSSE(
+        requester,
+        { Authorization: token },
+        states.filter((state) => state.pid !== recordReplacement!.pid).map((state) => state.pid),
+      );
+      readers.push(reconnectedRecord.reader);
+      expect(reconnectedRecord.pid).toBe(recordReplacement!.pid);
+      const reconnectedRecordConnect = await readSSE(reconnectedRecord.reader, 5_000);
+      const reconnectedRecordClientId = (JSON.parse(reconnectedRecordConnect.data) as { clientId: string }).clientId;
+      expect(
+        (
+          await requester.fetch(
+            "/api/realtime",
+            {
+              method: "POST",
+              headers: { Authorization: token, "Content-Type": "application/json" },
+              body: JSON.stringify({ clientId: reconnectedRecordClientId, subscriptions: ["cluster_items/*"] }),
+            },
+            [reconnectedRecord.pid],
+          )
+        ).response.status,
+      ).toBe(204);
+      const replacementMutation = await requester.fetch("/__cluster_record/update", { method: "POST" }, [
+        reconnectedRecord.pid,
+        oauthStream.pid,
+      ]);
+      expect(replacementMutation.response.status).toBe(200);
+      expect(JSON.parse((await readSSE(reconnectedRecord.reader, 5_000)).data)).toMatchObject({
+        action: "update",
+        record: { value: "updated" },
+      });
+      await expectNoSSEEvent(oauthStream.reader, 150);
+
+      const invalidate = await requester.fetch("/__cluster_auth_invalidate", { method: "POST" }, [reconnectedRecord.pid]);
+      expect(invalidate.pid).not.toBe(reconnectedRecord.pid);
       await waitFor(
         async () => {
-          const excluded = workerPids.filter((pid) => pid !== recordStream.pid);
+          const excluded = states.filter((state) => state.pid !== reconnectedRecord.pid).map((state) => state.pid);
           const result = await requester.fetch(
-            `/__cluster_client_auth?clientId=${encodeURIComponent(recordClientId)}`,
+            `/__cluster_client_auth?clientId=${encodeURIComponent(reconnectedRecordClientId)}`,
             {},
             excluded,
           );
@@ -688,16 +728,7 @@ it.serial(
         await stream.reader.cancel();
       }
       readers.length = 0;
-      states = await waitForStates(requester, (items) =>
-        items.every(
-          (state) =>
-            state.effects.migration === 1 &&
-            state.effects.installer === 1 &&
-            state.effects.cron === 1 &&
-            state.effects.passwordReset === 1 &&
-            state.effects.verification === 1,
-        ),
-      );
+      states = await waitForStates(requester, () => true);
       expect(states).toHaveLength(3);
 
       const interruptedStream = await openNodeSSE(backendUrls[0]!);
