@@ -7,6 +7,7 @@
 - Fixed synchronous server-side JavaScript HTTP requests intermittently failing on Windows with Bun 1.4.
 - Fixed the superuser SQL endpoint for read queries on Bun 1.4.
 - Fixed realtime disconnect cleanup on Bun 1.4 so clients are removed before their SSE streams close.
+- Fixed realtime SSE connections retaining one Promise reaction per delivered message until disconnect, preventing long-lived busy streams from growing their worker heap.
 - Added PocketBase-compatible `$app.cron().setTimezone(...)` support while keeping UTC as the default on every host.
 - Faster test runs now isolate files across four Bun worker processes, with `bun run test:changed` available for focused local checks.
 - Improved XML handling for S3-compatible storage and custom XML endpoints, including native single-root response serialization, namespaces, entities, repeated and empty values, and malformed-input errors.

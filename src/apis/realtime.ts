@@ -1330,24 +1330,6 @@ async function waitForRealtimeMessages(event: RealtimeConnectRequestEvent, write
 
   const iterator = client.Channel()[Symbol.asyncIterator]();
 
-  const abortPromise = new Promise<{ type: "abort" }>((resolve) => {
-    const signal = event.RequestEvent.request.signal;
-    if (!signal) {
-      return;
-    }
-    if (signal.aborted) {
-      resolve({ type: "abort" });
-      return;
-    }
-    signal.addEventListener(
-      "abort",
-      () => {
-        resolve({ type: "abort" });
-      },
-      { once: true },
-    );
-  });
-
   const keepaliveTimer = setInterval(() => {
     const keepaliveErr = writeKeepalive(writer);
     if (keepaliveErr) {
@@ -1361,26 +1343,16 @@ async function waitForRealtimeMessages(event: RealtimeConnectRequestEvent, write
       client.Discard();
     }
   }, realtimeSSEKeepaliveIntervalMs);
-
-  let maxTimer: ReturnType<typeof setTimeout> | null = null;
-  const maxPromise = new Promise<{ type: "max" }>((resolve) => {
-    maxTimer = setTimeout(() => resolve({ type: "max" }), event.MaxTimeout);
-  });
+  const maxDeadline = Date.now() + event.MaxTimeout;
 
   try {
     while (true) {
-      let idleTimer: ReturnType<typeof setTimeout> | null = null;
-      const idlePromise = new Promise<{ type: "idle" }>((resolve) => {
-        idleTimer = setTimeout(() => resolve({ type: "idle" }), event.IdleTimeout);
-      });
-
-      const nextPromise = iterator.next().then((result) => ({ type: "message" as const, result }));
-
-      const winner = await Promise.race([abortPromise, maxPromise, idlePromise, nextPromise]);
-
-      if (idleTimer) {
-        clearTimeout(idleTimer);
-      }
+      const winner = await waitForRealtimeMessage(
+        iterator,
+        event.RequestEvent.request.signal,
+        event.IdleTimeout,
+        Math.max(0, maxDeadline - Date.now()),
+      );
 
       if (winner.type === "idle") {
         event.App.Logger().Debug("Realtime connection closed (idle timeout)", "clientId", client.Id());
@@ -1425,11 +1397,57 @@ async function waitForRealtimeMessages(event: RealtimeConnectRequestEvent, write
       }
     }
   } finally {
-    if (maxTimer) {
-      clearTimeout(maxTimer);
-    }
     clearInterval(keepaliveTimer);
   }
+}
+
+type RealtimeMessageWait =
+  | { type: "abort" }
+  | { type: "idle" }
+  | { type: "max" }
+  | { type: "message"; result: IteratorResult<Message> };
+
+// Unlike Promise.race(), this removes the losing abort listener and timers after every message.
+// Keeping races against the connection-lifetime promises would retain one Promise reaction per message.
+function waitForRealtimeMessage(
+  iterator: AsyncIterator<Message>,
+  signal: AbortSignal,
+  idleTimeout: number,
+  maxTimeout: number,
+): Promise<RealtimeMessageWait> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (value: RealtimeMessageWait) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(idleTimer);
+      clearTimeout(maxTimer);
+      signal.removeEventListener("abort", onAbort);
+      resolve(value);
+    };
+    const fail = (error: unknown) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(idleTimer);
+      clearTimeout(maxTimer);
+      signal.removeEventListener("abort", onAbort);
+      reject(error);
+    };
+    const onAbort = () => finish({ type: "abort" });
+    const idleTimer = setTimeout(() => finish({ type: "idle" }), idleTimeout);
+    const maxTimer = setTimeout(() => finish({ type: "max" }), maxTimeout);
+
+    if (signal.aborted) {
+      finish({ type: "abort" });
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    void iterator.next().then((result) => finish({ type: "message", result }), fail);
+  });
 }
 
 function writeMessage(writer: MessageWriter, message: Message, clientId: string): Error | null {
