@@ -87,6 +87,91 @@ it.serial("keeps --workers=1 on the existing single-process serve path", async (
   }
 });
 
+it.serial("rolls back from clustered workers to one worker without converting data", async () => {
+  const root = await mkdtemp(join(tmpdir(), "pocketbun-cluster-rollback-"));
+  const dataDir = join(root, "pb_data");
+  const hooksDir = join(root, "pb_hooks");
+  const sourceData = resolve(fileURLToPath(new URL("../../tests/data", import.meta.url)));
+  await cp(sourceData, dataDir, { recursive: true });
+  await mkdir(hooksDir, { recursive: true });
+  await writeFile(
+    join(hooksDir, "rollback.pb.js"),
+    `routerAdd("POST", "/__pocketbun_rollback_write", (event) => {
+  $app.db().newQuery("CREATE TABLE IF NOT EXISTS cluster_rollback (value TEXT NOT NULL)").execute();
+  $app.db().newQuery("INSERT INTO cluster_rollback (value) VALUES ('clustered')").execute();
+  return event.noContent(204);
+});
+
+routerAdd("GET", "/__pocketbun_rollback_count", (event) => {
+  const result = {};
+  $app.db().newQuery("SELECT COUNT(*) AS count FROM cluster_rollback").one(result);
+  return event.json(200, { count: Number(result.count) });
+});
+`,
+  );
+  const [clusterPort] = await findConsecutivePorts(2);
+  const cluster = spawnPocketBun([
+    "bin/pocketbun",
+    "--dir",
+    dataDir,
+    "--hooksDir",
+    hooksDir,
+    "--hooksWatch=false",
+    "--hooksPool=1",
+    "--automigrate=false",
+    "--workers=2",
+    "serve",
+    "--http",
+    `127.0.0.1:${clusterPort}`,
+  ]);
+
+  try {
+    await withTimeout(cluster.output.waitFor("[cluster] 2 workers"), "cluster rollback startup", 30_000);
+    expect((await fetch(`http://127.0.0.1:${clusterPort}/__pocketbun_rollback_write`, { method: "POST" })).status).toBe(204);
+
+    cluster.process.kill("SIGTERM");
+    const clusterExit = await withTimeout(cluster.process.exited, "cluster rollback shutdown", 20_000);
+    await cluster.output.done;
+    if (process.platform !== "win32") {
+      expect(clusterExit).toBe(0);
+      expect(await Bun.file(join(dataDir, LocalClusterGuardFileName)).exists()).toBeFalse();
+    }
+
+    const [singlePort] = await findConsecutivePorts(1);
+    const single = spawnPocketBun([
+      "bin/pocketbun",
+      "--dir",
+      dataDir,
+      "--hooksDir",
+      hooksDir,
+      "--hooksWatch=false",
+      "--hooksPool=1",
+      "--automigrate=false",
+      "--workers=1",
+      "serve",
+      "--http",
+      `127.0.0.1:${singlePort}`,
+    ]);
+    try {
+      await withTimeout(single.output.waitFor("Server started at"), "single-worker rollback startup", 30_000);
+      const response = await fetch(`http://127.0.0.1:${singlePort}/__pocketbun_rollback_count`);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ count: 1 });
+    } finally {
+      if (isProcessAlive(single.process.pid)) {
+        single.process.kill("SIGKILL");
+        await single.process.exited;
+      }
+    }
+  } finally {
+    if (isProcessAlive(cluster.process.pid)) {
+      cluster.process.kill("SIGKILL");
+      await cluster.process.exited;
+    }
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 it.serial(
   "terminates the cluster when the leader or follower never becomes ready",
   async () => {
