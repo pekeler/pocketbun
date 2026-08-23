@@ -614,8 +614,6 @@ it.serial(
           expect(data.record.value).toBe(action === "create" ? "created" : "updated");
         }
       }
-      await expectNoSSEEvent(recordStream.reader, 150);
-
       const invalidate = await requester.fetch("/__cluster_auth_invalidate", { method: "POST" }, [recordStream.pid]);
       expect(invalidate.pid).not.toBe(recordStream.pid);
       await waitFor(
@@ -635,7 +633,9 @@ it.serial(
         10_000,
       );
 
-      const oauthStream = await openSSE(requester);
+      const oauthToken = ((await (await requester.fetch("/__cluster_superuser_token")).response.json()) as { token: string })
+        .token;
+      const oauthStream = await openSSE(requester, { Authorization: oauthToken }, [recordStream.pid]);
       readers.push(oauthStream.reader);
       const oauthConnect = await readSSE(oauthStream.reader, 5_000);
       const oauthClientId = (JSON.parse(oauthConnect.data) as { clientId: string }).clientId;
@@ -643,7 +643,7 @@ it.serial(
         "/api/realtime",
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { Authorization: oauthToken, "Content-Type": "application/json" },
           body: JSON.stringify({ clientId: oauthClientId, subscriptions: ["@oauth2"] }),
         },
         [oauthStream.pid],
@@ -672,6 +672,16 @@ it.serial(
       const oauthEvent = await readSSE(oauthStream.reader, 5_000);
       expect(oauthEvent.name).toBe("@oauth2");
       expect(JSON.parse(oauthEvent.data)).toMatchObject({ state: oauthClientId, code: "cluster-apple-code" });
+
+      const isolatedRecord = await requester.fetch("/__cluster_record/create", { method: "POST" }, [
+        recordStream.pid,
+        oauthStream.pid,
+      ]);
+      expect(isolatedRecord.response.status).toBe(200);
+      expect(JSON.parse((await readSSE(recordStream.reader, 5_000)).data)).toMatchObject({
+        action: "create",
+        record: { value: "created" },
+      });
       await expectNoSSEEvent(oauthStream.reader, 150);
 
       for (const stream of readers) {
@@ -729,15 +739,15 @@ it.serial(
           )
         ).response.status,
       ).toBe(204);
-      const reconnectedMutation = await requester.fetch("/__cluster_record/create", { method: "POST" }, [
+      const reconnectedMutation = await requester.fetch("/__cluster_record/update", { method: "POST" }, [
         reconnectedStream.pid,
       ]);
       expect(reconnectedMutation.response.status).toBe(200);
       expect(reconnectedMutation.pid).not.toBe(reconnectedStream.pid);
       const reconnectedEvent = await readSSE(reconnectedStream.reader, 5_000);
       expect(JSON.parse(reconnectedEvent.data)).toMatchObject({
-        action: "create",
-        record: { value: "created" },
+        action: "update",
+        record: { value: "updated" },
       });
       await reconnectedStream.reader.reader.cancel();
       readers.splice(readers.indexOf(reconnectedStream.reader), 1);

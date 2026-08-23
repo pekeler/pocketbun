@@ -592,6 +592,45 @@ describe("realtime auth record events", () => {
     }
   });
 
+  it("keeps public subscriptions active after tokenKey refresh", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      buildServeHandler(app);
+
+      const collection = NewBaseCollection("test_realtime_public_after_auth_refresh");
+      collection.listRule = "";
+      collection.Fields.Add(Object.assign(new TextField(), { Name: "value" }));
+      const collectionErr = await app.Save(collection);
+      if (collectionErr) {
+        throw collectionErr;
+      }
+
+      const client = new DefaultClient();
+      client.Set(RealtimeClientAuthKey, app.FindAuthRecordByEmail("users", "test@example.com"));
+      client.Subscribe(`${collection.name}/*`);
+      app.SubscriptionsBroker().Register(client);
+
+      const refreshed = app.FindAuthRecordByEmail("users", "test@example.com");
+      refreshed.RefreshTokenKey();
+      const refreshErr = await app.Save(refreshed);
+      if (refreshErr) {
+        throw refreshErr;
+      }
+      expect(client.Get(RealtimeClientAuthKey)).toBeUndefined();
+
+      const message = nextMessageData(client, 3_000);
+      const record = NewRecord(collection);
+      record.Set("value", "public");
+      const recordErr = await app.Save(record);
+      if (recordErr) {
+        throw recordErr;
+      }
+      expect(await message).toContain('"value":"public"');
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("unsets auth state on auth collection secret change", async () => {
     const { app, cleanup } = await newTestApp();
     try {
