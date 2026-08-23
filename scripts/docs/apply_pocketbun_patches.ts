@@ -52,6 +52,13 @@ const DOC_OVERLAYS: Record<string, OverlayOperation[]> = {
       contentPath: "introduction/why-not-htmx.md",
     },
   ],
+  "docs/users/going-to-production.md": [
+    {
+      mode: "upsert-after-section",
+      anchorHeading: "Using reverse proxy",
+      contentPath: "going-to-production/multiple-workers.md",
+    },
+  ],
   "docs/users/extend.md": [
     {
       mode: "replace-section",
