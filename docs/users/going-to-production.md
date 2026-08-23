@@ -25,90 +25,62 @@ Quick links:
 
 #### Minimal setup
 
-One of the best PocketBun features is that it's completely portable. This means that deployment can stay simple: upload your app files, ensure Bun is installed on the server, and run the PocketBun CLI.
+PocketBun needs Bun 1.4.0 or newer, your application files, and a writable `pb_data` directory. Run it as an unprivileged service on a loopback HTTP address and put a TLS-terminating reverse proxy in front of it. PocketBun does not provision HTTPS certificates itself.
 
-Here is an example of starting a production HTTPS server (auto managed TLS with Let's Encrypt) on a clean Ubuntu 22.04 installation.
+A typical deployed application contains:
 
--
-
-Consider the following app directory structure:
-
-```html
+```text
 myapp/
-    pb_migrations/
-    pb_hooks/
+    bun.lock
     package.json
+    pb_hooks/
+    pb_migrations/
 ```
 
--
+After copying the application to the server, install its production dependencies and verify that it starts:
 
-Upload your app files and anything else required by your application to your remote server, for example using **rsync**:
-
-```js
-rsync -avz -e ssh /local/path/to/myapp root@YOUR_SERVER_IP:/root/pb
+```sh
+cd /srv/pocketbun/myapp
+bun install --production --frozen-lockfile
+bun run pocketbun serve --http=127.0.0.1:8090
 ```
 
--
+The paths and `pocketbun` account below are examples. Create `/etc/systemd/system/pocketbun.service` with the absolute Bun path reported by `command -v bun`:
 
-Start a SSH session with your server:
-
-```js
-ssh root@YOUR_SERVER_IP
-```
-
--
-
-Start the application (specifying a domain name will issue a Let's encrypt certificate for it)
-
-```js
-[root@dev ~]$ cd /root/pb/myapp && bun run pocketbun serve yourdomain.com
-```
-
-Notice that in the above example we are logged in as **root** which allows us to bind to the **privileged 80 and 443 ports**. For **non-root** users usually you'll need special privileges to be able to do that. You have several options depending on your OS - `authbind`, `setcap`, `iptables`, `sysctl`, etc. Here is an example using `setcap`:
-
-```js
-[myuser@dev ~]$ sudo setcap 'cap_net_bind_service=+ep' $(which bun)
-```
-
--
-
-(Optional) Systemd service
-
-You can skip step 3 and create a **Systemd service** to allow your application to start/restart on its own. Here is an example service file (usually created in `/lib/systemd/system/pocketbun.service`):
-
-```js
+```ini
 [Unit]
-Description = pocketbun
+Description=PocketBun
+After=network.target
 
 [Service]
-Type             = simple
-User             = root
-Group            = root
-LimitNOFILE      = 4096
-Restart          = always
-RestartSec       = 5s
-StandardOutput   = append:/root/pb/std.log
-StandardError    = append:/root/pb/std.log
-WorkingDirectory = /root/pb/myapp
-ExecStart        = cd /root/pb/myapp && bun run pocketbun serve yourdomain.com
+Type=simple
+User=pocketbun
+Group=pocketbun
+WorkingDirectory=/srv/pocketbun/myapp
+ExecStart=/usr/local/bin/bun run pocketbun serve --http=127.0.0.1:8090
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=4096
+KillMode=mixed
+TimeoutStopSec=30
 
 [Install]
-WantedBy = multi-user.target
+WantedBy=multi-user.target
 ```
 
-After that we just have to enable it and start the service using `systemctl`:
+`KillMode=mixed` gives PocketBun's primary process time to shut down its workers cleanly, while ensuring systemd kills any process left after the timeout. Enable the service and inspect its logs with:
 
-```js
-[root@dev ~]$ systemctl enable pocketbun.service
-[root@dev ~]$ systemctl start pocketbun
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now pocketbun
+sudo journalctl -u pocketbun
 ```
 
-You can find a link to the Web UI installer in the `/root/pb/std.log`, but alternatively you can also create the first superuser explicitly via the `superuser` PocketBun command:
+Configure a reverse proxy as shown below before exposing the application publicly. You can create the first superuser from the application directory:
 
-```js
-[root@dev ~]$ cd /root/pb/myapp && bun run pocketbun superuser create EMAIL PASS
+```sh
+bun run pocketbun superuser create EMAIL PASS
 ```
-
 #### Using reverse proxy
 
 If you plan on hosting multiple applications on a single server or need finer network controls, you can always put PocketBun behind a reverse proxy such as *NGINX*, *Apache*, *Caddy*, etc. * Just note that when using a reverse proxy you may need to set up the "User IP proxy headers" in the PocketBun settings so that the application can extract and log the actual visitor/client IP (the headers are usually `X-Real-IP`, `X-Forwarded-For`). *
@@ -160,21 +132,40 @@ example.com {
 
 #### Using multiple workers
 
-PocketBun runs one HTTP process by default. For a read-heavy application on a machine with spare CPU cores, opt in to multiple workers:
+PocketBun runs one HTTP process by default (`--workers=1`). For a read-heavy application on a machine with spare CPU cores, opt in to multiple workers:
 
 ```sh
-bun run pocketbun --workers=2 serve --http=127.0.0.1:8090
+bun run pocketbun --workers=4 serve --http=127.0.0.1:8090
 ```
 
-The command starts one supervising primary process and the requested number of HTTP workers. Supervise that primary with systemd, Docker, or your normal service manager; do not start several independent PocketBun instances against the same `pb_data` directory. Rolling back is immediate: set `--workers=1`; it does not convert application data.
+The command starts one supervising primary process and the requested number of HTTP workers. For systemd, add `--workers=4` to the `ExecStart` command in the minimal setup above. On Windows, use a service host or container runtime to supervise the same primary process. Do not start several independent PocketBun instances against one `pb_data` directory, and do not use cluster mode to share `pb_data` over a network filesystem between hosts. Rolling back is immediate: set `--workers=1`; it does not convert application data.
 
-On Linux, every worker serves the configured address using the operating system's shared-port support, so an existing reverse proxy can continue to use one backend address. On macOS and Windows, workers use consecutive loopback ports instead. For example, `--workers=4 serve --http=127.0.0.1:9000` uses `127.0.0.1:9000` through `127.0.0.1:9003`; put those private backends behind a reverse proxy or load balancer and do not expose the range publicly.
+On Linux, every worker serves the configured address using the operating system's shared-port support, so an existing reverse proxy can continue to use one backend address. The operating system distributes new TCP connections among workers; each keep-alive or SSE connection stays with its assigned worker.
 
-Workers improve concurrent read throughput, but they do not make SQLite writes scale linearly because SQLite still has one writer. Each worker also has its own runtime memory and SQLite cache. Start with the number of physical CPU cores that your workload can use, measure representative traffic, and keep `--workers=1` for small or write-heavy deployments. Long-lived connections such as SSE realtime streams stay on one worker for their lifetime; ordinary keep-alive connections do too, so use multiple client or proxy connections when measuring load.
+On macOS and Windows, workers use consecutive loopback ports instead. For example, `--workers=4 serve --http=127.0.0.1:9000` uses `127.0.0.1:9000` through `127.0.0.1:9003`. Configure every private backend in your reverse proxy and do not expose the range publicly. Replace the single-backend `proxy_pass` in the NGINX example above with:
 
-Each worker loads hooks and has its own in-memory `app.store()` state. Bootstrap and serve hooks therefore run once in every worker; use the database or another shared service for state that must be common to the application. Migrations, temporary-file cleanup, and scheduled cron jobs run only in the leader. Record mutation hooks run in the worker that handles the write, as with a single-process deployment. Advanced hooks can inspect `process.env.POCKETBUN_CLUSTER_ROLE` (`leader` or `follower`) and `process.env.POCKETBUN_CLUSTER_SLOT` when a role-specific behavior is genuinely needed; do not set these internal variables yourself.
+```nginx
+upstream pocketbun_workers {
+    server 127.0.0.1:9000;
+    server 127.0.0.1:9001;
+    server 127.0.0.1:9002;
+    server 127.0.0.1:9003;
+}
+```
 
-Monitor and supervise the primary process rather than individual worker PIDs. It replaces an unexpectedly exited worker in the same role and slot; a repeated crash loop stops the primary with a nonzero exit so your service manager can report and restart the deployment. Continue to use `GET /api/health` through the same backend or load balancer that serves application traffic.
+Then use this inside its `location` block:
+
+```nginx
+proxy_pass http://pocketbun_workers;
+```
+
+Workers improve concurrent read throughput, but they do not make SQLite writes scale linearly because SQLite still has one writer. Each worker also has its own runtime memory and SQLite cache. Start with one worker per available vCPU, measure representative traffic and memory use, and keep `--workers=1` for small or write-heavy deployments. Use multiple client or proxy connections when measuring load so one persistent connection does not hide the available workers.
+
+Built-in rate-limit rules remain application-wide in cluster mode; the primary batches concurrent decisions instead of multiplying each rule's allowance by the number of workers.
+
+Each worker loads hooks and has its own in-memory `app.store()` state. Bootstrap and serve hooks therefore run once in every worker; use the database or another shared service for state that must be common to the application. Migrations, temporary-file cleanup, and scheduled cron jobs run only in the leader. Record mutation hooks run in the worker that handles the write, as with a single-process deployment. Advanced hooks can inspect `process.env.POCKETBUN_CLUSTER_ROLE` (`leader` or `follower`), `process.env.POCKETBUN_CLUSTER_SLOT`, and `process.env.POCKETBUN_CLUSTER_WORKER_ID` when a role-specific behavior is genuinely needed; do not set these internal variables yourself.
+
+Monitor and supervise the primary process rather than individual worker PIDs. Its logs report worker lifecycle changes. It replaces an unexpectedly exited worker in the same role and slot; a repeated crash loop stops the primary with a nonzero exit so your service manager can report and restart the deployment. Continue to use `GET /api/health` through the same backend or load balancer that serves application traffic.
 ### Backup and Restore
 
 To backup/restore your application it is enough to manually copy/replace your `pb_data` directory _(for transactional safety make sure that the application is not running)_.
@@ -187,7 +178,9 @@ Backups can be stored locally (default) or in a S3 compatible storage (\*it is r
 
 PocketBun creates disk-backed SQLite snapshots before adding them to the ZIP, so large databases are not copied into server memory. In multi-worker mode, backup, restore, and restart are coordinated across the whole application; SQLite writers can continue while a backup is generated. Keep roughly three times the size of `pb_data` free for a worst-case local backup, including the temporary snapshots and archive.
 
-Each database snapshot is internally consistent. Files can change while the archive is being built, however, so a restore can contain an unreferenced upload or omit a newly changed file referenced by the snapshot. If your application needs one atomic database-and-files boundary, temporarily stop writes while creating the backup.
+PocketBun preserves storage files deleted while the main database snapshot is created and excludes files written after that boundary. The archive therefore will not omit a local storage file referenced by the main database snapshot, although a change exactly around the boundary can leave a harmless unreferenced file in the archive.
+
+The main and auxiliary database snapshots are each internally consistent but are captured sequentially. If your application needs one atomic boundary across both databases and every file, temporarily stop writes while creating the backup.
 ### Recommendations
 
 highly recommended

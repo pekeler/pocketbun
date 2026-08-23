@@ -22,6 +22,7 @@
 - Multi-worker backups, restores, and application restarts now coordinate cluster-wide, preventing overlapping backup operations and workers from retaining stale database connections.
 - Backups now use disk-backed SQLite snapshots and ZIP64 archives, keeping archives consistent while clustered writes and WAL checkpoints continue without loading entire databases into memory or imposing a 4 GiB database limit.
 - Graceful CLI shutdown now exits successfully after `SIGINT` or `SIGTERM`, so service managers no longer report a normal stop as a failure.
+- Corrected production deployment guidance for reverse-proxy TLS, systemd, multi-worker backends, and live backups.
 
 ## 0.39.11-pocketbun.0 - 2026-08-14
 

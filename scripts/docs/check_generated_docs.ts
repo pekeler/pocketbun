@@ -99,6 +99,19 @@ function assertIncludesAny(haystack: string, needles: string[], label: string): 
   throw new Error(`Missing any of [${needles.map((needle) => `'${needle}'`).join(", ")}] in ${label}`);
 }
 
+function assertExcludes(haystack: string, needle: string, label: string): void {
+  if (haystack.includes(needle)) {
+    throw new Error(`Unexpected '${needle}' in ${label}`);
+  }
+}
+
+function assertOccurrenceCount(haystack: string, needle: string, expected: number, label: string): void {
+  const actual = haystack.split(needle).length - 1;
+  if (actual !== expected) {
+    throw new Error(`Expected '${needle}' ${expected} time(s) in ${label}, found ${actual}`);
+  }
+}
+
 function routeTitleVariants(title: string): string[] {
   const variants = new Set<string>([title]);
   variants.add(title.replace(/\bPocketBase\b/g, "PocketBun"));
@@ -173,6 +186,15 @@ function main(): void {
 
   // Critical explicit checks from recent misses.
   assertIncludes(prodDoc, "ulimit", "docs/users/going-to-production.md");
+  assertIncludes(prodDoc, "--http=127.0.0.1:8090", "docs/users/going-to-production.md");
+  assertIncludes(prodDoc, "KillMode=mixed", "docs/users/going-to-production.md");
+  assertIncludes(prodDoc, "upstream pocketbun_workers", "docs/users/going-to-production.md");
+  assertIncludes(prodDoc, "rate-limit rules remain application-wide", "docs/users/going-to-production.md");
+  assertIncludes(prodDoc, "preserves storage files deleted", "docs/users/going-to-production.md");
+  assertIncludes(prodDoc, "three times the size of `pb_data`", "docs/users/going-to-production.md");
+  assertExcludes(prodDoc, "serve yourdomain.com", "docs/users/going-to-production.md");
+  assertOccurrenceCount(prodDoc, "#### Using multiple workers", 1, "docs/users/going-to-production.md");
+  assertOccurrenceCount(prodDoc, "proxy_pass http://pocketbun_workers;", 1, "docs/users/going-to-production.md");
   assertIncludes(jsDoc, "rootCmd", "docs/users/extend.md");
   assertIncludes(apiDoc, "Health", "docs/users/web-apis.md");
   assertIncludes(referenceDoc, "## Variables", "docs/users/reference.md");

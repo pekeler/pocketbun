@@ -54,6 +54,11 @@ const DOC_OVERLAYS: Record<string, OverlayOperation[]> = {
   ],
   "docs/users/going-to-production.md": [
     {
+      mode: "replace-section",
+      heading: "Minimal setup",
+      contentPath: "going-to-production/minimal-setup.md",
+    },
+    {
       mode: "upsert-after-section",
       anchorHeading: "Using reverse proxy",
       contentPath: "going-to-production/multiple-workers.md",
