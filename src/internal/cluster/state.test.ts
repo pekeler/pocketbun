@@ -64,7 +64,10 @@ const migrationSource = `migrate((app) => {
   const settings = migrationApp.settings();
   settings.meta.appName = "cluster-before";
   settings.rateLimits.enabled = true;
-  settings.rateLimits.rules = [{ label: "GET /__cluster_rate", maxRequests: 2, duration: 60 }];
+  settings.rateLimits.rules = [
+    { label: "GET /__cluster_rate", maxRequests: 2, duration: 60 },
+    { label: "GET /__cluster_rate_batch", maxRequests: 8, duration: 60 },
+  ];
   settings.backups.cron = "0 0 1 1 *";
   settings.backups.cronMaxKeep = 2;
   migrationApp.save(settings);
@@ -207,6 +210,7 @@ routerAdd("GET", "/__cluster_state", (event) => event.json(200, {
 }));
 
 routerAdd("GET", "/__cluster_rate", (event) => event.json(200, { pid: process.pid }));
+routerAdd("GET", "/__cluster_rate_batch", (event) => event.json(200, { pid: process.pid }));
 
 routerAdd("POST", "/__cluster_transaction_crash", (event) => {
   if (fs.existsSync(transactionCrashMarker)) {
@@ -561,6 +565,11 @@ it.serial(
       }
       expect(new Set(rateWorkers).size).toBe(3);
       expect(rateStatuses).toEqual([200, 200, 429]);
+
+      const batchedRateResults = await Promise.all(Array.from({ length: 24 }, () => requester.fetch("/__cluster_rate_batch")));
+      const batchedRateStatuses = batchedRateResults.map((result) => result.response.status);
+      expect(batchedRateStatuses.filter((status) => status === 200)).toHaveLength(8);
+      expect(batchedRateStatuses.filter((status) => status === 429)).toHaveLength(16);
 
       const reset1 = await requester.fetch("/api/collections/users/request-password-reset", {
         method: "POST",

@@ -66,7 +66,13 @@ describe("cluster protocol", () => {
 
   it("validates concrete coordinator requests and responses", () => {
     const operations = [
-      { kind: "rate-limit.consume", limiterId: "GET /api/health", clientKey: "127.0.0.1", maxRequests: 2, duration: 60 },
+      {
+        kind: "rate-limit.consume-batch",
+        requests: [
+          { limiterId: "GET /api/health", clientKey: "127.0.0.1", maxRequests: 2, duration: 60 },
+          { limiterId: "GET /api/health", clientKey: "127.0.0.2", maxRequests: 2, duration: 60 },
+        ],
+      },
       { kind: "rate-limit.check", limiterId: "GET /api/health", clientKey: "127.0.0.1" },
       { kind: "expiring.claim", key: "password-reset/user", ttlMs: 120_000 },
       { kind: "expiring.release", key: "password-reset/user", claimToken: "claim" },
@@ -128,6 +134,16 @@ describe("cluster protocol", () => {
     expect(
       parseClusterMessage({
         version: ClusterProtocolVersion,
+        kind: "coordinator.response",
+        token: "secret",
+        requestId: "rate-batch",
+        ok: true,
+        value: [true, false],
+      }),
+    ).not.toBeNull();
+    expect(
+      parseClusterMessage({
+        version: ClusterProtocolVersion,
         kind: "coordinator.delivery",
         token: "secret",
         requestId: "backup-state",
@@ -152,6 +168,16 @@ describe("cluster protocol", () => {
         requestId: "request",
         workerId: 2,
         operation: { kind: "expiring.claim", key: "", ttlMs: 0 },
+      }),
+    ).toBeNull();
+    expect(
+      parseClusterMessage({
+        version: ClusterProtocolVersion,
+        kind: "coordinator.request",
+        token: "secret",
+        requestId: "rate-batch",
+        workerId: 2,
+        operation: { kind: "rate-limit.consume-batch", requests: [] },
       }),
     ).toBeNull();
 

@@ -29,6 +29,7 @@ import {
   type CoordinatorValue,
   type ClusterWorkerRole,
   type RealtimeBroadcastEvent,
+  type RateLimitConsumeRequest,
   type WorkerToPrimaryMessage,
 } from "./protocol.ts";
 
@@ -42,6 +43,12 @@ const pendingCoordinatorRequests = new Map<
   string,
   { resolve: (value: CoordinatorValue) => void; reject: (error: Error) => void; timeout: ReturnType<typeof setTimeout> }
 >();
+const pendingRateLimits: Array<{
+  request: RateLimitConsumeRequest;
+  resolve: (allowed: boolean) => void;
+  reject: (error: Error) => void;
+}> = [];
+let rateLimitBatchInFlight = false;
 
 export function attachClusterWorker(): void {
   if (attached) {
@@ -171,7 +178,10 @@ export async function consumeClusterRateLimit(
   maxRequests: number,
   duration: number,
 ): Promise<boolean> {
-  return (await requestCoordinator({ kind: "rate-limit.consume", limiterId, clientKey, maxRequests, duration })) === true;
+  return new Promise((resolve, reject) => {
+    pendingRateLimits.push({ request: { limiterId, clientKey, maxRequests, duration }, resolve, reject });
+    void flushRateLimitBatch();
+  });
 }
 
 export async function isClusterRateLimited(limiterId: string, clientKey: string): Promise<boolean> {
@@ -430,6 +440,43 @@ function rejectPendingCoordinatorRequests(error: Error): void {
     pending.reject(error);
   }
   pendingCoordinatorRequests.clear();
+  for (const pending of pendingRateLimits.splice(0)) {
+    pending.reject(error);
+  }
+}
+
+async function flushRateLimitBatch(): Promise<void> {
+  if (rateLimitBatchInFlight) {
+    return;
+  }
+  rateLimitBatchInFlight = true;
+  try {
+    while (pendingRateLimits.length > 0) {
+      const batch = pendingRateLimits.splice(0);
+      try {
+        const value = await requestCoordinator({
+          kind: "rate-limit.consume-batch",
+          requests: batch.map((item) => item.request),
+        });
+        if (!Array.isArray(value) || value.length !== batch.length || value.some((item) => typeof item !== "boolean")) {
+          throw new Error("PocketBun cluster coordinator returned an invalid rate-limit batch");
+        }
+        for (let i = 0; i < batch.length; i += 1) {
+          batch[i]!.resolve(value[i]!);
+        }
+      } catch (error) {
+        const reason = error instanceof Error ? error : new Error(String(error));
+        for (const item of batch) {
+          item.reject(reason);
+        }
+      }
+    }
+  } finally {
+    rateLimitBatchInFlight = false;
+    if (pendingRateLimits.length > 0) {
+      void flushRateLimitBatch();
+    }
+  }
 }
 
 function send(message: WorkerToPrimaryMessage): Promise<void> {

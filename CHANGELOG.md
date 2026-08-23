@@ -19,6 +19,7 @@
 - Improved maintainer benchmarks with latency percentiles and server RSS reporting.
 - Added opt-in `--workers=N` vertical scaling with native shared-port workers on Linux, predictable proxy backends on macOS and Windows, same-slot crash recovery, graceful shutdown, and single-primary protection per data directory.
 - Multi-worker servers now coordinate migrations, scheduled work, rate limits, email resend guards, realtime subscriptions and events, auth invalidation, and OAuth2 redirects as one PocketBun application.
+- Cluster-wide rate limits now batch concurrent decisions, preserving exact application-wide limits without serializing high-throughput routes on individual IPC round trips.
 - Multi-worker backups, restores, and application restarts now coordinate cluster-wide, preventing overlapping backup operations and workers from retaining stale database connections.
 - Backups now use disk-backed SQLite snapshots and ZIP64 archives, keeping archives consistent while clustered writes and WAL checkpoints continue without loading entire databases into memory or imposing a 4 GiB database limit.
 - Graceful CLI shutdown now exits successfully after `SIGINT` or `SIGTERM`, so service managers no longer report a normal stop as a failure.

@@ -4,6 +4,13 @@ export const ClusterProtocolVersion = 1;
 
 export type ClusterWorkerRole = "leader" | "follower";
 
+export type RateLimitConsumeRequest = {
+  limiterId: string;
+  clientKey: string;
+  maxRequests: number;
+  duration: number;
+};
+
 export type WorkerReadyMessage = {
   version: typeof ClusterProtocolVersion;
   kind: "worker.ready";
@@ -38,7 +45,7 @@ export type ControlRecycleMessage = {
 };
 
 export type CoordinatorOperation =
-  | { kind: "rate-limit.consume"; limiterId: string; clientKey: string; maxRequests: number; duration: number }
+  | { kind: "rate-limit.consume-batch"; requests: RateLimitConsumeRequest[] }
   | { kind: "rate-limit.check"; limiterId: string; clientKey: string }
   | { kind: "expiring.claim"; key: string; ttlMs: number }
   | { kind: "expiring.release"; key: string; claimToken: string }
@@ -58,7 +65,7 @@ export type CoordinatorOperation =
   | { kind: "restore.complete"; leaseToken: string }
   | { kind: "restore.abort"; leaseToken: string; fatal: boolean; error: string };
 
-export type CoordinatorValue = boolean | string | null;
+export type CoordinatorValue = boolean | boolean[] | string | null;
 
 export type CoordinatorRequestMessage = {
   version: typeof ClusterProtocolVersion;
@@ -225,13 +232,8 @@ function isCoordinatorOperation(value: unknown): value is CoordinatorOperation {
   if (!isPlainRecord(value) || typeof value.kind !== "string") {
     return false;
   }
-  if (value.kind === "rate-limit.consume") {
-    return (
-      isNonEmptyString(value.limiterId) &&
-      isNonEmptyString(value.clientKey) &&
-      isPositiveInteger(value.maxRequests) &&
-      isPositiveNumber(value.duration)
-    );
+  if (value.kind === "rate-limit.consume-batch") {
+    return Array.isArray(value.requests) && value.requests.length > 0 && value.requests.every(isRateLimitConsumeRequest);
   }
   if (value.kind === "rate-limit.check") {
     return isNonEmptyString(value.limiterId) && isNonEmptyString(value.clientKey);
@@ -367,7 +369,22 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function isCoordinatorValue(value: unknown): value is CoordinatorValue {
-  return value === null || typeof value === "boolean" || typeof value === "string";
+  return (
+    value === null ||
+    typeof value === "boolean" ||
+    typeof value === "string" ||
+    (Array.isArray(value) && value.every((item) => typeof item === "boolean"))
+  );
+}
+
+function isRateLimitConsumeRequest(value: unknown): value is RateLimitConsumeRequest {
+  return (
+    isPlainRecord(value) &&
+    isNonEmptyString(value.limiterId) &&
+    isNonEmptyString(value.clientKey) &&
+    isPositiveInteger(value.maxRequests) &&
+    isPositiveNumber(value.duration)
+  );
 }
 
 function isPort(value: unknown): value is number {

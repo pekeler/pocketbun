@@ -1,6 +1,6 @@
 // PocketBun-only: owns the small set of transient values that must be atomic across HTTP workers.
 
-import type { CoordinatorOperation, CoordinatorValue } from "./protocol.ts";
+import type { CoordinatorOperation, CoordinatorValue, RateLimitConsumeRequest } from "./protocol.ts";
 import { RateLimiter } from "../../apis/rate_limiter.ts";
 
 type LimiterEntry = {
@@ -30,8 +30,8 @@ export class ClusterCoordinator {
 
   handle(operation: CoordinatorOperation): CoordinatorValue {
     switch (operation.kind) {
-      case "rate-limit.consume":
-        return this.consumeRateLimit(operation);
+      case "rate-limit.consume-batch":
+        return operation.requests.map((request) => this.consumeRateLimit(request));
       case "rate-limit.check":
         return this.limiters.get(operation.limiterId)?.limiter.isLimited(operation.clientKey) ?? false;
       case "expiring.claim":
@@ -114,7 +114,7 @@ export class ClusterCoordinator {
     return null;
   }
 
-  private consumeRateLimit(operation: Extract<CoordinatorOperation, { kind: "rate-limit.consume" }>): boolean {
+  private consumeRateLimit(operation: RateLimitConsumeRequest): boolean {
     let entry = this.limiters.get(operation.limiterId);
     if (!entry || entry.maxRequests !== operation.maxRequests || entry.duration !== operation.duration) {
       entry = {

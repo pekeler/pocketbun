@@ -6,21 +6,39 @@ import { ClusterCoordinator } from "./coordinator.ts";
 describe("cluster coordinator", () => {
   it("shares and replaces rate limiters by their current rule", () => {
     const coordinator = new ClusterCoordinator();
-    const operation = {
-      kind: "rate-limit.consume" as const,
+    const request = {
+      limiterId: "GET /api/health",
+      clientKey: "127.0.0.1",
+      maxRequests: 2,
+      duration: 60,
+    };
+    const consume = () => coordinator.handle({ kind: "rate-limit.consume-batch", requests: [request] });
+
+    expect(consume()).toEqual([true]);
+    expect(consume()).toEqual([true]);
+    expect(consume()).toEqual([false]);
+    expect(
+      coordinator.handle({ kind: "rate-limit.check", limiterId: request.limiterId, clientKey: request.clientKey }),
+    ).toBeTrue();
+    expect(coordinator.handle({ kind: "rate-limit.consume-batch", requests: [{ ...request, maxRequests: 1 }] })).toEqual([
+      true,
+    ]);
+  });
+
+  it("batches rate-limit decisions without changing their order", () => {
+    const coordinator = new ClusterCoordinator();
+    const request = {
       limiterId: "GET /api/health",
       clientKey: "127.0.0.1",
       maxRequests: 2,
       duration: 60,
     };
 
-    expect(coordinator.handle(operation)).toBeTrue();
-    expect(coordinator.handle(operation)).toBeTrue();
-    expect(coordinator.handle(operation)).toBeFalse();
-    expect(
-      coordinator.handle({ kind: "rate-limit.check", limiterId: operation.limiterId, clientKey: operation.clientKey }),
-    ).toBeTrue();
-    expect(coordinator.handle({ ...operation, maxRequests: 1 })).toBeTrue();
+    expect(coordinator.handle({ kind: "rate-limit.consume-batch", requests: [request, request, request] })).toEqual([
+      true,
+      true,
+      false,
+    ]);
   });
 
   it("claims, releases, expires, stores, and consumes transient values", async () => {

@@ -633,7 +633,7 @@ process.on("message", (message, ...args) => {
 
 async function runOperation(kind) {
   const cluster = await import(clusterWorkerModule);
-  if (kind === "rate-limit.consume") {
+  if (kind === "rate-limit.consume-batch") {
     await cluster.consumeClusterRateLimit("primary-fault", "client", 2, 60);
     return;
   }
@@ -686,7 +686,13 @@ routerAdd("POST", "/__pocketbun_cluster_operation/{kind}", async (event) => {
 `,
     );
 
-    const operations = ["rate-limit.consume", "realtime.prepare", "oauth2.deliver", "backup.acquire", "restore.begin"] as const;
+    const operations = [
+      "rate-limit.consume-batch",
+      "realtime.prepare",
+      "oauth2.deliver",
+      "backup.acquire",
+      "restore.begin",
+    ] as const;
     const ports = await findConsecutivePorts(2);
     const address = `127.0.0.1:${ports[0]}`;
     const args = [
