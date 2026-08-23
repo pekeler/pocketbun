@@ -409,7 +409,6 @@ it.serial(
     const backendUrls = process.platform === "linux" ? [`http://${address}`] : ports.map((port) => `http://127.0.0.1:${port}`);
     const requester = new ClusterRequester(backendUrls);
     const readers: SSEReader[] = [];
-    let workerPids: number[] = [];
 
     try {
       try {
@@ -431,7 +430,6 @@ it.serial(
       let states = await waitForStates(requester, (items) =>
         items.every((state) => state.effects.cron === 1 && state.effects.installer === 1),
       );
-      workerPids = states.map((state) => state.pid);
       expect(states.filter((state) => state.role === "leader")).toHaveLength(1);
       expect(states.filter((state) => state.cronStarted)).toHaveLength(1);
       expect(states.every((state) => state.effects.migration === 1)).toBeTrue();
@@ -510,7 +508,6 @@ it.serial(
       expect(repeatedCoordinatorRequest.response.status).toBe(204);
       await coordinatorStream.reader.reader.cancel();
       readers.splice(readers.indexOf(coordinatorStream.reader), 1);
-      workerPids = states.map((state) => state.pid);
       await Promise.all(
         [transactionCrashMarker, coordinatorDeliveryMarker, coordinatorReleaseMarker, coordinatorCompletionMarker].map((path) =>
           rm(path, { force: true }),
