@@ -181,12 +181,11 @@ To make things slightly easier, PocketBun v0.16+ comes with builtin backups and 
 
 ![Backups settings screenshot](./assets/upstream/screenshots/backups.png)
 
-Backups can be stored locally (default) or in a S3 compatible storage (*it is recommended to use a separate bucket only for the backups). The generated backup represents a full snapshot as ZIP archive of your `pb_data` directory (including the locally stored uploaded files but excluding any local backups or files uploaded to S3).
+Backups can be stored locally (default) or in a S3 compatible storage (*it is recommended to use a separate bucket only for the backups). The generated backup represents a ZIP archive of your `pb_data` directory, including locally stored uploads but excluding local backups and files stored in S3.
 
-During the backup's ZIP generation the application will be temporary set in read-only mode.
+PocketBun creates disk-backed SQLite snapshots before adding them to the ZIP, so large databases are not copied into server memory. In multi-worker mode, backup, restore, and restart are coordinated across the whole application; SQLite writers can continue while a backup is generated. Keep roughly three times the size of `pb_data` free for a worst-case local backup, including the temporary snapshots and archive.
 
-Depending on the size of your `pb_data` this could be a very slow operation and it is advised in case of large `pb_data` (e.g. 2GB+) to consider a different backup strategy * (see an example backup.sh script that combines `sqlite3 .backup` + `rsync`) *.
-
+Each database snapshot is internally consistent. Files can change while the archive is being built, however, so a restore can contain an unreferenced upload or omit a newly changed file referenced by the snapshot. If your application needs one atomic database-and-files boundary, temporarily stop writes while creating the backup.
 ### Recommendations
 
 highly recommended

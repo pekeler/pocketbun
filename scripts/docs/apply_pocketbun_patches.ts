@@ -58,6 +58,11 @@ const DOC_OVERLAYS: Record<string, OverlayOperation[]> = {
       anchorHeading: "Using reverse proxy",
       contentPath: "going-to-production/multiple-workers.md",
     },
+    {
+      mode: "replace-section",
+      heading: "Backup and Restore",
+      contentPath: "going-to-production/backup-and-restore.md",
+    },
   ],
   "docs/users/extend.md": [
     {
