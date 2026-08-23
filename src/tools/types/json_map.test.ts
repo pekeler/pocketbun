@@ -10,6 +10,7 @@ describe("JSONMap", () => {
       { json: new JSONMap(), expected: "{}" },
       { json: new JSONMap({ test1: 123, test2: "lorem" }), expected: `{"test1":123,"test2":"lorem"}` },
       { json: new JSONMap({ test: [1, 2, 3] }), expected: `{"test":[1,2,3]}` },
+      { json: new JSONMap({ z: 1, a: { z: 2, a: 3 } }), expected: `{"a":{"a":3,"z":2},"z":1}` },
     ];
 
     for (const scenario of scenarios) {
@@ -53,7 +54,7 @@ describe("JSONMap", () => {
     ];
 
     for (const scenario of scenarios) {
-      const map = new JSONMap<unknown>();
+      const map = new JSONMap<unknown>({ stale: true });
       map.Set(scenario.key, scenario.value);
       expect(map.Get(scenario.key)).toBe(scenario.value);
     }

@@ -1,5 +1,9 @@
 // Ported from pocketbase/core/events.go (partial: app + model/record/collection + collection request + realtime + file events).
 
+import type {
+  DeleteEvent as FilesystemDeleteSourceEvent,
+  NewWriterEvent as FilesystemNewWriterSourceEvent,
+} from "../tools/filesystem/filesystem.ts";
 import type { Mailer, Message } from "../tools/mailer/mailer.ts";
 import type { ApiError } from "../tools/router/api_error.ts";
 import type { Router } from "../tools/router/router.ts";
@@ -285,6 +289,36 @@ export class MailerRecordEvent extends Event {
 
   Tags(): string[] {
     return this.#base.Tags();
+  }
+}
+
+// -------------------------------------------------------------------
+// Filesystem events data
+// -------------------------------------------------------------------
+
+export class FilesystemNewWriterEvent extends Event {
+  constructor(
+    public App: App,
+    public NewWriterEvent: FilesystemNewWriterSourceEvent,
+  ) {
+    super();
+  }
+
+  get FileKey(): string {
+    return this.NewWriterEvent.FileKey;
+  }
+}
+
+export class FilesystemDeleteEvent extends Event {
+  constructor(
+    public App: App,
+    public DeleteEvent: FilesystemDeleteSourceEvent,
+  ) {
+    super();
+  }
+
+  get FileKey(): string {
+    return this.DeleteEvent.FileKey;
   }
 }
 

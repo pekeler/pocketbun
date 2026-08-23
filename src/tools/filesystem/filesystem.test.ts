@@ -63,6 +63,80 @@ class ResponseRecorder {
 }
 
 describe("filesystem system", () => {
+  it("lowercase server-side JavaScript writer and hook aliases", async () => {
+    const dir = await createTestDir();
+    try {
+      const fsys = NewLocal(dir) as unknown as {
+        close(): Promise<void>;
+        delete(fileKey: string): Promise<void>;
+        exists(fileKey: string): Promise<boolean>;
+        newWriter(fileKey: string): Promise<{ close(): Promise<void>; write(data: Uint8Array): Promise<number> }>;
+        onDelete(): { bindFunc(fn: (event: { fileKey: string; next(): Promise<void> }) => Promise<null>): string };
+        onNewWriter(): {
+          bindFunc(fn: (event: { fileKey: string; next(): Promise<void>; writer: unknown }) => Promise<null>): string;
+        };
+      };
+      const seen: string[] = [];
+      fsys.onNewWriter().bindFunc(async (event) => {
+        seen.push(`write:${event.fileKey}:${event.writer === null}`);
+        await event.next();
+        expect(event.writer).not.toBeNull();
+        return null;
+      });
+      fsys.onDelete().bindFunc(async (event) => {
+        seen.push(`delete:${event.fileKey}`);
+        await event.next();
+        return null;
+      });
+
+      const writer = await fsys.newWriter("aliases.txt");
+      await writer.write(new TextEncoder().encode("aliases"));
+      await writer.close();
+      expect(await fsys.exists("aliases.txt")).toBeTrue();
+      await fsys.delete("aliases.txt");
+      expect(seen).toEqual(["write:aliases.txt:true", "delete:aliases.txt"]);
+      await fsys.close();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("new writer and delete hooks", async () => {
+    const dir = await createTestDir();
+    try {
+      const fsys = NewLocal(dir);
+      let writerCalls = 0;
+      let deleteCalls = 0;
+
+      fsys.OnNewWriter().BindFunc(async (event) => {
+        writerCalls += 1;
+        expect(event.Writer).toBeNull();
+        await event.Next();
+        expect(event.Writer).not.toBeNull();
+        return null;
+      });
+      fsys.OnDelete().BindFunc(async (event) => {
+        deleteCalls += 1;
+        await event.Next();
+        return null;
+      });
+
+      await fsys.Upload(new TextEncoder().encode("hooked"), "hooked.txt");
+      await fsys.Delete("hooked.txt");
+
+      expect(writerCalls).toBe(1);
+      expect(deleteCalls).toBe(1);
+      expect(fsys.OnNewWriter().Length()).toBe(1);
+      expect(fsys.OnDelete().Length()).toBe(1);
+
+      await fsys.Close();
+      expect(fsys.OnNewWriter().Length()).toBe(0);
+      expect(fsys.OnDelete().Length()).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("new local async", async () => {
     const dir = await createTestDir();
     try {
@@ -312,7 +386,7 @@ describe("filesystem system", () => {
           headers: {},
           expectError: false,
           expected: {
-            "Content-Disposition": "attachment; filename=test_name.txt",
+            "Content-Disposition": 'attachment; filename="test_name.txt"',
             "Content-Type": "application/octet-stream",
             "Content-Security-Policy": csp,
             "Cache-Control": cacheControl,
@@ -325,7 +399,7 @@ describe("filesystem system", () => {
           headers: {},
           expectError: false,
           expected: {
-            "Content-Disposition": "inline; filename=test_name.png",
+            "Content-Disposition": 'inline; filename="test_name.png"',
             "Content-Type": "image/png",
             "Content-Security-Policy": csp,
             "Cache-Control": cacheControl,
@@ -338,7 +412,7 @@ describe("filesystem system", () => {
           headers: {},
           expectError: false,
           expected: {
-            "Content-Disposition": "attachment; filename=test_name_download.png",
+            "Content-Disposition": 'attachment; filename="test_name_download.png"',
             "Content-Type": "image/png",
             "Content-Security-Policy": csp,
             "Cache-Control": cacheControl,
@@ -351,7 +425,7 @@ describe("filesystem system", () => {
           headers: {},
           expectError: false,
           expected: {
-            "Content-Disposition": "attachment; filename=test_name.abc",
+            "Content-Disposition": 'attachment; filename="test_name.abc"',
             "Content-Type": "image/svg+xml",
             "Content-Security-Policy": csp,
             "Cache-Control": cacheControl,
@@ -364,7 +438,7 @@ describe("filesystem system", () => {
           headers: {},
           expectError: false,
           expected: {
-            "Content-Disposition": "attachment; filename=test_name",
+            "Content-Disposition": 'attachment; filename="test_name"',
             "Content-Type": "text/css",
             "Content-Security-Policy": csp,
             "Cache-Control": cacheControl,
@@ -377,7 +451,7 @@ describe("filesystem system", () => {
           headers: {},
           expectError: false,
           expected: {
-            "Content-Disposition": "attachment; filename=test_name.abc",
+            "Content-Disposition": 'attachment; filename="test_name.abc"',
             "Content-Type": "text/javascript",
             "Content-Security-Policy": csp,
             "Cache-Control": cacheControl,
@@ -390,7 +464,7 @@ describe("filesystem system", () => {
           headers: {},
           expectError: false,
           expected: {
-            "Content-Disposition": "attachment; filename=test_name.abc",
+            "Content-Disposition": 'attachment; filename="test_name.abc"',
             "Content-Type": "text/javascript",
             "Content-Security-Policy": csp,
             "Cache-Control": cacheControl,
@@ -403,7 +477,7 @@ describe("filesystem system", () => {
           headers: {},
           expectError: false,
           expected: {
-            "Content-Disposition": "attachment; filename=test_name.abc",
+            "Content-Disposition": 'attachment; filename="test_name.abc"',
             "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "Content-Security-Policy": csp,
             "Cache-Control": cacheControl,
@@ -416,7 +490,7 @@ describe("filesystem system", () => {
           headers: {},
           expectError: false,
           expected: {
-            "Content-Disposition": "attachment; filename=test_name.abc",
+            "Content-Disposition": 'attachment; filename="test_name.abc"',
             "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "Content-Security-Policy": csp,
             "Cache-Control": cacheControl,
@@ -429,7 +503,7 @@ describe("filesystem system", () => {
           headers: {},
           expectError: false,
           expected: {
-            "Content-Disposition": "attachment; filename=test_name.abc",
+            "Content-Disposition": 'attachment; filename="test_name.abc"',
             "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             "Content-Security-Policy": csp,
             "Cache-Control": cacheControl,
@@ -727,7 +801,7 @@ describe("filesystem system", () => {
           headers: {},
           expectError: false,
           expected: {
-            "Content-Disposition": "inline; filename=image.png",
+            "Content-Disposition": 'inline; filename="image.png"',
             "Content-Type": "image/png",
           },
         },

@@ -60,7 +60,7 @@ const pocketBunInterfaceAdditions = new Set(["core.App.forMigrations", "core.Bas
 const knownNamespaceInterfaceAdditions = new Map<string, Set<string>>([["os", new Set(["processMode"])]]);
 const knownNamespaceInterfaceOmissions = new Map<string, Set<string>>([
   ["apis", new Set(["dryRunViewForm", "providerListItem", "runSQLForm", "runSQLResult", "runSQLResultColumn"])],
-  ["core", new Set(["defaultFieldHelpValidationRule"])],
+  ["core", new Set(["defaultFieldHelpValidationRule", "zipWriter"])],
   ["os", new Set(["processHandle"])],
   ["slog", new Set(["Source"])],
 ]);
@@ -71,7 +71,10 @@ const knownInterfaceMemberAdditions = new Map<string, Set<string>>([
 const knownInterfaceMemberOmissions = new Map<string, Set<string>>([
   ["core.SMTPConfig", new Set(["marshalJSON"])],
   ["cron.Cron", new Set(["setInterval"])],
+  ["http.HTTP2Config", new Set(["strictMaxConcurrentRequests"])],
+  ["http.Server", new Set(["disableClientPriority", "maxHeaderValueCount"])],
   ["os.dirFS", new Set(["lstat", "readLink"])],
+  ["os.Process", new Set(["withHandle"])],
   [
     "os.Root",
     new Set([
@@ -107,6 +110,8 @@ const knownInterfaceMemberOmissions = new Map<string, Set<string>>([
     ]),
   ],
   ["slog.Record", new Set(["source"])],
+  ["url.URL", new Set(["clone"])],
+  ["url.Values", new Set(["clone"])],
 ]);
 const intentionallyDifferentInterfaceContracts = new Set([".Command"]);
 

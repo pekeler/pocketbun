@@ -8,15 +8,33 @@ import { buildFilterExpr } from "../tools/search/filter.ts";
 import { Provider } from "../tools/search/provider.ts";
 import { SimpleFieldResolver } from "../tools/search/simple_field_resolver.ts";
 import { FilterQueryParam, DefaultFilterExprLimit } from "../tools/search/types.ts";
-import { badRequest, notFound } from "./api_errors.ts";
+import { badRequest, internalServerError, noContent, notFound } from "./api_errors.ts";
 import { RequireSuperuserAuth, SkipSuccessActivityLog } from "./middlewares.ts";
 
 // bindLogsApi registers the request logs api endpoints.
 export function bindLogsApi(app: App, rg: RouterGroup<RequestEvent>): void {
   const sub = rg.group("/logs").bind(RequireSuperuserAuth(), SkipSuccessActivityLog());
   sub.get("", (event) => logsList(app, event));
+  sub.delete("", (event) => logsTruncate(app, event));
   sub.get("/stats", (event) => logsStats(app, event));
   sub.get("/{id}", (event) => logsView(app, event));
+}
+
+function logsTruncate(app: App, event: RequestEvent): Response {
+  try {
+    // Delete all rows directly (aka. no model hooks will be fired).
+    app.auxDb().run("delete from {{_logs}}");
+  } catch (error) {
+    return internalServerError(event, "Failed to truncate all logs.", error);
+  }
+
+  // Try to free the unused disk space without failing an otherwise successful delete.
+  const vacuumErr = app.AuxVacuum();
+  if (vacuumErr) {
+    app.Logger().Warn("Failed to VACUUM aux database", "error", vacuumErr);
+  }
+
+  return noContent(event);
 }
 
 const logFilterFields = ["id", "created", "level", "message", "data", "^data\\.[\\w\\.\\:]*\\w+$"];

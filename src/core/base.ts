@@ -22,7 +22,7 @@ import { JSONEach } from "../tools/dbutils/json.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
 import { HashExp, Not } from "../tools/dbx/expr.ts";
 import { SelectQuery } from "../tools/dbx/select_query.ts";
-import { NewLocal, NewLocalAsync, NewS3 } from "../tools/filesystem/filesystem.ts";
+import { NewLocal, NewLocalAsync, NewS3, type System } from "../tools/filesystem/filesystem.ts";
 import { Hook } from "../tools/hook/hook.ts";
 import { NewTaggedHook } from "../tools/hook/tagged.ts";
 import { columnify, snakecase } from "../tools/inflector/inflector.ts";
@@ -107,6 +107,8 @@ import {
   type CollectionsListRequestEvent,
   type FileDownloadRequestEvent,
   type FileTokenRequestEvent,
+  FilesystemDeleteEvent,
+  FilesystemNewWriterEvent,
   type MailerRecordEvent,
   type RealtimeConnectRequestEvent,
   type RealtimeMessageEvent,
@@ -227,7 +229,7 @@ import {
 } from "./record_tokens.ts";
 import { ParamsKeySettings, ParamsTableName, Settings } from "./settings_model.ts";
 import { ReloadSettings as ReloadSettingsHelper, ReloadSettingsAsync as ReloadSettingsAsyncHelper } from "./settings_query.ts";
-import { Store } from "./store.ts";
+import { Store, StoreKeyActiveBackup } from "./store.ts";
 import { execve } from "./syscall.ts";
 import { NormalizeUniqueIndexError } from "./validators/db.ts";
 import {
@@ -372,6 +374,9 @@ export class BaseApp implements App {
   #onMailerRecordVerificationSend!: Hook<MailerRecordEvent>;
   #onMailerRecordEmailChangeSend!: Hook<MailerRecordEvent>;
   #onMailerRecordOTPSend!: Hook<MailerRecordEvent>;
+  // Internal filesystem hooks are intentionally not part of the public hook API.
+  #onFilesystemNewWriter!: Hook<FilesystemNewWriterEvent>;
+  #onFilesystemDelete!: Hook<FilesystemDeleteEvent>;
   // db collection hooks
   #onCollectionValidate!: Hook<CollectionEvent>;
   #onCollectionCreate!: Hook<CollectionEvent>;
@@ -597,6 +602,8 @@ export class BaseApp implements App {
     this.#onMailerRecordVerificationSend = new Hook();
     this.#onMailerRecordEmailChangeSend = new Hook();
     this.#onMailerRecordOTPSend = new Hook();
+    this.#onFilesystemNewWriter = new Hook();
+    this.#onFilesystemDelete = new Hook();
     this.#onCollectionValidate = new Hook();
     this.#onCollectionCreate = new Hook();
     this.#onCollectionCreateExecute = new Hook();
@@ -2382,28 +2389,69 @@ export class BaseApp implements App {
   }
 
   NewFilesystem() {
+    let fsys: System;
     if (this.#settings.s3.enabled) {
       const s3 = this.#settings.s3;
       if (!s3.bucket || !s3.region || !s3.endpoint || !s3.accessKey || !s3.secret) {
         throw new Error("missing or invalid s3 config");
       }
-      return NewS3(s3.bucket, s3.region, s3.endpoint, s3.accessKey, s3.secret, s3.forcePathStyle);
+      fsys = NewS3(s3.bucket, s3.region, s3.endpoint, s3.accessKey, s3.secret, s3.forcePathStyle);
+    } else {
+      fsys = NewLocal(join(this.#dataDir, LocalStorageDirName));
     }
 
-    return NewLocal(join(this.#dataDir, LocalStorageDirName));
+    return this.attachFilesystemHooks(fsys);
   }
 
   // NewFilesystemAsync is a PocketBun-only async alternative to NewFilesystem().
   async NewFilesystemAsync() {
+    let fsys: System;
     if (this.#settings.s3.enabled) {
       const s3 = this.#settings.s3;
       if (!s3.bucket || !s3.region || !s3.endpoint || !s3.accessKey || !s3.secret) {
         throw new Error("missing or invalid s3 config");
       }
-      return NewS3(s3.bucket, s3.region, s3.endpoint, s3.accessKey, s3.secret, s3.forcePathStyle);
+      fsys = NewS3(s3.bucket, s3.region, s3.endpoint, s3.accessKey, s3.secret, s3.forcePathStyle);
+    } else {
+      fsys = await NewLocalAsync(join(this.#dataDir, LocalStorageDirName));
     }
 
-    return NewLocalAsync(join(this.#dataDir, LocalStorageDirName));
+    return this.attachFilesystemHooks(fsys);
+  }
+
+  onFilesystemNewWriter(): Hook<FilesystemNewWriterEvent> {
+    return this.#onFilesystemNewWriter;
+  }
+
+  onFilesystemDelete(): Hook<FilesystemDeleteEvent> {
+    return this.#onFilesystemDelete;
+  }
+
+  private attachFilesystemHooks(fsys: System): System {
+    const clustered = clusterEnabled();
+    if (clustered || this.#onFilesystemDelete.Length() > 0) {
+      fsys.OnDelete().BindFunc(async (originalEvent) => {
+        if (clustered && this.store().has(StoreKeyActiveBackup)) {
+          const { notifyClusterBackupFileMutation } = await import("../internal/cluster/worker.ts");
+          await notifyClusterBackupFileMutation("backup.file-delete", originalEvent.FileKey);
+        }
+        return this.#onFilesystemDelete.Trigger(new FilesystemDeleteEvent(this, originalEvent), () => originalEvent.Next());
+      });
+    }
+
+    if (clustered || this.#onFilesystemNewWriter.Length() > 0) {
+      fsys.OnNewWriter().BindFunc(async (originalEvent) => {
+        if (clustered && this.store().has(StoreKeyActiveBackup)) {
+          const { notifyClusterBackupFileMutation } = await import("../internal/cluster/worker.ts");
+          await notifyClusterBackupFileMutation("backup.file-write", originalEvent.FileKey);
+        }
+        return this.#onFilesystemNewWriter.Trigger(new FilesystemNewWriterEvent(this, originalEvent), () =>
+          originalEvent.Next(),
+        );
+      });
+    }
+
+    return fsys;
   }
 
   NewBackupsFilesystem() {
@@ -3973,12 +4021,11 @@ export class BaseApp implements App {
     model: Model,
     runner?: (sql: string, values: SQLQueryBindings[]) => Promise<Error | null>,
   ): Promise<Error | null> {
-    const data: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(model as Record<string, unknown>)) {
-      if (typeof value === "function" || value === undefined) {
-        continue;
-      }
-      data[snakecase(key)] = value;
+    let data: Record<string, unknown>;
+    try {
+      data = exportGenericModel(model, this);
+    } catch (error) {
+      return error instanceof Error ? error : new Error(String(error));
     }
 
     if (!("id" in data) || !data.id) {
@@ -4042,12 +4089,11 @@ export class BaseApp implements App {
   }
 
   private persistGenericModelSync(model: Model): Error | null {
-    const data: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(model as Record<string, unknown>)) {
-      if (typeof value === "function" || value === undefined) {
-        continue;
-      }
-      data[snakecase(key)] = value;
+    let data: Record<string, unknown>;
+    try {
+      data = exportGenericModel(model, this);
+    } catch (error) {
+      return error instanceof Error ? error : new Error(String(error));
     }
 
     if (!("id" in data) || !data.id) {
@@ -6025,6 +6071,21 @@ function normalizeDbValue(value: unknown): SQLQueryBindings {
     return JSON.stringify(value);
   }
   return value as SQLQueryBindings;
+}
+
+function exportGenericModel(model: Model, app: App): Record<string, unknown> {
+  if (typeof model.DBExport === "function") {
+    return model.DBExport(app);
+  }
+
+  const data: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(model as Record<string, unknown>)) {
+    if (typeof value === "function" || value === undefined) {
+      continue;
+    }
+    data[snakecase(key)] = value;
+  }
+  return data;
 }
 
 function resolveCachedCollection(app: App, identifier: string): Collection | null {

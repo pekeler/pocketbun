@@ -1322,7 +1322,7 @@ function serializeAuthAlert(alert: AuthAlertConfig): Record<string, unknown> {
 function serializePasswordAuth(config: PasswordAuthConfig): Record<string, unknown> {
   return {
     enabled: config.Enabled,
-    identityFields: config.IdentityFields,
+    identityFields: config.IdentityFields ?? [],
   };
 }
 
@@ -1344,25 +1344,23 @@ function serializeOTP(config: OTPConfig): Record<string, unknown> {
 }
 
 function serializeOAuth2(config: OAuth2Config, safe: boolean): Record<string, unknown> {
-  const providers = config.Providers ?? (safe ? [] : null);
-  const mappedProviders = providers
-    ? providers.map((provider) => {
-        const record: Record<string, unknown> = {
-          pkce: provider.PKCE,
-          name: provider.Name,
-          clientId: provider.ClientId,
-          authURL: provider.AuthURL,
-          tokenURL: provider.TokenURL,
-          userInfoURL: provider.UserInfoURL,
-          displayName: provider.DisplayName,
-          extra: provider.Extra,
-        };
-        if (!safe && provider.ClientSecret) {
-          record.clientSecret = provider.ClientSecret;
-        }
-        return record;
-      })
-    : null;
+  const providers = config.Providers ?? [];
+  const mappedProviders = providers.map((provider) => {
+    const record: Record<string, unknown> = {
+      pkce: provider.PKCE,
+      name: provider.Name,
+      clientId: provider.ClientId,
+      authURL: provider.AuthURL,
+      tokenURL: provider.TokenURL,
+      userInfoURL: provider.UserInfoURL,
+      displayName: provider.DisplayName,
+      extra: provider.Extra,
+    };
+    if (!safe && provider.ClientSecret) {
+      record.clientSecret = provider.ClientSecret;
+    }
+    return record;
+  });
 
   return {
     providers: mappedProviders,

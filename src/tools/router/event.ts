@@ -284,7 +284,7 @@ export class Event implements Resolver {
       }
     }
 
-    const payload = JSON.stringify(output) + "\n";
+    const payload = JSON.stringify(output);
     return this.buildResponse(status, payload);
   }
 

@@ -5,6 +5,7 @@ import { ValidationErrors, newError, required } from "../internal/compat/validat
 import { NewSchedule } from "../tools/cron/schedule.ts";
 import { decrypt } from "../tools/security/encrypt.ts";
 import { JSONRaw } from "../tools/types/json_raw.ts";
+import { maxSafeJSONInt } from "./field.ts";
 import { IPOrSubnet } from "./validators/string.ts";
 
 export const ParamsTableName = "_params";
@@ -59,6 +60,9 @@ export type BackupsConfig = {
 };
 
 export type LogsConfig = {
+  // MaxDataSize specifies the maximum allowed serialized log data size
+  // before it gets truncated. Zero uses the default (~16 KB) limit.
+  maxDataSize: number;
   maxDays: number;
   minLevel: number;
   logIP: boolean;
@@ -223,6 +227,7 @@ export class Settings {
       },
     };
     this.logs = {
+      maxDataSize: 0,
       maxDays: 5,
       minLevel: 0,
       logIP: true,
@@ -369,6 +374,7 @@ export class Settings {
         maxBodySize: snapshot.batch.maxBodySize,
       },
       logs: {
+        maxDataSize: snapshot.logs.maxDataSize,
         maxDays: snapshot.logs.maxDays,
         minLevel: snapshot.logs.minLevel,
         logIP: snapshot.logs.logIP,
@@ -473,6 +479,9 @@ export class Settings {
     const logs = raw.logs;
     if (logs && typeof logs === "object") {
       const record = logs as Record<string, unknown>;
+      if (hasOwn(record, "maxDataSize") && typeof record.maxDataSize === "number") {
+        this.logs.maxDataSize = record.maxDataSize;
+      }
       if (hasOwn(record, "maxDays") && typeof record.maxDays === "number") {
         this.logs.maxDays = record.maxDays;
       }
@@ -693,12 +702,21 @@ function validateIPOrSubnetList(values: string[]): Error | null {
 }
 
 function validateLogs(logs: LogsConfig): Error | null {
-  if (logs.maxDays < 0) {
-    return new ValidationErrors({
-      maxDays: newError("validation_min_greater_equal_than_required", "Must be greater or equal to 0."),
-    });
+  const errors: Record<string, Error> = {};
+  if (logs.maxDataSize < 0) {
+    errors.maxDataSize = newError("validation_min_greater_equal_than_required", "Must be greater or equal to 0.");
+  } else if (logs.maxDataSize > maxSafeJSONInt) {
+    errors.maxDataSize = newError("validation_max_less_equal_than_required", `Must be less or equal to ${maxSafeJSONInt}.`);
   }
-  return null;
+  if (logs.maxDays < 0) {
+    errors.maxDays = newError("validation_min_greater_equal_than_required", "Must be greater or equal to 0.");
+  } else if (logs.maxDays > maxSafeJSONInt) {
+    errors.maxDays = newError("validation_max_less_equal_than_required", `Must be less or equal to ${maxSafeJSONInt}.`);
+  }
+  if (logs.minLevel > maxSafeJSONInt) {
+    errors.minLevel = newError("validation_max_less_equal_than_required", `Must be less or equal to ${maxSafeJSONInt}.`);
+  }
+  return Object.keys(errors).length > 0 ? new ValidationErrors(errors) : null;
 }
 
 function validateSMTP(smtp: SMTPConfig): Error | null {

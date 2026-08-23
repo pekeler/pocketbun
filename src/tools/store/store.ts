@@ -80,6 +80,11 @@ export class Store<K, T> {
     return new Map(this.#data);
   }
 
+  // Keys returns a slice with all of the store keys.
+  keys(): K[] {
+    return Array.from(this.#data.keys());
+  }
+
   values(): T[] {
     return Array.from(this.#data.values());
   }

@@ -262,8 +262,11 @@ async function startExternalServerOnce(script: string): Promise<StartedExternalS
     stdout: "pipe",
     stderr: "pipe",
   });
+  const startupTimeout = setTimeout(() => process.kill("SIGKILL"), 5_000);
 
   if (!process.stdout || typeof process.stdout === "number") {
+    clearTimeout(startupTimeout);
+    await stopExternalServerProcess(process);
     throw new Error("Failed to start test server: missing stdout.");
   }
 
@@ -281,34 +284,27 @@ async function startExternalServerOnce(script: string): Promise<StartedExternalS
       break;
     }
   }
+  clearTimeout(startupTimeout);
 
   const port = Number(buffer.trim());
-  if (!Number.isFinite(port) || port <= 0) {
+  if (!(port >= 1 && port <= 65_535)) {
+    await stopExternalServerProcess(process);
     const stderr = await readExternalServerStderr(process);
-    process.kill();
-    await process.exited;
-    throw new Error(`Failed to read server port. Output: ${buffer}\n${stderr}`);
+    throw new Error(`Failed to read server port. Output: ${JSON.stringify(buffer)}\n${stderr}`);
   }
 
-  try {
-    await waitForExternalServerReady(port);
-  } catch (error) {
-    const stderr = await readExternalServerStderr(process);
-    process.kill();
-    await process.exited;
-    throw new Error(`Failed to start test server on port ${port}: ${String(error)}\n${stderr}`);
-  }
-
-  const stop = async () => {
-    process.kill();
-    await process.exited;
-  };
+  const stop = () => stopExternalServerProcess(process);
 
   return {
     port,
     stop,
     [Symbol.asyncDispose]: stop,
   };
+}
+
+async function stopExternalServerProcess(process: ReturnType<typeof Bun.spawn>): Promise<void> {
+  process.kill("SIGKILL");
+  await Promise.race([process.exited, Bun.sleep(5_000)]);
 }
 
 async function readExternalServerStderr(process: ReturnType<typeof Bun.spawn>): Promise<string> {
@@ -324,24 +320,6 @@ async function readExternalServerStderr(process: ReturnType<typeof Bun.spawn>): 
   return new TextDecoder().decode(value);
 }
 
-async function waitForExternalServerReady(port: number): Promise<void> {
-  const maxAttempts = 50;
-  const url = `http://127.0.0.1:${port}/`;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(500) });
-      await response.arrayBuffer();
-      return;
-    } catch (error) {
-      if (attempt === maxAttempts || !isTransientServerStartError(error)) {
-        throw error;
-      }
-      await Bun.sleep(Math.min(attempt * 10, 100));
-    }
-  }
-}
-
 function isTransientServerStartError(error: unknown): boolean {
   if (!(error instanceof Error)) {
     return false;
@@ -350,7 +328,6 @@ function isTransientServerStartError(error: unknown): boolean {
   return (
     error.message.includes("Failed to start server") ||
     error.message.includes("Failed to read server port") ||
-    error.message.includes("Failed to start test server on port") ||
     error.message.includes("Failed to listen at") ||
     error.message.includes("Was there a typo in the url or port?") ||
     error.message.includes("ECONNREFUSED") ||
@@ -2227,7 +2204,7 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(0, "127.0.0.1", () => {
-  console.log(server.address().port);
+  console.log(String(server.address().port));
 });`);
 
       const scope: BindScope = {};

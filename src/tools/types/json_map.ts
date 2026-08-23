@@ -1,5 +1,7 @@
 // Ported from pocketbase/tools/types/json_map.go
 
+import { deterministicJSONStringify } from "../../internal/compat/deterministic_json.ts";
+
 export class JSONMap<T> {
   #value: Record<string, T>;
 
@@ -12,7 +14,7 @@ export class JSONMap<T> {
   }
 
   MarshalJSON(): string {
-    return JSON.stringify(this.toJSON());
+    return deterministicJSONStringify(this.toJSON());
   }
 
   toString(): string {
@@ -70,6 +72,7 @@ export class JSONMap<T> {
       } else if (typeof value === "string") {
         data = value;
       } else {
+        this.assign({});
         return new Error("failed to unmarshal JSONMap[T] value");
       }
 
@@ -79,12 +82,14 @@ export class JSONMap<T> {
 
       const parsed = JSON.parse(data);
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        this.assign({});
         return new Error("failed to unmarshal JSONMap[T] value");
       }
 
       this.assign(parsed as Record<string, T>);
       return null;
     } catch (error) {
+      this.assign({});
       return error as Error;
     }
   }

@@ -49,6 +49,13 @@ describe("cluster coordinator", () => {
     expect(coordinator.releaseBackup(3, String(lease))).toBeFalse();
     expect(coordinator.releaseBackup(2, "stale")).toBeFalse();
     expect(coordinator.ownsBackup(2, String(lease))).toBeTrue();
+    expect(coordinator.setBackupPhase(3, String(lease), "delete")).toBeFalse();
+    expect(coordinator.setBackupPhase(2, String(lease), "delete")).toBeTrue();
+    expect(coordinator.backupMutationOwner("delete")).toBe(2);
+    expect(coordinator.backupMutationOwner("write")).toBeNull();
+    expect(coordinator.setBackupPhase(2, String(lease), "write")).toBeTrue();
+    expect(coordinator.backupMutationOwner("delete")).toBe(2);
+    expect(coordinator.backupMutationOwner("write")).toBe(2);
     expect(coordinator.releaseBackupForWorker(2)).toBeTrue();
     expect(coordinator.activeBackupName()).toBeNull();
   });

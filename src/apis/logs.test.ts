@@ -185,6 +185,49 @@ const scenarios: ApiScenario[] = [
     expectedStatus: 200,
     expectedContent: ['[{"date":"2022-05-02 10:00:00.000Z","total":1}]'],
   },
+  {
+    name: "logs truncate unauthorized",
+    method: "DELETE",
+    url: "/api/logs",
+    expectedStatus: 401,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
+  },
+  {
+    name: "logs truncate authorized as regular user",
+    method: "DELETE",
+    url: "/api/logs",
+    headers: {
+      Authorization:
+        "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6IjRxMXhsY2xtZmxva3UzMyIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoiX3BiX3VzZXJzX2F1dGhfIiwiZXhwIjoyNTI0NjA0NDYxLCJyZWZyZXNoYWJsZSI6dHJ1ZX0.ZT3F0Z3iM-xbGgSG3LEKiEzHrPHr8t8IuHLZGGNuxLo",
+    },
+    expectedStatus: 403,
+    expectedContent: ['"data":{}'],
+    expectedEvents: { "*": 0 },
+  },
+  {
+    name: "logs truncate authorized as superuser",
+    method: "DELETE",
+    url: "/api/logs",
+    headers: {
+      Authorization:
+        "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6InN5d2JoZWNuaDQ2cmhtMCIsInR5cGUiOiJhdXRoIiwiY29sbGVjdGlvbklkIjoicGJjXzMxNDI2MzU4MjMiLCJleHAiOjI1MjQ2MDQ0NjEsInJlZnJlc2hhYmxlIjp0cnVlfQ.UXgO3j-0BumcugrFjbd7j0M4MQvbrLggLlcu_YNGjoY",
+    },
+    beforeTest: (app) => {
+      const err = StubLogsData(app);
+      if (err) {
+        throw err;
+      }
+    },
+    afterTest: (app) => {
+      const row = app.auxDb().query("select count(*) as total from {{_logs}}").get() as { total: number };
+      if (row.total !== 0) {
+        throw new Error(`Expected all logs to be deleted, found ${row.total}`);
+      }
+    },
+    expectedStatus: 204,
+    expectedEvents: { "*": 0 },
+  },
 ];
 
 describe("logs api", () => {

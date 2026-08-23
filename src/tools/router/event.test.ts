@@ -280,7 +280,7 @@ describe("Event", () => {
         body,
         expectedStatus: 200,
         expectedHeaders: { "content-type": "application/json" },
-        expectedBody: `{"a":123,"c":"test"}\n`,
+        expectedBody: `{"a":123,"c":"test"}`,
         url: "http://example.com/?fields=a,c",
       },
       {
@@ -290,7 +290,7 @@ describe("Event", () => {
         body,
         expectedStatus: 200,
         expectedHeaders: { "content-type": "application/test" },
-        expectedBody: `{"a":123,"c":"test"}\n`,
+        expectedBody: `{"a":123,"c":"test"}`,
         url: "http://example.com/?fields=a,c",
       },
       {
@@ -300,7 +300,7 @@ describe("Event", () => {
         body,
         expectedStatus: 400,
         expectedHeaders: { "content-type": "application/test" },
-        expectedBody: `{"a":123,"b":456,"c":"test"}\n`,
+        expectedBody: `{"a":123,"b":456,"c":"test"}`,
         url: "http://example.com/?fields=a,c",
       },
     ];

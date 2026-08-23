@@ -86,3 +86,14 @@ describe("Record constructor", () => {
     expect((password as PasswordFieldValue).Hash.startsWith("$2")).toBeTrue();
   });
 });
+
+describe("Record.GetInt64", () => {
+  it("returns the integer representation of a field", () => {
+    const collection = NewBaseCollection("test");
+    const record = NewRecord(collection);
+    record.SetRaw("value", "123");
+
+    expect(record.GetInt64("value")).toBe(123);
+    expect(record.getInt64("value")).toBe(123);
+  });
+});

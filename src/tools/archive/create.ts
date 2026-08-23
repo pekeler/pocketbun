@@ -45,11 +45,25 @@ export async function CreateAsyncWithFileOverrides(
   overrides: ReadonlyMap<string, string>,
   ...skipPaths: string[]
 ): Promise<void> {
+  return CreateAsyncWithFilePlan(src, dest, { overrides }, ...skipPaths);
+}
+
+// CreateAsyncWithFilePlan is a PocketBun-only backup helper that also allows
+// files created while an archive is being written to be excluded dynamically.
+export async function CreateAsyncWithFilePlan(
+  src: string,
+  dest: string,
+  plan: {
+    overrides: ReadonlyMap<string, string>;
+    dynamicSkipPaths?: ReadonlySet<string>;
+  },
+  ...skipPaths: string[]
+): Promise<void> {
   await mkdir(dirname(dest), { recursive: true });
 
   try {
-    const files = await collectFilesAsync(src, skipPaths, overrides);
-    await buildZipAsync(files, dest);
+    const files = await collectFilesAsync(src, skipPaths, plan.overrides, plan.dynamicSkipPaths);
+    await buildZipAsync(files, dest, plan.overrides, plan.dynamicSkipPaths);
   } catch (error) {
     try {
       await rm(dest, { force: true });
@@ -112,9 +126,10 @@ async function collectFilesAsync(
   src: string,
   skipPaths: string[],
   overrides: ReadonlyMap<string, string> = new Map(),
+  dynamicSkipPaths: ReadonlySet<string> = new Set(),
 ): Promise<AsyncZipEntry[]> {
   const entries: AsyncZipEntry[] = [];
-  const unusedOverrides = new Set(overrides.keys());
+  const collected = new Set<string>();
 
   const walk = async (dir: string): Promise<void> => {
     const items = await readdir(dir, { withFileTypes: true });
@@ -126,13 +141,24 @@ async function collectFilesAsync(
       }
 
       const rel = normalizeRelPath(relative(src, fullPath));
-      if (shouldSkip(rel, skipPaths)) {
+      const override = overrides.get(rel);
+      if (shouldSkip(rel, skipPaths) || (!override && isDynamicallySkipped(rel, dynamicSkipPaths))) {
         continue;
       }
 
-      const info = await lstat(fullPath);
-      const source = overrides.get(rel) ?? fullPath;
-      unusedOverrides.delete(rel);
+      let source = override ?? fullPath;
+      let info;
+      try {
+        info = await lstat(source);
+      } catch (error) {
+        const replacement = overrides.get(rel);
+        if (!replacement) {
+          throw error;
+        }
+        source = replacement;
+        info = await lstat(source);
+      }
+      collected.add(rel);
 
       entries.push({
         name: rel,
@@ -144,8 +170,15 @@ async function collectFilesAsync(
   };
 
   await walk(src);
-  if (unusedOverrides.size > 0) {
-    throw new Error(`archive override files not found: ${[...unusedOverrides].join(", ")}`);
+  for (const [name, source] of overrides) {
+    if (collected.has(name)) {
+      continue;
+    }
+    if (shouldSkip(name, skipPaths)) {
+      continue;
+    }
+    const info = await lstat(source);
+    entries.push({ name, source, modTime: info.mtime, mode: info.mode });
   }
   return entries;
 }
@@ -214,10 +247,16 @@ function buildZip(entries: ZipEntry[]): Uint8Array {
   return writer.concat();
 }
 
-async function buildZipAsync(entries: AsyncZipEntry[], dest: string): Promise<void> {
+async function buildZipAsync(
+  entries: AsyncZipEntry[],
+  dest: string,
+  overrides: ReadonlyMap<string, string> = new Map(),
+  dynamicSkipPaths: ReadonlySet<string> = new Set(),
+): Promise<void> {
   await using output = await open(dest, "w");
   const central = new ChunkWriter();
   let offset = 0;
+  let entriesWritten = 0;
 
   const write = async (data: Uint8Array): Promise<void> => {
     let written = 0;
@@ -229,10 +268,15 @@ async function buildZipAsync(entries: AsyncZipEntry[], dest: string): Promise<vo
   };
 
   for (const entry of entries) {
+    const override = overrides.get(entry.name);
+    if (!override && isDynamicallySkipped(entry.name, dynamicSkipPaths)) {
+      continue;
+    }
+    const source = override ?? entry.source;
     const nameBytes = textEncoder.encode(entry.name);
     const { date, time } = toDosDateTime(entry.modTime);
     const localHeaderOffset = offset;
-    const sourceInfo = await stat(entry.source);
+    const sourceInfo = await stat(source);
     // Reserve ZIP64 local-header fields before streaming when a source may exceed
     // classic ZIP's 32-bit size fields. Compression can grow a little, too.
     const useZip64 = sourceInfo.size >= uint32Max - 0x100000 || offset >= uint32Max;
@@ -260,7 +304,7 @@ async function buildZipAsync(entries: AsyncZipEntry[], dest: string): Promise<vo
     let crc = 0xffffffff;
     let uncompressedSize = 0;
     let compressedSize = 0;
-    const input = createReadStream(entry.source);
+    const input = createReadStream(source);
     input.on("data", (chunk: Buffer) => {
       const bytes = new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
       crc = updateCrc32(crc, bytes);
@@ -301,20 +345,21 @@ async function buildZipAsync(entries: AsyncZipEntry[], dest: string): Promise<vo
     );
     central.push(nameBytes);
     central.push(centralExtra);
+    entriesWritten += 1;
   }
 
   const centralOffset = offset;
   const centralBytes = central.concat();
   await write(centralBytes);
-  const archiveUsesZip64 = entries.length >= uint16Max || centralBytes.length >= uint32Max || centralOffset >= uint32Max;
+  const archiveUsesZip64 = entriesWritten >= uint16Max || centralBytes.length >= uint32Max || centralOffset >= uint32Max;
   if (archiveUsesZip64) {
     const zip64EndOffset = offset;
-    await write(buildZip64EndOfCentralDirectory(entries.length, centralBytes.length, centralOffset));
+    await write(buildZip64EndOfCentralDirectory(entriesWritten, centralBytes.length, centralOffset));
     await write(buildZip64EndOfCentralDirectoryLocator(zip64EndOffset));
   }
   await write(
     buildEndOfCentralDirectory({
-      entries: archiveUsesZip64 ? uint16Max : entries.length,
+      entries: archiveUsesZip64 ? uint16Max : entriesWritten,
       centralSize: archiveUsesZip64 ? uint32Max : centralBytes.length,
       centralOffset: archiveUsesZip64 ? uint32Max : centralOffset,
     }),
@@ -517,6 +562,18 @@ function shouldSkip(name: string, skipPaths: string[]): boolean {
     }
   }
 
+  return false;
+}
+
+function isDynamicallySkipped(name: string, paths: ReadonlySet<string>): boolean {
+  if (paths.has(name)) {
+    return true;
+  }
+  for (const path of paths) {
+    if (name.startsWith(`${path}.`) && name.endsWith(".tmp")) {
+      return true;
+    }
+  }
   return false;
 }
 

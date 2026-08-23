@@ -280,6 +280,7 @@ export function securityHeaders(): BoundHandler<RequestEvent> {
       event.responseHeaders.set("X-XSS-Protection", "1; mode=block");
       event.responseHeaders.set("X-Content-Type-Options", "nosniff");
       event.responseHeaders.set("X-Frame-Options", "SAMEORIGIN");
+      event.responseHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
       return event.Next();
     },
   };

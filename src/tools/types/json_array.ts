@@ -1,5 +1,7 @@
 // Ported from pocketbase/tools/types/json_array.go
 
+import { deterministicJSONStringify } from "../../internal/compat/deterministic_json.ts";
+
 export class JSONArray<T> extends Array<T> {
   constructor(...items: T[]) {
     super(...items);
@@ -10,7 +12,7 @@ export class JSONArray<T> extends Array<T> {
   }
 
   MarshalJSON(): string {
-    return JSON.stringify(this.toJSON());
+    return deterministicJSONStringify(this.toJSON());
   }
 
   String(): string {
@@ -50,6 +52,7 @@ export class JSONArray<T> extends Array<T> {
       } else if (typeof value === "string") {
         data = value;
       } else {
+        this.length = 0;
         return new Error("failed to unmarshal JSONArray value");
       }
 
@@ -59,6 +62,7 @@ export class JSONArray<T> extends Array<T> {
 
       const parsed = JSON.parse(data);
       if (!Array.isArray(parsed)) {
+        this.length = 0;
         return new Error("failed to unmarshal JSONArray value");
       }
 
@@ -66,6 +70,7 @@ export class JSONArray<T> extends Array<T> {
       this.push(...(parsed as T[]));
       return null;
     } catch (error) {
+      this.length = 0;
       return error as Error;
     }
   }

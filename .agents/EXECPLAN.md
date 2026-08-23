@@ -77,10 +77,20 @@ The repository owner intends to deploy cluster mode in production as soon as pra
 - [x] (2026-08-23) Extended the real-process realtime test with adversarial cross-client isolation before and after owner replacement. A regular-user record subscriber and a superuser OAuth2 subscriber are pinned to different workers; each receives only its intended cross-worker event. After the regular user's owner is killed and replaced, its authenticated resubscription still receives the record update while the superuser receives none, and token-key invalidation still clears only that new client authentication state.
 - [x] (2026-08-23) Hosted run `32646102124` passed Ubuntu, macOS, Windows, and downstream E2E for the cluster rollback and cross-client realtime isolation regressions. The preceding all-platform failure was only an unused local test variable; commit `769ec026` removed it before this clean run.
 - [x] (2026-08-23) A controlled local M2 Max (8 performance + 4 efficiency cores, 32 GiB) macOS proxy-topology read series was monotonic: the 128-way authenticated `posts25k` list workload measured 481.8 req/s with one worker, 752.7 with two (+56.2%), 975.5 with four (+102.5%), and 1,251.8 with eight (+159.8%). Each run used a fresh seeded fixture and the existing load client through a round-robin loopback proxy. This is useful multi-core evidence but not a substitute for Linux native shared-port acceptance or five-run medians.
+- [x] (2026-08-23) External Linux DB-free control: the dedicated two-physical-core host (`2.29.1.67`, CPUs 0/2) was driven for 30 seconds at concurrency 128 from separate host `2.29.7.192`. A CPU-only JavaScript hook route measured 2,324.3 req/s with one worker and 4,523.3 with two (+94.6%); p50 fell from 53.7 ms to 27.7 ms. This rules out cluster dispatch as the explanation for the earlier unindexed SQLite list result. The final public matrix will instead use all available vCPUs without affinity, report the 1/2/4/8 curve, and use an external load-generator host.
+- [x] (2026-08-23) Upgraded the compatibility target and vendored Admin UI to PocketBase v0.40.0. Ported command-error propagation, quoted download names, COOP, `Record.GetInt64`, `Store.Keys`, log truncation/deletion, JSON v2 observable changes, low-level filesystem writer/delete hooks, generated JSVM declarations, and the upstream live-backup design. Bun already enables SQLite defensive mode natively, so no duplicate DSN emulation was added.
+- [x] (2026-08-23) Extended the v0.40 live-backup algorithm across cluster workers. A real three-worker test forces the backup owner, deleting worker, and uploading worker onto distinct PIDs after the auxiliary snapshot begins; the archive retains the deleted pre-snapshot file and metadata, excludes the new file, and leaves the live filesystem on the opposite side of both mutations. The test exposed and fixed a worker-ID-versus-slot routing bug and then passed three complete repetitions with 342 assertions.
 - [ ] Run targeted one/two/four-worker cluster-performance checks sufficient to prove the cluster is not a regression and uses multiple workers effectively. Defer the complete PocketBase baseline and matched PocketBun benchmark matrix until the cluster release gate is otherwise complete and PocketBun has been upgraded to the latest PocketBase release.
 - [ ] Complete production operations documentation, the changelog, full cross-platform CI/manual workflows, package/build/docs checks, and the final no-known-correctness-failure release review.
 
 ## Surprises & Discoveries
+
+- Observation: Bun v1.4 already enables SQLite defensive mode on every `bun:sqlite` connection.
+  Evidence: Bun's v1.4 binding calls `sqlite3_db_config(..., SQLITE_DBCONFIG_DEFENSIVE, 1, ...)`, and a local probe rejected the same writable-schema and journal mutations PocketBase v0.40's `_defensive=1` DSN protects. PocketBun therefore needs no additional pragma or connection wrapper.
+- Observation: the generated JSVM filesystem declarations promised lowercase methods that the returned `System` object did not provide.
+  Evidence: a real hook could call `$app.newFilesystem()` but `fsys.upload` was undefined. Direct aliases now live on `System.prototype`, the new writer/delete hook events expose lowercase fields, a focused test covers the writer/hook surface, and the real cluster hook uses those public names.
+- Observation: the first cross-worker backup mutation could not reach a healthy backup owner because two primary identifiers were conflated.
+  Evidence: the coordinator lease correctly stored `cluster.Worker.id`, but the primary looked it up in a map keyed by worker slot. The primary now finds the ready worker by `worker.id`; three full real-process repetitions preserve and exclude the intended files.
 
 - Observation: Bun v1.4 changes in-process cron interpretation from UTC to the host's local timezone, which conflicts with PocketBun's documented and upstream-compatible UTC default unless PocketBun passes an explicit timezone.
   Evidence: `src/tools/cron/cron.ts` currently calls `Bun.cron(job.Expression(), handler)` without options, while `docs/users/differences.md` promises UTC. The v1.4 release adds a final timezone option to both scheduling and parsing, and PocketBun currently omits PocketBase's `setTimezone` API.
@@ -210,6 +220,13 @@ The repository owner intends to deploy cluster mode in production as soon as pra
   Evidence: stopping the first production-like transient systemd service shut PocketBun down but systemd classified the primary's signal-derived exit status 143 as a failed unit. PocketBun now returns zero after handling graceful shutdown, matching upstream, and a real systemd stop reports success.
 
 ## Decision Log
+
+- Decision: upgrade to PocketBase v0.40.0 before finishing the cluster release gate, but keep the complete public benchmark matrix deferred until correctness and operations work are otherwise done.
+  Rationale: the upgrade is required for the release and changes backup behavior central to cluster qualification. Testing the upstream changes together avoids qualifying an obsolete backup path, while final benchmark numbers should not be published from code that can still change for correctness.
+  Date/Author: 2026-08-23 / Codex and repository owner
+- Decision: follow PocketBase v0.40's `VACUUM INTO` and storage-mutation boundary, extend it cluster-wide, and keep deleted-file tracking active until PocketBun's streamed ZIP is complete.
+  Rationale: both projects now avoid long transaction-held compression. PocketBun materializes both database snapshots before its streaming archive walk, so stopping deletion tracking immediately after the main snapshot could lose a referenced file before the walk reaches it. The stronger tracking window costs temporary disk I/O, not database locks or database-sized RAM, and the archive layout remains backward compatible.
+  Date/Author: 2026-08-23 / Codex
 
 - Decision: complete the Bun v1.4 compatibility and native-runtime work before starting vertical scaling.
   Rationale: the runtime upgrade has an immediate cron correctness issue and several small, independently verifiable simplifications. Landing those first gives the later cluster work a qualified, stable baseline and prevents both workstreams from changing cron, shutdown, static serving, CI, and tests simultaneously.
@@ -1203,6 +1220,28 @@ Milestone 10 primary-death local qualification:
     git diff --check: passed
     Hosted Ubuntu/macOS/Windows qualification: pending
 
+PocketBase v0.40 compatibility and live-backup qualification:
+
+    Upstream tag/commit: v0.40.0 / 50f5f83a
+    Backup boundary: main VACUUM INTO; cluster-wide new/delete file tracking;
+                     auxiliary VACUUM INTO; streamed ZIP/ZIP64 archive
+    Memory model: disk-backed database snapshots and streaming archive entries;
+                  no database-sized JavaScript buffer
+    Compatibility: standard PocketBase data.db/auxiliary.db/storage ZIP layout;
+                   old PocketBase and PocketBun archives remain restorable
+    Real-process mutation test: backup owner, deleter, and uploader on three distinct PIDs;
+                                deleted file plus attrs retained; new file excluded;
+                                live filesystem reflects the inverse final state
+    Fault found: backup owner worker ID was incorrectly used as a slot-map key
+    Corrected repetition: 3 pass, 0 fail, 342 expect() calls in 20.45 seconds
+    Upstream file mapping audit: 0 missing source files, 0 missing test files
+    JSVM declaration/runtime contract: 5 pass, 0 fail, 1,710 expect() calls
+    CI-style four-process release qualification: 1,957 pass, 0 fail,
+                                                 10,599 expect() calls in 49.09 seconds
+    Typecheck, package build/types, lint, format, docs, version alignment,
+    and upstream mapping audit: passed
+    Hosted Ubuntu/macOS/Windows qualification: pending
+
 Milestone 10 first production-smoke and Windows-correction batch:
 
     Date: 2026-08-22
@@ -1438,3 +1477,5 @@ Revision note, 2026-08-22 / Codex: Recorded hosted run 32580868631: Ubuntu and m
 Revision note, 2026-08-22 / Codex: Closed the corrected primary-death and backup qualification after hosted run 32581531550 passed Ubuntu, macOS, Windows, and downstream E2E at commit `20560496`. Added local real-process leader/follower no-ready crash-budget coverage plus malformed-version, duplicate-ready, and late-result IPC replacement checks without production fault controls. Recorded that the new four-vCPU Ubuntu host has two physical EPYC-Milan cores with SMT, so CPUs 0 and 2 support a clean one-to-two-worker comparison while four-worker results must be labeled SMT-assisted.
 
 Revision note, 2026-08-22 / Codex: Added deterministic shared-SQLite pressure to the real three-worker state harness. Ubuntu reproduced a genuine `SQLiteError: locking protocol` in transaction-wrapped live-file backups that ten macOS repetitions missed. Replaced the live database/WAL archive race with disk-backed sequential `VACUUM INTO` snapshots and excluded sidecars, preserving streamed compression without a cluster-wide write gate. Exact counts/checksums, interrupted-writer rollback, manual and real autobackup archive integrity, later checkpoints/backups, restart, and restore pass in 20 clean Ubuntu repetitions. A dedicated 4.36 GiB `data.db` qualification additionally verified ZIP64 entry metadata, streamed restore, main/auxiliary/file rollback, SQLite integrity, 135.34-second backup time, 10.27-second restore time, and 254,500 KiB peak RSS. Also moved probed test listeners below the ephemeral client-port range after connection-heavy reruns exposed two unrelated `EADDRINUSE` selections; hosted cross-platform confirmation remains pending.
+
+Revision note, 2026-08-23 / Codex: Upgraded PocketBun to PocketBase v0.40.0 and ported the optimized live-backup boundary instead of qualifying the prior backup implementation for release. Extended new/delete storage tracking across workers while keeping sequential disk-backed database snapshots and streamed ZIP64 output. A real three-PID mutation test exposed a worker-ID/slot lookup defect in the first routing implementation; the corrected test passed three complete repetitions and proves the backup retains a deleted pre-snapshot file and excludes a post-snapshot upload. Also aligned v0.40 logs, security headers, CLI errors, JSON behavior, filesystem/JSVM APIs, Record/Store helpers, vendored UI, version metadata, changelog, and user documentation. The full local repository, package, docs, and upstream-mapping gates pass; hosted cross-platform qualification remains pending.

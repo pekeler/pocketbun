@@ -33,6 +33,7 @@ const crashBudget = 5;
 const heartbeatIntervalMs = 1_000;
 const staleHeartbeatMs = 3_000;
 const coordinatorDeliveryTimeoutMs = 4_000;
+const backupMutationDeliveryTimeoutMs = 300_000;
 
 export type ClusterPrimaryOptions = {
   workers: number;
@@ -779,6 +780,25 @@ async function handleCoordinatorOperation(
     }
     return true;
   }
+  if (operation.kind === "backup.phase") {
+    if (!coordinator.setBackupPhase(source.id, operation.leaseToken, operation.phase)) {
+      throw new Error("backup worker does not own the active backup lease");
+    }
+    return true;
+  }
+  if (operation.kind === "backup.file-delete" || operation.kind === "backup.file-write") {
+    const mutation = operation.kind === "backup.file-delete" ? "delete" : "write";
+    const ownerId = coordinator.backupMutationOwner(mutation);
+    if (ownerId === null) {
+      return false;
+    }
+    const owner = readyWorkers(records).find((worker) => worker.id === ownerId);
+    if (!owner) {
+      throw new Error("backup owner worker is not ready");
+    }
+    await sendCoordinatorDelivery(owner, token, pendingDeliveries, operation);
+    return true;
+  }
   if (operation.kind === "realtime.publish") {
     const targets = readyWorkers(records).filter((worker) => worker.id !== source.id);
     await Promise.all(targets.map((worker) => sendCoordinatorDelivery(worker, token, pendingDeliveries, operation)));
@@ -847,10 +867,14 @@ function sendCoordinatorDelivery(
 ): Promise<string> {
   const requestId = crypto.randomUUID();
   return new Promise((resolve, reject) => {
+    const timeoutMs =
+      operation.kind === "backup.file-delete" || operation.kind === "backup.file-write"
+        ? backupMutationDeliveryTimeoutMs
+        : coordinatorDeliveryTimeoutMs;
     const timeout = setTimeout(() => {
       pendingDeliveries.delete(requestId);
-      reject(new Error(`worker ${worker.id} coordinator delivery timed out after ${coordinatorDeliveryTimeoutMs}ms`));
-    }, coordinatorDeliveryTimeoutMs);
+      reject(new Error(`worker ${worker.id} coordinator delivery timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
     pendingDeliveries.set(requestId, { workerId: worker.id, resolve, reject, timeout });
     void sendToWorker(worker, {
       version: ClusterProtocolVersion,

@@ -221,9 +221,9 @@ PocketBun persists activity logs through a background worker to reduce main-thre
 
 ### Backups
 
-PocketBun creates disk-backed SQLite snapshots with `VACUUM INTO` before it writes a backup ZIP. This avoids retaining a full database copy in server memory and lets clustered SQLite writers continue while the archive is generated. The resulting archive still uses PocketBase's normal ZIP layout and can restore older PocketBase/PocketBun backup archives, including PocketBase's `auxiliary.db` activity logs.
+PocketBun follows PocketBase v0.40's live-backup strategy: it creates disk-backed SQLite snapshots with `VACUUM INTO`, preserves storage files deleted during the database snapshot, and excludes storage files created after that boundary. PocketBun extends the file tracking across all cluster workers. This avoids retaining a full database copy in server memory and lets SQLite writers continue while the archive is generated. The resulting archive uses PocketBase's normal ZIP layout and can restore older PocketBase/PocketBun backup archives, including PocketBase's `auxiliary.db` activity logs.
 
-The database snapshots are individually consistent. Because files are added to the ZIP after those snapshots, an upload or deletion that happens during backup can appear on either side of the backup boundary: a restored backup can contain an unreferenced file or omit a newly changed file referenced by the database snapshot. This does not corrupt SQLite, but applications that require an atomic database-and-files backup should temporarily stop writes while creating it.
+The main and auxiliary database snapshots are individually consistent and are captured sequentially. A storage mutation exactly around the main-database boundary can leave a harmless unreferenced file in the archive, but tracked deletions and new-file exclusions prevent the backup from omitting a storage file referenced by its main database snapshot. Applications that require one atomic boundary across the main database, activity logs, and every file should still temporarily stop writes while creating a backup.
 
 The temporary database snapshots increase peak disk use during backup. Keep free space of roughly three times the size of `pb_data/` for a worst-case local backup, instead of PocketBase's documented two-times guideline.
 

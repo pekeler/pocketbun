@@ -76,6 +76,7 @@ function newEmptySettings(): Settings {
     },
   };
   settings.logs = {
+    maxDataSize: 0,
     maxDays: 0,
     minLevel: 0,
     logIP: false,
@@ -155,7 +156,7 @@ describe("settings model", () => {
     const rawStr = JSON.stringify(settings);
 
     const expected =
-      '{"superuserIPs":[],"smtp":{"enabled":false,"port":0,"host":"","username":"abc","authMethod":"","tls":false,"localName":""},"backups":{"cron":"","cronMaxKeep":0,"s3":{"enabled":false,"bucket":"","region":"","endpoint":"","accessKey":"","forcePathStyle":false}},"s3":{"enabled":false,"bucket":"","region":"","endpoint":"","accessKey":"","forcePathStyle":false},"meta":{"accentColor":"","appName":"test123","appURL":"","senderName":"","senderAddress":"","hideControls":false},"rateLimits":{"rules":[],"excludedIPs":[],"enabled":false},"trustedProxy":{"headers":[],"useLeftmostIP":false},"batch":{"enabled":false,"maxRequests":0,"timeout":0,"maxBodySize":0},"logs":{"maxDays":0,"minLevel":0,"logIP":false,"logAuthId":false}}';
+      '{"superuserIPs":[],"smtp":{"enabled":false,"port":0,"host":"","username":"abc","authMethod":"","tls":false,"localName":""},"backups":{"cron":"","cronMaxKeep":0,"s3":{"enabled":false,"bucket":"","region":"","endpoint":"","accessKey":"","forcePathStyle":false}},"s3":{"enabled":false,"bucket":"","region":"","endpoint":"","accessKey":"","forcePathStyle":false},"meta":{"accentColor":"","appName":"test123","appURL":"","senderName":"","senderAddress":"","hideControls":false},"rateLimits":{"rules":[],"excludedIPs":[],"enabled":false},"trustedProxy":{"headers":[],"useLeftmostIP":false},"batch":{"enabled":false,"maxRequests":0,"timeout":0,"maxBodySize":0},"logs":{"maxDataSize":0,"maxDays":0,"minLevel":0,"logIP":false,"logAuthId":false}}';
 
     expect(rawStr).toBe(expected);
   });
@@ -230,13 +231,21 @@ describe("settings model", () => {
 
   it("LogsConfigValidate", () => {
     const scenarios: Array<{ name: string; config: LogsConfig; expectedErrors: string[] }> = [
-      { name: "zero values", config: { maxDays: 0, minLevel: 0, logIP: false, logAuthId: false }, expectedErrors: [] },
+      {
+        name: "zero values",
+        config: { maxDataSize: 0, maxDays: 0, minLevel: 0, logIP: false, logAuthId: false },
+        expectedErrors: [],
+      },
       {
         name: "invalid data",
-        config: { maxDays: -1, minLevel: 0, logIP: false, logAuthId: false },
-        expectedErrors: ["maxDays"],
+        config: { maxDataSize: -1, maxDays: -1, minLevel: 0, logIP: false, logAuthId: false },
+        expectedErrors: ["maxDataSize", "maxDays"],
       },
-      { name: "valid data", config: { maxDays: 2, minLevel: 0, logIP: false, logAuthId: false }, expectedErrors: [] },
+      {
+        name: "valid data",
+        config: { maxDataSize: 1024, maxDays: 2, minLevel: 0, logIP: false, logAuthId: false },
+        expectedErrors: [],
+      },
     ];
 
     for (const scenario of scenarios) {

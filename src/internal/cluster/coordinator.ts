@@ -19,6 +19,7 @@ type BackupLease = {
   workerId: number;
   name: string;
   token: string;
+  phase: "idle" | "delete" | "write";
 };
 
 export class ClusterCoordinator {
@@ -54,6 +55,9 @@ export class ClusterCoordinator {
       case "oauth2.deliver":
       case "backup.acquire":
       case "backup.release":
+      case "backup.phase":
+      case "backup.file-delete":
+      case "backup.file-write":
       case "lifecycle.restart":
       case "restore.begin":
       case "restore.complete":
@@ -67,7 +71,7 @@ export class ClusterCoordinator {
       return null;
     }
     const token = crypto.randomUUID();
-    this.backupLease = { workerId, name, token };
+    this.backupLease = { workerId, name, token, phase: "idle" };
     return token;
   }
 
@@ -93,6 +97,21 @@ export class ClusterCoordinator {
 
   activeBackupName(): string | null {
     return this.backupLease?.name ?? null;
+  }
+
+  setBackupPhase(workerId: number, token: string, phase: BackupLease["phase"]): boolean {
+    if (!this.ownsBackup(workerId, token)) {
+      return false;
+    }
+    this.backupLease!.phase = phase;
+    return true;
+  }
+
+  backupMutationOwner(kind: "delete" | "write"): number | null {
+    if (this.backupLease?.phase === kind || (kind === "delete" && this.backupLease?.phase === "write")) {
+      return this.backupLease.workerId;
+    }
+    return null;
   }
 
   private consumeRateLimit(operation: Extract<CoordinatorOperation, { kind: "rate-limit.consume" }>): boolean {

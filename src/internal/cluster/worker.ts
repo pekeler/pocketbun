@@ -17,6 +17,7 @@ import {
   clusterWorkerSlot,
   configureClusterWorker,
   getClusterOAuth2DeliveryHandler,
+  getClusterBackupFilesystemHandler,
   getClusterRealtimeEventHandler,
   getClusterRealtimePrepareHandler,
   getClusterRealtimeSubscribeHandler,
@@ -36,6 +37,7 @@ let shutdownRequested = false;
 let workerApp: App | null = null;
 let stopWorkerServer: (() => Promise<void>) | null = null;
 const coordinatorTimeoutMs = 5_000;
+const backupMutationTimeoutMs = 300_000;
 const pendingCoordinatorRequests = new Map<
   string,
   { resolve: (value: CoordinatorValue) => void; reject: (error: Error) => void; timeout: ReturnType<typeof setTimeout> }
@@ -234,6 +236,20 @@ export async function releaseClusterBackupLease(leaseToken: string): Promise<voi
   await requestCoordinator({ kind: "backup.release", leaseToken });
 }
 
+export async function setClusterBackupPhase(leaseToken: string, phase: "idle" | "delete" | "write"): Promise<void> {
+  const value = await requestCoordinator({ kind: "backup.phase", leaseToken, phase });
+  if (value !== true) {
+    throw new Error("PocketBun cluster backup phase update failed");
+  }
+}
+
+export async function notifyClusterBackupFileMutation(
+  kind: "backup.file-delete" | "backup.file-write",
+  fileKey: string,
+): Promise<void> {
+  await requestCoordinator({ kind, fileKey });
+}
+
 export async function restartClusterWorkers(): Promise<void> {
   const accepted = await requestCoordinator({ kind: "lifecycle.restart" });
   if (accepted !== true) {
@@ -293,6 +309,12 @@ async function handleCoordinatorDelivery(requestId: string, operation: import(".
         workerApp.store().set(StoreKeyActiveBackup, operation.name);
       }
       value = "updated";
+    } else if (operation.kind === "backup.file-delete" || operation.kind === "backup.file-write") {
+      const handler = getClusterBackupFilesystemHandler();
+      if (!handler) {
+        throw new Error("PocketBun cluster backup filesystem handler is not registered");
+      }
+      value = await handler(operation);
     } else if (operation.kind === "realtime.publish") {
       const handler = getClusterRealtimeEventHandler();
       if (!handler) {
@@ -375,7 +397,12 @@ function requestCoordinator(operation: CoordinatorOperation): Promise<Coordinato
     return Promise.reject(new Error("PocketBun cluster worker is not configured"));
   }
   const requestId = crypto.randomUUID();
-  const timeoutMs = operation.kind === "restore.begin" ? 30_000 : coordinatorTimeoutMs;
+  const timeoutMs =
+    operation.kind === "restore.begin"
+      ? 30_000
+      : operation.kind === "backup.file-delete" || operation.kind === "backup.file-write"
+        ? backupMutationTimeoutMs
+        : coordinatorTimeoutMs;
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       pendingCoordinatorRequests.delete(requestId);

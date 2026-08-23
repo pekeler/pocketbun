@@ -214,6 +214,17 @@ export class Record {
     return this.GetInt(field);
   }
 
+  // GetInt64 returns the data value for "field" as an int64.
+  // JavaScript numbers cannot distinguish Go's int and int64 ranges, so this
+  // compatibility helper intentionally has the same runtime result as GetInt.
+  GetInt64(field: string): number {
+    return this.GetInt(field);
+  }
+
+  getInt64(field: string): number {
+    return this.GetInt64(field);
+  }
+
   GetFloat(field: string): number {
     return toNumberValue(this.Get(field));
   }

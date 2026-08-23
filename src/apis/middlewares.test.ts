@@ -37,6 +37,20 @@ function bindServeRoute(setup: (event: ServeEvent) => void): (app: TestApp) => v
 }
 
 describe("middlewares", () => {
+  it("sets the default security headers", async () => {
+    await runApiScenario({
+      method: "GET",
+      url: "/api/health",
+      expectedStatus: 200,
+      expectedContent: ['"code":200'],
+      afterTest: (_app, response) => {
+        if (response.headers.get("Cross-Origin-Opener-Policy") !== "same-origin") {
+          throw new Error("missing Cross-Origin-Opener-Policy security header");
+        }
+      },
+    });
+  });
+
   it("panic recover", async () => {
     const scenarios: ApiScenario[] = [
       {

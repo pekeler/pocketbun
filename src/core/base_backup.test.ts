@@ -1,4 +1,4 @@
-// Ported from pocketbase/core/base_backup_test.go.
+// Ported from pocketbase/core/backup_test.go.
 
 import { Database } from "bun:sqlite";
 import { describe, expect, it } from "bun:test";
@@ -112,6 +112,42 @@ describe("backups", () => {
         await verifyBackupContent(path);
       }
     } finally {
+      await cleanup();
+    }
+  });
+
+  it("preserves deleted files and excludes new files after the main database snapshot", async () => {
+    const { app, cleanup } = await newTestApp();
+    const extracted = await mkdtemp(join(tmpdir(), "backup_new_file_"));
+    try {
+      await using initialFsys = await app.NewFilesystemAsync();
+      await initialFsys.Upload(new TextEncoder().encode("old"), "deleted-after-snapshot.txt");
+
+      let created = false;
+      app.OnBackupCreate().BindFunc(async (event) => {
+        const backup = Promise.resolve(event.Next());
+        while (app.onFilesystemNewWriter().Length() === 0) {
+          await Bun.sleep(1);
+        }
+        await using fsys = await app.NewFilesystemAsync();
+        await fsys.Delete("deleted-after-snapshot.txt");
+        await fsys.Upload(new TextEncoder().encode("new"), "new-after-snapshot.txt");
+        created = true;
+        return backup;
+      });
+
+      expect(await app.CreateBackup({}, "consistent.zip")).toBeNull();
+      expect(created).toBeTrue();
+      const backupPath = join(app.DataDir(), LocalBackupsDirName, "consistent.zip");
+      await ExtractAsync(backupPath, extracted);
+
+      expect(await readFile(join(app.DataDir(), "storage", "new-after-snapshot.txt"), "utf8")).toBe("new");
+      expect(await Bun.file(join(app.DataDir(), "storage", "deleted-after-snapshot.txt")).exists()).toBeFalse();
+      expect(await Bun.file(join(extracted, "storage", "new-after-snapshot.txt")).exists()).toBeFalse();
+      expect(await readFile(join(extracted, "storage", "deleted-after-snapshot.txt"), "utf8")).toBe("old");
+      expect(await Bun.file(join(extracted, "storage", "deleted-after-snapshot.txt.attrs")).exists()).toBeTrue();
+    } finally {
+      await rm(extracted, { recursive: true, force: true });
       await cleanup();
     }
   });

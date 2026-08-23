@@ -136,6 +136,14 @@ describe("store", () => {
     }
   });
 
+  it("Keys", () => {
+    const keys = new Store<string, number>({ a: 1, b: 2 }).keys();
+
+    expect(keys).toHaveLength(2);
+    expect(keys).toContain("a");
+    expect(keys).toContain("b");
+  });
+
   it("Set", () => {
     const s = new Store<string, number>(null, 0);
 

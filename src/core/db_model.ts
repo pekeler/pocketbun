@@ -1,5 +1,7 @@
 // Ported from pocketbase/core/db_model.go
 
+import type { App } from "./app.ts";
+
 // Model defines an interface with common methods that all db models should have.
 //
 // Note: for simplicity composite pk are not supported.
@@ -10,6 +12,7 @@ export type Model = {
   IsNew: () => boolean;
   MarkAsNew: () => void;
   MarkAsNotNew: () => void;
+  DBExport?: (app: App) => Record<string, unknown>;
 };
 
 // BaseModel defines a base struct that is intended to be embedded into other custom models.

@@ -21,6 +21,12 @@ type ClusterRealtimeSubscribeHandler = (
 type ClusterOAuth2DeliveryHandler = (
   operation: Extract<import("./protocol.ts").CoordinatorDeliveryOperation, { kind: "oauth2.deliver" }>,
 ) => string | Promise<string>;
+type ClusterBackupFilesystemHandler = (
+  operation: Extract<
+    import("./protocol.ts").CoordinatorDeliveryOperation,
+    { kind: "backup.file-delete" | "backup.file-write" }
+  >,
+) => string | Promise<string>;
 
 type WorkerContext = {
   role: Exclude<ClusterRole, "disabled">;
@@ -36,6 +42,7 @@ let realtimeEventHandler: ClusterRealtimeEventHandler | null = null;
 let realtimePrepareHandler: ClusterRealtimePrepareHandler | null = null;
 let realtimeSubscribeHandler: ClusterRealtimeSubscribeHandler | null = null;
 let oauth2DeliveryHandler: ClusterOAuth2DeliveryHandler | null = null;
+let backupFilesystemHandler: ClusterBackupFilesystemHandler | null = null;
 
 export function configureClusterWorker(context: WorkerContext): void {
   if (workerContext) {
@@ -101,6 +108,10 @@ export function registerClusterOAuth2DeliveryHandler(handler: ClusterOAuth2Deliv
   oauth2DeliveryHandler = handler;
 }
 
+export function registerClusterBackupFilesystemHandler(handler: ClusterBackupFilesystemHandler | null): void {
+  backupFilesystemHandler = handler;
+}
+
 export function getClusterRealtimeEventHandler(): ClusterRealtimeEventHandler | null {
   return realtimeEventHandler;
 }
@@ -117,10 +128,15 @@ export function getClusterOAuth2DeliveryHandler(): ClusterOAuth2DeliveryHandler 
   return oauth2DeliveryHandler;
 }
 
+export function getClusterBackupFilesystemHandler(): ClusterBackupFilesystemHandler | null {
+  return backupFilesystemHandler;
+}
+
 export function resetClusterContextForTest(): void {
   workerContext = null;
   realtimeEventHandler = null;
   realtimePrepareHandler = null;
   realtimeSubscribeHandler = null;
   oauth2DeliveryHandler = null;
+  backupFilesystemHandler = null;
 }

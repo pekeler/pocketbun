@@ -4,7 +4,7 @@ import { describe, expect, it } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { Create, CreateAsync, CreateAsyncWithFileOverrides } from "./create.ts";
+import { Create, CreateAsync, CreateAsyncWithFileOverrides, CreateAsyncWithFilePlan } from "./create.ts";
 import { ExtractAsync } from "./extract.ts";
 
 describe("archive create", () => {
@@ -70,6 +70,38 @@ describe("archive create", () => {
       expect(readFileSync(join(outputDir, "data.db"), "utf8")).toBe("snapshot");
       expect(existsSync(join(outputDir, "data.db-wal"))).toBeFalse();
       expect(existsSync(join(outputDir, "test2"))).toBeTrue();
+    } finally {
+      rmSync(testDir, { recursive: true, force: true });
+      rmSync(outputDir, { recursive: true, force: true });
+      rmSync(zipPath, { force: true });
+    }
+  });
+
+  it("creates a backup plan with deleted file overrides and new file exclusions", async () => {
+    const testDir = createTestDir();
+    const outputDir = mkdtempSync(join(tmpdir(), "pb_zip_plan"));
+    const zipPath = join(tmpdir(), "pb_test_plan.zip");
+    try {
+      mkdirSync(join(testDir, "storage"));
+      writeFileSync(join(testDir, "storage/kept.txt"), "kept");
+      writeFileSync(join(testDir, "storage/new.txt"), "new");
+      const deletedSnapshot = join(outputDir, "deleted.txt");
+      writeFileSync(deletedSnapshot, "deleted");
+
+      await CreateAsyncWithFilePlan(
+        testDir,
+        zipPath,
+        {
+          overrides: new Map([["storage/deleted.txt", deletedSnapshot]]),
+          dynamicSkipPaths: new Set(["storage/new.txt"]),
+        },
+        "test",
+      );
+      await ExtractAsync(zipPath, outputDir);
+
+      expect(readFileSync(join(outputDir, "storage/deleted.txt"), "utf8")).toBe("deleted");
+      expect(readFileSync(join(outputDir, "storage/kept.txt"), "utf8")).toBe("kept");
+      expect(existsSync(join(outputDir, "storage/new.txt"))).toBeFalse();
     } finally {
       rmSync(testDir, { recursive: true, force: true });
       rmSync(outputDir, { recursive: true, force: true });

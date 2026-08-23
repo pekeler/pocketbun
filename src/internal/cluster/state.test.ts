@@ -2,7 +2,7 @@
 
 import { Database } from "bun:sqlite";
 import { expect, it } from "bun:test";
-import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, open, readdir, rm, writeFile } from "node:fs/promises";
 import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -275,6 +275,28 @@ routerAdd("POST", "/__cluster_pressure/autobackup", (event) => {
   if (!job) return event.json(500, { error: "autobackup job is missing" });
   job.Run();
   return event.noContent(204);
+});
+
+routerAdd("POST", "/__cluster_storage/{action}", async (event) => {
+  let fsys = null;
+  try {
+    fsys = $app.newFilesystem();
+    const action = event.request.pathValue("action");
+    if (action === "seed") {
+      await fsys.upload(new TextEncoder().encode("before-backup"), "deleted-during-backup.txt");
+    } else if (action === "delete") {
+      await fsys.delete("deleted-during-backup.txt");
+    } else if (action === "write") {
+      await fsys.upload(new TextEncoder().encode("after-snapshot"), "new-during-backup.txt");
+    } else {
+      return event.json(400, { error: "unknown storage action" });
+    }
+    return event.json(200, { pid: process.pid, action });
+  } catch (error) {
+    return event.json(500, { error: error && (error.stack || error.message || String(error)) });
+  } finally {
+    if (fsys) await fsys.close();
+  }
 });
 
 routerAdd("GET", "/__cluster_superuser_token", (event) => {
@@ -820,6 +842,88 @@ it.serial(
         "public collection update convergence",
         5_000,
       );
+
+      const storageDeleteWorker = states[1]!;
+      const storageWriteWorker = states[2]!;
+      const targetOnly = (pid: number) => states.filter((state) => state.pid !== pid).map((state) => state.pid);
+      const storageSeed = await requester.fetch(
+        "/__cluster_storage/seed",
+        { method: "POST" },
+        targetOnly(storageDeleteWorker.pid),
+      );
+      if (storageSeed.response.status !== 200) {
+        throw new Error(`storage seed failed: ${storageSeed.response.status} ${await storageSeed.response.text()}`);
+      }
+
+      const slowArchivePath = join(dataDir, "storage", "cluster-backup-stream.bin");
+      const slowArchive = await open(slowArchivePath, "w");
+      await slowArchive.truncate(32 * 1024 * 1024);
+      await slowArchive.close();
+
+      const filesystemBackupWorker = states[0]!.pid;
+      const filesystemBackup = requester
+        .fetch(
+          "/api/backups",
+          {
+            method: "POST",
+            headers: superuserHeaders,
+            body: JSON.stringify({ name: "filesystem.zip" }),
+          },
+          targetOnly(filesystemBackupWorker),
+        )
+        .then(
+          (value) => ({ value, error: null }),
+          (error) => ({ value: null, error }),
+        );
+      await waitFor(
+        async () => {
+          try {
+            const tempEntries = await readdir(join(dataDir, ".pb_temp_to_delete"), { withFileTypes: true });
+            for (const entry of tempEntries) {
+              if (
+                entry.isDirectory() &&
+                entry.name.startsWith("pb_backup_snapshot_") &&
+                (await Bun.file(join(dataDir, ".pb_temp_to_delete", entry.name, "auxiliary.db")).exists())
+              ) {
+                return true;
+              }
+            }
+          } catch {
+            // The backup temp directory may not exist on the first poll.
+          }
+          return false;
+        },
+        "cluster backup auxiliary snapshot",
+        10_000,
+      );
+
+      const [deleted, written] = await Promise.all([
+        requester.fetch("/__cluster_storage/delete", { method: "POST" }, targetOnly(storageDeleteWorker.pid)),
+        requester.fetch("/__cluster_storage/write", { method: "POST" }, targetOnly(storageWriteWorker.pid)),
+      ]);
+      if (deleted.response.status !== 200) {
+        throw new Error(`storage delete failed: ${deleted.response.status} ${await deleted.response.text()}`);
+      }
+      if (written.response.status !== 200) {
+        throw new Error(`storage write failed: ${written.response.status} ${await written.response.text()}`);
+      }
+      const filesystemBackupResult = await filesystemBackup;
+      if (filesystemBackupResult.error) {
+        throw new Error(
+          `filesystem backup request failed: ${String(filesystemBackupResult.error)}\nstdout:\n${primary.output.stdout}\nstderr:\n${primary.output.stderr}`,
+        );
+      }
+      expect(filesystemBackupResult.value!.response.status).toBe(204);
+
+      const filesystemExtracted = join(root, "filesystem-extracted");
+      await ExtractAsync(join(dataDir, "backups", "filesystem.zip"), filesystemExtracted);
+      expect(await Bun.file(join(dataDir, "storage", "deleted-during-backup.txt")).exists()).toBeFalse();
+      expect(await Bun.file(join(dataDir, "storage", "new-during-backup.txt")).text()).toBe("after-snapshot");
+      expect(await Bun.file(join(filesystemExtracted, "storage", "deleted-during-backup.txt")).text()).toBe("before-backup");
+      expect(await Bun.file(join(filesystemExtracted, "storage", "deleted-during-backup.txt.attrs")).exists()).toBeTrue();
+      expect(await Bun.file(join(filesystemExtracted, "storage", "new-during-backup.txt")).exists()).toBeFalse();
+      await rm(filesystemExtracted, { recursive: true, force: true });
+      await rm(slowArchivePath, { force: true });
 
       const backupWorker = states[0]!.pid;
       const heldBackup = requester.fetch(

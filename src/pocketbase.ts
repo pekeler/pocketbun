@@ -341,7 +341,8 @@ function newRootCommand(): Command {
 
   root.FParseErrWhitelist.UnknownFlags = true;
   root.CompletionOptions.DisableDefaultCmd = true;
-  root.SetErr(newErrWriter());
+  // Command errors are returned from Execute() and printed by the CLI entrypoint.
+  root.SetErr({ write: () => {} });
 
   return root;
 }
@@ -373,14 +374,4 @@ function inspectRuntime(): { baseDir: string; withTransientRuntime: boolean } {
   // PocketBun deviation: use the current working directory as runtime base dir
   // so package-managed and script entrypoints don't default to node_modules/bin-adjacent paths.
   return { baseDir: process.cwd(), withTransientRuntime };
-}
-
-function newErrWriter(): { write: (chunk: string) => void } {
-  return {
-    write: (chunk: string) => {
-      const prefix = Bun.enableANSIColors ? (Bun.color("red", "ansi-256") ?? "") : "";
-      const colored = prefix ? `${prefix}${chunk}\u001b[0m` : chunk;
-      process.stderr.write(colored);
-    },
-  };
 }

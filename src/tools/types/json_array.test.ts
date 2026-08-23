@@ -11,6 +11,7 @@ describe("JSONArray", () => {
       { json: new JSONArray<unknown>(1, 2, 3), expected: "[1,2,3]" },
       { json: new JSONArray<unknown>("test1", "test2", "test3"), expected: `["test1","test2","test3"]` },
       { json: new JSONArray<unknown>(1, "test"), expected: `[1,"test"]` },
+      { json: new JSONArray<unknown>({ z: 1, a: 2 }), expected: `[{"a":2,"z":1}]` },
     ];
 
     for (const scenario of scenarios) {
@@ -67,7 +68,7 @@ describe("JSONArray", () => {
     ];
 
     for (const scenario of scenarios) {
-      const arr = new JSONArray<unknown>();
+      const arr = new JSONArray<unknown>("stale");
       const err = arr.Scan(scenario.value);
       const hasErr = err != null;
       expect(hasErr).toBe(scenario.expectError);

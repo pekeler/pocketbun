@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Now compatible with PocketBase `v0.40.0` [release notes](https://github.com/pocketbase/pocketbase/releases/tag/v0.40.0) (upstream commit `50f5f83a`).
+  - Backups no longer hold a transaction while compressing the data directory, while storage-file tracking keeps live backup archives consistent.
+  - Added log deletion, bounded log data/message storage, `record.getInt64(...)`, `store.keys()`, quoted download filenames, stronger default security headers, and the updated Admin UI.
 - Requires Bun `v1.4.0` or newer.
 - Fixed responses with multiple cookies on Bun 1.4 so every `Set-Cookie` header is preserved.
 - Fixed synchronous server-side JavaScript HTTP requests intermittently failing on Windows with Bun 1.4.

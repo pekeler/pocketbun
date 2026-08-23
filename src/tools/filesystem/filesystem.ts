@@ -9,6 +9,8 @@ import { mkdirSync } from "node:fs";
 import { mkdir, open } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { posix } from "node:path";
+import type { Writer } from "./blob/writer.ts";
+import { Event, Hook } from "../hook/hook.ts";
 import { Bucket, NewBucket } from "./blob/bucket.ts";
 import { ErrNotFound, NotFoundError, type Attributes as BlobAttributes, type WriterOptions } from "./blob/driver.ts";
 import { ErrEOF, isNotFoundError } from "./blob/errors.ts";
@@ -32,7 +34,8 @@ export type ListObject = {
   Size: number;
 };
 
-export const metadataOriginalName = "original-filename";
+export const MetadataOriginalName = "original-filename";
+export const metadataOriginalName = MetadataOriginalName;
 
 export const ThumbSizeRegex = /^(\d+)x(\d+)(t|b|f)?$/;
 
@@ -112,6 +115,75 @@ type S3BlobModule = typeof import("./internal/s3blob/s3blob.ts");
 let s3Ctor: S3Module["S3"] | null = null;
 let newS3BlobFactory: S3BlobModule["New"] | null = null;
 
+export class DeleteEvent extends Event {
+  constructor(
+    public Filesystem: System,
+    public FileKey: string,
+  ) {
+    super();
+  }
+
+  get filesystem(): System {
+    return this.Filesystem;
+  }
+
+  set filesystem(value: System) {
+    this.Filesystem = value;
+  }
+
+  get fileKey(): string {
+    return this.FileKey;
+  }
+
+  set fileKey(value: string) {
+    this.FileKey = value;
+  }
+}
+
+export class NewWriterEvent extends Event {
+  Writer: Writer | null = null;
+
+  constructor(
+    public Filesystem: System,
+    public FileKey: string,
+    public Options?: WriterOptions,
+  ) {
+    super();
+  }
+
+  get filesystem(): System {
+    return this.Filesystem;
+  }
+
+  set filesystem(value: System) {
+    this.Filesystem = value;
+  }
+
+  get fileKey(): string {
+    return this.FileKey;
+  }
+
+  set fileKey(value: string) {
+    this.FileKey = value;
+  }
+
+  get options(): WriterOptions | undefined {
+    return this.Options;
+  }
+
+  set options(value: WriterOptions | undefined) {
+    this.Options = value;
+  }
+
+  get writer(): Writer | null {
+    return this.Writer;
+  }
+
+  set writer(value: Writer | null) {
+    this.Writer = value;
+  }
+}
+
 function newBunImage(input: ConstructorParameters<typeof Bun.Image>[0]): Bun.Image {
   return new Bun.Image(input, { autoOrient: true });
 }
@@ -132,6 +204,8 @@ function getS3Support(): { S3: S3Module["S3"]; NewS3Blob: S3BlobModule["New"] } 
 export class System {
   #bucket: Bucket;
   #ctx: AbortSignal | null;
+  #onNewWriter: Hook<NewWriterEvent> | null = null;
+  #onDelete: Hook<DeleteEvent> | null = null;
 
   constructor(bucket: Bucket) {
     this.#bucket = bucket;
@@ -180,11 +254,37 @@ export class System {
 
   // Close releases any resources used for the related filesystem.
   async Close(): Promise<void> {
+    this.#onNewWriter?.UnbindAll();
+    this.#onDelete?.UnbindAll();
+    this.#onNewWriter = null;
+    this.#onDelete = null;
     await this.#bucket.Close();
   }
 
   async [Symbol.asyncDispose](): Promise<void> {
     await this.Close();
+  }
+
+  // OnNewWriter is a low level hook that is triggered on every new writer initialization
+  // (aka. when attempting to create a new file with System.NewWriter or System.Upload).
+  //
+  // Note that currently it doesn't trigger on System.Copy but this may change in future releases.
+  OnNewWriter(): Hook<NewWriterEvent> {
+    return (this.#onNewWriter ??= new Hook());
+  }
+
+  // OnDelete is a low level hook that is triggered on every System.Delete call.
+  //
+  // Note that the hook doesn't fire when a file is being overwritten
+  // by a new one, because in that case System.Delete is not invoked.
+  OnDelete(): Hook<DeleteEvent> {
+    return (this.#onDelete ??= new Hook());
+  }
+
+  // LocalPath returns the backing path for a local file, or null for non-local drivers.
+  // PocketBun uses this internally to preserve files deleted during a live backup.
+  async LocalPath(fileKey: string): Promise<string | null> {
+    return TryResolveLocalPath(this.#bucket.drv, fileKey);
   }
 
   // Exists checks if file with fileKey path exists or not.
@@ -334,7 +434,7 @@ export class System {
   // Upload writes content into the fileKey location.
   async Upload(content: Uint8Array, fileKey: string): Promise<void> {
     const contentType = detectMimeTypeFromBytes(content);
-    const writer = await this.#bucket.NewWriter(this.#ctx, fileKey, makeWriterOptions(contentType));
+    const writer = await this.NewWriter(fileKey, makeWriterOptions(contentType));
     await writeAllAndClose(writer, content);
   }
 
@@ -349,8 +449,7 @@ export class System {
 
     if (reader instanceof PathReader) {
       const sample = await readPathSample(reader.Path);
-      const writer = await this.#bucket.NewWriter(
-        this.#ctx,
+      const writer = await this.NewWriter(
         fileKey,
         makeWriterOptions(detectMimeTypeFromBytes(sample), { [metadataOriginalName]: originalName }),
       );
@@ -365,8 +464,7 @@ export class System {
     } finally {
       opened.close();
     }
-    const writer = await this.#bucket.NewWriter(
-      this.#ctx,
+    const writer = await this.NewWriter(
       fileKey,
       makeWriterOptions(detectMimeTypeFromBytes(content), { [metadataOriginalName]: originalName }),
     );
@@ -381,18 +479,58 @@ export class System {
       originalName = originalName.slice(0, 255);
     }
 
-    const writer = await this.#bucket.NewWriter(
-      this.#ctx,
-      fileKey,
-      makeWriterOptions(contentType, { [metadataOriginalName]: originalName }),
-    );
+    const writer = await this.NewWriter(fileKey, makeWriterOptions(contentType, { [metadataOriginalName]: originalName }));
     await writeAllAndClose(writer, header.buffer);
+  }
+
+  // NewWriter returns a new blob.Writer instance allowing direct file
+  // creation from a reader value.
+  //
+  // If a file with the specified fileKey already exists, it will be replaced.
+  //
+  // NB! Make sure to call Close() on the resulting writer after you are done working with it.
+  //
+  // Note: If you have a bytes slice, filesystem.File, or a multipart header value,
+  // you can check also the Upload* related methods as they are more user-friendly.
+  async NewWriter(fileKey: string, options?: WriterOptions): Promise<Writer> {
+    if (!this.#onNewWriter) {
+      return this.#bucket.NewWriter(this.#ctx, fileKey, options);
+    }
+
+    const event = new NewWriterEvent(this, fileKey, options);
+    const result = await this.#onNewWriter.Trigger(event, async (current) => {
+      current.Writer = await current.Filesystem.#bucket.NewWriter(current.Filesystem.#ctx, current.FileKey, current.Options);
+      return null;
+    });
+    if (result instanceof Error) {
+      throw result;
+    }
+    if (!event.Writer) {
+      throw new Error("filesystem writer hook chain completed without creating a writer");
+    }
+    return event.Writer;
   }
 
   // Delete deletes stored file at fileKey location.
   //
   // If the file doesn't exist returns ErrNotFound.
   async Delete(fileKey: string): Promise<void> {
+    if (this.#onDelete) {
+      const event = new DeleteEvent(this, fileKey);
+      const result = await this.#onDelete.Trigger(event, async (current) => {
+        try {
+          await current.Filesystem.#bucket.Delete(current.Filesystem.#ctx, current.FileKey);
+          return null;
+        } catch (error) {
+          return mapFsError(error);
+        }
+      });
+      if (result instanceof Error) {
+        throw result;
+      }
+      return;
+    }
+
     try {
       await this.#bucket.Delete(this.#ctx, fileKey);
     } catch (error) {
@@ -678,7 +816,7 @@ export class System {
       const outputImage = transformer.webp();
       const outputContentType = "image/webp";
       const outputBytes = await outputImage.bytes();
-      const writer = await this.#bucket.NewWriter(this.#ctx, thumbKey, makeWriterOptions(outputContentType));
+      const writer = await this.NewWriter(thumbKey, makeWriterOptions(outputContentType));
       await writeAllAndClose(writer, outputBytes);
       return null;
     } catch (error) {
@@ -739,7 +877,7 @@ export class System {
       extContentType = manualExtensionContentTypes[ext] ?? extContentType;
     }
 
-    setHeaderIfMissingHeaders(headers, "Content-Disposition", `${disposition}; filename=${name}`);
+    setHeaderIfMissingHeaders(headers, "Content-Disposition", `${disposition}; filename=${JSON.stringify(name)}`);
     setHeaderIfMissingHeaders(headers, "Content-Type", extContentType);
     setHeaderIfMissingHeaders(
       headers,
@@ -906,6 +1044,47 @@ export class System {
     using reader = await this.#bucket.NewRangeReader(this.#ctx, fileKey, startOffset, length);
     return await reader.readAll();
   }
+}
+
+const systemMethodAliases = [
+  ["setContext", "SetContext"],
+  ["close", "Close"],
+  ["onNewWriter", "OnNewWriter"],
+  ["onDelete", "OnDelete"],
+  ["exists", "Exists"],
+  ["attributes", "Attributes"],
+  ["getReader", "GetReader"],
+  ["getReaderAsync", "GetReaderAsync"],
+  ["getFile", "GetFile"],
+  ["getReuploadableFile", "GetReuploadableFile"],
+  ["copy", "Copy"],
+  ["list", "List"],
+  ["upload", "Upload"],
+  ["uploadFile", "UploadFile"],
+  ["uploadMultipart", "UploadMultipart"],
+  ["newWriter", "NewWriter"],
+  ["delete", "Delete"],
+  ["deletePrefix", "DeletePrefix"],
+  ["isEmptyDir", "IsEmptyDir"],
+  ["serve", "Serve"],
+  ["serveResponse", "ServeResponse"],
+  ["createThumb", "CreateThumb"],
+  ["localPath", "LocalPath"],
+] as const;
+
+for (const [aliasName, sourceName] of systemMethodAliases) {
+  Object.defineProperty(System.prototype, aliasName, {
+    configurable: true,
+    enumerable: false,
+    writable: true,
+    value(this: Record<string, unknown>, ...args: unknown[]) {
+      const method = this[sourceName];
+      if (typeof method !== "function") {
+        throw new Error(`System.${sourceName} is not available`);
+      }
+      return method.apply(this, args);
+    },
+  });
 }
 
 // NewLocal initializes a new local filesystem instance.

@@ -50,6 +50,9 @@ export type CoordinatorOperation =
   | { kind: "oauth2.deliver"; clientId: string; requestIP: string; data: string; mode: "probe" | "deliver" }
   | { kind: "backup.acquire"; name: string }
   | { kind: "backup.release"; leaseToken: string }
+  | { kind: "backup.phase"; leaseToken: string; phase: "idle" | "delete" | "write" }
+  | { kind: "backup.file-delete"; fileKey: string }
+  | { kind: "backup.file-write"; fileKey: string }
   | { kind: "lifecycle.restart" }
   | { kind: "restore.begin"; leaseToken: string }
   | { kind: "restore.complete"; leaseToken: string }
@@ -88,6 +91,7 @@ export type CoordinatorDeliveryOperation =
   | Extract<CoordinatorOperation, { kind: "realtime.prepare" }>
   | Extract<CoordinatorOperation, { kind: "realtime.subscribe" }>
   | Extract<CoordinatorOperation, { kind: "oauth2.deliver" }>
+  | Extract<CoordinatorOperation, { kind: "backup.file-delete" | "backup.file-write" }>
   | { kind: "backup.state"; name: string | null };
 
 export type CoordinatorDeliveryMessage = {
@@ -268,6 +272,14 @@ function isCoordinatorOperation(value: unknown): value is CoordinatorOperation {
   if (value.kind === "backup.release") {
     return isNonEmptyString(value.leaseToken);
   }
+  if (value.kind === "backup.phase") {
+    return (
+      isNonEmptyString(value.leaseToken) && (value.phase === "idle" || value.phase === "delete" || value.phase === "write")
+    );
+  }
+  if (value.kind === "backup.file-delete" || value.kind === "backup.file-write") {
+    return isNonEmptyString(value.fileKey);
+  }
   if (value.kind === "lifecycle.restart") {
     return true;
   }
@@ -289,7 +301,9 @@ function isCoordinatorDeliveryOperation(value: unknown): value is CoordinatorDel
     (value.kind === "realtime.publish" ||
       value.kind === "realtime.prepare" ||
       value.kind === "realtime.subscribe" ||
-      value.kind === "oauth2.deliver")
+      value.kind === "oauth2.deliver" ||
+      value.kind === "backup.file-delete" ||
+      value.kind === "backup.file-write")
   );
 }
 

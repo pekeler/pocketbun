@@ -7,6 +7,18 @@ const upstreamRoot = join(process.cwd(), ".upstream", "pocketbase");
 const srcRoot = join(process.cwd(), "src");
 
 const ignoredDirs = new Set([".git", "ui", "examples"]);
+const ignoredFiles = new Set([
+  "plugins/ghupdate/ghupdate.go",
+  "plugins/ghupdate/ghupdate_test.go",
+  "plugins/ghupdate/release.go",
+  "plugins/ghupdate/release_test.go",
+]);
+const mergedPorts = new Map([
+  ["core/backup.go", "src/core/base_backup.ts"],
+  ["core/backup_create.go", "src/core/base_backup.ts"],
+  ["core/backup_restore.go", "src/core/base_backup.ts"],
+  ["core/backup_test.go", "src/core/base_backup.test.ts"],
+]);
 
 type Missing = {
   upstream: string;
@@ -57,6 +69,13 @@ function main(): void {
   const goFiles = walk(upstreamRoot);
   for (const filePath of goFiles) {
     const relPath = relative(upstreamRoot, filePath);
+    if (ignoredFiles.has(relPath)) {
+      continue;
+    }
+    const mergedPort = mergedPorts.get(relPath);
+    if (mergedPort && existsSync(join(process.cwd(), mergedPort))) {
+      continue;
+    }
     const { expected, isTest } = mapToTsPath(relPath);
     if (!existsSync(expected)) {
       const entry = { upstream: relPath, expected: relative(process.cwd(), expected) };

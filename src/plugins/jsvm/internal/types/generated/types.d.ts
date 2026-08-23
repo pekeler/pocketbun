@@ -5804,6 +5804,18 @@ namespace filesystem {
      */
     open(): io.ReadSeekCloser;
   }
+  type _swuCLgb = hook.Event;
+  interface DeleteEvent extends _swuCLgb {
+    filesystem?: System;
+    fileKey: string;
+  }
+  type _sqpDfOW = hook.Event;
+  interface NewWriterEvent extends _sqpDfOW {
+    filesystem?: System;
+    fileKey: string;
+    options?: blob.WriterOptions;
+    writer?: blob.Writer; // filled only after e.Next()
+  }
   interface System {}
   interface newS3 {
     /**
@@ -5839,6 +5851,24 @@ namespace filesystem {
      * close releases any resources used for the related filesystem.
      */
     close(): void;
+  }
+  interface System {
+    /**
+     * onNewWriter is a low level hook that is triggered on every new writer initialization
+     * (aka. when attempting to create a new file with [system.NewWriter] or [system.Upload]).
+     *
+     * Note that currently it doesn't trigger on [System.Copy] but this may change in future releases.
+     */
+    onNewWriter(): hook.Hook<NewWriterEvent | undefined>;
+  }
+  interface System {
+    /**
+     * onDelete is a low level hook that is triggered on every [System.Delete] call.
+     *
+     * Note that the hook doesn't fire when a file is being overwritten
+     * by a new one, because in that case [System.Delete] is not invoked.
+     */
+    onDelete(): hook.Hook<DeleteEvent | undefined>;
   }
   interface System {
     /**
@@ -5919,6 +5949,20 @@ namespace filesystem {
      * uploadMultipart uploads the provided multipart file to the fileKey location.
      */
     uploadMultipart(fh: multipart.FileHeader, fileKey: string): void;
+  }
+  interface System {
+    /**
+     * newWriter returns a new blob.Writer instance allowing direct file
+     * create from an io.Reader value.
+     *
+     * If a file with the specified fileKey already exists, it will be replaced.
+     *
+     * NB! Make sure to call `Close()` on the resulting writer after you are done working with it.
+     *
+     * Note: If you have a bytes slice, [filesystem.File], or a multipart header value,
+     * you can check also the Upload* related methods as they are more user-friendly.
+     */
+    newWriter(fileKey: string, opts: blob.WriterOptions): blob.Writer;
   }
   interface System {
     /**
@@ -9780,6 +9824,14 @@ namespace core {
     meta: _TygojaDict;
   }
   type _sEannTf = hook.Event & baseModelEventData;
+  type _svjtpoT = hook.Event & filesystem.NewWriterEvent;
+  interface FilesystemNewWriterEvent extends _svjtpoT {
+    app: App;
+  }
+  type _sRMYDve = hook.Event & filesystem.DeleteEvent;
+  interface FilesystemDeleteEvent extends _sRMYDve {
+    app: App;
+  }
   interface ModelEvent extends _sEannTf {
     app: App;
     context: context.Context;
@@ -12562,6 +12614,15 @@ namespace core {
   interface Log {
     tableName(): string;
   }
+  interface Log {
+    /**
+     * dbExport prepares and exports the current log model for db persistence.
+     *
+     * It also truncates the log's message and data to ensure that it is
+     * under app.settings().logs.maxDataSize.
+     */
+    dbExport(app: App): _TygojaDict;
+  }
   interface BaseApp {
     /**
      * logQuery returns a new Log select query.
@@ -13254,6 +13315,12 @@ namespace core {
      * getInt returns the data value for "key" as an int.
      */
     getInt(key: string): number;
+  }
+  interface Record {
+    /**
+     * getInt64 returns the data value for "key" as an int64.
+     */
+    getInt64(key: string): number;
   }
   interface Record {
     /**
@@ -13987,6 +14054,13 @@ namespace core {
     validate(): void;
   }
   interface LogsConfig {
+    /**
+     * maxDataSize specifies the maximum allowed serialized log data
+     * size before it gets truncated (see [Log.DBExport]).
+     *
+     * If zero, fallbacks to ~16kb by default.
+     */
+    maxDataSize: number;
     maxDays: number;
     minLevel: number;
     logIP: boolean;
@@ -15236,14 +15310,8 @@ namespace pocketbase {
      */
     execute(): void;
   }
-  /**
-   * coloredWriter is a small wrapper struct to construct a [color.Color] writter.
-   */
-  interface coloredWriter {}
-  interface coloredWriter {
-    /**
-     * Write writes the p bytes using the colored writer.
-     */
+  interface nopWrite {}
+  interface nopWrite {
     write(p: string | Array<number>): number;
   }
 }
@@ -16575,6 +16643,12 @@ namespace store {
      * Values returns a slice with all of the current store values.
      */
     values(): Array<T>;
+  }
+  interface Store<K, T> {
+    /**
+     * Keys returns a slice with all of the store keys.
+     */
+    keys(): Array<K>;
   }
   interface Store<K, T> {
     /**
@@ -21045,6 +21119,40 @@ namespace blob {
     eTag: string;
   }
   /**
+   * WriterOptions sets options for NewWriter.
+   */
+  interface WriterOptions {
+    /**
+     * bufferSize changes the default size in bytes of the chunks that
+     * Writer will upload in a single request; larger blobs will be split into
+     * multiple requests.
+     *
+     * This option may be ignored by some drivers.
+     *
+     * If 0, the driver will choose a reasonable default.
+     *
+     * If the Writer is used to do many small writes concurrently, using a
+     * smaller BufferSize may reduce memory usage.
+     */
+    bufferSize: number;
+    /**
+     * maxConcurrency changes the default concurrency for parts of an upload.
+     *
+     * This option may be ignored by some drivers.
+     *
+     * If 0, the driver will choose a reasonable default.
+     */
+    maxConcurrency: number;
+    cacheControl: string;
+    contentDisposition: string;
+    contentEncoding: string;
+    contentLanguage: string;
+    contentType: string;
+    disableContentTypeDetection: boolean;
+    contentMD5: string | Array<number>;
+    metadata: _TygojaDict;
+  }
+  /**
    * Reader reads bytes from a blob.
    * It implements io.ReadSeekCloser, and must be closed after reads are finished.
    */
@@ -21094,6 +21202,21 @@ namespace blob {
      * It implements the io.WriterTo interface.
      */
     writeTo(w: io.Writer): number;
+  }
+  /**
+   * Writer writes bytes to a blob.
+   *
+   * It implements io.WriteCloser, and must be closed after all writes are done.
+   */
+  interface Writer {}
+  interface Writer {
+    write(p: string | Array<number>): number;
+  }
+  interface Writer {
+    close(): void;
+  }
+  interface Writer {
+    readFrom(r: io.Reader): number;
   }
 }
 

@@ -30,6 +30,8 @@ import type {
   CollectionErrorEvent,
   FileDownloadRequestEvent,
   FileTokenRequestEvent,
+  FilesystemDeleteEvent,
+  FilesystemNewWriterEvent,
   MailerEvent,
   MailerRecordEvent,
   ModelErrorEvent,
@@ -135,6 +137,13 @@ export interface App {
   NewFilesystem(): System;
   // NewFilesystemAsync is a PocketBun-only async alternative to NewFilesystem().
   NewFilesystemAsync?(): Promise<System>;
+  // onFilesystemNewWriter is an internal hook for app.NewFilesystem()
+  // instances that is triggered on every storage filesystem writer initialization
+  // (aka. whenever attempting to create a new file).
+  onFilesystemNewWriter(): Hook<FilesystemNewWriterEvent>;
+  // onFilesystemDelete is an internal hook for app.NewFilesystem()
+  // instances that is triggered for every storage file delete call.
+  onFilesystemDelete(): Hook<FilesystemDeleteEvent>;
   // NewBackupsFilesystem creates a new local or S3 filesystem instance
   // for managing app backups based on the current app settings.
   //
