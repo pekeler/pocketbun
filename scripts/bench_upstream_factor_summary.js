@@ -104,7 +104,7 @@ async function parseResultFile(pathname) {
   let category = "";
   let pending = null;
 
-  for await (const line of file.readLines()) {
+  for (const line of (await file.text()).split(/\r?\n/)) {
     if (line.startsWith("## ")) {
       category = line.slice(3).trim();
       continue;

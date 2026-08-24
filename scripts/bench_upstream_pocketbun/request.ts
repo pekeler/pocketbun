@@ -2,7 +2,6 @@
 import type { BodyInit } from "bun";
 import { Agent as HttpAgent, request as httpRequest } from "node:http";
 import { Agent as HttpsAgent, request as httpsRequest } from "node:https";
-import { setTimeout as delay } from "node:timers/promises";
 
 export type BenchRequestOptions = {
   Body?: BodyInit | null;
@@ -15,16 +14,16 @@ export type BenchRequestOptions = {
 const sharedHttpAgent = new HttpAgent({
   keepAlive: true,
   maxSockets: Number.POSITIVE_INFINITY,
-  maxFreeSockets: 512,
-  timeout: 30_000,
+  maxFreeSockets: 2_000,
+  timeout: 120_000,
   keepAliveMsecs: 30_000,
 });
 
 const sharedHttpsAgent = new HttpsAgent({
   keepAlive: true,
   maxSockets: Number.POSITIVE_INFINITY,
-  maxFreeSockets: 512,
-  timeout: 30_000,
+  maxFreeSockets: 2_000,
+  timeout: 120_000,
   keepAliveMsecs: 30_000,
 });
 
@@ -57,30 +56,14 @@ export class BenchRequest {
       headers.set("content-type", "application/json");
     }
 
-    // PocketBun-only: mirror upstream benchmark-runner retry behavior for
-    // transient local socket exhaustion under very high client concurrency.
-    let response: { status: number; bodyText: string } | null = null;
-    for (let attempt = 0; attempt < 8; attempt += 1) {
-      try {
-        response = await sendWithSharedTransport({
-          url: this.Url,
-          method: this.Method,
-          headers,
-          body: this.Body,
-          signal: this.Context,
-          expectBody: destBody != null,
-        });
-        break;
-      } catch (error) {
-        if (!String(error).includes("can't assign requested address")) {
-          throw error;
-        }
-        await delay(2);
-      }
-    }
-    if (response == null) {
-      throw new Error(`request transport failed for ${this.Method} ${this.Url}`);
-    }
+    const response = await sendWithSharedTransport({
+      url: this.Url,
+      method: this.Method,
+      headers,
+      body: this.Body,
+      signal: this.Context,
+      expectBody: destBody != null,
+    });
 
     if (response.status >= 400) {
       throw new Error(`request failed with status ${response.status}`);

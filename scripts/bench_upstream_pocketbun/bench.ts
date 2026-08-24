@@ -14,14 +14,18 @@ export class BenchResult {
   }
 
   String(): string {
-    return [
+    const lines = [
       "```",
       `┌─ Best:      ${formatDuration(this.BestMs)}`,
       `├─ Worst:     ${formatDuration(this.WorstMs)}`,
       `├─ Completed: ${formatDuration(this.CompletedMs)}`,
       `└─ Errors:    ${this.Errors.length}`,
-      "```",
-    ].join("\n");
+    ];
+    if (this.Errors.length > 0) {
+      lines.push(` └─ sample error: ${this.Errors[0]!.message}`);
+    }
+    lines.push("```");
+    return lines.join("\n");
   }
 }
 

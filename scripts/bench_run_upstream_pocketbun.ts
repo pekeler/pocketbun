@@ -11,9 +11,20 @@ import { benchmarkSchema } from "./bench_upstream_pocketbun/schema.ts";
 
 const benchmarkRunOverrideFile = process.env.POCKETBUN_BENCHMARK_RUN_FILE ?? "/tmp/pocketbun-bench-upstream-run.txt";
 const benchmarkRun = await resolveBenchmarkRun(benchmarkRunOverrideFile);
+const benchmarkSourceRevision = (await readFile("pocketbase_benchmarks_commit.txt", "utf8")).trim();
+if (!/^[0-9a-f]{40}$/.test(benchmarkSourceRevision)) {
+  throw new Error("pocketbase_benchmarks_commit.txt must contain a full Git commit hash");
+}
 const benchmarkWarmupRequestsFile =
   process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS_FILE ?? "/tmp/pocketbun-bench-upstream-warmup-requests.txt";
 const benchmarkWarmupRequests = await resolveIntOverride(benchmarkWarmupRequestsFile, 0);
+const benchmarkServerWorkers = parsePositiveInt(process.env.POCKETBUN_BENCH_SERVER_WORKERS ?? "1");
+if (benchmarkServerWorkers === null || benchmarkServerWorkers > 256) {
+  throw new Error("POCKETBUN_BENCH_SERVER_WORKERS must be an integer between 1 and 256");
+}
+if (benchmarkServerWorkers > 1 && process.platform !== "linux") {
+  throw new Error("multi-worker upstream benchmarks require Linux shared-port workers");
+}
 const machineTag = sanitizeTag(process.env.POCKETBUN_BENCH_MACHINE_TAG ?? "m2-max");
 const timestampTag = createTimestampTag(new Date());
 const resultsDir = process.env.POCKETBUN_BENCH_RESULTS_DIR ?? "benchmarks/results";
@@ -42,6 +53,7 @@ const serverProc = Bun.spawn({
     POCKETBUN_BENCH_SERVER_BASE_URL: baseUrl,
     POCKETBUN_BENCH_SERVER_DATA_DIR: dataDir,
     POCKETBUN_BENCH_SERVER_HOOKS_DIR: hooksDir,
+    POCKETBUN_BENCH_SERVER_WORKERS: String(benchmarkServerWorkers),
   },
   stdio: ["ignore", "inherit", "inherit"],
 });
@@ -80,6 +92,8 @@ try {
       `- machine: ${machineTag}`,
       `- timestamp: ${new Date().toISOString()}`,
       `- mode: ${benchmarkRun}`,
+      `- benchmark source: ${benchmarkSourceRevision}`,
+      `- server workers: ${benchmarkServerWorkers}`,
       "",
     ].join("\n");
 
@@ -131,6 +145,8 @@ try {
       `- machine: ${machineTag}`,
       `- timestamp: ${new Date().toISOString()}`,
       `- tests: ${benchmarkRun}`,
+      `- benchmark source: ${benchmarkSourceRevision}`,
+      `- server workers: ${benchmarkServerWorkers}`,
       "",
     ].join("\n");
 
@@ -220,6 +236,15 @@ function parseNonNegativeInt(value: string | null | undefined): number | null {
     return null;
   }
   return parsed;
+}
+
+function parsePositiveInt(value: string | null | undefined): number | null {
+  const normalized = value?.trim();
+  if (!normalized || !/^\d+$/.test(normalized)) {
+    return null;
+  }
+  const parsed = Number(normalized);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 async function ensureServerReady(): Promise<void> {

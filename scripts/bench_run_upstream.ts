@@ -21,6 +21,10 @@ type GoBuildConfig = {
 
 const benchmarkRunOverrideFile = process.env.POCKETBUN_BENCHMARK_RUN_FILE ?? "/tmp/pocketbun-bench-upstream-run.txt";
 const benchmarkRun = await resolveBenchmarkRun(benchmarkRunOverrideFile);
+const benchmarkSourceRevision = (await readFile("pocketbase_benchmarks_commit.txt", "utf8")).trim();
+if (!/^[0-9a-f]{40}$/.test(benchmarkSourceRevision)) {
+  throw new Error("pocketbase_benchmarks_commit.txt must contain a full Git commit hash");
+}
 const benchmarkTransportModeFile =
   process.env.POCKETBUN_BENCHMARK_TRANSPORT_MODE_FILE ?? "/tmp/pocketbun-bench-upstream-transport-mode.txt";
 const benchmarkTransportMode = await resolveBenchmarkTransportMode(benchmarkTransportModeFile);
@@ -154,6 +158,7 @@ try {
       `- machine: ${machineTag}`,
       `- timestamp: ${new Date().toISOString()}`,
       `- mode: ${benchmarkRun}`,
+      `- benchmark source: ${benchmarkSourceRevision}`,
       `- upstream build target: ${upstreamBuildGoos}/${upstreamBuildGoarch}`,
       `- upstream build cgo: ${upstreamBuildCgoEnabled}`,
       `- executable used: ${basename(executablePath)}`,
@@ -208,6 +213,7 @@ try {
       `- machine: ${machineTag}`,
       `- timestamp: ${new Date().toISOString()}`,
       `- tests: ${benchmarkRun}`,
+      `- benchmark source: ${benchmarkSourceRevision}`,
       `- upstream build target: ${upstreamBuildGoos}/${upstreamBuildGoarch}`,
       `- upstream build cgo: ${upstreamBuildCgoEnabled}`,
       `- executable used: ${basename(executablePath)}`,
