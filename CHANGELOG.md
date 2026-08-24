@@ -2,30 +2,48 @@
 
 ## Unreleased
 
+This is a **major operational release**, even though PocketBun's PocketBase-aligned version number cannot express that clearly. It raises the minimum Bun version to 1.4 and introduces an optional multi-process deployment model. Before upgrading a production system, install Bun 1.4, create and verify a current backup, and review [Going to Production](docs/users/going-to-production.md) and [PocketBun Differences From PocketBase](docs/users/differences.md).
+
+### Compatibility and upgrade requirements
+
+- **Bun `v1.4.0` or newer is now required.** Older Bun releases are no longer supported.
 - Now compatible with PocketBase `v0.40.0` [release notes](https://github.com/pocketbase/pocketbase/releases/tag/v0.40.0) (upstream commit `50f5f83a`).
   - Backups no longer hold a transaction while compressing the data directory, while storage-file tracking keeps live backup archives consistent.
   - Added log deletion, bounded log data/message storage, `record.getInt64(...)`, `store.keys()`, quoted download filenames, stronger default security headers, and the updated Admin UI.
-- Requires Bun `v1.4.0` or newer.
-- Fixed responses with multiple cookies on Bun 1.4 so every `Set-Cookie` header is preserved.
+- PocketBun still starts with one worker unless `--workers` is explicitly set. Enabling or disabling cluster mode does not convert application data, so an existing deployment can adopt it gradually and return to `--workers=1` without a data migration.
+
+### Vertical scaling
+
+- Added opt-in `--workers=N` vertical scaling for read-heavy applications with spare CPU capacity. Linux workers share one native listening address; macOS and Windows workers use predictable consecutive loopback ports behind an operator-managed reverse proxy.
+- One lightweight primary now supervises worker startup, same-slot crash recovery, crash-loop protection, and graceful shutdown, while preventing multiple independent PocketBun instances from concurrently using the same `pb_data` directory.
+- Workers coordinate migrations, scheduled work, rate limits, email resend guards, realtime subscriptions and events, auth invalidation, OAuth2 redirects, backups, restores, and application restarts as one PocketBun application.
+- Cluster-wide rate limits batch concurrent decisions while preserving the configured application-wide allowance, avoiding one IPC round trip per request on busy routes.
+- Cluster coordination treats IPC backpressure as queued work, promptly expires transient resend and OAuth2 state, and prevents overlapping backup operations or stale database connections after restore and restart.
+
+### Backups and production operation
+
+- Backups now use disk-backed SQLite snapshots and streaming ZIP64 archives. Large databases are no longer copied into JavaScript memory, archives are no longer limited to 4 GiB entries, and clustered writes and WAL checkpoints can continue while snapshots are created.
+- Live storage-file tracking follows PocketBase v0.40's backup boundary across every worker, keeping files deleted during the database snapshot available to the archive and excluding files uploaded after that boundary.
+- Keep roughly three times the size of `pb_data` free during a worst-case local backup. Existing PocketBase and PocketBun backup archives remain restorable on supported platforms.
+- Graceful CLI shutdown now exits successfully after `SIGINT` or `SIGTERM`, so service managers no longer report a normal stop as a failure.
+- Production guidance now covers reverse-proxy TLS, systemd, worker topology, memory and SQLite scaling tradeoffs, live backups, and immediate rollback to one worker.
+
+### Bun 1.4 and runtime improvements
+
+- Fixed multiple-cookie responses on Bun 1.4 so every `Set-Cookie` header is preserved.
 - Fixed synchronous server-side JavaScript HTTP requests intermittently failing on Windows with Bun 1.4.
 - Fixed the superuser SQL endpoint for read queries on Bun 1.4.
 - Fixed realtime disconnect cleanup on Bun 1.4 so clients are removed before their SSE streams close.
 - Fixed realtime SSE connections retaining one Promise reaction per delivered message until disconnect, preventing long-lived busy streams from growing their worker heap.
-- Added PocketBase-compatible `$app.cron().setTimezone(...)` support while keeping UTC as the default on every host.
-- Faster test runs now isolate files across four Bun worker processes, with `bun run test:changed` available for focused local checks.
-- Improved XML handling for S3-compatible storage and custom XML endpoints, including native single-root response serialization, namespaces, entities, repeated and empty values, and malformed-input errors.
 - Local static files now use Bun's lazy file bodies instead of a whole-file memory cache, reducing retained memory for large files.
+- Improved XML handling for S3-compatible storage and custom XML endpoints, including native single-root response serialization, namespaces, entities, repeated and empty values, and malformed-input errors.
+
+### Developer experience
+
+- Added PocketBase-compatible `$app.cron().setTimezone(...)` support while keeping UTC as the default on every host.
 - Clarified custom-route CSRF guidance so cookie-authenticated forms bind tokens to a stable per-session identifier.
-- Improved maintainer benchmarks with latency percentiles and server RSS reporting.
-- Added opt-in `--workers=N` vertical scaling with native shared-port workers on Linux, predictable proxy backends on macOS and Windows, same-slot crash recovery and crash-loop protection, graceful shutdown, and single-primary protection per data directory.
-- Multi-worker servers now coordinate migrations, scheduled work, rate limits, email resend guards, realtime subscriptions and events, auth invalidation, and OAuth2 redirects as one PocketBun application.
-- Cluster-wide rate limits now batch concurrent decisions, preserving exact application-wide limits without serializing high-throughput routes on individual IPC round trips.
-- Cluster coordination now handles IPC backpressure as queued work, preventing an operation from being reported as failed while the other process still applies it.
-- Cluster primaries now promptly discard expired email resend and OAuth2 state, keeping transient coordination memory bounded during long uptimes.
-- Multi-worker backups, restores, and application restarts now coordinate cluster-wide, preventing overlapping backup operations and workers from retaining stale database connections.
-- Backups now use disk-backed SQLite snapshots and ZIP64 archives, keeping archives consistent while clustered writes and WAL checkpoints continue without loading entire databases into memory or imposing a 4 GiB database limit.
-- Graceful CLI shutdown now exits successfully after `SIGINT` or `SIGTERM`, so service managers no longer report a normal stop as a failure.
-- Corrected production deployment guidance for reverse-proxy TLS, systemd, multi-worker backends, and live backups.
+- Faster test runs now isolate files across four Bun worker processes, with `bun run test:changed` available for focused local checks.
+- Improved maintainer benchmarks with latency percentiles, server RSS reporting, explicit worker counts, and reproducible PocketBase version pinning.
 
 ## 0.39.11-pocketbun.0 - 2026-08-14
 
