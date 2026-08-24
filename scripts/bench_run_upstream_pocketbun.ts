@@ -18,10 +18,11 @@ if (!/^[0-9a-f]{40}$/.test(benchmarkSourceRevision)) {
 const benchmarkWarmupRequestsFile =
   process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS_FILE ?? "/tmp/pocketbun-bench-upstream-warmup-requests.txt";
 const benchmarkWarmupRequests = await resolveIntOverride(benchmarkWarmupRequestsFile, 0);
-const benchmarkServerWorkers = parsePositiveInt(process.env.POCKETBUN_BENCH_SERVER_WORKERS ?? "1");
-if (benchmarkServerWorkers === null || benchmarkServerWorkers > 256) {
+const parsedBenchmarkServerWorkers = parsePositiveInt(process.env.POCKETBUN_BENCH_SERVER_WORKERS ?? "1");
+if (parsedBenchmarkServerWorkers === null || parsedBenchmarkServerWorkers > 256) {
   throw new Error("POCKETBUN_BENCH_SERVER_WORKERS must be an integer between 1 and 256");
 }
+const benchmarkServerWorkers = parsedBenchmarkServerWorkers;
 if (benchmarkServerWorkers > 1 && process.platform !== "linux") {
   throw new Error("multi-worker upstream benchmarks require Linux shared-port workers");
 }
@@ -983,6 +984,12 @@ async function importProbeSchema(token: string): Promise<void> {
   if (!importResponse.ok) {
     const body = compactErrorSample(await importResponse.text());
     throw new Error(`failed to import probe schema: HTTP ${importResponse.status} ${body}`);
+  }
+
+  if (benchmarkServerWorkers > 1) {
+    // Match the upstream benchmark cooldown so every worker observes the
+    // collection marker before the probe starts issuing timed requests.
+    await delay(2_000);
   }
 }
 
