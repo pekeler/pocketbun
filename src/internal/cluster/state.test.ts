@@ -1492,7 +1492,7 @@ async function waitForStates(
       const states = new Map<number, ClusterState>();
       for (let attempt = 0; attempt < 30 && states.size < 3; attempt += 1) {
         try {
-          const result = await requester.fetch(`/__cluster_state?request=${crypto.randomUUID()}`);
+          const result = await requester.fetch(`/__cluster_state?request=${crypto.randomUUID()}`, {}, [...states.keys()]);
           if (result.response.ok) {
             const state = (await result.response.json()) as ClusterState;
             states.set(state.pid, state);
@@ -1506,7 +1506,9 @@ async function waitForStates(
     },
     "three converged cluster states",
     20_000,
-  );
+  ).catch((error) => {
+    throw new Error(`${error instanceof Error ? error.message : String(error)}; latest: ${JSON.stringify(latest)}`);
+  });
   return latest;
 }
 
