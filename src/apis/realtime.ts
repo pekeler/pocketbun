@@ -6,6 +6,7 @@ import type { Collection } from "../core/collection_model.ts";
 import type { Model } from "../core/db_model.ts";
 import type { RequestInfo } from "../core/event_request.ts";
 import type { RecordProxy } from "../core/record_proxy.ts";
+import type { RealtimeDeletePrepare } from "../internal/cluster/protocol.ts";
 import type { RouterGroup } from "../tools/router/group.ts";
 import type { Client } from "../tools/subscriptions/client.ts";
 import type { MessageWriter } from "../tools/subscriptions/message.ts";
@@ -17,6 +18,7 @@ import { RecordFieldResolver } from "../core/record_field_resolver.ts";
 import { Record as RecordModel } from "../core/record_model.ts";
 import {
   clusterEnabled,
+  hasRemoteClusterRealtimeClients,
   registerClusterRealtimeEventHandler,
   registerClusterRealtimePrepareHandler,
   registerClusterRealtimeSubscribeHandler,
@@ -53,6 +55,21 @@ export const RealtimeClientIPKey = "pbRealtimeClientIP";
 const expandQueryParam = "expand";
 const fieldsQueryParam = "fields";
 const clusterDeleteEventStorePrefix = "@clusterRealtimeDelete/";
+
+type ClusterRealtimeTransportState = {
+  prepareTail: Promise<void>;
+  publishEvents: ClusterRealtimeEvent[];
+  publishRunning: boolean;
+  publishTimer: ReturnType<typeof setTimeout> | null;
+};
+
+type ClusterDeletePrepareBatch = {
+  app: App;
+  events: RealtimeDeletePrepare[];
+};
+
+const clusterRealtimeTransportStates = new WeakMap<App, ClusterRealtimeTransportState>();
+const clusterDeletePrepareBatches = new WeakMap<object, ClusterDeletePrepareBatch>();
 
 // bindRealtimeApi registers the realtime api endpoints.
 export function bindRealtimeApi(app: App, rg: RouterGroup<RequestEvent>): void {
@@ -122,6 +139,12 @@ function realtimeConnect(event: RequestEvent): Response {
 
         ce.App.SubscriptionsBroker().Register(client);
         try {
+          if (clusterEnabled() && ce.App.SubscriptionsBroker().TotalClients() === 1) {
+            const presenceErr = await updateClusterRealtimePresence(ce.App, true);
+            if (presenceErr) {
+              return presenceErr;
+            }
+          }
           ce.App.Logger().Debug("Realtime connection established", "clientId", client.Id());
 
           const connectMsgEvent = new RealtimeMessageEvent(ce.RequestEvent);
@@ -149,6 +172,12 @@ function realtimeConnect(event: RequestEvent): Response {
           await waitForRealtimeMessages(ce, writer);
         } finally {
           ce.App.SubscriptionsBroker().Unregister(client.Id());
+          if (clusterEnabled() && ce.App.SubscriptionsBroker().TotalClients() === 0) {
+            const presenceErr = await updateClusterRealtimePresence(ce.App, false);
+            if (presenceErr) {
+              ce.App.Logger().Debug("Failed to clear cluster realtime presence", "error", presenceErr.message);
+            }
+          }
         }
 
         return null;
@@ -429,8 +458,16 @@ function realtimeUnsetClientsAuthByCollectionName(app: App, collectionName: stri
 
 function bindRealtimeEvents(app: App): void {
   if (clusterEnabled()) {
-    registerClusterRealtimeEventHandler((event) => deliverClusterRealtimeEvent(app, event));
-    registerClusterRealtimePrepareHandler((operation) => prepareClusterRealtimeDeleteLocally(app, operation));
+    registerClusterRealtimeEventHandler(async (events) => {
+      for (const event of events) {
+        try {
+          await deliverClusterRealtimeEvent(app, event);
+        } catch (error) {
+          app.Logger().Debug("Failed to deliver cluster realtime event", "kind", event.kind, "error", String(error));
+        }
+      }
+    });
+    registerClusterRealtimePrepareHandler((operation) => prepareClusterRealtimeDeletesLocally(app, operation));
     registerClusterRealtimeSubscribeHandler((operation) => deliverClusterRealtimeSubscriptionLocally(app, operation));
   }
 
@@ -658,22 +695,33 @@ function bindRealtimeEvents(app: App): void {
         return e.Next();
       }
 
+      if (!hasRemoteClusterRealtimeClients()) {
+        return e.Next();
+      }
+
       const recordJson = encodeClusterRealtimeRecord(record);
       if (!recordJson) {
-        realtimeUnsetDryCacheKey(e.App, getDryCacheKey("delete", record));
-        return new Error("Failed to encode record for cluster realtime delete preparation");
+        app
+          .Logger()
+          .Debug(
+            "Failed to encode cluster realtime delete preparation",
+            "id",
+            record.Id,
+            "collectionName",
+            record.collection().name,
+          );
+        return e.Next();
       }
       const eventId = crypto.randomUUID();
-      return import("../internal/cluster/worker.ts")
-        .then(({ prepareClusterRealtimeDelete }) => prepareClusterRealtimeDelete(eventId, record.collection().Id, recordJson))
-        .then(() => {
-          app.store().set(clusterDeleteStateKey(record), eventId);
-          return e.Next();
-        })
-        .catch((error) => {
-          realtimeUnsetDryCacheKey(e.App, getDryCacheKey("delete", record));
-          return error instanceof Error ? error : new Error(String(error));
-        });
+      app.store().set(clusterDeleteStateKey(record), eventId);
+      const prepare = { eventId, collectionId: record.collection().Id, recordJson };
+      const txInfo = e.App.TxInfo();
+      if (txInfo) {
+        queueClusterRealtimeDeletePrepare(e.App, txInfo, prepare);
+        return e.Next();
+      }
+
+      return prepareClusterRealtimeDeletes(e.App, [prepare]).then(() => e.Next());
     },
     Priority: 99, // execute as later as possible
   });
@@ -782,17 +830,113 @@ function publishClusterRecordEvent(app: App, action: "create" | "update", record
 }
 
 function publishClusterRealtimeEvent(app: App, event: ClusterRealtimeEvent): void {
-  if (!clusterEnabled()) {
+  if (!clusterEnabled() || !hasRemoteClusterRealtimeClients()) {
     return;
   }
-  FireAndForget(async () => {
-    try {
-      const { broadcastClusterRealtimeEvent } = await import("../internal/cluster/worker.ts");
-      await broadcastClusterRealtimeEvent(event);
-    } catch (error) {
-      app.Logger().Debug("Failed to publish cluster realtime event", "kind", event.kind, "error", String(error));
+  const state = clusterRealtimeTransportState(app);
+  state.publishEvents.push(event);
+  scheduleClusterRealtimePublish(app, state);
+}
+
+async function updateClusterRealtimePresence(app: App, active: boolean): Promise<Error | null> {
+  try {
+    const worker = await import("../internal/cluster/worker.ts");
+    await worker.updateClusterRealtimePresence(active);
+    return null;
+  } catch (error) {
+    const result = error instanceof Error ? error : new Error(String(error));
+    app.Logger().Debug("Failed to update cluster realtime presence", "active", active, "error", result.message);
+    return result;
+  }
+}
+
+function queueClusterRealtimeDeletePrepare(
+  app: App,
+  txInfo: NonNullable<ReturnType<App["TxInfo"]>>,
+  event: RealtimeDeletePrepare,
+): void {
+  let batch = clusterDeletePrepareBatches.get(txInfo);
+  if (!batch) {
+    const created = { app, events: [] as RealtimeDeletePrepare[] };
+    batch = created;
+    clusterDeletePrepareBatches.set(txInfo, created);
+    txInfo.BeforeCommit(() => {
+      clusterDeletePrepareBatches.delete(txInfo);
+      if (txInfo.IsAsync()) {
+        return prepareClusterRealtimeDeletes(created.app, created.events).then(() => null);
+      }
+      enqueueClusterRealtimeDeletePrepare(created.app, created.events);
+      return null;
+    });
+  }
+  batch.events.push(event);
+}
+
+function enqueueClusterRealtimeDeletePrepare(app: App, events: RealtimeDeletePrepare[]): void {
+  const state = clusterRealtimeTransportState(app);
+  const pending = state.prepareTail.then(() => prepareClusterRealtimeDeletes(app, events));
+  state.prepareTail = pending;
+  void pending.then(() => {
+    if (state.prepareTail === pending) {
+      state.prepareTail = Promise.resolve();
     }
   });
+}
+
+async function prepareClusterRealtimeDeletes(app: App, events: RealtimeDeletePrepare[]): Promise<void> {
+  try {
+    const worker = await import("../internal/cluster/worker.ts");
+    await worker.prepareClusterRealtimeDeletes(events);
+  } catch (error) {
+    app.Logger().Debug("Failed to prepare cluster realtime deletes", "events", events.length, "error", String(error));
+  }
+}
+
+function clusterRealtimeTransportState(app: App): ClusterRealtimeTransportState {
+  let state = clusterRealtimeTransportStates.get(app);
+  if (!state) {
+    state = {
+      prepareTail: Promise.resolve(),
+      publishEvents: [],
+      publishRunning: false,
+      publishTimer: null,
+    };
+    clusterRealtimeTransportStates.set(app, state);
+  }
+  return state;
+}
+
+function scheduleClusterRealtimePublish(app: App, state: ClusterRealtimeTransportState): void {
+  if (state.publishRunning || state.publishTimer) {
+    return;
+  }
+  state.publishTimer = setTimeout(() => {
+    state.publishTimer = null;
+    state.publishRunning = true;
+    FireAndForget(async () => {
+      try {
+        const worker = await import("../internal/cluster/worker.ts");
+        while (state.publishEvents.length > 0) {
+          const events = state.publishEvents.splice(0);
+          const prepared = state.prepareTail;
+          await prepared;
+          try {
+            await worker.broadcastClusterRealtimeEvents(events);
+          } catch (error) {
+            app.Logger().Debug("Failed to publish cluster realtime events", "events", events.length, "error", String(error));
+          }
+        }
+      } catch (error) {
+        const events = state.publishEvents.splice(0);
+        app.Logger().Debug("Failed to load cluster realtime transport", "events", events.length, "error", String(error));
+      } finally {
+        state.publishRunning = false;
+        if (state.publishEvents.length > 0) {
+          scheduleClusterRealtimePublish(app, state);
+        }
+      }
+    });
+  }, 0);
 }
 
 async function deliverClusterRealtimeEvent(app: App, event: ClusterRealtimeEvent): Promise<void> {
@@ -842,18 +986,24 @@ async function deliverClusterRealtimeEvent(app: App, event: ClusterRealtimeEvent
   }
 }
 
-function prepareClusterRealtimeDeleteLocally(
+function prepareClusterRealtimeDeletesLocally(
   app: App,
   operation: Extract<import("../internal/cluster/protocol.ts").CoordinatorOperation, { kind: "realtime.prepare" }>,
 ): string {
-  const record = decodeClusterRealtimeRecord(app, operation.collectionId, operation.recordJson);
-  const err = realtimeBroadcastRecord(app, "delete", record, true, app, clusterDeleteCacheKey(operation.eventId));
-  if (err) {
-    throw err;
+  for (const event of operation.events) {
+    try {
+      const record = decodeClusterRealtimeRecord(app, event.collectionId, event.recordJson);
+      const err = realtimeBroadcastRecord(app, "delete", record, true, app, clusterDeleteCacheKey(event.eventId));
+      if (err) {
+        throw err;
+      }
+      setTimeout(() => {
+        realtimeUnsetDryCacheKey(app, clusterDeleteCacheKey(event.eventId));
+      }, 30_000);
+    } catch (error) {
+      app.Logger().Debug("Failed to prepare cluster realtime delete", "eventId", event.eventId, "error", String(error));
+    }
   }
-  setTimeout(() => {
-    realtimeUnsetDryCacheKey(app, clusterDeleteCacheKey(operation.eventId));
-  }, 30_000);
   return "prepared";
 }
 

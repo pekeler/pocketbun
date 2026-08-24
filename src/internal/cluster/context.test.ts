@@ -11,8 +11,10 @@ import {
   clusterWorkerId,
   clusterWorkerSlot,
   configureClusterWorker,
+  hasRemoteClusterRealtimeClients,
   resetClusterContextForTest,
   runsClusterSingletons,
+  updateClusterRealtimeWorkers,
   validateWorkerCount,
 } from "./context.ts";
 
@@ -70,6 +72,25 @@ describe("cluster context", () => {
     });
 
     expect(runsClusterSingletons()).toBeFalse();
+  });
+
+  it.serial("only skips realtime IPC after confirming that no remote worker has clients", () => {
+    configureClusterWorker({
+      role: "leader",
+      slot: 0,
+      address: "127.0.0.1:8090",
+      reusePort: true,
+      token: "secret",
+      workerId: 2,
+    });
+
+    expect(hasRemoteClusterRealtimeClients()).toBeTrue();
+    updateClusterRealtimeWorkers([]);
+    expect(hasRemoteClusterRealtimeClients()).toBeFalse();
+    updateClusterRealtimeWorkers([2]);
+    expect(hasRemoteClusterRealtimeClients()).toBeFalse();
+    updateClusterRealtimeWorkers([2, 3]);
+    expect(hasRemoteClusterRealtimeClients()).toBeTrue();
   });
 
   it("accepts only the documented worker range", () => {

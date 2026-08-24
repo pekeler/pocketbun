@@ -19,7 +19,8 @@ This is a **major operational release**, even though PocketBun's PocketBase-alig
 - Workers coordinate migrations, scheduled work, rate limits, email resend guards, realtime subscriptions and events, auth invalidation, OAuth2 redirects, backups, restores, and application restarts as one PocketBun application.
 - Cluster-wide rate limits batch concurrent decisions while preserving the configured application-wide allowance, avoiding one IPC round trip per request on busy routes.
 - Cluster coordination treats IPC backpressure as queued work, promptly expires transient resend and OAuth2 state, and prevents overlapping backup operations or stale database connections after restore and restart.
-- Large cascading deletes no longer recycle healthy workers when realtime acknowledgements arrive after their caller has timed out, and workers that have never owned a subscription are skipped during realtime fan-out.
+- Large cascading writes retain every PocketBase realtime event while batching cluster transport per transaction; realtime delivery failures no longer turn successful deletes into misleading HTTP errors, and workers without live remote realtime clients skip the transport entirely.
+- Concurrent async requests now have isolated SQLite transactions, preventing one request from accidentally committing another request's work when their transaction lifetimes overlap.
 
 ### Backups and production operation
 

@@ -11,7 +11,7 @@ export const ClusterEnvWorkerId = "POCKETBUN_CLUSTER_WORKER_ID";
 export const MaxClusterWorkers = 256;
 
 export type ClusterRealtimeEvent = import("./protocol.ts").RealtimeBroadcastEvent;
-type ClusterRealtimeEventHandler = (event: ClusterRealtimeEvent) => void | Promise<void>;
+type ClusterRealtimeEventHandler = (events: ClusterRealtimeEvent[]) => void | Promise<void>;
 type ClusterRealtimePrepareHandler = (
   operation: Extract<import("./protocol.ts").CoordinatorDeliveryOperation, { kind: "realtime.prepare" }>,
 ) => string | Promise<string>;
@@ -38,6 +38,7 @@ type WorkerContext = {
 };
 
 let workerContext: WorkerContext | null = null;
+let realtimeWorkerIds: ReadonlySet<number> | null = null;
 let realtimeEventHandler: ClusterRealtimeEventHandler | null = null;
 let realtimePrepareHandler: ClusterRealtimePrepareHandler | null = null;
 let realtimeSubscribeHandler: ClusterRealtimeSubscribeHandler | null = null;
@@ -73,6 +74,25 @@ export function clusterReusePort(): boolean {
 
 export function clusterEnabled(): boolean {
   return workerContext !== null;
+}
+
+// Unknown state is treated conservatively so startup or coordinator failures
+// can only cause extra IPC, never missed realtime events.
+export function hasRemoteClusterRealtimeClients(): boolean {
+  if (!realtimeWorkerIds) {
+    return true;
+  }
+  const localWorkerId = clusterWorkerId();
+  for (const workerId of realtimeWorkerIds) {
+    if (workerId !== localWorkerId) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function updateClusterRealtimeWorkers(workerIds: number[]): void {
+  realtimeWorkerIds = new Set(workerIds);
 }
 
 // Singleton startup and scheduled work run normally outside cluster mode and
@@ -134,6 +154,7 @@ export function getClusterBackupFilesystemHandler(): ClusterBackupFilesystemHand
 
 export function resetClusterContextForTest(): void {
   workerContext = null;
+  realtimeWorkerIds = null;
   realtimeEventHandler = null;
   realtimePrepareHandler = null;
   realtimeSubscribeHandler = null;

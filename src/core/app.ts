@@ -18,6 +18,7 @@ import type { AuthOrigin } from "./auth_origin_model.ts";
 import type { Collection } from "./collection_model.ts";
 import type { Model } from "./db_model.ts";
 import type { TableInfoRow } from "./db_table.ts";
+import type { TxAppInfo } from "./db_tx.ts";
 import type { RequestInfo } from "./event_request.ts";
 import type { BatchRequestEvent } from "./event_request_batch.ts";
 import type {
@@ -113,7 +114,7 @@ export interface App {
   auxConcurrentDB(): Database;
   AuxNonconcurrentDB(): Database;
   auxNonconcurrentDB(): Database;
-  TxInfo(): { OnComplete: (fn: (txErr: Error | null) => Error | null) => void } | null;
+  TxInfo(): TxAppInfo | null;
   auxHasTable(name: string): boolean;
   AuxHasTable(name: string): boolean;
   reloadSettings(): Error | null;

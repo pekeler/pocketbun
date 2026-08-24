@@ -6,6 +6,49 @@ import { CollectionNameSuperusers } from "./collection_model.ts";
 import { NewRecord } from "./record_model.ts";
 
 describe("db tx", () => {
+  it("isolates overlapping top-level async transactions", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      app.db().run("create table tx_overlap_test (value text primary key)");
+
+      let releaseFirst = () => {};
+      const firstMayFinish = new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
+      let markFirstStarted = () => {};
+      const firstStarted = new Promise<void>((resolve) => {
+        markFirstStarted = resolve;
+      });
+
+      const first = app.RunInTransaction(async (txApp) => {
+        txApp.db().run("insert into tx_overlap_test values ('committed')");
+        markFirstStarted();
+        await firstMayFinish;
+        return null;
+      });
+      await firstStarted;
+
+      expect(app.db().query("select count(*) as total from tx_overlap_test").get()).toEqual({ total: 0 });
+      expect(app.RunInTransactionSync(() => null)?.message).toContain("asynchronous transaction is active");
+
+      let secondEntered = false;
+      const second = app.RunInTransaction((txApp) => {
+        secondEntered = true;
+        txApp.db().run("insert into tx_overlap_test values ('must-rollback')");
+        return new Error("rollback second transaction");
+      });
+      await Promise.resolve();
+      expect(secondEntered).toBe(false);
+
+      releaseFirst();
+      expect(await first).toBeNull();
+      expect((await second)?.message).toBe("rollback second transaction");
+      expect(app.db().query("select value from tx_overlap_test order by value").all()).toEqual([{ value: "committed" }]);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("RunInTransaction", async () => {
     const { app, cleanup } = await newTestApp();
     try {

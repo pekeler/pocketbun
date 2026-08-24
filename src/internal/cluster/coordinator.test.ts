@@ -81,4 +81,15 @@ describe("cluster coordinator", () => {
     expect(coordinator.releaseBackupForWorker(2)).toBeTrue();
     expect(coordinator.activeBackupName()).toBeNull();
   });
+
+  it("tracks workers with realtime clients", () => {
+    const coordinator = new ClusterCoordinator();
+    expect(coordinator.realtimeWorkerIds()).toEqual([]);
+    coordinator.markRealtimeWorker(3);
+    coordinator.markRealtimeWorker(1);
+    expect(coordinator.hasRealtimeWorker(1)).toBeTrue();
+    expect(new Set(coordinator.realtimeWorkerIds())).toEqual(new Set([1, 3]));
+    coordinator.releaseRealtimeWorker(1);
+    expect(coordinator.realtimeWorkerIds()).toEqual([3]);
+  });
 });

@@ -11,6 +11,12 @@ export type RateLimitConsumeRequest = {
   duration: number;
 };
 
+export type RealtimeDeletePrepare = {
+  eventId: string;
+  collectionId: string;
+  recordJson: string;
+};
+
 export type WorkerReadyMessage = {
   version: typeof ClusterProtocolVersion;
   kind: "worker.ready";
@@ -51,8 +57,9 @@ export type CoordinatorOperation =
   | { kind: "expiring.release"; key: string; claimToken: string }
   | { kind: "expiring.put"; key: string; value: string; ttlMs: number }
   | { kind: "expiring.take"; key: string }
-  | { kind: "realtime.publish"; event: RealtimeBroadcastEvent }
-  | { kind: "realtime.prepare"; eventId: string; collectionId: string; recordJson: string }
+  | { kind: "realtime.publish"; events: RealtimeBroadcastEvent[] }
+  | { kind: "realtime.prepare"; events: RealtimeDeletePrepare[] }
+  | { kind: "realtime.presence"; active: boolean }
   | { kind: "realtime.subscribe"; clientId: string; requestJson: string }
   | { kind: "oauth2.deliver"; clientId: string; requestIP: string; data: string; mode: "probe" | "deliver" }
   | { kind: "backup.acquire"; name: string }
@@ -99,7 +106,8 @@ export type CoordinatorDeliveryOperation =
   | Extract<CoordinatorOperation, { kind: "realtime.subscribe" }>
   | Extract<CoordinatorOperation, { kind: "oauth2.deliver" }>
   | Extract<CoordinatorOperation, { kind: "backup.file-delete" | "backup.file-write" }>
-  | { kind: "backup.state"; name: string | null };
+  | { kind: "backup.state"; name: string | null }
+  | { kind: "realtime.presence"; workerIds: number[] };
 
 export type CoordinatorDeliveryMessage = {
   version: typeof ClusterProtocolVersion;
@@ -252,10 +260,13 @@ function isCoordinatorOperation(value: unknown): value is CoordinatorOperation {
     return isNonEmptyString(value.key);
   }
   if (value.kind === "realtime.publish") {
-    return isRealtimeBroadcastEvent(value.event);
+    return Array.isArray(value.events) && value.events.length > 0 && value.events.every(isRealtimeBroadcastEvent);
   }
   if (value.kind === "realtime.prepare") {
-    return isNonEmptyString(value.eventId) && isNonEmptyString(value.collectionId) && isNonEmptyString(value.recordJson);
+    return Array.isArray(value.events) && value.events.length > 0 && value.events.every(isRealtimeDeletePrepare);
+  }
+  if (value.kind === "realtime.presence") {
+    return typeof value.active === "boolean";
   }
   if (value.kind === "realtime.subscribe") {
     return isNonEmptyString(value.clientId) && isNonEmptyString(value.requestJson);
@@ -298,6 +309,9 @@ function isCoordinatorDeliveryOperation(value: unknown): value is CoordinatorDel
   if (isPlainRecord(value) && value.kind === "backup.state") {
     return value.name === null || typeof value.name === "string";
   }
+  if (isPlainRecord(value) && value.kind === "realtime.presence") {
+    return Array.isArray(value.workerIds) && value.workerIds.every(isPositiveInteger);
+  }
   return (
     isCoordinatorOperation(value) &&
     (value.kind === "realtime.publish" ||
@@ -306,6 +320,15 @@ function isCoordinatorDeliveryOperation(value: unknown): value is CoordinatorDel
       value.kind === "oauth2.deliver" ||
       value.kind === "backup.file-delete" ||
       value.kind === "backup.file-write")
+  );
+}
+
+function isRealtimeDeletePrepare(value: unknown): value is RealtimeDeletePrepare {
+  return (
+    isPlainRecord(value) &&
+    isNonEmptyString(value.eventId) &&
+    isNonEmptyString(value.collectionId) &&
+    isNonEmptyString(value.recordJson)
   );
 }
 

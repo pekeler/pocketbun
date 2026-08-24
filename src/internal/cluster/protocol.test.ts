@@ -80,15 +80,21 @@ describe("cluster protocol", () => {
       { kind: "expiring.take", key: "apple/code" },
       {
         kind: "realtime.publish",
-        event: {
-          kind: "record",
-          eventId: "event",
-          action: "create",
-          collectionId: "collection",
-          recordJson: '{"id":"record"}',
-        },
+        events: [
+          {
+            kind: "record",
+            eventId: "event",
+            action: "create",
+            collectionId: "collection",
+            recordJson: '{"id":"record"}',
+          },
+        ],
       },
-      { kind: "realtime.prepare", eventId: "event", collectionId: "collection", recordJson: '{"id":"record"}' },
+      {
+        kind: "realtime.prepare",
+        events: [{ eventId: "event", collectionId: "collection", recordJson: '{"id":"record"}' }],
+      },
+      { kind: "realtime.presence", active: true },
       { kind: "realtime.subscribe", clientId: "client", requestJson: '{"subscriptions":[]}' },
       {
         kind: "oauth2.deliver",
@@ -129,6 +135,15 @@ describe("cluster protocol", () => {
         requestId: "request",
         ok: true,
         value: false,
+      }),
+    ).not.toBeNull();
+    expect(
+      parseClusterMessage({
+        version: ClusterProtocolVersion,
+        kind: "coordinator.delivery",
+        token: "secret",
+        requestId: "presence",
+        operation: { kind: "realtime.presence", workerIds: [1, 3] },
       }),
     ).not.toBeNull();
     expect(

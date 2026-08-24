@@ -52,6 +52,7 @@ export class ClusterCoordinator {
       }
       case "realtime.publish":
       case "realtime.prepare":
+      case "realtime.presence":
       case "realtime.subscribe":
       case "oauth2.deliver":
       case "backup.acquire":
@@ -121,6 +122,10 @@ export class ClusterCoordinator {
 
   hasRealtimeWorker(workerId: number): boolean {
     return this.realtimeWorkers.has(workerId);
+  }
+
+  realtimeWorkerIds(): number[] {
+    return [...this.realtimeWorkers];
   }
 
   releaseRealtimeWorker(workerId: number): void {

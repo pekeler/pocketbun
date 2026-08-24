@@ -598,6 +598,165 @@ routerAdd("POST", "/__pocketbun_cluster_forced_restart", (event) => {
 );
 
 it.serial(
+  "batches clustered realtime work and keeps preparation failures non-fatal",
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "pocketbun-cluster-realtime-batch-"));
+    const dataDir = join(root, "pb_data");
+    const hooksDir = join(root, "pb_hooks");
+    const operationsPath = join(root, "realtime-operations.jsonl");
+    const sourceData = resolve(fileURLToPath(new URL("../../tests/data", import.meta.url)));
+    const clusterWorkerModule = new URL("./worker.ts", import.meta.url).href;
+    await cp(sourceData, dataDir, { recursive: true });
+    await mkdir(hooksDir, { recursive: true });
+    await writeFile(
+      join(hooksDir, "realtime-batch.pb.js"),
+      `const fs = require("node:fs");
+const operationsPath = ${JSON.stringify(operationsPath)};
+const clusterWorkerModule = ${JSON.stringify(clusterWorkerModule)};
+const originalSend = process.send;
+const pendingKinds = new Map();
+let captureRealtime = false;
+let failPrepare = false;
+
+process.send = function (...args) {
+  const message = args[0];
+  const operation = message?.kind === "coordinator.request" ? message.operation : null;
+  if (operation) pendingKinds.set(message.requestId, operation.kind);
+  if (captureRealtime && (operation?.kind === "realtime.prepare" || operation?.kind === "realtime.publish")) {
+    fs.appendFileSync(operationsPath, JSON.stringify({
+      pid: process.pid,
+      kind: operation.kind,
+      events: operation.events.map((event) => event.kind || "delete.prepare"),
+    }) + "\\n");
+  }
+  return originalSend.apply(process, args);
+};
+
+const messageListeners = process.listeners("message");
+process.removeAllListeners("message");
+process.on("message", (message, ...args) => {
+  let delivered = message;
+  if (message?.kind === "coordinator.response") {
+    const kind = pendingKinds.get(message.requestId);
+    pendingKinds.delete(message.requestId);
+    if (failPrepare && kind === "realtime.prepare") {
+      delivered = { ...message, ok: false, value: undefined, error: { message: "injected prepare failure" } };
+    }
+  }
+  for (const listener of messageListeners) listener.call(process, delivered, ...args);
+});
+
+routerAdd("POST", "/__cluster_realtime_presence", async (event) => {
+  const cluster = await import(clusterWorkerModule);
+  await cluster.updateClusterRealtimePresence(true);
+  return event.json(200, { pid: process.pid });
+});
+
+routerAdd("POST", "/__cluster_realtime_batch", async (event) => {
+  const collection = new Collection({
+    name: "cluster_realtime_batch",
+    type: "base",
+    fields: [{ name: "value", type: "text" }],
+  });
+  let error = await $app.Save(collection);
+  if (error) return event.json(500, { error: error.message });
+
+  const records = [];
+  for (let index = 0; index < 5; index++) {
+    const record = new Record(collection, { value: String(index) });
+    error = await $app.Save(record);
+    if (error) return event.json(500, { error: error.message });
+    records.push(record);
+  }
+  await Bun.sleep(50);
+  fs.writeFileSync(operationsPath, "");
+  captureRealtime = true;
+  failPrepare = true;
+  error = await $app.RunInTransaction(async (txApp) => {
+    for (const record of records) {
+      const deleteError = await txApp.Delete(record);
+      if (deleteError) return deleteError;
+    }
+    return null;
+  });
+  failPrepare = false;
+  if (error) return event.json(500, { error: error.message });
+  await Bun.sleep(50);
+  captureRealtime = false;
+  return event.json(200, { deleted: records.length, pid: process.pid });
+});
+`,
+    );
+
+    const ports = await findConsecutivePorts(2);
+    const address = `127.0.0.1:${ports[0]}`;
+    const primary = spawnPocketBun([
+      "bin/pocketbun",
+      "--dir",
+      dataDir,
+      "--hooksDir",
+      hooksDir,
+      "--hooksWatch=false",
+      "--hooksPool=1",
+      "--automigrate=false",
+      "--workers=2",
+      "serve",
+      "--http",
+      address,
+    ]);
+    const backendUrls = process.platform === "linux" ? [`http://${address}`] : ports.map((port) => `http://127.0.0.1:${port}`);
+
+    try {
+      await withTimeout(primary.output.waitFor("[cluster] 2 workers"), "realtime batch cluster startup", 30_000);
+      const presentWorkers = new Set<number>();
+      if (process.platform === "linux") {
+        await waitFor(
+          async () => {
+            const response = await fetch(`${backendUrls[0]!}/__cluster_realtime_presence`, {
+              method: "POST",
+              headers: { Connection: "close" },
+            });
+            presentWorkers.add(Number(((await response.json()) as { pid: number }).pid));
+            return presentWorkers.size === 2;
+          },
+          "realtime presence on both workers",
+          20_000,
+        );
+      } else {
+        for (const url of backendUrls) {
+          const response = await fetch(`${url}/__cluster_realtime_presence`, { method: "POST" });
+          presentWorkers.add(Number(((await response.json()) as { pid: number }).pid));
+        }
+      }
+      expect(presentWorkers.size).toBe(2);
+
+      const response = await fetch(`${backendUrls[0]!}/__cluster_realtime_batch`, { method: "POST" });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ deleted: 5 });
+
+      const operations = (await readFile(operationsPath, "utf8"))
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as { kind: string; events: string[] });
+      expect(operations).toHaveLength(2);
+      expect(operations[0]).toMatchObject({ kind: "realtime.prepare" });
+      expect(operations[0]!.events).toEqual(Array(5).fill("delete.prepare"));
+      expect(operations[1]).toMatchObject({ kind: "realtime.publish" });
+      expect(operations[1]!.events).toEqual(Array(5).fill("delete.commit"));
+    } finally {
+      if (isProcessAlive(primary.process.pid)) {
+        primary.process.kill("SIGKILL");
+        await primary.process.exited;
+      }
+      await withTimeout(primary.output.done, "realtime batch output cleanup", 10_000).catch(() => {});
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
+
+it.serial(
   "recovers when the primary dies during coordinated operations",
   async () => {
     const root = await mkdtemp(join(tmpdir(), "pocketbun-cluster-primary-faults-"));

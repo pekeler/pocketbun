@@ -3,6 +3,7 @@
 import "../migrations/index.ts";
 import "./fields_register.ts";
 import type { Database, SQLQueryBindings } from "bun:sqlite";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync, realpathSync, rmSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -255,6 +256,20 @@ type PreparedRunStatement = {
   run: (...bindings: SQLQueryBindings[]) => unknown;
 };
 
+type DatabaseContext = {
+  activeDb?: DbxDatabase;
+  mainTxDb?: DbxDatabase;
+  auxTxDb?: DbxDatabase;
+  txInfo?: TxAppInfo;
+  mainTxInfo?: TxAppInfo;
+  auxTxInfo?: TxAppInfo;
+};
+
+type TransactionDatabases = {
+  main: DbxDatabase | null;
+  auxiliary: DbxDatabase | null;
+};
+
 // PocketBun-only: cache record write prepared statements by db+shape to avoid repeated SQL parsing.
 const recordWriteStmtCache = new WeakMap<DbxDatabase, Map<string, PreparedRunStatement>>();
 const systemHookIdRecord = "__pbRecordSystemHook__";
@@ -288,9 +303,12 @@ export class BaseApp implements App {
   #bootstrapped = false;
   #db: DbxDatabase | null = null;
   #auxDb: DbxDatabase | null = null;
+  #transactionDbs: TransactionDatabases = { main: null, auxiliary: null };
+  // PocketBun deviation: Go shallow-clones a transaction app. Async-local state
+  // provides the same isolation without duplicating this class's private hooks.
+  #databaseContext = new AsyncLocalStorage<DatabaseContext>();
   #logger: Logger;
   #logWriter: LogWriter | null = null;
-  #txInfo: TxAppInfo | null = null;
   #hooksEnabled = false;
   // app event hooks
   #onBootstrap!: Hook<BootstrapEvent>;
@@ -1607,7 +1625,13 @@ export class BaseApp implements App {
       return;
     }
 
-    const db = this.#db as DbxDatabase;
+    this.applyDevSqlLogger(this.#db);
+  }
+
+  private applyDevSqlLogger(db: DbxDatabase): void {
+    if (!this.#isDev) {
+      return;
+    }
     db.QueryLogFunc = (sql, durationMs = 0) => {
       printSQLLog(durationMs, sql);
     };
@@ -1627,11 +1651,19 @@ export class BaseApp implements App {
       this.#auxDb.close();
       this.#auxDb = null;
     }
+    if (this.#transactionDbs.main) {
+      this.#transactionDbs.main.close();
+      this.#transactionDbs.main = null;
+    }
+    if (this.#transactionDbs.auxiliary) {
+      this.#transactionDbs.auxiliary.close();
+      this.#transactionDbs.auxiliary = null;
+    }
     this.#bootstrapped = false;
   }
 
   IsTransactional(): boolean {
-    return this.#txInfo !== null;
+    return this.TxInfo() !== null;
   }
 
   private cloneWithSharedState(): BaseApp {
@@ -1651,8 +1683,9 @@ export class BaseApp implements App {
     clone.#bootstrapped = this.#bootstrapped;
     clone.#db = this.#db;
     clone.#auxDb = this.#auxDb;
+    clone.#transactionDbs = this.#transactionDbs;
+    clone.#databaseContext = this.#databaseContext;
     clone.#logger = this.#logger;
-    clone.#txInfo = this.#txInfo;
     return clone;
   }
 
@@ -1678,7 +1711,8 @@ export class BaseApp implements App {
   }
 
   db(): Database {
-    return this.#db!;
+    const context = this.#databaseContext.getStore();
+    return context?.activeDb ?? context?.mainTxDb ?? this.#db!;
   }
 
   ConcurrentDB(): Database {
@@ -1690,7 +1724,8 @@ export class BaseApp implements App {
   }
 
   NonconcurrentDB(): Database {
-    return this.db();
+    const context = this.#databaseContext.getStore();
+    return context?.mainTxDb ?? this.transactionDb("main");
   }
 
   nonconcurrentDB(): Database {
@@ -1706,7 +1741,7 @@ export class BaseApp implements App {
   }
 
   auxDb(): Database {
-    return this.#auxDb!;
+    return this.#databaseContext.getStore()?.auxTxDb ?? this.#auxDb!;
   }
 
   AuxConcurrentDB(): Database {
@@ -1718,7 +1753,8 @@ export class BaseApp implements App {
   }
 
   AuxNonconcurrentDB(): Database {
-    return this.auxDb();
+    const context = this.#databaseContext.getStore();
+    return context?.auxTxDb ?? this.transactionDb("auxiliary");
   }
 
   auxNonconcurrentDB(): Database {
@@ -1726,7 +1762,30 @@ export class BaseApp implements App {
   }
 
   TxInfo(): TxAppInfo | null {
-    return this.#txInfo;
+    return this.#databaseContext.getStore()?.txInfo ?? null;
+  }
+
+  private transactionDb(kind: keyof TransactionDatabases): DbxDatabase {
+    let db = this.#transactionDbs[kind];
+    const source = kind === "main" ? this.#db : this.#auxDb;
+    if (!db) {
+      db = DefaultDBConnect(join(this.#dataDir, kind === "main" ? "data.db" : "auxiliary.db"));
+      this.#transactionDbs[kind] = db;
+    }
+    db.QueryLogFunc = source?.QueryLogFunc;
+    this.applyDevSqlLogger(db);
+    return db;
+  }
+
+  private runWithTransactionContext<T>(kind: keyof TransactionDatabases, txInfo: TxAppInfo, fn: () => T): T {
+    const context = this.#databaseContext.getStore() ?? {};
+    if (kind === "main") {
+      const db = context.mainTxDb ?? this.transactionDb("main");
+      return this.#databaseContext.run({ ...context, activeDb: db, mainTxDb: db, txInfo, mainTxInfo: txInfo }, fn);
+    }
+
+    const db = context.auxTxDb ?? this.transactionDb("auxiliary");
+    return this.#databaseContext.run({ ...context, auxTxDb: db, txInfo, auxTxInfo: txInfo }, fn);
   }
 
   auxHasTable(name: string): boolean {
@@ -2710,25 +2769,15 @@ export class BaseApp implements App {
   }
 
   private async withDatabase<T>(db: DbxDatabase, fn: () => Promise<T>): Promise<T> {
-    // Deviation: reuse the primary save/delete code by temporarily swapping the active db.
-    const previous = this.#db;
-    this.#db = db;
-    try {
-      return await fn();
-    } finally {
-      this.#db = previous;
-    }
+    // Deviation: reuse the primary save/delete code with an async-context-local active db.
+    const context = this.#databaseContext.getStore() ?? {};
+    return await this.#databaseContext.run({ ...context, activeDb: db }, fn);
   }
 
   private withDatabaseSync<T>(db: DbxDatabase, fn: () => T): T {
-    // Deviation: reuse the primary save/delete code by temporarily swapping the active db.
-    const previous = this.#db;
-    this.#db = db;
-    try {
-      return fn();
-    } finally {
-      this.#db = previous;
-    }
+    // Deviation: reuse the primary save/delete code with a context-local active db.
+    const context = this.#databaseContext.getStore() ?? {};
+    return this.#databaseContext.run({ ...context, activeDb: db }, fn);
   }
 
   async AuxSave(model: Model): Promise<Error | null> {
@@ -2851,8 +2900,8 @@ export class BaseApp implements App {
         return afterErr ?? errorEvent.Error;
       }
 
-      if (this.#txInfo) {
-        this.#txInfo.OnComplete(async (txErr) => {
+      if (this.TxInfo()) {
+        this.TxInfo()!.OnComplete(async (txErr) => {
           if (txErr) {
             if (action === InterceptorActionCreate) {
               record.markNew(true);
@@ -2918,8 +2967,8 @@ export class BaseApp implements App {
         )) as Error | null;
         return afterErr ?? errorEvent.Error;
       }
-      if (this.#txInfo) {
-        this.#txInfo.OnComplete(async (txErr) => {
+      if (this.TxInfo()) {
+        this.TxInfo()!.OnComplete(async (txErr) => {
           if (txErr) {
             const errorEvent = new ModelErrorEvent(modelEvent, txErr);
             const result = (await (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
@@ -2973,8 +3022,8 @@ export class BaseApp implements App {
       )) as Error | null;
       return afterErr ?? errorEvent.Error;
     }
-    if (this.#txInfo) {
-      this.#txInfo.OnComplete(async (txErr) => {
+    if (this.TxInfo()) {
+      this.TxInfo()!.OnComplete(async (txErr) => {
         if (txErr) {
           const errorEvent = new ModelErrorEvent(modelEvent, txErr);
           const result = (await (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
@@ -3071,8 +3120,8 @@ export class BaseApp implements App {
         return afterErr ?? errorEvent.Error;
       }
 
-      if (this.#txInfo) {
-        this.#txInfo.OnComplete((txErr) => {
+      if (this.TxInfo()) {
+        this.TxInfo()!.OnComplete((txErr) => {
           if (txErr) {
             if (action === InterceptorActionCreate) {
               record.markNew(true);
@@ -3136,8 +3185,8 @@ export class BaseApp implements App {
         const afterErr = ensureSyncHookResult(afterResult, "OnModelAfterSaveError");
         return afterErr ?? errorEvent.Error;
       }
-      if (this.#txInfo) {
-        this.#txInfo.OnComplete((txErr) => {
+      if (this.TxInfo()) {
+        this.TxInfo()!.OnComplete((txErr) => {
           if (txErr) {
             const errorEvent = new ModelErrorEvent(modelEvent, txErr);
             const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
@@ -3192,8 +3241,8 @@ export class BaseApp implements App {
       const afterErr = ensureSyncHookResult(afterResult, "OnModelAfterSaveError");
       return afterErr ?? errorEvent.Error;
     }
-    if (this.#txInfo) {
-      this.#txInfo.OnComplete((txErr) => {
+    if (this.TxInfo()) {
+      this.TxInfo()!.OnComplete((txErr) => {
         if (txErr) {
           const errorEvent = new ModelErrorEvent(modelEvent, txErr);
           const result = (isNew ? this.OnModelAfterCreateError() : this.OnModelAfterUpdateError()).Trigger(
@@ -3255,8 +3304,8 @@ export class BaseApp implements App {
       return afterErr ?? errorEvent.Error;
     }
 
-    if (this.#txInfo) {
-      this.#txInfo.OnComplete(async (txErr) => {
+    if (this.TxInfo()) {
+      this.TxInfo()!.OnComplete(async (txErr) => {
         if (txErr) {
           if (isNew) {
             model.MarkAsNew();
@@ -3317,8 +3366,8 @@ export class BaseApp implements App {
       return afterErr ?? errorEvent.Error;
     }
 
-    if (this.#txInfo) {
-      this.#txInfo.OnComplete((txErr) => {
+    if (this.TxInfo()) {
+      this.TxInfo()!.OnComplete((txErr) => {
         if (txErr) {
           if (isNew) {
             model.MarkAsNew();
@@ -3486,8 +3535,8 @@ export class BaseApp implements App {
         return afterErr ?? errorEvent.Error;
       }
 
-      if (this.#txInfo) {
-        this.#txInfo.OnComplete(async (txErr) => {
+      if (this.TxInfo()) {
+        this.TxInfo()!.OnComplete(async (txErr) => {
           if (txErr) {
             if (modelAfterDeleteErrorHook.Length() === 0) {
               const result = await this.runRecordInterceptors(record, afterError, () => txErr);
@@ -3536,8 +3585,8 @@ export class BaseApp implements App {
       const afterErr = (await this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error)) as Error | null;
       return afterErr ?? errorEvent.Error;
     }
-    if (this.#txInfo) {
-      this.#txInfo.OnComplete(async (txErr) => {
+    if (this.TxInfo()) {
+      this.TxInfo()!.OnComplete(async (txErr) => {
         if (txErr) {
           const errorEvent = new ModelErrorEvent(modelEvent, txErr);
           const result = (await this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error)) as Error | null;
@@ -3598,8 +3647,8 @@ export class BaseApp implements App {
         return afterErr ?? errorEvent.Error;
       }
 
-      if (this.#txInfo) {
-        this.#txInfo.OnComplete((txErr) => {
+      if (this.TxInfo()) {
+        this.TxInfo()!.OnComplete((txErr) => {
           if (txErr) {
             if (modelAfterDeleteErrorHook.Length() === 0) {
               const result = this.runRecordInterceptorsSync(record, afterError, () => txErr);
@@ -3663,8 +3712,8 @@ export class BaseApp implements App {
       );
       return afterErr ?? errorEvent.Error;
     }
-    if (this.#txInfo) {
-      this.#txInfo.OnComplete((txErr) => {
+    if (this.TxInfo()) {
+      this.TxInfo()!.OnComplete((txErr) => {
         if (txErr) {
           const errorEvent = new ModelErrorEvent(modelEvent, txErr);
           const result = this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error);
@@ -3686,11 +3735,9 @@ export class BaseApp implements App {
     return RunInTransactionHelper(
       {
         app: this,
-        db: () => this.db(),
-        getTxInfo: () => this.#txInfo,
-        setTxInfo: (info) => {
-          this.#txInfo = info;
-        },
+        db: () => this.NonconcurrentDB(),
+        getTxInfo: () => this.#databaseContext.getStore()?.mainTxInfo ?? null,
+        runWithTxInfo: (info, callback) => this.runWithTransactionContext("main", info, callback),
       },
       fn,
     );
@@ -3700,22 +3747,36 @@ export class BaseApp implements App {
     return RunInTransactionSyncHelper(
       {
         app: this,
-        db: () => this.db(),
-        getTxInfo: () => this.#txInfo,
-        setTxInfo: (info) => {
-          this.#txInfo = info;
-        },
+        db: () => this.NonconcurrentDB(),
+        getTxInfo: () => this.#databaseContext.getStore()?.mainTxInfo ?? null,
+        runWithTxInfo: (info, callback) => this.runWithTransactionContext("main", info, callback),
       },
       fn,
     );
   }
 
   async AuxRunInTransaction(fn: (txApp: App) => Error | null | Promise<Error | null>): Promise<Error | null> {
-    return AuxRunInTransactionHelper(this, () => this.auxDb(), fn);
+    return AuxRunInTransactionHelper(
+      {
+        app: this,
+        db: () => this.AuxNonconcurrentDB(),
+        getTxInfo: () => this.#databaseContext.getStore()?.auxTxInfo ?? null,
+        runWithTxInfo: (info, callback) => this.runWithTransactionContext("auxiliary", info, callback),
+      },
+      fn,
+    );
   }
 
   AuxRunInTransactionSync(fn: (txApp: App) => Error | null): Error | null {
-    return AuxRunInTransactionSyncHelper(this, () => this.auxDb(), fn);
+    return AuxRunInTransactionSyncHelper(
+      {
+        app: this,
+        db: () => this.AuxNonconcurrentDB(),
+        getTxInfo: () => this.#databaseContext.getStore()?.auxTxInfo ?? null,
+        runWithTxInfo: (info, callback) => this.runWithTransactionContext("auxiliary", info, callback),
+      },
+      fn,
+    );
   }
 
   // Bun port adds an async variant to accommodate request parsing and hook delays.
@@ -4201,8 +4262,8 @@ export class BaseApp implements App {
       return afterErr ?? errorEvent.Error;
     }
 
-    if (this.#txInfo) {
-      this.#txInfo.OnComplete(async (txErr) => {
+    if (this.TxInfo()) {
+      this.TxInfo()!.OnComplete(async (txErr) => {
         if (txErr) {
           const errorEvent = new ModelErrorEvent(modelEvent, txErr);
           const result = (await this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error)) as Error | null;
@@ -4251,8 +4312,8 @@ export class BaseApp implements App {
       return afterErr ?? errorEvent.Error;
     }
 
-    if (this.#txInfo) {
-      this.#txInfo.OnComplete((txErr) => {
+    if (this.TxInfo()) {
+      this.TxInfo()!.OnComplete((txErr) => {
         if (txErr) {
           const errorEvent = new ModelErrorEvent(modelEvent, txErr);
           const result = this.OnModelAfterDeleteError().Trigger(errorEvent, () => errorEvent.Error);

@@ -21,6 +21,7 @@ import {
   getClusterRealtimeEventHandler,
   getClusterRealtimePrepareHandler,
   getClusterRealtimeSubscribeHandler,
+  updateClusterRealtimeWorkers,
 } from "./context.ts";
 import { waitForIpcSend } from "./ipc_send.ts";
 import {
@@ -30,6 +31,7 @@ import {
   type CoordinatorValue,
   type ClusterWorkerRole,
   type RealtimeBroadcastEvent,
+  type RealtimeDeletePrepare,
   type RateLimitConsumeRequest,
   type WorkerToPrimaryMessage,
 } from "./protocol.ts";
@@ -50,6 +52,7 @@ const pendingRateLimits: Array<{
   reject: (error: Error) => void;
 }> = [];
 let rateLimitBatchInFlight = false;
+let realtimePresenceTail = Promise.resolve();
 
 export function attachClusterWorker(): void {
   if (attached) {
@@ -208,17 +211,36 @@ export async function takeClusterExpiringValue(key: string): Promise<string | nu
 }
 
 export async function broadcastClusterRealtimeEvent(event: RealtimeBroadcastEvent): Promise<void> {
-  const delivered = await requestCoordinator({ kind: "realtime.publish", event });
+  return broadcastClusterRealtimeEvents([event]);
+}
+
+export async function broadcastClusterRealtimeEvents(events: RealtimeBroadcastEvent[]): Promise<void> {
+  const delivered = await requestCoordinator({ kind: "realtime.publish", events });
   if (delivered !== true) {
     throw new Error("PocketBun cluster realtime publication failed");
   }
 }
 
 export async function prepareClusterRealtimeDelete(eventId: string, collectionId: string, recordJson: string): Promise<void> {
-  const prepared = await requestCoordinator({ kind: "realtime.prepare", eventId, collectionId, recordJson });
+  return prepareClusterRealtimeDeletes([{ eventId, collectionId, recordJson }]);
+}
+
+export async function prepareClusterRealtimeDeletes(events: RealtimeDeletePrepare[]): Promise<void> {
+  const prepared = await requestCoordinator({ kind: "realtime.prepare", events });
   if (prepared !== true) {
     throw new Error("PocketBun cluster realtime delete preparation failed");
   }
+}
+
+export function updateClusterRealtimePresence(active: boolean): Promise<void> {
+  const update = realtimePresenceTail.then(async () => {
+    const updated = await requestCoordinator({ kind: "realtime.presence", active });
+    if (updated !== true) {
+      throw new Error("PocketBun cluster realtime presence update failed");
+    }
+  });
+  realtimePresenceTail = update.catch(() => {});
+  return update;
 }
 
 export async function routeClusterRealtimeSubscription(clientId: string, requestJson: string): Promise<string> {
@@ -320,6 +342,9 @@ async function handleCoordinatorDelivery(requestId: string, operation: import(".
         workerApp.store().set(StoreKeyActiveBackup, operation.name);
       }
       value = "updated";
+    } else if (operation.kind === "realtime.presence") {
+      updateClusterRealtimeWorkers(operation.workerIds);
+      value = "updated";
     } else if (operation.kind === "backup.file-delete" || operation.kind === "backup.file-write") {
       const handler = getClusterBackupFilesystemHandler();
       if (!handler) {
@@ -331,7 +356,7 @@ async function handleCoordinatorDelivery(requestId: string, operation: import(".
       if (!handler) {
         throw new Error("PocketBun cluster realtime delivery handler is not registered");
       }
-      await handler(operation.event);
+      await handler(operation.events);
       value = "delivered";
     } else if (operation.kind === "realtime.prepare") {
       const handler = getClusterRealtimePrepareHandler();

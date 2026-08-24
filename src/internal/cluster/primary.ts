@@ -131,6 +131,15 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
     );
   };
 
+  const broadcastRealtimePresence = async (): Promise<void> => {
+    const workerIds = coordinator.realtimeWorkerIds();
+    await Promise.all(
+      readyWorkers(records).map((worker) =>
+        sendCoordinatorDelivery(worker, token, pendingDeliveries, { kind: "realtime.presence", workerIds }),
+      ),
+    );
+  };
+
   const forceWorkers = () => {
     for (const record of records.values()) {
       record.intentional = true;
@@ -303,6 +312,10 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
         if (activeBackup !== null) {
           await sendCoordinatorDelivery(worker, token, pendingDeliveries, { kind: "backup.state", name: activeBackup });
         }
+        await sendCoordinatorDelivery(worker, token, pendingDeliveries, {
+          kind: "realtime.presence",
+          workerIds: coordinator.realtimeWorkerIds(),
+        });
         record.ready = true;
         record.resolveReady(message);
         log(`[cluster] ready ${record.role} slot=${record.slot} worker=${worker.id} pid=${message.pid}`);
@@ -323,7 +336,13 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
       if (records.get(record.slot) === record) {
         records.delete(record.slot);
       }
+      const hadRealtimeClients = coordinator.hasRealtimeWorker(worker.id);
       coordinator.releaseRealtimeWorker(worker.id);
+      if (hadRealtimeClients) {
+        void broadcastRealtimePresence().catch((error) =>
+          log(`[cluster] failed to update realtime presence after worker exit: ${errorMessage(error)}`),
+        );
+      }
       if (coordinator.releaseBackupForWorker(worker.id)) {
         void broadcastBackupState(null).catch((error) =>
           log(`[cluster] failed to clear backup state after worker exit: ${errorMessage(error)}`),
@@ -819,6 +838,20 @@ async function handleCoordinatorOperation(
     await Promise.all(targets.map((worker) => sendCoordinatorDelivery(worker, token, pendingDeliveries, operation)));
     return true;
   }
+  if (operation.kind === "realtime.presence") {
+    if (operation.active) {
+      coordinator.markRealtimeWorker(source.id);
+    } else {
+      coordinator.releaseRealtimeWorker(source.id);
+    }
+    const workerIds = coordinator.realtimeWorkerIds();
+    await Promise.all(
+      readyWorkers(records).map((worker) =>
+        sendCoordinatorDelivery(worker, token, pendingDeliveries, { kind: "realtime.presence", workerIds }),
+      ),
+    );
+    return true;
+  }
   if (operation.kind === "realtime.subscribe") {
     const results = await Promise.all(
       readyWorkers(records).map(async (worker) => ({
@@ -834,7 +867,6 @@ async function handleCoordinatorOperation(
     if (!owner) {
       return "absent";
     }
-    coordinator.markRealtimeWorker(owner.worker.id);
     return owner.result;
   }
   if (operation.kind === "oauth2.deliver") {
