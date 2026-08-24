@@ -6,6 +6,7 @@ REPO_URL="https://github.com/pocketbase/benchmarks.git"
 VENDOR_DIR="vendor/pocketbase-benchmarks"
 POCKETBASE_TAG_FILE="pocketbase_tag.txt"
 BENCHMARK_COMMIT_FILE="pocketbase_benchmarks_commit.txt"
+go_binary="${POCKETBUN_GO_BIN:-go}"
 
 mkdir -p .upstream
 if [ -d "$DIR" ] && [ ! -d "$DIR/.git" ]; then
@@ -58,12 +59,12 @@ echo "PocketBase benchmarks vendored to: $VENDOR_DIR"
 echo "PocketBase benchmark go.mod pinned to: $pocketbase_tag"
 echo "PocketBase benchmark source recorded in: $BENCHMARK_COMMIT_FILE"
 
-if command -v go >/dev/null 2>&1; then
-  if (cd "$VENDOR_DIR" && go mod download); then
+if command -v "$go_binary" >/dev/null 2>&1; then
+  if (cd "$VENDOR_DIR" && "$go_binary" mod download); then
     echo "PocketBase benchmark go.sum refreshed with go mod download."
   else
     echo "Warning: failed to refresh $VENDOR_DIR/go.sum with go mod download." >&2
   fi
 else
-  echo "Warning: go binary not found; skipped go.sum refresh for $VENDOR_DIR." >&2
+  echo "Warning: Go binary not found at $go_binary; skipped go.sum refresh for $VENDOR_DIR." >&2
 fi
