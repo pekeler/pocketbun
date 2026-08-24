@@ -34,6 +34,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 pb_data/
 pb_migrations/
 pb_hooks/
+!vendor/pocketbase-benchmarks/pb_hooks/
+!vendor/pocketbase-benchmarks/pb_hooks/**
 
 # Playwright artifacts
 playwright-report/
