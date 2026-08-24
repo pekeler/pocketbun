@@ -206,7 +206,7 @@ it.serial(
         const exitCode = await withTimeout(child.process.exited, `${role} crash-loop shutdown`, 30_000);
         await child.output.done;
         expect(exitCode).not.toBe(0);
-        expect(child.output.stdout).toContain(`${role} workers crashed 5 times within 30 seconds`);
+        expect(child.output.stdout).toContain(`${role} slot=${role === "leader" ? 0 : 1} crashed 5 times within 30 seconds`);
         const readyRoles = [...child.output.stdout.matchAll(/\[cluster\] ready (leader|follower)/g)].map((match) => match[1]);
         expect(readyRoles).toEqual(role === "leader" ? [] : ["leader"]);
         const pids = [...child.output.stdout.matchAll(/pid=(\d+)/g)].map((match) => Number(match[1])).filter((pid) => pid > 0);

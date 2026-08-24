@@ -1196,6 +1196,10 @@ it.serial(
       expect(`${primary.output.stdout}\n${primary.output.stderr}`).not.toMatch(
         /SQLITE_(?:BUSY|LOCKED)|database is (?:busy|locked)|Failed to (?:write log|run periodic PRAGMA wal_checkpoint)/i,
       );
+    } catch (error) {
+      throw new Error(
+        `${error instanceof Error ? error.message : String(error)}\nstdout:\n${primary.output.stdout}\nstderr:\n${primary.output.stderr}`,
+      );
     } finally {
       for (const stream of readers) {
         await stream.reader.cancel().catch(() => {});
@@ -1487,27 +1491,34 @@ async function waitForStates(
   predicate: (states: ClusterState[]) => boolean,
 ): Promise<ClusterState[]> {
   let latest: ClusterState[] = [];
+  let latestErrors: string[] = [];
   await waitFor(
     async () => {
       const states = new Map<number, ClusterState>();
+      const errors: string[] = [];
       for (let attempt = 0; attempt < 30 && states.size < 3; attempt += 1) {
         try {
           const result = await requester.fetch(`/__cluster_state?request=${crypto.randomUUID()}`, {}, [...states.keys()]);
           if (result.response.ok) {
             const state = (await result.response.json()) as ClusterState;
             states.set(state.pid, state);
+          } else {
+            errors.push(`${result.response.status}: ${await result.response.text()}`);
           }
-        } catch {
-          // A worker may be between startup and cache reload.
+        } catch (error) {
+          errors.push(error instanceof Error ? error.message : String(error));
         }
       }
       latest = [...states.values()];
+      latestErrors = errors;
       return latest.length === 3 && predicate(latest);
     },
     "three converged cluster states",
     20_000,
   ).catch((error) => {
-    throw new Error(`${error instanceof Error ? error.message : String(error)}; latest: ${JSON.stringify(latest)}`);
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}; latest: ${JSON.stringify(latest)}; errors: ${JSON.stringify(latestErrors.slice(-3))}`,
+    );
   });
   return latest;
 }

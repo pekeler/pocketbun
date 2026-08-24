@@ -104,7 +104,7 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
   const records = new Map<number, ManagedWorker>();
   const pendingDeliveries = new Map<string, PendingDelivery>();
   const replacements = new Map<number, Promise<void>>();
-  const crashes: Record<ClusterWorkerRole, number[]> = { leader: [], follower: [] };
+  const crashes = new Map<number, number[]>();
   let lifecycleState: LifecycleState = "running";
   let restoreOwnerId: number | null = null;
   let restoreLeaseToken = "";
@@ -186,11 +186,11 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
     void beginShutdown(true);
   };
 
-  const crashDelay = (role: ClusterWorkerRole): number | null => {
+  const crashDelay = (slot: number): number | null => {
     const now = Date.now();
-    const recent = crashes[role].filter((timestamp) => now - timestamp < crashWindowMs);
+    const recent = (crashes.get(slot) ?? []).filter((timestamp) => now - timestamp < crashWindowMs);
     recent.push(now);
-    crashes[role] = recent;
+    crashes.set(slot, recent);
     if (recent.length >= crashBudget) {
       return null;
     }
@@ -198,9 +198,11 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
   };
 
   const scheduleReplacement = async (record: ManagedWorker) => {
-    const delay = crashDelay(record.role);
+    const delay = crashDelay(record.slot);
     if (delay === null) {
-      fail(new Error(`${record.role} workers crashed ${crashBudget} times within ${crashWindowMs / 1_000} seconds`));
+      fail(
+        new Error(`${record.role} slot=${record.slot} crashed ${crashBudget} times within ${crashWindowMs / 1_000} seconds`),
+      );
       return;
     }
     log(`[cluster] restarting ${record.role} slot=${record.slot} after ${delay}ms`);
@@ -367,9 +369,11 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
           if (shuttingDown) {
             return;
           }
-          const delay = crashDelay(plan.role);
+          const delay = crashDelay(plan.slot);
           if (delay === null) {
-            throw new Error(`${plan.role} workers crashed ${crashBudget} times within ${crashWindowMs / 1_000} seconds`);
+            throw new Error(
+              `${plan.role} slot=${plan.slot} crashed ${crashBudget} times within ${crashWindowMs / 1_000} seconds`,
+            );
           }
           log(
             `[cluster] ${plan.role} slot=${plan.slot} failed before ready: ${errorMessage(error)}; retrying after ${delay}ms`,

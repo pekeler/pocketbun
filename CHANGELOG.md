@@ -17,7 +17,7 @@
 - Local static files now use Bun's lazy file bodies instead of a whole-file memory cache, reducing retained memory for large files.
 - Clarified custom-route CSRF guidance so cookie-authenticated forms bind tokens to a stable per-session identifier.
 - Improved maintainer benchmarks with latency percentiles and server RSS reporting.
-- Added opt-in `--workers=N` vertical scaling with native shared-port workers on Linux, predictable proxy backends on macOS and Windows, same-slot crash recovery, graceful shutdown, and single-primary protection per data directory.
+- Added opt-in `--workers=N` vertical scaling with native shared-port workers on Linux, predictable proxy backends on macOS and Windows, same-slot crash recovery and crash-loop protection, graceful shutdown, and single-primary protection per data directory.
 - Multi-worker servers now coordinate migrations, scheduled work, rate limits, email resend guards, realtime subscriptions and events, auth invalidation, and OAuth2 redirects as one PocketBun application.
 - Cluster-wide rate limits now batch concurrent decisions, preserving exact application-wide limits without serializing high-throughput routes on individual IPC round trips.
 - Multi-worker backups, restores, and application restarts now coordinate cluster-wide, preventing overlapping backup operations and workers from retaining stale database connections.
