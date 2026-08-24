@@ -8,13 +8,20 @@ import { fileURLToPath } from "node:url";
 import { ExtractAsync } from "../src/tools/archive/index.ts";
 
 type State = { pid: number; role: "leader" | "follower"; slot: number; appName: string; count: number; checksum: number };
-type SSE = { reader: ReadableStreamDefaultReader<Uint8Array>; buffer: string; pid: number; clientId: string };
+type SSE = {
+  reader: ReadableStreamDefaultReader<Uint8Array>;
+  buffer: string;
+  pid: number;
+  clientId: string;
+  openedAt: number;
+};
 type Sample = {
   elapsedSeconds: number;
   latencyMs: number;
   rssMiB: number;
   primaryRssMiB: number;
   maxWorkerRssMiB: number;
+  workerRssMiB: Record<string, number>;
   fds: number;
   cpuSeconds: number;
   primaryCpuSeconds: number;
@@ -190,13 +197,20 @@ try {
   let nextBackup = startedAt;
   let nextFault =
     options.faultIntervalMinutes === 0 ? Number.POSITIVE_INFINITY : startedAt + options.faultIntervalMinutes * 60_000;
-  let nextRestart = startedAt + 1_800_000;
+  let nextRestart =
+    options.restartIntervalMinutes === 0 ? Number.POSITIVE_INFINITY : startedAt + options.restartIntervalMinutes * 60_000;
   let nextSample = startedAt;
   let nextGC = options.forceGcEveryMinutes === 0 ? Number.POSITIVE_INFINITY : startedAt + options.forceGcEveryMinutes * 60_000;
   let iteration = 0;
   const deadline = startedAt + options.minutes * 60_000;
 
   while (Date.now() < deadline) {
+    if (streams.some((stream) => Date.now() - stream.openedAt >= 25 * 60_000)) {
+      await Promise.all(streams.map((stream) => stream.reader.cancel().catch(() => {})));
+      streams = await Promise.all(Array.from({ length: options.realtimeClients }, () => openSSE(baseUrl)));
+      console.log("realtime clients rotated before the 30-minute maximum connection lifetime");
+    }
+
     iteration += 1;
     const write = await request(baseUrl, `/__soak_write?op=${op}`, { method: "POST" });
     requireStatus(write.response, 200, "soak write");
@@ -283,7 +297,7 @@ try {
       );
       await Promise.all(streams.map((stream) => stream.reader.cancel().catch(() => {})));
       streams = await Promise.all(Array.from({ length: options.realtimeClients }, () => openSSE(baseUrl)));
-      nextRestart = Date.now() + 1_800_000;
+      nextRestart = Date.now() + options.restartIntervalMinutes * 60_000;
     }
 
     if (Date.now() >= nextSample) {
@@ -349,6 +363,7 @@ function parseOptions(): {
   rateBurst: number;
   rateLimit: number;
   faultIntervalMinutes: number;
+  restartIntervalMinutes: number;
   forceGcEveryMinutes: number;
   keep: boolean;
 } {
@@ -358,6 +373,7 @@ function parseOptions(): {
   const rateBurst = Number(arg("rate-burst") ?? "4");
   const rateLimit = Number(arg("rate-limit") ?? String(rateBurst - 1));
   const faultIntervalMinutes = Number(arg("fault-interval-minutes") ?? "2");
+  const restartIntervalMinutes = Number(arg("restart-interval-minutes") ?? "30");
   const forceGcEveryMinutes = Number(arg("force-gc-every-minutes") ?? "0");
   if (
     !Number.isInteger(workers) ||
@@ -373,11 +389,13 @@ function parseOptions(): {
     rateLimit >= rateBurst ||
     !Number.isFinite(faultIntervalMinutes) ||
     faultIntervalMinutes < 0 ||
+    !Number.isFinite(restartIntervalMinutes) ||
+    restartIntervalMinutes < 0 ||
     !Number.isFinite(forceGcEveryMinutes) ||
     forceGcEveryMinutes < 0
   ) {
     throw new Error(
-      "usage: bun scripts/cluster_state_soak.ts [--workers=1|2|4] [--minutes=60] [--realtime-clients=0] [--rate-burst=4] [--rate-limit=3] [--fault-interval-minutes=2] [--force-gc-every-minutes=0] [--keep]",
+      "usage: bun scripts/cluster_state_soak.ts [--workers=1|2|4] [--minutes=60] [--realtime-clients=0] [--rate-burst=4] [--rate-limit=3] [--fault-interval-minutes=2] [--restart-interval-minutes=30] [--force-gc-every-minutes=0] [--keep]",
     );
   }
   return {
@@ -387,6 +405,7 @@ function parseOptions(): {
     rateBurst,
     rateLimit,
     faultIntervalMinutes,
+    restartIntervalMinutes,
     forceGcEveryMinutes,
     keep: process.argv.includes("--keep"),
   };
@@ -452,6 +471,7 @@ async function openSSEOnce(baseUrl: string): Promise<SSE> {
     buffer: "",
     pid: opened.pid,
     clientId: "",
+    openedAt: Date.now(),
   };
   const connect = await readEvent(stream, 10_000);
   if (connect.name !== "PB_CONNECT") throw new Error(`expected PB_CONNECT, got ${connect.name}`);
@@ -617,6 +637,9 @@ async function sample(primaryPid: number, workerPids: number[], startedAt: numbe
     rssMiB: Math.round((stats.reduce((total, item) => total + item.rssKiB, 0) / 1024) * 100) / 100,
     primaryRssMiB: Math.round(((primary?.rssKiB ?? 0) / 1024) * 100) / 100,
     maxWorkerRssMiB: Math.round((Math.max(0, ...workers.map((item) => item.rssKiB)) / 1024) * 100) / 100,
+    workerRssMiB: Object.fromEntries(
+      workerPids.map((pid, index) => [pid, Math.round(((workers[index]?.rssKiB ?? 0) / 1024) * 100) / 100]),
+    ),
     fds: stats.reduce((total, item) => total + item.fds, 0),
     cpuSeconds: Math.round(stats.reduce((total, item) => total + item.cpuSeconds, 0) * 100) / 100,
     primaryCpuSeconds: Math.round((primary?.cpuSeconds ?? 0) * 100) / 100,

@@ -13,6 +13,7 @@ import {
   validateWorkerCount,
 } from "./context.ts";
 import { ClusterCoordinator } from "./coordinator.ts";
+import { waitForIpcSend } from "./ipc_send.ts";
 import {
   ClusterProtocolVersion,
   parseClusterMessage,
@@ -925,22 +926,10 @@ function rejectWorkerDeliveries(pendingDeliveries: Map<string, PendingDelivery>,
 }
 
 function sendToWorker(worker: Worker, message: PrimaryToWorkerMessage): Promise<void> {
-  return new Promise((resolveSend, rejectSend) => {
-    if (!worker.isConnected()) {
-      rejectSend(new Error(`worker ${worker.id} IPC channel is closed`));
-      return;
-    }
-    const sent = worker.send(message, (error) => {
-      if (error) {
-        rejectSend(error);
-      } else {
-        resolveSend();
-      }
-    });
-    if (!sent) {
-      rejectSend(new Error(`worker ${worker.id} IPC send failed`));
-    }
-  });
+  if (!worker.isConnected()) {
+    return Promise.reject(new Error(`worker ${worker.id} IPC channel is closed`));
+  }
+  return waitForIpcSend((callback) => worker.send(message, callback));
 }
 
 function parsePort(value: string, rawAddress: string): number {

@@ -42,7 +42,7 @@ export class ClusterCoordinator {
         }
         return null;
       case "expiring.put":
-        this.expiring.set(operation.key, { value: operation.value, expiresAt: Date.now() + operation.ttlMs });
+        this.setExpiring(operation.key, { value: operation.value, expiresAt: Date.now() + operation.ttlMs });
         return null;
       case "expiring.take": {
         const entry = this.getExpiring(operation.key);
@@ -141,8 +141,20 @@ export class ClusterCoordinator {
       return null;
     }
     const claimToken = crypto.randomUUID();
-    this.expiring.set(key, { value: null, expiresAt: Date.now() + ttlMs, claimToken });
+    this.setExpiring(key, { value: null, expiresAt: Date.now() + ttlMs, claimToken });
     return claimToken;
+  }
+
+  private setExpiring(key: string, entry: ExpiringEntry): void {
+    this.expiring.set(key, entry);
+    setTimeout(
+      () => {
+        if (this.expiring.get(key) === entry) {
+          this.expiring.delete(key);
+        }
+      },
+      Math.max(0, entry.expiresAt - Date.now()),
+    );
   }
 
   private getExpiring(key: string): ExpiringEntry | null {

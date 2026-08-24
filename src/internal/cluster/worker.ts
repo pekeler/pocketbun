@@ -22,6 +22,7 @@ import {
   getClusterRealtimePrepareHandler,
   getClusterRealtimeSubscribeHandler,
 } from "./context.ts";
+import { waitForIpcSend } from "./ipc_send.ts";
 import {
   ClusterProtocolVersion,
   parseClusterMessage,
@@ -480,22 +481,10 @@ async function flushRateLimitBatch(): Promise<void> {
 }
 
 function send(message: WorkerToPrimaryMessage): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (!process.send) {
-      reject(new Error("PocketBun cluster worker has no primary IPC channel"));
-      return;
-    }
-    const sent = process.send(message, (error) => {
-      if (error) {
-        reject(error);
-      } else {
-        resolve();
-      }
-    });
-    if (!sent) {
-      reject(new Error("PocketBun cluster worker IPC channel is closed"));
-    }
-  });
+  if (!process.send) {
+    return Promise.reject(new Error("PocketBun cluster worker has no primary IPC channel"));
+  }
+  return waitForIpcSend((callback) => process.send!(message, callback));
 }
 
 function isWorkerRole(value: unknown): value is ClusterWorkerRole {

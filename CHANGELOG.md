@@ -20,6 +20,8 @@
 - Added opt-in `--workers=N` vertical scaling with native shared-port workers on Linux, predictable proxy backends on macOS and Windows, same-slot crash recovery and crash-loop protection, graceful shutdown, and single-primary protection per data directory.
 - Multi-worker servers now coordinate migrations, scheduled work, rate limits, email resend guards, realtime subscriptions and events, auth invalidation, and OAuth2 redirects as one PocketBun application.
 - Cluster-wide rate limits now batch concurrent decisions, preserving exact application-wide limits without serializing high-throughput routes on individual IPC round trips.
+- Cluster coordination now handles IPC backpressure as queued work, preventing an operation from being reported as failed while the other process still applies it.
+- Cluster primaries now promptly discard expired email resend and OAuth2 state, keeping transient coordination memory bounded during long uptimes.
 - Multi-worker backups, restores, and application restarts now coordinate cluster-wide, preventing overlapping backup operations and workers from retaining stale database connections.
 - Backups now use disk-backed SQLite snapshots and ZIP64 archives, keeping archives consistent while clustered writes and WAL checkpoints continue without loading entire databases into memory or imposing a 4 GiB database limit.
 - Graceful CLI shutdown now exits successfully after `SIGINT` or `SIGTERM`, so service managers no longer report a normal stop as a failure.

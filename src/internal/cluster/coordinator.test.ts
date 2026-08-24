@@ -43,6 +43,7 @@ describe("cluster coordinator", () => {
 
   it("claims, releases, expires, stores, and consumes transient values", async () => {
     const coordinator = new ClusterCoordinator();
+    const expiring = (coordinator as unknown as { expiring: Map<string, unknown> }).expiring;
     const claim = coordinator.handle({ kind: "expiring.claim", key: "email/user", ttlMs: 10 });
     expect(typeof claim).toBe("string");
     expect(coordinator.handle({ kind: "expiring.claim", key: "email/user", ttlMs: 10 })).toBeNull();
@@ -51,9 +52,12 @@ describe("cluster coordinator", () => {
     expect(coordinator.handle({ kind: "expiring.release", key: "email/user", claimToken: String(claim) })).toBeNull();
     expect(typeof coordinator.handle({ kind: "expiring.claim", key: "email/user", ttlMs: 10 })).toBe("string");
     await Bun.sleep(15);
+    expect(expiring.has("email/user")).toBeFalse();
     expect(typeof coordinator.handle({ kind: "expiring.claim", key: "email/user", ttlMs: 10 })).toBe("string");
 
+    expect(coordinator.handle({ kind: "expiring.put", key: "apple/code", value: "Old User", ttlMs: 10 })).toBeNull();
     expect(coordinator.handle({ kind: "expiring.put", key: "apple/code", value: "Test User", ttlMs: 60_000 })).toBeNull();
+    await Bun.sleep(15);
     expect(coordinator.handle({ kind: "expiring.take", key: "apple/code" })).toBe("Test User");
     expect(coordinator.handle({ kind: "expiring.take", key: "apple/code" })).toBeNull();
   });
