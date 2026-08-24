@@ -323,6 +323,7 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
       if (records.get(record.slot) === record) {
         records.delete(record.slot);
       }
+      coordinator.releaseRealtimeWorker(worker.id);
       if (coordinator.releaseBackupForWorker(worker.id)) {
         void broadcastBackupState(null).catch((error) =>
           log(`[cluster] failed to clear backup state after worker exit: ${errorMessage(error)}`),
@@ -805,24 +806,36 @@ async function handleCoordinatorOperation(
     return true;
   }
   if (operation.kind === "realtime.publish") {
-    const targets = readyWorkers(records).filter((worker) => worker.id !== source.id);
+    const targets = readyWorkers(records).filter(
+      (worker) => worker.id !== source.id && coordinator.hasRealtimeWorker(worker.id),
+    );
     await Promise.all(targets.map((worker) => sendCoordinatorDelivery(worker, token, pendingDeliveries, operation)));
     return true;
   }
   if (operation.kind === "realtime.prepare") {
-    const targets = readyWorkers(records).filter((worker) => worker.id !== source.id);
+    const targets = readyWorkers(records).filter(
+      (worker) => worker.id !== source.id && coordinator.hasRealtimeWorker(worker.id),
+    );
     await Promise.all(targets.map((worker) => sendCoordinatorDelivery(worker, token, pendingDeliveries, operation)));
     return true;
   }
   if (operation.kind === "realtime.subscribe") {
     const results = await Promise.all(
-      readyWorkers(records).map((worker) => sendCoordinatorDelivery(worker, token, pendingDeliveries, operation)),
+      readyWorkers(records).map(async (worker) => ({
+        worker,
+        result: await sendCoordinatorDelivery(worker, token, pendingDeliveries, operation),
+      })),
     );
-    const responses = results.filter((result) => result !== "absent");
-    if (responses.length > 1) {
+    const owners = results.filter(({ result }) => result !== "absent");
+    if (owners.length > 1) {
       throw new Error(`realtime client ${operation.clientId} is owned by multiple workers`);
     }
-    return responses[0] ?? "absent";
+    const owner = owners[0];
+    if (!owner) {
+      return "absent";
+    }
+    coordinator.markRealtimeWorker(owner.worker.id);
+    return owner.result;
   }
   if (operation.kind === "oauth2.deliver") {
     if (operation.mode !== "deliver") {
@@ -901,7 +914,10 @@ function resolveCoordinatorDelivery(
   message: CoordinatorDeliveryResultMessage,
 ): void {
   const pending = pendingDeliveries.get(message.requestId);
-  if (!pending || pending.workerId !== worker.id || message.workerId !== worker.id) {
+  if (!pending) {
+    return;
+  }
+  if (pending.workerId !== worker.id || message.workerId !== worker.id) {
     worker.kill();
     return;
   }

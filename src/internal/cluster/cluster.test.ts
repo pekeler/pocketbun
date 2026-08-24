@@ -225,7 +225,7 @@ it.serial(
 );
 
 it.serial(
-  "replaces workers that send malformed, duplicate, or late IPC messages",
+  "replaces malformed IPC workers but ignores results without a pending delivery",
   async () => {
     const root = await mkdtemp(join(tmpdir(), "pocketbun-cluster-ipc-faults-"));
     const dataDir = join(root, "pb_data");
@@ -313,7 +313,7 @@ routerAdd("POST", "/__pocketbun_cluster_ipc_fault/{kind}", async (event) => {
 
     try {
       await withTimeout(primary.output.waitFor("[cluster] 2 workers"), "IPC-fault cluster startup", 60_000);
-      for (const kind of ["malformed", "duplicate-ready", "late-result"] as const) {
+      for (const kind of ["malformed", "duplicate-ready"] as const) {
         const before = await currentIdentities();
         before.forEach((identity) => knownWorkerPids.add(identity.pid));
         await rm(markerPath, { force: true });
@@ -333,6 +333,20 @@ routerAdd("POST", "/__pocketbun_cluster_ipc_fault/{kind}", async (event) => {
         expect(replacement.pid).not.toBe(previous.pid);
         expect(await currentIdentities()).toHaveLength(2);
       }
+
+      const beforeLateResult = await currentIdentities();
+      beforeLateResult.forEach((identity) => knownWorkerPids.add(identity.pid));
+      await rm(markerPath, { force: true });
+      await fetch(`${backendUrls[0]!}/__pocketbun_cluster_ipc_fault/late-result`, {
+        method: "POST",
+        headers: { Connection: "close" },
+      });
+      await waitFor(() => Bun.file(markerPath).exists(), "late-result IPC marker", 10_000);
+      await Bun.sleep(250);
+      const afterLateResult = await currentIdentities();
+      expect(afterLateResult.map((identity) => identity.pid).toSorted((left, right) => left - right)).toEqual(
+        beforeLateResult.map((identity) => identity.pid).toSorted((left, right) => left - right),
+      );
 
       primary.process.kill("SIGTERM");
       await withTimeout(primary.process.exited, "IPC-fault cluster shutdown", 20_000);

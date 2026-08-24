@@ -25,6 +25,7 @@ type BackupLease = {
 export class ClusterCoordinator {
   private readonly limiters = new Map<string, LimiterEntry>();
   private readonly expiring = new Map<string, ExpiringEntry>();
+  private readonly realtimeWorkers = new Set<number>();
   private backupLease: BackupLease | null = null;
   private lastLimiterCleanup = Date.now();
 
@@ -112,6 +113,18 @@ export class ClusterCoordinator {
       return this.backupLease.workerId;
     }
     return null;
+  }
+
+  markRealtimeWorker(workerId: number): void {
+    this.realtimeWorkers.add(workerId);
+  }
+
+  hasRealtimeWorker(workerId: number): boolean {
+    return this.realtimeWorkers.has(workerId);
+  }
+
+  releaseRealtimeWorker(workerId: number): void {
+    this.realtimeWorkers.delete(workerId);
   }
 
   private consumeRateLimit(operation: RateLimitConsumeRequest): boolean {

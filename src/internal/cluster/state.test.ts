@@ -497,6 +497,35 @@ it.serial(
       readers.push(coordinatorStream.reader);
       const coordinatorConnect = await readSSE(coordinatorStream.reader, 5_000);
       const coordinatorClientId = (JSON.parse(coordinatorConnect.data) as { clientId: string }).clientId;
+
+      const beforeLateDeliveryPids = states.map((state) => state.pid).toSorted((left, right) => left - right);
+      const lateDeliverySource = states.find((state) => state.slot === 2)!;
+      const lateDeliveryRequest = requester
+        .fetch(
+          "/api/realtime",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clientId: coordinatorClientId, subscriptions: ["cluster_pending"] }),
+          },
+          states.filter((state) => state.pid !== lateDeliverySource.pid).map((state) => state.pid),
+        )
+        .then((result) => result.response.status)
+        .catch(() => 0);
+      await waitFor(() => Bun.file(coordinatorDeliveryMarker).exists(), "late coordinator delivery", 5_000);
+      await Bun.sleep(4_250);
+      await writeFile(coordinatorReleaseMarker, "release");
+      expect(await withTimeout(lateDeliveryRequest, "late coordinator response", 5_000)).not.toBe(204);
+      await waitFor(() => Bun.file(coordinatorCompletionMarker).exists(), "late coordinator completion", 5_000);
+      await Bun.sleep(250);
+      states = await waitForStates(requester, () => true);
+      expect(states.map((state) => state.pid).toSorted((left, right) => left - right)).toEqual(beforeLateDeliveryPids);
+      await Promise.all(
+        [coordinatorDeliveryMarker, coordinatorReleaseMarker, coordinatorCompletionMarker].map((path) =>
+          rm(path, { force: true }),
+        ),
+      );
+
       const coordinatorSource = states.find((state) => state.slot === 2)!;
       const pendingCoordinatorRequest = requester
         .fetch(
