@@ -44,6 +44,12 @@ const hooksDir = fileURLToPath(new URL("../vendor/pocketbase-benchmarks/pb_hooks
 const serverScriptPath = fileURLToPath(new URL("./bench_upstream_pocketbun/server.ts", import.meta.url));
 const port = await pickPort();
 const baseUrl = `http://127.0.0.1:${port}`;
+const externalLoadUrl = process.env.POCKETBUN_BENCH_EXTERNAL_LOAD_URL?.trim() ?? "";
+const targetHost = process.env.POCKETBUN_BENCH_TARGET_HOST?.trim() ?? "";
+if (externalLoadUrl && !targetHost) {
+  throw new Error("POCKETBUN_BENCH_TARGET_HOST is required with POCKETBUN_BENCH_EXTERNAL_LOAD_URL");
+}
+const benchmarkBaseUrl = targetHost ? `http://${targetHost}:${port}` : baseUrl;
 const dataDir = await mkdtemp(join(tmpdir(), "pocketbun-benchmarks-"));
 const serverProc = Bun.spawn({
   cmd: ["bun", "run", serverScriptPath],
@@ -51,7 +57,8 @@ const serverProc = Bun.spawn({
   env: {
     ...process.env,
     POCKETBUN_BENCH_SERVER_PORT: String(port),
-    POCKETBUN_BENCH_SERVER_BASE_URL: baseUrl,
+    POCKETBUN_BENCH_SERVER_BASE_URL: benchmarkBaseUrl,
+    POCKETBUN_BENCH_SERVER_LISTEN_HOST: externalLoadUrl ? "0.0.0.0" : "127.0.0.1",
     POCKETBUN_BENCH_SERVER_DATA_DIR: dataDir,
     POCKETBUN_BENCH_SERVER_HOOKS_DIR: hooksDir,
     POCKETBUN_BENCH_SERVER_WORKERS: String(benchmarkServerWorkers),
@@ -95,6 +102,8 @@ try {
       `- mode: ${benchmarkRun}`,
       `- benchmark source: ${benchmarkSourceRevision}`,
       `- server workers: ${benchmarkServerWorkers}`,
+      `- load generator: ${externalLoadUrl || "co-located"}`,
+      `- benchmark target host: ${targetHost || "loopback"}`,
       "",
     ].join("\n");
 
@@ -148,6 +157,8 @@ try {
       `- tests: ${benchmarkRun}`,
       `- benchmark source: ${benchmarkSourceRevision}`,
       `- server workers: ${benchmarkServerWorkers}`,
+      `- load generator: ${externalLoadUrl || "co-located"}`,
+      `- benchmark target host: ${targetHost || "loopback"}`,
       "",
     ].join("\n");
 

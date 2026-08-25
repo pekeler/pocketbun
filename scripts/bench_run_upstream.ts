@@ -65,6 +65,11 @@ const sourceDir = await mkdtemp(join(tmpdir(), "pocketbase-bench-source-"));
 
 const port = await pickPort();
 const baseUrl = `http://127.0.0.1:${port}`;
+const externalLoadUrl = process.env.POCKETBUN_BENCH_EXTERNAL_LOAD_URL?.trim() ?? "";
+const targetHost = process.env.POCKETBUN_BENCH_TARGET_HOST?.trim() ?? "";
+if (externalLoadUrl && !targetHost) {
+  throw new Error("POCKETBUN_BENCH_TARGET_HOST is required with POCKETBUN_BENCH_EXTERNAL_LOAD_URL");
+}
 const runRootDir = await mkdtemp(join(tmpdir(), "pocketbase-bench-run-"));
 const dataDir = join(runRootDir, "pb_data");
 const buildDir = await mkdtemp(join(tmpdir(), "pocketbase-bench-build-"));
@@ -75,6 +80,9 @@ if (shouldUseSharedClientTransport(benchmarkTransportMode)) {
   await applySharedClientTransportPatch(sourceDir);
 }
 await applyBenchErrorCollectionPatch(sourceDir, benchmarkDebugErrors);
+if (externalLoadUrl) {
+  await applyExternalLoadPatch(sourceDir);
+}
 
 await mkdir(dataDir, { recursive: true });
 await copyDirIfExists(join(sourceDir, "pb_hooks"), join(runRootDir, "pb_hooks"));
@@ -116,7 +124,7 @@ if (!isRunnableOnCurrentHost(upstreamBuildGoos, upstreamBuildGoarch)) {
 console.log(`Starting upstream benchmark server executable: ${basename(executablePath)}`);
 
 const serverProc = Bun.spawn({
-  cmd: [executablePath, "serve", `--http=127.0.0.1:${port}`, `--dir=${dataDir}`],
+  cmd: [executablePath, "serve", `--http=${externalLoadUrl ? "0.0.0.0" : "127.0.0.1"}:${port}`, `--dir=${dataDir}`],
   cwd: sourceDir,
   env: { ...process.env },
   stdio: ["ignore", "inherit", "inherit"],
@@ -162,6 +170,8 @@ try {
       `- upstream build target: ${upstreamBuildGoos}/${upstreamBuildGoarch}`,
       `- upstream build cgo: ${upstreamBuildCgoEnabled}`,
       `- executable used: ${basename(executablePath)}`,
+      `- load generator: ${externalLoadUrl || "co-located"}`,
+      `- benchmark target host: ${targetHost || "loopback"}`,
       "",
     ].join("\n");
 
@@ -217,6 +227,8 @@ try {
       `- upstream build target: ${upstreamBuildGoos}/${upstreamBuildGoarch}`,
       `- upstream build cgo: ${upstreamBuildCgoEnabled}`,
       `- executable used: ${basename(executablePath)}`,
+      `- load generator: ${externalLoadUrl || "co-located"}`,
+      `- benchmark target host: ${targetHost || "loopback"}`,
       "",
     ].join("\n");
 
@@ -567,6 +579,282 @@ async function applyBenchErrorCollectionPatch(rootDir: string, debugErrors: bool
   }
 
   await writeFile(benchPath, patched);
+}
+
+async function applyExternalLoadPatch(rootDir: string): Promise<void> {
+  const benchPath = join(rootDir, "benchmarks", "bench.go");
+  const requestPath = join(rootDir, "benchmarks", "request.go");
+  const runPath = join(rootDir, "benchmarks", "run.go");
+  const searchPath = join(rootDir, "benchmarks", "test_search.go");
+  const externalPath = join(rootDir, "benchmarks", "external.go");
+
+  const benchOriginal = await readFile(benchPath, "utf8");
+  const benchPatched = benchOriginal.replace(
+    `\tif iterations < 1 {
+\t\treturn nil, errors.New("iterations must be >= 1")
+\t}
+
+\ttotalStart := time.Now()`,
+    `\tif iterations < 1 {
+\t\treturn nil, errors.New("iterations must be >= 1")
+\t}
+
+\tif externalLoadEnabled() {
+\t\treturn externalBench(action, iterations, concurrency)
+\t}
+
+\ttotalStart := time.Now()`,
+  );
+  if (benchPatched === benchOriginal) {
+    throw new Error(`failed to patch ${benchPath} for external load execution`);
+  }
+
+  const requestOriginal = await readFile(requestPath, "utf8");
+  const requestPatched = requestOriginal.replace(
+    `func (c *Request) Send(destBodyPtr any) error {
+\tif c.Context == nil {`,
+    `func (c *Request) Send(destBodyPtr any) error {
+\tif captured, err := captureExternalRequest(c, destBodyPtr); captured {
+\t\treturn err
+\t}
+
+\tif c.Context == nil {`,
+  );
+  if (requestPatched === requestOriginal) {
+    throw new Error(`failed to patch ${requestPath} for external request capture`);
+  }
+
+  const runOriginal = await readFile(runPath, "utf8");
+  const runPatched = runOriginal.replace(
+    `baseUrl: "http://" + se.Server.Addr,`,
+    `baseUrl: resolveExternalBenchmarkBaseURL("http://" + se.Server.Addr),`,
+  );
+  if (runPatched === runOriginal) {
+    throw new Error(`failed to patch ${runPath} for the external target address`);
+  }
+
+  const searchOriginal = await readFile(searchPath, "utf8");
+  const mixedWritesOriginal = `\t\t\tscenario{"mixed read and write (simpleA list with additional 300 concurrent random " + col + " updates running in the background)", 1000, 1000, col, "?perPage=20", "", []string{}, func() error {
+\t\t\t\tg := errgroup.Group{}
+\t\t\t\tg.SetLimit(-1)
+
+\t\t\t\tids, err := r.randomRecordIds(col, 300)
+\t\t\t\tif err != nil {
+\t\t\t\t\treturn err
+\t\t\t\t}
+
+\t\t\t\tfor _, id := range ids {
+\t\t\t\t\tid := id
+\t\t\t\t\tg.Go(func() error {
+\t\t\t\t\t\treq := Request{
+\t\t\t\t\t\t\tUrl:    r.baseUrl + "/api/collections/" + col + "/records/" + id,
+\t\t\t\t\t\t\tMethod: "PATCH",
+\t\t\t\t\t\t\tBody:   strings.NewReader(\`{"title": "update\` + id + \`"}\`),
+\t\t\t\t\t\t\tHeaders: map[string]string{
+\t\t\t\t\t\t\t\t"Authorization": userToken,
+\t\t\t\t\t\t\t},
+\t\t\t\t\t\t}
+
+\t\t\t\t\t\treturn req.Send(nil)
+\t\t\t\t\t})
+\t\t\t\t}
+
+\t\t\t\treturn g.Wait()
+\t\t\t}},`;
+  const mixedWritesPatched = `\t\t\tscenario{"mixed read and write (simpleA list with additional 300 concurrent random " + col + " updates running in the background)", 1000, 1000, col, "?perPage=20", "", []string{}, func() error {
+\t\t\t\tids, err := r.randomRecordIds(col, 300)
+\t\t\t\tif err != nil {
+\t\t\t\t\treturn err
+\t\t\t\t}
+
+\t\t\t\tresult, err := bench(func(i int) error {
+\t\t\t\t\tid := ids[i]
+\t\t\t\t\treq := Request{
+\t\t\t\t\t\tUrl:    r.baseUrl + "/api/collections/" + col + "/records/" + id,
+\t\t\t\t\t\tMethod: "PATCH",
+\t\t\t\t\t\tBody:   strings.NewReader(\`{"title": "update\` + id + \`"}\`),
+\t\t\t\t\t\tHeaders: map[string]string{
+\t\t\t\t\t\t\t"Authorization": userToken,
+\t\t\t\t\t\t},
+\t\t\t\t\t}
+
+\t\t\t\t\treturn req.Send(nil)
+\t\t\t\t}, len(ids), -1)
+\t\t\t\tif err != nil {
+\t\t\t\t\treturn err
+\t\t\t\t}
+\t\t\t\tif len(result.Errors) > 0 {
+\t\t\t\t\treturn result.Errors[0]
+\t\t\t\t}
+
+\t\t\t\treturn nil
+\t\t\t}},`;
+  const searchPatched = searchOriginal.replace(mixedWritesOriginal, mixedWritesPatched);
+  if (searchPatched === searchOriginal) {
+    throw new Error(`failed to patch ${searchPath} for external mixed writes`);
+  }
+
+  const externalSource = `package benchmarks
+
+// PocketBun-only: move timed upstream benchmark requests to a separate load-generator host.
+
+import (
+\t"bytes"
+\t"encoding/json"
+\t"errors"
+\t"fmt"
+\t"io"
+\t"net"
+\t"net/http"
+\t"net/url"
+\t"os"
+\t"strings"
+\t"sync"
+\t"time"
+)
+
+type externalRequest struct {
+\tBody    *string           \`json:"body"\`
+\tHeaders map[string]string \`json:"headers"\`
+\tMethod  string            \`json:"method"\`
+\tURL     string            \`json:"url"\`
+}
+
+type externalBatch struct {
+\tRequests    []externalRequest \`json:"requests"\`
+\tConcurrency int               \`json:"concurrency"\`
+}
+
+type externalResult struct {
+\tBestMs      float64 \`json:"bestMs"\`
+\tWorstMs     float64 \`json:"worstMs"\`
+\tCompletedMs float64 \`json:"completedMs"\`
+\tErrorCount  int     \`json:"errorCount"\`
+\tSampleError string  \`json:"sampleError"\`
+}
+
+var externalCaptureMu sync.Mutex
+var externalCaptured *[]externalRequest
+
+func externalLoadEnabled() bool {
+\treturn strings.TrimSpace(os.Getenv("POCKETBUN_BENCH_EXTERNAL_LOAD_URL")) != ""
+}
+
+func captureExternalRequest(request *Request, destBodyPtr any) (bool, error) {
+\tif externalCaptured == nil {
+\t\treturn false, nil
+\t}
+\tif destBodyPtr != nil {
+\t\treturn true, errors.New("external benchmark capture does not support response bodies")
+\t}
+
+\theaders := make(map[string]string, len(request.Headers)+1)
+\tfor name, value := range request.Headers {
+\t\theaders[name] = value
+\t}
+\tif _, ok := headers["content-type"]; !ok {
+\t\theaders["content-type"] = "application/json"
+\t}
+
+\tvar body *string
+\tif request.Body != nil {
+\t\traw, err := io.ReadAll(request.Body)
+\t\tif err != nil {
+\t\t\treturn true, err
+\t\t}
+\t\tvalue := string(raw)
+\t\tbody = &value
+\t}
+
+\t*externalCaptured = append(*externalCaptured, externalRequest{
+\t\tBody: body, Headers: headers, Method: request.Method, URL: request.Url,
+\t})
+\treturn true, nil
+}
+
+func externalBench(action func(i int) error, iterations int, concurrency int) (*BenchResult, error) {
+\texternalCaptureMu.Lock()
+\trequests := make([]externalRequest, 0, iterations)
+\texternalCaptured = &requests
+\tpreparationErrors := make([]error, 0)
+\tfor i := 0; i < iterations; i++ {
+\t\tif err := action(i); err != nil {
+\t\t\tpreparationErrors = append(preparationErrors, err)
+\t\t}
+\t}
+\texternalCaptured = nil
+\texternalCaptureMu.Unlock()
+
+\tpayload, err := json.Marshal(externalBatch{Requests: requests, Concurrency: concurrency})
+\tif err != nil {
+\t\treturn nil, err
+\t}
+\tendpoint := strings.TrimRight(os.Getenv("POCKETBUN_BENCH_EXTERNAL_LOAD_URL"), "/") + "/run"
+\treq, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(payload))
+\tif err != nil {
+\t\treturn nil, err
+\t}
+\treq.Header.Set("Content-Type", "application/json")
+\treq.Header.Set("X-PocketBun-Benchmark-Token", os.Getenv("POCKETBUN_BENCH_EXTERNAL_LOAD_TOKEN"))
+
+\tresponse, err := customClient.Do(req)
+\tif err != nil {
+\t\treturn nil, err
+\t}
+\tdefer response.Body.Close()
+\tresponseBody, err := io.ReadAll(response.Body)
+\tif err != nil {
+\t\treturn nil, err
+\t}
+\tif response.StatusCode >= 400 {
+\t\treturn nil, fmt.Errorf("external benchmark load service failed with status %d: %s", response.StatusCode, responseBody)
+\t}
+
+\tvar remote externalResult
+\tif err := json.Unmarshal(responseBody, &remote); err != nil {
+\t\treturn nil, err
+\t}
+\tif remote.BestMs < 0 || remote.WorstMs < 0 || remote.CompletedMs < 0 || remote.ErrorCount < 0 || remote.ErrorCount > len(requests) {
+\t\treturn nil, errors.New("external benchmark load service returned invalid metrics")
+\t}
+
+\tresultErrors := append([]error{}, preparationErrors...)
+\tfor i := 0; i < remote.ErrorCount; i++ {
+\t\tmessage := "external request failed"
+\t\tif i == 0 && remote.SampleError != "" {
+\t\t\tmessage = remote.SampleError
+\t\t}
+\t\tresultErrors = append(resultErrors, errors.New(message))
+\t}
+\treturn &BenchResult{
+\t\tBest: time.Duration(remote.BestMs * float64(time.Millisecond)),
+\t\tWorst: time.Duration(remote.WorstMs * float64(time.Millisecond)),
+\t\tCompleted: time.Duration(remote.CompletedMs * float64(time.Millisecond)),
+\t\tErrors: resultErrors,
+\t}, nil
+}
+
+func resolveExternalBenchmarkBaseURL(fallback string) string {
+\thost := strings.TrimSpace(os.Getenv("POCKETBUN_BENCH_TARGET_HOST"))
+\tif !externalLoadEnabled() || host == "" {
+\t\treturn fallback
+\t}
+\tparsed, err := url.Parse(fallback)
+\tif err != nil || parsed.Port() == "" {
+\t\treturn fallback
+\t}
+\tparsed.Host = net.JoinHostPort(host, parsed.Port())
+\treturn parsed.String()
+}
+`;
+
+  await Promise.all([
+    writeFile(benchPath, benchPatched),
+    writeFile(requestPath, requestPatched),
+    writeFile(runPath, runPatched),
+    writeFile(searchPath, searchPatched),
+    writeFile(externalPath, externalSource),
+  ]);
 }
 
 async function resolveBooleanOverride(

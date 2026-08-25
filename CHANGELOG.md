@@ -45,7 +45,7 @@ This is a **major operational release**, even though PocketBun's PocketBase-alig
 - Added PocketBase-compatible `$app.cron().setTimezone(...)` support while keeping UTC as the default on every host.
 - Clarified custom-route CSRF guidance so cookie-authenticated forms bind tokens to a stable per-session identifier.
 - Faster test runs now isolate files across four Bun worker processes, with `bun run test:changed` available for focused local checks.
-- Improved maintainer benchmarks with latency percentiles, server RSS reporting, explicit worker counts, and reproducible PocketBase version pinning.
+- Improved maintainer benchmarks with an external load generator, latency percentiles, server RSS reporting, explicit worker counts, and reproducible PocketBase version pinning.
 
 ## 0.39.11-pocketbun.0 - 2026-08-14
 

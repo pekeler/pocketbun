@@ -1,5 +1,7 @@
 // Ported from vendor/pocketbase-benchmarks/benchmarks/bench.go.
 
+import { captureBenchRequests, type ExternalBenchRequest } from "./request.ts";
+
 export class BenchResult {
   Errors: Error[];
   BestMs: number;
@@ -38,6 +40,11 @@ export async function bench(
 ): Promise<BenchResult> {
   if (iterations < 1) {
     throw new Error("iterations must be >= 1");
+  }
+
+  const externalLoadUrl = process.env.POCKETBUN_BENCH_EXTERNAL_LOAD_URL?.trim();
+  if (externalLoadUrl) {
+    return await externalBench(externalLoadUrl, action, iterations, concurrency);
   }
 
   const totalStart = performance.now();
@@ -94,6 +101,65 @@ export async function bench(
   }
 
   return new BenchResult(errors, bestMs, worstMs, completedMs);
+}
+
+async function externalBench(
+  externalLoadUrl: string,
+  action: (i: number) => Promise<void>,
+  iterations: number,
+  concurrency: number,
+): Promise<BenchResult> {
+  const preparationErrors: Error[] = [];
+  const requests = await captureBenchRequests(async () => {
+    for (let i = 0; i < iterations; i += 1) {
+      try {
+        await action(i);
+      } catch (error) {
+        preparationErrors.push(toError(error));
+      }
+    }
+  });
+
+  const response = await fetch(`${externalLoadUrl.replace(/\/$/, "")}/run`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-PocketBun-Benchmark-Token": process.env.POCKETBUN_BENCH_EXTERNAL_LOAD_TOKEN ?? "",
+    },
+    body: JSON.stringify({ requests, concurrency } satisfies { requests: ExternalBenchRequest[]; concurrency: number }),
+  });
+  if (!response.ok) {
+    throw new Error(`external benchmark load service failed with status ${response.status}: ${await response.text()}`);
+  }
+
+  const result = (await response.json()) as {
+    bestMs?: unknown;
+    worstMs?: unknown;
+    completedMs?: unknown;
+    errorCount?: unknown;
+    sampleError?: unknown;
+  };
+  const bestMs = Number(result.bestMs);
+  const worstMs = Number(result.worstMs);
+  const completedMs = Number(result.completedMs);
+  const errorCount = Number(result.errorCount);
+  if (
+    !Number.isFinite(bestMs) ||
+    !Number.isFinite(worstMs) ||
+    !Number.isFinite(completedMs) ||
+    !Number.isSafeInteger(errorCount) ||
+    errorCount < 0 ||
+    errorCount > requests.length
+  ) {
+    throw new Error("external benchmark load service returned invalid metrics");
+  }
+
+  const externalErrors = Array.from(
+    { length: errorCount },
+    (_, index) =>
+      new Error(index === 0 && typeof result.sampleError === "string" ? result.sampleError : "external request failed"),
+  );
+  return new BenchResult([...preparationErrors, ...externalErrors], bestMs, worstMs, completedMs);
 }
 
 function toError(value: unknown): Error {

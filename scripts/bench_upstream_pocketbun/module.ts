@@ -678,23 +678,24 @@ export class Runner {
             indexes: [],
             extraFunc: async () => {
               const ids = this.randomRecordIds(collection, 300);
-              const tasks = ids.map(async (id) => {
-                const request = new BenchRequest({
-                  Url: `${this.baseUrl}/api/collections/${collection}/records/${id}`,
-                  Method: "PATCH",
-                  Body: JSON.stringify({ title: `update${id}` }),
-                  Headers: {
-                    Authorization: userToken,
-                  },
-                });
-                await request.Send(null);
-              });
-
-              const settled = await Promise.allSettled(tasks);
-              for (const result of settled) {
-                if (result.status === "rejected") {
-                  throw toError(result.reason);
-                }
+              const result = await bench(
+                async (index) => {
+                  const id = ids[index]!;
+                  const request = new BenchRequest({
+                    Url: `${this.baseUrl}/api/collections/${collection}/records/${id}`,
+                    Method: "PATCH",
+                    Body: JSON.stringify({ title: `update${id}` }),
+                    Headers: {
+                      Authorization: userToken,
+                    },
+                  });
+                  await request.Send(null);
+                },
+                ids.length,
+                -1,
+              );
+              if (result.Errors.length > 0) {
+                throw result.Errors[0];
               }
             },
           },

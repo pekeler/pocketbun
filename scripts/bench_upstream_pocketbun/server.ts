@@ -16,6 +16,7 @@ import { registerBenchmarkModule } from "./module.ts";
 
 const port = parsePort(process.env.POCKETBUN_BENCH_SERVER_PORT);
 const workers = parseWorkers(process.env.POCKETBUN_BENCH_SERVER_WORKERS);
+const listenHost = process.env.POCKETBUN_BENCH_SERVER_LISTEN_HOST?.trim() || "127.0.0.1";
 const dataDir = process.env.POCKETBUN_BENCH_SERVER_DATA_DIR?.trim();
 if (!dataDir) {
   throw new Error("POCKETBUN_BENCH_SERVER_DATA_DIR is required");
@@ -28,7 +29,7 @@ const hooksDir =
 
 if (workers > 1 && !process.env[ClusterEnvRole]) {
   const { runClusterPrimary } = await import("../../src/internal/cluster/primary.ts");
-  await runClusterPrimary({ workers, dataDir, httpAddr: `127.0.0.1:${port}`, showStartBanner: false });
+  await runClusterPrimary({ workers, dataDir, httpAddr: `${listenHost}:${port}`, showStartBanner: false });
   process.exit(0);
 }
 if (process.env[ClusterEnvRole]) {
@@ -65,7 +66,7 @@ if (clusterEnabled()) {
   registerClusterWorkerApp(app);
 }
 
-const server = serve(app, { httpAddr: clusterWorkerAddress() || `127.0.0.1:${port}` });
+const server = serve(app, { httpAddr: clusterWorkerAddress() || `${listenHost}:${port}` });
 if (clusterEnabled()) {
   const { notifyClusterWorkerReady, registerClusterWorkerServerStop } = await import("../../src/internal/cluster/worker.ts");
   registerClusterWorkerServerStop(() => Promise.resolve(server.stop(true)));

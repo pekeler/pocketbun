@@ -1,5 +1,6 @@
 // Ported from vendor/pocketbase-benchmarks/benchmarks/request.go.
 import type { BodyInit } from "bun";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { Agent as HttpAgent, request as httpRequest } from "node:http";
 import { Agent as HttpsAgent, request as httpsRequest } from "node:https";
 
@@ -10,6 +11,15 @@ export type BenchRequestOptions = {
   Method: string;
   Url: string;
 };
+
+export type ExternalBenchRequest = {
+  body: string | null;
+  headers: Record<string, string>;
+  method: string;
+  url: string;
+};
+
+const requestCapture = new AsyncLocalStorage<ExternalBenchRequest[]>();
 
 const sharedHttpAgent = new HttpAgent({
   keepAlive: true,
@@ -56,6 +66,20 @@ export class BenchRequest {
       headers.set("content-type", "application/json");
     }
 
+    const captured = requestCapture.getStore();
+    if (captured) {
+      if (destBody != null) {
+        throw new Error("external benchmark capture does not support response bodies");
+      }
+      captured.push({
+        url: this.Url,
+        method: this.Method,
+        headers: Object.fromEntries(headers.entries()),
+        body: await toRequestBody(this.Body),
+      });
+      return;
+    }
+
     const response = await sendWithSharedTransport({
       url: this.Url,
       method: this.Method,
@@ -76,6 +100,12 @@ export class BenchRequest {
     const payload = JSON.parse(response.bodyText) as Record<string, unknown>;
     Object.assign(destBody, payload);
   }
+}
+
+export async function captureBenchRequests(action: () => Promise<void>): Promise<ExternalBenchRequest[]> {
+  const requests: ExternalBenchRequest[] = [];
+  await requestCapture.run(requests, action);
+  return requests;
 }
 
 type SendOptions = {
