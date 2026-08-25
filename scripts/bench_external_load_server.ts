@@ -3,7 +3,7 @@
 
 import { appendFile } from "node:fs/promises";
 import { bench } from "./bench_upstream_pocketbun/bench.ts";
-import { BenchRequest, type ExternalBenchRequest } from "./bench_upstream_pocketbun/request.ts";
+import { BenchRequest, benchmarkWorkerSlotHeader, type ExternalBenchRequest } from "./bench_upstream_pocketbun/request.ts";
 
 const port = Number.parseInt(process.env.POCKETBUN_BENCH_LOAD_PORT ?? "19100", 10);
 const token = process.env.POCKETBUN_BENCH_EXTERNAL_LOAD_TOKEN ?? "";
@@ -33,7 +33,7 @@ const server = Bun.serve({
       return new Response("Unauthorized", { status: 401 });
     }
 
-    let input: { requests?: unknown; concurrency?: unknown };
+    let input: { requests?: unknown; concurrency?: unknown; phase?: unknown };
     try {
       input = (await request.json()) as typeof input;
     } catch {
@@ -50,9 +50,13 @@ const server = Bun.serve({
     if (!requests.every(isExternalBenchRequest)) {
       return new Response("Invalid request descriptor", { status: 400 });
     }
+    if (input.phase !== "warmup" && input.phase !== "measurement") {
+      return new Response("Invalid phase", { status: 400 });
+    }
 
     const startedAt = performance.now();
     const startedCpu = process.cpuUsage();
+    const workerCounts: Record<string, number> = {};
     let peakRssBytes = process.memoryUsage().rss;
     const rssTimer = setInterval(() => {
       peakRssBytes = Math.max(peakRssBytes, process.memoryUsage().rss);
@@ -61,12 +65,17 @@ const server = Bun.serve({
       const result = await bench(
         async (index) => {
           const item = requests[index] as ExternalBenchRequest;
-          await new BenchRequest({
+          const response = await new BenchRequest({
             Url: item.url,
             Method: item.method,
             Headers: item.headers,
             Body: item.body,
           }).Send(null);
+          const rawSlot = response?.headers[benchmarkWorkerSlotHeader];
+          const slot = Array.isArray(rawSlot) ? rawSlot[0] : rawSlot;
+          if (slot && /^\d+$/.test(slot)) {
+            workerCounts[slot] = (workerCounts[slot] ?? 0) + 1;
+          }
         },
         requests.length,
         concurrency,
@@ -79,8 +88,10 @@ const server = Bun.serve({
         completedMs: result.CompletedMs,
         errorCount: result.Errors.length,
         sampleError: result.Errors[0]?.message ?? "",
+        workerCounts,
         requestCount: requests.length,
         concurrency,
+        phase: input.phase,
         elapsedMs,
         requestsPerSecond: requests.length / (elapsedMs / 1_000),
         clientCpuPercent: (cpu.user + cpu.system) / 1_000 / elapsedMs / 0.01,

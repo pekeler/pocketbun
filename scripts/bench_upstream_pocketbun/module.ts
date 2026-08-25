@@ -6,16 +6,20 @@
 // vendor/pocketbase-benchmarks/benchmarks/test_delete.go,
 // and vendor/pocketbase-benchmarks/main.go.
 
+import { numberOfDFGCompiles } from "bun:jsc";
 import { setTimeout as delay } from "node:timers/promises";
 import type { App } from "../../src/core/app.ts";
 import type { RequestEvent } from "../../src/core/event_request.ts";
 import type { RecordRequestEvent, ServeEvent } from "../../src/core/events.ts";
 import type { Record as RecordModel } from "../../src/core/record_model.ts";
+import { buildCreateRuleContext, checkCreateRule, recordCreate } from "../../src/apis/record_crud.ts";
+import { EnrichRecord } from "../../src/apis/record_helpers.ts";
 import { CollectionNameSuperusers } from "../../src/core/collection_model.ts";
 import { NewRecord } from "../../src/core/record_model.ts";
+import { ClusterEnvSlot } from "../../src/internal/cluster/context.ts";
 import { FireAndForget } from "../../src/tools/routine/routine.ts";
 import { bench, setBenchIterationLimit, type BenchResult } from "./bench.ts";
-import { BenchRequest } from "./request.ts";
+import { BenchRequest, benchmarkWorkerSlotHeader } from "./request.ts";
 import { benchmarkSchema } from "./schema.ts";
 
 const benchmarkStartedKey = "__benchmarkStarted";
@@ -1246,9 +1250,26 @@ function customMiddleware(e: RequestEvent): unknown {
 
 export function registerBenchmarkModule(app: App, baseUrl: string): void {
   const warmupRequests = parseNonNegativeInt(process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS) ?? 0;
+  const workerSlot = process.env[ClusterEnvSlot] ?? "0";
 
   app.OnServe().BindFunc((se: ServeEvent) => {
     app.settings().logs.maxDays = 0;
+    se.Router.BindFunc((e: RequestEvent) => {
+      e.responseHeaders.set(benchmarkWorkerSlotHeader, workerSlot);
+      return e.Next();
+    });
+
+    se.Router.GET("/benchmarks/jit", (e: RequestEvent) => {
+      return e.JSON(200, {
+        slot: workerSlot,
+        dfg: {
+          recordCreate: numberOfDFGCompiles(recordCreate),
+          buildCreateRuleContext: numberOfDFGCompiles(buildCreateRuleContext),
+          checkCreateRule: numberOfDFGCompiles(checkCreateRule),
+          enrichRecord: numberOfDFGCompiles(EnrichRecord),
+        },
+      });
+    });
 
     se.Router.GET("/benchmarks", (e: RequestEvent) => {
       if (e.app.store().has(benchmarkStartedKey)) {

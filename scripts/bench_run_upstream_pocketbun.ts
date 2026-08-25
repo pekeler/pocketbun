@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { benchmarkWorkerSlotHeader } from "./bench_upstream_pocketbun/request.ts";
 import { benchmarkSchema } from "./bench_upstream_pocketbun/schema.ts";
 
 const benchmarkRunOverrideFile = process.env.POCKETBUN_BENCHMARK_RUN_FILE ?? "/tmp/pocketbun-bench-upstream-run.txt";
@@ -333,6 +334,15 @@ type CreateLatencyResult = {
   p50Ms: number;
   p95Ms: number;
   errors: number;
+  warmupWorkerCounts: Record<string, number>;
+  measuredWorkerCounts: Record<string, number>;
+  jitBeforeMeasurement: JitWorkerStatus[];
+  jitAfterMeasurement: JitWorkerStatus[];
+};
+
+type JitWorkerStatus = {
+  slot: string;
+  dfg: Record<string, number>;
 };
 
 type CreateLatencyProbeMode = "full" | "organizations-only" | "users-only" | "users-upstream";
@@ -639,6 +649,10 @@ async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatency
     reportLines.push(`- p50_ms: ${result.p50Ms.toFixed(3)}`);
     reportLines.push(`- p95_ms: ${result.p95Ms.toFixed(3)}`);
     reportLines.push(`- errors: ${result.errors}`);
+    reportLines.push(`- warmup_workers: ${formatWorkerCounts(result.warmupWorkerCounts)}`);
+    reportLines.push(`- measured_workers: ${formatWorkerCounts(result.measuredWorkerCounts)}`);
+    reportLines.push(`- jit_before_measurement: ${formatJitWorkerStatuses(result.jitBeforeMeasurement)}`);
+    reportLines.push(`- jit_after_measurement: ${formatJitWorkerStatuses(result.jitAfterMeasurement)}`);
     reportLines.push("");
   }
 
@@ -648,13 +662,13 @@ async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatency
 }
 
 async function runCreateLatencyScenario(scenario: CreateLatencyScenario): Promise<CreateLatencyResult> {
-  if (benchmarkWarmupRequests > 0) {
-    await runCreateLatencyWarmup(scenario, benchmarkWarmupRequests);
-  }
+  const warmupWorkerCounts = benchmarkWarmupRequests > 0 ? await runCreateLatencyWarmup(scenario, benchmarkWarmupRequests) : {};
+  const jitBeforeMeasurement = await collectJitWorkerStatuses();
 
   let nextIndex = 0;
   let errors = 0;
   const durationsMs: number[] = [];
+  const measuredWorkerCounts: Record<string, number> = {};
   const workerCount = Math.min(scenario.concurrency, scenario.iterations);
 
   const started = performance.now();
@@ -673,6 +687,7 @@ async function runCreateLatencyScenario(scenario: CreateLatencyScenario): Promis
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(scenario.payload(current)),
         });
+        countResponseWorker(response, measuredWorkerCounts);
 
         if (response.status >= 400) {
           errors += 1;
@@ -703,6 +718,7 @@ async function runCreateLatencyScenario(scenario: CreateLatencyScenario): Promis
 
   const completedMs = performance.now() - started;
   const avgMs = durationsMs.length > 0 ? durationsMs.reduce((sum, value) => sum + value, 0) / durationsMs.length : 0;
+  const jitAfterMeasurement = await collectJitWorkerStatuses();
 
   return {
     scenario,
@@ -711,6 +727,10 @@ async function runCreateLatencyScenario(scenario: CreateLatencyScenario): Promis
     p50Ms: percentile(durationsMs, 50),
     p95Ms: percentile(durationsMs, 95),
     errors,
+    warmupWorkerCounts,
+    measuredWorkerCounts,
+    jitBeforeMeasurement,
+    jitAfterMeasurement,
   };
 }
 
@@ -774,14 +794,18 @@ async function runAuthRefreshScenario(scenario: AuthRefreshScenario, authToken: 
   };
 }
 
-async function runCreateLatencyWarmup(scenario: CreateLatencyScenario, warmupRequests: number): Promise<void> {
+async function runCreateLatencyWarmup(
+  scenario: CreateLatencyScenario,
+  warmupRequests: number,
+): Promise<Record<string, number>> {
   const total = Math.max(0, Math.floor(warmupRequests));
   if (total === 0) {
-    return;
+    return {};
   }
 
   let nextIndex = 0;
   let errors = 0;
+  const workerCounts: Record<string, number> = {};
   const indexOffset = 1_000_000;
   const workerCount = Math.min(scenario.concurrency, total);
   const workers = Array.from({ length: workerCount }, async () => {
@@ -801,6 +825,7 @@ async function runCreateLatencyWarmup(scenario: CreateLatencyScenario, warmupReq
         if (response.status >= 400) {
           errors += 1;
         }
+        countResponseWorker(response, workerCounts);
         discardResponseBody(response);
       } catch {
         errors += 1;
@@ -812,6 +837,64 @@ async function runCreateLatencyWarmup(scenario: CreateLatencyScenario, warmupReq
   if (errors > 0) {
     console.log(`  warmup errors (${scenario.collection}): ${errors}/${total}`);
   }
+  return workerCounts;
+}
+
+async function collectJitWorkerStatuses(): Promise<JitWorkerStatus[]> {
+  const statuses = new Map<string, JitWorkerStatus>();
+  const maxAttempts = Math.min(512, Math.max(32, benchmarkServerWorkers * 64));
+  for (let attempt = 0; attempt < maxAttempts && statuses.size < benchmarkServerWorkers; attempt += 1) {
+    try {
+      const response = await fetch(`${baseUrl}/benchmarks/jit`, {
+        headers: { Connection: "close" },
+      });
+      if (!response.ok) {
+        discardResponseBody(response);
+        continue;
+      }
+      const value = (await response.json()) as { slot?: unknown; dfg?: unknown };
+      if (typeof value.slot !== "string" || !value.dfg || typeof value.dfg !== "object" || Array.isArray(value.dfg)) {
+        continue;
+      }
+      const dfg: Record<string, number> = {};
+      for (const [name, rawCount] of Object.entries(value.dfg)) {
+        const count = Number(rawCount);
+        if (Number.isSafeInteger(count) && count >= 0) {
+          dfg[name] = count;
+        }
+      }
+      statuses.set(value.slot, { slot: value.slot, dfg });
+    } catch {
+      // Diagnostics are best-effort and must not invalidate the latency probe.
+    }
+  }
+  return [...statuses.values()].sort((left, right) => Number(left.slot) - Number(right.slot));
+}
+
+function countResponseWorker(response: Response, counts: Record<string, number>): void {
+  const slot = response.headers.get(benchmarkWorkerSlotHeader);
+  if (slot && /^\d+$/.test(slot)) {
+    counts[slot] = (counts[slot] ?? 0) + 1;
+  }
+}
+
+function formatWorkerCounts(counts: Record<string, number>): string {
+  const entries = Object.entries(counts);
+  return entries.length > 0 ? entries.map(([slot, count]) => `${slot}=${count}`).join(" ") : "none";
+}
+
+function formatJitWorkerStatuses(statuses: JitWorkerStatus[]): string {
+  if (statuses.length === 0) {
+    return "none";
+  }
+  return statuses
+    .map(
+      ({ slot, dfg }) =>
+        `${slot}(${Object.entries(dfg)
+          .map(([name, count]) => `${name}=${count}`)
+          .join(",")})`,
+    )
+    .join(" ");
 }
 
 async function setCollectionCreateRule(superuserToken: string, collection: string, createRule: string): Promise<void> {

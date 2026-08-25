@@ -1,8 +1,11 @@
 // Ported from vendor/pocketbase-benchmarks/benchmarks/request.go.
 import type { BodyInit } from "bun";
+import type { IncomingHttpHeaders } from "node:http";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Agent as HttpAgent, request as httpRequest } from "node:http";
 import { Agent as HttpsAgent, request as httpsRequest } from "node:https";
+
+export const benchmarkWorkerSlotHeader = "x-pocketbun-benchmark-worker-slot";
 
 export type BenchRequestOptions = {
   Body?: BodyInit | null;
@@ -17,6 +20,12 @@ export type ExternalBenchRequest = {
   headers: Record<string, string>;
   method: string;
   url: string;
+};
+
+export type BenchResponse = {
+  status: number;
+  headers: IncomingHttpHeaders;
+  bodyText: string;
 };
 
 const requestCapture = new AsyncLocalStorage<ExternalBenchRequest[]>();
@@ -54,7 +63,7 @@ export class BenchRequest {
 
   // If destBody is non-nil, it will read and unmarshal the request
   // response body into the specified variable.
-  async Send(destBody: Record<string, unknown> | null): Promise<void> {
+  async Send(destBody: Record<string, unknown> | null): Promise<BenchResponse | null> {
     const headers = new Headers();
 
     for (const [key, value] of Object.entries(this.Headers)) {
@@ -77,7 +86,7 @@ export class BenchRequest {
         headers: Object.fromEntries(headers.entries()),
         body: await toRequestBody(this.Body),
       });
-      return;
+      return null;
     }
 
     const response = await sendWithSharedTransport({
@@ -94,11 +103,12 @@ export class BenchRequest {
     }
 
     if (destBody == null) {
-      return;
+      return response;
     }
 
     const payload = JSON.parse(response.bodyText) as Record<string, unknown>;
     Object.assign(destBody, payload);
+    return response;
   }
 }
 
@@ -117,7 +127,7 @@ type SendOptions = {
   expectBody: boolean;
 };
 
-async function sendWithSharedTransport(options: SendOptions): Promise<{ status: number; bodyText: string }> {
+async function sendWithSharedTransport(options: SendOptions): Promise<BenchResponse> {
   const { url, method, headers, body, signal, expectBody } = options;
   const parsed = new URL(url);
   const isHttps = parsed.protocol === "https:";
@@ -133,7 +143,7 @@ async function sendWithSharedTransport(options: SendOptions): Promise<{ status: 
     rawHeaders["content-length"] = String(Buffer.byteLength(bodyPayload));
   }
 
-  return await new Promise<{ status: number; bodyText: string }>((resolve, reject) => {
+  return await new Promise<BenchResponse>((resolve, reject) => {
     const req = requestImpl(
       {
         protocol: parsed.protocol,
@@ -150,7 +160,7 @@ async function sendWithSharedTransport(options: SendOptions): Promise<{ status: 
 
         if (!expectBody && status < 400) {
           res.resume();
-          resolve({ status, bodyText: "" });
+          resolve({ status, headers: res.headers, bodyText: "" });
           return;
         }
 
@@ -159,7 +169,7 @@ async function sendWithSharedTransport(options: SendOptions): Promise<{ status: 
         res.on("data", (chunk: string) => {
           bodyText += chunk;
         });
-        res.once("end", () => resolve({ status, bodyText }));
+        res.once("end", () => resolve({ status, headers: res.headers, bodyText }));
       },
     );
 

@@ -14,12 +14,20 @@ export class BenchResult {
   BestMs: number;
   WorstMs: number;
   CompletedMs: number;
+  WorkerCounts: Record<string, number>;
 
-  constructor(errors: Error[], bestMs: number, worstMs: number, completedMs: number) {
+  constructor(
+    errors: Error[],
+    bestMs: number,
+    worstMs: number,
+    completedMs: number,
+    workerCounts: Record<string, number> = {},
+  ) {
     this.Errors = errors;
     this.BestMs = bestMs;
     this.WorstMs = worstMs;
     this.CompletedMs = completedMs;
+    this.WorkerCounts = workerCounts;
   }
 
   String(): string {
@@ -28,8 +36,12 @@ export class BenchResult {
       `┌─ Best:      ${formatDuration(this.BestMs)}`,
       `├─ Worst:     ${formatDuration(this.WorstMs)}`,
       `├─ Completed: ${formatDuration(this.CompletedMs)}`,
-      `└─ Errors:    ${this.Errors.length}`,
     ];
+    const workerCounts = Object.entries(this.WorkerCounts);
+    if (workerCounts.length > 0) {
+      lines.push(`├─ Workers:   ${workerCounts.map(([slot, count]) => `${slot}=${count}`).join(" ")}`);
+    }
+    lines.push(`└─ Errors:    ${this.Errors.length}`);
     if (this.Errors.length > 0) {
       lines.push(` └─ sample error: ${this.Errors[0]!.message}`);
     }
@@ -135,7 +147,11 @@ async function externalBench(
       "Content-Type": "application/json",
       "X-PocketBun-Benchmark-Token": process.env.POCKETBUN_BENCH_EXTERNAL_LOAD_TOKEN ?? "",
     },
-    body: JSON.stringify({ requests, concurrency } satisfies { requests: ExternalBenchRequest[]; concurrency: number }),
+    body: JSON.stringify({
+      requests,
+      concurrency,
+      phase: iterationLimit > 0 ? "warmup" : "measurement",
+    } satisfies { requests: ExternalBenchRequest[]; concurrency: number; phase: "warmup" | "measurement" }),
   });
   if (!response.ok) {
     throw new Error(`external benchmark load service failed with status ${response.status}: ${await response.text()}`);
@@ -147,18 +163,21 @@ async function externalBench(
     completedMs?: unknown;
     errorCount?: unknown;
     sampleError?: unknown;
+    workerCounts?: unknown;
   };
   const bestMs = Number(result.bestMs);
   const worstMs = Number(result.worstMs);
   const completedMs = Number(result.completedMs);
   const errorCount = Number(result.errorCount);
+  const workerCounts = parseWorkerCounts(result.workerCounts, requests.length);
   if (
     !Number.isFinite(bestMs) ||
     !Number.isFinite(worstMs) ||
     !Number.isFinite(completedMs) ||
     !Number.isSafeInteger(errorCount) ||
     errorCount < 0 ||
-    errorCount > requests.length
+    errorCount > requests.length ||
+    workerCounts === null
   ) {
     throw new Error("external benchmark load service returned invalid metrics");
   }
@@ -168,7 +187,28 @@ async function externalBench(
     (_, index) =>
       new Error(index === 0 && typeof result.sampleError === "string" ? result.sampleError : "external request failed"),
   );
-  return new BenchResult([...preparationErrors, ...externalErrors], bestMs, worstMs, completedMs);
+  return new BenchResult([...preparationErrors, ...externalErrors], bestMs, worstMs, completedMs, workerCounts);
+}
+
+function parseWorkerCounts(value: unknown, requestCount: number): Record<string, number> | null {
+  if (value === undefined) {
+    return {};
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const result: Record<string, number> = {};
+  let total = 0;
+  for (const [slot, rawCount] of Object.entries(value)) {
+    const count = Number(rawCount);
+    if (!/^\d+$/.test(slot) || !Number.isSafeInteger(count) || count < 0) {
+      return null;
+    }
+    result[slot] = count;
+    total += count;
+  }
+  return total <= requestCount ? result : null;
 }
 
 function toError(value: unknown): Error {
