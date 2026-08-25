@@ -2,6 +2,11 @@
 
 This directory stores raw benchmark output snapshots committed to the repository.
 
+Committed comparison batches:
+
+- [`pb_compare_20260824T220243Z_external`](pb_compare_20260824T220243Z_external/summary.md) — PocketBase v0.40.0 versus PocketBun with external load generation and one/two/four application execution lanes.
+- [`pb_compare_20260226T120803Z`](pb_compare_20260226T120803Z/summary.md) — earlier co-located PocketBase/PocketBun comparison.
+
 Naming convention:
 
 - `<timestamp>-pocketbase-upstream-<machine-tag>.md`
@@ -34,6 +39,7 @@ writes a local markdown summary with the mean-factor output.
 
 Current retention policy:
 
+- keep every accepted run used to calculate a committed comparison summary
 - keep the latest 3 full zero-error PocketBase upstream runs per machine tag
 - keep the latest 3 full zero-error PocketBun upstream runs per machine tag
 - remove older/partial/error-only snapshots after issues are investigated
