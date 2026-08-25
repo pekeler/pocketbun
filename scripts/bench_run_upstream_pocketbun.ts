@@ -17,7 +17,9 @@ if (!/^[0-9a-f]{40}$/.test(benchmarkSourceRevision)) {
 }
 const benchmarkWarmupRequestsFile =
   process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS_FILE ?? "/tmp/pocketbun-bench-upstream-warmup-requests.txt";
-const benchmarkWarmupRequests = await resolveIntOverride(benchmarkWarmupRequestsFile, 0);
+const benchmarkWarmupRequests =
+  parseNonNegativeInt(process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS) ??
+  (await resolveIntOverride(benchmarkWarmupRequestsFile, 100));
 const parsedBenchmarkServerWorkers = parsePositiveInt(process.env.POCKETBUN_BENCH_SERVER_WORKERS ?? "1");
 if (parsedBenchmarkServerWorkers === null || parsedBenchmarkServerWorkers > 256) {
   throw new Error("POCKETBUN_BENCH_SERVER_WORKERS must be an integer between 1 and 256");
@@ -62,6 +64,7 @@ const serverProc = Bun.spawn({
     POCKETBUN_BENCH_SERVER_DATA_DIR: dataDir,
     POCKETBUN_BENCH_SERVER_HOOKS_DIR: hooksDir,
     POCKETBUN_BENCH_SERVER_WORKERS: String(benchmarkServerWorkers),
+    POCKETBUN_BENCHMARK_WARMUP_REQUESTS: String(benchmarkWarmupRequests),
   },
   stdio: ["ignore", "inherit", "inherit"],
 });
@@ -104,6 +107,7 @@ try {
       `- server workers: ${benchmarkServerWorkers}`,
       `- load generator: ${externalLoadUrl || "co-located"}`,
       `- benchmark target host: ${targetHost || "loopback"}`,
+      `- warmup requests per scenario: ${benchmarkWarmupRequests}`,
       "",
     ].join("\n");
 
@@ -159,6 +163,7 @@ try {
       `- server workers: ${benchmarkServerWorkers}`,
       `- load generator: ${externalLoadUrl || "co-located"}`,
       `- benchmark target host: ${targetHost || "loopback"}`,
+      `- warmup requests per scenario: ${benchmarkWarmupRequests}`,
       "",
     ].join("\n");
 

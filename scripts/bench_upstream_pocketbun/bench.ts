@@ -2,6 +2,13 @@
 
 import { captureBenchRequests, type ExternalBenchRequest } from "./request.ts";
 
+let iterationLimit = 0;
+
+// PocketBun-only: cap each scenario during the discarded benchmark warmup.
+export function setBenchIterationLimit(limit: number): void {
+  iterationLimit = Math.max(0, Math.floor(limit));
+}
+
 export class BenchResult {
   Errors: Error[];
   BestMs: number;
@@ -41,6 +48,8 @@ export async function bench(
   if (iterations < 1) {
     throw new Error("iterations must be >= 1");
   }
+
+  iterations = iterationLimit > 0 ? Math.min(iterations, iterationLimit) : iterations;
 
   const externalLoadUrl = process.env.POCKETBUN_BENCH_EXTERNAL_LOAD_URL?.trim();
   if (externalLoadUrl) {

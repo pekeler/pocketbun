@@ -40,7 +40,7 @@ const benchmarkWarmupRequestsFile =
 const benchmarkWarmupRequests = await resolveIntOverride(
   process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS,
   benchmarkWarmupRequestsFile,
-  0,
+  100,
 );
 const machineTag = sanitizeTag(process.env.POCKETBUN_BENCH_MACHINE_TAG ?? "m2-max");
 const timestampTag = createTimestampTag(new Date());
@@ -83,6 +83,7 @@ await applyBenchErrorCollectionPatch(sourceDir, benchmarkDebugErrors);
 if (externalLoadUrl) {
   await applyExternalLoadPatch(sourceDir);
 }
+await applyFullSuiteWarmupPatch(sourceDir);
 
 await mkdir(dataDir, { recursive: true });
 await copyDirIfExists(join(sourceDir, "pb_hooks"), join(runRootDir, "pb_hooks"));
@@ -126,7 +127,10 @@ console.log(`Starting upstream benchmark server executable: ${basename(executabl
 const serverProc = Bun.spawn({
   cmd: [executablePath, "serve", `--http=${externalLoadUrl ? "0.0.0.0" : "127.0.0.1"}:${port}`, `--dir=${dataDir}`],
   cwd: sourceDir,
-  env: { ...process.env },
+  env: {
+    ...process.env,
+    POCKETBUN_BENCHMARK_WARMUP_REQUESTS: String(benchmarkWarmupRequests),
+  },
   stdio: ["ignore", "inherit", "inherit"],
 });
 
@@ -172,6 +176,7 @@ try {
       `- executable used: ${basename(executablePath)}`,
       `- load generator: ${externalLoadUrl || "co-located"}`,
       `- benchmark target host: ${targetHost || "loopback"}`,
+      `- warmup requests per scenario: ${benchmarkWarmupRequests}`,
       "",
     ].join("\n");
 
@@ -229,6 +234,7 @@ try {
       `- executable used: ${basename(executablePath)}`,
       `- load generator: ${externalLoadUrl || "co-located"}`,
       `- benchmark target host: ${targetHost || "loopback"}`,
+      `- warmup requests per scenario: ${benchmarkWarmupRequests}`,
       "",
     ].join("\n");
 
@@ -579,6 +585,90 @@ async function applyBenchErrorCollectionPatch(rootDir: string, debugErrors: bool
   }
 
   await writeFile(benchPath, patched);
+}
+
+async function applyFullSuiteWarmupPatch(rootDir: string): Promise<void> {
+  const benchPath = join(rootDir, "benchmarks", "bench.go");
+  const runPath = join(rootDir, "benchmarks", "run.go");
+
+  const benchOriginal = await readFile(benchPath, "utf8");
+  const benchPatched = benchOriginal
+    .replace(
+      `// A negative concurrency indicates no limit
+// (aka. a go routine will be fired for each iteration).
+func bench(action func(i int) error, iterations int, concurrency int) (*BenchResult, error) {`,
+      `var benchmarkIterationLimit int
+
+// A negative concurrency indicates no limit
+// (aka. a go routine will be fired for each iteration).
+func bench(action func(i int) error, iterations int, concurrency int) (*BenchResult, error) {`,
+    )
+    .replace(
+      `\tif iterations < 1 {
+\t\treturn nil, errors.New("iterations must be >= 1")
+\t}`,
+      `\tif iterations < 1 {
+\t\treturn nil, errors.New("iterations must be >= 1")
+\t}
+\tif benchmarkIterationLimit > 0 && iterations > benchmarkIterationLimit {
+\t\titerations = benchmarkIterationLimit
+\t}`,
+    );
+  if (
+    benchPatched === benchOriginal ||
+    !benchPatched.includes("var benchmarkIterationLimit int") ||
+    !benchPatched.includes("iterations = benchmarkIterationLimit")
+  ) {
+    throw new Error(`failed to patch ${benchPath} for benchmark warmup`);
+  }
+
+  const runOriginal = await readFile(runPath, "utf8");
+  const runPatched = runOriginal.replace(`\t"os"\n\t"strings"`, `\t"os"\n\t"strconv"\n\t"strings"`).replace(
+    `\t\t\troutine.FireAndForget(func() {
+\t\t\t\t// the response was already commited, so we just log the error
+\t\t\t\tif err := r.run(toRun); err != nil {
+\t\t\t\t\tlog.Println("Run error: ", err)
+\t\t\t\t}
+
+\t\t\t\tapp.Store().Remove(benchmarkStartedKey)
+\t\t\t})`,
+    `\t\t\troutine.FireAndForget(func() {
+\t\t\t\tvar runErr error
+\t\t\t\twarmupRequests, _ := strconv.Atoi(os.Getenv("POCKETBUN_BENCHMARK_WARMUP_REQUESTS"))
+\t\t\t\tif warmupRequests > 0 && len(toRun) > 0 && strings.TrimSpace(toRun[0]) == "create" {
+\t\t\t\t\tlog.Printf("Running untimed benchmark warmup (up to %d requests per scenario)...\\n", warmupRequests)
+\t\t\t\t\twarmup := runner{app: app, baseUrl: r.baseUrl, writers: map[io.Writer]AfterRunFunc{}}
+\t\t\t\t\trunErr = func() error {
+\t\t\t\t\t\tbenchmarkIterationLimit = warmupRequests
+\t\t\t\t\t\tdefer func() { benchmarkIterationLimit = 0 }()
+\t\t\t\t\t\treturn warmup.run(toRun)
+\t\t\t\t\t}()
+\t\t\t\t\tif runErr == nil {
+\t\t\t\t\t\tlog.Println("Untimed benchmark warmup completed.")
+\t\t\t\t\t}
+\t\t\t\t}
+\t\t\t\tif runErr == nil {
+\t\t\t\t\trunErr = r.run(toRun)
+\t\t\t\t} else {
+\t\t\t\t\trunErr = fmt.Errorf("benchmark warmup failed: %w", runErr)
+\t\t\t\t\tfor _, afterRun := range r.writers {
+\t\t\t\t\t\tif afterRun != nil {
+\t\t\t\t\t\t\tafterRun(runErr)
+\t\t\t\t\t\t}
+\t\t\t\t\t}
+\t\t\t\t}
+\t\t\t\tif runErr != nil {
+\t\t\t\t\tlog.Println("Run error: ", runErr)
+\t\t\t\t}
+
+\t\t\t\tapp.Store().Remove(benchmarkStartedKey)
+\t\t\t})`,
+  );
+  if (runPatched === runOriginal || !runPatched.includes('strconv.Atoi(os.Getenv("POCKETBUN_BENCHMARK_WARMUP_REQUESTS"))')) {
+    throw new Error(`failed to patch ${runPath} for benchmark warmup`);
+  }
+
+  await Promise.all([writeFile(benchPath, benchPatched), writeFile(runPath, runPatched)]);
 }
 
 async function applyExternalLoadPatch(rootDir: string): Promise<void> {

@@ -25,6 +25,13 @@ bun run bench:upstream
 bun run bench:upstream:pocketbun
 ```
 
+The default full-suite run first executes the same selected scenarios without
+recording their timings, capped at 100 requests per scenario. The measured
+`create` phase then clears that disposable data without restarting the server,
+so both runtimes are warm while measured fixtures remain unchanged. Set
+`POCKETBUN_BENCHMARK_WARMUP_REQUESTS=0` to disable the warmup or another
+non-negative integer to change the cap.
+
 Remote paired-run helper (local-only script):
 
 ```sh

@@ -14,7 +14,7 @@ import type { Record as RecordModel } from "../../src/core/record_model.ts";
 import { CollectionNameSuperusers } from "../../src/core/collection_model.ts";
 import { NewRecord } from "../../src/core/record_model.ts";
 import { FireAndForget } from "../../src/tools/routine/routine.ts";
-import { bench, type BenchResult } from "./bench.ts";
+import { bench, setBenchIterationLimit, type BenchResult } from "./bench.ts";
 import { BenchRequest } from "./request.ts";
 import { benchmarkSchema } from "./schema.ts";
 
@@ -1245,6 +1245,8 @@ function customMiddleware(e: RequestEvent): unknown {
 }
 
 export function registerBenchmarkModule(app: App, baseUrl: string): void {
+  const warmupRequests = parseNonNegativeInt(process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS) ?? 0;
+
   app.OnServe().BindFunc((se: ServeEvent) => {
     app.settings().logs.maxDays = 0;
 
@@ -1300,7 +1302,29 @@ export function registerBenchmarkModule(app: App, baseUrl: string): void {
       // run tests in the background because some host providers
       // don't allow long persistence connections.
       FireAndForget(async () => {
-        const runErr = await runner.run(toRun);
+        let runErr: Error | null = null;
+        // PocketBun-only: warm both benchmark targets symmetrically, then let
+        // the measured create phase clear this data without restarting.
+        if (warmupRequests > 0 && toRun[0]?.trim() === "create") {
+          console.log(`Running untimed benchmark warmup (up to ${warmupRequests} requests per scenario)...`);
+          setBenchIterationLimit(warmupRequests);
+          try {
+            runErr = await new Runner(app, baseUrl, []).run(toRun);
+          } finally {
+            setBenchIterationLimit(0);
+          }
+          if (!runErr) {
+            console.log("Untimed benchmark warmup completed.");
+          }
+        }
+        if (!runErr) {
+          runErr = await runner.run(toRun);
+        } else {
+          runErr = new Error(`benchmark warmup failed: ${runErr.message}`);
+          for (const writer of runner.writers) {
+            await writer.afterRun?.(runErr);
+          }
+        }
         if (runErr) {
           console.log("Run error:", runErr);
         }
@@ -1354,6 +1378,14 @@ function toNullableString(value: unknown): string | null {
   }
 
   return null;
+}
+
+function parseNonNegativeInt(value: string | undefined): number | null {
+  if (!value || !/^\d+$/.test(value)) {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 function toError(value: unknown): Error {
