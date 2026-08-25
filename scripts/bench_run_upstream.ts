@@ -40,7 +40,7 @@ const benchmarkWarmupRequestsFile =
 const benchmarkWarmupRequests = await resolveIntOverride(
   process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS,
   benchmarkWarmupRequestsFile,
-  150,
+  300,
 );
 const machineTag = sanitizeTag(process.env.POCKETBUN_BENCH_MACHINE_TAG ?? "m2-max");
 const timestampTag = createTimestampTag(new Date());
