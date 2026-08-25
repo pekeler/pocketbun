@@ -20,6 +20,7 @@ export type InspectorScenarioOptions = {
   iterations: number | null;
   out: string | null;
   scenario: Scenario;
+  settleMs: number;
   url: string;
   warmupRequests: number | null;
 };
@@ -32,6 +33,7 @@ export function initBaseOptions(defaultScenario: Scenario): InspectorScenarioOpt
     iterations: null,
     out: null,
     scenario: defaultScenario,
+    settleMs: 0,
     url: defaultUrl(defaultScenario),
     warmupRequests: null,
   };
@@ -76,6 +78,10 @@ export function parseBaseArg(options: InspectorScenarioOptions, argv: string[], 
   }
   if (arg === "--warmup-requests") {
     options.warmupRequests = parseNonNegativeInt(requireValue(argv, index + 1, arg), arg);
+    return index + 1;
+  }
+  if (arg === "--settle-ms") {
+    options.settleMs = parseNonNegativeInt(requireValue(argv, index + 1, arg), arg);
     return index + 1;
   }
   if (arg === "-h" || arg === "--help") {

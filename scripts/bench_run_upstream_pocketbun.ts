@@ -616,6 +616,7 @@ async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatency
   const results: CreateLatencyResult[] = [];
   for (const scenario of scenarios) {
     await setCollectionCreateRule(superuserToken, scenario.collection, scenario.rule);
+    await Bun.sleep(2_000);
     console.log(
       `\nRunning PocketBun create latency probe (${scenario.collection}, reqs=${scenario.iterations}, conc=${scenario.concurrency}, rule=${JSON.stringify(scenario.rule)})...`,
     );

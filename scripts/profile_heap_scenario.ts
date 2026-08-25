@@ -49,6 +49,8 @@ Options:
                             default: 16
   --warmup-requests <n>     sequential warmup requests before profiling
                             default: scenario-specific
+  --settle-ms <ms>          wait after scenario setup before profiling
+                            default: 0
   --summary-out <path>      optional summary JSON path
                             default: $POCKETBUN_PROFILE_DIR/<scenario>.summary.json
                                      or .tmp/profile-heap-scenario/<scenario>.summary.json
@@ -98,12 +100,18 @@ mkdirSync(dirname(summaryOut), { recursive: true });
 await using managed = await newScenarioApp(options.scenario);
 const app = managed.app;
 const runnerAuth = options.auth ?? "none";
-const prepared = await prepareScenario(app, options.scenario, options.url, options.iterations);
+const prepared = await prepareScenario(
+  app,
+  options.scenario,
+  options.url,
+  options.iterations == null ? null : options.iterations + (options.warmupRequests ?? 0),
+);
 const server = await retryServerStart(() => serve(app, { httpAddr: "127.0.0.1:0", showStartBanner: false }));
 
 try {
   const baseUrl = `http://127.0.0.1:${server.port}`;
   const token = await resolveAuthToken(app, runnerAuth);
+  await Bun.sleep(options.settleMs);
   const completedRequests = await runExternalLoad(baseUrl, token, options, prepared.extraArgs ?? []);
   const summary = {
     auth: runnerAuth,
@@ -113,6 +121,7 @@ try {
     iterations: options.iterations,
     label: prepared.label,
     scenario: options.scenario,
+    settleMs: options.settleMs,
     summaryOut,
     warmupRequests: options.warmupRequests,
   };
@@ -125,6 +134,7 @@ try {
   console.log(`Profiled request: ${prepared.label}`);
   console.log(`Auth mode: ${runnerAuth}`);
   console.log(`Concurrency: ${options.concurrency}`);
+  console.log(`Settling period: ${options.settleMs}ms`);
   if (options.durationMs != null) {
     console.log(`Duration: ${options.durationMs}ms`);
   }

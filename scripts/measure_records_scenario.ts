@@ -22,11 +22,13 @@ type Options = {
   durationMs: number | null;
   iterations: number | null;
   scenario: Scenario;
+  settleMs: number;
   url: string;
   warmupRequests: number | null;
 };
 
 type LoadResult = {
+  completedMs: number;
   completedRequests: number;
   latencyMs: {
     p50: number;
@@ -65,6 +67,8 @@ Options:
                             default: 10
   --warmup-requests <n>     sequential warmup requests before measuring
                             default: scenario-specific
+  --settle-ms <ms>          wait after scenario setup before measuring
+                            default: 0
   -h, --help                show help
 `);
 }
@@ -76,6 +80,7 @@ function parseArgs(argv: string[]): Options {
     durationMs: 10000,
     iterations: null,
     scenario: "list-records",
+    settleMs: 0,
     url: defaultUrl("list-records"),
     warmupRequests: null,
   };
@@ -119,6 +124,10 @@ function parseArgs(argv: string[]): Options {
     }
     if (arg === "--warmup-requests") {
       options.warmupRequests = parseNonNegativeInt(requireValue(argv, ++i, arg), arg);
+      continue;
+    }
+    if (arg === "--settle-ms") {
+      options.settleMs = parseNonNegativeInt(requireValue(argv, ++i, arg), arg);
       continue;
     }
     if (arg === "-h" || arg === "--help") {
@@ -225,9 +234,11 @@ async function runExternalLoad(
   }
 
   const payload = JSON.parse(stdout) as {
+    completedMs?: unknown;
     completedRequests?: unknown;
     latencyMs?: { p50?: unknown; p95?: unknown; p99?: unknown };
   };
+  const completedMs = Number(payload.completedMs);
   const completedRequests = Number(payload.completedRequests);
   const latencyMs = {
     p50: Number(payload.latencyMs?.p50),
@@ -235,6 +246,8 @@ async function runExternalLoad(
     p99: Number(payload.latencyMs?.p99),
   };
   if (
+    !Number.isFinite(completedMs) ||
+    completedMs < 0 ||
     !Number.isFinite(completedRequests) ||
     completedRequests < 0 ||
     Object.values(latencyMs).some((value) => !Number.isFinite(value) || value < 0)
@@ -242,14 +255,19 @@ async function runExternalLoad(
     throw new Error("load client returned invalid metrics");
   }
 
-  return { completedRequests, latencyMs, peakRssBytes };
+  return { completedMs, completedRequests, latencyMs, peakRssBytes };
 }
 
 const options = parseArgs(Bun.argv.slice(2));
 await using managed = await newScenarioApp(options.scenario);
 const app = managed.app;
 const runnerAuth = options.auth ?? defaultAuth(options.scenario);
-const prepared = await prepareScenario(app, options.scenario, options.url, options.iterations);
+const prepared = await prepareScenario(
+  app,
+  options.scenario,
+  options.url,
+  options.iterations == null ? null : options.iterations + (options.warmupRequests ?? 0),
+);
 
 let server: ReturnType<typeof Bun.serve> | null = null;
 
@@ -257,13 +275,13 @@ try {
   server = await retryServerStart(() => serve(app, { httpAddr: "127.0.0.1:0", showStartBanner: false }));
   const baseUrl = `http://127.0.0.1:${server.port}`;
   const token = await resolveAuthToken(app, runnerAuth);
+  await Bun.sleep(options.settleMs);
   const idleRssBytes = process.memoryUsage().rss;
   const result = await runExternalLoad(baseUrl, token, options, prepared.extraArgs ?? []);
 
   console.log(`Completed requests: ${result.completedRequests}`);
-  if (options.durationMs != null) {
-    console.log(`Requests/sec: ${(result.completedRequests / (options.durationMs / 1000)).toFixed(2)}`);
-  }
+  console.log(`Completed in: ${result.completedMs.toFixed(3)}ms`);
+  console.log(`Requests/sec: ${(result.completedRequests / (result.completedMs / 1000)).toFixed(2)}`);
   console.log(
     `Latency: p50=${result.latencyMs.p50.toFixed(3)}ms p95=${result.latencyMs.p95.toFixed(3)}ms p99=${result.latencyMs.p99.toFixed(3)}ms`,
   );
@@ -272,6 +290,7 @@ try {
   console.log(`Measured request: ${prepared.label}`);
   console.log(`Auth mode: ${runnerAuth}`);
   console.log(`Concurrency: ${options.concurrency}`);
+  console.log(`Settling period: ${options.settleMs}ms`);
   if (options.durationMs != null) {
     console.log(`Duration: ${options.durationMs}ms`);
   }

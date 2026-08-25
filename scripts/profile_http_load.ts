@@ -23,6 +23,7 @@ type ScenarioRequest = {
 };
 
 type LoadResult = {
+  completedMs: number;
   completedRequests: number;
   latencyMs: {
     p50: number;
@@ -242,8 +243,9 @@ async function runLoad(options: Options, headers: Headers, runTag: string): Prom
   let completed = 0;
   let nextIndex = options.warmupRequests;
   const latenciesMs: number[] = [];
+  const startedAt = performance.now();
   const deadline = options.durationMs == null ? null : Date.now() + options.durationMs;
-  const totalIterations = options.iterations ?? Number.POSITIVE_INFINITY;
+  const totalIterations = options.iterations == null ? Number.POSITIVE_INFINITY : nextIndex + options.iterations;
 
   const worker = async () => {
     while (true) {
@@ -276,6 +278,7 @@ async function runLoad(options: Options, headers: Headers, runTag: string): Prom
   await Promise.all(Array.from({ length: options.concurrency }, () => worker()));
   latenciesMs.sort((left, right) => left - right);
   return {
+    completedMs: performance.now() - startedAt,
     completedRequests: completed,
     latencyMs: {
       p50: percentile(latenciesMs, 0.5),
