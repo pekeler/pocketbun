@@ -36,6 +36,7 @@ const sharedHttpAgent = new HttpAgent({
   maxFreeSockets: 2_000,
   timeout: 120_000,
   keepAliveMsecs: 30_000,
+  scheduling: "fifo",
 });
 
 const sharedHttpsAgent = new HttpsAgent({
@@ -44,6 +45,7 @@ const sharedHttpsAgent = new HttpsAgent({
   maxFreeSockets: 2_000,
   timeout: 120_000,
   keepAliveMsecs: 30_000,
+  scheduling: "fifo",
 });
 
 export class BenchRequest {
