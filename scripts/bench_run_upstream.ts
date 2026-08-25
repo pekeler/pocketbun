@@ -826,6 +826,7 @@ type externalRequest struct {
 type externalBatch struct {
 \tRequests    []externalRequest \`json:"requests"\`
 \tConcurrency int               \`json:"concurrency"\`
+\tPhase       string            \`json:"phase"\`
 }
 
 type externalResult struct {
@@ -888,7 +889,11 @@ func externalBench(action func(i int) error, iterations int, concurrency int) (*
 \texternalCaptured = nil
 \texternalCaptureMu.Unlock()
 
-\tpayload, err := json.Marshal(externalBatch{Requests: requests, Concurrency: concurrency})
+\tphase := "measurement"
+\tif benchmarkIterationLimit > 0 {
+\t\tphase = "warmup"
+\t}
+\tpayload, err := json.Marshal(externalBatch{Requests: requests, Concurrency: concurrency, Phase: phase})
 \tif err != nil {
 \t\treturn nil, err
 \t}
