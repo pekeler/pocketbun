@@ -108,7 +108,7 @@ try {
       `- server workers: ${benchmarkServerWorkers}`,
       `- load generator: ${externalLoadUrl || "co-located"}`,
       `- benchmark target host: ${targetHost || "loopback"}`,
-      `- warmup requests per scenario: ${benchmarkWarmupRequests}`,
+      `- warmup request target/cap: ${benchmarkWarmupRequests}`,
       "",
     ].join("\n");
 
@@ -164,7 +164,7 @@ try {
       `- server workers: ${benchmarkServerWorkers}`,
       `- load generator: ${externalLoadUrl || "co-located"}`,
       `- benchmark target host: ${targetHost || "loopback"}`,
-      `- warmup requests per scenario: ${benchmarkWarmupRequests}`,
+      `- warmup request target/cap: ${benchmarkWarmupRequests}`,
       "",
     ].join("\n");
 

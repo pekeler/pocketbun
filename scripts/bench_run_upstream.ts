@@ -176,7 +176,7 @@ try {
       `- executable used: ${basename(executablePath)}`,
       `- load generator: ${externalLoadUrl || "co-located"}`,
       `- benchmark target host: ${targetHost || "loopback"}`,
-      `- warmup requests per scenario: ${benchmarkWarmupRequests}`,
+      `- warmup request target/cap: ${benchmarkWarmupRequests}`,
       "",
     ].join("\n");
 
@@ -234,7 +234,7 @@ try {
       `- executable used: ${basename(executablePath)}`,
       `- load generator: ${externalLoadUrl || "co-located"}`,
       `- benchmark target host: ${targetHost || "loopback"}`,
-      `- warmup requests per scenario: ${benchmarkWarmupRequests}`,
+      `- warmup request target/cap: ${benchmarkWarmupRequests}`,
       "",
     ].join("\n");
 
