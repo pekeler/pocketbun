@@ -40,7 +40,7 @@ const benchmarkWarmupRequestsFile =
 const benchmarkWarmupRequests = await resolveIntOverride(
   process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS,
   benchmarkWarmupRequestsFile,
-  100,
+  150,
 );
 const machineTag = sanitizeTag(process.env.POCKETBUN_BENCH_MACHINE_TAG ?? "m2-max");
 const timestampTag = createTimestampTag(new Date());
@@ -636,12 +636,25 @@ func bench(action func(i int) error, iterations int, concurrency int) (*BenchRes
 \t\t\t\tvar runErr error
 \t\t\t\twarmupRequests, _ := strconv.Atoi(os.Getenv("POCKETBUN_BENCHMARK_WARMUP_REQUESTS"))
 \t\t\t\tif warmupRequests > 0 && len(toRun) > 0 && strings.TrimSpace(toRun[0]) == "create" {
-\t\t\t\t\tlog.Printf("Running untimed benchmark warmup (up to %d requests per scenario)...\\n", warmupRequests)
+\t\t\t\t\tlog.Printf("Running untimed benchmark warmup (%d-request target/cap per scenario)...\\n", warmupRequests)
 \t\t\t\t\twarmup := runner{app: app, baseUrl: r.baseUrl, writers: map[io.Writer]AfterRunFunc{}}
 \t\t\t\t\trunErr = func() error {
 \t\t\t\t\t\tbenchmarkIterationLimit = warmupRequests
 \t\t\t\t\t\tdefer func() { benchmarkIterationLimit = 0 }()
-\t\t\t\t\t\treturn warmup.run(toRun)
+\t\t\t\t\t\tif err := warmup.run(toRun); err != nil {
+\t\t\t\t\t\t\treturn err
+\t\t\t\t\t\t}
+\t\t\t\t\t\tfor warmed := 50; warmed < warmupRequests; warmed += 50 {
+\t\t\t\t\t\t\tif err := warmup.createOrganizations(); err != nil {
+\t\t\t\t\t\t\t\treturn err
+\t\t\t\t\t\t\t}
+\t\t\t\t\t\t}
+\t\t\t\t\t\tfor warmed := 25; warmed < warmupRequests; warmed += 25 {
+\t\t\t\t\t\t\tif err := warmup.createPermissions(); err != nil {
+\t\t\t\t\t\t\t\treturn err
+\t\t\t\t\t\t\t}
+\t\t\t\t\t\t}
+\t\t\t\t\t\treturn nil
 \t\t\t\t\t}()
 \t\t\t\t\tif runErr == nil {
 \t\t\t\t\t\tlog.Println("Untimed benchmark warmup completed.")

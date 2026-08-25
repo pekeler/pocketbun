@@ -1327,10 +1327,21 @@ export function registerBenchmarkModule(app: App, baseUrl: string): void {
         // PocketBun-only: warm both benchmark targets symmetrically, then let
         // the measured create phase clear this data without restarting.
         if (warmupRequests > 0 && toRun[0]?.trim() === "create") {
-          console.log(`Running untimed benchmark warmup (up to ${warmupRequests} requests per scenario)...`);
+          console.log(`Running untimed benchmark warmup (${warmupRequests}-request target/cap per scenario)...`);
           setBenchIterationLimit(warmupRequests);
+          const warmupRunner = new Runner(app, baseUrl, []);
           try {
-            runErr = await new Runner(app, baseUrl, []).run(toRun);
+            runErr = await warmupRunner.run(toRun);
+            if (!runErr) {
+              for (let warmed = 50; warmed < warmupRequests; warmed += 50) {
+                await warmupRunner.createOrganizations();
+              }
+              for (let warmed = 25; warmed < warmupRequests; warmed += 25) {
+                await warmupRunner.createPermissions();
+              }
+            }
+          } catch (error) {
+            runErr = toError(error);
           } finally {
             setBenchIterationLimit(0);
           }

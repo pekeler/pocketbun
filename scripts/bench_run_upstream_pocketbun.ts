@@ -20,7 +20,7 @@ const benchmarkWarmupRequestsFile =
   process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS_FILE ?? "/tmp/pocketbun-bench-upstream-warmup-requests.txt";
 const benchmarkWarmupRequests =
   parseNonNegativeInt(process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS) ??
-  (await resolveIntOverride(benchmarkWarmupRequestsFile, 100));
+  (await resolveIntOverride(benchmarkWarmupRequestsFile, 150));
 const parsedBenchmarkServerWorkers = parsePositiveInt(process.env.POCKETBUN_BENCH_SERVER_WORKERS ?? "1");
 if (parsedBenchmarkServerWorkers === null || parsedBenchmarkServerWorkers > 256) {
   throw new Error("POCKETBUN_BENCH_SERVER_WORKERS must be an integer between 1 and 256");
