@@ -225,17 +225,17 @@ try {
     });
     requireStatus(created.response, 200, "record create");
     const record = (await created.response.json()) as { id: string };
-    await expectRecordEvents(streams, record.id, "create");
+    await expectRecordEvents(streams, record.id, "create", created.pid, iteration);
     const updated = await request(baseUrl, `/api/collections/soak_items/records/${record.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value: `updated-${iteration}` }),
     });
     requireStatus(updated.response, 200, "record update");
-    await expectRecordEvents(streams, record.id, "update");
+    await expectRecordEvents(streams, record.id, "update", updated.pid, iteration);
     const removed = await request(baseUrl, `/api/collections/soak_items/records/${record.id}`, { method: "DELETE" });
     requireStatus(removed.response, 204, "record delete");
-    await expectRecordEvents(streams, record.id, "delete");
+    await expectRecordEvents(streams, record.id, "delete", removed.pid, iteration);
 
     const checkpoint = await request(baseUrl, "/__soak_checkpoint", { method: "POST" });
     requireStatus(checkpoint.response, 200, "checkpoint");
@@ -275,6 +275,14 @@ try {
       const killedStream = streams[iteration % streams.length]!;
       const victim = current.find((state) => state.pid === killedStream.pid) ?? current[current.length - 1]!;
       const killedStreams = streams.filter((stream) => stream.pid === victim.pid);
+      console.log(
+        JSON.stringify({
+          fault: "worker-sigkill",
+          iteration,
+          victimPid: victim.pid,
+          clients: killedStreams.map((stream) => stream.clientId),
+        }),
+      );
       process.kill(victim.pid, "SIGKILL");
       await Promise.all(killedStreams.map(expectClosed));
       await waitFor(
@@ -284,11 +292,20 @@ try {
       );
       const replacements = await Promise.all(killedStreams.map(() => openSSE(baseUrl)));
       streams = streams.map((stream) => replacements[killedStreams.indexOf(stream)] ?? stream);
+      console.log(
+        JSON.stringify({
+          fault: "worker-replaced",
+          iteration,
+          victimPid: victim.pid,
+          replacements: replacements.map((stream) => ({ pid: stream.pid, clientId: stream.clientId })),
+        }),
+      );
       nextFault = Date.now() + options.faultIntervalMinutes * 60_000;
     }
 
     if (Date.now() >= nextRestart) {
       const before = new Set((await states(baseUrl, options.workers)).map((state) => state.pid));
+      console.log(JSON.stringify({ fault: "cluster-restart", iteration, workerPids: [...before] }));
       requireStatus((await request(baseUrl, "/__soak_restart", { method: "POST" })).response, 204, "cluster restart");
       await waitFor(
         async () => (await states(baseUrl, options.workers)).every((state) => !before.has(state.pid)),
@@ -297,6 +314,13 @@ try {
       );
       await Promise.all(streams.map((stream) => stream.reader.cancel().catch(() => {})));
       streams = await Promise.all(Array.from({ length: options.realtimeClients }, () => openSSE(baseUrl)));
+      console.log(
+        JSON.stringify({
+          fault: "cluster-restarted",
+          iteration,
+          streams: streams.map((stream) => ({ pid: stream.pid, clientId: stream.clientId })),
+        }),
+      );
       nextRestart = Date.now() + options.restartIntervalMinutes * 60_000;
     }
 
@@ -485,16 +509,32 @@ async function openSSEOnce(baseUrl: string): Promise<SSE> {
   return stream;
 }
 
-async function expectRecordEvent(stream: SSE, id: string, action: string): Promise<void> {
-  const event = await readEvent(stream, 10_000);
+async function expectRecordEvent(stream: SSE, id: string, action: string, sourcePid: number, iteration: number): Promise<void> {
+  let event: Awaited<ReturnType<typeof readEvent>>;
+  try {
+    event = await readEvent(stream, 10_000);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `realtime ${action} failed at iteration ${iteration} for record ${id}: sourcePid=${sourcePid}, clientPid=${stream.pid}, clientId=${stream.clientId}, buffer=${JSON.stringify(stream.buffer)}: ${message}`,
+    );
+  }
   const payload = JSON.parse(event.data) as { action?: string; record?: { id?: string } };
   if (event.name !== "soak_items/*" || payload.action !== action || payload.record?.id !== id) {
-    throw new Error(`unexpected realtime event: ${event.name} ${event.data}`);
+    throw new Error(
+      `unexpected realtime event at iteration ${iteration}: sourcePid=${sourcePid}, clientPid=${stream.pid}, clientId=${stream.clientId}, expected=${action}/${id}, actual=${event.name} ${event.data}`,
+    );
   }
 }
 
-async function expectRecordEvents(streams: SSE[], id: string, action: string): Promise<void> {
-  await Promise.all(streams.map((stream) => expectRecordEvent(stream, id, action)));
+async function expectRecordEvents(
+  streams: SSE[],
+  id: string,
+  action: string,
+  sourcePid: number,
+  iteration: number,
+): Promise<void> {
+  await Promise.all(streams.map((stream) => expectRecordEvent(stream, id, action, sourcePid, iteration)));
 }
 
 async function readEvent(stream: SSE, timeoutMs: number): Promise<{ name: string; data: string }> {
@@ -531,12 +571,19 @@ async function readEvent(stream: SSE, timeoutMs: number): Promise<{ name: string
 }
 
 async function expectClosed(stream: SSE): Promise<void> {
-  await Promise.race([
-    stream.reader.read().catch(() => undefined),
-    Bun.sleep(10_000).then(() => {
-      throw new Error("realtime stream did not close after worker death");
-    }),
-  ]);
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    const result = await Promise.race([
+      stream.reader.read().catch(() => ({ done: true }) as const),
+      Bun.sleep(Math.max(1, deadline - Date.now())).then(() => {
+        throw new Error(
+          `realtime stream did not close after worker death: clientPid=${stream.pid}, clientId=${stream.clientId}`,
+        );
+      }),
+    ]);
+    if (result.done) return;
+  }
+  throw new Error(`realtime stream did not close after worker death: clientPid=${stream.pid}, clientId=${stream.clientId}`);
 }
 
 async function verifyCluster(baseUrl: string, workers: number, count: number, checksum: number): Promise<void> {
