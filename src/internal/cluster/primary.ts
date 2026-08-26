@@ -131,8 +131,7 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
     );
   };
 
-  const broadcastRealtimePresence = async (): Promise<void> => {
-    const workerIds = coordinator.realtimeWorkerIds();
+  const broadcastRealtimePresence = async (workerIds: number[]): Promise<void> => {
     await Promise.all(
       readyWorkers(records).map((worker) =>
         sendCoordinatorDelivery(worker, token, pendingDeliveries, { kind: "realtime.presence", workerIds }),
@@ -312,11 +311,14 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
         if (activeBackup !== null) {
           await sendCoordinatorDelivery(worker, token, pendingDeliveries, { kind: "backup.state", name: activeBackup });
         }
-        await sendCoordinatorDelivery(worker, token, pendingDeliveries, {
-          kind: "realtime.presence",
-          workerIds: coordinator.realtimeWorkerIds(),
+        await coordinator.syncRealtimeWorkers(async (workerIds) => {
+          await sendCoordinatorDelivery(worker, token, pendingDeliveries, {
+            kind: "realtime.presence",
+            workerIds,
+          });
+          // Join the ready set before the next serialized presence broadcast.
+          record.ready = true;
         });
-        record.ready = true;
         record.resolveReady(message);
         log(`[cluster] ready ${record.role} slot=${record.slot} worker=${worker.id} pid=${message.pid}`);
       })().catch((error) => {
@@ -336,13 +338,9 @@ export async function runClusterPrimary(options: ClusterPrimaryOptions): Promise
       if (records.get(record.slot) === record) {
         records.delete(record.slot);
       }
-      const hadRealtimeClients = coordinator.hasRealtimeWorker(worker.id);
-      coordinator.releaseRealtimeWorker(worker.id);
-      if (hadRealtimeClients) {
-        void broadcastRealtimePresence().catch((error) =>
-          log(`[cluster] failed to update realtime presence after worker exit: ${errorMessage(error)}`),
-        );
-      }
+      void coordinator
+        .updateRealtimeWorker(worker.id, false, broadcastRealtimePresence)
+        .catch((error) => log(`[cluster] failed to update realtime presence after worker exit: ${errorMessage(error)}`));
       if (coordinator.releaseBackupForWorker(worker.id)) {
         void broadcastBackupState(null).catch((error) =>
           log(`[cluster] failed to clear backup state after worker exit: ${errorMessage(error)}`),
@@ -839,17 +837,13 @@ async function handleCoordinatorOperation(
     return true;
   }
   if (operation.kind === "realtime.presence") {
-    if (operation.active) {
-      coordinator.markRealtimeWorker(source.id);
-    } else {
-      coordinator.releaseRealtimeWorker(source.id);
-    }
-    const workerIds = coordinator.realtimeWorkerIds();
-    await Promise.all(
-      readyWorkers(records).map((worker) =>
-        sendCoordinatorDelivery(worker, token, pendingDeliveries, { kind: "realtime.presence", workerIds }),
-      ),
-    );
+    await coordinator.updateRealtimeWorker(source.id, operation.active, async (workerIds) => {
+      await Promise.all(
+        readyWorkers(records).map((worker) =>
+          sendCoordinatorDelivery(worker, token, pendingDeliveries, { kind: "realtime.presence", workerIds }),
+        ),
+      );
+    });
     return true;
   }
   if (operation.kind === "realtime.subscribe") {

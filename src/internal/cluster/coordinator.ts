@@ -26,6 +26,7 @@ export class ClusterCoordinator {
   private readonly limiters = new Map<string, LimiterEntry>();
   private readonly expiring = new Map<string, ExpiringEntry>();
   private readonly realtimeWorkers = new Set<number>();
+  private realtimePresenceTail: Promise<void> = Promise.resolve();
   private backupLease: BackupLease | null = null;
   private lastLimiterCleanup = Date.now();
 
@@ -116,10 +117,6 @@ export class ClusterCoordinator {
     return null;
   }
 
-  markRealtimeWorker(workerId: number): void {
-    this.realtimeWorkers.add(workerId);
-  }
-
   hasRealtimeWorker(workerId: number): boolean {
     return this.realtimeWorkers.has(workerId);
   }
@@ -128,8 +125,28 @@ export class ClusterCoordinator {
     return [...this.realtimeWorkers];
   }
 
-  releaseRealtimeWorker(workerId: number): void {
-    this.realtimeWorkers.delete(workerId);
+  updateRealtimeWorker(workerId: number, active: boolean, publish: (workerIds: number[]) => Promise<void>): Promise<void> {
+    return this.queueRealtimePresence(async () => {
+      if (this.realtimeWorkers.has(workerId) === active) {
+        return;
+      }
+      if (active) {
+        this.realtimeWorkers.add(workerId);
+      } else {
+        this.realtimeWorkers.delete(workerId);
+      }
+      await publish(this.realtimeWorkerIds());
+    });
+  }
+
+  syncRealtimeWorkers(publish: (workerIds: number[]) => Promise<void>): Promise<void> {
+    return this.queueRealtimePresence(() => publish(this.realtimeWorkerIds()));
+  }
+
+  private queueRealtimePresence(task: () => Promise<void>): Promise<void> {
+    const result = this.realtimePresenceTail.then(task);
+    this.realtimePresenceTail = result.catch(() => {});
+    return result;
   }
 
   private consumeRateLimit(operation: RateLimitConsumeRequest): boolean {

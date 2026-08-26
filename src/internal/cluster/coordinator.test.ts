@@ -82,14 +82,39 @@ describe("cluster coordinator", () => {
     expect(coordinator.activeBackupName()).toBeNull();
   });
 
-  it("tracks workers with realtime clients", () => {
+  it("serializes realtime presence snapshots", async () => {
     const coordinator = new ClusterCoordinator();
+    let releaseFirst!: () => void;
+    const firstBlocked = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let firstStarted!: () => void;
+    const firstStart = new Promise<void>((resolve) => {
+      firstStarted = resolve;
+    });
+    const snapshots: number[][] = [];
+
     expect(coordinator.realtimeWorkerIds()).toEqual([]);
-    coordinator.markRealtimeWorker(3);
-    coordinator.markRealtimeWorker(1);
-    expect(coordinator.hasRealtimeWorker(1)).toBeTrue();
-    expect(new Set(coordinator.realtimeWorkerIds())).toEqual(new Set([1, 3]));
-    coordinator.releaseRealtimeWorker(1);
+    const first = coordinator.updateRealtimeWorker(3, true, async (workerIds) => {
+      snapshots.push(workerIds);
+      firstStarted();
+      await firstBlocked;
+    });
+    await firstStart;
+    const second = coordinator.updateRealtimeWorker(1, true, async (workerIds) => {
+      snapshots.push(workerIds);
+    });
+    const exit = coordinator.updateRealtimeWorker(1, false, async (workerIds) => {
+      snapshots.push(workerIds);
+    });
+
+    await Bun.sleep(0);
+    expect(snapshots).toEqual([[3]]);
+    releaseFirst();
+    await Promise.all([first, second, exit]);
+
+    expect(coordinator.hasRealtimeWorker(1)).toBeFalse();
     expect(coordinator.realtimeWorkerIds()).toEqual([3]);
+    expect(snapshots).toEqual([[3], [3, 1], [3]]);
   });
 });
