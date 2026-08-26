@@ -1,7 +1,7 @@
-// PocketBun-only: verifies the capped benchmark warmup used before measured upstream scenarios.
+// PocketBun-only: verifies benchmark warmup iteration controls used before measured upstream scenarios.
 
 import { expect, test } from "bun:test";
-import { BenchResult, bench, setBenchIterationLimit } from "./bench.ts";
+import { BenchResult, bench, benchmarkWarmupIterations, setBenchIterationLimit } from "./bench.ts";
 
 test.serial("bench caps and clears the warmup iteration limit", async () => {
   let calls = 0;
@@ -27,6 +27,17 @@ test.serial("bench caps and clears the warmup iteration limit", async () => {
     1,
   );
   expect(calls).toBe(5);
+});
+
+test.serial("short warmup scenarios expand to the target in one batch", () => {
+  setBenchIterationLimit(300);
+  try {
+    expect(benchmarkWarmupIterations(50)).toBe(300);
+    expect(benchmarkWarmupIterations(500)).toBe(500);
+  } finally {
+    setBenchIterationLimit(0);
+  }
+  expect(benchmarkWarmupIterations(50)).toBe(50);
 });
 
 test("bench result reports worker distribution when available", () => {

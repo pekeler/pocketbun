@@ -9,6 +9,11 @@ export function setBenchIterationLimit(limit: number): void {
   iterationLimit = Math.max(0, Math.floor(limit));
 }
 
+// PocketBun-only: short warmup scenarios need a target rather than a cap.
+export function benchmarkWarmupIterations(iterations: number): number {
+  return iterationLimit > iterations ? iterationLimit : iterations;
+}
+
 export class BenchResult {
   Errors: Error[];
   BestMs: number;

@@ -18,7 +18,7 @@ import { CollectionNameSuperusers } from "../../src/core/collection_model.ts";
 import { NewRecord } from "../../src/core/record_model.ts";
 import { ClusterEnvSlot } from "../../src/internal/cluster/context.ts";
 import { FireAndForget } from "../../src/tools/routine/routine.ts";
-import { bench, setBenchIterationLimit, type BenchResult } from "./bench.ts";
+import { bench, benchmarkWarmupIterations, setBenchIterationLimit, type BenchResult } from "./bench.ts";
 import { BenchRequest, benchmarkWorkerSlotHeader } from "./request.ts";
 import { benchmarkSchema } from "./schema.ts";
 
@@ -279,7 +279,7 @@ export class Runner {
             });
             await request.Send(null);
           },
-          scenario.iterations,
+          benchmarkWarmupIterations(scenario.iterations),
           scenario.concurrency,
         );
 
@@ -337,7 +337,7 @@ export class Runner {
             });
             await request.Send(null);
           },
-          scenario.iterations,
+          benchmarkWarmupIterations(scenario.iterations),
           scenario.concurrency,
         );
 
@@ -1332,14 +1332,6 @@ export function registerBenchmarkModule(app: App, baseUrl: string): void {
           const warmupRunner = new Runner(app, baseUrl, []);
           try {
             runErr = await warmupRunner.run(toRun);
-            if (!runErr) {
-              for (let warmed = 50; warmed < warmupRequests; warmed += 50) {
-                await warmupRunner.createOrganizations();
-              }
-              for (let warmed = 25; warmed < warmupRequests; warmed += 25) {
-                await warmupRunner.createPermissions();
-              }
-            }
           } catch (error) {
             runErr = toError(error);
           } finally {

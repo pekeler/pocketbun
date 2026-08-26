@@ -590,6 +590,7 @@ async function applyBenchErrorCollectionPatch(rootDir: string, debugErrors: bool
 async function applyFullSuiteWarmupPatch(rootDir: string): Promise<void> {
   const benchPath = join(rootDir, "benchmarks", "bench.go");
   const runPath = join(rootDir, "benchmarks", "run.go");
+  const createPath = join(rootDir, "benchmarks", "test_create.go");
 
   const benchOriginal = await readFile(benchPath, "utf8");
   const benchPatched = benchOriginal
@@ -598,6 +599,13 @@ async function applyFullSuiteWarmupPatch(rootDir: string): Promise<void> {
 // (aka. a go routine will be fired for each iteration).
 func bench(action func(i int) error, iterations int, concurrency int) (*BenchResult, error) {`,
       `var benchmarkIterationLimit int
+
+func benchmarkWarmupIterations(iterations int) int {
+	if benchmarkIterationLimit > iterations {
+		return benchmarkIterationLimit
+	}
+	return iterations
+}
 
 // A negative concurrency indicates no limit
 // (aka. a go routine will be fired for each iteration).
@@ -617,6 +625,7 @@ func bench(action func(i int) error, iterations int, concurrency int) (*BenchRes
   if (
     benchPatched === benchOriginal ||
     !benchPatched.includes("var benchmarkIterationLimit int") ||
+    !benchPatched.includes("func benchmarkWarmupIterations(iterations int) int") ||
     !benchPatched.includes("iterations = benchmarkIterationLimit")
   ) {
     throw new Error(`failed to patch ${benchPath} for benchmark warmup`);
@@ -643,16 +652,6 @@ func bench(action func(i int) error, iterations int, concurrency int) (*BenchRes
 \t\t\t\t\t\tdefer func() { benchmarkIterationLimit = 0 }()
 \t\t\t\t\t\tif err := warmup.run(toRun); err != nil {
 \t\t\t\t\t\t\treturn err
-\t\t\t\t\t\t}
-\t\t\t\t\t\tfor warmed := 50; warmed < warmupRequests; warmed += 50 {
-\t\t\t\t\t\t\tif err := warmup.createOrganizations(); err != nil {
-\t\t\t\t\t\t\t\treturn err
-\t\t\t\t\t\t\t}
-\t\t\t\t\t\t}
-\t\t\t\t\t\tfor warmed := 25; warmed < warmupRequests; warmed += 25 {
-\t\t\t\t\t\t\tif err := warmup.createPermissions(); err != nil {
-\t\t\t\t\t\t\t\treturn err
-\t\t\t\t\t\t\t}
 \t\t\t\t\t\t}
 \t\t\t\t\t\treturn nil
 \t\t\t\t\t}()
@@ -681,7 +680,19 @@ func bench(action func(i int) error, iterations int, concurrency int) (*BenchRes
     throw new Error(`failed to patch ${runPath} for benchmark warmup`);
   }
 
-  await Promise.all([writeFile(benchPath, benchPatched), writeFile(runPath, runPatched)]);
+  const createOriginal = await readFile(createPath, "utf8");
+  let createPatched = createOriginal;
+  for (let i = 0; i < 2; i += 1) {
+    createPatched = createPatched.replace(
+      "}, s.iterations, s.concurrency)",
+      "}, benchmarkWarmupIterations(s.iterations), s.concurrency)",
+    );
+  }
+  if (createPatched === createOriginal || createPatched.split("benchmarkWarmupIterations(s.iterations)").length - 1 !== 2) {
+    throw new Error(`failed to patch ${createPath} for short-scenario warmup targets`);
+  }
+
+  await Promise.all([writeFile(benchPath, benchPatched), writeFile(runPath, runPatched), writeFile(createPath, createPatched)]);
 }
 
 async function applyExternalLoadPatch(rootDir: string): Promise<void> {
