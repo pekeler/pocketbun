@@ -5,11 +5,14 @@
 // 2) run the created executable with `serve`
 
 import type { AddressInfo } from "node:net";
+import { Database } from "bun:sqlite";
 import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { bench, setBenchIterationLimit } from "./bench_upstream_pocketbun/bench.ts";
+import { BenchRequest } from "./bench_upstream_pocketbun/request.ts";
 import { benchmarkSchema } from "./bench_upstream_pocketbun/schema.ts";
 
 type GoBuildConfig = {
@@ -70,6 +73,7 @@ const targetHost = process.env.POCKETBUN_BENCH_TARGET_HOST?.trim() ?? "";
 if (externalLoadUrl && !targetHost) {
   throw new Error("POCKETBUN_BENCH_TARGET_HOST is required with POCKETBUN_BENCH_EXTERNAL_LOAD_URL");
 }
+const benchmarkBaseUrl = targetHost ? `http://${targetHost}:${port}` : baseUrl;
 const runRootDir = await mkdtemp(join(tmpdir(), "pocketbase-bench-run-"));
 const dataDir = join(runRootDir, "pb_data");
 const buildDir = await mkdtemp(join(tmpdir(), "pocketbase-bench-build-"));
@@ -1384,28 +1388,28 @@ async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatency
             {
               collection: "organizations",
               rule: "",
-              iterations: 500,
+              iterations: 5_000,
               concurrency: 10,
               payload: (index) => ({ name: `probe-org-${runTag}-${index}` }),
             },
             {
               collection: "organizations",
               rule: "@request.body.name != ''",
-              iterations: 500,
+              iterations: 5_000,
               concurrency: 10,
               payload: (index) => ({ name: `probe-org-rule-${runTag}-${index}` }),
             },
             {
               collection: "permissions",
               rule: "",
-              iterations: 250,
+              iterations: 2_500,
               concurrency: 5,
               payload: (index) => ({ name: `probe-perm-${runTag}-${index}`, active: index % 2 === 0 }),
             },
             {
               collection: "permissions",
               rule: "@request.body.name != ''",
-              iterations: 250,
+              iterations: 2_500,
               concurrency: 5,
               payload: (index) => ({ name: `probe-perm-rule-${runTag}-${index}`, active: index % 2 === 0 }),
             },
@@ -1419,6 +1423,7 @@ async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatency
     );
     const result = await runCreateLatencyScenario(scenario);
     results.push(result);
+    clearCreateLatencyRecords(scenario.collection);
   }
 
   const reportLines = ["## Create latency probe", ""];
@@ -1439,70 +1444,43 @@ async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatency
   return report;
 }
 
+function clearCreateLatencyRecords(collection: CreateLatencyScenario["collection"]): void {
+  if (collection === "users") {
+    return;
+  }
+  const db = new Database(join(dataDir, "data.db"));
+  try {
+    db.run("PRAGMA busy_timeout = 10000");
+    db.run(`DELETE FROM "${collection}"`);
+  } finally {
+    db.close();
+  }
+}
+
 async function runCreateLatencyScenario(scenario: CreateLatencyScenario): Promise<CreateLatencyResult> {
   if (benchmarkWarmupRequests > 0) {
     await runCreateLatencyWarmup(scenario, benchmarkWarmupRequests);
   }
 
-  let nextIndex = 0;
-  let errors = 0;
-  const durationsMs: number[] = [];
-  const workerCount = Math.min(scenario.concurrency, scenario.iterations);
-
-  const started = performance.now();
-  const workers = Array.from({ length: workerCount }, async () => {
-    while (true) {
-      const current = nextIndex;
-      nextIndex += 1;
-      if (current >= scenario.iterations) {
-        return;
-      }
-
-      const requestStarted = performance.now();
-      try {
-        const response = await fetch(`${baseUrl}/api/collections/${scenario.collection}/records`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(scenario.payload(current)),
-        });
-
-        if (response.status >= 400) {
-          errors += 1;
-          if (errors <= 4) {
-            const sample = compactErrorSample(await response.text());
-            console.log(
-              `  sample error (${scenario.collection} rule=${JSON.stringify(scenario.rule)}): HTTP ${response.status} ${sample}`,
-            );
-          } else {
-            discardResponseBody(response);
-          }
-        } else {
-          discardResponseBody(response);
-        }
-      } catch (error) {
-        errors += 1;
-        if (errors <= 4) {
-          console.log(
-            `  sample transport error (${scenario.collection} rule=${JSON.stringify(scenario.rule)}): ${compactErrorSample(String(error))}`,
-          );
-        }
-      } finally {
-        durationsMs.push(performance.now() - requestStarted);
-      }
-    }
-  });
-  await Promise.all(workers);
-
-  const completedMs = performance.now() - started;
-  const avgMs = durationsMs.length > 0 ? durationsMs.reduce((sum, value) => sum + value, 0) / durationsMs.length : 0;
+  const result = await bench(
+    async (index) => {
+      await new BenchRequest({
+        Url: `${benchmarkBaseUrl}/api/collections/${scenario.collection}/records`,
+        Method: "POST",
+        Body: JSON.stringify(scenario.payload(index)),
+      }).Send(null);
+    },
+    scenario.iterations,
+    scenario.concurrency,
+  );
 
   return {
     scenario,
-    completedMs,
-    avgMs,
-    p50Ms: percentile(durationsMs, 50),
-    p95Ms: percentile(durationsMs, 95),
-    errors,
+    completedMs: result.CompletedMs,
+    avgMs: result.AverageMs,
+    p50Ms: result.P50Ms,
+    p95Ms: result.P95Ms,
+    errors: result.Errors.length,
   };
 }
 
@@ -1572,37 +1550,25 @@ async function runCreateLatencyWarmup(scenario: CreateLatencyScenario, warmupReq
     return;
   }
 
-  let nextIndex = 0;
-  let errors = 0;
   const indexOffset = 1_000_000;
-  const workerCount = Math.min(scenario.concurrency, total);
-  const workers = Array.from({ length: workerCount }, async () => {
-    while (true) {
-      const current = nextIndex;
-      nextIndex += 1;
-      if (current >= total) {
-        return;
-      }
-
-      try {
-        const response = await fetch(`${baseUrl}/api/collections/${scenario.collection}/records`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(scenario.payload(indexOffset + current)),
-        });
-        if (response.status >= 400) {
-          errors += 1;
-        }
-        discardResponseBody(response);
-      } catch {
-        errors += 1;
-      }
+  setBenchIterationLimit(total);
+  try {
+    const result = await bench(
+      async (index) => {
+        await new BenchRequest({
+          Url: `${benchmarkBaseUrl}/api/collections/${scenario.collection}/records`,
+          Method: "POST",
+          Body: JSON.stringify(scenario.payload(indexOffset + index)),
+        }).Send(null);
+      },
+      total,
+      scenario.concurrency,
+    );
+    if (result.Errors.length > 0) {
+      console.log(`  warmup errors (${scenario.collection}): ${result.Errors.length}/${total}`);
     }
-  });
-  await Promise.all(workers);
-
-  if (errors > 0) {
-    console.log(`  warmup errors (${scenario.collection}): ${errors}/${total}`);
+  } finally {
+    setBenchIterationLimit(0);
   }
 }
 

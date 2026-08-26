@@ -44,3 +44,12 @@ test("bench result reports worker distribution when available", () => {
   const result = new BenchResult([], 1, 2, 3, { "0": 6, "1": 4 });
   expect(result.String()).toContain("├─ Workers:   0=6 1=4");
 });
+
+test("bench records aggregate request latency", async () => {
+  const result = await bench(async () => {}, 10, 2);
+  expect(result.AverageMs).toBeGreaterThanOrEqual(result.BestMs);
+  expect(result.AverageMs).toBeLessThanOrEqual(result.WorstMs);
+  expect(result.P50Ms).toBeGreaterThanOrEqual(result.BestMs);
+  expect(result.P95Ms).toBeGreaterThanOrEqual(result.P50Ms);
+  expect(result.P95Ms).toBeLessThanOrEqual(result.WorstMs);
+});

@@ -20,6 +20,9 @@ export class BenchResult {
   WorstMs: number;
   CompletedMs: number;
   WorkerCounts: Record<string, number>;
+  AverageMs: number;
+  P50Ms: number;
+  P95Ms: number;
 
   constructor(
     errors: Error[],
@@ -27,12 +30,16 @@ export class BenchResult {
     worstMs: number,
     completedMs: number,
     workerCounts: Record<string, number> = {},
+    latency: { averageMs: number; p50Ms: number; p95Ms: number } = { averageMs: 0, p50Ms: 0, p95Ms: 0 },
   ) {
     this.Errors = errors;
     this.BestMs = bestMs;
     this.WorstMs = worstMs;
     this.CompletedMs = completedMs;
     this.WorkerCounts = workerCounts;
+    this.AverageMs = latency.averageMs;
+    this.P50Ms = latency.p50Ms;
+    this.P95Ms = latency.p95Ms;
   }
 
   String(): string {
@@ -126,7 +133,7 @@ export async function bench(
     }
   }
 
-  return new BenchResult(errors, bestMs, worstMs, completedMs);
+  return new BenchResult(errors, bestMs, worstMs, completedMs, {}, latencyMetrics(times));
 }
 
 async function externalBench(
@@ -169,16 +176,25 @@ async function externalBench(
     errorCount?: unknown;
     sampleError?: unknown;
     workerCounts?: unknown;
+    averageMs?: unknown;
+    p50Ms?: unknown;
+    p95Ms?: unknown;
   };
   const bestMs = Number(result.bestMs);
   const worstMs = Number(result.worstMs);
   const completedMs = Number(result.completedMs);
   const errorCount = Number(result.errorCount);
+  const averageMs = Number(result.averageMs);
+  const p50Ms = Number(result.p50Ms);
+  const p95Ms = Number(result.p95Ms);
   const workerCounts = parseWorkerCounts(result.workerCounts, requests.length);
   if (
     !Number.isFinite(bestMs) ||
     !Number.isFinite(worstMs) ||
     !Number.isFinite(completedMs) ||
+    !Number.isFinite(averageMs) ||
+    !Number.isFinite(p50Ms) ||
+    !Number.isFinite(p95Ms) ||
     !Number.isSafeInteger(errorCount) ||
     errorCount < 0 ||
     errorCount > requests.length ||
@@ -192,7 +208,18 @@ async function externalBench(
     (_, index) =>
       new Error(index === 0 && typeof result.sampleError === "string" ? result.sampleError : "external request failed"),
   );
-  return new BenchResult([...preparationErrors, ...externalErrors], bestMs, worstMs, completedMs, workerCounts);
+  return new BenchResult([...preparationErrors, ...externalErrors], bestMs, worstMs, completedMs, workerCounts, {
+    averageMs,
+    p50Ms,
+    p95Ms,
+  });
+}
+
+function latencyMetrics(values: number[]): { averageMs: number; p50Ms: number; p95Ms: number } {
+  const averageMs = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const sorted = [...values].sort((a, b) => a - b);
+  const at = (percent: number) => sorted[Math.floor((percent / 100) * (sorted.length - 1))] ?? 0;
+  return { averageMs, p50Ms: at(50), p95Ms: at(95) };
 }
 
 function parseWorkerCounts(value: unknown, requestCount: number): Record<string, number> | null {
