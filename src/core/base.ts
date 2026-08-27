@@ -84,7 +84,7 @@ import { dropCollectionIndexes, syncRecordTableSchema, syncRecordTableSchemaSync
 import { validateCollection, validateCollectionSync } from "./collection_validate.ts";
 import { GenerateDefaultRandomId, type PostValidator, type PreValidator } from "./db.ts";
 import { DefaultDBConnect } from "./db_connect.ts";
-import { baseLockRetry, baseLockRetrySync, defaultMaxLockRetries } from "./db_retry.ts";
+import { baseImmediateLockRetry, baseLockRetry, baseLockRetrySync, defaultMaxLockRetries } from "./db_retry.ts";
 import { TableColumns, TableInfo, TableIndexes } from "./db_table.ts";
 import {
   AuxRunInTransaction as AuxRunInTransactionHelper,
@@ -3987,7 +3987,7 @@ export class BaseApp implements App {
 
     const db = this.db() as DbxDatabase;
     const keys = Object.keys(data);
-    const dbErr = await baseLockRetry(async () => {
+    const persist = () => {
       try {
         if (record.IsNew()) {
           const values = keys.map((key) => normalizeDbValue(data[key]));
@@ -4015,7 +4015,8 @@ export class BaseApp implements App {
         return err instanceof Error ? err : new Error(String(err));
       }
       return null;
-    }, defaultMaxLockRetries);
+    };
+    const dbErr = await baseImmediateLockRetry(db, persist);
 
     if (dbErr) {
       return NormalizeUniqueIndexError(dbErr, record.collection().name, record.collection().Fields.FieldNames());

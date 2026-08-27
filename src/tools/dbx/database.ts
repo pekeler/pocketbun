@@ -13,6 +13,10 @@ export class DbxDatabase extends Database {
     super(filename, options);
   }
 
+  setBusyTimeout(timeoutMs: number): void {
+    super.query(`PRAGMA busy_timeout = ${timeoutMs}`).get();
+  }
+
   override run<ParamsType extends SQLQueryBindings[]>(sql: string, ...bindings: ParamsType[]): Changes {
     const rewritten = rewriteDbxIdentifiers(sql);
     const queryLogFunc = this.QueryLogFunc;

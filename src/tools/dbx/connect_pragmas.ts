@@ -7,8 +7,10 @@ type PragmaCapableDb = {
   fileControl?: (op: number, arg: number) => unknown;
 };
 
+export const defaultBusyTimeoutMs = 10_000;
+
 const defaultDbPragmas = [
-  "PRAGMA busy_timeout = 10000",
+  `PRAGMA busy_timeout = ${defaultBusyTimeoutMs}`,
   "PRAGMA journal_mode = WAL",
   "PRAGMA journal_size_limit = 200000000",
   "PRAGMA synchronous = NORMAL",

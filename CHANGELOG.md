@@ -22,6 +22,7 @@ This is a **major operational release**, even though PocketBun's PocketBase-alig
 - Large cascading writes retain every PocketBase realtime event while batching cluster transport per transaction; realtime delivery failures no longer turn successful deletes into misleading HTTP errors, and workers without live remote realtime clients skip the transport entirely.
 - Fixed a rare missed realtime event immediately after a controlled full-cluster restart by keeping worker-presence updates in order.
 - Concurrent async requests now have isolated SQLite transactions, preventing one request from accidentally committing another request's work when their transaction lifetimes overlap.
+- Async record saves now yield between short SQLite lock retries, keeping other requests responsive during write contention without changing synchronous transaction or raw-SQL behavior.
 
 ### Backups and production operation
 

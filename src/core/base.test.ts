@@ -4,9 +4,9 @@ import { describe, expect, it } from "bun:test";
 import { mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { DbxDatabase } from "../tools/dbx/database.ts";
 import * as slog from "../internal/compat/slog.ts";
 import { newTestApp } from "../tests/app.ts";
+import { DbxDatabase } from "../tools/dbx/database.ts";
 import { BatchHandler } from "../tools/logger/batch_handler.ts";
 import { Sendmail } from "../tools/mailer/sendmail.ts";
 import { SMTPClient } from "../tools/mailer/smtp.ts";
@@ -186,6 +186,45 @@ describe("BaseApp", () => {
     expect(app.store().get(StoreKeyCachedCollections)).not.toBeUndefined();
 
     await rm(dataDir, { recursive: true, force: true });
+  });
+
+  it("async record persistence yields on a lock without cluster mode", async () => {
+    const { app, cleanup } = await newTestApp();
+    const blocker = new DbxDatabase(join(app.DataDir(), "data.db"));
+    try {
+      const db = app.db() as DbxDatabase;
+      const setBusyTimeout = db.setBusyTimeout.bind(db);
+      const timeouts: number[] = [];
+      let released = false;
+      db.setBusyTimeout = (timeoutMs) => {
+        timeouts.push(timeoutMs);
+        setBusyTimeout(timeoutMs);
+        if (timeoutMs === 0 && timeouts.length === 1) {
+          setTimeout(() => {
+            blocker.run("ROLLBACK");
+            released = true;
+          }, 20);
+        }
+      };
+
+      blocker.run("BEGIN IMMEDIATE");
+      const record = NewRecord(app.FindCollectionByNameOrId("demo2"));
+      record.Set("title", "busy timeout test");
+
+      expect(await app.Save(record)).toBeNull();
+      expect(released).toBe(true);
+      expect(timeouts.length).toBeGreaterThan(2);
+      expect(timeouts.every((timeout, index) => timeout === (index % 2 === 0 ? 0 : 10_000))).toBe(true);
+      expect((db.query("PRAGMA busy_timeout").get() as { timeout: number }).timeout).toBe(10_000);
+    } finally {
+      try {
+        blocker.run("ROLLBACK");
+      } catch {
+        // already released
+      }
+      blocker.close();
+      await cleanup();
+    }
   });
 
   it("BaseAppBootstrapAsync", async () => {
