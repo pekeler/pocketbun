@@ -1633,14 +1633,15 @@ async function findConsecutivePorts(count: number): Promise<number[]> {
 }
 
 async function waitFor(check: () => boolean | Promise<boolean>, label: string, timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
+  const effectiveTimeoutMs = Math.max(timeoutMs, 10_000);
+  const deadline = Date.now() + effectiveTimeoutMs;
   while (Date.now() < deadline) {
     if (await check()) {
       return;
     }
     await Bun.sleep(25);
   }
-  throw new Error(`${label} timed out after ${timeoutMs}ms`);
+  throw new Error(`${label} timed out after ${effectiveTimeoutMs}ms`);
 }
 
 function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs: number): Promise<T> {

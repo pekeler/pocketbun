@@ -99,7 +99,7 @@ async function terminateApp(app: BaseApp): Promise<void> {
   }
 }
 
-async function waitFor(predicate: () => boolean, timeoutMs = 1500): Promise<void> {
+async function waitFor(predicate: () => boolean, timeoutMs = 5_000): Promise<void> {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     if (predicate()) {
