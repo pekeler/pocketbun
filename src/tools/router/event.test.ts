@@ -271,7 +271,10 @@ describe("Event", () => {
   });
 
   it("JSON", async () => {
-    const body = { a: 123, b: 456, c: "test" };
+    // JavaScript strings cannot retain invalid UTF-8 bytes, so Bun's Web
+    // decoder applies PocketBase's replacement before JSON serialization.
+    const invalidUtf8 = new TextDecoder().decode(Uint8Array.of(0xc3));
+    const body = { a: 123, b: true, c: "test", d: invalidUtf8 };
 
     const scenarios: ResponseScenario<typeof body>[] = [
       {
@@ -300,7 +303,7 @@ describe("Event", () => {
         body,
         expectedStatus: 400,
         expectedHeaders: { "content-type": "application/test" },
-        expectedBody: `{"a":123,"b":456,"c":"test"}`,
+        expectedBody: `{"a":123,"b":true,"c":"test","d":"�"}`,
         url: "http://example.com/?fields=a,c",
       },
     ];

@@ -106,11 +106,11 @@ describe("Pick", () => {
       name: "slice of maps with existing and missing fields",
       data: [
         { a: 11, b: 11, c: "test1" },
-        { a: 22, b: 22, c: "test2" },
+        { a: 22, b: 22, c: new TextDecoder().decode(Uint8Array.of(0xc3)) },
       ],
       fields: "a,  c  ,missing",
       expectError: false,
-      result: '[{"a":11,"c":"test1"},{"a":22,"c":"test2"}]',
+      result: '[{"a":11,"c":"test1"},{"a":22,"c":"�"}]',
     },
     {
       name: "nested fields with mixed map and any slices",

@@ -97,3 +97,16 @@ describe("Record.GetInt64", () => {
     expect(record.getInt64("value")).toBe(123);
   });
 });
+
+describe("Record.MarshalJSON", () => {
+  it("replaces invalid UTF-8 bytes before serialization", () => {
+    const collection = NewBaseCollection("test");
+    const field = new TextField();
+    field.Name = "value";
+    collection.Fields.Add(field);
+    const record = NewRecord(collection);
+    record.SetRaw("value", new TextDecoder().decode(Uint8Array.of(0x74, 0x65, 0x73, 0x74, 0xc3)));
+
+    expect(record.MarshalJSON()).toContain(`"value":"test�"`);
+  });
+});

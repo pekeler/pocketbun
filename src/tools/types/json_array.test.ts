@@ -10,7 +10,10 @@ describe("JSONArray", () => {
       { json: new JSONArray<unknown>(), expected: "[]" },
       { json: new JSONArray<unknown>(1, 2, 3), expected: "[1,2,3]" },
       { json: new JSONArray<unknown>("test1", "test2", "test3"), expected: `["test1","test2","test3"]` },
-      { json: new JSONArray<unknown>(1, "test"), expected: `[1,"test"]` },
+      {
+        json: new JSONArray<unknown>(1, new TextDecoder().decode(Uint8Array.of(0x74, 0x65, 0x73, 0x74, 0xc3))),
+        expected: `[1,"test�"]`,
+      },
       { json: new JSONArray<unknown>({ z: 1, a: 2 }), expected: `[{"a":2,"z":1}]` },
     ];
 

@@ -19,7 +19,11 @@ describe("JSONRaw", () => {
       { value: `{"test":1}`, expectError: false, expectJSON: `{"test":1}` },
       { value: new TextEncoder().encode("[1,2,3]"), expectError: false, expectJSON: "[1,2,3]" },
       { value: [1, 2, 3], expectError: false, expectJSON: "[1,2,3]" },
-      { value: { test: 1 }, expectError: false, expectJSON: `{"test":1}` },
+      {
+        value: { test: new TextDecoder().decode(Uint8Array.of(0x61, 0xc3)) },
+        expectError: false,
+        expectJSON: `{"test":"a�"}`,
+      },
     ];
 
     for (const scenario of scenarios) {

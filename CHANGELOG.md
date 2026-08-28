@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Now compatible with PocketBase `v0.40.1` [release notes](https://github.com/pocketbase/pocketbase/releases/tag/v0.40.1) (upstream commit `bc8ffed4`).
+  - OAuth2 provider updates now preserve omitted fields such as existing client secrets when the provider name is unchanged.
+  - Includes PocketBase's malformed UTF-8 replacement behavior and refreshed Admin UI; Bun already replaces malformed bytes when decoding them into JavaScript strings.
 - Added `serveAsync(app, { workers: N })`, allowing custom TypeScript entrypoints to use the same supervised cluster mode as PocketBun's included executable.
 
 ## 0.40.0-pocketbun.0 - 2026-08-28

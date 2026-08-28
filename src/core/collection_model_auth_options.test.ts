@@ -633,6 +633,85 @@ describe("PasswordAuthConfig.Validate", () => {
   });
 });
 
+describe("OAuth2Config merge", () => {
+  it("preserves omitted fields for submitted providers with the same name", () => {
+    const scenarios = [
+      {
+        name: "missing",
+        update: { enabled: true, mappedFields: { username: "username_test" } },
+        expectedProviders: [
+          { Name: "a", ClientId: "a_clientId", ClientSecret: "a_clientSecret", DisplayName: "" },
+          { Name: "b", ClientId: "b_clientId", ClientSecret: "b_clientSecret", DisplayName: "" },
+        ],
+      },
+      {
+        name: "empty",
+        update: { enabled: true, mappedFields: { username: "username_test" }, providers: [] },
+        expectedProviders: [],
+      },
+      {
+        name: "non-empty",
+        update: {
+          enabled: true,
+          mappedFields: { username: "username_test" },
+          providers: [
+            { name: "c", clientId: "c_clientId", clientSecret: "c_clientSecret" },
+            { name: "a", displayName: "a_displayName" },
+          ],
+        },
+        expectedProviders: [
+          { Name: "c", ClientId: "c_clientId", ClientSecret: "c_clientSecret", DisplayName: "" },
+          {
+            Name: "a",
+            ClientId: "a_clientId",
+            ClientSecret: "a_clientSecret",
+            DisplayName: "a_displayName",
+          },
+        ],
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const collection = NewAuthCollection("test");
+      collection.OAuth2 = Object.assign(new OAuth2Config(), {
+        Enabled: false,
+        MappedFields: { Id: "", Name: "name_test", Username: "", AvatarURL: "" },
+        Providers: [
+          Object.assign(new OAuth2ProviderConfig(), {
+            Name: "a",
+            ClientId: "a_clientId",
+            ClientSecret: "a_clientSecret",
+          }),
+          Object.assign(new OAuth2ProviderConfig(), {
+            Name: "b",
+            ClientId: "b_clientId",
+            ClientSecret: "b_clientSecret",
+          }),
+        ],
+      });
+
+      collection.options = { oauth2: scenario.update };
+
+      expect(collection.OAuth2.Enabled, scenario.name).toBeTrue();
+      expect(collection.OAuth2.MappedFields, scenario.name).toEqual({
+        Id: "",
+        Name: "name_test",
+        Username: "username_test",
+        AvatarURL: "",
+      });
+      expect(
+        (collection.OAuth2.Providers ?? []).map(({ Name, ClientId, ClientSecret, DisplayName }) => ({
+          Name,
+          ClientId,
+          ClientSecret,
+          DisplayName,
+        })),
+        scenario.name,
+      ).toEqual(scenario.expectedProviders);
+    }
+  });
+});
+
 describe("OAuth2Config.GetProviderConfig", () => {
   it("scenarios", () => {
     const scenarios = [

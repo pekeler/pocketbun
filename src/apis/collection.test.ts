@@ -1095,6 +1095,59 @@ const updateScenarios: ApiScenario[] = [
       OnModelValidate: 1,
     },
   },
+  {
+    name: "add another OAuth2 provider to an auth collection",
+    method: "PATCH",
+    url: "/api/collections/users",
+    body: `{
+      "oauth2": {
+        "providers": [
+          {"name": "apple", "clientId": "a", "clientSecret": "b"},
+          {
+            "pkce": null,
+            "name": "google",
+            "authURL": "",
+            "displayName": "existing",
+            "extra": {}
+          }
+        ]
+      }
+    }`,
+    headers: { Authorization: superuserToken },
+    beforeTest: (app) => {
+      const users = app.findCollectionByNameOrIdOrNull("users");
+      if (!users) {
+        throw new Error("Missing users collection");
+      }
+      if (users.OAuth2.Providers?.[0]?.Name !== "gitlab" || users.OAuth2.Providers[1]?.Name !== "google") {
+        throw new Error("Expected the existing gitlab and google OAuth2 providers");
+      }
+    },
+    expectedStatus: 200,
+    expectedContent: ['"name":"google"', '"name":"apple"', '"displayName":"existing"', '"clientId":"test"', '"clientId":"a"'],
+    notExpectedContent: ['"name":"gitlab"', "clientSecret"],
+    expectedEvents: {
+      "*": 0,
+      OnCollectionUpdateRequest: 1,
+      OnCollectionUpdate: 1,
+      OnCollectionUpdateExecute: 1,
+      OnCollectionAfterUpdateSuccess: 1,
+      OnCollectionValidate: 1,
+      OnModelUpdate: 1,
+      OnModelUpdateExecute: 1,
+      OnModelAfterUpdateSuccess: 1,
+      OnModelValidate: 1,
+    },
+    afterTest: (app) => {
+      const providers = app.findCollectionByNameOrIdOrNull("users")?.OAuth2.Providers ?? [];
+      if (providers[0]?.Name !== "apple" || providers[0].ClientSecret !== "b") {
+        throw new Error("Expected the new apple OAuth2 provider");
+      }
+      if (providers[1]?.Name !== "google" || providers[1].ClientId !== "test" || providers[1].ClientSecret !== "test2") {
+        throw new Error("Expected the existing google OAuth2 provider fields to be preserved");
+      }
+    },
+  },
 
   // view
   // -----------------------------------------------------------

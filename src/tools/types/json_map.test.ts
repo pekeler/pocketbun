@@ -8,7 +8,13 @@ describe("JSONMap", () => {
     const scenarios: Array<{ json: JSONMap<unknown>; expected: string }> = [
       { json: new JSONMap(), expected: "{}" },
       { json: new JSONMap(), expected: "{}" },
-      { json: new JSONMap({ test1: 123, test2: "lorem" }), expected: `{"test1":123,"test2":"lorem"}` },
+      {
+        json: new JSONMap({
+          test1: 123,
+          test2: new TextDecoder().decode(Uint8Array.of(0x6c, 0x6f, 0x72, 0x65, 0x6d, 0xc3)),
+        }),
+        expected: `{"test1":123,"test2":"lorem�"}`,
+      },
       { json: new JSONMap({ test: [1, 2, 3] }), expected: `{"test":[1,2,3]}` },
       { json: new JSONMap({ z: 1, a: { z: 2, a: 3 } }), expected: `{"a":{"a":3,"z":2},"z":1}` },
     ];

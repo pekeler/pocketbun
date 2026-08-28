@@ -1,4 +1,4 @@
-// Ported from pocketbase/core/collection_model.go
+// Ported from pocketbase/core/collection_model.go and pocketbase/core/collection_model_auth_options.go
 
 import type { App } from "./app.ts";
 import { toBoolValue, toNumberValue, toStringValue } from "../internal/compat/cast.ts";
@@ -1264,7 +1264,38 @@ function mergeOAuth2Config(current: OAuth2Config, raw: unknown): OAuth2Config {
   if (Object.prototype.hasOwnProperty.call(record, "providers") || Object.prototype.hasOwnProperty.call(record, "Providers")) {
     const providers = record.providers ?? record.Providers;
     if (Array.isArray(providers)) {
-      merged.Providers = providers.map((item) => normalizeOAuth2ProviderConfig(item));
+      // Partially submitted provider data (for example without clientSecret)
+      // is merged by provider name instead of replacing the entire config.
+      merged.Providers = providers.map((item) => {
+        const replacement = normalizeOAuth2ProviderConfig(item);
+        if (!item || typeof item !== "object") {
+          return replacement;
+        }
+
+        const original = (current.Providers ?? []).find((provider) => provider.Name === replacement.Name);
+        if (!original) {
+          return replacement;
+        }
+
+        const plain = item as Record<string, unknown>;
+        const submittedOr = (name: string, alias: string, fallback: unknown): unknown =>
+          Object.prototype.hasOwnProperty.call(plain, name)
+            ? plain[name]
+            : Object.prototype.hasOwnProperty.call(plain, alias)
+              ? plain[alias]
+              : fallback;
+        return normalizeOAuth2ProviderConfig({
+          pkce: submittedOr("pkce", "PKCE", original.PKCE),
+          name: replacement.Name,
+          clientId: submittedOr("clientId", "ClientId", original.ClientId),
+          clientSecret: submittedOr("clientSecret", "ClientSecret", original.ClientSecret),
+          authURL: submittedOr("authURL", "AuthURL", original.AuthURL),
+          tokenURL: submittedOr("tokenURL", "TokenURL", original.TokenURL),
+          userInfoURL: submittedOr("userInfoURL", "UserInfoURL", original.UserInfoURL),
+          displayName: submittedOr("displayName", "DisplayName", original.DisplayName),
+          extra: submittedOr("extra", "Extra", original.Extra),
+        });
+      });
     } else {
       merged.Providers = null;
     }
