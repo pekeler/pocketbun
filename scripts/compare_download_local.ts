@@ -203,7 +203,9 @@ async function withServer<T>(engine: Engine, action: (server: RunningServer, adm
 
 async function startServer(engine: Engine): Promise<RunningServer> {
   const port = await findAvailablePort();
-  const dataDir = await mkdtemp(join(tmpdir(), `${engine}-download-data-`));
+  const tempRoot = await mkdtemp(join(tmpdir(), `${engine}-download-`));
+  const dataDir = join(tempRoot, "pb_data");
+  await mkdir(dataDir);
   await ensureSuperuser(engine, dataDir);
 
   const cmd =
@@ -224,7 +226,7 @@ async function startServer(engine: Engine): Promise<RunningServer> {
   } catch (error) {
     const [stdoutText, stderrText] = await Promise.all([readStreamText(proc.stdout), readStreamText(proc.stderr)]);
     await proc.exited.catch(() => {});
-    await rm(dataDir, { recursive: true, force: true });
+    await rm(tempRoot, { recursive: true, force: true });
     throw new Error(
       `failed to start ${engine}: ${String(error)}\nstdout:\n${stdoutText.trim()}\nstderr:\n${stderrText.trim()}`.trim(),
     );
@@ -239,7 +241,7 @@ async function startServer(engine: Engine): Promise<RunningServer> {
     stop: async () => {
       proc.kill("SIGTERM");
       await proc.exited.catch(() => {});
-      await rm(dataDir, { recursive: true, force: true });
+      await rm(tempRoot, { recursive: true, force: true });
     },
   };
 }

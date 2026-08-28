@@ -2,12 +2,12 @@
 
 ## Unreleased
 
-This is a **major operational release**, even though PocketBun's PocketBase-aligned version number cannot express that clearly. It raises the minimum Bun version to 1.4 and introduces an optional multi-process deployment model. Before upgrading a production system, install Bun 1.4, create and verify a current backup, and review [Going to Production](docs/users/going-to-production.md) and [PocketBun Differences From PocketBase](docs/users/differences.md).
+This is a **major operational release**, even though PocketBun's PocketBase-aligned version number cannot express that clearly. It raises the minimum Bun version to 1.4 and introduces an optional multi-process deployment model. Before upgrading a production system, create and verify a current backup, install Bun 1.4, and review [Going to Production](docs/users/going-to-production.md) and [PocketBun Differences From PocketBase](docs/users/differences.md).
 
 ### Compatibility and upgrade requirements
 
 - **Bun `v1.4.0` or newer is now required.** Older Bun releases are no longer supported.
-- Now compatible with PocketBase `v0.40.0` [release notes](https://github.com/pocketbase/pocketbase/releases/tag/v0.40.0) (upstream commit `50f5f83a`).
+- Now compatible with PocketBase `v0.40.0` [release notes](https://github.com/pocketbase/pocketbase/releases/tag/v0.40.0) (PocketBase commit `50f5f83a`).
   - Backups no longer hold a transaction while compressing the data directory, while storage-file tracking keeps live backup archives consistent.
   - Added log deletion, bounded log data/message storage, `record.getInt64(...)`, `store.keys()`, quoted download filenames, stronger default security headers, and the updated Admin UI.
 - PocketBun still starts with one worker unless `--workers` is explicitly set. Enabling or disabling cluster mode does not convert application data, so an existing deployment can adopt it gradually and return to `--workers=1` without a data migration.
@@ -28,7 +28,7 @@ This is a **major operational release**, even though PocketBun's PocketBase-alig
 
 - Backups now use disk-backed SQLite snapshots and streaming ZIP64 archives. Large databases are no longer copied into JavaScript memory, archives are no longer limited to 4 GiB entries, and clustered writes and WAL checkpoints can continue while snapshots are created.
 - Live storage-file tracking follows PocketBase v0.40's backup boundary across every worker, keeping files deleted during the database snapshot available to the archive and excluding files uploaded after that boundary.
-- Keep roughly three times the size of `pb_data` free during a worst-case local backup. Existing PocketBase and PocketBun backup archives remain restorable on supported platforms.
+- Keep roughly three times the size of `pb_data` free during a worst-case local backup. Existing PocketBase and PocketBun backup archives remain restorable on supported platforms. As in PocketBase, restoring a backup is not supported on Windows.
 - Graceful CLI shutdown now exits successfully after `SIGINT` or `SIGTERM`, so service managers no longer report a normal stop as a failure.
 - Production guidance now covers reverse-proxy TLS, systemd, worker topology, memory and SQLite scaling tradeoffs, live backups, and immediate rollback to one worker.
 
@@ -47,7 +47,6 @@ This is a **major operational release**, even though PocketBun's PocketBase-alig
 - Added PocketBase-compatible `$app.cron().setTimezone(...)` support while keeping UTC as the default on every host.
 - Clarified custom-route CSRF guidance so cookie-authenticated forms bind tokens to a stable per-session identifier.
 - Faster test runs now isolate files across four Bun worker processes, with `bun run test:changed` available for focused local checks.
-- Improved maintainer benchmarks with an external load generator for both full suites and focused probes, latency percentiles, server RSS reporting, explicit worker counts, and reproducible PocketBase version pinning.
 
 ## 0.39.11-pocketbun.0 - 2026-08-14
 

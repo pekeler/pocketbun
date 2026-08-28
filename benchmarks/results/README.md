@@ -4,6 +4,7 @@ This directory stores raw benchmark output snapshots committed to the repository
 
 Committed comparison batches:
 
+- [`pb_compare_20260827T213751Z_external_scaling`](pb_compare_20260827T213751Z_external_scaling/summary.md) — PocketBase v0.40.0 and PocketBun 0.40.0-pocketbun.0 across one through eight worker/GOMAXPROCS configurations, with external load generation and three accepted runs per configuration.
 - [`pb_compare_20260824T220243Z_external`](pb_compare_20260824T220243Z_external/summary.md) — PocketBase v0.40.0 versus PocketBun with external load generation and one/two/four application execution lanes.
 - [`pb_compare_20260226T120803Z`](pb_compare_20260226T120803Z/summary.md) — earlier co-located PocketBase/PocketBun comparison.
 

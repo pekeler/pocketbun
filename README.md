@@ -53,6 +53,16 @@ bun run server.ts
 
 Then visit `http://127.0.0.1:8090/_/` for the Admin UI and `http://127.0.0.1:8090/api/health` for a basic API response.
 
+## Vertical Scaling
+
+For read-heavy deployments with spare CPU capacity, start multiple workers:
+
+```sh
+bun run pocketbun --workers=4 serve --http=127.0.0.1:8090
+```
+
+On Linux, workers share the configured address. On macOS and Windows, they use consecutive loopback ports behind a reverse proxy. See the [production guide](docs/users/going-to-production.md#using-multiple-workers) for worker sizing, reverse-proxy configuration, and operational details.
+
 ## Examples
 
 - `examples/simple` — minimal server start
@@ -60,36 +70,45 @@ Then visit `http://127.0.0.1:8090/_/` for the Admin UI and `http://127.0.0.1:809
 
 ## Performance
 
-PocketBun aims to stay in the same performance range as PocketBase. Exact comparisons are noisy because Go (`1.26.0`) and Bun (`1.3.10`) are different runtimes.
+PocketBun `0.40.0-pocketbun.0` is benchmarked against PocketBase `v0.40.0` with Bun `1.4.0` and Go `1.27.0`. On aggregate, PocketBun is significantly faster than PocketBase.
+
+![Aggregate benchmark time and high-concurrency read throughput.](benchmarks/results/pb_compare_20260827T213751Z_external_scaling/scaling.svg)
 
 Benchmark setup:
 
-- host: Hetzner CCX13 (2 dedicated vCPU, 8 GB RAM)
-- versions: PocketBase `v0.36.5`, PocketBun `0.36.5-pocketbun.2`
-- method: 5 full runs per system, then mean values per scenario
+- complete 150-scenario PocketBase project benchmark suite (`create`, `auth`, `search`, `custom`, `delete`)
+- three runs per runtime/configuration; each value is the sum of the 150 per-scenario medians, rather than one wall-clock suite run
+- dedicated external load generator; the same discarded 1,000-request warmup is applied to both systems, but PocketBun needs it to reach its JIT-optimized performance while it does not materially affect PocketBase
+- PocketBase uses `GOMAXPROCS=N`; PocketBun uses `--workers=N`
+- the 1/2, 3/4, and 5–8 worker/GOMAXPROCS measurements use Hetzner CCX13, CCX23, and CCX33 hosts respectively
 
-Results (PocketBun relative to PocketBase):
+Phase detail (PocketBase / PocketBun seconds):
 
-- scenario range: **6.1x faster to 3.0x slower**
-- geometric mean: **1.6x faster**
-- aggregate mean benchmark time (sum of mean `Completed` across scenarios): **10m 2s** vs **21m 41s**
-
-In this benchmark batch, PocketBun was generally faster on read-heavy/filter-heavy workloads, slower on create-heavy write workloads, and mostly in the same range elsewhere.
+| Workers / GOMAXPROCS | Create | Authentication | Read | Custom routes/hooks | Delete |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 129.8 / 61.5 | 29.6 / 16.4 | 897.7 / 394.8 | 120.0 / 32.1 | 27.2 / 23.8 |
+| 2 | 80.2 / 51.2 | 16.5 / 16.4 | 792.1 / 335.4 | 36.0 / 28.0 | 28.5 / 24.6 |
+| 3 | 52.9 / 28.8 | 10.6 / 8.3 | 514.2 / 212.5 | 42.7 / 28.1 | 30.5 / 26.7 |
+| 4 | 48.1 / 27.7 | 8.4 / 8.3 | 495.4 / 192.9 | 41.0 / 27.1 | 31.2 / 27.5 |
+| 5 | 37.3 / 16.7 | 6.3 / 4.3 | 368.9 / 136.2 | 38.8 / 25.4 | 32.3 / 28.4 |
+| 6 | 36.6 / 16.1 | 5.5 / 4.3 | 372.3 / 128.8 | 41.5 / 23.7 | 32.1 / 28.2 |
+| 7 | 35.7 / 16.2 | 4.8 / 4.3 | 372.2 / 125.5 | 41.6 / 22.6 | 32.8 / 29.3 |
+| 8 | 35.8 / 16.3 | 4.3 / 4.3 | 370.2 / 116.0 | 41.8 / 21.9 | 32.6 / 30.5 |
 
 The benchmark suite itself has [known fluctuations](https://github.com/pocketbase/benchmarks/issues/8), so treat these numbers as directional rather than absolute.
 
-Memory footprint and file transfer behavior:
+The [full methodology, raw reports, and checksums](benchmarks/results/pb_compare_20260827T213751Z_external_scaling/summary.md) are committed with the repository.
 
-- Idle memory: PocketBun uses about `100 MiB` more baseline RSS than PocketBase.
-- API load: typical API traffic is in the same range as PocketBase, and PocketBun can use less memory under load.
-- Uploads: large file uploads stay in the same ballpark as PocketBase for memory use and throughput.
-- Downloads: large local-file downloads stay essentially flat in memory and perform in the same ballpark as PocketBase, including under concurrent load.
+Memory and file transfer behavior, measured locally on Apple silicon:
 
-Exact numbers vary by OS, runtime, and workload.
+- Idle memory: PocketBun uses about `65 MiB` more RSS than PocketBase.
+- API load: a 32-client record-list probe peaked at `198 MiB` for PocketBun versus `417 MiB` for PocketBase.
+- Uploads: 64–512 MiB uploads added `15–20 MiB` RSS for PocketBun versus `86–90 MiB` for PocketBase, while PocketBun was faster in this probe.
+- Downloads: 64–256 MiB downloads added at most `2 MiB` RSS for PocketBun and had comparable throughput to PocketBase, including four concurrent downloads.
 
 ## Tests
 
-PocketBun keeps upstream test coverage close to PocketBase and adds around 20% additional PocketBun-specific tests.
+PocketBun keeps test coverage close to PocketBase and adds around 20% additional PocketBun-specific tests.
 
 Only 2 tests didn't get ported. They are for PocketBase’s self-update command/plugin which doesn't exist in PocketBun.
 
@@ -103,7 +122,7 @@ All differences to PocketBase are documented [here](https://pekeler.github.io/po
 - CLI defaults/path resolution differences
 - async API extensions
 - operational differences (thumbnails, logs, templates, SQL helpers)
-- intentionally unsupported upstream topics
+- intentionally unsupported PocketBase documentation topics
 
 ## Development Setup
 
