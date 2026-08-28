@@ -84,9 +84,9 @@ Benchmark setup:
 - PocketBase uses `GOMAXPROCS=N`; PocketBun uses `--workers=N`
 - the 1/2, 3/4, and 5–8 worker/GOMAXPROCS measurements use Hetzner CCX13, CCX23, and CCX33 hosts respectively
 
-Phase detail (PocketBase / PocketBun seconds):
+Phase detail (PocketBase / PocketBun seconds; `#` is PocketBase `GOMAXPROCS` and PocketBun workers):
 
-| Workers / GOMAXPROCS | Create | Authentication | Read | Custom routes/hooks | Delete |
+| # | Create | Authentication | Read | Custom routes/hooks | Delete |
 | ---: | ---: | ---: | ---: | ---: | ---: |
 | 1 | 129.8 / 61.5 | 29.6 / 16.4 | 897.7 / 394.8 | 120.0 / 32.1 | 27.2 / 23.8 |
 | 2 | 80.2 / 51.2 | 16.5 / 16.4 | 792.1 / 335.4 | 36.0 / 28.0 | 28.5 / 24.6 |
