@@ -37,7 +37,7 @@ Notes:
 - `rebuild_from_upstream.ts` copies screenshot assets into:
   - `docs/assets/upstream/screenshots/*`
 - Generated docs image links are rewritten to local paths:
-  - `./assets/upstream/screenshots/<file>` (published from root via per-page permalinks)
+  - `../assets/upstream/screenshots/<file>` (relative to the generated files under `docs/users`)
 - `scripts/docs/check_generated_docs.ts` verifies local screenshot links resolve to existing files and fails on upstream screenshot hotlinks.
 - `scripts/docs/check_generated_docs.ts` also verifies required PocketBun-only guidance is still present (for example `.pb.ts` hooks, async helpers, JSVM naming aliases, and the package-manager update model).
 - If an upstream prose change invalidates an overlay anchor, fix the overlay operation or the generator so the rebuild stays deterministic; do not hand-edit the generated user docs as the primary fix.

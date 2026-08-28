@@ -6,7 +6,7 @@ permalink: /experience.html
 
 # Porting PocketBase to Bun With an Agent: Notes From the Last Mile
 
-![PB Logo driving on OpenAI wheels from the Golang to the Bun logo.](./pb2pb.webp)
+![PB Logo driving on OpenAI wheels from the Golang to the Bun logo.](../pb2pb.webp)
 
 PocketBun started from a simple motivation: keep the PocketBase developer experience, but run it natively on Bun. Not “inspired by” PocketBase. Not “similar to.” The bar we set was API compatibility: same routes, same status codes, same JSON shapes, same auth behavior, same realtime protocol, same error format, and the same Admin UI served unchanged.
 

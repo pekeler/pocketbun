@@ -237,7 +237,7 @@ Similarly, you can manage your **records** from the Dashboard, with the Web APIs
 
 Here is what a collection edit panel looks like in the Dashboard:
 
-![Collection panel screenshot](./assets/upstream/screenshots/collection-panel.png)
+![Collection panel screenshot](../assets/upstream/screenshots/collection-panel.png)
 
 Currently there are 3 collection types: **Base**, **View** and **Auth**.
 
@@ -528,7 +528,7 @@ The API Rules are ignored when the action is performed by an authorized superuse
 
 You can find information about the available fields in your collection API rules tab:
 
-![Collection API Rules filters screenshot](./assets/upstream/screenshots/collection-rules.png)
+![Collection API Rules filters screenshot](../assets/upstream/screenshots/collection-rules.png)
 
 There is autocomplete to help guide you while typing the rule filter expression, but in general you have access to **3 groups of fields**:
 
@@ -958,7 +958,7 @@ import PocketBase from 'pocketbase';
 
 While PocketBun doesn't have "API keys" in the traditional sense, as a side effect of the support for users impersonation, for such cases you can use instead the generated nonrenewable `_superusers` impersonate auth token. You can generate such token via the above impersonate API or from the *Dashboard > Collections > _superusers > > "Impersonate" dropdown option:
 
-![Screenshot of the _superusers impersonate popup](./assets/upstream/screenshots/impersonate.png)
+![Screenshot of the _superusers impersonate popup](../assets/upstream/screenshots/impersonate.png)
 
 Because of the security implications (superusers can execute, access and modify anything), use the generated `_superusers` tokens with extreme care and only for internal **server-to-server** communication.
 
@@ -1044,7 +1044,7 @@ When using the "Manual code exchange" flow for sign-in with Apple your redirect 
 
 To upload files, you must first add a `file` field to your collection:
 
-![File field screenshot](./assets/upstream/screenshots/file-field.png)
+![File field screenshot](../assets/upstream/screenshots/file-field.png)
 
 Once added, you could create/update a Record and upload "documents" files by sending a `multipart/form-data` request using the *Records create/update APIs*.
 
@@ -1193,7 +1193,7 @@ By default PocketBun stores uploaded files in the `pb_data/storage` directory on
 
 But if you have limited disk space you could switch to an external S3 compatible storage (AWS S3, MinIO, Wasabi, DigitalOcean Spaces, Vultr Object Storage, etc.). The easiest way to set up the connection settings is from the *Dashboard* > *Settings* > *Files storage*:
 
-![Files storage settings screenshot](./assets/upstream/screenshots/files-storage.png)
+![Files storage settings screenshot](../assets/upstream/screenshots/files-storage.png)
 ## Working with relations
 
 ### Overview

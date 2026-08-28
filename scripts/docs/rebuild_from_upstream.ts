@@ -298,7 +298,7 @@ function normalizeDocsImageHref(href: string): string {
 
   if (trimmed.startsWith("/images/screenshots/")) {
     const filename = pathPosix.basename(trimmed);
-    return `./assets/upstream/screenshots/${filename}`;
+    return `../assets/upstream/screenshots/${filename}`;
   }
 
   return normalizeUpstreamHref(trimmed);

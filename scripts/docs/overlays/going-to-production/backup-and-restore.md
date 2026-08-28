@@ -4,7 +4,7 @@ To backup/restore your application it is enough to manually copy/replace your `p
 
 To make things slightly easier, PocketBun v0.16+ comes with builtin backups and restore APIs that could be accessed from the Dashboard ( _Settings_ > _Backups_ ):
 
-![Backups settings screenshot](./assets/upstream/screenshots/backups.png)
+![Backups settings screenshot](../assets/upstream/screenshots/backups.png)
 
 Backups can be stored locally (default) or in a S3 compatible storage (\*it is recommended to use a separate bucket only for the backups). The generated backup represents a ZIP archive of your `pb_data` directory, including locally stored uploads but excluding local backups and files stored in S3.
 

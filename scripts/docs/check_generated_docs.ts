@@ -2,7 +2,7 @@
 // This script exists to verify generated docs coverage against cached upstream route inventories and critical keywords.
 
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 type RouteItem = { href: string; title: string };
 
@@ -119,7 +119,7 @@ function routeTitleVariants(title: string): string[] {
 }
 
 function assertLocalScreenshotLinksExist(docPath: string, content: string): void {
-  const localLinkRegex = /!\[[^\]]*?\]\((\.\/assets\/upstream\/screenshots\/[^)\s]+)\)/g;
+  const localLinkRegex = /!\[[^\]]*?\]\(((?:\.\.?\/)+assets\/upstream\/screenshots\/[^)\s]+)\)/g;
   const linked = new Set<string>();
 
   for (const match of content.matchAll(localLinkRegex)) {
@@ -128,15 +128,14 @@ function assertLocalScreenshotLinksExist(docPath: string, content: string): void
   }
 
   for (const rel of linked) {
-    const normalized = rel.replace(/^\.\//, "");
-    const filePath = join("docs", normalized);
+    const filePath = join(dirname(docPath), rel);
     if (!existsSync(filePath)) {
       throw new Error(`Missing screenshot asset '${filePath}' referenced in ${docPath}`);
     }
   }
 
   if (content.includes("https://pocketbase.io/images/screenshots/")) {
-    throw new Error(`Found upstream screenshot hotlink in ${docPath}; expected local ./assets/upstream/screenshots/* links`);
+    throw new Error(`Found upstream screenshot hotlink in ${docPath}; expected local ../assets/upstream/screenshots/* links`);
   }
 }
 
