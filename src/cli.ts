@@ -4,7 +4,7 @@
 import type { ServeEvent } from "./core/events.ts";
 import { Static as serveStatic } from "./apis/base.ts";
 import { NewHooksCommand, NewServerJSCommand, isHooksBuildCommand, isServerJSSourceUpgradeCommand } from "./cmd/server_js.ts";
-import { ClusterEnvRole, clusterEnabled, validateWorkerCount } from "./internal/cluster/context.ts";
+import { clusterEnabled, validateWorkerCount } from "./internal/cluster/context.ts";
 import { MustRegisterAsync as registerServerJS } from "./plugins/jsvm/jsvm.ts";
 import { MustRegister as registerMigrateCmd, TemplateLangJS as templateLangJS } from "./plugins/migratecmd/migratecmd.ts";
 import { newPocketBase, registerDefaultCommands } from "./pocketbase.ts";
@@ -92,27 +92,21 @@ export async function main(): Promise<void> {
     }
 
     if (flags.workers > 1) {
-      if (process.env[ClusterEnvRole]) {
-        const { attachClusterWorker } = await import("./internal/cluster/worker.ts");
-        attachClusterWorker();
-      } else {
-        const [selected, _remaining, resolveErr] = app.rootCmd.resolve(args);
-        if (resolveErr) {
-          throw resolveErr;
-        }
-        if (selected !== defaultCommands.serve) {
-          throw new Error("--workers greater than 1 is only supported with the serve command");
-        }
-
-        const { runClusterPrimary } = await import("./internal/cluster/primary.ts");
-        await runClusterPrimary({
-          workers: flags.workers,
-          dataDir: app.dataDir(),
-          httpAddr: defaultCommands.serveState.httpAddr || "127.0.0.1:8090",
-          showStartBanner: !app.hideStartBanner,
-        });
-        return;
+      const [selected, _remaining, resolveErr] = app.rootCmd.resolve(args);
+      if (resolveErr) {
+        throw resolveErr;
       }
+      if (selected !== defaultCommands.serve) {
+        throw new Error("--workers greater than 1 is only supported with the serve command");
+      }
+
+      const { runClusterEntrypoint } = await import("./internal/cluster/entrypoint.ts");
+      await runClusterEntrypoint({
+        workers: flags.workers,
+        dataDir: app.dataDir(),
+        httpAddr: defaultCommands.serveState.httpAddr || "127.0.0.1:8090",
+        showStartBanner: !app.hideStartBanner,
+      });
     }
   }
 

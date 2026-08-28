@@ -8,7 +8,6 @@ import { bootstrapIfNeededAsync, type App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { ServeEvent } from "../core/events.ts";
 import {
-  ClusterEnvRole,
   clusterReusePort,
   clusterWorkerAddress,
   runsClusterSingletons,
@@ -190,21 +189,15 @@ export async function serveAsync(app: App, config: ServeAsyncConfig = {}): Promi
   let workerConfig = config;
   let programmaticClusterWorker = false;
   if (workers > 1) {
-    if (process.env[ClusterEnvRole]) {
-      const { attachClusterWorker } = await import("../internal/cluster/worker.ts");
-      attachClusterWorker();
-      workerConfig = { ...config, httpAddr: clusterWorkerAddress(), showStartBanner: false };
-      programmaticClusterWorker = true;
-    } else {
-      const { runClusterPrimary } = await import("../internal/cluster/primary.ts");
-      await runClusterPrimary({
-        workers,
-        dataDir: app.dataDir(),
-        httpAddr: config.httpAddr ?? "127.0.0.1:8090",
-        showStartBanner: config.showStartBanner ?? false,
-      });
-      process.exit(0);
-    }
+    const { runClusterEntrypoint } = await import("../internal/cluster/entrypoint.ts");
+    await runClusterEntrypoint({
+      workers,
+      dataDir: app.dataDir(),
+      httpAddr: config.httpAddr ?? "127.0.0.1:8090",
+      showStartBanner: config.showStartBanner ?? false,
+    });
+    workerConfig = { ...config, httpAddr: clusterWorkerAddress(), showStartBanner: false };
+    programmaticClusterWorker = true;
   }
 
   await ensureReady(app);
