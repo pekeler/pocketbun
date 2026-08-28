@@ -194,12 +194,18 @@ describe("backups", () => {
       (app as unknown as { RestartAsync: () => Promise<Error | null> }).RestartAsync = async () => null;
       expect(await app.RestoreBackup({}, name)).toBeNull();
       app.resetBootstrapState();
+
+      // Bootstrapping applies the restored PocketBase log-retention settings,
+      // which can prune this fixture's old log entry.
+      {
+        using restoredAuxDb = new Database(join(app.DataDir(), "auxiliary.db"), { readonly: true });
+        expect(restoredAuxDb.query("select message from _logs where id = ?").get("pbfixturelog001")).toEqual({
+          message: "pocketbase-auxiliary",
+        });
+      }
       app.bootstrap();
 
       expect(app.db().query("select value from pb_backup_fixture").get()).toEqual({ value: "pocketbase-main" });
-      expect(app.auxDb().query("select message from _logs where id = ?").get("pbfixturelog001")).toEqual({
-        message: "pocketbase-auxiliary",
-      });
       expect(await readFile(join(app.DataDir(), "storage", "pocketbase-fixture.txt"), "utf8")).toBe("pocketbase-file");
     } finally {
       await cleanup();
