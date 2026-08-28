@@ -29,6 +29,12 @@ test.serial("bench caps and clears the warmup iteration limit", async () => {
   expect(calls).toBe(5);
 });
 
+test("bench reports every completed request when tracing", async () => {
+  let completed = 0;
+  await bench(async () => {}, 3, 2, { onComplete: () => completed++ });
+  expect(completed).toBe(3);
+});
+
 test.serial("short warmup scenarios expand to the target in one batch", () => {
   setBenchIterationLimit(300);
   try {

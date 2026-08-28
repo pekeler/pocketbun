@@ -7,7 +7,7 @@
 import type { AddressInfo } from "node:net";
 import { Database } from "bun:sqlite";
 import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { createServer } from "node:net";
+import { createConnection, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -45,6 +45,9 @@ const benchmarkWarmupRequests = await resolveIntOverride(
   benchmarkWarmupRequestsFile,
   300,
 );
+const createProbeOrganizationIterations = parsePositiveInt(process.env.POCKETBUN_BENCH_CREATE_PROBE_ORGANIZATION_ITERATIONS);
+const goRouteProbeIterations = parsePositiveInt(process.env.POCKETBUN_BENCH_GO_ROUTE_ITERATIONS) ?? 5_000;
+const customGoRouteIterations = parsePositiveInt(process.env.POCKETBUN_BENCH_CUSTOM_GO_ROUTE_ITERATIONS);
 const machineTag = sanitizeTag(process.env.POCKETBUN_BENCH_MACHINE_TAG ?? "m2-max");
 const timestampTag = createTimestampTag(new Date());
 const resultsDir = process.env.POCKETBUN_BENCH_RESULTS_DIR ?? "benchmarks/results";
@@ -87,6 +90,9 @@ await applyBenchErrorCollectionPatch(sourceDir, benchmarkDebugErrors);
 if (externalLoadUrl) {
   await applyExternalLoadPatch(sourceDir);
 }
+if (customGoRouteIterations !== null) {
+  await applyCustomGoRouteIterationsPatch(sourceDir, customGoRouteIterations);
+}
 await applyFullSuiteWarmupPatch(sourceDir);
 
 await mkdir(dataDir, { recursive: true });
@@ -128,15 +134,7 @@ if (!isRunnableOnCurrentHost(upstreamBuildGoos, upstreamBuildGoarch)) {
 
 console.log(`Starting upstream benchmark server executable: ${basename(executablePath)}`);
 
-const serverProc = Bun.spawn({
-  cmd: [executablePath, "serve", `--http=${externalLoadUrl ? "0.0.0.0" : "127.0.0.1"}:${port}`, `--dir=${dataDir}`],
-  cwd: sourceDir,
-  env: {
-    ...process.env,
-    POCKETBUN_BENCHMARK_WARMUP_REQUESTS: String(benchmarkWarmupRequests),
-  },
-  stdio: ["ignore", "inherit", "inherit"],
-});
+let serverProc = startServer();
 
 try {
   await ensureServerReady();
@@ -147,7 +145,8 @@ try {
     benchmarkRun === "probe:create-organizations" ||
     benchmarkRun === "probe:create-users" ||
     benchmarkRun === "probe:create-users-upstream" ||
-    benchmarkRun === "probe:auth-refresh"
+    benchmarkRun === "probe:auth-refresh" ||
+    benchmarkRun === "probe:go-route"
   ) {
     const token = await authSuperuser();
     await importProbeSchema(token);
@@ -157,16 +156,18 @@ try {
         ? await runCreateErrorProbe(token)
         : benchmarkRun === "probe:auth-refresh"
           ? await runAuthRefreshProbe(token)
-          : await runCreateLatencyProbe(
-              token,
-              benchmarkRun === "probe:create-organizations"
-                ? "organizations-only"
-                : benchmarkRun === "probe:create-users"
-                  ? "users-only"
-                  : benchmarkRun === "probe:create-users-upstream"
-                    ? "users-upstream"
-                    : "full",
-            );
+          : benchmarkRun === "probe:go-route"
+            ? await runGoRouteProbe(token)
+            : await runCreateLatencyProbe(
+                token,
+                benchmarkRun === "probe:create-organizations"
+                  ? "organizations-only"
+                  : benchmarkRun === "probe:create-users"
+                    ? "users-only"
+                    : benchmarkRun === "probe:create-users-upstream"
+                      ? "users-upstream"
+                      : "full",
+              );
 
     const metadataHeader = [
       "# Upstream PocketBase Benchmark Probe",
@@ -518,6 +519,16 @@ type Request struct {`,
   }
 
   await writeFile(requestPath, patched);
+}
+
+async function applyCustomGoRouteIterationsPatch(rootDir: string, iterations: number): Promise<void> {
+  const customPath = join(rootDir, "benchmarks", "test_custom.go");
+  const original = await readFile(customPath, "utf8");
+  const target = '{"Go route (high concurrency)", 500, 500, "/go"},';
+  if (!original.includes(target)) {
+    throw new Error(`failed to find Go route high-concurrency scenario in ${customPath}`);
+  }
+  await writeFile(customPath, original.replace(target, `{"Go route (high concurrency)", ${iterations}, 500, "/go"},`));
 }
 
 async function applyBenchErrorCollectionPatch(rootDir: string, debugErrors: boolean): Promise<void> {
@@ -1066,6 +1077,57 @@ function parseNonNegativeInt(value: string | null | undefined): number | null {
   return parsed;
 }
 
+function parsePositiveInt(value: string | null | undefined): number | null {
+  const parsed = parseNonNegativeInt(value);
+  return parsed !== null && parsed > 0 ? parsed : null;
+}
+
+function startServer() {
+  return Bun.spawn({
+    cmd: [executablePath, "serve", `--http=${externalLoadUrl ? "0.0.0.0" : "127.0.0.1"}:${port}`, `--dir=${dataDir}`],
+    cwd: sourceDir,
+    env: {
+      ...process.env,
+      POCKETBUN_BENCHMARK_WARMUP_REQUESTS: String(benchmarkWarmupRequests),
+    },
+    stdio: ["ignore", "inherit", "inherit"],
+  });
+}
+
+async function validateGoRouteSeed(superuserToken: string): Promise<void> {
+  const response = await fetch(`${baseUrl}/go`, { headers: { Authorization: superuserToken } });
+  const records = response.ok ? ((await response.json()) as Array<Record<string, unknown>>) : [];
+  if (records.length !== 20 || typeof records[0]?.description !== "string" || records[0].description.length < 400) {
+    throw new Error("Go route seed validation failed");
+  }
+}
+
+async function restartServer(): Promise<void> {
+  serverProc.kill();
+  await serverProc.exited;
+  serverProc = startServer();
+  await ensureServerListening();
+}
+
+async function ensureServerListening(): Promise<void> {
+  const deadline = Date.now() + serverReadyTimeoutMs;
+  while (Date.now() < deadline) {
+    const listening = await new Promise<boolean>((resolve) => {
+      const socket = createConnection({ host: "127.0.0.1", port });
+      socket.once("connect", () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.once("error", () => resolve(false));
+    });
+    if (listening) {
+      return;
+    }
+    await delay(50);
+  }
+  throw new Error("upstream benchmark server did not listen in time");
+}
+
 async function ensureServerReady(): Promise<void> {
   const deadline = Date.now() + serverReadyTimeoutMs;
   while (Date.now() < deadline) {
@@ -1150,6 +1212,52 @@ type AuthRefreshResult = {
   p95Ms: number;
   errors: number;
 };
+
+async function runGoRouteProbe(superuserToken: string): Promise<string> {
+  const concurrency = 500;
+  const seedResult = await bench(
+    async (index) => {
+      await new BenchRequest({
+        Url: `${benchmarkBaseUrl}/api/collections/posts10k/records`,
+        Method: "POST",
+        Headers: { Authorization: superuserToken },
+        Body: JSON.stringify({
+          title: `go-route-${index}`,
+          description:
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec sit amet sodales nisl, quis pretium nunc. Suspendisse vel auctor velit, sed luctus lectus. Phasellus rhoncus imperdiet feugiat. Duis et laoreet felis, ut facilisis enim. Quisque aliquet aliquam magna eget eleifend. Duis sed tellus nibh. Nunc ac lacus auctor, scelerisque magna congue, euismod purus. Fusce sollicitudin pharetra egestas. Quisque pulvinar augue nec aliquam placerat. Suspendisse dapibus ornare sodales.",
+          public: index % 2 !== 0,
+          type: ["a", "b"],
+        }),
+      }).Send(null);
+    },
+    10_000,
+    concurrency,
+  );
+  if (seedResult.Errors.length > 0) {
+    throw seedResult.Errors[0];
+  }
+  await validateGoRouteSeed(superuserToken);
+  await restartServer();
+  console.log(`\nRunning upstream Go route probe (reqs=${goRouteProbeIterations}, conc=${concurrency})...`);
+  const result = await bench(
+    async () => {
+      await new BenchRequest({
+        Url: `${benchmarkBaseUrl}/go`,
+        Method: "GET",
+        Headers: { Authorization: superuserToken },
+      }).Send(null);
+    },
+    goRouteProbeIterations,
+    concurrency,
+  );
+  return [
+    "## Go route cold-start probe",
+    "",
+    `- reqs: ${goRouteProbeIterations}`,
+    `- concurrency: ${concurrency}`,
+    result.String(),
+  ].join("\n");
+}
 
 async function runAuthRefreshProbe(superuserToken: string): Promise<string> {
   const identity = await ensureProbeAuthIdentity(superuserToken);
@@ -1325,14 +1433,14 @@ async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatency
           {
             collection: "organizations",
             rule: "",
-            iterations: 50,
+            iterations: createProbeOrganizationIterations ?? 50,
             concurrency: 10,
             payload: (index) => ({ name: `probe-org-${runTag}-${index}` }),
           },
           {
             collection: "organizations",
             rule: "@request.body.name != ''",
-            iterations: 50,
+            iterations: createProbeOrganizationIterations ?? 50,
             concurrency: 10,
             payload: (index) => ({ name: `probe-org-rule-${runTag}-${index}` }),
           },
@@ -1388,14 +1496,14 @@ async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatency
             {
               collection: "organizations",
               rule: "",
-              iterations: 5_000,
+              iterations: createProbeOrganizationIterations ?? 5_000,
               concurrency: 10,
               payload: (index) => ({ name: `probe-org-${runTag}-${index}` }),
             },
             {
               collection: "organizations",
               rule: "@request.body.name != ''",
-              iterations: 5_000,
+              iterations: createProbeOrganizationIterations ?? 5_000,
               concurrency: 10,
               payload: (index) => ({ name: `probe-org-rule-${runTag}-${index}` }),
             },

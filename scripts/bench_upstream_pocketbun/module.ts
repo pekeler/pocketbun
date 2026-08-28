@@ -32,6 +32,8 @@ export const colPosts25k = "posts25k";
 export const colPosts50k = "posts50k";
 export const colPosts100k = "posts100k";
 export const colBenchmarks = "benchmarks";
+const customGoRouteIterationsRaw = parseNonNegativeInt(process.env.POCKETBUN_BENCH_CUSTOM_GO_ROUTE_ITERATIONS);
+const customGoRouteIterations = customGoRouteIterationsRaw && customGoRouteIterationsRaw > 0 ? customGoRouteIterationsRaw : 500;
 
 const deleteIgnore = [colBenchmarks, CollectionNameSuperusers] as const;
 
@@ -1019,7 +1021,7 @@ export class Runner {
 
     const scenarios = [
       { comment: "JS route (high concurrency)", iterations: 500, concurrency: 500, path: "/js" },
-      { comment: "Go route (high concurrency)", iterations: 500, concurrency: 500, path: "/go" },
+      { comment: "Go route (high concurrency)", iterations: customGoRouteIterations, concurrency: 500, path: "/go" },
       { comment: "JS route (medium concurrency)", iterations: 500, concurrency: 50, path: "/js" },
       { comment: "Go route (medium concurrency)", iterations: 500, concurrency: 50, path: "/go" },
       { comment: "JS route (no concurrency)", iterations: 500, concurrency: 1, path: "/js" },

@@ -62,12 +62,17 @@ export class BenchResult {
   }
 }
 
+export type BenchOptions = {
+  onComplete?: () => void;
+};
+
 // A negative concurrency indicates no limit
 // (aka. an async task will be fired for each iteration).
 export async function bench(
   action: (i: number) => Promise<void>,
   iterations: number,
   concurrency: number,
+  options: BenchOptions = {},
 ): Promise<BenchResult> {
   if (iterations < 1) {
     throw new Error("iterations must be >= 1");
@@ -92,6 +97,7 @@ export async function bench(
       errors.push(toError(error));
     } finally {
       times[i] = performance.now() - start;
+      options.onComplete?.();
     }
   };
 

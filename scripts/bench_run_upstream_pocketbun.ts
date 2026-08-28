@@ -3,7 +3,7 @@
 import type { AddressInfo } from "node:net";
 import { Database } from "bun:sqlite";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { createServer } from "node:net";
+import { createConnection, createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -23,6 +23,8 @@ const benchmarkWarmupRequestsFile =
 const benchmarkWarmupRequests =
   parseNonNegativeInt(process.env.POCKETBUN_BENCHMARK_WARMUP_REQUESTS) ??
   (await resolveIntOverride(benchmarkWarmupRequestsFile, 300));
+const createProbeOrganizationIterations = parsePositiveInt(process.env.POCKETBUN_BENCH_CREATE_PROBE_ORGANIZATION_ITERATIONS);
+const goRouteProbeIterations = parsePositiveInt(process.env.POCKETBUN_BENCH_GO_ROUTE_ITERATIONS) ?? 5_000;
 const parsedBenchmarkServerWorkers = parsePositiveInt(process.env.POCKETBUN_BENCH_SERVER_WORKERS ?? "1");
 if (parsedBenchmarkServerWorkers === null || parsedBenchmarkServerWorkers > 256) {
   throw new Error("POCKETBUN_BENCH_SERVER_WORKERS must be an integer between 1 and 256");
@@ -56,21 +58,7 @@ if (externalLoadUrl && !targetHost) {
 }
 const benchmarkBaseUrl = targetHost ? `http://${targetHost}:${port}` : baseUrl;
 const dataDir = await mkdtemp(join(tmpdir(), "pocketbun-benchmarks-"));
-const serverProc = Bun.spawn({
-  cmd: ["bun", "run", serverScriptPath],
-  cwd: process.cwd(),
-  env: {
-    ...process.env,
-    POCKETBUN_BENCH_SERVER_PORT: String(port),
-    POCKETBUN_BENCH_SERVER_BASE_URL: benchmarkBaseUrl,
-    POCKETBUN_BENCH_SERVER_LISTEN_HOST: externalLoadUrl ? "0.0.0.0" : "127.0.0.1",
-    POCKETBUN_BENCH_SERVER_DATA_DIR: dataDir,
-    POCKETBUN_BENCH_SERVER_HOOKS_DIR: hooksDir,
-    POCKETBUN_BENCH_SERVER_WORKERS: String(benchmarkServerWorkers),
-    POCKETBUN_BENCHMARK_WARMUP_REQUESTS: String(benchmarkWarmupRequests),
-  },
-  stdio: ["ignore", "inherit", "inherit"],
-});
+let serverProc = startServer();
 
 try {
   await ensureServerReady();
@@ -81,7 +69,8 @@ try {
     benchmarkRun === "probe:create-organizations" ||
     benchmarkRun === "probe:create-users" ||
     benchmarkRun === "probe:create-users-upstream" ||
-    benchmarkRun === "probe:auth-refresh"
+    benchmarkRun === "probe:auth-refresh" ||
+    benchmarkRun === "probe:go-route"
   ) {
     const token = await authSuperuser();
     await importProbeSchema(token);
@@ -90,16 +79,18 @@ try {
         ? await runCreateErrorProbe(token)
         : benchmarkRun === "probe:auth-refresh"
           ? await runAuthRefreshProbe(token)
-          : await runCreateLatencyProbe(
-              token,
-              benchmarkRun === "probe:create-organizations"
-                ? "organizations-only"
-                : benchmarkRun === "probe:create-users"
-                  ? "users-only"
-                  : benchmarkRun === "probe:create-users-upstream"
-                    ? "users-upstream"
-                    : "full",
-            );
+          : benchmarkRun === "probe:go-route"
+            ? await runGoRouteProbe(token)
+            : await runCreateLatencyProbe(
+                token,
+                benchmarkRun === "probe:create-organizations"
+                  ? "organizations-only"
+                  : benchmarkRun === "probe:create-users"
+                    ? "users-only"
+                    : benchmarkRun === "probe:create-users-upstream"
+                      ? "users-upstream"
+                      : "full",
+              );
     const metadataHeader = [
       "# PocketBun Upstream-Port Benchmark Probe",
       "",
@@ -267,6 +258,61 @@ function parsePositiveInt(value: string | null | undefined): number | null {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+function startServer() {
+  return Bun.spawn({
+    cmd: ["bun", "run", serverScriptPath],
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      POCKETBUN_BENCH_SERVER_PORT: String(port),
+      POCKETBUN_BENCH_SERVER_BASE_URL: benchmarkBaseUrl,
+      POCKETBUN_BENCH_SERVER_LISTEN_HOST: externalLoadUrl ? "0.0.0.0" : "127.0.0.1",
+      POCKETBUN_BENCH_SERVER_DATA_DIR: dataDir,
+      POCKETBUN_BENCH_SERVER_HOOKS_DIR: hooksDir,
+      POCKETBUN_BENCH_SERVER_WORKERS: String(benchmarkServerWorkers),
+      POCKETBUN_BENCHMARK_WARMUP_REQUESTS: String(benchmarkWarmupRequests),
+    },
+    stdio: ["ignore", "inherit", "inherit"],
+  });
+}
+
+async function validateGoRouteSeed(superuserToken: string): Promise<void> {
+  const response = await fetch(`${baseUrl}/go`, { headers: { Authorization: superuserToken } });
+  const records = response.ok ? ((await response.json()) as Array<Record<string, unknown>>) : [];
+  if (records.length !== 20 || typeof records[0]?.description !== "string" || records[0].description.length < 400) {
+    throw new Error("Go route seed validation failed");
+  }
+}
+
+async function restartServer(): Promise<void> {
+  serverProc.kill();
+  await serverProc.exited;
+  serverProc = startServer();
+  await ensureServerListening();
+  if (benchmarkServerWorkers > 1) {
+    await delay(250);
+  }
+}
+
+async function ensureServerListening(): Promise<void> {
+  const deadline = Date.now() + serverReadyTimeoutMs;
+  while (Date.now() < deadline) {
+    const listening = await new Promise<boolean>((resolve) => {
+      const socket = createConnection({ host: "127.0.0.1", port });
+      socket.once("connect", () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.once("error", () => resolve(false));
+    });
+    if (listening) {
+      return;
+    }
+    await delay(50);
+  }
+  throw new Error("PocketBun benchmark server did not listen in time");
+}
+
 async function ensureServerReady(): Promise<void> {
   const deadline = Date.now() + serverReadyTimeoutMs;
 
@@ -363,6 +409,52 @@ type AuthRefreshResult = {
   p95Ms: number;
   errors: number;
 };
+
+async function runGoRouteProbe(superuserToken: string): Promise<string> {
+  const concurrency = 500;
+  const seedResult = await bench(
+    async (index) => {
+      await new BenchRequest({
+        Url: `${benchmarkBaseUrl}/api/collections/posts10k/records`,
+        Method: "POST",
+        Headers: { Authorization: superuserToken },
+        Body: JSON.stringify({
+          title: `go-route-${index}`,
+          description:
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec sit amet sodales nisl, quis pretium nunc. Suspendisse vel auctor velit, sed luctus lectus. Phasellus rhoncus imperdiet feugiat. Duis et laoreet felis, ut facilisis enim. Quisque aliquet aliquam magna eget eleifend. Duis sed tellus nibh. Nunc ac lacus auctor, scelerisque magna congue, euismod purus. Fusce sollicitudin pharetra egestas. Quisque pulvinar augue nec aliquam placerat. Suspendisse dapibus ornare sodales.",
+          public: index % 2 !== 0,
+          type: ["a", "b"],
+        }),
+      }).Send(null);
+    },
+    10_000,
+    concurrency,
+  );
+  if (seedResult.Errors.length > 0) {
+    throw seedResult.Errors[0];
+  }
+  await validateGoRouteSeed(superuserToken);
+  await restartServer();
+  console.log(`\nRunning PocketBun Go route probe (reqs=${goRouteProbeIterations}, conc=${concurrency})...`);
+  const result = await bench(
+    async () => {
+      await new BenchRequest({
+        Url: `${benchmarkBaseUrl}/go`,
+        Method: "GET",
+        Headers: { Authorization: superuserToken },
+      }).Send(null);
+    },
+    goRouteProbeIterations,
+    concurrency,
+  );
+  return [
+    "## Go route cold-start probe",
+    "",
+    `- reqs: ${goRouteProbeIterations}`,
+    `- concurrency: ${concurrency}`,
+    result.String(),
+  ].join("\n");
+}
 
 async function runAuthRefreshProbe(superuserToken: string): Promise<string> {
   const identity = await ensureProbeAuthIdentity(superuserToken);
@@ -540,14 +632,14 @@ async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatency
           {
             collection: "organizations",
             rule: "",
-            iterations: 50,
+            iterations: createProbeOrganizationIterations ?? 50,
             concurrency: 10,
             payload: (index) => ({ name: `probe-org-${runTag}-${index}` }),
           },
           {
             collection: "organizations",
             rule: "@request.body.name != ''",
-            iterations: 50,
+            iterations: createProbeOrganizationIterations ?? 50,
             concurrency: 10,
             payload: (index) => ({ name: `probe-org-rule-${runTag}-${index}` }),
           },
@@ -603,14 +695,14 @@ async function runCreateLatencyProbe(superuserToken: string, mode: CreateLatency
             {
               collection: "organizations",
               rule: "",
-              iterations: 5_000,
+              iterations: createProbeOrganizationIterations ?? 5_000,
               concurrency: 10,
               payload: (index) => ({ name: `probe-org-${runTag}-${index}` }),
             },
             {
               collection: "organizations",
               rule: "@request.body.name != ''",
-              iterations: 5_000,
+              iterations: createProbeOrganizationIterations ?? 5_000,
               concurrency: 10,
               payload: (index) => ({ name: `probe-org-rule-${runTag}-${index}` }),
             },

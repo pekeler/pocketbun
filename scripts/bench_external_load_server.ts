@@ -8,6 +8,7 @@ import { BenchRequest, benchmarkWorkerSlotHeader, type ExternalBenchRequest } fr
 const port = Number.parseInt(process.env.POCKETBUN_BENCH_LOAD_PORT ?? "19100", 10);
 const token = process.env.POCKETBUN_BENCH_EXTERNAL_LOAD_TOKEN ?? "";
 const logFile = process.env.POCKETBUN_BENCH_LOAD_LOG?.trim() ?? "";
+const traceCompletions = process.env.POCKETBUN_BENCH_LOAD_TRACE_COMPLETIONS === "1";
 if (!Number.isSafeInteger(port) || port < 1 || port > 65_535 || token === "") {
   throw new Error("POCKETBUN_BENCH_LOAD_PORT and POCKETBUN_BENCH_EXTERNAL_LOAD_TOKEN are required");
 }
@@ -57,6 +58,7 @@ const server = Bun.serve({
     const startedAt = performance.now();
     const startedCpu = process.cpuUsage();
     const workerCounts: Record<string, number> = {};
+    const completionMs: number[] | null = traceCompletions ? [] : null;
     let peakRssBytes = process.memoryUsage().rss;
     const rssTimer = setInterval(() => {
       peakRssBytes = Math.max(peakRssBytes, process.memoryUsage().rss);
@@ -79,6 +81,7 @@ const server = Bun.serve({
         },
         requests.length,
         concurrency,
+        { onComplete: completionMs ? () => completionMs.push(performance.now() - startedAt) : undefined },
       );
       const elapsedMs = performance.now() - startedAt;
       const cpu = process.cpuUsage(startedCpu);
@@ -101,6 +104,7 @@ const server = Bun.serve({
         clientPeakRssMiB: peakRssBytes / 1024 / 1024,
         target: new URL((requests[0] as ExternalBenchRequest).url).host,
         timestamp: new Date().toISOString(),
+        ...(completionMs ? { completionMs } : {}),
       };
       if (logFile) {
         logTail = logTail.then(() => appendFile(logFile, `${JSON.stringify(payload)}\n`));

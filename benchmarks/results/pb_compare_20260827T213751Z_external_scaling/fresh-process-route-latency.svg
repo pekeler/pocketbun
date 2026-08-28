@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520" role="img" aria-labelledby="title desc">
+  <title id="title">Cold-start performance</title>
+  <desc id="desc">Complete response latency for 50 sequential requests, each over a new TCP connection, after PocketBase and a four-worker PocketBun cluster listened idle for one second. The chart uses the representative second run.</desc>
+  <rect width="960" height="520" fill="#fff"/>
+  <g font-family="system-ui, sans-serif" fill="#24292f">
+    <text x="480" y="31" text-anchor="middle" font-size="20" font-weight="700">Cold-start performance</text>
+    <path d="M72 424H932" stroke="#d8dee4" stroke-width="1"/>
+    <text x="62" y="428" text-anchor="end" font-size="11">0 ms</text>
+    <path d="M72 364H932" stroke="#d8dee4" stroke-width="1"/>
+    <text x="62" y="368" text-anchor="end" font-size="11">10 ms</text>
+    <path d="M72 304H932" stroke="#d8dee4" stroke-width="1"/>
+    <text x="62" y="308" text-anchor="end" font-size="11">20 ms</text>
+    <path d="M72 244H932" stroke="#d8dee4" stroke-width="1"/>
+    <text x="62" y="248" text-anchor="end" font-size="11">30 ms</text>
+    <path d="M72 184H932" stroke="#d8dee4" stroke-width="1"/>
+    <text x="62" y="188" text-anchor="end" font-size="11">40 ms</text>
+    <path d="M72 124H932" stroke="#d8dee4" stroke-width="1"/>
+    <text x="62" y="128" text-anchor="end" font-size="11">50 ms</text>
+    <path d="M72 64H932" stroke="#d8dee4" stroke-width="1"/>
+    <text x="62" y="68" text-anchor="end" font-size="11">60 ms</text>
+    <path d="M72.0 262.9 L89.6 266.1 L107.1 266.1 L124.7 267.3 L142.2 287.9 L159.8 280.0 L177.3 287.9 L194.9 298.4 L212.4 304.1 L230.0 320.5 L247.5 304.1 L265.1 304.1 L282.6 304.1 L300.2 289.0 L317.7 270.3 L335.3 270.3 L352.8 270.3 L370.4 270.3 L387.9 297.8 L405.5 352.1 L423.0 354.1 L440.6 356.6 L458.1 356.7 L475.7 357.0 L493.2 357.7 L510.8 357.7 L528.3 357.0 L545.9 357.0 L563.4 356.0 L581.0 354.4 L598.5 353.1 L616.1 322.9 L633.6 272.3 L651.2 269.8 L668.7 269.8 L686.3 266.9 L703.8 266.9 L721.4 267.2 L738.9 267.2 L756.5 267.2 L774.0 268.8 L791.6 300.8 L809.1 300.8 L826.7 300.8 L844.2 300.8 L861.8 272.3 L879.3 272.3 L896.9 268.9 L914.4 268.9 L932.0 268.9" fill="none" stroke="#54aeff" stroke-width="2.5" stroke-dasharray="6 4"/>
+    <path d="M72.0 176.5 L89.6 225.8 L107.1 225.8 L124.7 225.8 L142.2 353.3 L159.8 356.4 L177.3 356.4 L194.9 356.4 L212.4 356.7 L230.0 358.6 L247.5 358.6 L265.1 358.6 L282.6 359.9 L300.2 355.5 L317.7 355.5 L335.3 353.1 L352.8 351.7 L370.4 351.7 L387.9 351.7 L405.5 351.6 L423.0 351.7 L440.6 353.1 L458.1 353.3 L475.7 361.1 L493.2 366.6 L510.8 366.6 L528.3 384.6 L545.9 385.8 L563.4 385.8 L581.0 385.8 L598.5 355.4 L616.1 352.7 L633.6 352.7 L651.2 352.7 L668.7 352.7 L686.3 350.1 L703.8 350.1 L721.4 354.3 L738.9 354.8 L756.5 356.9 L774.0 354.8 L791.6 356.9 L809.1 356.9 L826.7 356.2 L844.2 356.2 L861.8 352.4 L879.3 352.3 L896.9 352.3 L914.4 352.3 L932.0 351.0" fill="none" stroke="#1a7f37" stroke-width="2.5"/>
+    <circle cx="72" cy="104.87724400000002" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 1: 53.187 ms</title></circle>
+    <circle cx="72" cy="176.53203399999998" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 1: 41.245 ms (worker 1)</title></circle>
+    <circle cx="89.55102040816327" cy="350.023084" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 2: 12.329 ms</title></circle>
+    <circle cx="89.55102040816327" cy="225.84909399999998" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 2: 33.025 ms (worker 0)</title></circle>
+    <circle cx="107.10204081632654" cy="262.893232" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 3: 26.851 ms</title></circle>
+    <circle cx="107.10204081632654" cy="358.32192399999997" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 3: 10.946 ms (worker 0)</title></circle>
+    <circle cx="124.65306122448979" cy="266.080972" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 4: 26.320 ms</title></circle>
+    <circle cx="124.65306122448979" cy="165.42100599999998" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 4: 43.096 ms (worker 3)</title></circle>
+    <circle cx="142.20408163265307" cy="267.340186" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 5: 26.110 ms</title></circle>
+    <circle cx="142.20408163265307" cy="356.401618" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 5: 11.266 ms (worker 0)</title></circle>
+    <circle cx="159.75510204081633" cy="298.44439" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 6: 20.926 ms</title></circle>
+    <circle cx="159.75510204081633" cy="356.68069" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 6: 11.220 ms (worker 0)</title></circle>
+    <circle cx="177.30612244897958" cy="354.421864" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 7: 11.596 ms</title></circle>
+    <circle cx="177.30612244897958" cy="188.96701599999997" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 7: 39.172 ms (worker 2)</title></circle>
+    <circle cx="194.85714285714283" cy="287.94152199999996" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 8: 22.676 ms</title></circle>
+    <circle cx="194.85714285714283" cy="353.289064" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 8: 11.785 ms (worker 1)</title></circle>
+    <circle cx="212.40816326530611" cy="280.014514" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 9: 23.998 ms</title></circle>
+    <circle cx="212.40816326530611" cy="358.637104" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 9: 10.894 ms (worker 2)</title></circle>
+    <circle cx="229.9591836734694" cy="320.53282" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 10: 17.245 ms</title></circle>
+    <circle cx="229.9591836734694" cy="366.747946" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 10: 9.542 ms (worker 1)</title></circle>
+    <circle cx="247.51020408163265" cy="356.466784" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 11: 11.256 ms</title></circle>
+    <circle cx="247.51020408163265" cy="341.604556" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 11: 13.733 ms (worker 3)</title></circle>
+    <circle cx="265.0612244897959" cy="304.052944" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 12: 19.991 ms</title></circle>
+    <circle cx="265.0612244897959" cy="364.903666" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 12: 9.849 ms (worker 1)</title></circle>
+    <circle cx="282.61224489795916" cy="357.46265800000003" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 13: 11.090 ms</title></circle>
+    <circle cx="282.61224489795916" cy="368.836132" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 13: 9.194 ms (worker 1)</title></circle>
+    <circle cx="300.16326530612247" cy="289.029922" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 14: 22.495 ms</title></circle>
+    <circle cx="300.16326530612247" cy="344.300236" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 14: 13.283 ms (worker 3)</title></circle>
+    <circle cx="317.71428571428567" cy="269.25034600000004" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 15: 25.792 ms</title></circle>
+    <circle cx="317.71428571428567" cy="355.501864" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 15: 11.416 ms (worker 3)</title></circle>
+    <circle cx="335.265306122449" cy="270.25072" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 16: 25.625 ms</title></circle>
+    <circle cx="335.265306122449" cy="359.884552" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 16: 10.686 ms (worker 3)</title></circle>
+    <circle cx="352.81632653061223" cy="269.37496" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 17: 25.771 ms</title></circle>
+    <circle cx="352.81632653061223" cy="351.58561" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 17: 12.069 ms (worker 0)</title></circle>
+    <circle cx="370.3673469387755" cy="269.88352599999996" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 18: 25.686 ms</title></circle>
+    <circle cx="370.3673469387755" cy="346.75783" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 18: 12.874 ms (worker 2)</title></circle>
+    <circle cx="387.9183673469388" cy="297.75799" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 19: 21.040 ms</title></circle>
+    <circle cx="387.9183673469388" cy="353.103004" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 19: 11.816 ms (worker 1)</title></circle>
+    <circle cx="405.46938775510205" cy="354.069484" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 20: 11.655 ms</title></circle>
+    <circle cx="405.46938775510205" cy="351.72865" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 20: 12.045 ms (worker 3)</title></circle>
+    <circle cx="423.0204081632653" cy="356.553058" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 21: 11.241 ms</title></circle>
+    <circle cx="423.0204081632653" cy="350.427664" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 21: 12.262 ms (worker 2)</title></circle>
+    <circle cx="440.57142857142856" cy="352.076404" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 22: 11.987 ms</title></circle>
+    <circle cx="440.57142857142856" cy="353.282584" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 22: 11.786 ms (worker 1)</title></circle>
+    <circle cx="458.1224489795918" cy="357.656278" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 23: 11.057 ms</title></circle>
+    <circle cx="458.1224489795918" cy="350.93173" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 23: 12.178 ms (worker 0)</title></circle>
+    <circle cx="475.6734693877551" cy="356.693764" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 24: 11.218 ms</title></circle>
+    <circle cx="475.6734693877551" cy="366.550786" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 24: 9.575 ms (worker 1)</title></circle>
+    <circle cx="493.2244897959184" cy="357.839872" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 25: 11.027 ms</title></circle>
+    <circle cx="493.2244897959184" cy="361.136638" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 25: 10.477 ms (worker 3)</title></circle>
+    <circle cx="510.7755102040816" cy="356.981818" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 26: 11.170 ms</title></circle>
+    <circle cx="510.7755102040816" cy="384.588508" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 26: 6.569 ms (worker 0)</title></circle>
+    <circle cx="528.3265306122449" cy="357.653218" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 27: 11.058 ms</title></circle>
+    <circle cx="528.3265306122449" cy="386.111362" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 27: 6.315 ms (worker 0)</title></circle>
+    <circle cx="545.8775510204082" cy="358.071124" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 28: 10.988 ms</title></circle>
+    <circle cx="545.8775510204082" cy="386.270188" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 28: 6.288 ms (worker 1)</title></circle>
+    <circle cx="563.4285714285713" cy="356.037238" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 29: 11.327 ms</title></circle>
+    <circle cx="563.4285714285713" cy="351.697564" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 29: 12.050 ms (worker 2)</title></circle>
+    <circle cx="580.9795918367347" cy="354.439204" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 30: 11.593 ms</title></circle>
+    <circle cx="580.9795918367347" cy="386.401888" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 30: 6.266 ms (worker 0)</title></circle>
+    <circle cx="598.530612244898" cy="261.942958" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 31: 27.010 ms</title></circle>
+    <circle cx="598.530612244898" cy="385.775962" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 31: 6.371 ms (worker 1)</title></circle>
+    <circle cx="616.0816326530612" cy="353.072164" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 32: 11.821 ms</title></circle>
+    <circle cx="616.0816326530612" cy="352.69399" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 32: 11.884 ms (worker 2)</title></circle>
+    <circle cx="633.6326530612245" cy="322.94932" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 33: 16.842 ms</title></circle>
+    <circle cx="633.6326530612245" cy="355.399678" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 33: 11.433 ms (worker 3)</title></circle>
+    <circle cx="651.1836734693877" cy="262.506952" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 34: 26.916 ms</title></circle>
+    <circle cx="651.1836734693877" cy="349.51321" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 34: 12.414 ms (worker 2)</title></circle>
+    <circle cx="668.734693877551" cy="272.29816" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 35: 25.284 ms</title></circle>
+    <circle cx="668.734693877551" cy="348.90907" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 35: 12.515 ms (worker 3)</title></circle>
+    <circle cx="686.2857142857143" cy="269.768266" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 36: 25.705 ms</title></circle>
+    <circle cx="686.2857142857143" cy="345.61327" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 36: 13.064 ms (worker 0)</title></circle>
+    <circle cx="703.8367346938776" cy="263.560246" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 37: 26.740 ms</title></circle>
+    <circle cx="703.8367346938776" cy="357.336004" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 37: 11.111 ms (worker 3)</title></circle>
+    <circle cx="721.3877551020407" cy="266.62673199999995" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 38: 26.229 ms</title></circle>
+    <circle cx="721.3877551020407" cy="354.783898" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 38: 11.536 ms (worker 2)</title></circle>
+    <circle cx="738.9387755102041" cy="266.92666599999995" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 39: 26.179 ms</title></circle>
+    <circle cx="738.9387755102041" cy="350.073256" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 39: 12.321 ms (worker 0)</title></circle>
+    <circle cx="756.4897959183673" cy="267.236626" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 40: 26.127 ms</title></circle>
+    <circle cx="756.4897959183673" cy="356.936518" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 40: 11.177 ms (worker 3)</title></circle>
+    <circle cx="774.0408163265306" cy="268.820746" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 41: 25.863 ms</title></circle>
+    <circle cx="774.0408163265306" cy="354.301864" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 41: 11.616 ms (worker 2)</title></circle>
+    <circle cx="791.5918367346939" cy="311.970358" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 42: 18.672 ms</title></circle>
+    <circle cx="791.5918367346939" cy="368.6134" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 42: 9.231 ms (worker 2)</title></circle>
+    <circle cx="809.1428571428571" cy="355.86809800000003" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 43: 11.355 ms</title></circle>
+    <circle cx="809.1428571428571" cy="372.416806" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 43: 8.597 ms (worker 2)</title></circle>
+    <circle cx="826.6938775510204" cy="300.82818999999995" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 44: 20.529 ms</title></circle>
+    <circle cx="826.6938775510204" cy="344.415616" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 44: 13.264 ms (worker 0)</title></circle>
+    <circle cx="844.2448979591836" cy="326.55418" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 45: 16.241 ms</title></circle>
+    <circle cx="844.2448979591836" cy="359.314258" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 45: 10.781 ms (worker 0)</title></circle>
+    <circle cx="861.795918367347" cy="260.52569200000005" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 46: 27.246 ms</title></circle>
+    <circle cx="861.795918367347" cy="356.160298" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 46: 11.307 ms (worker 0)</title></circle>
+    <circle cx="879.3469387755102" cy="267.25498600000003" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 47: 26.124 ms</title></circle>
+    <circle cx="879.3469387755102" cy="352.29211" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 47: 11.951 ms (worker 3)</title></circle>
+    <circle cx="896.8979591836734" cy="268.94662" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 48: 25.842 ms</title></circle>
+    <circle cx="896.8979591836734" cy="352.401364" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 48: 11.933 ms (worker 2)</title></circle>
+    <circle cx="914.4489795918367" cy="272.29600600000003" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 49: 25.284 ms</title></circle>
+    <circle cx="914.4489795918367" cy="350.95555" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 49: 12.174 ms (worker 2)</title></circle>
+    <circle cx="932" cy="312.407512" r="2.3" fill="#fff" stroke="#54aeff" stroke-width="1"><title>PocketBase request 50: 18.599 ms</title></circle>
+    <circle cx="932" cy="347.185084" r="2.3" fill="#1a7f37" stroke="#1a7f37" stroke-width="1"><title>PocketBun request 50: 12.802 ms (worker 1)</title></circle>
+    <text x="721.3877551020407" y="257.236626" font-size="13" font-weight="600" fill="#54aeff" stroke="#fff" stroke-width="4" paint-order="stroke">PocketBase</text>
+    <text x="721.3877551020407" y="344.301864" font-size="13" font-weight="600" fill="#1a7f37" stroke="#fff" stroke-width="4" paint-order="stroke">PocketBun</text>
+    <path d="M72 424H932" stroke="#8c959f"/>
+    <text x="72" y="446" text-anchor="middle" font-size="11">1</text>
+    <text x="229.9591836734694" y="446" text-anchor="middle" font-size="11">10</text>
+    <text x="405.46938775510205" y="446" text-anchor="middle" font-size="11">20</text>
+    <text x="580.9795918367347" y="446" text-anchor="middle" font-size="11">30</text>
+    <text x="756.4897959183673" y="446" text-anchor="middle" font-size="11">40</text>
+    <text x="932" y="446" text-anchor="middle" font-size="11">50</text>
+    <text x="502" y="472" text-anchor="middle" font-size="12">request number</text>
+    <text x="480" y="506" text-anchor="middle" font-size="11" fill="#57606a">Hetzner CCX23 · 4 vCPU · PocketBase v0.40.0 (GOMAXPROCS=4) · PocketBun 9f5ad1af (4 workers)</text>
+  </g>
+</svg>
