@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.40.0-pocketbun.0 - 2026-08-28
 
 This is a **major operational release**, even though PocketBun's PocketBase-aligned version number cannot express that clearly. It raises the minimum Bun version to 1.4 and introduces an optional multi-process deployment model. Before upgrading a production system, create and verify a current backup, install Bun 1.4, and review [Going to Production](docs/users/going-to-production.md) and [PocketBun Differences From PocketBase](docs/users/differences.md).
 
