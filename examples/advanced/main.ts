@@ -17,6 +17,7 @@ const dataDir = join(rootDir, "pb_data");
 const hooksDir = join(rootDir, "pb_hooks");
 const migrationsDir = join(rootDir, "pb_migrations");
 const publicDir = join(rootDir, "pb_public");
+const isProduction = process.argv.includes("--production");
 
 await Promise.all([
   mkdir(dataDir, { recursive: true }),
@@ -25,13 +26,13 @@ await Promise.all([
   mkdir(publicDir, { recursive: true }),
 ]);
 
-const app = new BaseApp({ dataDir, isDev: true });
+const app = new BaseApp({ dataDir, isDev: !isProduction });
 
 // PocketBun-only async variant to avoid sync fs startup work in server-side JavaScript setup.
 // Use the throwing helper so hook loading errors are surfaced immediately.
 await mustRegisterServerJSAsync(app, {
   hooksDir,
-  hooksWatch: true,
+  hooksWatch: !isProduction,
   hooksPoolSize: 5,
   migrationsDir,
 });
@@ -56,4 +57,4 @@ app.onServe().bind({
   priority: 999,
 });
 
-await serveAsync(app, { httpAddr: "127.0.0.1:8090" });
+await serveAsync(app, { httpAddr: "127.0.0.1:8090", workers: isProduction ? 2 : 1 });

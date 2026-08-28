@@ -5,6 +5,7 @@
   "scripts": {
     "client": "bun run client.ts",
     "start": "bun run main.ts",
+    "start:production": "bun run main.ts --production",
     "pocketbun": "bun ../../bin/pocketbun",
     "superuser": "bun run pocketbun superuser upsert admin@example.com change-me"
   },

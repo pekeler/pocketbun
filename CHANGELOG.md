@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The advanced example now includes a two-worker production mode that disables development and hook-watching behavior.
+
 ## 0.40.1-pocketbun.0 - 2026-08-28
 
 **If you are upgrading from a version older than `0.40.0-pocketbun.0`, also read the `0.40.0-pocketbun.0` release notes below. They contain important Bun 1.4, cluster-mode, backup, and deployment guidance.**

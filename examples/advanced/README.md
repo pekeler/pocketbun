@@ -22,6 +22,14 @@ From the repo root:
 
 The first startup applies the migrations in `examples/advanced/pb_migrations` to create the `users` auth collection and the `projects` collection.
 
+## Production mode
+
+To disable development and hook-watching behavior and start two workers:
+
+    bun run start:production
+
+Two workers are illustrative; choose a worker count that fits your deployment. On Linux, both workers share `127.0.0.1:8090`. On macOS and Windows, they listen on `127.0.0.1:8090` and `127.0.0.1:8091` and require a reverse proxy. See the [production guide](../../docs/users/going-to-production.md#using-multiple-workers) for deployment details.
+
 ## Create a superuser (Admin UI access)
 
 Run once before opening the Admin UI:
