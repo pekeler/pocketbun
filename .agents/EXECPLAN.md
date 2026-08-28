@@ -131,9 +131,12 @@ The repository owner intends to deploy cluster mode in production as soon as pra
 - [ ] Finish the corrected Linux scaling matrix before judging cluster efficiency. Its first target-300/FIFO round changed PocketBun's one-to-two-worker 150-scenario speedup from the obsolete matrix's 1.05x to 1.59x, with aggregate request shares of 48.08%/51.92%. On the same current round, PocketBun's 114 read scenarios improved 1.82x versus PocketBase's 1.79x, then improved another 1.14x from two to four workers on the host's SMT threads versus PocketBase's 1.11x. PocketBun aggregate four-worker shares were 24.73%/24.46%/25.36%/25.45%. During the complete four-worker measured phase, the primary averaged 0.11% CPU and the workers averaged 35.57%-38.51% each; during a 50-second CPU-bound read, every worker used about one full logical CPU while the external client used about 1%. This rules out primary saturation, persistent worker imbalance, and load-generator saturation. Preserve five-run medians and hard-affinity evidence before closing the gate; worker count alone does not cap Bun helper threads to the corresponding CPU count.
 - [x] (2026-08-26) Measured two, three, and four workers on the whole four-vCPU/two-physical-core host with five externally driven 100,000-request samples of both a CPU-only hook and a public SQLite read. CPU-route medians were 4,395/6,044/6,402 req/s, 28.53/20.26/17.82 ms p50, 34.67/28.22/37.67 ms p95, 237%/345%/398% server CPU, and 309/426/562 MiB RSS. DB-read medians were 10,162/12,399/13,029 req/s, but the external client reached 96%-97% CPU at three/four workers, so that final ceiling is less authoritative. Aggregate request shares stayed within 47.5%-52.5% at two workers, 32.1%-35.1% at three, and 23.5%-25.6% at four; the primary remained around 0.1% CPU. Four workers therefore maximize measured throughput, while the fourth SMT worker adds only about 5%-6%, consumes about 135 MiB more RSS, and worsens CPU-route tail latency. Use four for the public maximum-throughput four-vCPU benchmark, but document three as a latency/memory-efficiency option on two-core/four-thread hosts. The whole-host result is clear enough that an affinity control is unnecessary.
 - [ ] Complete Milestone 11: make both organization-create scenarios at least 5% faster than matched PocketBase at one, two, and four application lanes, without weakening SQLite durability, changing request/response or hook/realtime behavior, or regressing the broader create and full benchmark suites.
+- [x] (2026-08-28) Fixed the post-release programmatic cluster gap with `serveAsync(app, { workers: N })`. A real temporary consumer entrypoint imports only PocketBun's public API, serves a custom route from two distinct worker PIDs, replaces both through `app.restart()`, and shuts down without descendants or a POSIX ownership guard. The complete 1,972-test suite, source/package typechecks, package build, formatting, lint, generated-doc parity, and whitespace checks pass.
 
 ## Surprises & Discoveries
 
+- Observation: every cluster qualification path launched PocketBun through its bundled executable, leaving the primary npm-library startup path untested.
+  Evidence: `src/cli.ts` alone calls `runClusterPrimary()`, while `src/apis/serve.ts` always bootstraps and starts one server. Consequently, `bun run pocketbun --workers=4 serve` cannot execute the custom `server.ts` shown in the README, even though both examples appeared next to each other as if they composed.
 - Observation: Bun v1.4 already enables SQLite defensive mode on every `bun:sqlite` connection.
   Evidence: Bun's v1.4 binding calls `sqlite3_db_config(..., SQLITE_DBCONFIG_DEFENSIVE, 1, ...)`, and a local probe rejected the same writable-schema and journal mutations PocketBase v0.40's `_defensive=1` DSN protects. PocketBun therefore needs no additional pragma or connection wrapper.
 - Observation: the generated JSVM filesystem declarations promised lowercase methods that the returned `System` object did not provide.
@@ -300,6 +303,9 @@ The repository owner intends to deploy cluster mode in production as soon as pra
 
 ## Decision Log
 
+- Decision: expose cluster mode through `serveAsync(app, { workers: N })` in addition to the bundled executable.
+  Rationale: Bun's cluster workers re-execute the current entrypoint, so a custom TypeScript entrypoint can reconstruct the same application and hooks in every worker without serializing an `App` or exposing the internal coordinator. Extending the existing serving API is the smallest usable npm-library surface and keeps one worker as the default.
+  Date/Author: 2026-08-28 / repository owner and Codex
 - Decision: match PocketBase v0.40 by keeping built-in backup restore unsupported on Windows.
   Rationale: PocketBun's compatibility target and unchanged vendored Admin UI both expose the Unix-only contract. A PocketBun-specific Windows close/replace/relaunch protocol would add a hidden capability, rollback risk, and another service-manager contract without fixing a PocketBase compatibility gap. Windows users can still create, upload, download, inspect, and manually restore backups while PocketBun is stopped.
   Date/Author: 2026-08-24 / repository owner and Codex
@@ -512,7 +518,7 @@ The Bun v1.4 work covers the runtime baseline and CI; explicit UTC cron behavior
 
 This feature covers vertical scaling on one host, one `pb_data` directory, one cluster primary, and several worker processes. Linux uses native shared-port balancing. Windows and macOS use distinct loopback worker ports and require an operator-managed traffic distributor; PocketBun will not bundle or recommend a runtime dependency for that external role. It does not cover a shared data directory across servers, network filesystems, Postgres, worker threads, arbitrary independently launched PocketBun processes, automatic worker-count tuning, rolling code deployment, zero-downtime schema migration across two versions, PM2, or a general public supervisor library. Domain-specific CPU work can still use Bun workers or other techniques inside application hooks, but that is separate from framework request scaling.
 
-Package consumers that construct an `App` and call `serveAsync()` directly remain single-process in the first release. They must not set undocumented cluster environment variables. A later public factory can be considered after the CLI feature is proven, using a separate ExecPlan and a concrete package-user requirement.
+Package consumers that construct an `App` can opt into the same cluster runtime through `serveAsync(app, { workers: N })`. The primary and every worker re-execute the package consumer's entrypoint, so top-level process-local setup must be safe to run once per process. Cluster environment variables remain internal and must not be configured by consumers.
 
 ## Plan of Work
 
@@ -750,6 +756,16 @@ After each retained change, rerun both exact and warmed organization scenarios f
 
 Milestone 11 is complete when both organization scenarios have zero errors and PocketBun's five-run median total is at least 5% lower than matched PocketBase at one, two, and four application lanes. The response status and JSON shape, created row values and count, create-rule decision, validation errors, model/record hook order and count, realtime event content and ordering, and durability after immediate process termination must still match PocketBase. The warmed series must not regress more than 2%, the permission/post create scenarios must not regress more than 2%, and the full repository gate plus the affected Linux cluster soak must pass before the final public benchmark is rerun.
 
+### Milestone 12: support cluster mode from custom TypeScript entrypoints
+
+Extend only the asynchronous public server configuration with an optional positive integer `workers`, defaulting to one. For `workers > 1`, the initial process calls the existing cluster primary with the application's data directory and requested HTTP address. Forked processes re-execute the same entrypoint, attach the existing worker coordinator before bootstrap, replace the configured address with their assigned cluster address, and start the same custom `App`. Do not expose primary, worker, IPC, or ownership-guard internals.
+
+Programmatic workers must participate in the same readiness, graceful shutdown, forced shutdown, restart, restore, and server-quiesce protocol as CLI workers. Share the smallest lifecycle helper in `src/internal/cluster/worker.ts`; do not duplicate the supervisor or create a second cluster implementation. Preserve the current direct path, return type, and overhead when `workers` is omitted or one.
+
+Add a real-process regression that writes and launches a temporary consumer `server.ts` importing only PocketBun's public API. Its custom route must answer from every configured worker PID, proving that the entrypoint rather than the bundled CLI application is executed. The primary must remain distinct and termination must leave no workers or data-directory guard behind. Cover Linux's shared port and the existing consecutive-port behavior where the test platform requires it.
+
+Update README and Going to Production documentation to show both supported entrypoints: `serveAsync(app, { workers: N })` for custom TypeScript applications and `pocketbun --workers=N serve` for the bundled executable and `pb_hooks` workflow. State that top-level entrypoint code runs once in the primary and once in each worker. Add an `Unreleased` changelog entry because the first v0.40.0 release omitted this public npm-library capability.
+
 ## Concrete Steps
 
 Work from `/Users/pekeler/Projects/pocketbun` on `master`. Preserve unrelated user changes. Update this plan after every milestone and whenever evidence changes a decision.
@@ -831,6 +847,7 @@ Bun v1.4 adoption acceptance:
 Vertical-scaling functional acceptance:
 
 - `--workers=1` is the default and preserves existing CLI, API, logs, migrations, startup, shutdown, and performance behavior on Linux, macOS, and Windows.
+- `serveAsync(app, { workers: N })` starts the same supervised cluster for a custom TypeScript entrypoint; a consumer-only real-process test proves that custom hooks/routes run in every worker and that shutdown leaves no descendants or ownership guard.
 - `--workers=N`, for `N > 1`, starts exactly one primary plus N ready workers on every platform that passes the Bun v1.4 qualification.
 - Linux workers serve through one address with explicit native `reusePort: true`. Windows/macOS workers serve through the documented consecutive loopback range and are reachable through an external test proxy. The PocketBun primary never proxies HTTP or opens SQLite.
 - Only one leader executes migrations, type refresh, temp cleanup, installer, cron, checkpoints, cleanups, and autobackup. Followers begin only after the leader is ready.
@@ -1600,9 +1617,16 @@ The exact flag placement follows the root persistent-flag behavior, so both of t
     pocketbun --workers=4 serve
     pocketbun serve --workers=4
 
+The public programmatic contract is:
+
+    type ServeAsyncConfig = ServeConfig & { workers?: number };
+    serveAsync(app: App, config?: ServeAsyncConfig): Promise<Server>;
+
+With `workers` omitted or set to one, this remains the existing direct server path. With `workers > 1`, the primary supervises until shutdown and workers return the `Server` instance after their custom entrypoint finishes constructing and bootstrapping its `App`.
+
 On Linux these workers all bind the configured `--http` address with `reusePort`. On Windows/macOS the configured port is the first loopback backend port and subsequent workers use consecutive ports. For example, `--workers=4 serve --http=127.0.0.1:9000` produces backends `127.0.0.1:9000` through `127.0.0.1:9003`, which the operator places behind a separate public reverse proxy or load balancer.
 
-Do not export cluster internals from `index.ts` in this release. Internal process context should expose only what PocketBun built-ins need, conceptually:
+Do not export cluster internals from `index.ts`. Internal process context should expose only what PocketBun built-ins need, conceptually:
 
     type ClusterRole = "disabled" | "leader" | "follower";
     function clusterRole(): ClusterRole;
@@ -1775,3 +1799,7 @@ Revision note, 2026-08-27 / Codex: Reduced the focused current-candidate A/B fro
 Revision note, 2026-08-27 / Codex: Prepared an isolated eight-vCPU Ubuntu host with the exact Bun 1.4.0 and Go 1.27.0 toolchains for the final external-load benchmark expansion. After the four-worker soak, run three accepted zero-error complete-suite samples for PocketBase `GOMAXPROCS=5/6/7/8` and PocketBun `--workers=5/6/7/8`, using a 1,000-request symmetric warmup target/cap and a separate load generator; preserve raw outputs, toolchain/source hashes, load-generator telemetry, and per-configuration median summaries under a new `benchmarks/results/` batch. The existing committed `pb_compare_20260824T220243Z_external` batch already contains matching external PocketBase/PocketBun v0.40.0 data for 1/2/4 lanes on a four-vCPU host. Present the host boundary explicitly: these values compare configured parallelism, not a single-machine hard-affinity scaling curve.
 
 Revision note, 2026-08-27 / Codex: Added an eight-worker production-shape gate before any eight-worker benchmark claim. The prepared eight-vCPU host will run a five-minute eight-worker fault preflight and, only on success, a one-hour eight-worker stateful fault soak immediately after the current four-worker candidate soak. This keeps the server occupied without overlapping benchmark load, and avoids turning the planned 5–8-worker benchmark matrix into the first meaningful stability test of the eight-worker topology.
+
+Revision note, 2026-08-28 / Codex: Reopened the cluster release work after the first v0.40.0 PocketBun release exposed that cluster mode was reachable only through the bundled executable, not the README's primary custom-TypeScript startup path. Added Milestone 12 for `serveAsync(app, { workers: N })`, shared lifecycle integration, a public-consumer real-process regression, documentation, changelog, and full patch-release qualification.
+
+Revision note, 2026-08-28 / Codex: Completed Milestone 12 locally. The public async serve configuration now starts the existing supervisor when `workers > 1`, forked processes re-execute and bootstrap the custom entrypoint, and one small worker helper joins programmatic apps to readiness, restart, restore quiescing, and graceful shutdown. The consumer-level restart/shutdown test and all repository gates pass; hosted CI remains the patch-release confirmation.

@@ -7,7 +7,13 @@ import { fileURLToPath } from "node:url";
 import { bootstrapIfNeededAsync, type App } from "../core/app.ts";
 import { RequestEvent } from "../core/event_request.ts";
 import { ServeEvent } from "../core/events.ts";
-import { clusterReusePort, runsClusterSingletons } from "../internal/cluster/context.ts";
+import {
+  ClusterEnvRole,
+  clusterReusePort,
+  clusterWorkerAddress,
+  runsClusterSingletons,
+  validateWorkerCount,
+} from "../internal/cluster/context.ts";
 import { Router } from "../tools/router/router.ts";
 import { FireAndForget } from "../tools/routine/routine.ts";
 import { NewRouter, Static, StaticWildcardParam } from "./base.ts";
@@ -28,6 +34,11 @@ export type ServeConfig = {
   // See httpsAddr.
   certificateDomains?: string[];
   maxRequestBodySize?: number;
+};
+
+// ServeAsyncConfig adds PocketBun's programmatic cluster mode to the async server API.
+export type ServeAsyncConfig = ServeConfig & {
+  workers?: number;
 };
 
 type BuiltServeHandler = {
@@ -168,10 +179,41 @@ export function serve(app: App, config: ServeConfig = {}): ReturnType<typeof Bun
 }
 
 // serveAsync is a PocketBun-only async alternative to serve().
-export async function serveAsync(app: App, config: ServeConfig = {}): Promise<ReturnType<typeof Bun.serve>> {
+export async function serveAsync(app: App, config: ServeAsyncConfig = {}): Promise<ReturnType<typeof Bun.serve>> {
   assertAutomaticHTTPSUnsupported(config);
+  const workers = config.workers ?? 1;
+  const workersError = validateWorkerCount(workers);
+  if (workersError) {
+    throw workersError;
+  }
+
+  let workerConfig = config;
+  let programmaticClusterWorker = false;
+  if (workers > 1) {
+    if (process.env[ClusterEnvRole]) {
+      const { attachClusterWorker } = await import("../internal/cluster/worker.ts");
+      attachClusterWorker();
+      workerConfig = { ...config, httpAddr: clusterWorkerAddress(), showStartBanner: false };
+      programmaticClusterWorker = true;
+    } else {
+      const { runClusterPrimary } = await import("../internal/cluster/primary.ts");
+      await runClusterPrimary({
+        workers,
+        dataDir: app.dataDir(),
+        httpAddr: config.httpAddr ?? "127.0.0.1:8090",
+        showStartBanner: config.showStartBanner ?? false,
+      });
+      process.exit(0);
+    }
+  }
+
   await ensureReady(app);
-  return startServerAsync(app, config);
+  const server = await startServerAsync(app, workerConfig);
+  if (programmaticClusterWorker) {
+    const { activateProgrammaticClusterWorker } = await import("../internal/cluster/worker.ts");
+    await activateProgrammaticClusterWorker(app, server);
+  }
+  return server;
 }
 
 export function unsupportedAutomaticHTTPSError(): Error {

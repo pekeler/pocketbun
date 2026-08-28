@@ -55,13 +55,22 @@ Then visit `http://127.0.0.1:8090/_/` for the Admin UI and `http://127.0.0.1:809
 
 ## Vertical Scaling
 
-For read-heavy deployments with spare CPU capacity, start multiple workers:
+For read-heavy deployments with spare CPU capacity, add `workers` to your custom server:
+
+```ts
+await serveAsync(app, {
+  httpAddr: "127.0.0.1:8090",
+  workers: 4,
+});
+```
+
+If you use PocketBun's included executable and `pb_hooks` instead of a custom TypeScript entrypoint, pass `--workers` on the command line:
 
 ```sh
 bun run pocketbun --workers=4 serve --http=127.0.0.1:8090
 ```
 
-On Linux, workers share the configured address. On macOS and Windows, they use consecutive loopback ports behind a reverse proxy. See the [production guide](docs/users/going-to-production.md#using-multiple-workers) for worker sizing, reverse-proxy configuration, and operational details.
+Your entrypoint runs in the primary and each worker, so keep top-level process setup safe to run once per process. On Linux, workers share the configured address. On macOS and Windows, they use consecutive loopback ports behind a reverse proxy. See the [production guide](docs/users/going-to-production.md#using-multiple-workers) for worker sizing, reverse-proxy configuration, and operational details.
 
 ## Examples
 

@@ -46,7 +46,7 @@ import {
 import { Create, CreateAsync, Extract, ExtractAsync } from "./src/tools/archive/index.ts";
 import { NewRegistry } from "./src/tools/template/registry.ts";
 
-export { buildServeHandler, serve, serveAsync, type ServeConfig } from "./src/apis/serve.ts";
+export { buildServeHandler, serve, serveAsync, type ServeAsyncConfig, type ServeConfig } from "./src/apis/serve.ts";
 export { Static, StaticWildcardParam, serveStatic, staticWildcardParam };
 export { requireAuth, requireGuestOnly, requireSameCollectionContextAuth, requireSuperuserAuth, requireSuperuserOrOwnerAuth };
 export { skipSuccessActivityLog };

@@ -1,12 +1,21 @@
 #### Using multiple workers
 
-PocketBun runs one HTTP process by default (`--workers=1`). For a read-heavy application on a machine with spare CPU cores, opt in to multiple workers:
+PocketBun runs one HTTP process by default. For a read-heavy custom TypeScript application on a machine with spare CPU cores, set `workers` when starting the server:
+
+```ts
+await serveAsync(app, {
+  httpAddr: "127.0.0.1:8090",
+  workers: 4,
+});
+```
+
+If you use PocketBun's included executable and `pb_hooks`, use the equivalent command-line option:
 
 ```sh
 bun run pocketbun --workers=4 serve --http=127.0.0.1:8090
 ```
 
-The command starts one supervising primary process and the requested number of HTTP workers. For systemd, add `--workers=4` to the `ExecStart` command in the minimal setup above. On Windows, use a service host or container runtime to supervise the same primary process. Do not start several independent PocketBun instances against one `pb_data` directory, and do not use cluster mode to share `pb_data` over a network filesystem between hosts. Rolling back is immediate: set `--workers=1`; it does not convert application data.
+Both forms start one supervising primary process and the requested number of HTTP workers. A custom TypeScript entrypoint runs once in the primary and once in each worker, so its top-level process setup must be safe to run once per process. For systemd, configure the same `workers` value in your entrypoint or add `--workers=4` to the executable's `ExecStart` command in the minimal setup above. On Windows, use a service host or container runtime to supervise the same primary process. Do not start several independent PocketBun instances against one `pb_data` directory, and do not use cluster mode to share `pb_data` over a network filesystem between hosts. Rolling back is immediate: set `workers: 1` or `--workers=1`; it does not convert application data.
 
 On Linux, every worker serves the configured address using the operating system's shared-port support, so an existing reverse proxy can continue to use one backend address. The operating system distributes new TCP connections among workers; each keep-alive or SSE connection stays with its assigned worker.
 

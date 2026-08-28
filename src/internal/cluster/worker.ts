@@ -38,6 +38,7 @@ import {
 
 let attached = false;
 let shutdownRequested = false;
+let terminationStarted = false;
 let workerApp: App | null = null;
 let stopWorkerServer: (() => Promise<void>) | null = null;
 const coordinatorTimeoutMs = 5_000;
@@ -133,6 +134,23 @@ export function registerClusterWorkerServerStop(stop: () => Promise<void>): void
 
 export function clusterWorkerShutdownRequested(): boolean {
   return shutdownRequested;
+}
+
+export async function activateProgrammaticClusterWorker(app: App, server: ReturnType<typeof Bun.serve>): Promise<void> {
+  registerClusterWorkerApp(app);
+  // Restore must stop new HTTP work before it replaces the application data.
+  registerClusterWorkerServerStop(() => Promise.resolve(server.stop(true)));
+
+  const shutdown = () => {
+    void terminateClusterWorker("shutdown");
+  };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
+
+  if (shutdownRequested) {
+    await terminateClusterWorker("shutdown");
+  }
+  await notifyClusterWorkerReady(server);
 }
 
 export async function notifyClusterWorkerReady(server: ReturnType<typeof Bun.serve>): Promise<void> {
@@ -403,14 +421,23 @@ async function recycleClusterWorker(reason: "restart" | "restore"): Promise<void
   if (shutdownRequested) {
     return;
   }
+  await terminateClusterWorker(reason);
+}
+
+async function terminateClusterWorker(reason: "shutdown" | "restart" | "restore"): Promise<void> {
+  if (terminationStarted) {
+    return;
+  }
+  terminationStarted = true;
   shutdownRequested = true;
-  if (!workerApp) {
+  const app = workerApp;
+  if (!app) {
     process.exit(1);
   }
 
-  const event = new TerminateEvent(workerApp, true);
+  const event = new TerminateEvent(app, reason !== "shutdown");
   try {
-    const result = workerApp.OnTerminate().Trigger(event, (e) => {
+    const result = app.OnTerminate().Trigger(event, (e) => {
       e.App.resetBootstrapState();
       return null;
     });

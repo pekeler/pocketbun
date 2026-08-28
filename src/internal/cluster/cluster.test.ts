@@ -12,6 +12,7 @@ type Identity = {
   role: "leader" | "follower";
   slot: number;
   workerId: number;
+  custom?: boolean;
 };
 
 it.serial("validates the public --workers CLI contract before bootstrap", async () => {
@@ -86,6 +87,103 @@ it.serial("keeps --workers=1 on the existing single-process serve path", async (
     await rm(root, { recursive: true, force: true });
   }
 });
+
+it.serial(
+  "runs a custom TypeScript entrypoint through programmatic cluster mode",
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "pocketbun-programmatic-cluster-"));
+    const dataDir = join(root, "pb_data");
+    const entrypoint = join(root, "server.ts");
+    const publicModule = new URL("../../../index.ts", import.meta.url).href;
+    const sourceData = resolve(fileURLToPath(new URL("../../tests/data", import.meta.url)));
+    const ports = await findConsecutivePorts(2);
+    await cp(sourceData, dataDir, { recursive: true });
+    await writeFile(
+      entrypoint,
+      `import { BaseApp, serveAsync } from ${JSON.stringify(publicModule)};
+
+const app = new BaseApp({ dataDir: ${JSON.stringify(dataDir)} });
+app.onServe().bind({
+  func: (event) => {
+    event.router.get("/__pocketbun_cluster_test", (requestEvent) => requestEvent.json(200, {
+      pid: process.pid,
+      role: process.env.POCKETBUN_CLUSTER_ROLE,
+      slot: Number(process.env.POCKETBUN_CLUSTER_SLOT),
+      workerId: Number(process.env.POCKETBUN_CLUSTER_WORKER_ID),
+      custom: true,
+    }));
+    event.router.post("/__pocketbun_cluster_restart", (requestEvent) => {
+      setTimeout(() => app.restart(), 25);
+      return requestEvent.noContent(204);
+    });
+    return event.next();
+  },
+});
+
+await serveAsync(app, {
+  httpAddr: ${JSON.stringify(`127.0.0.1:${ports[0]}`)},
+  workers: 2,
+  showStartBanner: true,
+});
+`,
+    );
+    const primary = spawnPocketBun([entrypoint]);
+    let workerPids: number[] = [];
+
+    try {
+      await withTimeout(primary.output.waitFor("[cluster] 2 workers"), "programmatic cluster startup", 30_000);
+      const urls = ports.map((port) => `http://127.0.0.1:${port}`);
+      const identities =
+        process.platform === "linux"
+          ? await collectIdentities(urls[0]!, 2)
+          : await Promise.all(urls.map((url) => fetchIdentity(url)));
+      workerPids = identities.map((identity) => identity.pid);
+      expect(new Set(workerPids).size).toBe(2);
+      expect(identities.map((identity) => identity.slot).sort((left, right) => left - right)).toEqual([0, 1]);
+      expect(identities.every((identity) => identity.custom)).toBeTrue();
+      expect(workerPids).not.toContain(primary.process.pid);
+
+      const restart = await fetch(`${urls[0]}/__pocketbun_cluster_restart`, { method: "POST" });
+      expect(restart.status).toBe(204);
+      await withTimeout(
+        primary.output.waitFor("[cluster] restart complete with 2 workers"),
+        "programmatic cluster restart",
+        20_000,
+      );
+      const replacements =
+        process.platform === "linux"
+          ? await collectIdentities(urls[0]!, 2)
+          : await Promise.all(urls.map((url) => fetchIdentity(url)));
+      const replacementPids = replacements.map((identity) => identity.pid);
+      expect(replacements.every((identity) => identity.custom)).toBeTrue();
+      expect(replacementPids.every((pid) => !workerPids.includes(pid))).toBeTrue();
+      await waitFor(() => workerPids.every((pid) => !isProcessAlive(pid)), "programmatic replaced worker cleanup", 10_000);
+      workerPids = replacementPids;
+
+      primary.process.kill("SIGTERM");
+      const exitCode = await withTimeout(primary.process.exited, "programmatic cluster shutdown", 20_000);
+      await primary.output.done;
+      await waitFor(() => workerPids.every((pid) => !isProcessAlive(pid)), "programmatic worker cleanup", 10_000);
+      if (process.platform !== "win32") {
+        expect(exitCode).toBe(0);
+        expect(await Bun.file(join(dataDir, LocalClusterGuardFileName)).exists()).toBeFalse();
+      }
+    } finally {
+      if (isProcessAlive(primary.process.pid)) {
+        primary.process.kill("SIGKILL");
+        await primary.process.exited;
+      }
+      for (const pid of workerPids) {
+        if (isProcessAlive(pid)) {
+          process.kill(pid, "SIGKILL");
+        }
+      }
+      await withTimeout(primary.output.done, "programmatic cluster output cleanup", 10_000).catch(() => {});
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
 
 it.serial("rolls back from clustered workers to one worker without converting data", async () => {
   const root = await mkdtemp(join(tmpdir(), "pocketbun-cluster-rollback-"));
