@@ -72,7 +72,7 @@ On Linux, workers share the configured address. On macOS and Windows, they use c
 
 PocketBun `0.40.0-pocketbun.0` is benchmarked against PocketBase `v0.40.0` with Bun `1.4.0` and Go `1.27.0`. On aggregate, PocketBun is significantly faster than PocketBase.
 
-[![Aggregate benchmark time and high-concurrency read throughput.](benchmarks/results/pb_compare_20260827T213751Z_external_scaling/scaling.svg)](benchmarks/results/pb_compare_20260827T213751Z_external_scaling/scaling.svg?raw=1)
+[![Aggregate benchmark time and high-concurrency read throughput.](benchmarks/results/pb_compare_20260827T213751Z_external_scaling/scaling.svg)](https://raw.githubusercontent.com/pekeler/pocketbun/master/benchmarks/results/pb_compare_20260827T213751Z_external_scaling/scaling.svg)
 
 Click the chart to inspect exact values.
 
