@@ -74,7 +74,7 @@ PocketBun `0.40.0-pocketbun.0` is benchmarked against PocketBase `v0.40.0` with 
 
 [![Aggregate benchmark time and high-concurrency read throughput.](benchmarks/results/pb_compare_20260827T213751Z_external_scaling/scaling.svg)](https://raw.githubusercontent.com/pekeler/pocketbun/master/benchmarks/results/pb_compare_20260827T213751Z_external_scaling/scaling.svg)
 
-Click the chart to inspect exact values.
+Click a chart to inspect exact values.
 
 Benchmark setup:
 
@@ -83,6 +83,10 @@ Benchmark setup:
 - dedicated external load generator; the same discarded 1,000-request warmup is applied to both systems, but PocketBun needs it to reach its JIT-optimized performance while it does not materially affect PocketBase
 - PocketBase uses `GOMAXPROCS=N`; PocketBun uses `--workers=N`
 - the 1/2, 3/4, and 5–8 worker/GOMAXPROCS measurements use Hetzner CCX13, CCX23, and CCX33 hosts respectively
+
+PocketBase is compiled ahead of time, while PocketBun runs on Bun's JavaScriptCore JIT compiler. Each newly started PocketBun worker therefore needs to execute a code path before it reaches its optimized performance, so some of the first requests to fresh workers can be slower than PocketBase even though PocketBun is faster once warm.
+
+[![Cold-start response latency for PocketBase and PocketBun.](benchmarks/results/pb_compare_20260827T213751Z_external_scaling/fresh-process-route-latency.svg)](https://raw.githubusercontent.com/pekeler/pocketbun/master/benchmarks/results/pb_compare_20260827T213751Z_external_scaling/fresh-process-route-latency.svg)
 
 Phase detail (PocketBase / PocketBun seconds; `#` is PocketBase `GOMAXPROCS` and PocketBun workers):
 
