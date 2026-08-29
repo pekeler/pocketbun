@@ -70,7 +70,7 @@ If you use PocketBun's included executable and `pb_hooks` instead of a custom Ty
 bun run pocketbun --workers=4 serve --http=127.0.0.1:8090
 ```
 
-Your entrypoint runs in the primary and each worker, so keep top-level process setup safe to run once per process. On Linux, workers share the configured address. On macOS and Windows, they use consecutive loopback ports behind a reverse proxy. See the [production guide](docs/users/going-to-production.md#using-multiple-workers) for worker sizing, reverse-proxy configuration, and operational details.
+Your entrypoint runs in the primary and each worker, so keep top-level process setup safe to run once per process. On Linux, workers share the configured address. On macOS and Windows, they use consecutive loopback ports behind a reverse proxy. See the [production guide](docs/users/going-to-production.md#using-multiple-workers) for the cluster architecture, worker sizing, reverse-proxy configuration, and operational details.
 
 ## Examples
 

@@ -149,6 +149,14 @@ bun run pocketbun --workers=4 serve --http=127.0.0.1:8090
 
 Both forms start one supervising primary process and the requested number of HTTP workers. A custom TypeScript entrypoint runs once in the primary and once in each worker, so its top-level process setup must be safe to run once per process. For systemd, configure the same `workers` value in your entrypoint or add `--workers=4` to the executable's `ExecStart` command in the minimal setup above. On Windows, use a service host or container runtime to supervise the same primary process. Do not start several independent PocketBun instances against one `pb_data` directory, and do not use cluster mode to share `pb_data` over a network filesystem between hosts. Rolling back is immediate: set `workers: 1` or `--workers=1`; it does not convert application data.
 
+##### Cluster architecture
+
+Cluster workers are separate operating-system processes, so they cannot share a SQLite handle. Each HTTP worker loads the same hooks, evaluates API rules locally, keeps its own `app.store()` and collection cache, and opens its own `bun:sqlite` connections to the shared local `data.db` and `auxiliary.db`. Both databases use WAL mode: readers can run concurrently, but each database still permits only one writer at a time. PocketBase's notify mechanism reloads settings and collection rules in the other workers after they change.
+
+The primary does not serve HTTP or open the databases. It supervises workers and coordinates the small amount of cross-worker state needed for rate limiting, realtime delivery, backups, restarts, and restores. One HTTP worker is designated the leader and performs singleton work such as migrations, cron jobs, and temporary-file cleanup.
+
+![PocketBun cluster architecture](../assets/cluster-mode.svg)
+
 On Linux, every worker serves the configured address using the operating system's shared-port support, so an existing reverse proxy can continue to use one backend address. The operating system distributes new TCP connections among workers; each keep-alive or SSE connection stays with its assigned worker.
 
 On macOS and Windows, workers use consecutive loopback ports instead. For example, `--workers=4 serve --http=127.0.0.1:9000` uses `127.0.0.1:9000` through `127.0.0.1:9003`. Configure every private backend in your reverse proxy and do not expose the range publicly. Replace the single-backend `proxy_pass` in the NGINX example above with:

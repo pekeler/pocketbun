@@ -840,9 +840,74 @@ it.serial(
       await reconnectedStream.reader.reader.cancel();
       readers.splice(readers.indexOf(reconnectedStream.reader), 1);
 
+      const targetOnly = (pid: number) => states.filter((state) => state.pid !== pid).map((state) => state.pid);
+      const recordsPath = "/api/collections/cluster_items/records";
+      const freshTokenResult = await requester.fetch("/__cluster_auth_token");
+      const freshToken = ((await freshTokenResult.response.json()) as { token: string }).token;
+      const authHeaders = { Authorization: freshToken, "Content-Type": "application/json" };
+      const publicHeaders = { "Content-Type": "application/json" };
+      const expectStatus = async (result: Awaited<ReturnType<typeof requester.fetch>>, expected: number, operation: string) => {
+        if (result.response.status !== expected) {
+          throw new Error(`${operation} returned ${result.response.status}: ${await result.response.text()}`);
+        }
+      };
+      const createRecord = async (pid: number, headers: RequestInit["headers"], value: string) => {
+        const result = await requester.fetch(
+          recordsPath,
+          { method: "POST", headers, body: JSON.stringify({ value }) },
+          targetOnly(pid),
+        );
+        await expectStatus(result, 200, `record create on worker ${pid}`);
+        return (await result.response.json()) as { id: string };
+      };
+
+      for (const state of states) {
+        const publicRecord = await createRecord(state.pid, publicHeaders, `public-${state.pid}`);
+        const authenticatedRecord = await createRecord(state.pid, authHeaders, `authenticated-${state.pid}`);
+
+        for (const [identity, headers] of [
+          ["public", {}],
+          ["authenticated", { Authorization: freshToken }],
+        ] as const) {
+          const list = await requester.fetch(recordsPath, { headers }, targetOnly(state.pid));
+          await expectStatus(list, 200, `${identity} record list on worker ${state.pid}`);
+          const listed = (await list.response.json()) as { items: Array<{ id: string }> };
+          expect(listed.items.map((item) => item.id)).toContain(publicRecord.id);
+          expect(listed.items.map((item) => item.id)).toContain(authenticatedRecord.id);
+
+          const view = await requester.fetch(`${recordsPath}/${publicRecord.id}`, { headers }, targetOnly(state.pid));
+          await expectStatus(view, 200, `${identity} record view on worker ${state.pid}`);
+
+          const update = await requester.fetch(
+            `${recordsPath}/${publicRecord.id}`,
+            {
+              method: "PATCH",
+              headers: { ...headers, "Content-Type": "application/json" },
+              body: JSON.stringify({ value: `${identity}-updated-${state.pid}` }),
+            },
+            targetOnly(state.pid),
+          );
+          await expectStatus(update, 200, `${identity} record update on worker ${state.pid}`);
+        }
+
+        const publicDelete = await requester.fetch(
+          `${recordsPath}/${publicRecord.id}`,
+          { method: "DELETE" },
+          targetOnly(state.pid),
+        );
+        await expectStatus(publicDelete, 204, `public record delete on worker ${state.pid}`);
+        const authenticatedDelete = await requester.fetch(
+          `${recordsPath}/${authenticatedRecord.id}`,
+          { method: "DELETE", headers: { Authorization: freshToken } },
+          targetOnly(state.pid),
+        );
+        await expectStatus(authenticatedDelete, 204, `authenticated record delete on worker ${state.pid}`);
+      }
+
       const superuserTokenResult = await requester.fetch("/__cluster_superuser_token");
       const superuserToken = ((await superuserTokenResult.response.json()) as { token: string }).token;
       const superuserHeaders = { Authorization: superuserToken, "Content-Type": "application/json" };
+      const authenticatedRule = "@request.auth.id != ''";
 
       const collectionUpdateWorker = states.find((state) => state.role === "follower")!;
       const collectionUpdate = await requester.fetch(
@@ -850,9 +915,16 @@ it.serial(
         {
           method: "PATCH",
           headers: superuserHeaders,
-          body: JSON.stringify({ listRule: "id != ''", indexes: [] }),
+          body: JSON.stringify({
+            listRule: authenticatedRule,
+            viewRule: authenticatedRule,
+            createRule: authenticatedRule,
+            updateRule: authenticatedRule,
+            deleteRule: authenticatedRule,
+            indexes: [],
+          }),
         },
-        states.filter((state) => state.pid !== collectionUpdateWorker.pid).map((state) => state.pid),
+        targetOnly(collectionUpdateWorker.pid),
       );
       if (collectionUpdate.response.status !== 200) {
         throw new Error(
@@ -871,7 +943,7 @@ it.serial(
               return false;
             }
             const collection = (await result.response.json()) as { listRule?: unknown };
-            if (collection.listRule !== "id != ''") {
+            if (collection.listRule !== authenticatedRule) {
               return false;
             }
           }
@@ -881,9 +953,67 @@ it.serial(
         5_000,
       );
 
+      for (const state of states) {
+        const guestList = await requester.fetch(recordsPath, {}, targetOnly(state.pid));
+        await expectStatus(guestList, 200, `restricted guest record list on worker ${state.pid}`);
+        expect(((await guestList.response.json()) as { totalItems: number }).totalItems).toBe(0);
+
+        const authenticatedList = await requester.fetch(
+          recordsPath,
+          { headers: { Authorization: freshToken } },
+          targetOnly(state.pid),
+        );
+        await expectStatus(authenticatedList, 200, `restricted authenticated record list on worker ${state.pid}`);
+        expect(
+          ((await authenticatedList.response.json()) as { items: Array<{ id: string }> }).items.map((item) => item.id),
+        ).toContain("clusteritem0001");
+
+        const guestView = await requester.fetch(`${recordsPath}/clusteritem0001`, {}, targetOnly(state.pid));
+        await expectStatus(guestView, 404, `restricted guest record view on worker ${state.pid}`);
+        const authenticatedView = await requester.fetch(
+          `${recordsPath}/clusteritem0001`,
+          { headers: { Authorization: freshToken } },
+          targetOnly(state.pid),
+        );
+        await expectStatus(authenticatedView, 200, `restricted authenticated record view on worker ${state.pid}`);
+
+        const guestCreate = await requester.fetch(
+          recordsPath,
+          { method: "POST", headers: publicHeaders, body: JSON.stringify({ value: "denied" }) },
+          targetOnly(state.pid),
+        );
+        await expectStatus(guestCreate, 400, `restricted guest record create on worker ${state.pid}`);
+        const authenticatedRecord = await createRecord(state.pid, authHeaders, `restricted-${state.pid}`);
+
+        const guestUpdate = await requester.fetch(
+          `${recordsPath}/clusteritem0001`,
+          { method: "PATCH", headers: publicHeaders, body: JSON.stringify({ value: "denied" }) },
+          targetOnly(state.pid),
+        );
+        await expectStatus(guestUpdate, 404, `restricted guest record update on worker ${state.pid}`);
+        const authenticatedUpdate = await requester.fetch(
+          `${recordsPath}/${authenticatedRecord.id}`,
+          { method: "PATCH", headers: authHeaders, body: JSON.stringify({ value: `updated-${state.pid}` }) },
+          targetOnly(state.pid),
+        );
+        await expectStatus(authenticatedUpdate, 200, `restricted authenticated record update on worker ${state.pid}`);
+
+        const guestDelete = await requester.fetch(
+          `${recordsPath}/clusteritem0001`,
+          { method: "DELETE" },
+          targetOnly(state.pid),
+        );
+        await expectStatus(guestDelete, 404, `restricted guest record delete on worker ${state.pid}`);
+        const authenticatedDelete = await requester.fetch(
+          `${recordsPath}/${authenticatedRecord.id}`,
+          { method: "DELETE", headers: { Authorization: freshToken } },
+          targetOnly(state.pid),
+        );
+        await expectStatus(authenticatedDelete, 204, `restricted authenticated record delete on worker ${state.pid}`);
+      }
+
       const storageDeleteWorker = states[1]!;
       const storageWriteWorker = states[2]!;
-      const targetOnly = (pid: number) => states.filter((state) => state.pid !== pid).map((state) => state.pid);
       const storageSeed = await requester.fetch(
         "/__cluster_storage/seed",
         { method: "POST" },

@@ -1,0 +1,92 @@
+direction: down
+
+traffic: "Clients / reverse proxy" {
+  shape: cloud
+  style.fill: "#eef6ff"
+  style.stroke: "#7aa7d8"
+}
+
+cluster: {
+  label: "PocketBun cluster"
+  direction: down
+  style.fill: "#fbfcfe"
+  style.stroke: "#aab7c4"
+
+  control: {
+    label: "Control plane"
+    direction: right
+    style.fill: "#f7f9fc"
+    style.stroke: "#c2ccd6"
+
+    primary: "Primary supervisor\nNo HTTP or SQLite" {
+      style.fill: "#e7f0fa"
+      style.stroke: "#5085bb"
+    }
+    ipc: "IPC coordinator\nworker lifecycle · rate limits · realtime\nbackups · restart · restore" {
+      shape: queue
+      style.fill: "#f4f7fa"
+      style.stroke: "#8193a5"
+    }
+
+    primary -> ipc
+  }
+
+  workers: {
+    label: "HTTP workers"
+    direction: right
+    style.fill: "#f8fcf9"
+    style.stroke: "#a9cbb2"
+
+    leader: "Leader worker\nHTTP + SSE\nHooks + local API-rule evaluation\nOwn app.store(), caches and SQLite connections\nMigrations + cron + temp cleanup" {
+      style.fill: "#eef9f1"
+      style.stroke: "#4f9463"
+    }
+    follower: "Follower worker\nHTTP + SSE\nHooks + local API-rule evaluation\nOwn app.store(), caches and SQLite connections" {
+      style.fill: "#eef9f1"
+      style.stroke: "#4f9463"
+    }
+    more: "More workers …\nSame isolated runtime state" {
+      style.fill: "#eef9f1"
+      style.stroke: "#4f9463"
+      style.stroke-dash: 4
+    }
+  }
+
+  data: {
+    label: "One local pb_data directory"
+    direction: right
+    style.fill: "#fffaf0"
+    style.stroke: "#bf984e"
+
+    databases: {
+      label: "SQLite"
+      direction: right
+      style.fill: "#fffdf7"
+      style.stroke: "#d7ba80"
+
+      main: "data.db\napplication data\nWAL · concurrent readers · one writer" {
+        shape: cylinder
+        style.fill: "#fff3d6"
+        style.stroke: "#b98524"
+      }
+      auxiliary: "auxiliary.db\nactivity logs\nWAL · concurrent readers · one writer" {
+        shape: cylinder
+        style.fill: "#fff3d6"
+        style.stroke: "#b98524"
+      }
+    }
+    notify: ".notify\nworkers write/watch notifications\nsettings + collection/rule cache reload" {
+      shape: document
+    }
+    storage: "File storage" {
+      shape: stored_data
+    }
+  }
+
+  control.ipc -> workers: "creates IPC channel · messages flow both ways"
+  workers -> data.databases: "per-worker bun:sqlite connections"
+  workers -> data.notify: "write + watch"
+  workers -> data.storage
+}
+
+traffic -> cluster.workers: "new connections distributed across workers"
