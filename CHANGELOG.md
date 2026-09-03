@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.40.2-pocketbun.0 - 2026-09-03
 
 - The advanced example now includes a two-worker production mode that disables development and hook-watching behavior.
 - Now compatible with PocketBase `v0.40.2` [release notes](https://github.com/pocketbase/pocketbase/releases/tag/v0.40.2) (upstream commit `8213ccff`).
