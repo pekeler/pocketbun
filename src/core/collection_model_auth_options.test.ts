@@ -634,6 +634,18 @@ describe("PasswordAuthConfig.Validate", () => {
 });
 
 describe("OAuth2Config merge", () => {
+  it("merges submitted provider fields through unmarshalJSON", () => {
+    const config = Object.assign(new OAuth2Config(), {
+      Providers: [Object.assign(new OAuth2ProviderConfig(), { Name: "github", ClientId: "id", ClientSecret: "secret" })],
+    });
+
+    config.UnmarshalJSON('{"providers":[{"name":"github","displayName":"GitHub"}]}');
+
+    expect(config.Providers).toEqual([
+      expect.objectContaining({ Name: "github", ClientId: "id", ClientSecret: "secret", DisplayName: "GitHub" }),
+    ]);
+  });
+
   it("preserves omitted fields for submitted providers with the same name", () => {
     const scenarios = [
       {

@@ -8950,6 +8950,18 @@ namespace core {
   }
   interface OAuth2Config {
     /**
+     * unmarshalJSON implements the [json.Unmarshaler] interface.
+     *
+     * The main difference from the standard unmarshalization is that
+     * instead of replacing the entire providers config slice, we ensure
+     * that partially submitted provider data (e.g. without clientSecret)
+     * is merged on per config level based on the provider name
+     * (https://github.com/pocketbase/pocketbase/issues/7815).
+     */
+    unmarshalJSON(b: string | Array<number>): void;
+  }
+  interface OAuth2Config {
+    /**
      * getProviderConfig returns the first OAuth2ProviderConfig that matches the specified name.
      *
      * Returns false and zero config if no such provider is available in c.Providers.

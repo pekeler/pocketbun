@@ -309,6 +309,16 @@ describe("search filter", () => {
     expect(first.params).toEqual(second.params);
   });
 
+  it("rejects params that cannot be JSON serialized", () => {
+    const resolver = new SimpleFieldResolver("test");
+    const circular: { self?: unknown } = {};
+    circular.self = circular;
+
+    expect(() => buildFilterExpr("test = {:test}", resolver, DefaultFilterExprLimit, [{ test: circular }])).toThrow(
+      'failed to serialize param "test"',
+    );
+  });
+
   it("like params wrapping", () => {
     const resolver = new SimpleFieldResolver(`^test\\w+$`);
 

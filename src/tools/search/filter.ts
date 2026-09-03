@@ -542,7 +542,7 @@ function escapeUnescaped(value: string, chars: string[]): string {
   return result.reverse().join("");
 }
 
-function coerceToString(value: unknown): string {
+function coerceToString(value: unknown, key: string | null = null): string {
   if (value === null || value === undefined) {
     return "";
   }
@@ -556,32 +556,40 @@ function coerceToString(value: unknown): string {
     return value.toISOString();
   }
   try {
-    return JSON.stringify(value) ?? "";
+    const serialized = JSON.stringify(value);
+    if (serialized !== undefined) {
+      return serialized;
+    }
   } catch {
-    return "";
+    // The error below matches the fallback failure reported by PocketBase.
   }
+  if (key !== null) {
+    throw new Error(`failed to serialize param ${JSON.stringify(key)}`);
+  }
+  return "";
 }
 
 function replacePlaceholders(raw: string, replacements: Array<Record<string, unknown>>): string {
-  let result = raw;
+  const serialized = new Map<string, string>();
   for (const replacement of replacements) {
     for (const [key, value] of Object.entries(replacement)) {
       const placeholder = `{:${key}}`;
-      const serialized = serializePlaceholder(value);
-      result = result.split(placeholder).join(serialized);
+      if (!serialized.has(placeholder)) {
+        serialized.set(placeholder, serializePlaceholder(value, key));
+      }
     }
   }
-  return result;
+  return raw.replace(/\{:[^}]+\}/g, (placeholder) => serialized.get(placeholder) ?? placeholder);
 }
 
-function serializePlaceholder(value: unknown): string {
+function serializePlaceholder(value: unknown, key: string): string {
   if (value === null || value === undefined) {
     return "null";
   }
   if (typeof value === "boolean" || typeof value === "number") {
     return String(value);
   }
-  const serialized = coerceToString(value);
+  const serialized = coerceToString(value, key);
   return JSON.stringify(serialized) ?? '""';
 }
 

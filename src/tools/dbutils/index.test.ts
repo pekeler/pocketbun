@@ -11,6 +11,14 @@ describe("dbutils index", () => {
         expected: new Index(),
       },
       {
+        index: "create index on ()",
+        expected: new Index(),
+      },
+      {
+        index: "create index a.b.c on ()",
+        expected: new Index(),
+      },
+      {
         index: "create index indexname on tablename   (col1)",
         expected: (() => {
           const idx = new Index();

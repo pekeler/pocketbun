@@ -67,6 +67,9 @@ const knownNamespaceInterfaceOmissions = new Map<string, Set<string>>([
 const knownInterfaceMemberAdditions = new Map<string, Set<string>>([
   ["core.App", new Set(["forMigrations"])],
   ["core.BaseApp", new Set(["forMigrations"])],
+  // PocketBase's v0.40.2 declaration generator omits this still-bound JSON method.
+  ["core.RateLimitsConfig", new Set(["marshalJSON"])],
+  ["core.TrustedProxyConfig", new Set(["marshalJSON"])],
 ]);
 const knownInterfaceMemberOmissions = new Map<string, Set<string>>([
   ["core.SMTPConfig", new Set(["marshalJSON"])],

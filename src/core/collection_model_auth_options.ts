@@ -217,6 +217,47 @@ export class OAuth2Config {
   MappedFields: OAuth2KnownFields = { Id: "", Name: "", Username: "", AvatarURL: "" };
   Enabled = false;
 
+  // UnmarshalJSON implements the [json.Unmarshaler] interface.
+  //
+  // The main difference from the standard unmarshalization is that
+  // instead of replacing the entire providers config slice, we ensure
+  // that partially submitted provider data (e.g. without clientSecret)
+  // is merged on per config level based on the provider name
+  // (https://github.com/pocketbase/pocketbase/issues/7815).
+  UnmarshalJSON(data: string | Array<number>): void {
+    const raw = typeof data === "string" ? data : new TextDecoder().decode(new Uint8Array(data));
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new Error("invalid OAuth2 config JSON");
+    }
+
+    const record = parsed as Record<string, unknown>;
+    const originalProviders = [...(this.Providers ?? [])];
+    if (typeof record.enabled === "boolean") {
+      this.Enabled = record.enabled;
+    }
+    if (record.mappedFields && typeof record.mappedFields === "object") {
+      const fields = record.mappedFields as Record<string, unknown>;
+      if ("id" in fields) this.MappedFields.Id = toStringValue(fields.id);
+      if ("name" in fields) this.MappedFields.Name = toStringValue(fields.name);
+      if ("username" in fields) this.MappedFields.Username = toStringValue(fields.username);
+      if ("avatarURL" in fields) this.MappedFields.AvatarURL = toStringValue(fields.avatarURL);
+    }
+    if (!Array.isArray(record.providers)) {
+      return;
+    }
+
+    this.Providers = record.providers.map((provider) => normalizeOAuth2ProviderConfig(provider));
+    for (const [index, provider] of record.providers.entries()) {
+      if (!provider || typeof provider !== "object" || Array.isArray(provider)) continue;
+      const name = (provider as Record<string, unknown>).name;
+      const original = originalProviders.find((item) => item.Name === name);
+      if (original) {
+        this.Providers[index] = normalizeOAuth2ProviderConfig({ ...Object.fromEntries(Object.entries(original)), ...provider });
+      }
+    }
+  }
+
   // GetProviderConfig returns the first OAuth2ProviderConfig that matches the specified name.
   //
   // Returns false and zero config if no such provider is available in c.Providers.
@@ -465,6 +506,7 @@ function installAuthOptionsJSVMAliases(): void {
     },
   });
   defineMethodAliases(OAuth2Config.prototype, [
+    ["unmarshalJSON", "UnmarshalJSON"],
     ["getProviderConfig", "GetProviderConfig"],
     ["validate", "Validate"],
   ]);

@@ -122,7 +122,7 @@ export function parseIndex(createIndexExpr: string): Index {
   if (nameParts.length === 2) {
     result.schemaName = trimByCutset(nameParts[0] ?? "", trimChars);
     result.indexName = trimByCutset(nameParts[1] ?? "", trimChars);
-  } else if (nameParts.length > 0) {
+  } else if (nameParts.length === 1) {
     result.indexName = trimByCutset(nameParts[0] ?? "", trimChars);
   }
 
