@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.40.3-pocketbun.0 - 2026-09-07
 
 - Now compatible with PocketBase `v0.40.3` [release notes](https://github.com/pocketbase/pocketbase/releases/tag/v0.40.3) (upstream commit `5684ee24`).
   - Fixes nested cascade deletes, partial indexes with parenthesized conditions, geographic distance rounding, JSON validation, field-picker error handling, and oversized request reads.
