@@ -2,6 +2,7 @@
 
 import { describe, expect, it, setDefaultTimeout } from "bun:test";
 import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { buildServeHandler } from "../../apis/serve.ts";
 import { newTestApp } from "../../tests/app.ts";
@@ -119,7 +120,7 @@ const knownInterfaceMemberOmissions = new Map<string, Set<string>>([
 const intentionallyDifferentInterfaceContracts = new Set([".Command"]);
 
 async function sourceFile(pathOrUrl: string | URL): Promise<ts.SourceFile> {
-  const path = pathOrUrl instanceof URL ? pathOrUrl.pathname : pathOrUrl;
+  const path = pathOrUrl instanceof URL ? fileURLToPath(pathOrUrl) : pathOrUrl;
   return ts.createSourceFile(path, await Bun.file(pathOrUrl).text(), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
 }
 
@@ -893,9 +894,10 @@ describe("jsvm generated type runtime contract", () => {
   });
 });
 
-it("allows projects to extend the global PocketBase app interface", async () => {
-  const filename = new URL("./app_extension_check.ts", import.meta.url).pathname;
-  const source = `/// <reference path="${generatedTypesUrl.pathname}" />
+it("allows projects to extend the global PocketBase app interface", () => {
+  // TypeScript normalizes compiler-host paths to forward slashes, including on Windows.
+  const filename = fileURLToPath(new URL("./app_extension_check.ts", import.meta.url)).replaceAll("\\", "/");
+  const source = `/// <reference path="./internal/types/generated/types.d.ts" />
 interface PocketBase { customValue: string }
 const customValue: string = $app.customValue;
 `;
