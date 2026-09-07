@@ -19,6 +19,7 @@ import { JSONArray, Pointer } from "../../tools/types/index.ts";
 import { appBinds } from "../jsvm/binds.ts";
 import { Register as RegisterJSVM } from "../jsvm/jsvm.ts";
 import { MustRegister, Register, TemplateLangGo, TemplateLangJS } from "./migratecmd.ts";
+import { jsCreateTemplate } from "./templates.ts";
 
 const createExpectedJS = String.raw`
 /// <reference path="../pb_data/types.d.ts" />
@@ -1010,3 +1011,13 @@ function normalizeTemplateText(value: string): string {
     .replaceAll(/email\d+/g, "email@TEST_RANDOM")
     .replaceAll(/bool\d+/g, "bool@TEST_RANDOM");
 }
+
+it("generated migrations preserve literal unicode escapes", () => {
+  const collection = NewAuthCollection("literal_escape");
+  const rule = String.raw`id = "\u0061"`;
+  collection.ListRule = rule;
+  const template = jsCreateTemplate(collection);
+  const json = template.match(/new Collection\(([\s\S]*?)\);/)?.[1];
+  expect(json).toBeDefined();
+  expect(JSON.parse(json!).listRule).toBe(rule);
+});

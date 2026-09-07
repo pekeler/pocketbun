@@ -6162,7 +6162,11 @@ function isSafeIdentifier(value: string): boolean {
   return /^[A-Za-z0-9_]+$/.test(value);
 }
 
+// cascadeRecordDelete triggers cascade deletion for the provided references.
+// NB! This method is expected to be called from inside of a transaction.
 async function cascadeRecordDelete(app: App, mainRecord: RecordModel, refs: Map<Collection, Field[]>): Promise<Error | null> {
+  // Sort references so cascade events always fire in the same order.
+  // This is not necessary for correctness but makes test output deterministic.
   const sortedRefs = Array.from(refs.keys()).sort((a, b) => a.name.localeCompare(b.name));
 
   for (const refCollection of sortedRefs) {
@@ -6171,38 +6175,41 @@ async function cascadeRecordDelete(app: App, mainRecord: RecordModel, refs: Map<
       continue;
     }
 
-    const recordTableName = columnify(refCollection.name);
+    const refTableName = columnify(refCollection.name);
 
     for (const field of fields) {
       if (!(field instanceof RelationField)) {
         return new Error(`only RelationField is supported at the moment, got ${field.Type()}`);
       }
 
-      const prefixedFieldName = `${recordTableName}.${columnify(field.GetName())}`;
-      const query = app.RecordQuery(refCollection);
+      const prefixedFieldName = `${refTableName}.${columnify(field.GetName())}`;
+      // fetch only the related ids because they will be queried anyway right
+      // before delete to ensure that we are working with fresh record data
+      const query = (app.db() as DbxDatabase).select(`${refTableName}.id`).from(refTableName);
 
       if (!field.IsMultiple()) {
-        query.AndWhere({ [prefixedFieldName]: mainRecord.Id });
+        query.andWhere(HashExp({ [prefixedFieldName]: mainRecord.Id }));
       } else {
-        query.AndWhere({
+        query.andWhere({
           sql: `EXISTS (SELECT 1 FROM ${JSONEach(prefixedFieldName)} as {{__je__}} WHERE [[__je__.value]] = ?)`,
           params: [mainRecord.Id],
         });
       }
 
       if (refCollection.Id === mainRecord.collection().Id) {
-        query.AndWhere(Not(HashExp({ [`${recordTableName}.id`]: mainRecord.Id })));
+        query.andWhere(Not(HashExp({ [`${refTableName}.id`]: mainRecord.Id })));
       }
 
-      const batchSize = 4000;
+      // trigger cascade for each batchSize rel items until there is none
+      const batchSize = 8000;
       for (;;) {
-        const rows = query.Limit(batchSize).All() as RecordModel[];
-        const total = rows.length;
+        const refIds = query.limit(batchSize).column() as string[];
+        const total = refIds.length;
         if (total === 0) {
           break;
         }
 
-        const err = await deleteRefRecords(app, mainRecord, rows, field);
+        const err = await deleteRefRecords(app, mainRecord, refCollection, refIds, field);
         if (err) {
           return err;
         }
@@ -6217,15 +6224,29 @@ async function cascadeRecordDelete(app: App, mainRecord: RecordModel, refs: Map<
   return null;
 }
 
+// deleteRefRecords checks if related records have to be deleted (if CascadeDelete is set)
+// OR just unsets the record id from relation field values (if they are not required).
+// NB! This method is expected to be called from inside of a transaction.
 async function deleteRefRecords(
   app: App,
   mainRecord: RecordModel,
-  refRecords: RecordModel[],
+  refCollection: Collection,
+  refIds: string[],
   field: RelationField,
 ): Promise<Error | null> {
-  for (const refRecord of refRecords) {
+  for (const refId of refIds) {
+    let refRecord: RecordModel;
+    try {
+      refRecord = app.FindRecordById(refCollection, refId);
+    } catch (error) {
+      if (error instanceof Error && error.message === "record not found") {
+        continue; // already deleted
+      }
+      return error as Error;
+    }
     let ids = refRecord.GetStringSlice(field.Name);
 
+    // unset the record id
     for (let i = ids.length - 1; i >= 0; i -= 1) {
       if (ids[i] === mainRecord.Id) {
         ids = ids.slice(0, i).concat(ids.slice(i + 1));
@@ -6233,6 +6254,8 @@ async function deleteRefRecords(
       }
     }
 
+    // cascade delete the reference
+    // (only if there are no other active references in case of multiple select)
     if (field.CascadeDelete && ids.length === 0) {
       const deleteErr = await app.Delete(refRecord);
       if (deleteErr) {
@@ -6247,6 +6270,8 @@ async function deleteRefRecords(
       );
     }
 
+    // save the reference changes
+    // (without validation because another relation may reference a previously deleted record)
     refRecord.Set(field.Name, ids);
     const saveErr = await app.SaveNoValidate(refRecord);
     if (saveErr) {

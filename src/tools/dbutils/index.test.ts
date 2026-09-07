@@ -331,3 +331,17 @@ describe("dbutils index", () => {
     }
   });
 });
+
+it("parses multiline index expressions and parenthesized WHERE clauses", () => {
+  const index = parseIndex(`  CREATE UNIQUE INDEX IF NOT EXISTS "schema".[idx] ON 'records' (
+    col0, json_extract("data",\n '$.a') asc, "name" collate NOCASE
+  ) WHERE cast(test1 as\n int) = 1 and test2 != ''  `);
+  expect(index.isValid()).toBe(true);
+  expect(index.columns).toEqual([
+    { name: "col0", collate: "", sort: "" },
+    { name: "json_extract(\"data\",\n '$.a')", collate: "", sort: "ASC" },
+    { name: "name", collate: "NOCASE", sort: "" },
+  ]);
+  expect(index.where).toBe("cast(test1 as\n int) = 1 and test2 != ''");
+  expect(parseIndex('create index idx on records (col, "")').isValid()).toBe(false);
+});

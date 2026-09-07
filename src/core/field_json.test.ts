@@ -220,3 +220,25 @@ describe("json field", () => {
     }
   });
 });
+
+it("validates jsonv2 names and numbers while reading legacy JSON", async () => {
+  const { app, cleanup } = await newUnbootstrappedTestApp();
+  try {
+    const field = Object.assign(new JSONField(), { Name: "test" });
+    const collection = NewBaseCollection("json_names");
+    collection.Fields.Add(field);
+    const record = NewRecord(collection);
+    for (const raw of ['{"a":1,"a":2}', '{"a":{"b":1,"b":2}}', String.raw`{"a":1,"\u0061":2}`, "[1e999]"]) {
+      record.SetRaw("test", new JSONRaw(raw));
+      expect(field.ValidateValue(null, app, record)?.message).toBe("Must be a valid json value");
+    }
+    for (const raw of ['[{"a":1},{"a":2}]', '{"a":{"a":1}}', '{"a":"1e999 { ","b":"a:"}']) {
+      record.SetRaw("test", new JSONRaw(raw));
+      expect(field.ValidateValue(null, app, record)).toBeNull();
+    }
+    record.SetRaw("test", new JSONRaw('{"a":1,"a":2}'));
+    expect(JSON.parse(record.MarshalJSON()).test).toEqual({ a: 2 });
+  } finally {
+    await cleanup();
+  }
+});

@@ -5,12 +5,17 @@ import { Tokenizer } from "../tokenizer/tokenizer.ts";
 import { initModifier, type Modifier } from "./modifiers.ts";
 import "./excerpt_modifier.ts";
 
+export const ErrInvalidModifierData = new Error("failed to apply some of the field modifiers for the provided data");
+
 // Pick converts data into a []any, map[string]any, etc. (using json marshal->unmarshal)
 // containing only the fields from the parsed rawFields expression.
 //
 // rawFields is a comma separated string of the fields to include.
 // Nested fields should be listed with dot-notation.
 // Fields value modifiers are also supported using the `:modifier(args)` format (see Modifiers).
+//
+// In case some data fails to apply against registered modifiers, a wrapped
+// ErrInvalidModifierData is thrown for callers to ignore or propagate.
 //
 // Example:
 //
@@ -19,6 +24,9 @@ import "./excerpt_modifier.ts";
 export function Pick(data: unknown, rawFields: string): unknown {
   const parsedFields = parseFields(rawFields);
 
+  // Decode into plain JSON containers. Native JSON parsing accepts duplicate names
+  // for compliance with old jsonv1 data (new entries validate jsonv2 semantics).
+  // @todo research other approaches to avoid the double serialization
   const encoded = JSON.stringify(data);
   const decoded = JSON.parse(encoded) as unknown;
 
@@ -26,13 +34,13 @@ export function Pick(data: unknown, rawFields: string): unknown {
     if (decoded && typeof decoded === "object" && !Array.isArray(decoded)) {
       const err = pickParsedFields((decoded as Record<string, unknown>).items, parsedFields);
       if (err) {
-        throw err;
+        throw new Error(`${ErrInvalidModifierData.message}: ${err.message}`, { cause: ErrInvalidModifierData });
       }
     }
   } else {
     const err = pickParsedFields(decoded, parsedFields);
     if (err) {
-      throw err;
+      throw new Error(`${ErrInvalidModifierData.message}: ${err.message}`, { cause: ErrInvalidModifierData });
     }
   }
 
@@ -85,7 +93,7 @@ function pickParsedFields(data: unknown, fields: Record<string, Modifier | null>
       }
       const err = pickMapFields(item, fields);
       if (err) {
-        return null;
+        return err;
       }
     }
 

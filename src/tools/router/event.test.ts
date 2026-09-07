@@ -4,6 +4,7 @@ import { describe, expect, it } from "bun:test";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Modifiers } from "../picker/modifiers.ts";
 import { ApiError } from "./api_error.ts";
 import { ErrInvalidRedirectStatusCode, Event } from "./event.ts";
 import { Router } from "./router.ts";
@@ -658,4 +659,25 @@ describe("Event", () => {
   });
 
   // unsupported content types are covered in the BindBody scenarios above.
+});
+
+it.serial("JSON falls back only for modifier data errors and permits custom error responses", async () => {
+  Modifiers.broken = () => ({
+    Modify: () => {
+      throw new Error("test_error");
+    },
+  });
+  try {
+    const event = new Event({ request: new Request("http://example.com/?fields=a:broken") });
+    const response = event.JSON(201, { a: 1, b: 2 });
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ a: 1, b: 2 });
+    const invalid = new Event({ request: new Request("http://example.com/?fields=a:unknown") });
+    expect(() => invalid.JSON(200, { a: 1 })).toThrow();
+    const fallback = invalid.String(422, "custom failure");
+    expect(fallback.status).toBe(422);
+    expect(fallback.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+  } finally {
+    delete Modifiers.broken;
+  }
 });

@@ -14,7 +14,7 @@ import {
   parseMultipartFormData,
 } from "../../internal/compat/request_form_data.ts";
 import { File as FilesystemFile } from "../filesystem/file.ts";
-import { Pick } from "../picker/pick.ts";
+import { ErrInvalidModifierData, Pick } from "../picker/pick.ts";
 import { Store } from "../store/store.ts";
 import {
   ApiError,
@@ -274,16 +274,23 @@ export class Event implements Resolver {
   }
 
   JSON(status: number, data: unknown): Response {
-    this.setResponseHeaderIfEmpty(headerContentType, "application/json");
-
     let output = data;
     if (status >= 200 && status <= 299) {
       const rawFields = this.cachedJsonFields();
       if (rawFields) {
-        output = Pick(data, rawFields);
+        try {
+          output = Pick(data, rawFields);
+        } catch (error) {
+          // @todo ignore for now modifier data errors to avoid introducing
+          // breaking changes; consider logging for dev purposes.
+          if (!(error instanceof Error) || error.cause !== ErrInvalidModifierData) {
+            throw error;
+          }
+        }
       }
     }
 
+    this.setResponseHeaderIfEmpty(headerContentType, "application/json");
     const payload = JSON.stringify(output);
     return this.buildResponse(status, payload);
   }

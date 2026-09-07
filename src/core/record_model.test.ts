@@ -2,9 +2,11 @@
 
 import { describe, expect, it } from "bun:test";
 import type { GetterFunc, SetterFunc } from "./field.ts";
+import { newTestApp } from "../tests/app.ts";
 import { NewAuthCollection, NewBaseCollection } from "./collection_model.ts";
 import { NumberField } from "./field_number.ts";
 import { PasswordFieldValue } from "./field_password.ts";
+import { RelationField } from "./field_relation.ts";
 import { TextField } from "./field_text.ts";
 import { NewRecord } from "./record_model.ts";
 
@@ -109,4 +111,34 @@ describe("Record.MarshalJSON", () => {
 
     expect(record.MarshalJSON()).toContain(`"value":"test�"`);
   });
+});
+
+it("nested self-referenced cascades refresh records already changed or deleted", async () => {
+  const { app, cleanup } = await newTestApp();
+  try {
+    const collection = NewBaseCollection("nested_cascade");
+    expect(await app.Save(collection)).toBeNull();
+    collection.Fields.Add(
+      Object.assign(new RelationField(), {
+        Name: "parents",
+        CollectionId: collection.Id,
+        MaxSelect: 10,
+        CascadeDelete: true,
+      }),
+    );
+    expect(await app.Save(collection)).toBeNull();
+    const records = ["aaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbb", "ccccccccccccccc"].map((id) => {
+      const record = NewRecord(collection);
+      record.Id = id;
+      return record;
+    });
+    for (const record of records) expect(await app.Save(record)).toBeNull();
+    records[1]!.Set("parents", [records[0]!.Id]);
+    records[2]!.Set("parents", [records[0]!.Id, records[1]!.Id]);
+    for (const record of records.slice(1)) expect(await app.Save(record)).toBeNull();
+    expect(await app.Delete(records[0]!)).toBeNull();
+    expect(app.RecordQuery(collection).All()).toEqual([]);
+  } finally {
+    await cleanup();
+  }
 });

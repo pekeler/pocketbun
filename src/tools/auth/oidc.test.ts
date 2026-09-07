@@ -270,3 +270,10 @@ describe("oidc provider", () => {
     }
   });
 });
+
+it("rejects missing or non-string id tokens without a type assertion failure", async () => {
+  const provider = new OIDC();
+  for (const token of [{}, { id_token: 123 }, { id_token: "" }]) {
+    expect(provider.FetchRawUserInfo(token)).rejects.toThrow("empty or invalid id_token");
+  }
+});

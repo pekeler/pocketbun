@@ -4,8 +4,8 @@ import { Tokenizer } from "../tokenizer/tokenizer.ts";
 import { aliasOrIdentifier } from "./select.ts";
 
 const indexRegex =
-  /create\s+(unique\s+)?\s*index\s*(if\s+not\s+exists\s+)?(\S*)\s+on\s+(\S*)\s*\(([\s\S]*)\)(?:\s*where\s+([\s\S]*))?/im;
-const indexColumnRegex = /^([\s\S]+?)(?:\s+collate\s+([\w]+))?(?:\s+(asc|desc))?$/im;
+  /\s*create\s+(unique\s+)?\s*index\s*(if\s+not\s+exists\s+)?(\S*)\s+on\s+(\S*)\s*\(([\s\S]*?)\)(?:\s+where\s+([\s\S]*?))?\s*$/i;
+const indexColumnRegex = /^([\s\S]+?)(?:\s+collate\s+([\w]+))?(?:\s+(asc|desc))?\s*$/i;
 const trimChars = "`\"'[]\r\n\t\f\v ";
 
 // IndexColumn represents a single parsed SQL index column.
@@ -150,6 +150,11 @@ export function parseIndex(createIndexExpr: string): Index {
       collate: (colMatches[2] ?? "").trim(),
       sort: (colMatches[3] ?? "").toUpperCase(),
     });
+  }
+
+  if (rawColumns.length !== result.columns.length) {
+    // unset to trigger validation error
+    result.columns = [];
   }
 
   result.where = (matches[6] ?? "").trim();

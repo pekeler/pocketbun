@@ -293,8 +293,7 @@ function formatTemplate(template: string, ...values: string[]): string {
 
 function marhshalWithoutEscape(value: unknown, prefix: string, indent: string): string {
   const raw = stableStringify(value, indent);
-  const prefixed = applyPrefix(raw, prefix);
-  return unescapeUnicode(prefixed);
+  return applyPrefix(raw, prefix);
 }
 
 function toMap(value: unknown): Record<string, unknown> {
@@ -432,12 +431,6 @@ function applyPrefix(raw: string, prefix: string): string {
 
   const [first, ...rest] = lines;
   return [first, ...rest.map((line) => `${prefix}${line}`)].join("\n");
-}
-
-function unescapeUnicode(value: string): string {
-  const quoted = JSON.stringify(value) ?? "";
-  const replaced = quoted.replace(/\\\\u/g, "\\u");
-  return JSON.parse(replaced) as string;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

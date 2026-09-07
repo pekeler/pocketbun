@@ -892,3 +892,22 @@ describe("jsvm generated type runtime contract", () => {
     }
   });
 });
+
+it("allows projects to extend the global PocketBase app interface", async () => {
+  const filename = new URL("./app_extension_check.ts", import.meta.url).pathname;
+  const source = `/// <reference path="${generatedTypesUrl.pathname}" />
+interface PocketBase { customValue: string }
+const customValue: string = $app.customValue;
+`;
+  const options: ts.CompilerOptions = { noEmit: true, skipLibCheck: true, target: ts.ScriptTarget.ESNext, types: [] };
+  const host = ts.createCompilerHost(options);
+  const getSourceFile = host.getSourceFile.bind(host);
+  host.getSourceFile = (path, languageVersion, onError, shouldCreateNewSourceFile) =>
+    path === filename
+      ? ts.createSourceFile(path, source, ts.ScriptTarget.ESNext, true)
+      : getSourceFile(path, languageVersion, onError, shouldCreateNewSourceFile);
+  const program = ts.createProgram([filename], options, host);
+  expect(
+    ts.getPreEmitDiagnostics(program).map((diagnostic) => ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n")),
+  ).toEqual([]);
+});

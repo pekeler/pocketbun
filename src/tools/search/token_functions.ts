@@ -10,6 +10,17 @@ export type Token = {
 };
 
 export const tokenFunctions: Record<string, TokenFunction> = {
+  // geoDistance(lonA, latA, lonB, latB) calculates the Haversine
+  // distance between 2 points in kilometres (https://www.movable-type.co.uk/scripts/latlong.html).
+  //
+  // The accepted arguments at the moment could be either a plain number or a column identifier (including NULL).
+  // If the column identifier cannot be resolved and converted to a numeric value, it resolves to NULL.
+  //
+  // Similar to the built-in SQLite functions, geoDistance doesn't apply
+  // a "match-all" constraints in case there are multiple relation fields arguments.
+  // Or in other words, if a collection has "orgs" multiple relation field pointing to "orgs" collection that has "office" as "geoPoint" field,
+  // then the filter: `geoDistance(orgs.office.lon, orgs.office.lat, 1, 2) < 200`
+  // will evaluate to true if for at-least-one of the "orgs.office" records the function result in a value satisfying the condition (aka. "result < 200").
   geoDistance: (resolveToken, args) => {
     if (args.length !== 4) {
       throw new Error(`[geoDistance] expected 4 arguments, got ${args.length}`);
@@ -25,12 +36,14 @@ export const tokenFunctions: Record<string, TokenFunction> = {
     if (!lonA || !latA || !lonB || !latB) {
       throw new Error("[geoDistance] failed to resolve arguments");
     }
+    // Clamp to prevent floating point rounding errors above 1 for identical points.
+    // See the NULL note for arccosine: https://sqlite.org/lang_mathfunc.html#overview
     const identifier =
-      "(6371 * acos(" +
+      "(6371 * acos(min(1, max(-1, " +
       `cos(radians(${latA.identifier})) * cos(radians(${latB.identifier})) * ` +
       `cos(radians(${lonB.identifier}) - radians(${lonA.identifier})) + ` +
       `sin(radians(${latA.identifier})) * sin(radians(${latB.identifier}))` +
-      "))";
+      "))))";
 
     return {
       identifier,

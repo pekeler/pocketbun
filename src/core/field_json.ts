@@ -123,7 +123,7 @@ export class JSONField implements Field, MaxBodySizeCalculator {
       });
     }
 
-    if (!isJson(raw.toString())) {
+    if (!isJson(raw.toString()) || !hasValidJSONNamesAndNumbers(raw.toString())) {
       return newError("validation_invalid_json", "Must be a valid json value");
     }
 
@@ -172,3 +172,26 @@ function isJson(value: string): boolean {
 }
 
 Fields[FieldTypeJSON] = () => new JSONField();
+
+// Bun's JSON.parse accepts duplicate names and overflowing numbers, unlike
+// encoding/json/v2. Check tokens after native syntax validation, retaining
+// object-local names so nested and escaped duplicate keys are rejected too.
+function hasValidJSONNamesAndNumbers(value: string): boolean {
+  const objects: Set<string>[] = [];
+  for (const match of value.matchAll(/"(?:[^"\\]|\\[\s\S])*"\s*:?|[{}]|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g)) {
+    const token = match[0];
+    if (token === "{") {
+      objects.push(new Set());
+    } else if (token === "}") {
+      objects.pop();
+    } else if (token.endsWith(":")) {
+      const name = JSON.parse(token.slice(0, -1)) as string;
+      const names = objects[objects.length - 1]!;
+      if (names.has(name)) return false;
+      names.add(name);
+    } else if (token[0] !== '"' && !Number.isFinite(Number(token))) {
+      return false;
+    }
+  }
+  return true;
+}

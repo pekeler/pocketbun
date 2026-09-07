@@ -112,7 +112,7 @@ type excludeHooks<Type> = {
 type CoreApp = excludeHooks<core.App>;
 
 // PocketBase without the on* hook methods
-type PocketBase = excludeHooks<pocketbase.PocketBase>;
+interface PocketBase extends excludeHooks<pocketbase.PocketBase> {}
 
 /**
  * `$app` is the current running PocketBase instance that is globally
@@ -14727,14 +14727,16 @@ namespace apis {
     (limitBytes: number): hook.Handler<core.RequestEvent | undefined>;
   }
   type _sjlMhmL = io.ReadCloser;
-  interface limitedReader extends _sjlMhmL {}
-  interface limitedReader {
+  // maxBytesReader is very similar to http.MaxBytesReader but supports
+  // rereads and doesn't prematurely close the response, allowing later middleware to operate.
+  interface maxBytesReader extends _sjlMhmL {}
+  interface maxBytesReader {
     read(b: string | Array<number>): number;
   }
-  interface limitedReader {
+  interface maxBytesReader {
     reread(): void;
   }
-  interface limitedReader {
+  interface maxBytesReader {
     close(): void;
   }
   /**

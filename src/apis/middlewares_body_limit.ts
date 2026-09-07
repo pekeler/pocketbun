@@ -4,7 +4,6 @@ import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { BoundHandler } from "../tools/hook/hook.ts";
 import { type MaxBodySizeCalculator } from "../core/field.ts";
-import { readRequestBytesAndRebind } from "../internal/compat/request_body.ts";
 import { DefaultRateLimitMiddlewarePriority } from "./middlewares.ts";
 
 export const DefaultMaxBodySize = 32 << 20;
@@ -85,7 +84,6 @@ export async function applyBodyLimit(event: RequestEvent, limitBytes: number): P
       if (contentLength > limitBytes) {
         return requestEntityTooLarge(event);
       }
-      return null;
     }
   }
 
@@ -94,11 +92,28 @@ export async function applyBodyLimit(event: RequestEvent, limitBytes: number): P
     return null;
   }
 
-  const bound = await readRequestBytesAndRebind(event.request);
-  event.request = bound.request;
-  if (bound.body.byteLength > limitBytes) {
-    return requestEntityTooLarge(event);
+  // Bun streams provide whole chunks rather than Go's caller-sized read buffer.
+  // Stop as soon as a chunk exceeds the limit; never consume the rest of the body.
+  const reader = event.request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > limitBytes) {
+        await reader.cancel();
+        return requestEntityTooLarge(event);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
   }
+  // Preserve rereads by rebinding the successfully checked body.
+  // eslint-disable-next-line unicorn/no-invalid-fetch-options -- an existing request body excludes GET/HEAD.
+  event.request = new Request(event.request, { body: new Blob(chunks) });
 
   return null;
 }

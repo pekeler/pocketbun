@@ -53,7 +53,7 @@ describe("token functions", () => {
         args: [numberToken(1), numberToken(2), numberToken(3), numberToken(4)],
         expectErr: false,
         expectIdentifier:
-          "(6371 * acos(cos(radians(?)) * cos(radians(?)) * cos(radians(?) - radians(?)) + sin(radians(?)) * sin(radians(?))))",
+          "(6371 * acos(min(1, max(-1, cos(radians(?)) * cos(radians(?)) * cos(radians(?) - radians(?)) + sin(radians(?)) * sin(radians(?))))))",
         expectParams: [2, 4, 3, 1, 2, 4],
       },
     ];
@@ -248,4 +248,20 @@ describe("token functions", () => {
       db.close();
     }
   });
+});
+
+it("geoDistance clamps identical points at rounding-edge latitudes", () => {
+  const db = new DbxDatabase(":memory:");
+  try {
+    for (const latitude of [8, 45]) {
+      const result = tokenFunctions.geoDistance!(resolveLiteral, [0, latitude, 0, latitude].map(numberToken));
+      const row = db.query(`select ${result.identifier} as value`).get(...(result.params as SQLQueryBindings[])) as {
+        value: number;
+      };
+      expect(row.value).not.toBeNull();
+      expect(row.value.toFixed(2)).toBe("0.00");
+    }
+  } finally {
+    db.close();
+  }
 });

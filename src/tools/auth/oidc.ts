@@ -78,7 +78,7 @@ export class OIDC extends BaseProvider {
   private async parseIdToken(token: OAuth2Token): Promise<Record<string, unknown>> {
     const idToken = resolveTokenString(token, "id_token", "idToken");
     if (!idToken) {
-      throw new Error("empty id_token");
+      throw new Error("empty or invalid id_token");
     }
 
     const claims = parseIDTokenClaims(idToken);

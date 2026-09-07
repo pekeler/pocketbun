@@ -2,7 +2,8 @@
 
 import { describe, expect, it } from "bun:test";
 import type { SearchResult } from "../search/types.ts";
-import { Pick } from "./pick.ts";
+import { Modifiers } from "./modifiers.ts";
+import { ErrInvalidModifierData, Pick } from "./pick.ts";
 
 describe("Pick", () => {
   const nestedData = {
@@ -240,5 +241,25 @@ describe("Pick", () => {
       const expected = JSON.parse(scenario.result) as unknown;
       expect(result).toEqual(expected);
     });
+  }
+});
+
+it.serial("propagates modifier errors for objects, arrays, and search results", () => {
+  Modifiers.broken = () => ({
+    Modify: () => {
+      throw new Error("test_error");
+    },
+  });
+  try {
+    for (const data of [{ a: 1 }, [{ a: 1 }], { items: [{ a: 1 }], page: 1, perPage: 1, totalItems: 1, totalPages: 1 }]) {
+      try {
+        Pick(data, "*:broken");
+        throw new Error("Expected modifier failure");
+      } catch (error) {
+        expect((error as Error).cause).toBe(ErrInvalidModifierData);
+      }
+    }
+  } finally {
+    delete Modifiers.broken;
   }
 });
