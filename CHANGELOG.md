@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.40.4-pocketbun.0 - 2026-09-13
 
 - Now compatible with PocketBase `v0.40.4` [release notes](https://github.com/pocketbase/pocketbase/releases/tag/v0.40.4) (upstream commit `5cec579d`).
   - Adds `app.clearBootstrap()` and `onBootstrapClear` for custom resource cleanup, with queued logs flushed before shutdown or reinitialization. `app.resetBootstrapState()` remains available as a deprecated alias.
