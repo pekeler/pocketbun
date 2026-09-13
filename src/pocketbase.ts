@@ -197,10 +197,7 @@ export class PocketBase extends BaseApp {
     }
 
     const terminateEvent = new TerminateEvent(this);
-    const result = this.OnTerminate().Trigger(terminateEvent, (e) => {
-      e.App.resetBootstrapState();
-      return null;
-    });
+    const result = this.OnTerminate().Trigger(terminateEvent, (e) => e.App.clearBootstrap());
 
     if (result instanceof Promise) {
       const resolved = await result;

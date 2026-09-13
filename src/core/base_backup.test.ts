@@ -193,7 +193,7 @@ describe("backups", () => {
       // Keep this test process alive so it can reopen the restored databases.
       (app as unknown as { RestartAsync: () => Promise<Error | null> }).RestartAsync = async () => null;
       expect(await app.RestoreBackup({}, name)).toBeNull();
-      app.resetBootstrapState();
+      await app.clearBootstrap();
 
       // Bootstrapping applies the restored PocketBase log-retention settings,
       // which can prune this fixture's old log entry.

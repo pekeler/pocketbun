@@ -133,7 +133,7 @@ describe("pocketbase", () => {
       }
     } finally {
       process.argv = original;
-      bootstrappedApp?.resetBootstrapState();
+      await bootstrappedApp?.clearBootstrap();
       await removeDirWithRetry(tempDir);
     }
   });
@@ -190,7 +190,7 @@ describe("pocketbase", () => {
       expect((rejection as Error).message).toBe("custom command panicked");
     } finally {
       process.argv = original;
-      app?.resetBootstrapState();
+      await app?.clearBootstrap();
       await removeDirWithRetry(tempDir);
     }
   });

@@ -80,7 +80,7 @@ const stop = async (): Promise<void> => {
   }
   stopping = true;
   await server.stop();
-  app.resetBootstrapState();
+  await app.clearBootstrap();
   if (clusterEnabled()) {
     const { notifyClusterWorkerStopped } = await import("../../src/internal/cluster/worker.ts");
     await notifyClusterWorkerStopped();

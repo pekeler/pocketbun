@@ -27,7 +27,7 @@ import { NewLocal, NewLocalAsync, NewS3, type System } from "../tools/filesystem
 import { Hook } from "../tools/hook/hook.ts";
 import { NewTaggedHook } from "../tools/hook/tagged.ts";
 import { columnify, snakecase } from "../tools/inflector/inflector.ts";
-import { BatchHandler, NewBatchHandler } from "../tools/logger/batch_handler.ts";
+import { BatchHandler, BlockKey, NewBatchHandler } from "../tools/logger/batch_handler.ts";
 import { LogWriter } from "../tools/logger/log_writer.ts";
 import { Sendmail } from "../tools/mailer/sendmail.ts";
 import { SMTPClient } from "../tools/mailer/smtp.ts";
@@ -312,6 +312,7 @@ export class BaseApp implements App {
   #hooksEnabled = false;
   // app event hooks
   #onBootstrap!: Hook<BootstrapEvent>;
+  #onBootstrapClear!: Hook<BootstrapEvent>;
   #onServe!: Hook<ServeEvent>;
   #onTerminate!: Hook<TerminateEvent>;
   // collection API event hooks
@@ -551,6 +552,7 @@ export class BaseApp implements App {
   private resetHooks(): void {
     this.#hooksEnabled = false;
     this.#onBootstrap = new Hook();
+    this.#onBootstrapClear = new Hook();
     this.#onServe = new Hook();
     this.#onTerminate = new Hook();
     this.#onCollectionsListRequest = new Hook();
@@ -703,6 +705,10 @@ export class BaseApp implements App {
 
   DeleteOldLogs(createdBefore: Date): Error | null {
     return deleteOldLogs(this, createdBefore);
+  }
+
+  OnBootstrapClear(): Hook<BootstrapEvent> {
+    return this.#onBootstrapClear;
   }
 
   OnBootstrap(): Hook<BootstrapEvent> {
@@ -1053,6 +1059,10 @@ export class BaseApp implements App {
     return NewTaggedHook(this.#onCollectionAfterDeleteError, ...tags);
   }
 
+  onBootstrapClear() {
+    return this.OnBootstrapClear();
+  }
+
   onBootstrap() {
     return this.OnBootstrap();
   }
@@ -1389,46 +1399,56 @@ export class BaseApp implements App {
     return this.OnCollectionAfterDeleteError(tags);
   }
 
+  // IsBootstrapped checks if the application was initialized
+  // (aka. whether Bootstrap() was called).
   isBootstrapped(): boolean {
     return this.#bootstrapped;
   }
 
+  // Bootstrap initializes the application
+  // (aka. create data dir, open db connections, load settings, etc.).
+  //
+  // It calls ClearBootstrap() if the application was already bootstrapped.
   bootstrap(): void {
     const event = new BootstrapEvent(this);
     const result = this.OnBootstrap().Trigger(event, () => {
-      this.resetBootstrapState();
-      mkdirSync(this.#dataDir, { recursive: true });
+      // clear previous bootstrap state (if any)
+      const cleared = this.clearBootstrap();
+      const initialize = () => {
+        mkdirSync(this.#dataDir, { recursive: true });
 
-      // PocketBun perf deviation (behavior-compatible): keep DB bootstrap through DefaultDBConnect
-      // to preserve PRAGMA tuning (WAL, synchronous, busy_timeout) used by benchmarks and production.
-      this.#db = DefaultDBConnect(join(this.#dataDir, "data.db"));
-      this.#auxDb = DefaultDBConnect(join(this.#dataDir, "auxiliary.db"));
-      this.initDevSqlLogger();
-      const loggerErr = this.initLogger();
-      if (loggerErr) {
-        return loggerErr;
-      }
-      if (runsClusterSingletons()) {
-        try {
-          this.runSystemMigrations();
-        } catch (error) {
-          return error as Error;
+        // PocketBun perf deviation (behavior-compatible): keep DB bootstrap through DefaultDBConnect
+        // to preserve PRAGMA tuning (WAL, synchronous, busy_timeout) used by benchmarks and production.
+        this.#db = DefaultDBConnect(join(this.#dataDir, "data.db"));
+        this.#auxDb = DefaultDBConnect(join(this.#dataDir, "auxiliary.db"));
+        this.initDevSqlLogger();
+        const loggerErr = this.initLogger();
+        if (loggerErr) {
+          return loggerErr;
         }
-      }
-      const reloadErr = this.ReloadCachedCollections();
-      if (reloadErr) {
-        return reloadErr;
-      }
-      this.reloadSettings();
-      if (runsClusterSingletons()) {
-        try {
-          rmSync(join(this.#dataDir, LocalTempDirName), { recursive: true, force: true });
-        } catch {
-          // ignore cleanup failures
+        if (runsClusterSingletons()) {
+          try {
+            this.runSystemMigrations();
+          } catch (error) {
+            return error as Error;
+          }
         }
-      }
-      this.#bootstrapped = true;
-      return null;
+        const reloadErr = this.ReloadCachedCollections();
+        if (reloadErr) {
+          return reloadErr;
+        }
+        this.reloadSettings();
+        if (runsClusterSingletons()) {
+          try {
+            rmSync(join(this.#dataDir, LocalTempDirName), { recursive: true, force: true });
+          } catch {
+            // ignore cleanup failures
+          }
+        }
+        this.#bootstrapped = true;
+        return null;
+      };
+      return cleared instanceof Promise ? cleared.then(initialize) : initialize();
     });
 
     const checkBootstrapped = () => {
@@ -1438,7 +1458,12 @@ export class BaseApp implements App {
     };
 
     if (result instanceof Promise) {
-      void result.then(checkBootstrapped).catch((err) => this.Logger().Error("Failed to bootstrap app", "error", err));
+      void result
+        .then((err) => {
+          if (err instanceof Error) throw err;
+          checkBootstrapped();
+        })
+        .catch((err) => this.Logger().Error("Failed to bootstrap app", "error", err));
     } else if (result instanceof Error) {
       throw result;
     } else {
@@ -1450,7 +1475,7 @@ export class BaseApp implements App {
   async bootstrapAsync(): Promise<void> {
     const event = new BootstrapEvent(this);
     const result = this.OnBootstrap().Trigger(event, async () => {
-      this.resetBootstrapState();
+      await this.clearBootstrap();
       await mkdir(this.#dataDir, { recursive: true });
 
       // PocketBun perf deviation (behavior-compatible): keep DB bootstrap through DefaultDBConnect
@@ -1510,6 +1535,8 @@ export class BaseApp implements App {
   private initLogger(): Error | null {
     const flushDelayMs = 3000;
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+    const pendingWrites = new Set<Promise<Error | null>>();
 
     const handler = NewBatchHandler({
       Level: getLoggerMinLevel(this),
@@ -1527,61 +1554,88 @@ export class BaseApp implements App {
         if (flushTimer) {
           clearTimeout(flushTimer);
         }
-        flushTimer = setTimeout(() => {
-          void handler.WriteAll({});
-        }, flushDelayMs);
+        if (!stopped) {
+          flushTimer = setTimeout(() => {
+            void handler.WriteAll({});
+          }, flushDelayMs);
+        }
 
         return this.settings().logs.maxDays > 0;
       },
-      WriteFunc: async (_ctx, logs) => {
-        if (!this.isBootstrapped() || this.settings().logs.maxDays === 0) {
-          return null;
-        }
-        // Deviation: offload log persistence to a worker to avoid blocking Bun's main thread.
-        // Note: we don't batch logs in a transaction because it didn't improve throughput in Bun.
-        const logWriter = this.getLogWriter();
-        const runner = async (sql: string, values: SQLQueryBindings[]): Promise<Error | null> =>
-          await logWriter.run(sql, values);
-
-        for (const entry of logs) {
-          const model = new Log();
-          model.MarkAsNew();
-          model.id = GenerateDefaultRandomId();
-          model.level = Number(entry.Level);
-          model.message = entry.Message;
-          model.data = entry.Data;
-          model.created = ParseDateTime(entry.Time);
-
-          const saveErr = await this.saveGenericModel(model, true, runner);
-          if (saveErr && !isLogWriterClosed(saveErr)) {
-            // eslint-disable-next-line no-console
-            console.warn("Failed to write log", model, saveErr);
-          }
-        }
-
-        return null;
+      WriteFunc: (ctx, logs) => {
+        // Worker persistence is already non-blocking, including inside AUX transactions.
+        const write = writeLogs(logs);
+        pendingWrites.add(write);
+        void write.then(
+          () => pendingWrites.delete(write),
+          () => pendingWrites.delete(write),
+        );
+        // Don't wait inside an AUX transaction: it could hold the write lock
+        // needed by the logger (pocketbase/pocketbase#7836).
+        return (ctx as { [BlockKey]?: boolean } | null)?.[BlockKey] ? write : null;
       },
     });
 
+    const writeLogs = async (logs: import("../tools/logger/log.ts").Log[]): Promise<Error | null> => {
+      if (!this.isBootstrapped() || this.settings().logs.maxDays === 0) {
+        return null;
+      }
+      // Deviation: offload log persistence to a worker to avoid blocking Bun's main thread.
+      // Note: we don't batch logs in a transaction because it didn't improve throughput in Bun.
+      const logWriter = this.getLogWriter();
+      const runner = async (sql: string, values: SQLQueryBindings[]): Promise<Error | null> => await logWriter.run(sql, values);
+
+      for (const entry of logs) {
+        const model = new Log();
+        model.MarkAsNew();
+        model.id = GenerateDefaultRandomId();
+        model.level = Number(entry.Level);
+        model.message = entry.Message;
+        model.data = entry.Data;
+        model.created = ParseDateTime(entry.Time);
+
+        const saveErr = await this.saveGenericModel(model, true, runner);
+        if (saveErr && !isLogWriterClosed(saveErr)) {
+          // eslint-disable-next-line no-console
+          console.warn("Failed to write log", model, saveErr);
+        }
+      }
+
+      return null;
+    };
+
     this.#logger = slog.New(handler);
 
-    // write all remaining logs before timer cleanup to avoid races with ResetBootstrapState
-    this.OnTerminate().Bind({
-      Id: "__pbAppLoggerOnTerminate__",
+    // attempt to write all queued logs before clearing the application bootstrap state
+    this.OnBootstrapClear().Bind({
+      Id: "__pbAppLoggerFlushBeforeStop__",
       Priority: -999,
-      Func: async (event) => {
-        await handler.WriteAll({});
-        if (this.#logWriter) {
-          await this.#logWriter.close();
-        }
-        this.#logWriter = null;
-
+      Func: (event) => {
+        stopped = true;
         if (flushTimer) {
           clearTimeout(flushTimer);
           flushTimer = null;
         }
 
-        return event.Next();
+        // extra precaution in case the hook was manually triggered inside an aux db transaction
+        if (this.#databaseContext.getStore()?.auxTxInfo) {
+          void handler.WriteAll({});
+          return event.Next();
+        }
+
+        // Preserve synchronous cleanup when there is no worker or queued write.
+        if (handler.logs.length === 0 && pendingWrites.size === 0 && !this.#logWriter) {
+          return event.Next();
+        }
+        return (async () => {
+          await handler.WriteAll({ [BlockKey]: true });
+          await Promise.all(pendingWrites);
+          if (this.#logWriter) {
+            await this.#logWriter.close();
+            this.#logWriter = null;
+          }
+          return event.Next();
+        })();
       },
     });
 
@@ -1637,29 +1691,49 @@ export class BaseApp implements App {
     };
   }
 
-  resetBootstrapState(): void {
-    this.Cron().Stop();
-    if (this.#logWriter) {
-      void this.#logWriter.close();
-      this.#logWriter = null;
-    }
-    if (this.#db) {
-      this.#db.close();
+  /** @deprecated Use clearBootstrap(). */
+  resetBootstrapState(): void | Promise<void> {
+    return this.clearBootstrap();
+  }
+
+  // ClearBootstrap releases the initialized core app resources
+  // (closing db connections, stopping cron ticker, etc.).
+  //
+  // This method is no-op if the application is not bootstrapped yet.
+  // PocketBun deviation: returns a Promise when hooks or worker log flushing are async.
+  clearBootstrap(): void | Promise<void> {
+    // Include resources opened by a bootstrap attempt that failed during migrations.
+    if (!this.#db || !this.#auxDb) return;
+    const result = this.OnBootstrapClear().Trigger(new BootstrapEvent(this), () => {
+      const errors: unknown[] = [];
+      for (const db of [this.#db, this.#auxDb, this.#transactionDbs.main, this.#transactionDbs.auxiliary]) {
+        try {
+          db?.close();
+        } catch (error) {
+          errors.push(error);
+        }
+      }
       this.#db = null;
-    }
-    if (this.#auxDb) {
-      this.#auxDb.close();
       this.#auxDb = null;
-    }
-    if (this.#transactionDbs.main) {
-      this.#transactionDbs.main.close();
       this.#transactionDbs.main = null;
-    }
-    if (this.#transactionDbs.auxiliary) {
-      this.#transactionDbs.auxiliary.close();
       this.#transactionDbs.auxiliary = null;
-    }
-    this.#bootstrapped = false;
+      this.#bootstrapped = false;
+      if (errors.length > 0) {
+        return new AggregateError(
+          errors,
+          errors.map((error) => (error instanceof Error ? error.message : String(error))).join("\n"),
+        );
+      }
+      return null;
+    });
+    const checkError = (error: unknown): void => {
+      if (error instanceof Error) throw error;
+    };
+    return result instanceof Promise ? result.then(checkError) : checkError(result);
+  }
+
+  ClearBootstrap(): void | Promise<void> {
+    return this.clearBootstrap();
   }
 
   IsTransactional(): boolean {
@@ -2613,8 +2687,8 @@ export class BaseApp implements App {
 
     const execPath = this.resolveRestartExecPath();
     const event = new TerminateEvent(this, true);
-    const result = this.OnTerminate().Trigger(event, (e) => {
-      e.App.resetBootstrapState();
+    const result = this.OnTerminate().Trigger(event, async (e) => {
+      await e.App.clearBootstrap();
 
       const restartErr = execve(execPath, this.buildRestartArgv(execPath), this.buildRestartEnvv());
 
@@ -2669,7 +2743,7 @@ export class BaseApp implements App {
     const event = new TerminateEvent(this, true);
 
     const result = this.OnTerminate().Trigger(event, async (e) => {
-      e.App.resetBootstrapState();
+      await e.App.clearBootstrap();
 
       const restartErr = execve(execPath, this.buildRestartArgv(execPath), this.buildRestartEnvv());
 
@@ -4756,6 +4830,15 @@ export class BaseApp implements App {
         if (runsClusterSingletons()) {
           this.Cron().Start();
         }
+        return event.Next();
+      },
+    });
+
+    this.OnBootstrapClear().Bind({
+      Id: "__pbCronStop__",
+      Priority: 999,
+      Func: (event) => {
+        this.Cron().Stop();
         return event.Next();
       },
     });

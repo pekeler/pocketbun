@@ -29,7 +29,7 @@ export async function startTestServer(): Promise<StartedServer> {
   try {
     server = await retryServerStart(() => serve(app, { httpAddr: "127.0.0.1:0" }));
   } catch (error) {
-    app.resetBootstrapState();
+    await app.clearBootstrap();
     await removeDirWithRetry(dataDir);
     throw error;
   }
@@ -43,7 +43,7 @@ export async function startTestServer(): Promise<StartedServer> {
     }
     cleaned = true;
     await server.stop();
-    app.resetBootstrapState();
+    await app.clearBootstrap();
     await removeDirWithRetry(dataDir);
   };
 

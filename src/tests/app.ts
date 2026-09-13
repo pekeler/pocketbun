@@ -171,15 +171,12 @@ export async function newTestApp(dataDir?: string, options: NewTestAppOptions = 
 
 export async function terminateTestApp(app: TestApp): Promise<void> {
   if (!app.isBootstrapped()) {
-    app.resetBootstrapState();
+    await app.clearBootstrap();
     return;
   }
 
   const event = new TerminateEvent(app);
-  const result = app.OnTerminate().Trigger(event, (e) => {
-    e.App.resetBootstrapState();
-    return null;
-  });
+  const result = app.OnTerminate().Trigger(event, (e) => e.App.clearBootstrap());
 
   const err = result instanceof Promise ? await result : result;
   if (err instanceof Error) {
@@ -201,7 +198,7 @@ export async function newUnbootstrappedTestApp(): Promise<ManagedTestApp> {
     cleaned = true;
     app.resetEventCalls();
     app.testMailer.reset();
-    app.resetBootstrapState();
+    await app.clearBootstrap();
   };
 
   return {

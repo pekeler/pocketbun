@@ -19,7 +19,7 @@ const server = serve(app, { httpAddr: `127.0.0.1:${port}` });
 
 const shutdown = async () => {
   await server.stop();
-  app.resetBootstrapState();
+  await app.clearBootstrap();
   await rm(dataDir, { recursive: true, force: true });
   process.exit(0);
 };

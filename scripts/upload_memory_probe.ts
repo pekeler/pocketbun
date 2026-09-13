@@ -141,7 +141,7 @@ async function runServerMode(port: number, maxUploadMiB: number): Promise<void> 
 
   const shutdown = async () => {
     await server.stop();
-    app.resetBootstrapState();
+    await app.clearBootstrap();
     await rm(dataDir, { recursive: true, force: true });
     process.exit(0);
   };

@@ -50,7 +50,7 @@ const restoreStarted = performance.now();
 const restoreError = await app.RestoreBackup({}, "zip64-qualification.zip");
 if (restoreError) throw restoreError;
 const restoreMs = performance.now() - restoreStarted;
-app.resetBootstrapState();
+await app.clearBootstrap();
 app.bootstrap();
 
 const restoredMain = app.db().query("select value from _pb_backup_zip64_probe where id = 1").get() as { value: string };

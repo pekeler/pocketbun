@@ -18,7 +18,7 @@ describe("migrations", () => {
   });
 
   afterAll(async () => {
-    app.resetBootstrapState();
+    await app.clearBootstrap();
     await rm(dataDir, { recursive: true, force: true });
   });
 

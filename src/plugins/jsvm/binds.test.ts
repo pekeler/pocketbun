@@ -2349,9 +2349,29 @@ server.listen(0, "127.0.0.1", () => {
     const app = newUnbootstrappedTestApp();
     const scope: BindScope = {};
     hooksBinds(app, scope);
-    expect(countKeys(scope)).toBe(82);
+    expect(countKeys(scope)).toBe(83);
+    expect(scope.onBootstrapClear).toBeTypeOf("function");
     expect(scope.onRecordRequestOTPRequest).toBeTypeOf("function");
     expect(scope.onRecordCreateOTPRequest).toBeUndefined();
+  });
+
+  it("bootstrap cleanup JSVM bindings", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const scope: BindScope = {};
+      appBinds(scope, app);
+      hooksBinds(app, scope);
+      let called = false;
+      scope.onBootstrapClear(async (e: any) => {
+        called = true;
+        await e.next();
+      });
+      await scope.$app.clearBootstrap();
+      expect(called).toBe(true);
+      expect(app.isBootstrapped()).toBe(false);
+    } finally {
+      await cleanup();
+    }
   });
 
   it("hooks binds", async () => {

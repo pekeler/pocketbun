@@ -83,15 +83,12 @@ describe("notify watcher", () => {
 
 async function terminateApp(app: BaseApp): Promise<void> {
   if (!app.isBootstrapped()) {
-    app.resetBootstrapState();
+    await app.clearBootstrap();
     return;
   }
 
   const event = new TerminateEvent(app);
-  const result = app.OnTerminate().Trigger(event, (e) => {
-    e.App.resetBootstrapState();
-    return null;
-  });
+  const result = app.OnTerminate().Trigger(event, (e) => e.App.clearBootstrap());
 
   const err = result instanceof Promise ? await result : result;
   if (err instanceof Error) {

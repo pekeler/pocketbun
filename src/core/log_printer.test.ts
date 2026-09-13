@@ -7,7 +7,7 @@ import { join } from "node:path";
 import * as slog from "../internal/compat/slog.ts";
 import { DbxDatabase } from "../tools/dbx/database.ts";
 import { existInSlice } from "../tools/list/list.ts";
-import { BatchHandler } from "../tools/logger/batch_handler.ts";
+import { BatchHandler, BlockKey } from "../tools/logger/batch_handler.ts";
 import { BaseApp } from "./base.ts";
 import { LogsTableName, type Log } from "./log_model.ts";
 import { printLog } from "./log_printer.ts";
@@ -76,7 +76,7 @@ describe("BaseApp logger", () => {
         if (!(handler instanceof BatchHandler)) {
           throw new Error(`Expected BatchHandler, got ${handler?.constructor?.name ?? typeof handler}`);
         }
-        const err = await handler.WriteAll({});
+        const err = await handler.WriteAll({ [BlockKey]: true });
         if (err) {
           throw err;
         }
@@ -106,7 +106,7 @@ describe("BaseApp logger", () => {
         }
       } finally {
         printLog.fn = originalPrintLog;
-        app.resetBootstrapState();
+        await app.clearBootstrap();
         await rm(dataDir, { recursive: true, force: true });
       }
     }

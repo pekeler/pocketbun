@@ -5,6 +5,11 @@ import * as slog from "../../internal/compat/slog.ts";
 import { ValidationError, ValidationErrors } from "../../internal/compat/validation.ts";
 import { JSONMap } from "../types/json_map.ts";
 
+// BlockKey is a context key usually used to indicate that the
+// batched logs write should block until writes are completed.
+// A Symbol prevents collisions with other log context keys in JavaScript.
+export const BlockKey = Symbol("logger.BlockKey");
+
 class Mutex {
   lock(): void {}
   unlock(): void {}

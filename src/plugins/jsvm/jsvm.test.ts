@@ -45,7 +45,7 @@ describe("jsvm loader", () => {
       }
     } finally {
       process.chdir(previousCwd);
-      app.resetBootstrapState();
+      await app.clearBootstrap();
       await rm(rootDir, { recursive: true, force: true });
     }
   });

@@ -13,7 +13,7 @@ import { SMTPClient } from "../tools/mailer/smtp.ts";
 import { BaseApp } from "./base.ts";
 import { NewBaseCollection } from "./collection_model.ts";
 import { StoreKeyCachedCollections } from "./collection_query.ts";
-import { TerminateEvent } from "./events.ts";
+import { BootstrapEvent, TerminateEvent } from "./events.ts";
 import { TextField } from "./field_text.ts";
 import { NewRecord } from "./record_model.ts";
 import { setExecveForTests } from "./syscall.ts";
@@ -177,7 +177,7 @@ describe("BaseApp", () => {
     expect(app.Logger()).not.toBeNull();
     expect(app.store().get(StoreKeyCachedCollections)).not.toBeUndefined();
 
-    app.resetBootstrapState();
+    await app.clearBootstrap();
 
     expect(hasDb(() => app.db())).toBe(false);
     expect(hasDb(() => app.auxDb())).toBe(false);
@@ -243,7 +243,7 @@ describe("BaseApp", () => {
     expect(hasDb(() => app.db())).toBe(true);
     expect(hasDb(() => app.auxDb())).toBe(true);
 
-    app.resetBootstrapState();
+    await app.clearBootstrap();
     await rm(dataDir, { recursive: true, force: true });
   });
 
@@ -276,7 +276,7 @@ describe("BaseApp", () => {
           expect(typeof queries[0]?.durationMs).toBe("number");
         }
       } finally {
-        app.resetBootstrapState();
+        await app.clearBootstrap();
         await rm(dataDir, { recursive: true, force: true });
       }
     }
@@ -300,7 +300,7 @@ describe("BaseApp", () => {
     expect(before.includes("auxiliary.db-wal")).toBe(true);
     expect(before.includes("auxiliary.db-shm")).toBe(true);
 
-    app.resetBootstrapState();
+    await app.clearBootstrap();
 
     const after = await readdir(dataDir);
     expect(after.includes("data.db-wal")).toBe(false);
@@ -363,7 +363,7 @@ describe("BaseApp", () => {
       expect(execveCall.envv.length).toBeGreaterThan(0);
     } finally {
       setExecveForTests(null);
-      app.resetBootstrapState();
+      await app.clearBootstrap();
       await rm(dataDir, { recursive: true, force: true });
     }
   });
@@ -415,7 +415,7 @@ describe("BaseApp", () => {
       expect(execveCall.envv.length).toBeGreaterThan(0);
     } finally {
       setExecveForTests(null);
-      app.resetBootstrapState();
+      await app.clearBootstrap();
       await rm(dataDir, { recursive: true, force: true });
     }
   });
@@ -439,7 +439,7 @@ describe("BaseApp", () => {
 
     process.on("unhandledRejection", onUnhandled);
     try {
-      app.resetBootstrapState();
+      await app.clearBootstrap();
 
       for (const job of cleanupJobs) {
         job.Run();
@@ -477,7 +477,7 @@ describe("BaseApp", () => {
 
     mustNotHaveTx(app);
 
-    app.resetBootstrapState();
+    await app.clearBootstrap();
     await rm(dataDir, { recursive: true, force: true });
   });
 
@@ -593,6 +593,91 @@ describe("BaseApp", () => {
     }
   });
 
+  it("BaseAppClearBootstrap lifecycle and aliases", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "pb_clear_bootstrap_"));
+    const app = new BaseApp({ dataDir });
+    const states: boolean[] = [];
+    const id = app.onBootstrapClear().BindFunc(async (e) => {
+      expect(e.App).toBe(app);
+      states.push(e.App.isBootstrapped());
+      await Promise.resolve();
+      await e.Next();
+      states.push(e.App.isBootstrapped());
+    });
+    try {
+      await app.clearBootstrap();
+      expect(states).toEqual([]);
+      await app.bootstrapAsync();
+      app.Cron().Start();
+      expect(app.Cron().HasStarted()).toBe(true);
+      // oxlint-disable-next-line typescript/no-deprecated -- regression coverage for the compatibility alias
+      await app.resetBootstrapState();
+      expect(states).toEqual([true, false]);
+      expect(app.Cron().HasStarted()).toBe(false);
+      await app.ClearBootstrap();
+      expect(states).toEqual([true, false]);
+      await app.bootstrapAsync();
+      app.onBootstrapClear().Unbind(id);
+      const failure = new Error("cleanup rejected");
+      const rejectId = app.onBootstrapClear().BindFunc(() => failure);
+      expect(() => app.clearBootstrap()).toThrow("cleanup rejected");
+      expect(app.bootstrapAsync()).rejects.toThrow("cleanup rejected");
+      expect(app.isBootstrapped()).toBe(true);
+      app.onBootstrapClear().Unbind(rejectId);
+      const stopId = app.onBootstrapClear().BindFunc(() => null);
+      await app.clearBootstrap();
+      expect(app.isBootstrapped()).toBe(true);
+      app.onBootstrapClear().Unbind(stopId);
+      await app.ClearBootstrap();
+      expect(app.isBootstrapped()).toBe(false);
+    } finally {
+      app.onBootstrapClear().UnbindAll();
+      await app.clearBootstrap();
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  });
+
+  // Ported from TestBaseAppLoggerWritesAwaited: the existing logger test covers the timer.
+  it("BaseAppLoggerWritesAwaited rebootstrap and auxiliary transaction", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      expect(app.DeleteOldLogs(new Date())).toBeNull();
+      app.settings().logs.maxDays = 1;
+      expect(await app.Save(app.settings())).toBeNull();
+      const count = () => app.LogQuery().Select("count(*)").Row<number>() ?? 0;
+      app.Logger().Error("before clear");
+      await app.bootstrapAsync();
+      expect(count()).toBe(1);
+
+      expect(
+        await app.AuxRunInTransaction(async (txApp) => {
+          // Hold the auxiliary write lock while the batch reaches its threshold.
+          txApp.auxDb().run("UPDATE _logs SET message = message");
+          for (let i = 0; i < 200; i++) txApp.Logger().Error("inside transaction");
+          await Promise.resolve();
+          return null;
+        }),
+      ).toBeNull();
+      expect(await waitForCondition(() => count() === 201, 5000)).toBe(true);
+      // Manually triggering the cleanup hook inside an AUX transaction must not wait for its own lock.
+      expect(
+        await app.AuxRunInTransaction(async (txApp) => {
+          txApp.auxDb().run("UPDATE _logs SET message = message");
+          app.Logger().Error("manual clear hook");
+          await app.onBootstrapClear().Trigger(new BootstrapEvent(txApp));
+          return null;
+        }),
+      ).toBeNull();
+      expect(await waitForCondition(() => count() === 202, 5000)).toBe(true);
+      // Flush both an in-flight batch and a final queued record before closing the worker.
+      for (let i = 0; i < 201; i++) app.Logger().Error("before rebootstrap");
+      await app.bootstrapAsync();
+      expect(count()).toBe(403);
+    } finally {
+      await cleanup();
+    }
+  }, 15000);
+
   it("BaseAppRefreshSettingsLoggerMinLevelEnabled", async () => {
     const scenarios = [
       {
@@ -640,7 +725,7 @@ describe("BaseApp", () => {
         expect(handler.Enabled({}, new slog.Level(level))).toBe(enabled);
       }
 
-      app.resetBootstrapState();
+      await app.clearBootstrap();
       await rm(dataDir, { recursive: true, force: true });
     }
   });

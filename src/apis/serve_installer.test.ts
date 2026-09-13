@@ -38,7 +38,7 @@ describe("serve installer", () => {
       await server.stop();
     } finally {
       process.stderr.write = originalWrite;
-      app.resetBootstrapState();
+      await app.clearBootstrap();
       await rm(dataDir, { recursive: true, force: true });
     }
 

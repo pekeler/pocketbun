@@ -1391,6 +1391,7 @@ declare function migrate(up: (txApp: CoreApp) => void, down?: (txApp: CoreApp) =
 /** @group PocketBase */ declare function onBackupCreate(handler: (e: core.BackupEvent) => void): void;
 /** @group PocketBase */ declare function onBackupRestore(handler: (e: core.BackupEvent) => void): void;
 /** @group PocketBase */ declare function onBatchRequest(handler: (e: core.BatchRequestEvent) => void): void;
+/** @group PocketBase */ declare function onBootstrapClear(handler: (e: core.BootstrapEvent) => void): void;
 /** @group PocketBase */ declare function onBootstrap(handler: (e: core.BootstrapEvent) => void): void;
 /** @group PocketBase */ declare function onCollectionAfterCreateError(
   handler: (e: core.CollectionErrorEvent) => void,
@@ -6207,14 +6208,18 @@ namespace core {
      * bootstrap initializes the application
      * (aka. create data dir, open db connections, load settings, etc.).
      *
-     * It will call ResetBootstrapState() if the application was already bootstrapped.
+     * It calls ClearBootstrap() if the application was already bootstrapped.
      */
     bootstrap(): void;
     /**
-     * resetBootstrapState releases the initialized core app resources
+     * clearBootstrap releases the initialized core app resources
      * (closing db connections, stopping cron ticker, etc.).
+     * This method is no-op if the application is not bootstrapped yet.
+     * PocketBun returns a Promise when cleanup requires asynchronous work.
      */
-    resetBootstrapState(): void;
+    clearBootstrap(): void | Promise<void>;
+    /** @deprecated Use clearBootstrap(). */
+    resetBootstrapState(): void | Promise<void>;
     /**
      * dataDir returns the app data directory path.
      */
@@ -6962,6 +6967,13 @@ namespace core {
      * resources (db, app settings, etc).
      */
     onBootstrap(): hook.Hook<BootstrapEvent | undefined>;
+    /**
+     * onBootstrapClear hook is triggered when clearing the main application
+     * resources (db connections, cron, logger, etc.).
+     * It is usually invoked automatically right before app termination
+     * or when manually calling app.clearBootstrap().
+     */
+    onBootstrapClear(): hook.Hook<BootstrapEvent | undefined>;
     /**
      * onServe hook is triggered when the app web server is started
      * (after starting the TCP listener but before initializing the blocking serve task),
@@ -8057,20 +8069,20 @@ namespace core {
      * bootstrap initializes the application
      * (aka. create data dir, open db connections, load settings, etc.).
      *
-     * It will call ResetBootstrapState() if the application was already bootstrapped.
+     * It calls ClearBootstrap() if the application was already bootstrapped.
      */
     bootstrap(): void;
   }
-  interface closer {
-    [key: string]: any;
-    close(): void;
-  }
   interface BaseApp {
     /**
-     * resetBootstrapState releases the initialized core app resources
+     * clearBootstrap releases the initialized core app resources
      * (closing db connections, stopping cron ticker, etc.).
+     * This method is no-op if the application is not bootstrapped yet.
+     * PocketBun returns a Promise when cleanup requires asynchronous work.
      */
-    resetBootstrapState(): void;
+    clearBootstrap(): void | Promise<void>;
+    /** @deprecated Use clearBootstrap(). */
+    resetBootstrapState(): void | Promise<void>;
   }
   interface BaseApp {
     /**
@@ -8262,6 +8274,13 @@ namespace core {
   }
   interface BaseApp {
     onBootstrap(): hook.Hook<BootstrapEvent | undefined>;
+    /**
+     * onBootstrapClear hook is triggered when clearing the main application
+     * resources (db connections, cron, logger, etc.).
+     * It is usually invoked automatically right before app termination
+     * or when manually calling app.clearBootstrap().
+     */
+    onBootstrapClear(): hook.Hook<BootstrapEvent | undefined>;
   }
   interface BaseApp {
     onServe(): hook.Hook<ServeEvent | undefined>;

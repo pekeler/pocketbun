@@ -101,7 +101,13 @@ export interface App {
   bootstrap(): void;
   // bootstrapAsync is a PocketBun-only async alternative to bootstrap().
   bootstrapAsync?(): Promise<void>;
-  resetBootstrapState(): void;
+  // ClearBootstrap releases the initialized core app resources
+  // (closing db connections, stopping cron ticker, etc.).
+  // This method is no-op if the application is not bootstrapped yet.
+  clearBootstrap(): void | Promise<void>;
+  ClearBootstrap(): void | Promise<void>;
+  /** @deprecated Use clearBootstrap(). */
+  resetBootstrapState(): void | Promise<void>;
   db(): Database;
   ConcurrentDB(): Database;
   concurrentDB(): Database;
@@ -336,6 +342,11 @@ export interface App {
   ): RecordModel;
   findAuthRecordByToken(token: string, ...validTypes: string[]): RecordModel;
   OnBootstrap(): Hook<BootstrapEvent>;
+  // OnBootstrapClear hook is triggered when clearing the main application
+  // resources (db connections, cron, logger, etc.).
+  // It is usually invoked automatically right before app termination
+  // or when manually calling app.clearBootstrap().
+  OnBootstrapClear(): Hook<BootstrapEvent>;
   OnServe(): Hook<ServeEvent>;
   OnTerminate(): Hook<TerminateEvent>;
   OnCollectionsListRequest(): Hook<CollectionsListRequestEvent>;
@@ -428,6 +439,7 @@ export interface App {
   OnCollectionAfterDeleteError(tags?: string[]): TaggedHook<CollectionErrorEvent>;
 
   onBootstrap(): Hook<BootstrapEvent>;
+  onBootstrapClear(): Hook<BootstrapEvent>;
   onServe(): Hook<ServeEvent>;
   onTerminate(): Hook<TerminateEvent>;
   onCollectionsListRequest(): Hook<CollectionsListRequestEvent>;

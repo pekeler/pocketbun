@@ -437,10 +437,7 @@ async function terminateClusterWorker(reason: "shutdown" | "restart" | "restore"
 
   const event = new TerminateEvent(app, reason !== "shutdown");
   try {
-    const result = app.OnTerminate().Trigger(event, (e) => {
-      e.App.resetBootstrapState();
-      return null;
-    });
+    const result = app.OnTerminate().Trigger(event, (e) => e.App.clearBootstrap());
     const resolved = result instanceof Promise ? await result : result;
     if (resolved instanceof Error) {
       throw resolved;
