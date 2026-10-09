@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.40.5-pocketbun.0 - 2026-10-09
 
 - Now compatible with PocketBase `v0.40.5` [release notes](https://github.com/pocketbase/pocketbase/releases/tag/v0.40.5) (upstream commit `6f370ea7`).
   - Tightens CORS wildcard origin checks and includes bounded stack traces in failed JavaScript migration errors.
