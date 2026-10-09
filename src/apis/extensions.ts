@@ -3,6 +3,7 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { App } from "../core/app.ts";
 import type { RequestEvent } from "../core/event_request.ts";
 import type { ServeEvent } from "../core/events.ts";
 import { NewNotFoundError } from "../tools/router/api_error.ts";
@@ -14,7 +15,18 @@ const defaultCSP =
   "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' http://127.0.0.1:* https://tile.openstreetmap.org data: blob:; connect-src 'self' http://127.0.0.1:* https://nominatim.openstreetmap.org; script-src 'self' http://127.0.0.1:*; frame-ancestors 'none'";
 
 // bindUIExtensions binds the superuser UI extensions routes to the ServeEvent.Router.
-export function bindUIExtensions(serveEvent: ServeEvent): void {
+export function bindUIExtensions(app: App): void {
+  app.OnServe().Bind({
+    Priority: 9999, // execute as latest as possible
+    Id: "__pbUIExtensions__",
+    Func: (serveEvent) => {
+      bindUIExtensionRoutes(serveEvent);
+      return serveEvent.Next();
+    },
+  });
+}
+
+function bindUIExtensionRoutes(serveEvent: ServeEvent): void {
   const uiGroup = serveEvent.Router.group("/_").bindFunc((event) => {
     if (!event.app.IsDev() && !event.responseHeaders.get("Cache-Control")) {
       event.responseHeaders.set("Cache-Control", "max-age=1209600, stale-while-revalidate=86400");

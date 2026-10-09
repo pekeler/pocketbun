@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Now compatible with PocketBase `v0.40.5` [release notes](https://github.com/pocketbase/pocketbase/releases/tag/v0.40.5) (upstream commit `6f370ea7`).
+  - Tightens CORS wildcard origin checks and includes bounded stack traces in failed JavaScript migration errors.
+  - Adds the removable `__pbUIExtensions__` serving hook and refreshes Admin UI autocomplete and textarea fixes.
+- Fixes CORS wildcard fallback matching for valid origins.
+
 ## 0.40.4-pocketbun.0 - 2026-09-13
 
 - Now compatible with PocketBase `v0.40.4` [release notes](https://github.com/pocketbase/pocketbase/releases/tag/v0.40.4) (upstream commit `5cec579d`).

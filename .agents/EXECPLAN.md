@@ -1,60 +1,64 @@
-# Upgrade PocketBase compatibility to v0.40.4
+# Upgrade PocketBase compatibility to v0.40.5
 
-This living plan follows `.agents/PLANS.md`. Work on master without committing.
+This living plan follows `.agents/PLANS.md`.
 
 ## Purpose / Big Picture
 
-Expose `app.clearBootstrap()` and `onBootstrapClear` so custom resources and queued logs are cleaned before shutdown or rebootstrap. Preserve non-blocking log writes during migrations. Target upstream v0.40.4 (5cec579d), package 0.40.4-pocketbun.0.
+Upgrade from v0.40.4 to v0.40.5 (6f370ea7). Users gain corrected CORS origin matching, migration stack traces, a removable UI extension hook, and upstream UI fixes. Leave changes uncommitted.
 
 ## Progress
 
-- [x] (2026-09-13) Read automation memory, confirmed release, synced upstream and UI, compared upstream changes, wrote initial lifecycle port.
-- [x] (2026-09-13) Added lifecycle, cron, JSVM, and upstream logging regressions; all pass.
-- [x] (2026-09-13) Completed all validation and Ponytail review; no commit created.
+- [x] (2026-10-09 08:03Z) Checked release and clean master; synced upstream/UI and compared changed files.
+- [x] Ported CORS matching, SafeWrap and migration wrapping, mail typo, package version.
+- [x] (2026-10-09 08:08Z) Finished UI hook, comments/declarations and regression tests.
+- [x] (2026-10-09 08:08Z) Updated docs/changelog; all 2,018 tests, 7 snapshots, format, typecheck, lint, package build/types, version/docs, UI equality and diff checks pass.
+- [x] (2026-10-09 08:08Z) Ponytail review completed; no remaining findings. Changes uncommitted for owner review.
 
 ## Surprises & Discoveries
 
-The sync script removes upstream Git metadata; `/tmp/pocketbase-upstream-check.git` holds comparison history. PocketBun already offloads logs to a worker. The new cleanup must await that worker before closing databases.
+Sync deletes upstream Git metadata and stages UI. Old source is at `/tmp/pocketbase-v0.40.4-upstream-check`. Generated declaration changes mostly reorder namespaces and aliases. Bun already normalizes negative pool lengths. Local regex wildcard conversion retains an erroneous escape; fix it for upstream compatibility.
 
 ## Decision Log
 
-Preserve local JSVM declarations and apply semantic upstream changes, avoiding upstream's unrelated randomized aliases and namespace reordering. Cleanup returns a Promise when asynchronous work requires it and otherwise completes synchronously. All internal callers await it. Preserve the upstream BlockKey opt-in for awaiting log writes and avoid waiting when a cleanup hook runs manually inside an auxiliary transaction. No new dependencies. The user prohibits commits.
-
-## Outcomes & Retrospective
-
-Upgraded to 0.40.4-pocketbun.0. Full rerun: 1,990 pass, 0 fail, 7 snapshots across 251 files. Final focused cleanup/logger run: 24 pass. Format, typecheck, lint (zero warnings/errors), version/docs checks, package build/types, UI equality, and staged/unstaged diff checks pass. Ponytail review: lean already; no complexity findings or new dependencies. Added work occurs at cleanup and once per log batch, with no new per-request work. Ready for owner review; no commit created.
+- Preserve Bun dependencies: Go HTTP and modernc updates do not apply. Preserve local declaration adaptations. Date: 2026-10-09.
+- Add upstream SafeWrap and adapt returned errors to the existing throwing migration runner. Date: 2026-10-09.
 
 ## Context and Orientation
 
-`src/core/base.ts` owns bootstrap, logs, and hooks; `src/core/app.ts` declares its API. `src/pocketbase.ts` and `src/tests/app.ts` terminate apps. JSVM reflects app hook methods and declares them in `src/plugins/jsvm/internal/types/generated/types.d.ts`. `src/core/base.test.ts` ports upstream base tests. UI assets in `vendor/pocketbase-admin-ui/dist` must equal `.upstream/pocketbase/ui/dist`.
+`pocketbase_tag.txt` pins upstream and `package.json` sets package version. `src/apis/middlewares_cors.ts` validates request origins. `src/plugins/jsvm/jsvm.ts` registers migration callbacks; `src/core/migrations_runner.ts` catches throws and names files. `src/apis/base.ts` installs defaults; `src/apis/serve.ts` currently installs extension routes after hooks. Upstream instead uses a named late hook. Vendored UI must exactly match upstream.
 
 ## Plan of Work
 
-First route bootstrap, restart, and termination through the cleanup hook, moving cron stop and log flushing there. Preserve hook errors and propagation control. Then add idle cleanup, aliases, async/error hooks, queued log persistence across rebootstrap, and auxiliary transaction log batch tests. Finally review the complete diff with Ponytail and run all checks.
+Port exactWildcardMatch and all upstream test scenarios, fix regex fallback, and backfill upstream comments. Add SafeWrap tests and JS migration rollback/error tests. Install UI extensions through the named hook and test removal. Fix mail typo. Update package/docs version and Unreleased changelog.
 
 ## Concrete Steps
 
-Work in `/Users/pekeler/Projects/pocketbun`. Run `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`, `bun run check:versions`, `bun run docs:check`, and `bun run typecheck:package`. Inspect both `git diff` and `git diff --cached` because the sync script stages UI files.
+Work in `/Users/pekeler/Projects/pocketbun`. Run focused Bun tests, then `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`, `bun run check:versions`, `bun run docs:check`, and `bun run typecheck:package`. Run `diff -qr vendor/pocketbase-admin-ui/dist .upstream/pocketbase/ui/dist` and review source diffs with Ponytail.
 
 ## Validation and Acceptance
 
-All commands must pass without warnings. Hooks must run only for bootstrapped apps, support async cleanup, stop propagation, and report errors. Queued logs must survive rebootstrap, and batches inside auxiliary transactions must finish without deadlock. JSVM lowercase cleanup APIs must work. No commit is created.
+Checks pass without warnings. CORS rejects mismatched fixed labels and supports wildcard fallback. Failed migration callbacks include filenames and bounded stacks, and roll back transactions. Named UI hook removal suppresses extension routes. Version is 0.40.5-pocketbun.0 and UI matches upstream.
 
 ## Idempotence and Recovery
 
-Tests use temporary directories and checks are repeatable. Initial working tree was clean; preserve later user changes. Do not edit upstream files. Repeat sync only if UI needs copying again.
+No user data changes; tests use temporary databases. Initial tree was clean. Re-running sync restores pinned UI. Review changes with git diff HEAD. Never edit upstream or commit this task.
 
 ## Artifacts and Notes
 
-Release: https://github.com/pocketbase/pocketbase/releases/tag/v0.40.4
-Comparison: `git --git-dir=/tmp/pocketbase-upstream-check.git diff v0.40.3 v0.40.4`.
+Release: https://github.com/pocketbase/pocketbase/releases/tag/v0.40.5 . Commit: 6f370ea7.
 
 ## Interfaces and Dependencies
 
-Add `clearBootstrap(): void | Promise<void>`, `ClearBootstrap()` alias, and `onBootstrapClear()`/`OnBootstrapClear()` returning `Hook<BootstrapEvent>`. Keep `resetBootstrapState()` as the deprecated alias. Use existing hooks, logger worker, and native Promises.
+Retain Bun dependencies and existing public APIs. SafeWrap returns errors; migration callbacks remain synchronous for transactional execution.
 
-Created 2026-09-13 to document the upstream lifecycle changes and their acceptance tests.
+## Outcomes & Retrospective
 
-Completed 2026-09-13: removed the upstream-deleted closer declaration after parity testing, retained existing docs content when regeneration attempted unrelated changes, and verified the final diff. The first sandboxed HTTP tests could not open listeners; the approved full runs passed with local network access.
+Completed compatibility upgrade to 0.40.5-pocketbun.0. Regression coverage includes all upstream CORS scenarios, middleware wildcard fallback, SafeWrap regular errors and byte-bounded stacks, synchronous/asynchronous migration registration, empty callbacks, failed migration filenames and rollback, and named UI hook removal.
 
-Owner approval: 2026-09-13T15:16:24.193704+00:00. The owner approved committing the reviewed upgrade; this supersedes the earlier no-commit instruction. All recorded validation remains applicable; source code is unchanged since review.
+Ponytail review traced affected callers and transactions for ordinary and multi-worker serving. Limited stack encoding allocations before UTF-8 conversion; no remaining correctness, safety, load, or complexity findings. Runtime negative-pool probe confirms existing behavior. Go dependency changes, Go SQL scan documentation, generated alias renames and namespace reorderings do not require Bun changes. No manual browser UI interaction or upstream executable comparison was performed; vendored UI matches upstream byte-for-byte.
+
+Initial sandboxed suite failed because local listeners were blocked. The permitted full rerun passed 2,018 tests with zero failures and 7 snapshots in 113.24 seconds. All other checks passed without warnings. UI assets are staged by the sync script; source changes remain unstaged. No commit created.
+
+Created 2026-10-09 after upstream comparison.
+
+Updated 2026-10-09 08:08Z with completed review and validation evidence.

@@ -5,19 +5,96 @@ import type { BoundHandler } from "../tools/hook/hook.ts";
 import { DefaultActivityLoggerMiddlewarePriority } from "./middlewares.ts";
 
 export const DefaultCorsMiddlewareId = "pbCors";
+// Before the activity logger and rate limit so that OPTIONS preflight requests are not counted.
 export const DefaultCorsMiddlewarePriority = DefaultActivityLoggerMiddlewarePriority - 1;
 
+// CORSConfig defines the config for CORS middleware.
 export type CORSConfig = {
+  // AllowOrigins determines the value of the Access-Control-Allow-Origin
+  // response header. This header defines a list of origins that may access the
+  // resource.
+  //
+  // The wildcard characters '*' and '?' are supported as subdomain segments
+  // and are converted to regex fragments '.*' and '.' accordingly.
+  //
+  // Security: use extreme caution when handling the origin, and carefully
+  // validate any logic. Remember that attackers may register hostile domain names.
+  // See https://blog.portswigger.net/2016/10/exploiting-cors-misconfigurations-for.html
+  //
+  // Optional. Default value []string{"*"}.
+  //
+  // See also: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
   AllowOrigins?: string[];
+  // AllowOriginFunc is a custom function to validate the origin. It takes the
+  // origin as an argument and returns true if allowed or false otherwise. If
+  // an error is returned, it is returned by the handler. If this option is
+  // set, AllowOrigins is ignored.
+  //
+  // Security: use extreme caution when handling the origin, and carefully
+  // validate any logic. Remember that attackers may register hostile domain names.
+  // See https://blog.portswigger.net/2016/10/exploiting-cors-misconfigurations-for.html
+  //
+  // Optional.
   AllowOriginFunc?: ((origin: string) => boolean | Promise<boolean>) | null;
+  // AllowMethods determines the value of the Access-Control-Allow-Methods
+  // response header.  This header specified the list of methods allowed when
+  // accessing the resource.  This is used in response to a preflight request.
+  //
+  // Optional. Default value DefaultCORSConfig.AllowMethods.
+  //
+  // See also: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Methods
   AllowMethods?: string[];
+  // AllowHeaders determines the value of the Access-Control-Allow-Headers
+  // response header.  This header is used in response to a preflight request to
+  // indicate which HTTP headers can be used when making the actual request.
+  //
+  // Optional. Default value []string{}.
+  //
+  // See also: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers
   AllowHeaders?: string[];
+  // AllowCredentials determines the value of the
+  // Access-Control-Allow-Credentials response header.  This header indicates
+  // whether or not the response to the request can be exposed when the
+  // credentials mode (Request.credentials) is true. When used as part of a
+  // response to a preflight request, this indicates whether or not the actual
+  // request can be made using credentials.  See also
+  // [MDN: Access-Control-Allow-Credentials].
+  //
+  // Optional. Default value false, in which case the header is not set.
+  //
+  // Security: avoid using `AllowCredentials = true` with `AllowOrigins = *`.
+  // See "Exploiting CORS misconfigurations for Bitcoins and bounties",
+  // https://blog.portswigger.net/2016/10/exploiting-cors-misconfigurations-for.html
+  //
+  // See also: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Credentials
   AllowCredentials?: boolean;
+  // UnsafeWildcardOriginWithAllowCredentials UNSAFE/INSECURE: allows wildcard '*' origin to be used with AllowCredentials
+  // flag. In that case we consider any origin allowed and send it back to the client with `Access-Control-Allow-Origin` header.
+  //
+  // This is INSECURE and potentially leads to [cross-origin](https://portswigger.net/research/exploiting-cors-misconfigurations-for-bitcoins-and-bounties)
+  // attacks. See: https://github.com/labstack/echo/issues/2400 for discussion on the subject.
+  //
+  // Optional. Default value is false.
   UnsafeWildcardOriginWithAllowCredentials?: boolean;
+  // ExposeHeaders determines the value of Access-Control-Expose-Headers, which
+  // defines a list of headers that clients are allowed to access.
+  //
+  // Optional. Default value []string{}, in which case the header is not set.
+  //
+  // See also: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Expose-Header
   ExposeHeaders?: string[];
+  // MaxAge determines the value of the Access-Control-Max-Age response header.
+  // This header indicates how long (in seconds) the results of a preflight
+  // request can be cached.
+  // The header is set only if MaxAge != 0, negative value sends "0" which instructs browsers not to cache that response.
+  //
+  // Optional. Default value 0 - meaning header is not sent.
+  //
+  // See also: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Max-Age
   MaxAge?: number;
 };
 
+// DefaultCORSConfig is the default CORS middleware config.
 export const DefaultCORSConfig: Required<
   Pick<CORSConfig, "AllowOrigins" | "AllowMethods" | "AllowHeaders" | "AllowCredentials" | "ExposeHeaders" | "MaxAge">
 > = {
@@ -29,6 +106,7 @@ export const DefaultCORSConfig: Required<
   MaxAge: 0,
 };
 
+// CORS returns a CORS middleware.
 export function CORS(config: CORSConfig): BoundHandler<RequestEvent> {
   const resolved: CORSConfig = { ...config };
 
@@ -84,7 +162,7 @@ export function CORS(config: CORSConfig): BoundHandler<RequestEvent> {
             allowOrigin = allowedOrigin;
             break;
           }
-          if (matchSubdomain(origin, allowedOrigin)) {
+          if (exactWildcardMatch(origin, allowedOrigin)) {
             allowOrigin = origin;
             break;
           }
@@ -146,7 +224,7 @@ function buildOriginPattern(origin: string): RegExp | null {
     return null;
   }
 
-  const escaped = escapeRegExp(origin).replace(/\*/g, ".*").replace(/\?/g, ".");
+  const escaped = escapeRegExp(origin).replace(/\\\*/g, ".*").replace(/\\\?/g, ".");
   try {
     return new RegExp(`^${escaped}$`);
   } catch {
@@ -175,7 +253,8 @@ function matchScheme(domain: string, pattern: string): boolean {
   return domain.slice(0, didx) === pattern.slice(0, pidx);
 }
 
-function matchSubdomain(domain: string, pattern: string): boolean {
+// exactWildcardMatch compares domain with a * wildcard pattern.
+export function exactWildcardMatch(domain: string, pattern: string): boolean {
   if (!matchScheme(domain, pattern)) {
     return false;
   }
@@ -195,18 +274,19 @@ function matchSubdomain(domain: string, pattern: string): boolean {
   const domComp = domAuth.split(".").reverse();
   const patComp = patAuth.split(".").reverse();
 
+  if (patComp.length !== domComp.length) {
+    return false;
+  }
+
   for (let i = 0; i < domComp.length; i += 1) {
-    if (patComp.length <= i) {
-      return false;
-    }
     const part = patComp[i];
     if (part === "*") {
-      return true;
+      continue;
     }
     if (part !== domComp[i]) {
       return false;
     }
   }
 
-  return false;
+  return true;
 }

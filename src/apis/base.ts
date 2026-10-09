@@ -13,6 +13,7 @@ import { bindBackupApi } from "./backup.ts";
 import { bindBatchApi } from "./batch.ts";
 import { bindCollectionApi } from "./collection.ts";
 import { bindCronApi } from "./cron.ts";
+import { bindUIExtensions } from "./extensions.ts";
 import { bindFileApi } from "./file.ts";
 import { bindHealthApi } from "./health.ts";
 import { bindLogsApi } from "./logs.ts";
@@ -73,6 +74,8 @@ export function NewRouter(app: App): Router<RequestEvent> {
   bindRealtimeApi(app, apiGroup);
   bindHealthApi(app, apiGroup);
   bindSQLApi(app, apiGroup);
+
+  bindUIExtensions(app);
 
   return pbRouter;
 }

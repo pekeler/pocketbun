@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type { App } from "../../core/app.ts";
 import { AppMigrations } from "../../core/migrations_runner.ts";
 import { runsClusterSingletons } from "../../internal/cluster/context.ts";
+import { SafeWrap } from "../../tools/routine/routine.ts";
 import { NewRegistry } from "../../tools/template/registry.ts";
 import {
   appBinds,
@@ -204,6 +205,18 @@ function toMigrationScriptApp(app: App): App {
   return scope.$app as App;
 }
 
+// Safe wrap to capture any eventual panic and allow the error message to print
+// the migration filename. Bun's migration runner expects thrown errors.
+function runMigration(callback: ((txApp: App) => void) | undefined, app: App): void {
+  const error = SafeWrap(() => {
+    callback?.(toMigrationScriptApp(app));
+    return null;
+  })();
+  if (error) {
+    throw error;
+  }
+}
+
 function registerMigrations(app: App, config: Config): Error | null {
   const files = filesContent(config.MigrationsDir ?? "", config.MigrationsFilesPattern ?? "");
   if (!files) {
@@ -227,10 +240,10 @@ function registerMigrations(app: App, config: Config): Error | null {
     mailsBinds(globals);
     globals.$template = templateRegistry;
 
-    globals.migrate = (up: (txApp: App) => void, down?: (txApp: App) => void) => {
+    globals.migrate = (up?: (txApp: App) => void, down?: (txApp: App) => void) => {
       AppMigrations.register(
-        (txApp) => up(toMigrationScriptApp(txApp)),
-        down ? (txApp) => down(toMigrationScriptApp(txApp)) : undefined,
+        (txApp) => runMigration(up, txApp),
+        (txApp) => runMigration(down, txApp),
         file,
       );
     };
@@ -272,10 +285,10 @@ async function registerMigrationsAsync(app: App, config: Config): Promise<Error 
     mailsBinds(globals);
     globals.$template = templateRegistry;
 
-    globals.migrate = (up: (txApp: App) => void, down?: (txApp: App) => void) => {
+    globals.migrate = (up?: (txApp: App) => void, down?: (txApp: App) => void) => {
       AppMigrations.register(
-        (txApp) => up(toMigrationScriptApp(txApp)),
-        down ? (txApp) => down(toMigrationScriptApp(txApp)) : undefined,
+        (txApp) => runMigration(up, txApp),
+        (txApp) => runMigration(down, txApp),
         file,
       );
     };

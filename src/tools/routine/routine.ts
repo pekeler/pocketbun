@@ -1,6 +1,6 @@
 // Ported from pocketbase/tools/routine/routine.go
 
-const FireAndForgetStackLimit = 2 << 10;
+const RecoveredStackLimit = 2 << 10;
 
 function getRecoveredStack(error: unknown): string | null {
   const stack =
@@ -10,9 +10,17 @@ function getRecoveredStack(error: unknown): string | null {
     return null;
   }
 
-  return stack.slice(0, FireAndForgetStackLimit);
+  return new TextDecoder().decode(
+    new TextEncoder().encode(stack.slice(0, RecoveredStackLimit)).subarray(0, RecoveredStackLimit),
+    { stream: true },
+  );
 }
 
+// FireAndForget executes f() in a new go routine and auto recovers if panic.
+//
+// **Note:** Use this only if you are not interested in the result of f()
+// and don't want to block the parent go routine.
+// Deviation: Bun schedules the callback as a microtask instead of a Go routine.
 export function FireAndForget(fn: () => void | Promise<void>): void {
   queueMicrotask(() => {
     const logRecovered = (error: unknown): void => {
@@ -34,4 +42,16 @@ export function FireAndForget(fn: () => void | Promise<void>): void {
       logRecovered(error);
     }
   });
+}
+
+// SafeWrap wraps the provided function with auto panic recover handling
+// and returns any eventual panic as regular error.
+export function SafeWrap(fn: () => Error | null): () => Error | null {
+  return () => {
+    try {
+      return fn();
+    } catch (error) {
+      return new Error(`[SafeWrap] recovered from panic: ${String(error)}\n${getRecoveredStack(error) ?? ""}`);
+    }
+  };
 }

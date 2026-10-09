@@ -16,7 +16,6 @@ import {
 import { Router } from "../tools/router/router.ts";
 import { FireAndForget } from "../tools/routine/routine.ts";
 import { NewRouter, Static, StaticWildcardParam } from "./base.ts";
-import { bindUIExtensions } from "./extensions.ts";
 import { DefaultInstallerFunc, loadInstallerAsync } from "./installer.ts";
 import { RequestEventKeySkipSuccessActivityLog } from "./middlewares.ts";
 import { CORS } from "./middlewares_cors.ts";
@@ -134,7 +133,6 @@ function buildServeHandlerWithEvent(
       if (!initialized) {
         throw new Error("The OnServe listener was not initialized. Did you forget to call the ServeEvent.Next() method?");
       }
-      bindUIExtensions(serveEvent);
       return {
         serveEvent,
         handler: router.buildHandler(
@@ -149,8 +147,6 @@ function buildServeHandlerWithEvent(
   if (!initialized) {
     throw new Error("The OnServe listener was not initialized. Did you forget to call the ServeEvent.Next() method?");
   }
-
-  bindUIExtensions(serveEvent);
 
   return {
     serveEvent,

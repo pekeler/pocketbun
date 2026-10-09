@@ -6,6 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildServeHandler } from "../../apis/serve.ts";
 import { CollectionNameSuperusers } from "../../core/collection_model.ts";
+import { MigrationsList } from "../../core/migrations_list.ts";
+import { AppMigrations, MigrationsRunner } from "../../core/migrations_runner.ts";
 import { TestApp, newTestApp } from "../../tests/app.ts";
 import { Register, RegisterAsync } from "./jsvm.ts";
 
@@ -434,3 +436,43 @@ routerAdd("GET", "/test-pricing", (event) => event.json(200, { plans: pricing.pl
     }
   });
 });
+
+for (const register of [Register, RegisterAsync]) {
+  it.serial(`${register.name} preserves failed migration filenames, stacks and rollback`, async () => {
+    const { app, cleanup } = await newTestApp();
+    const root = await mkdtemp(join(tmpdir(), "pocketbun-migration-error-"));
+    const file = "9999999999_error_stack.js";
+    const emptyFile = "9999999998_empty_callbacks.js";
+    const initialMigrations = [...AppMigrations.items()];
+    try {
+      await writeFile(
+        join(root, file),
+        `migrate((app) => {
+        app.db().newQuery("CREATE TABLE rollback_probe (id TEXT)").execute();
+        throw new Error("up failure");
+      }, () => { throw new Error("down failure"); });`,
+      );
+      await writeFile(join(root, emptyFile), "migrate();");
+      expect(await register(app, { MigrationsDir: root, HooksDir: join(root, "hooks"), TypesDir: root })).toBeNull();
+      const migration = AppMigrations.items().find((item) => item.file === file)!;
+      const empty = AppMigrations.items().find((item) => item.file === emptyFile)!;
+      expect(() => empty.up!(app)).not.toThrow();
+      expect(() => empty.down!(app)).not.toThrow();
+      const list = new MigrationsList();
+      list.add(migration);
+      const runner = new MigrationsRunner(app, list);
+      expect(() => runner.up()).toThrow(`failed to apply migration ${file}: Error: [SafeWrap] recovered from panic:`);
+      expect(() => runner.up()).toThrow(/up failure\n[\s\S]*at /);
+      expect(app.db().query("SELECT name FROM sqlite_master WHERE name = 'rollback_probe'").get()).toBeNull();
+      list.items()[0]!.up = undefined;
+      runner.up();
+      expect(() => runner.down(1)).toThrow(`failed to revert migration ${file}: Error: [SafeWrap] recovered from panic:`);
+      expect(() => runner.down(1)).toThrow(/down failure\n[\s\S]*at /);
+      expect(app.db().query("SELECT file FROM _migrations WHERE file = ?").get(file)).not.toBeNull();
+    } finally {
+      AppMigrations.items().splice(0, AppMigrations.items().length, ...initialMigrations);
+      await cleanup();
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+}

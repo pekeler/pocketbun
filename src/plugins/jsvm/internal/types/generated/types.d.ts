@@ -14764,9 +14764,11 @@ namespace apis {
   interface CORSConfig {
     /**
      * allowOrigins determines the value of the Access-Control-Allow-Origin
-     * response header.  This header defines a list of origins that may access the
-     * resource.  The wildcard characters '*' and '?' are supported and are
-     * converted to regex fragments '.*' and '.' accordingly.
+     * response header. This header defines a list of origins that may access the
+     * resource.
+     *
+     * The wildcard characters '*' and '?' are supported as subdomain segments
+     * and are converted to regex fragments '.*' and '.' accordingly.
      *
      * Security: use extreme caution when handling the origin, and carefully
      * validate any logic. Remember that attackers may register hostile domain names.

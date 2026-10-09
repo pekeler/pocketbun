@@ -1,7 +1,7 @@
 // Ported from pocketbase/tools/routine/routine_test.go
 
 import { describe, expect, it, spyOn } from "bun:test";
-import { FireAndForget } from "./routine.ts";
+import { FireAndForget, SafeWrap } from "./routine.ts";
 
 describe("FireAndForget", () => {
   it.serial("executes and recovers with a capped stack trace", async () => {
@@ -55,5 +55,40 @@ describe("FireAndForget", () => {
     } finally {
       process.off("unhandledRejection", onUnhandled);
     }
+  });
+});
+
+describe("SafeWrap", () => {
+  it("converts a panic to an error with its capped stack", () => {
+    let called = false;
+    const error = new Error("test_recover");
+    error.stack = "x".repeat(3000);
+    const result = SafeWrap(() => {
+      called = true;
+      throw error;
+    })();
+    expect(called).toBe(true);
+    expect(result?.message).toBe(`[SafeWrap] recovered from panic: Error: test_recover\n${"x".repeat(2048)}`);
+  });
+
+  it("preserves regular errors and successful results", () => {
+    const error = new Error("test_error");
+    expect(SafeWrap(() => error)()).toBe(error);
+    expect(SafeWrap(() => null)()).toBeNull();
+  });
+
+  it("caps multibyte stacks at 2 KB and handles non-Error throws", () => {
+    const error = new Error("unicode");
+    error.stack = "€".repeat(2000);
+    const result = SafeWrap(() => {
+      throw error;
+    })();
+    expect(new TextEncoder().encode(result!.message.split("\n")[1]).length).toBeLessThanOrEqual(2048);
+    expect(result!.message).not.toContain("�");
+    expect(
+      SafeWrap(() => {
+        throw "string panic";
+      })()?.message,
+    ).toContain("string panic");
   });
 });

@@ -1,12 +1,13 @@
 // Ported from pocketbase/apis/extensions_test.go.
 
-import { describe, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ServeEvent } from "../core/events.ts";
+import { ServeEvent } from "../core/events.ts";
 import { runApiScenario, type ApiScenario } from "../tests/api.ts";
 import { newTestApp } from "../tests/app.ts";
+import { NewRouter } from "./base.ts";
 
 async function createExtensionRoot(files: Record<string, string>): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "pocketbun-ui-extension-"));
@@ -123,5 +124,21 @@ describe("UI extensions files API", () => {
     it(name, async () => {
       await runApiScenario(scenario);
     });
+  }
+});
+
+it("allows removing the named UI extension hook before serving", async () => {
+  const { app, cleanup } = await newTestApp();
+  try {
+    const router = NewRouter(app);
+    app.OnServe().Unbind("__pbUIExtensions__");
+    app.OnServe().Trigger(new ServeEvent(app, router));
+    expect(router.hasRoute("GET", "/_/extensions.js")).toBe(false);
+
+    const enabledRouter = NewRouter(app);
+    app.OnServe().Trigger(new ServeEvent(app, enabledRouter));
+    expect(enabledRouter.hasRoute("GET", "/_/extensions.js")).toBe(true);
+  } finally {
+    await cleanup();
   }
 });
