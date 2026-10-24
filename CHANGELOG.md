@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.40.6-pocketbun.0 - 2026-10-24
 
 - Now compatible with PocketBase `v0.40.6` [release notes](https://github.com/pocketbase/pocketbase/releases/tag/v0.40.6) (upstream commit `9d281cc`).
   - Limits thumbnail source dimensions with `PB_THUMBS_MAX_SOURCE_PIXELS`, strengthens local storage path checks, and refreshes the Admin UI.
