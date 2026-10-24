@@ -953,6 +953,29 @@ describe("filesystem system", () => {
     }
   });
 
+  it.serial("create thumb with max pixels limit", async () => {
+    const dir = await createTestDir();
+    const previous = process.env.PB_THUMBS_MAX_SOURCE_PIXELS;
+    try {
+      // Use a 5x5 source, matching the upstream dimension-limit scenarios.
+      await Bun.write(join(dir, "source.png"), await new Bun.Image(join(dir, "image.png")).resize(5, 5).png().bytes());
+      const fsys = NewLocal(dir);
+      for (const limit of ["0", "24", "25", "26", "invalid", "-1"]) {
+        process.env.PB_THUMBS_MAX_SOURCE_PIXELS = limit;
+        const error = await fsys.CreateThumb("source.png", "thumb", "100x100");
+        if (limit === "24") {
+          expect(error?.message).toBe("the original image is too large (5x5) and exceeds the total max allowed 24 pixels");
+        } else {
+          expect(error).toBeNull();
+        }
+      }
+    } finally {
+      if (previous === undefined) delete process.env.PB_THUMBS_MAX_SOURCE_PIXELS;
+      else process.env.PB_THUMBS_MAX_SOURCE_PIXELS = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("create thumb", async () => {
     const dir = await createTestDir();
     try {

@@ -2,6 +2,59 @@
 // Deviation: async driver methods use non-blocking fs/promises APIs where possible.
 // Deviation: reader/writer primitives keep sync methods for compatibility, but also expose async read/write variants.
 
+// Package fileblob provides a blob.Bucket driver implementation.
+//
+// NB! To minimize breaking changes with older PocketBase releases,
+// the driver is a stripped down and adapted version of the previously
+// used gocloud.dev/blob/fileblob, hence many of the below doc comments,
+// struct options and interface implementations are the same.
+//
+// Example:
+//
+//	drv, _ := fileblob.New("/path/to/dir", nil)
+//	bucket := blob.NewBucket(drv)
+//
+// -----
+// Copyright 2018 The Go Cloud Development Kit Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+// ---
+//
+// To avoid partial writes, fileblob writes to a temporary file and then renames
+// the temporary file to the final path on Close. By default, it creates these
+// temporary files in `os.TempDir`. If `os.TempDir` is on a different mount than
+// your base bucket path, the `os.Rename` will fail with `invalid cross-device link`.
+// To avoid this, either configure the temp dir to use by setting the environment
+// variable `TMPDIR`, or set `Options.NoTempDir` to `true` (fileblob will create
+// the temporary files next to the actual files instead of in a temporary directory).
+//
+// By default fileblob stores blob metadata in "sidecar" files under the original
+// filename with an additional ".attrs" suffix.
+// This behaviour can be changed via `Options.Metadata`;
+// writing of those metadata files can be suppressed by setting it to
+// `MetadataDontWrite` or its equivalent "metadata=skip" in the URL for the opener.
+// In either case, absent any stored metadata many `blob.Attributes` fields
+// will be set to default values.
+//
+// The blob abstraction supports all UTF-8 strings; to make this work with services lacking
+// full UTF-8 support, strings must be escaped (during writes) and unescaped
+// (during reads). The following escapes are performed for fileblob:
+//   - Blob keys: ASCII characters 0-31 are escaped to "__0x<hex>__".
+//     If os.PathSeparator != "/", it is also escaped.
+//     Additionally, the "/" in "../", the trailing "/" in "//", and a trailing
+//     "/" is key names are escaped in the same way.
+//     On Windows, the characters "<>:"|?*" are also escaped.
+
 import type { Dirent, Stats } from "node:fs";
 import { createHash } from "node:crypto";
 import {
@@ -170,6 +223,11 @@ class FileDriver implements Driver {
       }
       return this.#dir;
     })();
+
+    // ensure that the Prefix hasn't escaped the bucket root
+    if (this.#isEscapingPath(root, false)) {
+      throw new Error(`fileblob: ${JSON.stringify(opts.Prefix)} prefix escapes bucket root`);
+    }
 
     const files: Array<{ key: string; info: Stats; md5: Uint8Array | null }> = [];
 
@@ -384,8 +442,21 @@ class FileDriver implements Driver {
     return (await this.#forKeyAsync(key)).path;
   }
 
+  // isEscapingPath checks if path escapes the configured bucket dir.
+  // (https://github.com/google/go-cloud/pull/3794)
+  #isEscapingPath(path: string, isKey: boolean): boolean {
+    const cleanedPath = resolve(path) + sep;
+    const bucketRootPath = this.#dir + sep;
+    if (isKey && cleanedPath === bucketRootPath) return true;
+    return this.#dir !== sep && !cleanedPath.startsWith(bucketRootPath);
+  }
+
   #path(key: string): string {
     const p = join(this.#dir, escapeKey(key));
+    // ensure that the key hasn't escaped the bucket root
+    if (this.#isEscapingPath(p, true)) {
+      throw new Error(`fileblob: key ${JSON.stringify(key)} escapes bucket root`);
+    }
     if (p.endsWith(attrsExt)) {
       throw errAttrsExt;
     }

@@ -802,7 +802,21 @@ export class System {
       }
 
       const originalBytes = await reader.readAll();
-      const originalMetadata = await newBunImage(originalBytes).metadata();
+      let originalMetadata;
+      try {
+        originalMetadata = await newBunImage(originalBytes).metadata();
+      } catch (error) {
+        return new Error(`image headers decoding failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      // check image dimensions to minimize excessive memory usage
+      const configuredLimit = process.env.PB_THUMBS_MAX_SOURCE_PIXELS ?? "";
+      const parsedLimit = /^[+-]?\d+$/.test(configuredLimit) ? BigInt(configuredLimit) : 0n;
+      const maxPixels = parsedLimit > 0n && parsedLimit <= 9223372036854775807n ? Number(parsedLimit) : 250 << 20;
+      if (originalMetadata.width * originalMetadata.height > maxPixels) {
+        return new Error(
+          `the original image is too large (${originalMetadata.width}x${originalMetadata.height}) and exceeds the total max allowed ${maxPixels} pixels`,
+        );
+      }
       let transformer = newBunImage(originalBytes);
       if (width === 0 || height === 0) {
         const targetWidth = width === 0 ? Math.round((originalMetadata.width * height) / originalMetadata.height) : width;
