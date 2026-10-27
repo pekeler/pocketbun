@@ -8,10 +8,15 @@ const srcRoot = join(process.cwd(), "src");
 
 const ignoredDirs = new Set([".git", "ui", "examples"]);
 const ignoredFiles = new Set([
+  // PocketBun is updated through its package manager, not upstream's binary updater.
   "plugins/ghupdate/ghupdate.go",
   "plugins/ghupdate/ghupdate_test.go",
   "plugins/ghupdate/release.go",
   "plugins/ghupdate/release_test.go",
+  "plugins/update/update.go",
+  "plugins/update/update_test.go",
+  "plugins/update/release.go",
+  "plugins/update/release_test.go",
 ]);
 const mergedPorts = new Map([
   ["core/backup.go", "src/core/base_backup.ts"],

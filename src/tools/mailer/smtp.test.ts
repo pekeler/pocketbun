@@ -300,6 +300,9 @@ describe("SMTPClient", () => {
       );
       expect((smtpServer.exchange.data.match(/Message-ID:/g) ?? []).length).toBe(1);
       expect(smtpServer.exchange.data).toContain("Message-ID: <custom@example.com>");
+      expect(smtpServer.exchange.data).toContain("Content-Type: text/plain; charset=UTF-8");
+      expect(smtpServer.exchange.data).not.toContain("Content-Type: text/html");
+      expect(smtpServer.exchange.data).not.toContain("multipart/alternative");
       expect(smtpServer.exchange.data).toContain('Content-Disposition: attachment; filename="notes.txt"');
       expect(smtpServer.exchange.data).toContain('Content-Disposition: inline; filename="logo.png"');
       expect(smtpServer.exchange.data).toContain("Content-ID: <logo.png>");

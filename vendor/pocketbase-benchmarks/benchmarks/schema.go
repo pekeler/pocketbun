@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/pocketbase/pocketbase/core"
+	"ganigeorgiev.com/pocketbase/pocketbase/core"
 )
 
 const schema = `

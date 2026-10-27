@@ -9,7 +9,9 @@ type StopSignal = {
 
 // Resolver defines a common interface for a Hook event (see [Event]).
 export interface Resolver {
+  // Next triggers the next handler in the hook's chain (if any).
   Next(): unknown;
+  // note: kept only for the generic interface; may get removed in the future
   nextFunc(): NextFunc | null;
   setNextFunc(fn: NextFunc | null): void;
 }
@@ -26,6 +28,17 @@ export interface Resolver {
 //	}
 export class Event implements Resolver {
   #next: NextFunc | null = null;
+  // Extra holds any dynamic data that could be passed between event handlers.
+  Extra: Record<string, unknown> | null = null;
+
+  get extra(): Record<string, unknown> | null {
+    return this.Extra;
+  }
+
+  set extra(value: Record<string, unknown> | null) {
+    this.Extra = value;
+  }
+
   // Bun port uses a stop signal to abort hook chains (eg. batch timeout).
   #stopSignal: StopSignal | null = null;
 

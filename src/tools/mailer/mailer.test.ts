@@ -74,6 +74,47 @@ class MockSendmail extends Sendmail {
 }
 
 describe("Sendmail", () => {
+  it("sends plain text, honors case-insensitive custom headers, and generates missing IDs", () => {
+    const client = new MockSendmail();
+    const message: Message = {
+      From: { Address: "noreply@example.com" },
+      To: [{ Address: "reader@example.com" }],
+      Cc: [],
+      Bcc: [],
+      Subject: "Original",
+      HTML: "",
+      Text: "Plain body",
+      Headers: { subject: "Custom", "X-Test": "value", "mESSAGE-iD": "<custom@example.com>" },
+      Attachments: {},
+      InlineAttachments: {},
+    };
+    expect(client.Send(message)).toBeNull();
+    expect(client.payload).toContain("Content-Type: text/plain; charset=UTF-8");
+    expect(client.payload).toContain("Subject: Custom\r\n");
+    expect(client.payload).toContain("X-Test: value\r\n");
+    expect(client.payload.match(/^Subject:/gm)).toHaveLength(1);
+    expect(client.payload.match(/^Message-Id:/gm)).toHaveLength(1);
+    expect(client.payload).toContain("Message-Id: <custom@example.com>\r\n");
+    expect(client.payload.endsWith("\r\n\r\nPlain body")).toBeTrue();
+
+    message.Headers = { "Message-ID": "" };
+    expect(client.Send(message)).toBeNull();
+    expect(client.payload).toMatch(/Message-Id: <[a-zA-Z0-9]{15}@example\.com>\r\n/);
+    const first = client.payload;
+    expect(client.Send(message)).toBeNull();
+    expect(client.payload).not.toBe(first);
+
+    message.Headers = { "X-Test": "first\r\nBcc: injected@example.com", "Bad\r\nName": "ignored" };
+    expect(client.Send(message)).toBeNull();
+    expect(client.payload).toContain("X-Test: first  Bcc: injected@example.com\r\n");
+    expect(client.payload).not.toMatch(/^Bcc:/m);
+    expect(client.payload).not.toContain("ignored");
+
+    message.Headers = undefined;
+    expect(client.Send(message)).toBeNull();
+    expect(client.payload).toMatch(/Message-Id: <[a-zA-Z0-9]{15}@example\.com>\r\n/);
+  });
+
   it("serializes headers and body before invoking sendmail", () => {
     const client = new MockSendmail();
 

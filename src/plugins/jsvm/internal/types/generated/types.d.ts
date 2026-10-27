@@ -9818,6 +9818,16 @@ namespace core {
      * uiExtensions is a list with the superuser UI extensions.
      */
     uiExtensions: Array<UIExtension>;
+    /**
+     * startBannerFunc defines a custom console startup banner.
+     *
+     * If not set, defaults to the system one that prints the
+     * current HTTP API and dashboard addresses.
+     *
+     * Assign startBannerFunc to a function with an empty body if you
+     * want to disable the console print entirely.
+     */
+    startBannerFunc: ((baseURL: string) => void) | null;
   }
   interface UIExtension {
     /**
@@ -20191,7 +20201,12 @@ namespace hook {
    * 	}
    * ```
    */
-  interface Event {}
+  interface Event {
+    /**
+     * extra holds any dynamic data that could be passed between event handlers.
+     */
+    extra: _TygojaDict | null;
+  }
   interface Event {
     /**
      * next calls the next hook handler.

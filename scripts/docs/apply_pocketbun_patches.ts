@@ -86,6 +86,11 @@ const DOC_OVERLAYS: Record<string, OverlayOperation[]> = {
       contentPath: "extend/loading-modules.md",
     },
     {
+      mode: "upsert-after-section",
+      anchorHeading: "Loading modules",
+      contentPath: "extend/bundling-hooks.md",
+    },
+    {
       mode: "replace-section",
       heading: "Performance",
       contentPath: "extend/performance.md",
@@ -535,7 +540,7 @@ function patchGoingToProduction(text: string): string {
 
 function patchExtend(text: string): string {
   let out = text;
-  const hooksWatchNote = "On Windows, HooksWatch restart behavior has no effect.";
+  const hooksWatchNote = "On Windows, `hooksWatch` restart behavior has no effect.";
   const hooksWatchParagraph =
     "* For convenience, when making changes to the files inside `pb_hooks`, the process will automatically restart/reload itself (currently supported only on UNIX based platforms). The `*.pb.js` files are loaded per their filename sort order.";
   const apisLine =

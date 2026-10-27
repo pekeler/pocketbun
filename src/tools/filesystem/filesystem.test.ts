@@ -1,6 +1,6 @@
 // Ported from pocketbase/tools/filesystem/filesystem_test.go
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, spyOn } from "bun:test";
 import { rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { NewFileFromPath, PathReader, detectMimeTypeFromBytes } from "./file.ts";
@@ -949,6 +949,35 @@ describe("filesystem system", () => {
       expect(body).toContain(`Content-Range: bytes 4-6/${attrs.Size}`);
       expect(body.length).toBeGreaterThan(0);
     } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.serial("create thumb uses the 100 Mi-pixel default limit", async () => {
+    const dir = await createTestDir();
+    const previous = process.env.PB_THUMBS_MAX_SOURCE_PIXELS;
+    try {
+      const metadata = await new Bun.Image(join(dir, "image.png")).metadata();
+      // Inspect a simulated large header without allocating a large decoded image.
+      using metadataSpy = spyOn(Bun.Image.prototype, "metadata").mockResolvedValue({
+        ...metadata,
+        width: 10241,
+        height: 10240,
+      });
+      const fsys = NewLocal(dir);
+      for (const limit of [undefined, "0", "invalid", "-1"]) {
+        if (limit === undefined) delete process.env.PB_THUMBS_MAX_SOURCE_PIXELS;
+        else process.env.PB_THUMBS_MAX_SOURCE_PIXELS = limit;
+        const error = await fsys.CreateThumb("image.png", "thumb", "10x10");
+        expect(error?.message).toBe(
+          "the original image is too large (10241x10240) and exceeds the total max allowed 104857600 pixels",
+        );
+      }
+      metadataSpy.mockResolvedValue({ ...metadata, width: 10240, height: 10240 });
+      expect(await fsys.CreateThumb("image.png", "thumb", "10x10")).toBeNull();
+    } finally {
+      if (previous === undefined) delete process.env.PB_THUMBS_MAX_SOURCE_PIXELS;
+      else process.env.PB_THUMBS_MAX_SOURCE_PIXELS = previous;
       await rm(dir, { recursive: true, force: true });
     }
   });

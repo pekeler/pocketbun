@@ -43,7 +43,7 @@ function e(e){let n=app.utils.getApiExampleURL(),r={collectionId:e.id,collection
                         batch.collection('${e.name}').upsert({ ... });
 
                         const result = await batch.send();
-                    `,footnote:t.div({className:`txt-right`},t.a({href:`https://github.com/pocketbase/js-sdk`,target:`_blank`,rel:`noopener noreferrer`,textContent:`JS SDK docs`}))},{title:`Dart SDK`,language:`dart`,value:`
+                    `,footnote:t.div({className:`txt-right`},t.a({href:`https://ganigeorgiev.com/pocketbase/js-sdk`,target:`_blank`,rel:`noopener noreferrer`,textContent:`JS SDK docs`}))},{title:`Dart SDK`,language:`dart`,value:`
                         import 'package:pocketbase/pocketbase.dart';
 
                         final pb = PocketBase('${n}');
@@ -58,7 +58,7 @@ function e(e){let n=app.utils.getApiExampleURL(),r={collectionId:e.id,collection
                         batch.collection('${e.name}').upsert(body: { ... });
 
                         final result = await batch.send();
-                    `,footnote:t.div({className:`txt-right`},t.a({href:`https://github.com/pocketbase/dart-sdk`,target:`_blank`,rel:`noopener noreferrer`,textContent:`Dart SDK docs`}))},{title:`curl`,language:`bash`,value:`
+                    `,footnote:t.div({className:`txt-right`},t.a({href:`https://ganigeorgiev.com/pocketbase/dart-sdk`,target:`_blank`,rel:`noopener noreferrer`,textContent:`Dart SDK docs`}))},{title:`curl`,language:`bash`,value:`
                         curl -X POST \\
                           -H 'Authorization:TOKEN' \\
                           -H 'Content-Type:application/json' \\

@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
 import { buildServeHandler } from "../../apis/serve.ts";
 import { Collection } from "../../core/collection_model.ts";
+import { ServeEvent } from "../../core/events.ts";
 import { AutodateField } from "../../core/field_autodate.ts";
 import { BoolField } from "../../core/field_bool.ts";
 import { DateField } from "../../core/field_date.ts";
@@ -27,7 +28,9 @@ import { TestApp, newTestApp } from "../../tests/app.ts";
 import { newTempDir } from "../../tests/fs.ts";
 import { File } from "../../tools/filesystem/file.ts";
 import { System } from "../../tools/filesystem/filesystem.ts";
+import { Event } from "../../tools/hook/event.ts";
 import { ApiError } from "../../tools/router/api_error.ts";
+import { Router } from "../../tools/router/router.ts";
 import { JSONRaw } from "../../tools/types/index.ts";
 import {
   BindApis,
@@ -410,6 +413,8 @@ describe("jsvm binds", () => {
       const scenarios = [
         { namespace: "core", interfaceName: "App", value: appScope.$app },
         { namespace: "core", interfaceName: "Record", value: record },
+        { namespace: "core", interfaceName: "ServeEvent", value: new ServeEvent(app, new Router()), properties: true },
+        { namespace: "hook", interfaceName: "Event", value: new Event(), properties: true },
         { namespace: "types", interfaceName: "DateTime", value: dateTime },
         {
           namespace: "forms",

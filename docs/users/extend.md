@@ -70,6 +70,7 @@ Many I/O-heavy APIs also expose Async variants (for example `serveAsync(...)`, `
 
 Use `onBootstrapClear` to release resources allocated during `onBootstrap`. It runs before shutdown or reinitialization, and when you call `await $app.clearBootstrap()`. In custom Bun entrypoints, await `app.clearBootstrap()` and use `await app.bootstrapAsync()` when reinitializing so asynchronous hooks and queued log writes finish before databases reopen. The older `app.resetBootstrapState()` is a deprecated alias with the same awaitable cleanup behavior.
 
+Hook events expose `e.extra` for sharing data between handlers of the same event. Initialize it with `e.extra = { ... }` before adding values. In `onServe`, assign `e.startBannerFunc = (baseURL) => { ... }` to customize the startup message, or assign an empty function to silence it.
 ### TypeScript declarations and code completion
 
 PocketBun can execute `.pb.ts` files directly, and it also provides builtin **ambient TypeScript declarations** for editor completion and inline docs.
@@ -175,11 +176,10 @@ await registerServerJSAsync(app, {
   hooksDir: "pb_hooks",
   bundledHooksDir: "dist/pb_hooks",
   bundleHooks: true,
-})
+});
 ```
 
 Hook bundling uses Bun's bundler with packages bundled and environment variable inlining disabled. Files such as `secrets.json` are included only when they are explicitly imported by hook code. Dynamic `import(...)` or `require(...)` expressions that Bun cannot resolve statically fail the build; move those dependencies to static imports or include them through your deploy packaging.
-
 #### Performance
 
 Performance characteristics in PocketBun depend on your hook workload, I/O patterns and runtime configuration. For CPU-heavy operations, prefer built-in helpers where possible.

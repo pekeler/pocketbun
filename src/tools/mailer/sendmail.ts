@@ -2,6 +2,7 @@
 
 import { spawnSync } from "node:child_process";
 import type { Mailer } from "./mailer.ts";
+import { pseudorandomString } from "../security/random.ts";
 import { addressesToStrings, newSendHook, SendEvent, type Message, type SendInterceptor } from "./mailer.ts";
 
 // Sendmail implements [mailer.Mailer] interface and defines a mail
@@ -66,20 +67,42 @@ export class Sendmail implements Mailer, SendInterceptor {
 }
 
 function buildSendmailPayload(message: Message, toAddresses: string[]): string {
-  const headers = [
-    `Subject: ${encodeMimeHeader(message.Subject)}`,
-    `From: ${addressesToStrings([message.From], true)[0] ?? message.From.Address}`,
-    "Content-Type: text/html; charset=UTF-8",
-    `To: ${toAddresses.join(",")}`,
-  ];
+  const headers = new Map([
+    ["subject", encodeMimeHeader(message.Subject)],
+    ["from", addressesToStrings([message.From], true)[0] ?? message.From.Address],
+    ["to", toAddresses.join(",")],
+  ]);
+  // @todo evaluate handling multipart/mixed together with the attachments support
+  headers.set("content-type", message.HTML ? "text/html; charset=UTF-8" : "text/plain; charset=UTF-8");
   if (message.Cc.length > 0) {
-    headers.push(`Cc: ${addressesToStrings(message.Cc, false).join(",")}`);
+    headers.set("cc", addressesToStrings(message.Cc, false).join(","));
   }
   if (message.Bcc.length > 0) {
-    headers.push(`Bcc: ${addressesToStrings(message.Bcc, false).join(",")}`);
+    headers.set("bcc", addressesToStrings(message.Bcc, false).join(","));
   }
 
-  return `${headers.join("\r\n")}\r\n\r\n${message.HTML || message.Text || ""}`;
+  // add custom headers (if any)
+  for (const [key, value] of Object.entries(message.Headers ?? {})) {
+    headers.set(key.toLowerCase(), value);
+  }
+
+  // add a default message id if missing
+  if (!headers.get("message-id")) {
+    const fromParts = message.From.Address.split("@");
+    if (fromParts.length === 2) {
+      headers.set("message-id", `<${pseudorandomString(15)}@${fromParts[1]}>`);
+    }
+  }
+
+  const lines: string[] = [];
+  for (const [key, value] of headers) {
+    // Match Go http.Header.Write: skip invalid names and flatten CR/LF in values.
+    if (/^[!#$%&'*+.^_`|~0-9a-z-]+$/.test(key)) {
+      const name = key.replace(/(^|-)[a-z]/g, (part) => part.toUpperCase());
+      lines.push(`${name}: ${value.replace(/[\r\n]/g, " ").replace(/^[ \t]+|[ \t]+$/g, "")}`);
+    }
+  }
+  return `${lines.join("\r\n")}\r\n\r\n${message.HTML || message.Text || ""}`;
 }
 
 function findSendmailPath(): [string, Error | null] {

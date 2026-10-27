@@ -117,6 +117,9 @@ function buildServeHandlerWithEvent(
 
   const serveEvent = new ServeEvent(app, router);
   serveEvent.InstallerFunc = DefaultInstallerFunc;
+  if (config.showStartBanner) {
+    serveEvent.StartBannerFunc = defaultStartBannerFunc;
+  }
   let initialized = false;
   const triggerResult = app.OnServe().Trigger(serveEvent, () => {
     initialized = true;
@@ -240,7 +243,7 @@ function startServerSync(app: App, config: ServeConfig): ReturnType<typeof Bun.s
   serveEvent.Server = server;
   bindGracefulShutdown(app, server);
   startInstallerAsync(app, config, server, serveEvent);
-  printStartBanner(server, config);
+  serveEvent.StartBannerFunc?.(buildBaseURL(server, config));
   return server;
 }
 
@@ -261,7 +264,7 @@ async function startServerAsync(app: App, config: ServeConfig): Promise<ReturnTy
   serveEvent.Server = server;
   bindGracefulShutdown(app, server);
   startInstallerAsync(app, config, server, serveEvent);
-  printStartBanner(server, config);
+  serveEvent.StartBannerFunc?.(buildBaseURL(server, config));
   return server;
 }
 
@@ -305,20 +308,15 @@ function bindGracefulShutdown(app: App, server: ReturnType<typeof Bun.serve>): v
   });
 }
 
-function printStartBanner(server: ReturnType<typeof Bun.serve>, config: ServeConfig): void {
-  if (!config.showStartBanner) {
-    return;
-  }
-
-  const baseURL = buildBaseURL(server, config);
+function defaultStartBannerFunc(baseURL: string): void {
   const timestamp = formatStartBannerTimestamp(new Date());
 
   // eslint-disable-next-line no-console
   console.log(`${timestamp} Server started at ${baseURL}`);
   // eslint-disable-next-line no-console
-  console.log(`├─ REST API:  ${baseURL}/api/`);
+  console.log(`> Dashboard: ${baseURL}/_/`);
   // eslint-disable-next-line no-console
-  console.log(`└─ Dashboard: ${baseURL}/_/`);
+  console.log(`> REST API:  ${baseURL}/api/`);
 }
 
 function formatStartBannerTimestamp(date: Date): string {

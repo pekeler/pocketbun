@@ -76,6 +76,17 @@ type ResponseWriterCompat = {
 //
 // NB! It is expected that the Response and Request fields are always set.
 export class Event implements Resolver {
+  // Extra holds any dynamic data that could be passed between event handlers.
+  Extra: Record<string, unknown> | null = null;
+
+  get extra(): Record<string, unknown> | null {
+    return this.Extra;
+  }
+
+  set extra(value: Record<string, unknown> | null) {
+    this.Extra = value;
+  }
+
   // Compatibility shim for JSVM hooks expecting `e.response.header().set(...)`.
   Response: ResponseWriterCompat;
   request: Request;

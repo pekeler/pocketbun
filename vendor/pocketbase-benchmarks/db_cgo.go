@@ -6,7 +6,7 @@ import (
 	"database/sql"
 
 	"github.com/mattn/go-sqlite3"
-	"github.com/pocketbase/dbx"
+	"ganigeorgiev.com/pocketbase/dbx"
 )
 
 // register a new driver with default PRAGMAs and the same query

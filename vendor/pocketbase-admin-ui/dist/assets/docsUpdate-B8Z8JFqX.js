@@ -1,4 +1,4 @@
-import{t as e}from"./expandInfo-CJ9aeAaN.js";import{t as n}from"./fieldsInfo-CiLcXgNq.js";import{fullDummyPayload as r,primitivesDummyPayload as i,replaceDummyPayloadPlaceholder as a}from"./docsCreate-Ap21j9FE.js";function o(o){let s=app.utils.getApiExampleURL(),c=o.updateRule===null,l=o.type===`auth`?[`id`,`password`,`verified`,`email`,`emailVisibility`]:[`id`],u=o.fields?.filter(e=>!e.hidden&&e.type!=`autodate`&&!l.includes(e.name))||[],d={collectionId:o.id,collectionName:o.name},f=[{title:200,value:JSON.stringify(Object.assign(d,app.utils.getDummyFieldsData(o)),null,2)},{title:400,value:`
+import{t as e}from"./expandInfo-CJ9aeAaN.js";import{t as n}from"./fieldsInfo-CiLcXgNq.js";import{fullDummyPayload as r,primitivesDummyPayload as i,replaceDummyPayloadPlaceholder as a}from"./docsCreate-CtxPHDTg.js";function o(o){let s=app.utils.getApiExampleURL(),c=o.updateRule===null,l=o.type===`auth`?[`id`,`password`,`verified`,`email`,`emailVisibility`]:[`id`],u=o.fields?.filter(e=>!e.hidden&&e.type!=`autodate`&&!l.includes(e.name))||[],d={collectionId:o.id,collectionName:o.name},f=[{title:200,value:JSON.stringify(Object.assign(d,app.utils.getDummyFieldsData(o)),null,2)},{title:400,value:`
                 {
                   "status": 400,
                   "message": "Failed to create record.",
@@ -32,7 +32,7 @@ const pb = new PocketBase('${s}');
 const body = ${a(JSON.stringify(r(o,!0),null,2))};
 
 const record = await pb.collection('${o.name}').update('RECORD_ID', body);
-`,footnote:t.div({className:`txt-right`},t.a({href:`https://github.com/pocketbase/js-sdk`,target:`_blank`,rel:`noopener noreferrer`,textContent:`JS SDK docs`}))},{title:`Dart SDK`,language:`dart`,value:`
+`,footnote:t.div({className:`txt-right`},t.a({href:`https://ganigeorgiev.com/pocketbase/js-sdk`,target:`_blank`,rel:`noopener noreferrer`,textContent:`JS SDK docs`}))},{title:`Dart SDK`,language:`dart`,value:`
 import 'package:pocketbase/pocketbase.dart';
 
 final pb = PocketBase('${s}');
@@ -47,7 +47,7 @@ final record = await pb.collection('${o.name}').update(
   body: body,
   files: [],
 );
-`,footnote:t.div({className:`txt-right`},t.a({href:`https://github.com/pocketbase/dart-sdk`,target:`_blank`,rel:`noopener noreferrer`,textContent:`Dart SDK docs`}))},{title:`curl`,language:`bash`,value:`
+`,footnote:t.div({className:`txt-right`},t.a({href:`https://ganigeorgiev.com/pocketbase/dart-sdk`,target:`_blank`,rel:`noopener noreferrer`,textContent:`Dart SDK docs`}))},{title:`curl`,language:`bash`,value:`
                         curl -X PATCH \\
                           -H 'Authorization:TOKEN' \\
                           -H 'Content-Type:application/json' \\

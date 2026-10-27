@@ -1,6 +1,6 @@
 // Ported from pocketbase/core/record_query_expand_test.go.
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, spyOn } from "bun:test";
 import type { DbxDatabase } from "../tools/dbx/database.ts";
 import type { Collection } from "./collection_model.ts";
 import { newTestApp } from "../tests/app.ts";
@@ -17,7 +17,12 @@ function countExpandProps(encoded: string) {
 }
 
 describe("record expand", () => {
-  it("ExpandRecords", async () => {
+  it.serial("ExpandRecords", async () => {
+    using warning = spyOn(console, "warn").mockImplementation((message) => {
+      expect(message).toBe(
+        "demo4(rel_one_no_cascade_required) expand format is deprecated and will be removed in the future. Consider replacing it with demo4_via_rel_one_no_cascade_required.",
+      );
+    });
     const { app, cleanup } = await newTestApp();
     try {
       const scenarios: Array<{
@@ -211,12 +216,18 @@ describe("record expand", () => {
         const totalNonempty = totalExpandProps - totalEmptyExpands;
         expect(totalNonempty).toBe(scenario.expectNonemptyExpandProps);
       }
+      expect(warning).toHaveBeenCalledTimes(1);
     } finally {
       await cleanup();
     }
   });
 
-  it("ExpandRecord", async () => {
+  it.serial("ExpandRecord", async () => {
+    using warning = spyOn(console, "warn").mockImplementation((message) => {
+      expect(message).toBe(
+        "demo4(rel_one_no_cascade_required) expand format is deprecated and will be removed in the future. Consider replacing it with demo4_via_rel_one_no_cascade_required.",
+      );
+    });
     const { app, cleanup } = await newTestApp();
     try {
       const scenarios: Array<{
@@ -363,6 +374,7 @@ describe("record expand", () => {
         const totalNonempty = totalExpandProps - totalEmptyExpands;
         expect(totalNonempty).toBe(scenario.expectNonemptyExpandProps);
       }
+      expect(warning).toHaveBeenCalledTimes(2);
     } finally {
       await cleanup();
     }

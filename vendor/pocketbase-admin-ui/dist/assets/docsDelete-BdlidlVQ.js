@@ -24,7 +24,7 @@ function e(e){let n=app.utils.getApiExampleURL(),r=e.deleteRule===null,i=[{title
                         ...
 
                         await pb.collection('${e.name}').delete('RECORD_ID');
-                    `,footnote:t.div({className:`txt-right`},t.a({href:`https://github.com/pocketbase/js-sdk`,target:`_blank`,rel:`noopener noreferrer`,textContent:`JS SDK docs`}))},{title:`Dart SDK`,language:`dart`,value:`
+                    `,footnote:t.div({className:`txt-right`},t.a({href:`https://ganigeorgiev.com/pocketbase/js-sdk`,target:`_blank`,rel:`noopener noreferrer`,textContent:`JS SDK docs`}))},{title:`Dart SDK`,language:`dart`,value:`
                         import 'package:pocketbase/pocketbase.dart';
 
                         final pb = PocketBase('${n}');
@@ -32,7 +32,7 @@ function e(e){let n=app.utils.getApiExampleURL(),r=e.deleteRule===null,i=[{title
                         ...
 
                         await pb.collection('${e.name}').delete('RECORD_ID');
-                    `,footnote:t.div({className:`txt-right`},t.a({href:`https://github.com/pocketbase/dart-sdk`,target:`_blank`,rel:`noopener noreferrer`,textContent:`Dart SDK docs`}))},{title:`curl`,language:`bash`,value:`
+                    `,footnote:t.div({className:`txt-right`},t.a({href:`https://ganigeorgiev.com/pocketbase/dart-sdk`,target:`_blank`,rel:`noopener noreferrer`,textContent:`Dart SDK docs`}))},{title:`curl`,language:`bash`,value:`
                         curl -X DELETE \\
                           -H 'Authorization:TOKEN' \\
                           '${n}/api/collections/${e.name}/records/RECORD_ID'

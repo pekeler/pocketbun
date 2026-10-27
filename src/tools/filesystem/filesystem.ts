@@ -811,7 +811,7 @@ export class System {
       // check image dimensions to minimize excessive memory usage
       const configuredLimit = process.env.PB_THUMBS_MAX_SOURCE_PIXELS ?? "";
       const parsedLimit = /^[+-]?\d+$/.test(configuredLimit) ? BigInt(configuredLimit) : 0n;
-      const maxPixels = parsedLimit > 0n && parsedLimit <= 9223372036854775807n ? Number(parsedLimit) : 250 << 20;
+      const maxPixels = parsedLimit > 0n && parsedLimit <= 9223372036854775807n ? Number(parsedLimit) : 100 << 20;
       if (originalMetadata.width * originalMetadata.height > maxPixels) {
         return new Error(
           `the original image is too large (${originalMetadata.width}x${originalMetadata.height}) and exceeds the total max allowed ${maxPixels} pixels`,

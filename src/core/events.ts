@@ -125,8 +125,10 @@ export type ServeInstallerFunc = (
 
 export type UIExtension = {
   // Name is the name of the extension.
-  // It is also used as the public path segment under /_/extensions/{name}/...
+  // It is also used as path segment for the registered public extension endpoint
+  // (e.g. /_/extensions/{name}/*)
   Name: string;
+  // FS is the extension file system.
   // Deviation: PocketBun models fs.FS-style roots as filesystem path wrappers.
   FS: string | { root: string };
 };
@@ -136,10 +138,37 @@ export class ServeEvent extends Event {
   Router: Router<RequestEvent>;
   Server: ReturnType<typeof Bun.serve> | null = null;
   CertManager: unknown = null;
+  // Listener allow specifying a custom network listener.
+  //
+  // Leave it nil to use the default net.Listen("tcp", e.Server.Addr).
   Listener: unknown = null;
+  // InstallerFunc is the "installer" function that is called after
+  // successful server tcp bind but only if there is no explicit
+  // superuser record created yet.
+  //
+  // It runs in a separate goroutine and its default value is [apis.DefaultInstallerFunc].
+  //
+  // It receives a system superuser record as argument that you can use to generate
+  // a short-lived auth token (e.g. systemSuperuser.NewStaticAuthToken(30 * time.Minute))
+  // and concatenate it as query param for your installer page
+  // (if you are using the client-side SDKs, you can then load the
+  // token with pb.authStore.save(token) and perform any Web API request
+  // e.g. creating a new superuser).
+  //
+  // Set it to nil if you want to skip the installer.
   InstallerFunc: ServeInstallerFunc | null = null;
   // @todo experimental
+  //
+  // UIExtensions is a list with the superuser UI extensions.
   UIExtensions: UIExtension[] = [];
+  // StartBannerFunc defines a custom console startup banner.
+  //
+  // If not set, defaults to the system one that prints the
+  // current HTTP API and dashboard addresses.
+  //
+  // Assign StartBannerFunc to a function with an empty body if you
+  // want to disable the console print entirely.
+  StartBannerFunc: ((baseURL: string) => void) | null = null;
 
   constructor(app: App, router: Router<RequestEvent>) {
     super();
@@ -201,6 +230,14 @@ export class ServeEvent extends Event {
 
   set uiExtensions(uiExtensions: UIExtension[]) {
     this.UIExtensions = uiExtensions;
+  }
+
+  get startBannerFunc(): ((baseURL: string) => void) | null {
+    return this.StartBannerFunc;
+  }
+
+  set startBannerFunc(value: ((baseURL: string) => void) | null) {
+    this.StartBannerFunc = value;
   }
 }
 
@@ -359,6 +396,7 @@ export class ModelErrorEvent extends Event {
   constructor(modelEvent: ModelEvent, error: Error) {
     super();
     this.ModelEvent = modelEvent;
+    this.Extra = modelEvent.Extra;
     this.Error = error;
   }
 
@@ -430,6 +468,7 @@ export class RecordErrorEvent extends Event {
   constructor(recordEvent: RecordEvent, error: Error) {
     super();
     this.RecordEvent = recordEvent;
+    this.Extra = recordEvent.Extra;
     this.Error = error;
   }
 
@@ -499,6 +538,7 @@ export class CollectionErrorEvent extends Event {
   constructor(collectionEvent: CollectionEvent, error: Error) {
     super();
     this.CollectionEvent = collectionEvent;
+    this.Extra = collectionEvent.Extra;
     this.Error = error;
   }
 
@@ -544,6 +584,16 @@ export function syncModelEventWithRecordEvent(modelEvent: ModelEvent, recordEven
   modelEvent.Context = recordEvent.Context;
   modelEvent.Type = recordEvent.Type;
   modelEvent.AllowAsync = recordEvent.AllowAsync;
+
+  // @todo enable if after profiling doesn't have significant impact
+  //       skip for now to avoid excessive checks and assume that the
+  //       Model and the Record fields still points to the same instance
+  //
+  // if _, ok := me.Model.(*Record); ok {
+  //     me.Model = re.Record
+  // } else if proxy, ok := me.Model.(RecordProxy); ok {
+  //     proxy.SetProxyRecord(re.Record)
+  // }
 }
 
 export function syncRecordEventWithModelEvent(recordEvent: RecordEvent, modelEvent: ModelEvent): void {
