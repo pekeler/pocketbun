@@ -22,37 +22,14 @@ if [[ -z "$SITE_REF" ]]; then
 fi
 
 TREE_LIST="$TMP_DIR/tree_paths.txt"
+REPO_DIR="$TMP_DIR/repo"
 
-# Retry helper for flaky API connectivity.
-run_with_retry() {
-  local max_attempts="$1"
-  shift
-
-  local attempt=1
-  while true; do
-    if "$@"; then
-      return 0
-    fi
-
-    if [[ "$attempt" -ge "$max_attempts" ]]; then
-      return 1
-    fi
-
-    attempt=$((attempt + 1))
-    sleep 1
-  done
-}
-
-fetch_content_to_file() {
-  local endpoint="$1"
-  local output_file="$2"
-  mkdir -p "$(dirname "$output_file")"
-
-  run_with_retry 25 gh api "$endpoint" --jq .content | tr -d '\n' | base64 --decode > "$output_file"
-}
+git init -q "$REPO_DIR"
+git -C "$REPO_DIR" remote add origin https://ganigeorgiev.com/git/pocketbase/site
+git -C "$REPO_DIR" fetch --depth=1 origin "$SITE_REF"
 
 # 1) Enumerate all upstream docs source files.
-run_with_retry 25 gh api "repos/pocketbase/site/git/trees/${SITE_REF}?recursive=1" --jq '.tree[].path' > "$TREE_LIST"
+git -C "$REPO_DIR" ls-tree -r --name-only FETCH_HEAD > "$TREE_LIST"
 
 # Keep docs source files (Svelte/JS) under src/routes/(app)/docs.
 rg '^src/routes/\(app\)/docs/.*\.(svelte|js)$' "$TREE_LIST" > "$TMP_DIR/docs_files.txt"
@@ -70,10 +47,11 @@ while IFS= read -r repo_path; do
     rel_path="$repo_path"
   fi
 
-  endpoint="repos/pocketbase/site/contents/${repo_path}?ref=${SITE_REF}"
   out="$TMP_DIR/$rel_path"
-  fetch_content_to_file "$endpoint" "$out"
+  mkdir -p "$(dirname "$out")"
+  git -C "$REPO_DIR" show "FETCH_HEAD:$repo_path" > "$out"
 done < "$TMP_DIR/download_files.txt"
+rm -rf "$REPO_DIR"
 
 # 3) Atomically replace cache.
 rm -rf "$CACHE_DIR"

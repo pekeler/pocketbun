@@ -4,6 +4,8 @@ This document describes the upgrade process we follow when PocketBase publishes 
 
 ## Steps
 
+Check published releases at https://ganigeorgiev.com/pocketbase/pocketbase/releases or its machine-readable Atom feed, https://ganigeorgiev.com/meta/pocketbase/pocketbase/releases.atom, and compare with `pocketbase_tag.txt`. The web interface requires JavaScript; use the feed for automated checks and Git for source/history access. Git tags alone do not establish that a release was published.
+
 1) Update the pinned upstream tag.
 
    Edit `pocketbase_tag.txt` and set it to the new PocketBase tag (for example `v0.36.2`).
@@ -25,15 +27,15 @@ This document describes the upgrade process we follow when PocketBase publishes 
 
    PocketBase keeps release notes in `CHANGELOG.md` and older changelog files in the upstream repo. Before changing code, read the entries for the target tag so you know which areas to double‑check.
 
-   When adding the PocketBun upgrade entry in `CHANGELOG.md`, always include a direct link to the upstream PocketBase changelog anchor for that release (for example `https://github.com/pocketbase/pocketbase/blob/master/CHANGELOG.md#v0364` for `v0.36.4`).
+   When adding the PocketBun upgrade entry in `CHANGELOG.md`, include a direct link to the upstream PocketBase release notes (for example `https://ganigeorgiev.com/pocketbase/pocketbase/releases?expr=tag%3D%22v0.41.0%22` for `v0.41.0`). Older release notes remain on GitHub; preserve historical changelog links.
 
    Then generate a diff between the old and new tags using a temporary clone (with `.git`) so we don’t miss silent changes. Keep the previous tag in a variable before editing `pocketbase_tag.txt`:
 
        OLD_TAG="v0.36.1"
        NEW_TAG="v0.36.2"
        tmpdir="$(mktemp -d)"
-       git clone https://github.com/pocketbase/pocketbase.git "$tmpdir/pocketbase"
-       git -C "$tmpdir/pocketbase" fetch --tags origin
+       git clone --depth=1 --branch "$NEW_TAG" https://ganigeorgiev.com/git/pocketbase/pocketbase "$tmpdir/pocketbase"
+       git -C "$tmpdir/pocketbase" fetch --depth=1 origin tag "$OLD_TAG"
        git -C "$tmpdir/pocketbase" diff --name-status "$OLD_TAG..$NEW_TAG"
        git -C "$tmpdir/pocketbase" diff "$OLD_TAG..$NEW_TAG"
 
@@ -87,7 +89,8 @@ This document describes the upgrade process we follow when PocketBase publishes 
 
    When you intentionally refresh the upstream docs snapshot:
 
-       SITE_SHA="$(gh api repos/pocketbase/site/commits/master --jq .sha)"
+       SITE_SHA="$(git ls-remote https://ganigeorgiev.com/git/pocketbase/site refs/heads/master | cut -f1)"
+       test -n "$SITE_SHA"
        printf '%s\n' "$SITE_SHA" > pocketbase_site_ref.txt
 
    Then rerun `bun run docs:rebuild:full` and review the generated diff.
