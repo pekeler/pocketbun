@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Now compatible with PocketBase `v0.41.1` [release notes](https://ganigeorgiev.com/pocketbase/pocketbase/releases?filter=tag%3D%27v0.41.1%27) (upstream commit `f70b24e`).
+  - Refreshes the Admin UI and includes upstream font license notices.
+
 - Now compatible with PocketBase `v0.41.0` [release notes](https://ganigeorgiev.com/pocketbase/pocketbase/releases?expr=tag%3D%22v0.41.0%22) (upstream commit `f6baa0c`).
   - Adds shared hook event data (`e.extra`) and customizable startup banners (`e.startBannerFunc`).
   - Lowers the default thumbnail source limit to 104,857,600 pixels and fixes plain-text sendmail messages, custom headers and message IDs.
