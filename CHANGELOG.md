@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.41.1-pocketbun.0 - 2026-10-28
 
 - Now compatible with PocketBase `v0.41.1` [release notes](https://ganigeorgiev.com/pocketbase/pocketbase/releases?filter=tag%3D%27v0.41.1%27) (upstream commit `f70b24e`).
   - Includes the changes from [PocketBase v0.41.0](https://ganigeorgiev.com/pocketbase/pocketbase/releases?expr=tag%3D%22v0.41.0%22), which was not released separately in PocketBun.
