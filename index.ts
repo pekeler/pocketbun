@@ -55,6 +55,35 @@ export { SkipSuccessActivityLog };
 export { superuser, superuserCreate, superuserDelete, superuserOTP, superuserUpdate, superuserUpsert } from "./src/cmd/superuser.ts";
 export { type SuperuserOtpResult } from "./src/cmd/superuser.ts";
 export { BaseApp, type BaseAppConfig } from "./src/core/base.ts";
+export {
+  NewCollection as newCollection,
+  NewBaseCollection as newBaseCollection,
+  NewAuthCollection as newAuthCollection,
+  NewViewCollection as newViewCollection,
+} from "./src/core/collection_model.ts";
+export {
+  Collection,
+  Record,
+  TextField,
+  NumberField,
+  BoolField,
+  URLField,
+  EmailField,
+  EditorField,
+  PasswordField,
+  DateField,
+  AutodateField,
+  JSONField,
+  RelationField,
+  SelectField,
+  FileField,
+  GeoPointField,
+  type CollectionInit,
+  type FieldOptions,
+  type FieldInstance,
+} from "./src/core/model_constructors.ts";
+export type { CoreBindings } from "./src/plugins/jsvm/binds.ts";
+export type { RecordData } from "./src/core/record_model.ts";
 export { type App } from "./src/core/app.ts";
 export { type ServeEvent } from "./src/core/events.ts";
 export { migrate, migrateAsync, type MigrateMode } from "./src/core/migrate.ts";

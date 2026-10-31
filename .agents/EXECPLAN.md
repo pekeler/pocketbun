@@ -1,64 +1,71 @@
-# Upgrade PocketBase compatibility to v0.41.0
+# Expose public model constructors
 
-This living plan follows `.agents/PLANS.md`.
+This living plan follows .agents/PLANS.md. Work on master in /Users/pekeler/Projects/pocketbun.
 
 ## Purpose / Big Picture
 
-Upgrade PocketBun from PocketBase v0.40.6 to v0.41.0 (upstream commit f6baa0c43f379de21cd806de97ad6a2b8ca97b83). Users gain shared event data, customizable startup banners, safer default thumbnail limits, mail fixes and the unchanged upstream Admin UI. The upstream-host migration was committed separately as 41e583c1. Complete the compatibility work and required checks on master; do not publish a release.
+Allow regular Bun programs to import Collection, Record, all fourteen field constructors and collection factories from pocketbun, with the same configuration semantics as server hooks. Keep the existing release process.
 
 ## Progress
 
-- [x] (2026-10-27 13:59Z) Committed host migration and compared both upstream tags, filtering import/host-only changes to identify behavior changes.
-- [x] (2026-10-27 14:10Z) Synced v0.41.0 source/UI, audited declarations and the dbx, ozzo-validation and fexpr dependency migrations. No additional runtime dependency changes.
-- [x] (2026-10-27 14:15Z) Ported shared hook and request event data, error-event map copying, startup banners, thumbnail default and sendmail changes. Focused tests passed.
-- [x] (2026-10-27 14:15Z) Updated versions, declarations, benchmark inputs and docs/changelog. Repaired overlay drift so regeneration retains hook bundling guidance. Benchmark compiles with read-only module checksums.
-- [x] (2026-10-27 14:18Z) Full rerun passed: 2,034 tests, 7 snapshots, zero failures or warnings. Completed final compatibility/performance review; all required checks passed.
+- [x] (2026-10-31 17:42Z) Reviewed fork, constructors, callers, upstream JSVM behavior, declarations and tests.
+- [x] (2026-10-31 17:47Z) Shared and exported constructors; hook Record still unwraps bound arguments.
+- [x] (2026-10-31 17:47Z) Added seven model tests, external consumer type regressions, README example and credited Unreleased entry.
+- [x] (2026-10-31 17:49Z) Full suite passed: 2,041 tests, 7 snapshots, zero failures or warnings. Formatting, lint, typecheck, package consumer declarations and built-export smoke check all passed; final diff reviewed.
 
 ## Surprises & Discoveries
 
-The new Git host advertises shallow cloning. Full-history cloning stalled in the prior task; shallow tag fetches work and support direct old/new tree diffs. Most of the 424 changed files only update Go module paths. Actual Go behavior changes are in apis/serve.go, core/events.go, tools/hook/event.go, tools/filesystem/filesystem.go, tools/mailer/sendmail.go, tools/mailer/smtp.go and plugins/jsvm/binds.go. Upstream nullObject now starts with a nil JSON map. A v0.41.0 executable probe confirmed EXTRA_DEFAULT=null, direct property assignment fails until initialization, and NULL_OBJECT={"value":null}; Bun already matches nullObject. The generated runtime contract caught that router.Event implements its own resolver rather than inheriting hook.Event, so it also needs the new field. Existing tests deliberately exercised deprecated expand syntax; they now assert those warnings rather than leaking them into the test log.
+The internal Collection constructor does not initialize auth defaults or viewQuery like the hook constructor does. The reviewed fork exported it directly. The shared wrapper now calls UnmarshalJSON. Explicit JSON fields replace defaults, so the auth regression adds its custom field after constructing the default auth collection, matching existing hook behavior. Public field types derive their lowercase aliases from the runtime alias tables to avoid drift.
 
 ## Decision Log
 
-- Use the verified temporary Git checkout at `/tmp/pocketbun-shallow-upstream-check` to compare v0.40.6 and v0.41.0; use the repository sync script for the pinned source/UI. Rationale: keep source read-only and preserve upstream asset provenance. Date: 2026-10-27.
-- Keep Bun runtime semantics and dependencies, port observable behavior rather than Go import renames. Review dependency diffs for semantic changes. Date: 2026-10-27.
-
-## Outcomes & Retrospective
-
-The v0.41.0 compatibility upgrade is complete. The owner reviewed the startup-banner changes and approved committing and pushing the upgrade on master. The host migration is committed as 41e583c1. Full validation passed: 2,034 tests across 255 files (122.33 seconds), 7 snapshots, no failures/warnings, formatting, typecheck, lint, package build/types, version alignment, generated docs, zero-gap upstream mapping and byte-identical Admin UI. Benchmark source f53fd8de571ac32293871100e916cdf6d10ced8e uses the new module and builds with -mod=readonly. No release was published. No full throughput benchmark or manual browser UI exercise was performed.
+Extract shared public model constructors from bindings, keeping database constructors and binding argument unwrapping unchanged. This avoids divergent behavior. Keep release files unchanged per the clarified recommendation. Date: 2026-10-31.
 
 ## Context and Orientation
 
-`pocketbase_tag.txt` pins upstream; `package.json` encodes that version with `-pocketbun.0`. `src/tools/hook/event.ts` is shared by hook events. `src/core/events.ts` defines ServeEvent and its public aliases. `src/apis/serve.ts` starts synchronous/asynchronous Bun servers and prints their banners. Mail is implemented under `src/tools/mailer`; thumbnail protection is in `src/tools/filesystem/filesystem.ts`. `src/plugins/jsvm/internal/types/generated/types.d.ts` exposes editor declarations and includes local adaptations. `vendor/pocketbase-admin-ui/dist` must match upstream byte for byte. Benchmark Go sources are vendored separately; their imports and module pins must follow the new upstream module name. The docs pipeline uses a pinned `pocketbase_site_ref.txt` snapshot, so do not silently replace that snapshot with master.
+index.ts is the public entrypoint. src/plugins/jsvm/binds.ts installs hook constructors and exposes bindCore. Core collection_model.ts and record_model.ts also serve database loading. field_jsvm_aliases.ts installs lowercase aliases. scripts/check_package_types.ts tests external consumer declarations. The reviewed fork is at /private/tmp/pocketbun-fork-review.JAbTI0/heisdezz with the same MIT license notice.
 
 ## Plan of Work
 
-First sync v0.41.0 and audit its file mapping. Trace callers of changed behavior and compare upstream tests. Implement additions in the existing shared classes and mail helpers, preserving upstream comments. Add focused tests for event extra sharing/isolation, banner override/suppression including async serving, thumbnail default boundaries and mail MIME/header behavior. Verify nullObject and preserve local declaration adaptations when adding new public properties. Inspect upstream dependency changes and benchmark repository migration before updating benchmark inputs. Update compatibility/version docs and add concise upstream release sub-points under Unreleased.
+First adapt the fork's field wrappers in src/core/model_constructors.ts, sharing the existing Collection hook constructor and public Record initialization. Bindings reuse the constructors, factories are exported with JSVM names, and bindCore returns typed model bindings while still mutating its target. Check focused runtime tests and typecheck for this milestone.
+
+Then add src/tests/package_models.test.ts covering auth defaults/password persistence, view queries, fields, collection lifecycle and imported/bound parity. Extend the package consumer fixture, README and Unreleased changelog. Finish with full checks and review.
 
 ## Concrete Steps
 
-Work in `/Users/pekeler/Projects/pocketbun`. Use `git -C /tmp/pocketbun-shallow-upstream-check diff v0.40.6..v0.41.0 -- PATH` for upstream evidence. The behavior-only review is saved at `/tmp/pocketbase-0.41.0-behavior.diff`. Set the tag and package version, then run `bun run upstream:sync` and `bun run upstream:audit`. Run focused tests during implementation, then `bun run format:fix`, `bun test --concurrent`, `bun run typecheck`, `bun run lint`, `bun run check:versions`, `bun run typecheck:package`, and `bun run docs:rebuild:full`. Inspect and resolve generated docs drift without removing PocketBun-specific documentation. Run `diff -qr vendor/pocketbase-admin-ui/dist .upstream/pocketbase/ui/dist` and `git diff --check`.
+Run from the repository root:
+
+    bun test --concurrent src/tests/package_models.test.ts src/plugins/jsvm/binds.test.ts src/plugins/jsvm/jsvm.test.ts
+    bun run format:fix
+    bun test --concurrent
+    bun run typecheck
+    bun run lint
+    bun run typecheck:package
+
+Use bun test --only-failures --concurrent for retries. HTTP tests may need execution outside the network sandbox. All checks should exit successfully without warnings.
 
 ## Validation and Acceptance
 
-All required checks pass without compiler/runtime warnings. A non-record hook can assign extra data and the next handler reads it; separate events do not share data. onServe can replace or suppress the banner and receives the actual bound URL. Default output uses greater-than markers. Text-only mail excludes an empty HTML part; sendmail honors custom headers and supplies a message ID. Thumbnails use the upstream 100 << 20 pixel default with environment overrides preserved. Version sources agree on v0.41.0 and the Admin UI matches upstream exactly.
+Imported view collections must preserve their SQL query and save. Auth defaults and password hashing must match hooks. Lowercase field options compile; invalid types and method replacement do not. Published declarations compile for an external consumer. No release changes.
 
 ## Idempotence and Recovery
 
-No production data is modified. Tests use temporary databases and mail fixtures. Sync can be rerun at the pinned tag and stages UI files automatically. Never edit `.upstream` sources. Preserve the initial committed baseline and only revert artifacts generated by this task when unrelated drift is observed.
-
-## Artifacts and Notes
-
-Release notes: https://ganigeorgiev.com/pocketbase/pocketbase/releases?expr=tag%3D%22v0.41.0%22 . Upstream tag resolves to f6baa0c43f379de21cd806de97ad6a2b8ca97b83. The prior host-migration checks verified both tag access and byte-identical v0.40.6 UI assets on the new host.
+Tests use disposable databases; builds overwrite ignored dist output. Do not publish, push or modify application databases.
 
 ## Interfaces and Dependencies
 
-Expose JSVM-style `extra` and `startBannerFunc`; retain Go-style aliases where the surrounding API does so. Prefer native object/map representation already used by hook APIs. Do not add runtime dependencies. Generated declarations must match the runtime APIs.
+Export Collection, Record, fourteen field constructors and newCollection/newBaseCollection/newAuthCollection/newViewCollection. Return typed model members from bindCore. Use existing dependencies and guarded alias installation; no new request hot-path work.
 
-Created 2026-10-27 after committing the host migration and examining the complete upstream diff.
+## Artifacts and Notes
 
-Updated 2026-10-27 14:15Z with implementation and verification evidence. Event data defaults to null, avoiding per-request map allocations; initialization is explicit. Banner functions are reused and run once per startup. Mail header processing only affects outbound sendmail messages. No performance workload was changed and no throughput claims are made.
+Review reproduced the fork dropping viewQuery. The new regression must exercise it.
 
-Updated 2026-10-27 14:18Z after successful full validation. The upgrade preserves the existing docs pin and all prior PocketBun-specific guidance. Hook bundling guidance now has its own managed overlay so repeated patching cannot duplicate it. The docs patcher has pre-existing blank-line normalization on a second pass; substantive content is checked for stability. Source changes are additive except for the upstream thumbnail-limit and mail fixes, with no data migration required.
+## Outcomes & Retrospective
 
-Updated 2026-10-27 after owner approval to commit and push. The validated source is unchanged; formatting, version alignment and docs checks were rechecked before committing.
+Public model APIs are implemented and shared with hooks, including auth/view constructor parity. Seven focused tests (154 assertions), the full suite (2,041 tests across 256 files, 122.61 seconds), formatting, lint, typecheck, package build, external consumer declarations and built-export smoke check passed without warnings. Runtime performance review found no new request hot-path work; shared wrappers avoid recreating fourteen field classes for each binding target. README and Unreleased notes document the feature and credit heisdezz. Release files, version numbers and application databases were not changed. No release or push was performed. No full throughput benchmark or cross-platform CI run was needed for this constructor-only change.
+
+Plan created 2026-10-31 for the approved API additions and compatibility correction.
+
+Updated 2026-10-31 17:47Z after implementing the constructors and passing focused/runtime type checks; full suite remains in progress.
+
+Updated 2026-10-31 17:49Z with final validation evidence and completed scope. Implementation is ready as one focused commit.

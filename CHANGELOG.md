@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Create collections, records and fields directly from TypeScript with public model imports and typed `bindCore()` results, using the same initialization as server hooks. Thanks to [heisdezz](https://github.com/heisdezz/pocketbun) for the original contribution.
+
 ## 0.41.1-pocketbun.0 - 2026-10-28
 
 - Now compatible with PocketBase `v0.41.1` [release notes](https://ganigeorgiev.com/pocketbase/pocketbase/releases?filter=tag%3D%27v0.41.1%27) (upstream commit `f70b24e`).

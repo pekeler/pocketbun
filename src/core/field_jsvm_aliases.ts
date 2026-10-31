@@ -93,6 +93,13 @@ const fieldMethodAliases = [
   ["canInterceptAction", "CanInterceptAction"],
 ] as const;
 
+// Derive public constructor types from the same aliases installed at runtime.
+export type FieldJSVMAliases<T> = {
+  [Pair in (typeof fieldPropertyAliases | typeof fieldMethodAliases)[number] as Pair[1] extends keyof T
+    ? Pair[0]
+    : never]: Pair[1] extends keyof T ? T[Pair[1]] : never;
+};
+
 let installed = false;
 
 export function installFieldJSVMAliases(): void {
