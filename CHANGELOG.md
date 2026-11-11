@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.42.0-pocketbun.0 - 2026-11-11
 
 - Now compatible with PocketBase `v0.42.0` [release notes](https://ganigeorgiev.com/pocketbase/pocketbase/releases?filter=tag%3D%27v0.42.0%27) (upstream commit `787fe1e`).
   - Rejects unknown or expired authorization tokens with 401, allowing clients to detect invalid sessions on any endpoint.
