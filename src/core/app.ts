@@ -238,6 +238,8 @@ export interface App {
   CollectionQuery(): SelectQuery;
   LogQuery(): SelectQuery;
   FindLogById(id: string): Log;
+  // CountLogs returns the total number of log entries.
+  CountLogs(...optExprs: Array<SqlExpr | null | undefined>): number;
   LogsStats(expr: SqlExpr | null): LogsStatsItem[];
   DeleteOldLogs(createdBefore: Date): Error | null;
   RecordQuery(collectionModelOrIdentifier: Collection | string | null | undefined): RecordQuery;
@@ -563,6 +565,7 @@ export interface App {
   logQuery: App["LogQuery"];
   findLogById: App["FindLogById"];
   logsStats: App["LogsStats"];
+  countLogs: App["CountLogs"];
   deleteOldLogs: App["DeleteOldLogs"];
   txInfo: App["TxInfo"];
   newMailClient: App["NewMailClient"];

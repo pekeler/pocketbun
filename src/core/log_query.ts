@@ -13,10 +13,12 @@ export type LogsStatsItem = {
   total: number;
 };
 
+// LogQuery returns a new Log select query.
 export function logQuery(app: App) {
   return app.AuxModelQuery(new Log());
 }
 
+// FindLogById finds a single Log entry by its id.
 export function findLogById(app: App, id: string): Log {
   const row = logQuery(app).AndWhere(HashExp({ id })).Limit(1).One();
   if (!row) {
@@ -26,6 +28,19 @@ export function findLogById(app: App, id: string): Log {
   return normalizeLogRow(row);
 }
 
+// CountLogs returns the total number of log entries.
+export function countLogs(app: App, ...optExprs: Array<SqlExpr | null | undefined>): number {
+  const query = logQuery(app).Select("count(*)");
+  for (const expr of optExprs) {
+    if (expr != null) {
+      // add only the non-nil expressions
+      query.AndWhere(expr);
+    }
+  }
+  return query.Row<number>() ?? 0;
+}
+
+// LogsStats returns hourly grouped logs statistics.
 export function logsStats(app: App, expr: SqlExpr | null): LogsStatsItem[] {
   let sql = `select count(id) as total, strftime('%Y-%m-%d %H:00:00', created) as date from {{${LogsTableName}}}`;
   const params: SQLQueryBindings[] = [];
@@ -50,6 +65,10 @@ export function logsStats(app: App, expr: SqlExpr | null): LogsStatsItem[] {
   });
 }
 
+// DeleteOldLogs delete all logs that are created before createdBefore.
+//
+// For better performance the logs delete is executed as plain SQL statement,
+// aka. no delete model hook events will be fired.
 export function deleteOldLogs(app: App, createdBefore: Date | DateTime): Error | null {
   const dt = createdBefore instanceof DateTime ? createdBefore : new DateTime(createdBefore);
   const formattedDate = dt.toString();

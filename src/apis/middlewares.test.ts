@@ -1,12 +1,15 @@
 // Ported from pocketbase/apis/middlewares_test.go.
 
-import { describe, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import type { ServeEvent } from "../core/events.ts";
 import type { ApiScenario } from "../tests/api.ts";
 import type { TestApp } from "../tests/app.ts";
 import { RequireGuestOnly as ExportedRequireGuestOnly } from "../../index.ts";
+import { RequestEvent } from "../core/event_request.ts";
 import { runApiScenario } from "../tests/api.ts";
+import { newTestApp } from "../tests/app.ts";
 import {
+  activityLogger,
   RequireAuth,
   RequireGuestOnly,
   RequireSameCollectionContextAuth,
@@ -37,6 +40,65 @@ function bindServeRoute(setup: (event: ServeEvent) => void): (app: TestApp) => v
 }
 
 describe("middlewares", () => {
+  it("logs benign mid-response failures as info", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      app.settings().logs.maxDays = 1;
+      app.settings().logs.minLevel = 0;
+      const levels: string[] = [];
+      app.Logger().Info = () => {
+        levels.push("info");
+      };
+      app.Logger().Error = () => {
+        levels.push("error");
+      };
+      for (const [status, message] of [
+        [200, "write: broken pipe"],
+        [200, "unexpected failure"],
+        [400, "write: broken pipe"],
+      ] as const) {
+        const event = new RequestEvent({ app, request: new Request("http://localhost/test") });
+        event.Next = () => {
+          event.String(status, "test");
+          throw new Error(message);
+        };
+        let caught: unknown;
+        try {
+          await activityLogger().Func!(event);
+        } catch (error) {
+          caught = error;
+        }
+        expect(caught).toBeInstanceOf(Error);
+        expect((caught as Error).message).toBe(message);
+      }
+      expect(levels).toEqual(["info", "error", "error"]);
+    } finally {
+      await cleanup();
+    }
+  });
+  it("rejects unknown tokens after custom authentication", async () => {
+    for (const token of ["", regularAuthToken, expiredRegularToken, "Bearer abc", "custom"]) {
+      const valid = !token || token === regularAuthToken || token === "custom";
+      await runApiScenario({
+        method: "GET",
+        url: "/my/test",
+        headers: { Authorization: token },
+        beforeTest: bindServeRoute((event) => {
+          event.Router.Bind({
+            Priority: 0,
+            Func: (e) => {
+              if (token === "custom") e.auth = e.app.FindAuthRecordByToken(regularAuthToken);
+              return e.Next();
+            },
+          });
+          event.Router.get("/my/test", (e) => e.String(200, "test123"));
+        }),
+        expectedStatus: valid ? 200 : 401,
+        expectedContent: valid ? ["test123"] : ['"data":{}'],
+        expectedEvents: { "*": 0 },
+      });
+    }
+  });
   it("sets the default security headers", async () => {
     await runApiScenario({
       method: "GET",
@@ -118,8 +180,8 @@ describe("middlewares", () => {
         url: "/my/test",
         headers: { Authorization: expiredRegularToken },
         beforeTest,
-        expectedStatus: 200,
-        expectedContent: ["test123"],
+        expectedStatus: 401,
+        expectedContent: ['"data":{}'],
         expectedEvents: { "*": 0 },
       },
       {

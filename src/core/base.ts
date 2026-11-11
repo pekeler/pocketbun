@@ -183,7 +183,7 @@ import { RelationField } from "./field_relation.ts";
 import { FieldsList, NewFieldsList } from "./fields_list.ts";
 import { Log, LogsTableName } from "./log_model.ts";
 import { printLog } from "./log_printer.ts";
-import { deleteOldLogs, findLogById, logQuery, logsStats, type LogsStatsItem } from "./log_query.ts";
+import { countLogs, deleteOldLogs, findLogById, logQuery, logsStats, type LogsStatsItem } from "./log_query.ts";
 import { CollectionNameMFAs, MFA } from "./mfa_model.ts";
 import {
   DeleteAllMFAsByRecord as DeleteAllMFAsByRecordQuery,
@@ -420,6 +420,7 @@ export class BaseApp implements App {
   declare collectionQuery: BaseApp["CollectionQuery"];
   declare logQuery: BaseApp["LogQuery"];
   declare findLogById: BaseApp["FindLogById"];
+  declare countLogs: BaseApp["CountLogs"];
   declare logsStats: BaseApp["LogsStats"];
   declare deleteOldLogs: BaseApp["DeleteOldLogs"];
   declare txInfo: BaseApp["TxInfo"];
@@ -697,6 +698,11 @@ export class BaseApp implements App {
 
   FindLogById(id: string) {
     return findLogById(this, id);
+  }
+
+  // CountLogs returns the total number of log entries.
+  CountLogs(...optExprs: Array<SqlExpr | null | undefined>): number {
+    return countLogs(this, ...optExprs);
   }
 
   LogsStats(expr: SqlExpr | null): LogsStatsItem[] {
@@ -4863,13 +4869,40 @@ export class BaseApp implements App {
       }
     });
 
+    // Count before/after deletion, as drivers need not return affected rows.
+    let totalDeletedSinceVacuum = 0;
     this.Cron().Add("__pbLogsCleanup__", "0 */6 * * *", () => {
+      let oldCount = 0;
+      let newCount = 0;
+      try {
+        oldCount = this.CountLogs();
+      } catch (error) {
+        this.Logger().Warn("Failed to count logs before delete", "error", error);
+      }
       const createdBefore = NowDateTime()
         .addDate(0, 0, -1 * this.settings().logs.maxDays)
         .time();
       const deleteErr = this.DeleteOldLogs(createdBefore);
       if (deleteErr) {
         this.Logger().Warn("Failed to delete old logs", "error", deleteErr);
+      }
+      try {
+        newCount = this.CountLogs();
+      } catch (error) {
+        this.Logger().Warn("Failed to count logs after delete", "error", error);
+      }
+      // Try to free up unused disk space if a lot of logs have been deleted.
+      totalDeletedSinceVacuum += Math.max(oldCount - newCount, 0);
+      if (totalDeletedSinceVacuum >= 20000) {
+        totalDeletedSinceVacuum = 0;
+        const error = this.AuxVacuum();
+        if (error) this.Logger().Warn("Failed to VACUUM aux database after cleanup", "error", error);
+      }
+      // Force a checkpoint to limit WAL growth after slower deletes or vacuum.
+      try {
+        this.auxDb().query("PRAGMA wal_checkpoint(TRUNCATE)").run();
+      } catch (error) {
+        this.Logger().Warn("Failed to run PRAGMA wal_checkpoint after logs cleanup", "error", error);
       }
     });
   }
@@ -5896,6 +5929,7 @@ const baseAppMethodAliases = [
   ["logQuery", "LogQuery"],
   ["findLogById", "FindLogById"],
   ["logsStats", "LogsStats"],
+  ["countLogs", "CountLogs"],
   ["deleteOldLogs", "DeleteOldLogs"],
   ["txInfo", "TxInfo"],
   ["newMailClient", "NewMailClient"],
@@ -6162,7 +6196,7 @@ function applySettingsLoggerReload(app: App): void {
         app.settings().logs.minLevel,
       ]);
   } catch (error) {
-    logger.Debug("Failed to cleanup old logs", "error", error);
+    logger.Warn("Failed to cleanup old logs", "error", error);
   }
 
   // no logs are allowed -> try to reclaim preserved disk space after delete operation
@@ -6170,7 +6204,7 @@ function applySettingsLoggerReload(app: App): void {
     try {
       app.auxDb().run("VACUUM");
     } catch (error) {
-      logger.Debug("Failed to VACUUM aux database", "error", error);
+      logger.Warn("Failed to VACUUM aux database", "error", error);
     }
   }
 }

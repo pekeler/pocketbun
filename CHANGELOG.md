@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Now compatible with PocketBase `v0.42.0` [release notes](https://ganigeorgiev.com/pocketbase/pocketbase/releases?filter=tag%3D%27v0.42.0%27) (upstream commit `787fe1e`).
+  - Rejects unknown or expired authorization tokens with 401, allowing clients to detect invalid sessions on any endpoint.
+  - Adds `app.countLogs()` and reclaims disk space after large log rotations.
+  - Adds JPEG XL previews and OAuth provider ordering in the Admin UI, and improves large log chart labels.
+
 - Create collections, records and fields directly from TypeScript with public model imports and typed `bindCore()` results, using the same initialization as server hooks. Thanks to [heisdezz](https://github.com/heisdezz/pocketbun) for the original contribution.
 
 ## 0.41.1-pocketbun.0 - 2026-10-28

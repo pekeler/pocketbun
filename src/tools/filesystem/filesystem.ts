@@ -60,6 +60,7 @@ const inlineServeContentTypes = new Set([
   "image/png",
   "image/jpg",
   "image/jpeg",
+  "image/jxl",
   "image/gif",
   "image/webp",
   "image/x-icon",
@@ -814,7 +815,7 @@ export class System {
       const maxPixels = parsedLimit > 0n && parsedLimit <= 9223372036854775807n ? Number(parsedLimit) : 100 << 20;
       if (originalMetadata.width * originalMetadata.height > maxPixels) {
         return new Error(
-          `the original image is too large (${originalMetadata.width}x${originalMetadata.height}) and exceeds the total max allowed ${maxPixels} pixels`,
+          `the original image is too large (${originalMetadata.width}x${originalMetadata.height}) and exceeds the total max allowed ${maxPixels} pixels (you can set the env 'PB_THUMBS_MAX_SOURCE_PIXELS=max' to change the limit)`,
         );
       }
       let transformer = newBunImage(originalBytes);

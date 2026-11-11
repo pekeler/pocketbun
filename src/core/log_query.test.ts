@@ -3,7 +3,7 @@
 import { describe, expect, it } from "bun:test";
 import { newTestApp } from "../tests/app.ts";
 import { StubLogsData } from "../tests/dynamic_stubs.ts";
-import { NewExp } from "../tools/dbx/expr.ts";
+import { NewExp, HashExp, Like } from "../tools/dbx/expr.ts";
 import { NowDateTime, ParseDateTime } from "../tools/types/index.ts";
 import { Log } from "./log_model.ts";
 
@@ -38,6 +38,47 @@ describe("log queries", () => {
           expect(logId).toBe(scenario.id);
         }
       }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("cleanup vacuums after 20000 accumulated deletions", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      const job = app
+        .Cron()
+        .Jobs()
+        .find((job) => job.Id() === "__pbLogsCleanup__");
+      expect(job).toBeDefined();
+      const counts = [15000, 0, 4999, 0, 1, 0, 1, 0];
+      app.CountLogs = () => counts.shift()!;
+      app.DeleteOldLogs = () => null;
+      let vacuums = 0;
+      app.AuxVacuum = () => {
+        vacuums++;
+        return null;
+      };
+      job!.Run();
+      job!.Run();
+      expect(vacuums).toBe(0);
+      job!.Run();
+      expect(vacuums).toBe(1);
+      job!.Run();
+      expect(vacuums).toBe(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("CountLogs", async () => {
+    const { app, cleanup } = await newTestApp();
+    try {
+      expect(StubLogsData(app)).toBeNull();
+      expect(app.CountLogs()).toBe(2);
+      expect(app.countLogs(null)).toBe(2);
+      expect(app.countLogs(null, Like("message", "test"), HashExp({ level: 1 }))).toBe(0);
+      expect(app.countLogs(null, Like("message", "test"), HashExp({ level: 0 }))).toBe(1);
     } finally {
       await cleanup();
     }

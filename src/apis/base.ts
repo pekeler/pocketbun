@@ -21,6 +21,7 @@ import {
   RequestEventKeySkipSuccessActivityLog,
   activityLogger,
   loadAuthToken,
+  rejectUnknownToken,
   panicRecover,
   securityHeaders,
   superuserIPsWhitelist,
@@ -57,6 +58,7 @@ export function NewRouter(app: App): Router<RequestEvent> {
   pbRouter.Bind(panicRecover());
   pbRouter.Bind(rateLimit());
   pbRouter.Bind(loadAuthToken());
+  pbRouter.Bind(rejectUnknownToken());
   pbRouter.Bind(superuserIPsWhitelist());
   pbRouter.Bind(securityHeaders());
   pbRouter.Bind(BodyLimit(DefaultMaxBodySize));

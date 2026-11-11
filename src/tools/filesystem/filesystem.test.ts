@@ -365,6 +365,12 @@ describe("filesystem system", () => {
     try {
       const fsys = NewLocal(dir);
 
+      fsys.OnNewWriter().BindFunc(async (event) => {
+        if (event.FileKey === "image.jxl" && event.Options) event.Options.ContentType = "image/jxl";
+        return event.Next();
+      });
+      await fsys.Upload(new Uint8Array([0xff, 0x0a]), "image.jxl");
+
       const csp = "default-src 'none'; media-src 'self'; style-src 'unsafe-inline'; sandbox";
       const cacheControl = "max-age=2592000, stale-while-revalidate=86400";
 
@@ -401,6 +407,19 @@ describe("filesystem system", () => {
           expected: {
             "Content-Disposition": 'inline; filename="test_name.png"',
             "Content-Type": "image/png",
+            "Content-Security-Policy": csp,
+            "Cache-Control": cacheControl,
+          },
+        },
+        {
+          path: "image.jxl",
+          name: "test_name.jxl",
+          query: {},
+          headers: {},
+          expectError: false,
+          expected: {
+            "Content-Disposition": 'inline; filename="test_name.jxl"',
+            "Content-Type": "image/jxl",
             "Content-Security-Policy": csp,
             "Cache-Control": cacheControl,
           },
@@ -970,7 +989,7 @@ describe("filesystem system", () => {
         else process.env.PB_THUMBS_MAX_SOURCE_PIXELS = limit;
         const error = await fsys.CreateThumb("image.png", "thumb", "10x10");
         expect(error?.message).toBe(
-          "the original image is too large (10241x10240) and exceeds the total max allowed 104857600 pixels",
+          "the original image is too large (10241x10240) and exceeds the total max allowed 104857600 pixels (you can set the env 'PB_THUMBS_MAX_SOURCE_PIXELS=max' to change the limit)",
         );
       }
       metadataSpy.mockResolvedValue({ ...metadata, width: 10240, height: 10240 });
@@ -993,7 +1012,9 @@ describe("filesystem system", () => {
         process.env.PB_THUMBS_MAX_SOURCE_PIXELS = limit;
         const error = await fsys.CreateThumb("source.png", "thumb", "100x100");
         if (limit === "24") {
-          expect(error?.message).toBe("the original image is too large (5x5) and exceeds the total max allowed 24 pixels");
+          expect(error?.message).toBe(
+            "the original image is too large (5x5) and exceeds the total max allowed 24 pixels (you can set the env 'PB_THUMBS_MAX_SOURCE_PIXELS=max' to change the limit)",
+          );
         } else {
           expect(error).toBeNull();
         }

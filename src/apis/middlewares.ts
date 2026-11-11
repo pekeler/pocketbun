@@ -24,7 +24,6 @@ export const DefaultRateLimitMiddlewareId = "pbRateLimit";
 export const DefaultActivityLoggerMiddlewarePriority = DefaultRateLimitMiddlewarePriority - 40;
 export const DefaultActivityLoggerMiddlewareId = "pbActivityLogger";
 export const DefaultSkipSuccessActivityLogMiddlewareId = "pbSkipSuccessActivityLog";
-export const DefaultEnableAuthIdActivityLog = "pbEnableAuthIdActivityLog";
 
 export const DefaultPanicRecoverMiddlewarePriority = DefaultRateLimitMiddlewarePriority - 30;
 export const DefaultPanicRecoverMiddlewareId = "pbPanicRecover";
@@ -164,6 +163,15 @@ export function RequireSameCollectionContextAuth(collectionPathParam: string): B
 }
 
 // loadAuthToken attempts to load the auth context based on the "Authorization: TOKEN" header value.
+//
+// This middleware does nothing in case of:
+// - missing, invalid or expired token
+// - e.Auth is already loaded by another middleware
+//
+// This middleware is registered by default for all routes.
+//
+// Note: We don't throw an error on invalid or expired token to allow
+// users to extend with their own custom handling in external middleware(s).
 export function loadAuthToken(): BoundHandler<RequestEvent> {
   return {
     Id: DefaultLoadAuthTokenMiddlewareId,
@@ -184,11 +192,28 @@ export function loadAuthToken(): BoundHandler<RequestEvent> {
           event.auth = record;
         }
       } catch (error) {
-        // Note: keep invalid/expired tokens non-fatal for route compatibility.
+        // Allow custom authentication before rejectUnknownToken runs.
         // Upstream logs this at debug level for troubleshooting.
         event.app.Logger().Debug("loadAuthToken failure", "error", error);
       }
 
+      return event.Next();
+    },
+  };
+}
+
+export const DefaultRejectUnknownTokenMiddlewarePriority = 9999;
+export const DefaultRejectUnknownTokenMiddlewareId = "pbRejectUnknownToken";
+
+export function rejectUnknownToken(): BoundHandler<RequestEvent> {
+  return {
+    Id: DefaultRejectUnknownTokenMiddlewareId,
+    Priority: DefaultRejectUnknownTokenMiddlewarePriority,
+    Func: (event) => {
+      // There is a token but no associated auth record: unknown, invalid or expired.
+      if (!event.auth && getAuthTokenFromRequest(event)) {
+        throw event.UnauthorizedError("", new Error("unknown authorization token"));
+      }
       return event.Next();
     },
   };
@@ -226,8 +251,8 @@ export function activityLogger(): BoundHandler<RequestEvent> {
       }
 
       const response = result instanceof Response ? result : null;
-      const status = response?.status ?? (thrown ? 500 : 0);
-      const hasError = Boolean(thrown) || status >= 400;
+      const status = response?.status ?? (event.Status() || (thrown ? 500 : 0));
+      const hasError = !(status > 199 && status < 400 && canBeIgnored(thrown));
 
       if (hasError || event.Get(RequestEventKeySkipSuccessActivityLog) == null) {
         const level = hasError ? 8 : 0;
@@ -364,8 +389,8 @@ function logRequest(
     return;
   }
 
-  const status = response?.status ?? (err ? 500 : 0);
-  const hasError = Boolean(err) || status >= 400;
+  const status = response?.status ?? (event.Status() || (err ? 500 : 0));
+  const hasError = !(status > 199 && status < 400 && canBeIgnored(err));
 
   if (!hasError && event.Get(RequestEventKeySkipSuccessActivityLog) != null) {
     return;
@@ -412,14 +437,14 @@ function logRequest(
     attrs.push("userIP", event.realIP(), "remoteIP", event.remoteIP());
   }
 
-  if (hasError) {
+  if (hasError || err) {
     if (responseError) {
       attrs.push("error", responseError.message);
       if (responseError.details != null) {
         attrs.push("details", responseError.details);
       }
     } else if (err) {
-      attrs.push("error", err.message);
+      attrs.push("error", err.message + (hasError ? "" : " (often benign, see #8361)"));
     } else {
       attrs.push("error", `HTTP ${status}`);
     }
@@ -451,4 +476,12 @@ function cutStr(value: string, max: number): string {
     return `${value.slice(0, max)}...`;
   }
   return value;
+}
+
+// Benign errors can occur after an OK status has already been written.
+// See https://ganigeorgiev.com/pocketbase/discussions/8361.
+const benignErrors = ["http2: request body closed due to handler exiting", "http2: stream closed", "write: broken pipe"];
+
+function canBeIgnored(error: Error | null): boolean {
+  return !error || benignErrors.some((message) => error.message.includes(message));
 }

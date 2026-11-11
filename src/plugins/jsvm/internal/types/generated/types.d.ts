@@ -6588,6 +6588,8 @@ namespace core {
      * LogsStatsItem returns hourly grouped logs statistics.
      */
     logsStats(expr: dbx.Expression): Array<LogsStatsItem | undefined>;
+    /** CountLogs returns the total number of log entries. */
+    countLogs(...optExprs: dbx.Expression[]): number;
     /**
      * deleteOldLogs delete all logs that are created before createdBefore.
      */
@@ -12688,6 +12690,8 @@ namespace core {
      * logsStats returns hourly grouped logs statistics.
      */
     logsStats(expr: dbx.Expression): Array<LogsStatsItem | undefined>;
+    /** CountLogs returns the total number of log entries. */
+    countLogs(...optExprs: dbx.Expression[]): number;
   }
   interface BaseApp {
     /**
