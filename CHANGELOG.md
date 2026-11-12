@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.42.2-pocketbun.0 - 2026-11-12
 
 - Now compatible with PocketBase `v0.42.2` [release notes](https://ganigeorgiev.com/pocketbase/pocketbase/releases?expr=tag%3D%22v0.42.2%22) (upstream commit `9873ed8`).
   - Fixes Admin UI sign-in with expired sessions and redirects after successful OAuth2 authentication.
