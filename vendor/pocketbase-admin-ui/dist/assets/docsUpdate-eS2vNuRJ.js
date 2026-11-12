@@ -1,4 +1,4 @@
-import{t as e}from"./expandInfo-CJ9aeAaN.js";import{t as n}from"./fieldsInfo-CiLcXgNq.js";import{fullDummyPayload as r,primitivesDummyPayload as i,replaceDummyPayloadPlaceholder as a}from"./docsCreate-CtxPHDTg.js";function o(o){let s=app.utils.getApiExampleURL(),c=o.updateRule===null,l=o.type===`auth`?[`id`,`password`,`verified`,`email`,`emailVisibility`]:[`id`],u=o.fields?.filter(e=>!e.hidden&&e.type!=`autodate`&&!l.includes(e.name))||[],d={collectionId:o.id,collectionName:o.name},f=[{title:200,value:JSON.stringify(Object.assign(d,app.utils.getDummyFieldsData(o)),null,2)},{title:400,value:`
+import{fullDummyPayload as e,primitivesDummyPayload as n,replaceDummyPayloadPlaceholder as r}from"./docsCreate-CtxPHDTg.js";import{t as i}from"./expandInfo-CJ9aeAaN.js";import{t as a}from"./fieldsInfo-CiLcXgNq.js";function o(o){let s=app.utils.getApiExampleURL(),c=o.updateRule===null,l=o.type===`auth`?[`id`,`password`,`verified`,`email`,`emailVisibility`]:[`id`],u=o.fields?.filter(e=>!e.hidden&&e.type!=`autodate`&&!l.includes(e.name))||[],d={collectionId:o.id,collectionName:o.name},f=[{title:200,value:JSON.stringify(Object.assign(d,app.utils.getDummyFieldsData(o)),null,2)},{title:400,value:`
                 {
                   "status": 400,
                   "message": "Failed to create record.",
@@ -29,7 +29,7 @@ const pb = new PocketBase('${s}');
 ...
 
 // example update body
-const body = ${a(JSON.stringify(r(o,!0),null,2))};
+const body = ${r(JSON.stringify(e(o,!0),null,2))};
 
 const record = await pb.collection('${o.name}').update('RECORD_ID', body);
 `,footnote:t.div({className:`txt-right`},t.a({href:`https://ganigeorgiev.com/pocketbase/js-sdk`,target:`_blank`,rel:`noopener noreferrer`,textContent:`JS SDK docs`}))},{title:`Dart SDK`,language:`dart`,value:`
@@ -40,7 +40,7 @@ final pb = PocketBase('${s}');
 ...
 
 // example update body
-final body = <String, dynamic>${JSON.stringify(i(o,!0),null,2)};
+final body = <String, dynamic>${JSON.stringify(n(o,!0),null,2)};
 
 final record = await pb.collection('${o.name}').update(
   'RECORD_ID',
@@ -53,4 +53,4 @@ final record = await pb.collection('${o.name}').update(
                           -H 'Content-Type:application/json' \\
                           -d '{ ... }' \\
                           '${s}/api/collections/${o.name}/records/RECORD_ID'
-                    `}]}),t.div({className:`block m-t-base`},t.strong(null,`API details`)),t.div({className:`alert warning api-preview-alert`},t.span({className:`label method`},`PATCH`),t.span({className:`path`},`/api/collections/${o.name}/records/`,t.strong(null,`:id`)),()=>{if(c)return t.small({className:`extra`},`Requires superuser Authorization:TOKEN header`)}),t.table({className:`api-preview-table path-params`},t.thead(null,t.tr(null,t.th({className:`min-width txt-primary`},`Path params`),t.th({className:`min-width`},`Type`),t.th(null,`Description`))),t.tbody(null,t.tr(null,t.td({className:`min-width`},`id`),t.td({className:`min-width`},t.span({className:`label`},`String`)),t.td(null,`ID of the record to update.`)))),t.table({className:`api-preview-table query-params`},t.thead(null,t.tr(null,t.th({className:`min-width txt-primary`},`?query params`),t.th({className:`min-width`},`Type`),t.th(null,`Description`))),t.tbody(null,t.tr(null,t.td({className:`min-width`},`expand`),t.td({className:`min-width`},t.span({className:`label`},`String`)),t.td(null,e())),t.tr(null,t.td({className:`min-width`},`fields`),t.td({className:`min-width`},t.span({className:`label`},`String`)),t.td(null,n())))),t.div({className:`block m-t-base m-b-sm`},t.strong(null,`Example responses`)),app.components.codeBlockTabs({tabs:f}))}export{o as docsUpdate};
+                    `}]}),t.div({className:`block m-t-base`},t.strong(null,`API details`)),t.div({className:`alert warning api-preview-alert`},t.span({className:`label method`},`PATCH`),t.span({className:`path`},`/api/collections/${o.name}/records/`,t.strong(null,`:id`)),()=>{if(c)return t.small({className:`extra`},`Requires superuser Authorization:TOKEN header`)}),t.table({className:`api-preview-table path-params`},t.thead(null,t.tr(null,t.th({className:`min-width txt-primary`},`Path params`),t.th({className:`min-width`},`Type`),t.th(null,`Description`))),t.tbody(null,t.tr(null,t.td({className:`min-width`},`id`),t.td({className:`min-width`},t.span({className:`label`},`String`)),t.td(null,`ID of the record to update.`)))),t.table({className:`api-preview-table query-params`},t.thead(null,t.tr(null,t.th({className:`min-width txt-primary`},`?query params`),t.th({className:`min-width`},`Type`),t.th(null,`Description`))),t.tbody(null,t.tr(null,t.td({className:`min-width`},`expand`),t.td({className:`min-width`},t.span({className:`label`},`String`)),t.td(null,i())),t.tr(null,t.td({className:`min-width`},`fields`),t.td({className:`min-width`},t.span({className:`label`},`String`)),t.td(null,a())))),t.div({className:`block m-t-base m-b-sm`},t.strong(null,`Example responses`)),app.components.codeBlockTabs({tabs:f}))}export{o as docsUpdate};
