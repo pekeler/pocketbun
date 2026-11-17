@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.42.3-pocketbun.0 - 2026-11-17
 
 - Now compatible with PocketBase `v0.42.3` [release notes](https://ganigeorgiev.com/pocketbase/pocketbase/releases?expr=tag%3D%22v0.42.3%22) (upstream commit `c5003ce`).
   - Supports realtime subscriptions across IP changes and OAuth2 redirects from either connection or subscription IP.
