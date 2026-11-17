@@ -49,8 +49,16 @@ const realtimeSSEKeepaliveIntervalMs = 25 * 1000;
 // RealtimeClientAuthKey is the name of the realtime client store key that holds its auth state.
 export const RealtimeClientAuthKey = "auth";
 
-// RealtimeClientIPKey is the name of the realtime client store key that holds the IP of the connected client.
+// RealtimeClientIPKey is the name of the realtime client store key
+// that holds the IP of the client that initialized the realtime connection.
 export const RealtimeClientIPKey = "pbRealtimeClientIP";
+
+// RealtimeOAuth2SubscriptionClientIPKey is the name of the realtime client store key
+// that holds the IP of the client that submitted the OAuth2 subscription.
+//
+// Note that this is used mostly as a fallback in the OAuth2 redirect handler checks
+// to minimize false-positives in relation to https://ganigeorgiev.com/pocketbase/discussions/7758#comment-7ccdsr6gi1nd0y3.
+export const RealtimeOAuth2SubscriptionClientIPKey = "pbRealtimeOAuth2SubscriptionClientIP";
 
 const expandQueryParam = "expand";
 const fieldsQueryParam = "fields";
@@ -300,22 +308,6 @@ async function realtimeSetSubscriptions(event: RequestEvent): Promise<Response> 
 }
 
 async function applyRealtimeSubscriptions(event: RequestEvent, form: RealtimeSubscribeForm, client: Client): Promise<Response> {
-  // for just in case to prevent someone changing a guest subscription
-  //
-  // note1: this is an extra precaution against clientId bruteforce attempts
-  // for installations allowing longer realtime connections duration
-  //
-  // note2: custom registered clients (aka. those without IP in the store)
-  // are excluded from the check for backward compatibility
-  const clientIP = client.Get(RealtimeClientIPKey);
-  if (typeof clientIP === "string" && clientIP !== "" && clientIP !== event.realIP()) {
-    return badRequest(
-      event,
-      "Invalid realtime client.",
-      new Error("the subscription request IP doesn't match with the realtime client IP"),
-    );
-  }
-
   const clientAuth = client.Get(RealtimeClientAuthKey) as RecordModel | null;
   if (clientAuth && !isSameAuth(clientAuth, event.auth)) {
     return forbidden(event, "The current and the previous request authorization don't match.");
@@ -332,6 +324,16 @@ async function applyRealtimeSubscriptions(event: RequestEvent, form: RealtimeSub
 
     // update auth state
     e.Client.Set(RealtimeClientAuthKey, e.RequestEvent.auth ?? null);
+
+    // store the IP of the first "@oauth2" subscription request
+    // to allow IP fallback checks in the redirect handler
+    if (
+      e.Subscriptions.length === 1 &&
+      e.Subscriptions[0] === "@oauth2" &&
+      Object.keys(e.Client.Subscriptions()).length === 0
+    ) {
+      e.Client.Set(RealtimeOAuth2SubscriptionClientIPKey, e.RequestEvent.realIP());
+    }
 
     // unsubscribe from any previous existing subscriptions
     e.Client.Unsubscribe();

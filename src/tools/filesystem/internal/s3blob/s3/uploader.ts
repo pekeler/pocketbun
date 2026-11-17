@@ -2,6 +2,7 @@
 // Deviation: Payload is fully buffered in memory to simplify async upload handling.
 
 import type { Body, HttpRequest, S3 } from "./s3.ts";
+import { parseResponseErrorXml, ResponseError } from "./error.ts";
 import { metadataPrefix, newRequest } from "./s3.ts";
 import { parseXmlRoot, xmlChild, xmlText } from "./xml.ts";
 
@@ -204,7 +205,28 @@ export class Uploader {
     }
 
     const resp = await this.S3!.SignAndSend(req);
-    resp.body.close();
+    // S3 chunks processing can fail with 200, so check the response body.
+    let raw: Uint8Array;
+    try {
+      raw = resp.body.readAll();
+    } catch (error) {
+      throw new Error("failed to read CompleteMultipartUpload body", { cause: error });
+    } finally {
+      resp.body.close();
+    }
+    let parsed;
+    try {
+      const text = new TextDecoder().decode(raw);
+      const rootName = Object.keys(Bun.XML.parse(text.trimStart()))[0];
+      if (rootName?.split(":").pop() === "Error") {
+        parsed = parseResponseErrorXml(text);
+      }
+    } catch {
+      // If it fails to parse as an XML <Error>, assume it is not one.
+    }
+    if (parsed) {
+      throw Object.assign(new ResponseError(), parsed, { Status: resp.status, Raw: raw });
+    }
   }
 }
 

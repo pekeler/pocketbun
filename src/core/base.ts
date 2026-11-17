@@ -4893,7 +4893,7 @@ export class BaseApp implements App {
       }
       // Try to free up unused disk space if a lot of logs have been deleted.
       totalDeletedSinceVacuum += Math.max(oldCount - newCount, 0);
-      if (totalDeletedSinceVacuum >= 20000) {
+      if (totalDeletedSinceVacuum >= 50000) {
         totalDeletedSinceVacuum = 0;
         const error = this.AuxVacuum();
         if (error) this.Logger().Warn("Failed to VACUUM aux database after cleanup", "error", error);

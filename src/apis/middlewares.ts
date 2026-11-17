@@ -480,7 +480,12 @@ function cutStr(value: string, max: number): string {
 
 // Benign errors can occur after an OK status has already been written.
 // See https://ganigeorgiev.com/pocketbase/discussions/8361.
-const benignErrors = ["http2: request body closed due to handler exiting", "http2: stream closed", "write: broken pipe"];
+const benignErrors = [
+  "http2: request body closed due to handler exiting",
+  "http2: stream closed",
+  "write: broken pipe",
+  "write error: client disconnected",
+];
 
 function canBeIgnored(error: Error | null): boolean {
   return !error || benignErrors.some((message) => error.message.includes(message));

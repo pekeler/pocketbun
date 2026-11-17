@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Now compatible with PocketBase `v0.42.3` [release notes](https://ganigeorgiev.com/pocketbase/pocketbase/releases?expr=tag%3D%22v0.42.3%22) (upstream commit `c5003ce`).
+  - Supports realtime subscriptions across IP changes and OAuth2 redirects from either connection or subscription IP.
+  - Detects S3 multipart completion errors returned with HTTP 200, reduces log cleanup vacuum frequency, and improves disconnect and OAuth2 logging.
+  - Adds WebM video previews in the Admin UI.
+
 ## 0.42.2-pocketbun.0 - 2026-11-12
 
 - Now compatible with PocketBase `v0.42.2` [release notes](https://ganigeorgiev.com/pocketbase/pocketbase/releases?expr=tag%3D%22v0.42.2%22) (upstream commit `9873ed8`).

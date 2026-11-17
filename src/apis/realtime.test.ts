@@ -21,6 +21,7 @@ import {
   encodeClusterRealtimeRecord,
   RealtimeClientAuthKey,
   RealtimeClientIPKey,
+  RealtimeOAuth2SubscriptionClientIPKey,
 } from "./realtime.ts";
 import { buildServeHandler } from "./serve.ts";
 
@@ -146,6 +147,7 @@ describe("realtime subscribe", () => {
     client.Unsubscribe();
     client.Unset(RealtimeClientAuthKey);
     client.Unset(RealtimeClientIPKey);
+    client.Unset(RealtimeOAuth2SubscriptionClientIPKey);
   };
 
   const validSubscriptionsLimit = Array.from({ length: 1000 }, (_, i) => JSON.stringify(i));
@@ -228,15 +230,33 @@ describe("realtime subscribe", () => {
       url: "/api/realtime",
       body: `{"clientId":"${client.Id()}","subscriptions":["test"]}`,
       headers: { "x-test-ip": "127.0.0.2" },
-      expectedStatus: 400,
-      expectedContent: ['"data":{}'],
-      expectedEvents: { "*": 0 },
+      expectedStatus: 204,
+      expectedEvents: { "*": 0, OnRealtimeSubscribeRequest: 1 },
       beforeTest: (app) => {
         app.settings().trustedProxy.headers = ["x-test-ip"];
         client.Set(RealtimeClientIPKey, "127.0.0.1");
         app.SubscriptionsBroker().Register(client);
       },
       afterTest: () => {
+        expect(client.Get(RealtimeOAuth2SubscriptionClientIPKey)).toBeUndefined();
+        resetClient();
+      },
+    },
+    {
+      name: "existing client with different IP (oauth2)",
+      method: "POST",
+      url: "/api/realtime",
+      body: `{"clientId":"${client.Id()}","subscriptions":["@oauth2"]}`,
+      headers: { "x-test-ip": "127.0.0.2" },
+      expectedStatus: 204,
+      expectedEvents: { "*": 0, OnRealtimeSubscribeRequest: 1 },
+      beforeTest: (app) => {
+        app.settings().trustedProxy.headers = ["x-test-ip"];
+        client.Set(RealtimeClientIPKey, "127.0.0.1");
+        app.SubscriptionsBroker().Register(client);
+      },
+      afterTest: () => {
+        expect(client.Get(RealtimeOAuth2SubscriptionClientIPKey)).toBe("127.0.0.2");
         resetClient();
       },
     },
@@ -406,7 +426,7 @@ describe("realtime subscribe", () => {
   ];
 
   for (const scenario of scenarios) {
-    it(scenario.name ?? "scenario", async () => {
+    it.serial(scenario.name ?? "scenario", async () => {
       await runApiScenario(scenario);
     });
   }

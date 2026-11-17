@@ -417,4 +417,109 @@ describe("S3 Uploader", () => {
       throw remaining;
     }
   });
+  it("multipart upload complete error with 200 response", async () => {
+    const httpClient = NewClient(
+      {
+        Method: "POST",
+        URL: "http://test_bucket.example.com/test_key?uploads",
+        Match: (req) =>
+          ExpectHeaders(req.headers, {
+            "x-amz-meta-a": "123",
+            "x-amz-meta-b": "456",
+            test_header: "test",
+            Authorization: "^.+Credential=123/.+$",
+          }),
+        Response: responseWithBody(`
+          <?xml version="1.0" encoding="UTF-8"?>
+          <InitiateMultipartUploadResult>
+            <Bucket>test_bucket</Bucket>
+            <Key>test_key</Key>
+            <UploadId>test_id</UploadId>
+          </InitiateMultipartUploadResult>
+        `),
+      },
+      {
+        Method: "PUT",
+        URL: "http://test_bucket.example.com/test_key?partNumber=1&uploadId=test_id",
+        Match: (req) => {
+          const body = req.body ? new TextDecoder().decode(req.body) : "";
+          return (
+            body === "abc" &&
+            ExpectHeaders(req.headers, {
+              "Content-Length": "3",
+              test_header: "test",
+              Authorization: "^.+Credential=123/.+$",
+            })
+          );
+        },
+        Response: responseWithBody("", 200, { Etag: "etag1" }),
+      },
+      {
+        Method: "PUT",
+        URL: "http://test_bucket.example.com/test_key?partNumber=2&uploadId=test_id",
+        Match: (req) => {
+          const body = req.body ? new TextDecoder().decode(req.body) : "";
+          return (
+            body === "def" &&
+            ExpectHeaders(req.headers, {
+              "Content-Length": "3",
+              test_header: "test",
+              Authorization: "^.+Credential=123/.+$",
+            })
+          );
+        },
+        Response: responseWithBody("", 200, { Etag: "etag2" }),
+      },
+      {
+        Method: "POST",
+        URL: "http://test_bucket.example.com/test_key?uploadId=test_id",
+        Match: (req) =>
+          ExpectHeaders(req.headers, {
+            test_header: "test",
+            Authorization: "^.+Credential=123/.+$",
+          }),
+        Response: responseWithBody("<Error><Code>test_code</Code><Message>test_message</Message></Error>", 200),
+      },
+      {
+        Method: "DELETE",
+        URL: "http://test_bucket.example.com/test_key?uploadId=test_id",
+        Match: (req) =>
+          ExpectHeaders(req.headers, {
+            test_header: "test",
+            Authorization: "^.+Credential=123/.+$",
+          }),
+      },
+    );
+
+    const uploader = Object.assign(new Uploader(), {
+      S3: Object.assign(new S3(), {
+        Client: httpClient,
+        Region: "test_region",
+        Bucket: "test_bucket",
+        Endpoint: "http://example.com",
+        AccessKey: "123",
+        SecretKey: "abc",
+      }),
+      Key: "test_key",
+      Payload: "abcdef",
+      Metadata: { a: "123", b: "456" },
+      MinPartSize: 3,
+    });
+
+    let err: Error | null = null;
+    try {
+      await uploader.Upload(null, (req) => req.headers.set("test_header", "test"));
+    } catch (error) {
+      err = error as Error;
+    }
+
+    if (!err) {
+      throw new Error("Expected non-nil error");
+    }
+
+    const remaining = httpClient.AssertNoRemaining();
+    if (remaining) {
+      throw remaining;
+    }
+  });
 });

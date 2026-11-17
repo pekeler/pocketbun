@@ -43,7 +43,7 @@ describe("log queries", () => {
     }
   });
 
-  it("cleanup vacuums after 20000 accumulated deletions", async () => {
+  it("cleanup vacuums after 50000 accumulated deletions", async () => {
     const { app, cleanup } = await newTestApp();
     try {
       const job = app
@@ -51,7 +51,7 @@ describe("log queries", () => {
         .Jobs()
         .find((job) => job.Id() === "__pbLogsCleanup__");
       expect(job).toBeDefined();
-      const counts = [15000, 0, 4999, 0, 1, 0, 1, 0];
+      const counts = [20000, 0, 29999, 0, 1, 0, 1, 0];
       app.CountLogs = () => counts.shift()!;
       app.DeleteOldLogs = () => null;
       let vacuums = 0;

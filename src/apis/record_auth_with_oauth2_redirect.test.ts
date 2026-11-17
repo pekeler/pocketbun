@@ -1,13 +1,14 @@
 // Ported from pocketbase/apis/record_auth_with_oauth2_redirect_test.go
 
-import { describe, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { setTimeout as delay } from "node:timers/promises";
-import type { TestApp } from "../tests/app.ts";
 import type { Client } from "../tools/subscriptions/client.ts";
 import type { Message } from "../tools/subscriptions/message.ts";
 import { runApiScenario, type ApiScenario } from "../tests/api.ts";
+import { newTestApp, type TestApp } from "../tests/app.ts";
 import { DefaultClient } from "../tools/subscriptions/client.ts";
-import { RealtimeClientIPKey } from "./realtime.ts";
+import { RealtimeClientIPKey, RealtimeOAuth2SubscriptionClientIPKey } from "./realtime.ts";
+import { deliverClusterOAuth2RedirectLocally } from "./record_auth_with_oauth2_redirect.ts";
 
 type ClientStubs = {
   c1: Client;
@@ -22,7 +23,7 @@ const oauth2Topic = "@oauth2";
 
 const clientStubs: ClientStubs[] = [];
 
-for (let i = 0; i < 12; i += 1) {
+for (let i = 0; i < 13; i += 1) {
   const c1 = new DefaultClient();
 
   const c2 = new DefaultClient();
@@ -67,6 +68,7 @@ const stub8 = mustStub(8);
 const stub9 = mustStub(9);
 const stub10 = mustStub(10);
 const stub11 = mustStub(11);
+const stub12 = mustStub(12);
 
 const checkFailureRedirect = (res: Response) => {
   const location = res.headers.get("Location") ?? "";
@@ -326,6 +328,27 @@ const scenarios: ApiScenario[] = [
     },
   },
   {
+    name: "client with subscription IP fallback",
+    method: "GET",
+    url: `/api/oauth2-redirect?code=123&state=${stub12.c3.Id()}`,
+    headers: { "x-test-ip": "127.0.0.2" },
+    beforeTest: async (app) => {
+      app.settings().trustedProxy.headers = ["x-test-ip"];
+      stub12.c3.Set(RealtimeClientIPKey, "127.0.0.1");
+      stub12.c3.Set(RealtimeOAuth2SubscriptionClientIPKey, "127.0.0.2");
+      await beforeTestFunc(stub12, { c3: ['"code":"123"'] })(app);
+    },
+    expectedStatus: 307,
+    expectedEvents: { "*": 0 },
+    afterTest: async (app, res) => {
+      await afterTestFunc(app);
+      checkSuccessRedirect(res);
+      if (stub12.c3.HasSubscription(oauth2Topic)) {
+        throw new Error("Expected oauth2 subscription to be removed");
+      }
+    },
+  },
+  {
     name: "apple user's name json (nameKey error)",
     method: "POST",
     url: "/api/oauth2-redirect",
@@ -398,5 +421,35 @@ describe("record auth with oauth2 redirect", () => {
     it.serial(name, async () => {
       await runApiScenario(scenario);
     });
+  }
+});
+
+// PocketBun cluster delivery must enforce the same IP fallback as the local redirect.
+it("cluster OAuth2 redirect accepts connection/subscription IP and rejects unrelated IP", async () => {
+  const { app, cleanup } = await newTestApp();
+  try {
+    const client = new DefaultClient();
+    client.Subscribe("@oauth2");
+    client.Set(RealtimeClientIPKey, "127.0.0.1");
+    client.Set(RealtimeOAuth2SubscriptionClientIPKey, "127.0.0.2");
+    app.SubscriptionsBroker().Register(client);
+    const operation = {
+      kind: "oauth2.deliver" as const,
+      clientId: client.Id(),
+      requestIP: "127.0.0.3",
+      data: "{}",
+      mode: "probe" as const,
+    };
+    expect(deliverClusterOAuth2RedirectLocally(app, operation)).toBe("invalid");
+    expect(deliverClusterOAuth2RedirectLocally(app, { ...operation, mode: "deliver" })).toBe("invalid");
+    expect(client.HasSubscription("@oauth2")).toBe(true);
+    expect(deliverClusterOAuth2RedirectLocally(app, { ...operation, requestIP: "127.0.0.1" })).toBe("present");
+    expect(deliverClusterOAuth2RedirectLocally(app, { ...operation, requestIP: "127.0.0.2" })).toBe("present");
+    expect(deliverClusterOAuth2RedirectLocally(app, { ...operation, requestIP: "127.0.0.2", mode: "deliver" })).toBe(
+      "delivered",
+    );
+    expect(client.HasSubscription("@oauth2")).toBe(false);
+  } finally {
+    await cleanup();
   }
 });

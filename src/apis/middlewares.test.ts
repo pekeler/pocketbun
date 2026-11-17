@@ -54,6 +54,7 @@ describe("middlewares", () => {
       };
       for (const [status, message] of [
         [200, "write: broken pipe"],
+        [200, "write error: client disconnected"],
         [200, "unexpected failure"],
         [400, "write: broken pipe"],
       ] as const) {
@@ -71,7 +72,7 @@ describe("middlewares", () => {
         expect(caught).toBeInstanceOf(Error);
         expect((caught as Error).message).toBe(message);
       }
-      expect(levels).toEqual(["info", "error", "error"]);
+      expect(levels).toEqual(["info", "info", "error", "error"]);
     } finally {
       await cleanup();
     }

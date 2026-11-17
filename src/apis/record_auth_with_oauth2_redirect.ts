@@ -7,7 +7,7 @@ import { clusterEnabled } from "../internal/cluster/context.ts";
 import { putExpiringValue } from "../internal/cluster/expiring.ts";
 import { readRequestTextAndRebind } from "../internal/compat/request_body.ts";
 import { Message } from "../tools/subscriptions/message.ts";
-import { RealtimeClientIPKey } from "./realtime.ts";
+import { RealtimeClientIPKey, RealtimeOAuth2SubscriptionClientIPKey } from "./realtime.ts";
 
 const oauth2SubscriptionTopic = "@oauth2";
 const oauth2RedirectFailurePath = "../_/#/auth/oauth2-redirect-failure";
@@ -51,14 +51,31 @@ export async function oauth2SubscriptionRedirect(app: App, event: RequestEvent):
 
   // additional check to minimize the risk of XSRF attack vectors
   //
-  // note: custom registered clients (aka. those without IP in the store)
+  // note1: custom registered clients (aka. those without RealtimeClientIPKey in the store)
   // are excluded from the check for backward compatibility
+  //
+  // note2: the extra subscriptionClientIP check is performed as fallback
+  // to minimize false-positives in case Google/Apple app reviewers use virtualized
+  // devices with multiple network interfaces during the OAuth2 "All in one" flow
+  // (https://ganigeorgiev.com/pocketbase/discussions/7758#comment-7ccdsr6gi1nd0y3)
   const clientIP = client.Get(RealtimeClientIPKey);
-  if (typeof clientIP === "string" && clientIP !== "" && clientIP !== event.realIP()) {
+  const subscriptionClientIP = client.Get(RealtimeOAuth2SubscriptionClientIPKey);
+  if (
+    typeof clientIP === "string" &&
+    clientIP !== "" &&
+    clientIP !== event.realIP() &&
+    subscriptionClientIP !== event.realIP()
+  ) {
     app
       .Logger()
-      .Debug(
-        "The client IP that completed the authentication is different from the one that initialized the OAuth2 realtime connection",
+      .Warn(
+        "The client IP that completed the authentication is different from the one that initialized the OAuth2 realtime connection/subscription",
+        "connectionClientIP",
+        clientIP,
+        "subscriptionClientIP",
+        subscriptionClientIP,
+        "redirectClientIP",
+        event.realIP(),
       );
     return redirectResponse(redirectStatusCode, oauth2RedirectFailurePath);
   }
@@ -152,11 +169,23 @@ export function deliverClusterOAuth2RedirectLocally(
   }
 
   const clientIP = client.Get(RealtimeClientIPKey);
-  if (typeof clientIP === "string" && clientIP !== "" && clientIP !== operation.requestIP) {
+  const subscriptionClientIP = client.Get(RealtimeOAuth2SubscriptionClientIPKey);
+  if (
+    typeof clientIP === "string" &&
+    clientIP !== "" &&
+    clientIP !== operation.requestIP &&
+    subscriptionClientIP !== operation.requestIP
+  ) {
     app
       .Logger()
-      .Debug(
-        "The client IP that completed the authentication is different from the one that initialized the OAuth2 realtime connection",
+      .Warn(
+        "The client IP that completed the authentication is different from the one that initialized the OAuth2 realtime connection/subscription",
+        "connectionClientIP",
+        clientIP,
+        "subscriptionClientIP",
+        subscriptionClientIP,
+        "redirectClientIP",
+        operation.requestIP,
       );
     return "invalid";
   }
